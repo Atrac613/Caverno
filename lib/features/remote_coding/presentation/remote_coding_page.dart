@@ -11,6 +11,7 @@ import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
+import '../../chat/domain/services/pending_approval_summary.dart';
 import 'remote_coding_client_notifier.dart';
 import 'remote_coding_mobile_notification_notifier.dart';
 import 'remote_coding_platform.dart';
@@ -393,26 +394,53 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, false),
-                          icon: const Icon(Icons.block),
-                          label: const Text('Deny'),
+                  // A kind that needs structured input — SSH credentials,
+                  // computer-use smoke arming — cannot be finished here, and
+                  // the desktop refuses such a resolution anyway. Say so,
+                  // rather than showing a button that would be rejected or,
+                  // worse, one that answers a question it did not ask.
+                  if (!approval.isSimpleDecision)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 18,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: FilledButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, true),
-                          icon: const Icon(Icons.check),
-                          label: const Text('Approve'),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'This request needs input that only the desktop '
+                            'can collect. Finish it there.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.pop(sheetContext, false),
+                            icon: const Icon(Icons.block),
+                            label: const Text('Deny'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.pop(sheetContext, true),
+                            icon: const Icon(Icons.check),
+                            label: const Text('Approve'),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -420,6 +448,12 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         );
       },
     );
+
+    // Closing a read-only sheet is not a denial. The sheet showed no buttons,
+    // so `approved` is necessarily null here, and sending `false` would refuse
+    // a request the person was told to finish on the desktop — and would be
+    // rejected there anyway, since the desktop resolves simple decisions only.
+    if (!approval.isSimpleDecision) return;
 
     await ref
         .read(remoteCodingClientProvider.notifier)
@@ -677,11 +711,26 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     );
   }
 
-  IconData _approvalIcon(RemoteCodingApprovalKind kind) {
+  /// An icon for a wire approval kind.
+  ///
+  /// The kind is a free-form string, so the default has to stand for "an
+  /// approval whose kind this build does not know" rather than resembling one
+  /// of the kinds it does. A generic warning glyph says that honestly; picking
+  /// the closest-looking icon would not.
+  IconData _approvalIcon(String kind) {
     return switch (kind) {
-      RemoteCodingApprovalKind.file => Icons.edit_note,
-      RemoteCodingApprovalKind.localCommand => Icons.terminal,
-      RemoteCodingApprovalKind.gitCommand => Icons.account_tree,
+      PendingApprovalKinds.file => Icons.edit_note,
+      PendingApprovalKinds.localCommand => Icons.terminal,
+      PendingApprovalKinds.gitCommand => Icons.account_tree,
+      PendingApprovalKinds.sshCommand ||
+      PendingApprovalKinds.sshConnect => Icons.dns_outlined,
+      PendingApprovalKinds.browserAction => Icons.public,
+      PendingApprovalKinds.computerUse => Icons.desktop_windows_outlined,
+      PendingApprovalKinds.bleConnect => Icons.bluetooth,
+      PendingApprovalKinds.serialOpen => Icons.cable,
+      PendingApprovalKinds.participantTool => Icons.groups_outlined,
+      PendingApprovalKinds.assumptionConfirmation => Icons.help_outline,
+      _ => Icons.warning_amber_outlined,
     };
   }
 }

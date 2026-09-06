@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_diagnostics.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_support_packet.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
@@ -34,7 +35,7 @@ void main() {
     final encoded = jsonEncode(snapshot);
 
     expect(snapshot['schemaName'], 'remote_coding_host_diagnostics');
-    expect(snapshot['protocolVersion'], 1);
+    expect(snapshot['protocolVersion'], remoteCodingProtocolVersion);
     expect(snapshot['activeConnectionCount'], 1);
     expect(snapshot['pairedDeviceCount'], 1);
     expect(snapshot['activeUrlAvailable'], isTrue);
@@ -84,7 +85,7 @@ void main() {
     final encoded = jsonEncode(snapshot);
 
     expect(snapshot['schemaName'], 'remote_coding_mobile_diagnostics');
-    expect(snapshot['protocolVersion'], 1);
+    expect(snapshot['protocolVersion'], remoteCodingProtocolVersion);
     expect(snapshot['connectionStatus'], 'disconnected');
     expect(snapshot['autoReconnectScheduled'], isTrue);
     expect(snapshot['reconnectAttempt'], 2);

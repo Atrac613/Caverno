@@ -12,6 +12,7 @@ import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/services/pending_approval_summary.dart';
 import '../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
@@ -1179,94 +1180,103 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     );
   }
 
+  /// The one pending approval this client should be shown, or null.
+  ///
+  /// Projects through [describePendingApproval] and
+  /// [pendingApprovalsByPriority] rather than a switch of its own. The switch
+  /// this replaced knew three kinds — file, local command, git command — while
+  /// a remote turn runs on the desktop with the desktop's whole tool
+  /// catalogue and can raise any of eleven. An SSH, browser, BLE, serial,
+  /// computer-use, participant-tool, or assumption approval therefore blocked
+  /// the desktop with nothing shown on the phone that started the turn and
+  /// nobody able to answer it (SA-26).
   RemoteCodingApproval? _pendingRemoteApproval(
     ChatState chatState, {
     required String? authenticatedDeviceId,
   }) {
-    final file = chatState.pendingFileOperation;
-    if (file != null &&
-        _canResolveInteraction(
-          origin: file.origin,
-          ownerDeviceId: file.remoteDeviceId,
-          authenticatedDeviceId: authenticatedDeviceId,
-        )) {
+    for (final request in pendingApprovalsByPriority(chatState)) {
+      final summary = describePendingApproval(request);
+      if (!_canResolveInteraction(
+        origin: summary.origin,
+        ownerDeviceId: summary.remoteDeviceId,
+        authenticatedDeviceId: authenticatedDeviceId,
+      )) {
+        continue;
+      }
       return RemoteCodingApproval(
-        id: file.id,
-        kind: RemoteCodingApprovalKind.file,
-        title: file.operation,
-        subtitle: file.path,
-        detail: file.preview,
-        reason: file.reason,
+        id: summary.id,
+        kind: summary.kind,
+        title: summary.title,
+        subtitle: summary.subtitle,
+        detail: summary.detail,
+        isSimpleDecision: summary.isSimpleDecision,
+        reason: _approvalReason(request),
+        warningTitle: _approvalWarningTitle(request),
+        warningMessage: _approvalWarningMessage(request),
       );
     }
-
-    final local = chatState.pendingLocalCommand;
-    if (local != null &&
-        _canResolveInteraction(
-          origin: local.origin,
-          ownerDeviceId: local.remoteDeviceId,
-          authenticatedDeviceId: authenticatedDeviceId,
-        )) {
-      return RemoteCodingApproval(
-        id: local.id,
-        kind: RemoteCodingApprovalKind.localCommand,
-        title: 'Local Command Approval',
-        subtitle: local.workingDirectory,
-        detail: local.command,
-        reason: local.reason,
-        warningTitle: local.warningTitle,
-        warningMessage: local.warningMessage,
-      );
-    }
-
-    final git = chatState.pendingGitCommand;
-    if (git != null &&
-        _canResolveInteraction(
-          origin: git.origin,
-          ownerDeviceId: git.remoteDeviceId,
-          authenticatedDeviceId: authenticatedDeviceId,
-        )) {
-      return RemoteCodingApproval(
-        id: git.id,
-        kind: RemoteCodingApprovalKind.gitCommand,
-        title: 'Git Command Approval',
-        subtitle: git.workingDirectory,
-        detail: 'git ${git.command}',
-        reason: git.reason,
-      );
-    }
-
     return null;
   }
 
+  /// The model's stated reason, where the kind records one separately from the
+  /// summary's `detail`.
+  ///
+  /// [describePendingApproval] folds reason and warning into one `detail` for
+  /// surfaces that have room for a single line. The phone has room for both
+  /// and rendered them as separate fields before this projection existed, so
+  /// they are read back off the request rather than dropped.
+  String? _approvalReason(PendingToolApproval<dynamic> request) =>
+      switch (request) {
+        PendingFileOperation() => request.reason,
+        PendingLocalCommand() => request.reason,
+        PendingGitCommand() => request.reason,
+        PendingSshCommand() => request.reason,
+        PendingBrowserAction() => request.reason,
+        PendingComputerUseAction() => request.reason,
+        PendingParticipantToolApproval() => request.reason,
+        PendingAssumptionConfirmation() => request.clarificationQuestion,
+        PendingBleConnect() ||
+        PendingSerialOpen() ||
+        PendingSshConnect() => null,
+      };
+
+  String? _approvalWarningTitle(PendingToolApproval<dynamic> request) =>
+      switch (request) {
+        PendingLocalCommand() => request.warningTitle,
+        _ => null,
+      };
+
+  String? _approvalWarningMessage(PendingToolApproval<dynamic> request) =>
+      switch (request) {
+        PendingLocalCommand() => request.warningMessage,
+        PendingBrowserAction() =>
+          request.warningMessage.isEmpty ? null : request.warningMessage,
+        PendingComputerUseAction() =>
+          request.warningMessage.isEmpty ? null : request.warningMessage,
+        _ => null,
+      };
+
+  /// Whether [approvalId] is one this client may answer.
+  ///
+  /// Walks the same list [_pendingRemoteApproval] projects from, so a client
+  /// can answer exactly what it was shown. A kind that needs structured input
+  /// is refused here as well as rendered read-only: `isSimpleDecision` is a
+  /// presentation hint, and the mutation boundary must not depend on a client
+  /// having honoured one.
   bool _canResolveApproval(
     ChatState chatState,
     String approvalId,
     String? authenticatedDeviceId,
   ) {
-    final file = chatState.pendingFileOperation;
-    if (file != null && file.id == approvalId) {
-      return _canResolveInteraction(
-        origin: file.origin,
-        ownerDeviceId: file.remoteDeviceId,
-        authenticatedDeviceId: authenticatedDeviceId,
-      );
-    }
-    final local = chatState.pendingLocalCommand;
-    if (local != null && local.id == approvalId) {
-      return _canResolveInteraction(
-        origin: local.origin,
-        ownerDeviceId: local.remoteDeviceId,
-        authenticatedDeviceId: authenticatedDeviceId,
-      );
-    }
-    final git = chatState.pendingGitCommand;
-    if (git != null && git.id == approvalId) {
-      return _canResolveInteraction(
-        origin: git.origin,
-        ownerDeviceId: git.remoteDeviceId,
-        authenticatedDeviceId: authenticatedDeviceId,
-      );
+    for (final request in pendingApprovalsByPriority(chatState)) {
+      if (request.id != approvalId) continue;
+      final summary = describePendingApproval(request);
+      return summary.isSimpleDecision &&
+          _canResolveInteraction(
+            origin: summary.origin,
+            ownerDeviceId: summary.remoteDeviceId,
+            authenticatedDeviceId: authenticatedDeviceId,
+          );
     }
     return false;
   }

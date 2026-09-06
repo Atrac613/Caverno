@@ -360,7 +360,14 @@ const Map<String, int> _lineBudgets = {
   // their own file below, which paid for the new type and its state slot with
   // room to spare rather than by raising a budget.
   'lib/features/chat/presentation/providers/chat_state.dart': 139,
-  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 448,
+  // +16 lifting `origin` and `remoteDeviceId` off four subclasses onto the
+  // sealed base. Seven of the eleven kinds could not say which turn raised
+  // them, so a Remote Coding turn that hit an SSH, browser, BLE, serial,
+  // computer-use or participant-tool approval blocked the desktop with the
+  // device that started it unable to see or answer it (SA-26). The four
+  // subclass copies come out, seven `super.` forwards go in, and the residue
+  // is that forwarding: it is the fix, and it does not extract.
+  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 464,
   'lib/features/chat/presentation/providers/pending_tool_approval_registry.dart':
       144,
   'lib/features/chat/presentation/providers/pending_ask_user_question.dart': 46,
@@ -450,7 +457,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/pages/approval_sheet_dispatcher.dart': 159,
   'lib/features/chat/domain/services/material_assumption_confirmation_gate.dart':
       99,
-  'lib/features/chat/domain/services/computer_use_action_presentation.dart': 113,
+  'lib/features/chat/domain/services/computer_use_action_presentation.dart':
+      113,
   'lib/features/chat/presentation/widgets/approval/assumption_confirmation_sheet.dart':
       199,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments.dart':
@@ -867,7 +875,11 @@ const Map<String, int> _libraryLineBudgets = {
   // and an import, paid for by the last computer-use description helper
   // leaving for ComputerUseActionPresentation. Then +2 fixing the zone
   // defect that entry point shipped with.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19731,
+  // Then +13 stamping the active turn's origin on the seven approval kinds
+  // that could not carry it (SA-26); two lines at each of seven construction
+  // sites in the parts, less three saved where resolveRemoteApproval stopped
+  // keeping a chain of its own.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19744,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

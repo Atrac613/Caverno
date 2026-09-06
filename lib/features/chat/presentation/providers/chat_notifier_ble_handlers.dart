@@ -132,6 +132,8 @@ extension ChatNotifierBleHandlers on ChatNotifier {
       deviceId: deviceId,
       deviceName: deviceName,
       completer: completer,
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

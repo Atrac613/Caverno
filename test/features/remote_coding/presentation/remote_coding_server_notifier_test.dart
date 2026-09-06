@@ -106,6 +106,49 @@ class _InteractionOwnershipChatNotifier extends ChatNotifier {
     approvalResolved = false;
   }
 
+  /// A kind that only became reachable over the wire in SA-26, and one that
+  /// reaches it read-only.
+  void setSshCommand({required String? remoteDeviceId}) {
+    state = state.copyWith(
+      pendingSshCommand: PendingSshCommand(
+        owner: ChatTurnOwner(
+          conversationId: 'conversation-1',
+          interactionGeneration: 1,
+        ),
+        id: 'ssh-command-1',
+        command: 'systemctl restart nginx',
+        reason: 'Restart the web server',
+        host: 'build-box',
+        username: 'deploy',
+        completer: Completer<bool>(),
+        origin: ChatInteractionOrigin.remote,
+        remoteDeviceId: remoteDeviceId,
+      ),
+    );
+    approvalResolved = false;
+  }
+
+  void setSshConnect({required String? remoteDeviceId}) {
+    state = state.copyWith(
+      pendingSshConnect: PendingSshConnect(
+        owner: ChatTurnOwner(
+          conversationId: 'conversation-1',
+          interactionGeneration: 1,
+        ),
+        id: 'ssh-connect-1',
+        host: 'build-box',
+        port: 22,
+        username: 'deploy',
+        savedCredential: null,
+        identityCandidates: const [],
+        completer: Completer<SshConnectApproval?>(),
+        origin: ChatInteractionOrigin.remote,
+        remoteDeviceId: remoteDeviceId,
+      ),
+    );
+    approvalResolved = false;
+  }
+
   void setQuestion({required String remoteDeviceId}) {
     state = state.copyWith(
       pendingAskUserQuestion: PendingAskUserQuestion(
@@ -128,12 +171,35 @@ class _InteractionOwnershipChatNotifier extends ChatNotifier {
 
   @override
   bool resolveRemoteApproval({required String id, required bool approved}) {
-    final pending = state.pendingFileOperation;
-    if (pending == null || pending.id != id) return false;
-    if (!pending.completer.isCompleted) pending.completer.complete(approved);
-    state = state.copyWith(pendingFileOperation: null);
-    approvalResolved = true;
-    return true;
+    final file = state.pendingFileOperation;
+    if (file != null && file.id == id) {
+      if (!file.completer.isCompleted) file.completer.complete(approved);
+      state = state.copyWith(pendingFileOperation: null);
+      approvalResolved = true;
+      return true;
+    }
+    final ssh = state.pendingSshCommand;
+    if (ssh != null && ssh.id == id) {
+      if (!ssh.completer.isCompleted) ssh.completer.complete(approved);
+      state = state.copyWith(pendingSshCommand: null);
+      approvalResolved = true;
+      return true;
+    }
+    // Deliberately resolvable here, unlike the real `resolveApprovalById`,
+    // which omits SSH connect because it needs credentials. The server's
+    // `isSimpleDecision` gate has to refuse this on its own: a boundary that
+    // holds only because no resolver happens to exist stops holding the day
+    // one is added.
+    final sshConnect = state.pendingSshConnect;
+    if (sshConnect != null && sshConnect.id == id) {
+      if (!sshConnect.completer.isCompleted) {
+        sshConnect.completer.complete(null);
+      }
+      state = state.copyWith(pendingSshConnect: null);
+      approvalResolved = true;
+      return true;
+    }
+    return false;
   }
 }
 
@@ -552,6 +618,82 @@ void main() {
                 message.payload['code'] == 'approval_not_found',
           ),
           description: 'the desktop-origin approval rejection',
+        );
+        expect(chatNotifier.approvalResolved, isFalse);
+
+        // SA-26: a remote turn runs on the desktop with the desktop's whole
+        // tool catalogue, so the kinds it can block on are not the three the
+        // wire used to carry. An SSH command reaches the device that started
+        // the turn, and is answerable there.
+        chatNotifier.setSshCommand(remoteDeviceId: ownerDevice.id);
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'owner-ssh-snapshot',
+            payload: const {},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'owner-ssh-snapshot' &&
+                message.payload['pendingApproval']?['kind'] == 'sshCommand' &&
+                message.payload['pendingApproval']?['isSimpleDecision'] == true,
+          ),
+          description: 'the owner SSH-command snapshot',
+        );
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'owner-ssh-approval',
+            payload: const {'approvalId': 'ssh-command-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'owner-ssh-approval' &&
+                message.type == 'approvalResolved',
+          ),
+          description: 'the owner SSH-command resolution',
+        );
+        expect(chatNotifier.approvalResolved, isTrue);
+
+        // An SSH *connect* needs credentials. It is shown so the person knows
+        // what the desktop is waiting on, and refused at the mutation boundary
+        // rather than only hidden behind a missing button on the client.
+        chatNotifier.setSshConnect(remoteDeviceId: ownerDevice.id);
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'owner-ssh-connect-snapshot',
+            payload: const {},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'owner-ssh-connect-snapshot' &&
+                message.payload['pendingApproval']?['kind'] == 'sshConnect' &&
+                message.payload['pendingApproval']?['isSimpleDecision'] ==
+                    false,
+          ),
+          description: 'the owner SSH-connect snapshot',
+        );
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'owner-ssh-connect-approval',
+            payload: const {'approvalId': 'ssh-connect-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'owner-ssh-connect-approval' &&
+                message.payload['code'] == 'approval_not_found',
+          ),
+          description: 'the SSH-connect resolution rejection',
         );
         expect(chatNotifier.approvalResolved, isFalse);
 

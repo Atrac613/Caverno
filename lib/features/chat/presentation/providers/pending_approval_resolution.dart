@@ -23,7 +23,8 @@ PendingApprovalSummary? findPendingApprovalSummary(
   PendingToolApprovalRegistry registry, {
   required String conversationId,
 }) {
-  for (final request in registry.pendingOfType<PendingToolApproval<dynamic>>()) {
+  for (final request
+      in registry.pendingOfType<PendingToolApproval<dynamic>>()) {
     if (request.owner.conversationId != conversationId) continue;
     final summary = describePendingApproval(request);
     // SEC4.5g: an approval owned by a paired Remote Coding device is that
@@ -53,6 +54,12 @@ PendingApprovalSummary? findPendingApprovalSummary(
 /// `PendingToolApproval`, so a new kind surfaces there as a compile error and
 /// its decision about this list has to be made consciously.
 ///
+/// A chain is not exhaustive the way that switch is, though, and it showed:
+/// `pendingAssumptionConfirmation` was added later and reported
+/// `isSimpleDecision: true` while appearing in no chain and no priority list,
+/// so it could be shown on a compact surface and never answered from one. The
+/// test asserts every simple-decision kind resolves through here.
+///
 /// Returns false when [id] is unknown, already resolved, or of one of those two
 /// kinds.
 bool resolveApprovalById(
@@ -70,7 +77,8 @@ bool resolveApprovalById(
     notifier.resolveBrowserAction(id: id, approved: approved) ||
     notifier.resolveBleConnect(id: id, approved: approved) ||
     notifier.resolveSerialOpen(id: id, approved: approved) ||
-    notifier.resolveParticipantToolApproval(id: id, approved: approved);
+    notifier.resolveParticipantToolApproval(id: id, approved: approved) ||
+    notifier.resolveAssumptionConfirmation(id: id, confirmed: approved);
 
 /// Raises the "a background thread is waiting" notification.
 ///
@@ -90,9 +98,7 @@ Future<void> showPendingApprovalNotification(
   return notifications.showApprovalRequiredNotification(
     conversationId: conversationId,
     title: threadTitle.isEmpty ? 'Caverno' : threadTitle,
-    body: threadTitle.isEmpty
-        ? 'A thread $subject.'
-        : '$threadTitle $subject.',
+    body: threadTitle.isEmpty ? 'A thread $subject.' : '$threadTitle $subject.',
     approvalId: summary?.id,
     // Actions are only offered when a bare yes/no is a truthful answer.
     allowsDirectDecision: summary?.isSimpleDecision ?? false,

@@ -143,6 +143,8 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       portName: portName,
       baudRate: baudRate,
       completer: completer,
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

@@ -2067,13 +2067,12 @@ class ChatNotifier extends Notifier<ChatState> {
   bool get _isRemoteInteraction =>
       _activeInteractionOrigin == ChatInteractionOrigin.remote;
 
+  /// Applies a paired device's decision to whichever approval [id] names.
+  ///
+  /// Delegates rather than keeping its own chain of three: file, git and local
+  /// command are not the set a remote turn raises (SA-26).
   bool resolveRemoteApproval({required String id, required bool approved}) =>
-      resolveFileOperation(id: id, approved: approved) ||
-      resolveGitCommand(id: id, approved: approved) ||
-      resolveLocalCommand(
-        id: id,
-        approval: LocalCommandApproval(approved: approved),
-      );
+      resolveApprovalById(this, id: id, approved: approved);
 
   int get _interactionGeneration => _activeResponseRegistry.currentGeneration;
   String? get _activeResponseConversationId =>

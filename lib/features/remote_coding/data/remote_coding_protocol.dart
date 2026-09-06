@@ -1,6 +1,15 @@
 import 'dart:convert';
 
-const int remoteCodingProtocolVersion = 1;
+/// Bumped to 2 on 2026-09-06 (SA-26).
+///
+/// The approval wire model changed shape: `kind` became a free-form string
+/// covering all eleven [PendingApprovalKinds] rather than an enum of three,
+/// and `isSimpleDecision` was added. A version-1 client decodes an unknown
+/// kind as `file`, so an SSH or shell approval from a version-2 desktop would
+/// be shown to it as a file edit. [RemoteCodingProtocolMessage.decode]
+/// requires an exact match, which turns that into a refused connection the
+/// user can see and fix instead of a misrepresented approval they cannot.
+const int remoteCodingProtocolVersion = 2;
 
 class RemoteCodingProtocolMessage {
   const RemoteCodingProtocolMessage({

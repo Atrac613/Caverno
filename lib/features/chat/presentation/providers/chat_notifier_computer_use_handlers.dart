@@ -380,6 +380,8 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       visionObservationDetails: visionObservationDetails,
       reason: reason,
       completer: completer,
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

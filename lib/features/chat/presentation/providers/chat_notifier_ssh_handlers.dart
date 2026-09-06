@@ -79,6 +79,8 @@ extension ChatNotifierSshHandlers on ChatNotifier {
           ? config.identityFiles
           : SshClientConnector.discoverDefaultIdentities(),
       completer: completer,
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,
@@ -113,6 +115,8 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       host: session?.host ?? '(no session)',
       username: session?.username ?? '',
       completer: completer,
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

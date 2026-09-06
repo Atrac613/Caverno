@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -85,13 +86,14 @@ void main() {
 
   RemoteCodingApproval approval({
     String id = 'remote-1',
-    RemoteCodingApprovalKind kind = RemoteCodingApprovalKind.localCommand,
+    String kind = PendingApprovalKinds.localCommand,
   }) => RemoteCodingApproval(
     id: id,
     kind: kind,
     title: 'dart analyze',
     subtitle: 'caverno',
     detail: '',
+    isSimpleDecision: true,
   );
 
   test('a remote approval resolves over the WebSocket', () async {
@@ -114,15 +116,15 @@ void main() {
   });
 
   test('every remote kind is answerable this way', () async {
-    for (final kind in RemoteCodingApprovalKind.values) {
-      client.setPendingApproval(approval(id: 'remote-${kind.name}', kind: kind));
+    for (final kind in PendingApprovalKinds.all) {
+      client.setPendingApproval(approval(id: 'remote-$kind', kind: kind));
 
-      await act(approvalId: 'remote-${kind.name}');
+      await act(approvalId: 'remote-$kind');
     }
 
     expect(
       client.resolved.map((entry) => entry.id),
-      RemoteCodingApprovalKind.values.map((kind) => 'remote-${kind.name}'),
+      PendingApprovalKinds.all.map((kind) => 'remote-$kind'),
     );
   });
 

@@ -39,7 +39,7 @@ class WatchApprovalMapper {
   /// The first pending approval the watch should show, or null when none is
   /// eligible.
   WatchApproval? map(ChatState state) {
-    for (final request in _byPriority(state)) {
+    for (final request in pendingApprovalsByPriority(state)) {
       final summary = describePendingApproval(request);
       if (summary.isOwnedByRemoteDevice) continue;
       return WatchApproval(
@@ -53,21 +53,6 @@ class WatchApprovalMapper {
     }
     return null;
   }
-
-  /// Highest-consequence first; the last two need input the watch cannot
-  /// collect and are surfaced read-only.
-  Iterable<PendingToolApproval<dynamic>> _byPriority(ChatState state) => [
-    state.pendingFileOperation,
-    state.pendingLocalCommand,
-    state.pendingGitCommand,
-    state.pendingSshCommand,
-    state.pendingBrowserAction,
-    state.pendingBleConnect,
-    state.pendingSerialOpen,
-    state.pendingParticipantToolApproval,
-    state.pendingComputerUseAction,
-    state.pendingSshConnect,
-  ].whereType<PendingToolApproval<dynamic>>();
 
   /// Projects a pending `ask_user_question` for the watch, applying the same
   /// remote-ownership exclusion as [map].
@@ -89,8 +74,7 @@ class WatchApprovalMapper {
       question: pending.question,
       options: pending.options
           .map(
-            (option) =>
-                WatchQuestionOption(id: option.id, label: option.label),
+            (option) => WatchQuestionOption(id: option.id, label: option.label),
           )
           .toList(growable: false),
       allowMultiple: pending.allowMultiple,

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('decodes a strict versioned command object', () {
     final raw = jsonEncode({
-      'version': 1,
+      'version': remoteCodingProtocolVersion,
       'type': 'sendMessage',
       'id': 'request-1',
       'payload': {'content': 'Fix the failing test'},
@@ -20,16 +20,27 @@ void main() {
   });
 
   test('rejects unsupported protocol versions', () {
-    final raw = jsonEncode({
-      'version': 2,
-      'type': 'requestSnapshot',
-      'payload': <String, dynamic>{},
-    });
+    // Both directions, against the current version rather than a literal: the
+    // check is an exact match, so a newer peer must be refused as loudly as an
+    // older one. A version-1 client decoding a version-2 approval would render
+    // an unknown kind as `file` (SA-26), which is why the refusal is the
+    // feature and not a limitation to relax.
+    for (final version in <int>[
+      remoteCodingProtocolVersion - 1,
+      remoteCodingProtocolVersion + 1,
+    ]) {
+      final raw = jsonEncode({
+        'version': version,
+        'type': 'requestSnapshot',
+        'payload': <String, dynamic>{},
+      });
 
-    expect(
-      () => RemoteCodingProtocolMessage.decode(raw),
-      throwsA(isA<FormatException>()),
-    );
+      expect(
+        () => RemoteCodingProtocolMessage.decode(raw),
+        throwsA(isA<FormatException>()),
+        reason: 'version $version must not decode',
+      );
+    }
   });
 
   test('client command allowlist does not include project creation', () {
@@ -72,9 +83,6 @@ void main() {
 
   test('server event allowlist includes terminal run delivery', () {
     expect(RemoteCodingProtocol.allowedServerEvents, contains('runTerminal'));
-    expect(
-      RemoteCodingProtocol.allowedServerEvents,
-      contains('authChallenge'),
-    );
+    expect(RemoteCodingProtocol.allowedServerEvents, contains('authChallenge'));
   });
 }

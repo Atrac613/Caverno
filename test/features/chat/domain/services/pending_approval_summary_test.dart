@@ -10,6 +10,33 @@ void main() {
   ChatTurnOwner owner() =>
       ChatTurnOwner(conversationId: 'c-1', interactionGeneration: 1);
 
+  PendingComputerUseAction computerUseAction() => PendingComputerUseAction(
+    owner: owner(),
+    id: 'cu-1',
+    toolName: 'computer_click',
+    title: 'Click Send',
+    riskCategory: 'input',
+    riskLabel: 'High',
+    warningMessage: 'This clicks a button in another app.',
+    approveLabel: 'Click',
+    requiresUserApproval: true,
+    requiresSmokeArming: true,
+    emergencyStop: false,
+    summary: 'Click at (10, 20)',
+    details: const [],
+    targetSummary: 'Mail',
+    targetDetails: const [],
+    exactTextPreview: null,
+    exactTextLength: null,
+    approvalBoundaries: const [],
+    approvalBlockerCodes: const [],
+    actionProposalNextAction: null,
+    visionObservationSummary: null,
+    visionObservationDetails: const [],
+    reason: null,
+    completer: Completer<ComputerUseActionApprovalDecision>(),
+  );
+
   group('describePendingApproval', () {
     test('a shell command leads with its warning, not its reason', () {
       final summary = describePendingApproval(
@@ -220,6 +247,134 @@ void main() {
             'The model marks materiality without always writing a '
             'question, and an empty detail leaves the interruption '
             'unexplained.',
+      );
+    });
+
+    test('every kind is ranked, and ranked once', () {
+      // `pendingApprovalsByPriority` is a list, so it cannot be exhaustive the
+      // way the sealed switch above is. It was not: `assumptionConfirmation`
+      // was added later, reported `isSimpleDecision: true`, and appeared in no
+      // priority list and no resolution chain — so it could be shown on a
+      // compact surface and never answered from one.
+      final state = ChatState(
+        messages: const [],
+        isLoading: false,
+        pendingFileOperation: PendingFileOperation(
+          owner: owner(),
+          id: 'file-1',
+          operation: 'write',
+          path: 'a.dart',
+          preview: '',
+          reason: null,
+          completer: Completer<bool>(),
+        ),
+        pendingLocalCommand: PendingLocalCommand(
+          owner: owner(),
+          id: 'local-1',
+          command: 'ls',
+          workingDirectory: '/repo',
+          reason: null,
+          warningTitle: null,
+          warningMessage: null,
+          completer: Completer<LocalCommandApproval>(),
+        ),
+        pendingGitCommand: PendingGitCommand(
+          owner: owner(),
+          id: 'git-1',
+          command: 'status',
+          workingDirectory: '/repo',
+          reason: null,
+          completer: Completer<bool>(),
+        ),
+        pendingSshCommand: PendingSshCommand(
+          owner: owner(),
+          id: 'sshcmd-1',
+          command: 'uptime',
+          reason: null,
+          host: 'h',
+          username: 'u',
+          completer: Completer<bool>(),
+        ),
+        pendingBrowserAction: PendingBrowserAction(
+          owner: owner(),
+          id: 'browser-1',
+          toolName: 'browser_click',
+          title: 'Click',
+          riskLabel: 'low',
+          warningMessage: '',
+          approveLabel: 'Allow',
+          summary: 'click',
+          details: const [],
+          targetSummary: null,
+          sensitiveValuePreview: null,
+          reason: null,
+          completer: Completer<bool>(),
+        ),
+        pendingAssumptionConfirmation: PendingAssumptionConfirmation(
+          owner: owner(),
+          id: 'assume-1',
+          itemId: 'i-1',
+          kind: ConversationContractItemKind.constraint,
+          itemText: 'The port is free.',
+          clarificationQuestion: null,
+          toolName: 'write_file',
+          completer: Completer<bool>(),
+        ),
+        pendingBleConnect: PendingBleConnect(
+          owner: owner(),
+          id: 'ble-1',
+          deviceId: 'AA:BB',
+          deviceName: null,
+          completer: Completer<bool>(),
+        ),
+        pendingSerialOpen: PendingSerialOpen(
+          owner: owner(),
+          id: 'serial-1',
+          portName: '/dev/tty',
+          baudRate: 9600,
+          completer: Completer<bool>(),
+        ),
+        pendingParticipantToolApproval: PendingParticipantToolApproval(
+          owner: owner(),
+          id: 'participant-1',
+          participantId: 'p-1',
+          participantName: 'Reviewer',
+          participantRoleLabel: 'reviewer',
+          toolName: 'read_file',
+          arguments: const {},
+          reason: null,
+          completer: Completer<bool>(),
+        ),
+        pendingComputerUseAction: computerUseAction(),
+        pendingSshConnect: PendingSshConnect(
+          owner: owner(),
+          id: 'sshconnect-1',
+          host: 'h',
+          port: 22,
+          username: 'u',
+          savedCredential: null,
+          identityCandidates: const [],
+          completer: Completer<SshConnectApproval?>(),
+        ),
+      );
+
+      final ranked = pendingApprovalsByPriority(
+        state,
+      ).map((request) => describePendingApproval(request).kind).toList();
+
+      expect(ranked, hasLength(PendingApprovalKinds.all.length));
+      expect(ranked.toSet(), PendingApprovalKinds.all.toSet());
+      expect(
+        ranked.first,
+        PendingApprovalKinds.file,
+        reason: 'the kinds that change the machine come first',
+      );
+      expect(
+        ranked.sublist(ranked.length - 2).toSet(),
+        {PendingApprovalKinds.computerUse, PendingApprovalKinds.sshConnect},
+        reason:
+            'the two that need input a compact surface cannot collect '
+            'must not displace one that can actually be answered',
       );
     });
 

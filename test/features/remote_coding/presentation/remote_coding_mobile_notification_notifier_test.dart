@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
@@ -226,13 +227,15 @@ void main() {
     // label and the command lives in the detail.
     RemoteCodingApproval approval({
       String id = 'approval-1',
-      RemoteCodingApprovalKind kind = RemoteCodingApprovalKind.localCommand,
+      String kind = PendingApprovalKinds.localCommand,
+      bool isSimpleDecision = true,
     }) => RemoteCodingApproval(
       id: id,
       kind: kind,
       title: 'Local Command Approval',
       subtitle: '/Users/dev/caverno',
       detail: 'dart analyze',
+      isSimpleDecision: isSimpleDecision,
     );
 
     test('a blocked desktop turn raises an actionable notification', () async {
@@ -280,10 +283,11 @@ void main() {
       fixture.clientNotifier.emitPendingApproval(
         const RemoteCodingApproval(
           id: 'approval-git',
-          kind: RemoteCodingApprovalKind.gitCommand,
+          kind: PendingApprovalKinds.gitCommand,
           title: 'Git Command Approval',
           subtitle: '/Users/dev/caverno',
           detail: 'git push --force',
+          isSimpleDecision: true,
         ),
         host: host(),
       );
@@ -309,10 +313,11 @@ void main() {
       fixture.clientNotifier.emitPendingApproval(
         const RemoteCodingApproval(
           id: 'approval-file',
-          kind: RemoteCodingApprovalKind.file,
+          kind: PendingApprovalKinds.file,
           title: 'write lib/main.dart',
           subtitle: 'lib/main.dart',
           detail: 'void main() { ... }',
+          isSimpleDecision: true,
         ),
         host: host(),
       );
@@ -327,10 +332,15 @@ void main() {
     });
 
     test('every remote kind is a truthful yes/no', () async {
-      // file, localCommand and gitCommand are exhaustive on the wire and all
-      // three are bare decisions, unlike the chat kinds that need credentials
-      // or smoke arming.
-      for (final kind in RemoteCodingApprovalKind.values) {
+      // Every kind can now cross the wire (SA-26), and the two that need
+      // structured input must arrive without Approve/Deny: a button that
+      // cannot honestly complete the request is worse than no button.
+      const structuredInputKinds = <String>{
+        PendingApprovalKinds.sshConnect,
+        PendingApprovalKinds.computerUse,
+      };
+      for (final kind in PendingApprovalKinds.all) {
+        final isSimple = !structuredInputKinds.contains(kind);
         final fixture = await _fixture(now);
         addTearDown(fixture.dispose);
         await fixture.waitForStatus(
@@ -338,7 +348,11 @@ void main() {
         );
 
         fixture.clientNotifier.emitPendingApproval(
-          approval(id: 'approval-${kind.name}', kind: kind),
+          approval(
+            id: 'approval-$kind',
+            kind: kind,
+            isSimpleDecision: isSimple,
+          ),
           host: host(),
         );
         await _waitUntil(
@@ -346,9 +360,15 @@ void main() {
         );
 
         expect(
-          fixture.notificationService.shownApprovals.single.allowsDirectDecision,
-          isTrue,
-          reason: '${kind.name} must be answerable from the notification',
+          fixture
+              .notificationService
+              .shownApprovals
+              .single
+              .allowsDirectDecision,
+          isSimple,
+          reason: isSimple
+              ? '$kind must be answerable from the notification'
+              : '$kind needs input a notification cannot collect',
         );
       }
     });
@@ -435,10 +455,9 @@ void main() {
             .isNotEmpty,
       );
 
-      expect(
-        fixture.notificationService.cancelledApprovalConversationIds,
-        ['conversation-b'],
-      );
+      expect(fixture.notificationService.cancelledApprovalConversationIds, [
+        'conversation-b',
+      ]);
     });
 
     test('a suppressed approval is raised once the page closes', () async {
@@ -523,10 +542,9 @@ void main() {
             .isNotEmpty,
       );
 
-      expect(
-        fixture.notificationService.cancelledApprovalConversationIds,
-        ['conversation-9'],
-      );
+      expect(fixture.notificationService.cancelledApprovalConversationIds, [
+        'conversation-9',
+      ]);
     });
 
     test('nothing is withdrawn when nothing was raised', () async {
@@ -749,13 +767,15 @@ final class _FakeNotificationService extends NotificationService {
   final tapController = StreamController<String>.broadcast();
   final shownNotifications = <RemoteCodingNotificationPayload>[];
   final shownApprovals =
-      <({
-        String conversationId,
-        String title,
-        String body,
-        String? approvalId,
-        bool allowsDirectDecision,
-      })>[];
+      <
+        ({
+          String conversationId,
+          String title,
+          String body,
+          String? approvalId,
+          bool allowsDirectDecision,
+        })
+      >[];
   int channelPreparationCount = 0;
 
   @override
@@ -782,9 +802,7 @@ final class _FakeNotificationService extends NotificationService {
   final cancelledApprovalConversationIds = <String>[];
 
   @override
-  Future<void> cancelApprovalRequiredNotification(
-    String conversationId,
-  ) async {
+  Future<void> cancelApprovalRequiredNotification(String conversationId) async {
     cancelledApprovalConversationIds.add(conversationId);
   }
 

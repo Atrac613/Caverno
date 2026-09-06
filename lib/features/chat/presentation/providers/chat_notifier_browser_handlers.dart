@@ -161,6 +161,8 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
       sensitiveValuePreview: sensitiveValuePreview,
       reason: reason,
       completer: completer,
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

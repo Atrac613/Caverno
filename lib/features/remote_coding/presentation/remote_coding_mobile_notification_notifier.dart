@@ -546,7 +546,7 @@ final class RemoteCodingMobileNotificationNotifier
   Future<void> _presentApprovalOnce(RemoteCodingApproval approval) async {
     appLog(
       '[RemoteCodingNotifications] approval ${approval.id} '
-      '(${approval.kind.name}) is pending',
+      '(${approval.kind}) is pending',
     );
     if (approval.id.isEmpty) {
       appLog(
@@ -582,7 +582,9 @@ final class RemoteCodingMobileNotificationNotifier
           clientState.currentConversationId ?? clientState.host?.id ?? '';
       _liveApprovalNotifications[approval.id] = conversationId;
       if (_liveApprovalNotifications.length > _maxRememberedApprovalIds) {
-        _liveApprovalNotifications.remove(_liveApprovalNotifications.keys.first);
+        _liveApprovalNotifications.remove(
+          _liveApprovalNotifications.keys.first,
+        );
       }
       appLog(
         '[RemoteCodingNotifications] raising for ${approval.id} on '
@@ -620,32 +622,37 @@ final class RemoteCodingMobileNotificationNotifier
   /// without looking. `PendingApprovalSummary` for a chat-side command puts
   /// `request.command` in `title`, and this restores that.
   ///
-  /// `isSimpleDecision` is unconditionally true because the remote kinds are
-  /// exhaustively `file`, `localCommand` and `gitCommand`, and every one of
-  /// them is a bare yes/no. The chat side has kinds that are not — SSH connect
-  /// needs credentials, computer-use needs smoke arming — which is why that
-  /// flag exists at all.
+  /// `isSimpleDecision` comes off the wire rather than being assumed. It used
+  /// to be hardcoded true, which was sound only while the wire carried the
+  /// three kinds that are all bare yes/no answers. Now that every kind can
+  /// cross (SA-26), an SSH connect needing credentials or a computer-use
+  /// action needing smoke arming must arrive without Approve/Deny — a button
+  /// that cannot honestly complete the request is worse than no button.
   PendingApprovalSummary _summaryFor(
     RemoteCodingApproval approval,
     RemoteCodingClientState clientState,
   ) {
-    // Exhaustive on purpose: a kind added to the wire model should be a
-    // compile error here rather than a notification that names nothing.
+    // `kind` is a free-form string on the wire, so this cannot be exhaustive
+    // the way the sealed switch in `describePendingApproval` is. The default
+    // is therefore the *safe* reading rather than a guess at a similar kind:
+    // an unknown approval names its own title, which is the one field every
+    // kind fills with what is being asked.
     final subject = switch (approval.kind) {
-      RemoteCodingApprovalKind.localCommand ||
-      RemoteCodingApprovalKind.gitCommand => approval.detail,
+      PendingApprovalKinds.localCommand ||
+      PendingApprovalKinds.gitCommand ||
+      PendingApprovalKinds.sshCommand => approval.detail,
       // The server already puts the operation in `title` and the path in
       // `subtitle` for a file, matching the chat side.
-      RemoteCodingApprovalKind.file => approval.title,
+      _ => approval.title,
     };
     final named = subject.trim().isEmpty ? approval.title : subject.trim();
     return PendingApprovalSummary(
       id: approval.id,
-      kind: approval.kind.name,
+      kind: approval.kind,
       title: named,
       subtitle: approval.subtitle,
       detail: approval.detail,
-      isSimpleDecision: true,
+      isSimpleDecision: approval.isSimpleDecision,
       conversationId:
           clientState.currentConversationId ?? clientState.host?.id ?? '',
     );
@@ -747,7 +754,6 @@ String _permissionMessage(RemoteCodingNotificationPermission permission) {
       'Completion notifications are disabled.',
   };
 }
-
 
 /// Tells the notifier when the app changes lifecycle state.
 ///

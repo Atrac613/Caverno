@@ -482,6 +482,8 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       arguments: Map<String, dynamic>.from(toolCall.arguments),
       reason: reason,
       completer: completer,
+      origin: _activeInteractionOrigin,
+      remoteDeviceId: _activeRemoteDeviceId,
     );
     return _registerPendingToolApproval(
       pending,

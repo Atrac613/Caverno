@@ -10,8 +10,6 @@ enum RemoteCodingConnectionStatus {
   error,
 }
 
-enum RemoteCodingApprovalKind { file, localCommand, gitCommand }
-
 enum RemoteCodingRelayCredentialState {
   pendingActivation,
   active,
@@ -331,32 +329,47 @@ class RemoteCodingApproval {
     required this.title,
     required this.subtitle,
     required this.detail,
+    required this.isSimpleDecision,
     this.reason,
     this.warningTitle,
     this.warningMessage,
   });
 
   final String id;
-  final RemoteCodingApprovalKind kind;
+
+  /// One of [PendingApprovalKinds], carried as a free-form string.
+  ///
+  /// This was an enum of the three kinds the desktop happened to project, and
+  /// its decoder mapped anything else to `file`. That is the worst possible
+  /// default for an approval: a shell command arriving from a newer desktop
+  /// would have been presented as a file edit, and approved as one. A string
+  /// with a generic fallback lets a reader say "some approval I do not know"
+  /// instead of naming the wrong one.
+  final String kind;
   final String title;
   final String subtitle;
   final String detail;
+
+  /// Whether a bare approve/deny resolves this request.
+  ///
+  /// False for kinds that need structured input — SSH credentials,
+  /// computer-use smoke arming. Those are shown read-only and finished on the
+  /// desktop, so the wire has to carry the distinction rather than let each
+  /// surface guess it from the kind.
+  final bool isSimpleDecision;
   final String? reason;
   final String? warningTitle;
   final String? warningMessage;
 
   factory RemoteCodingApproval.fromJson(Map<String, dynamic> json) {
-    final kindName = (json['kind'] as String?)?.trim() ?? '';
     return RemoteCodingApproval(
       id: (json['id'] as String?)?.trim() ?? '',
-      kind: switch (kindName) {
-        'localCommand' => RemoteCodingApprovalKind.localCommand,
-        'gitCommand' => RemoteCodingApprovalKind.gitCommand,
-        _ => RemoteCodingApprovalKind.file,
-      },
+      kind: (json['kind'] as String?)?.trim() ?? '',
       title: (json['title'] as String?)?.trim() ?? 'Approval required',
       subtitle: (json['subtitle'] as String?)?.trim() ?? '',
       detail: (json['detail'] as String?) ?? '',
+      // Absent means an older desktop that only ever sent simple kinds.
+      isSimpleDecision: json['isSimpleDecision'] as bool? ?? true,
       reason: json['reason'] as String?,
       warningTitle: json['warningTitle'] as String?,
       warningMessage: json['warningMessage'] as String?,
@@ -365,11 +378,8 @@ class RemoteCodingApproval {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'kind': switch (kind) {
-      RemoteCodingApprovalKind.file => 'file',
-      RemoteCodingApprovalKind.localCommand => 'localCommand',
-      RemoteCodingApprovalKind.gitCommand => 'gitCommand',
-    },
+    'kind': kind,
+    'isSimpleDecision': isSimpleDecision,
     'title': title,
     'subtitle': subtitle,
     'detail': detail,

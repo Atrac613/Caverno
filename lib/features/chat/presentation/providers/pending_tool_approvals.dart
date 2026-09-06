@@ -24,11 +24,25 @@ sealed class PendingToolApproval<T> {
     required this.owner,
     required this.id,
     required this.completer,
+    this.origin = ChatInteractionOrigin.local,
+    this.remoteDeviceId,
   });
 
   final ChatTurnOwner owner;
   final String id;
   final Completer<T> completer;
+
+  /// Where the turn that raised this approval came from, and which paired
+  /// device owns it.
+  ///
+  /// On the base, not on the four subclasses that used to declare it: a Remote
+  /// Coding turn runs on the desktop with the desktop's whole tool catalogue,
+  /// so any of the eleven kinds can arise remotely. While seven of them could
+  /// not say so, such a turn blocked the desktop with the device that started
+  /// it unable to either see or answer the request (SA-26).
+  final ChatInteractionOrigin origin;
+  final String? remoteDeviceId;
+
   T get cancellationValue;
 
   void completeCancellation() {
@@ -77,6 +91,8 @@ class PendingSshConnect extends PendingToolApproval<SshConnectApproval?> {
     required this.savedCredential,
     required this.identityCandidates,
     required super.completer,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String host;
@@ -108,6 +124,8 @@ class PendingSshCommand extends PendingToolApproval<bool> {
     required this.host,
     required this.username,
     required super.completer,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String command;
@@ -128,16 +146,13 @@ class PendingGitCommand extends PendingToolApproval<bool> {
     required this.workingDirectory,
     required this.reason,
     required super.completer,
-    this.origin = ChatInteractionOrigin.local,
-    this.remoteDeviceId,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String command;
   final String workingDirectory;
   final String? reason;
-
-  final ChatInteractionOrigin origin;
-  final String? remoteDeviceId;
 
   @override
   bool get cancellationValue => false;
@@ -154,8 +169,8 @@ class PendingLocalCommand extends PendingToolApproval<LocalCommandApproval> {
     required this.warningTitle,
     required this.warningMessage,
     required super.completer,
-    this.origin = ChatInteractionOrigin.local,
-    this.remoteDeviceId,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String command;
@@ -163,9 +178,6 @@ class PendingLocalCommand extends PendingToolApproval<LocalCommandApproval> {
   final String? reason;
   final String? warningTitle;
   final String? warningMessage;
-
-  final ChatInteractionOrigin origin;
-  final String? remoteDeviceId;
 
   @override
   LocalCommandApproval get cancellationValue =>
@@ -228,6 +240,8 @@ class PendingComputerUseAction
     required this.visionObservationDetails,
     required this.reason,
     required super.completer,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String toolName;
@@ -292,6 +306,8 @@ class PendingBrowserAction extends PendingToolApproval<bool> {
     required this.sensitiveValuePreview,
     required this.reason,
     required super.completer,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String toolName;
@@ -321,17 +337,14 @@ class PendingFileOperation extends PendingToolApproval<bool> {
     required this.preview,
     required this.reason,
     required super.completer,
-    this.origin = ChatInteractionOrigin.local,
-    this.remoteDeviceId,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String operation;
   final String path;
   final String preview;
   final String? reason;
-
-  final ChatInteractionOrigin origin;
-  final String? remoteDeviceId;
 
   @override
   bool get cancellationValue => false;
@@ -345,6 +358,8 @@ class PendingBleConnect extends PendingToolApproval<bool> {
     required this.deviceId,
     required this.deviceName,
     required super.completer,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String deviceId;
@@ -361,6 +376,8 @@ class PendingSerialOpen extends PendingToolApproval<bool> {
     required this.portName,
     required this.baudRate,
     required super.completer,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String portName;
@@ -382,6 +399,8 @@ class PendingParticipantToolApproval extends PendingToolApproval<bool> {
     required this.arguments,
     required this.reason,
     required super.completer,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   final String participantId;
@@ -420,8 +439,8 @@ class PendingAssumptionConfirmation extends PendingToolApproval<bool> {
     required this.clarificationQuestion,
     required this.toolName,
     required super.completer,
-    this.origin = ChatInteractionOrigin.local,
-    this.remoteDeviceId,
+    super.origin,
+    super.remoteDeviceId,
   });
 
   /// The contract item to confirm, as
@@ -439,9 +458,6 @@ class PendingAssumptionConfirmation extends PendingToolApproval<bool> {
 
   /// The mutation the guard refused, so the sheet can say what is blocked.
   final String toolName;
-
-  final ChatInteractionOrigin origin;
-  final String? remoteDeviceId;
 
   @override
   bool get cancellationValue => false;
