@@ -18,6 +18,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
@@ -291,6 +292,14 @@ class _SubagentTestToolService extends McpToolService {
         },
         ['key'],
       ),
+      fn(
+        'process_status',
+        'Read the result of a local process.',
+        {
+          'job_id': {'type': 'string'},
+        },
+        ['job_id'],
+      ),
     ];
   }
 
@@ -312,6 +321,24 @@ class _SubagentTestToolService extends McpToolService {
       result: jsonEncode({'error': 'unsupported'}),
       isSuccess: false,
       errorMessage: 'unsupported tool $name',
+    );
+  }
+
+  @override
+  Future<McpToolResult> executeProcessTool({
+    required ChatTurnOwner owner,
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({'status': 'exited', 'exit_code': 0}),
+      outcome: const ToolOutcome(
+        processState: ToolProcessState.exited,
+        exitCode: 0,
+      ),
+      isSuccess: true,
     );
   }
 }
@@ -400,6 +427,69 @@ ToolCallInfo _spawnSubagentCall({
 );
 
 void main() {
+  test(
+    'foreground delegation returns observed child command evidence',
+    () async {
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          _spawnSubagentCall(
+            description: 'verify the child result',
+            prompt: 'Run the verification command and report its result.',
+          ),
+        ],
+        childCompletions: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'child-command-1',
+                name: 'process_status',
+                arguments: const {'job_id': 'child-job'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        childToolResultFollowUp: ChatCompletionResult(
+          content: 'flutter analyze completed successfully.',
+          finishReason: 'stop',
+        ),
+        parentFinalChunks: const ['flutter analyze completed successfully.'],
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SubagentTestToolService(),
+      );
+
+      try {
+        await container
+            .read(chatNotifierProvider.notifier)
+            .sendMessage('Delegate command verification.');
+
+        final delegation = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .singleWhere((result) => result.name == 'spawn_subagent');
+        expect(delegation.outcome?.exitCode, 0);
+        expect(
+          jsonDecode(delegation.result),
+          containsPair('status', 'completed'),
+        );
+        expect(
+          dataSource.parentToolResultBatches
+              .expand((batch) => batch)
+              .where(
+                (result) => result.result.contains(
+                  'unexecuted_command_action_retry_required',
+                ),
+              ),
+          isEmpty,
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+
   test(
     'child subagent uses a tool and its summary reaches the parent',
     () async {

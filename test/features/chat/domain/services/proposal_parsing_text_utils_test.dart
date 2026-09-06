@@ -75,6 +75,24 @@ Open Questions: Should drafts sync across devices?
       expect(ProposalParsingTextUtils.isCompletionTruncated('stop'), isFalse);
       expect(ProposalParsingTextUtils.isCompletionTruncated(''), isFalse);
     });
+
+    test('decodes escaped quotes in loose JSON scalar values', () {
+      final value = ProposalParsingTextUtils.extractLooseJsonScalar(
+        r'''{"validationCommand":"test -f sample.jsonl && python3 -c \"print('ok')\"","notes":"unfinished''',
+        keys: const ['validationCommand'],
+      );
+
+      expect(value, '''test -f sample.jsonl && python3 -c "print('ok')"''');
+    });
+
+    test('rejects unterminated loose JSON scalar values', () {
+      final value = ProposalParsingTextUtils.extractLooseJsonScalar(
+        r'''{"validationCommand":"python3 -c \"print('ok')''',
+        keys: const ['validationCommand'],
+      );
+
+      expect(value, isNull);
+    });
   });
 }
 

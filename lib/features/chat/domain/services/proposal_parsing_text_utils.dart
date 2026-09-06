@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../entities/conversation_workflow.dart';
+import 'loose_json_scalar_extractor.dart';
 import 'runtime_sampler_feedback_recorder.dart';
 
 // ChatNotifier decomposition collaborator: proposal-parsing-text-utils
@@ -156,29 +157,7 @@ class ProposalParsingTextUtils {
   static String? extractLooseJsonScalar(
     String rawContent, {
     required List<String> keys,
-  }) {
-    for (final key in keys) {
-      final quotedPattern = RegExp(
-        "[\\\"']?${RegExp.escape(key)}[\\\"']?\\s*:\\s*(?:\\\"([^\\\"]*)\\\"|'([^']*)'|([A-Za-z_]+))",
-        caseSensitive: false,
-        dotAll: true,
-      );
-      final quotedMatch = quotedPattern.firstMatch(rawContent);
-      if (quotedMatch == null) {
-        continue;
-      }
-      final value =
-          quotedMatch.group(1) ??
-          quotedMatch.group(2) ??
-          quotedMatch.group(3) ??
-          '';
-      final normalized = value.trim();
-      if (normalized.isNotEmpty) {
-        return normalized;
-      }
-    }
-    return null;
-  }
+  }) => LooseJsonScalarExtractor.extract(rawContent, keys: keys);
 
   static List<String> extractLooseJsonStringList(
     String rawContent, {

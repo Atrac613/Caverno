@@ -785,6 +785,11 @@ class FinalAnswerClaimDetector {
 
   bool hasSuccessfulCommandExecutionResult(List<ToolResultInfo> toolResults) {
     return toolResults.any((toolResult) {
+      // Foreground delegation carries only runner-observed command evidence.
+      // A completed status or the child's summary is never execution proof.
+      if (toolResult.name == 'spawn_subagent') {
+        return toolResult.outcome?.exitCode == 0;
+      }
       return toolCallExecutionPolicy.isCommandExecutionTool(toolResult.name) &&
           toolCallExecutionPolicy.toolResultHasSuccessfulExit(toolResult);
     });

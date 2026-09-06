@@ -3,17 +3,6 @@
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
-
-/// Handlers for subagent delegation tools (`spawn_subagent`,
-/// `get_subagent_result`).
-///
-/// A subagent runs its own tool-calling loop via [SubagentExecutionService]
-/// (which reuses `RoutineToolRunner`). Children are dispatched through
-/// [_dispatchChildToolCall], which blocks the delegation tools so a child can
-/// never spawn another subagent (delegation depth stays at 1). Foreground runs
-/// return the summary inline; background runs register a task, run async, and
-/// surface progress through [subagentTaskNotifierProvider] plus a completion
-/// notification.
 extension ChatNotifierSubagentHandlers on ChatNotifier {
   Future<McpToolResult> _handleSpawnSubagent(
     ToolCallInfo toolCall, {
@@ -61,6 +50,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     }
 
     appLog('[Subagent] Spawning "$label" (task=$taskId)');
+    var observedCommandSuccess = false;
     final task = await _runSubagent(
       owner: owner,
       taskId: taskId,
@@ -70,6 +60,12 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       inheritedTools: inheritedTools,
       interactionGeneration: interactionGeneration,
       isBackground: false,
+      onChildResult: (call, result) {
+        observedCommandSuccess |=
+            result.isSuccess &&
+            _toolCallExecutionPolicy.isCommandExecutionTool(call.name) &&
+            result.outcome?.exitCode == 0;
+      },
     );
 
     if (task.status == SubagentTaskStatus.completed) {
@@ -82,6 +78,8 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
           'description': task.description,
           'summary': task.resultSummary,
         }),
+        // This records a command observation, not acceptance of the task.
+        outcome: observedCommandSuccess ? const ToolOutcome(exitCode: 0) : null,
         isSuccess: true,
       );
     }
@@ -205,11 +203,9 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     required String parentToolUseId,
     required List<Map<String, dynamic>> inheritedTools,
     required bool isBackground,
+    void Function(ToolCallInfo, McpToolResult)? onChildResult,
     int? interactionGeneration,
   }) async {
-    // LL8: route the subagent to its assigned mesh endpoint (primary fallback
-    // when unhealthy/missing). Subagents are multi-turn, so reachability is
-    // recorded from the task outcome rather than per call.
     final resolved = _meshRunner.resolve(
       primary: _dataSource,
       primaryBaseUrl: _settings.baseUrl,
@@ -229,10 +225,14 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       prompt: prompt,
       parentToolUseId: parentToolUseId,
       tools: inheritedTools,
-      dispatchToolCall: (childToolCall) => _dispatchChildToolCall(
-        childToolCall,
-        interactionGeneration: interactionGeneration,
-      ),
+      dispatchToolCall: (childToolCall) async {
+        final result = await _dispatchChildToolCall(
+          childToolCall,
+          interactionGeneration: interactionGeneration,
+        );
+        onChildResult?.call(childToolCall, result);
+        return result;
+      },
       model: resolved.model,
       temperature: _agenticRequestTemperature,
       maxTokens: _settings.maxTokens,
