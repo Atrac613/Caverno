@@ -312,6 +312,7 @@ GoalAutoContinueTrackerSnapshot _tracker({
 GoalAutoContinueSafeBoundary _safeBoundary({
   bool hasPendingAskUserQuestion = false,
 }) => GoalAutoContinueSafeBoundary(
+  hasPendingAssumptionConfirmation: false,
   isLoading: false,
   hasQueuedUserInput: false,
   hasPendingSshConnect: false,

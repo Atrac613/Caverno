@@ -274,6 +274,7 @@ final class _SafeBoundary
 
   @override
   GoalAutoContinueSafeBoundary capture() => const GoalAutoContinueSafeBoundary(
+    hasPendingAssumptionConfirmation: false,
     isLoading: false,
     hasQueuedUserInput: false,
     hasPendingSshConnect: false,

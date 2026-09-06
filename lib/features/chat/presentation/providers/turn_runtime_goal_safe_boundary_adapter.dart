@@ -70,6 +70,9 @@ final class TurnRuntimeGoalSafeBoundaryAdapter
         hasPendingParticipantToolApproval: owns(
           threadState.pendingParticipantToolApproval,
         ),
+        hasPendingAssumptionConfirmation: owns(
+          threadState.pendingAssumptionConfirmation,
+        ),
         hasPendingAskUserQuestion: _pendingQuestions.containsKey(
           owner.conversationId,
         ),

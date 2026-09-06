@@ -90,8 +90,14 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/git_tool_handler.dart': 315,
   'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart':
       494,
+  // +4 for the assumption-confirmation blocker: one constructor parameter,
+  // one field, and the two lines mapping it through. ANA0's kind reached
+  // neither this boundary nor the veto behind it, so a goal with
+  // auto-continue on would start another turn while the user was being
+  // asked to confirm an assumption. A blocker is a field here; there is
+  // nothing to extract.
   'lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart':
-      72,
+      76,
   'lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart':
       486,
   'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart':

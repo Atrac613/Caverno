@@ -19,6 +19,7 @@ final class GoalAutoContinuePendingState {
     required this.hasPendingBleConnect,
     required this.hasPendingSerialOpen,
     required this.hasPendingParticipantToolApproval,
+    required this.hasPendingAssumptionConfirmation,
     required this.hasPendingAskUserQuestion,
     required this.hasPendingWorkflowDecision,
     required this.hasParticipantTurnRuntime,
@@ -38,6 +39,7 @@ final class GoalAutoContinuePendingState {
   final bool hasPendingBleConnect;
   final bool hasPendingSerialOpen;
   final bool hasPendingParticipantToolApproval;
+  final bool hasPendingAssumptionConfirmation;
   final bool hasPendingAskUserQuestion;
   final bool hasPendingWorkflowDecision;
   final bool hasParticipantTurnRuntime;
@@ -63,6 +65,7 @@ final class GoalAutoContinueSafeBoundaryBuilder {
       hasPendingSerialOpen: state.hasPendingSerialOpen,
       hasPendingParticipantToolApproval:
           state.hasPendingParticipantToolApproval,
+      hasPendingAssumptionConfirmation: state.hasPendingAssumptionConfirmation,
       hasPendingAskUserQuestion: state.hasPendingAskUserQuestion,
       hasPendingWorkflowDecision: state.hasPendingWorkflowDecision,
       hasParticipantTurnRuntime: state.hasParticipantTurnRuntime,

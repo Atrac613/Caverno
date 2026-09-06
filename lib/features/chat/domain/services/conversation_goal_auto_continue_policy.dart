@@ -25,6 +25,7 @@ class GoalAutoContinueSafeBoundary {
     required this.hasPendingBleConnect,
     required this.hasPendingSerialOpen,
     required this.hasPendingParticipantToolApproval,
+    required this.hasPendingAssumptionConfirmation,
     required this.hasPendingAskUserQuestion,
     required this.hasPendingWorkflowDecision,
     required this.hasParticipantTurnRuntime,
@@ -43,6 +44,13 @@ class GoalAutoContinueSafeBoundary {
   final bool hasPendingBleConnect;
   final bool hasPendingSerialOpen;
   final bool hasPendingParticipantToolApproval;
+
+  /// ANA0's material-contract assumption. Absent from this list until
+  /// 2026-09-06: the kind was added later and three separate hand-written
+  /// enumerations of the pending kinds never learned about it, so a goal with
+  /// auto-continue on would start another turn while the user was being asked
+  /// to confirm an assumption the last one was refused over.
+  final bool hasPendingAssumptionConfirmation;
   final bool hasPendingAskUserQuestion;
   final bool hasPendingWorkflowDecision;
   final bool hasParticipantTurnRuntime;
@@ -64,6 +72,9 @@ class GoalAutoContinueSafeBoundary {
     if (hasPendingSerialOpen) return 'serial port approval is pending';
     if (hasPendingParticipantToolApproval) {
       return 'participant tool approval is pending';
+    }
+    if (hasPendingAssumptionConfirmation) {
+      return 'assumption confirmation is pending';
     }
     if (hasPendingAskUserQuestion) return 'assistant question is pending';
     if (hasPendingWorkflowDecision) return 'workflow decision is pending';

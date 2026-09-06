@@ -37,6 +37,12 @@ void main() {
       'participant tool approval is pending': _state(
         hasPendingParticipantToolApproval: true,
       ),
+      // ANA0's kind, absent from this veto list until 2026-09-06: a goal with
+      // auto-continue on would have started another turn while the user was
+      // being asked to confirm the assumption the last one was refused over.
+      'assumption confirmation is pending': _state(
+        hasPendingAssumptionConfirmation: true,
+      ),
       'assistant question is pending': _state(hasPendingAskUserQuestion: true),
       'workflow decision is pending': _state(hasPendingWorkflowDecision: true),
       'participant turn is active': _state(hasParticipantTurnRuntime: true),
@@ -235,12 +241,14 @@ GoalAutoContinuePendingState _state({
   bool hasPendingBleConnect = false,
   bool hasPendingSerialOpen = false,
   bool hasPendingParticipantToolApproval = false,
+  bool hasPendingAssumptionConfirmation = false,
   bool hasPendingAskUserQuestion = false,
   bool hasPendingWorkflowDecision = false,
   bool hasParticipantTurnRuntime = false,
   String? error,
 }) {
   return GoalAutoContinuePendingState(
+    hasPendingAssumptionConfirmation: hasPendingAssumptionConfirmation,
     owner: owner ?? _owner(),
     isLoading: isLoading,
     queuedUserInputCount: queuedUserInputCount,

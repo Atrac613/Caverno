@@ -173,6 +173,7 @@ GoalAutoContinueLogRecord _record() {
 
 GoalAutoContinueSafeBoundary _safeBoundary() =>
     const GoalAutoContinueSafeBoundary(
+      hasPendingAssumptionConfirmation: false,
       isLoading: false,
       hasQueuedUserInput: false,
       hasPendingSshConnect: false,

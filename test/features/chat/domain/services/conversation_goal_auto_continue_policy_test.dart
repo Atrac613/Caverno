@@ -764,6 +764,7 @@ GoalAutoContinueSafeBoundary _safeBoundary({
   bool hasError = false,
 }) {
   return GoalAutoContinueSafeBoundary(
+    hasPendingAssumptionConfirmation: false,
     isLoading: isLoading,
     hasQueuedUserInput: hasQueuedUserInput,
     hasPendingSshConnect: hasPendingSshConnect,

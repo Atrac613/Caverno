@@ -563,6 +563,7 @@ final class _SafeBoundaryPort implements TurnRuntimeGoalSafeBoundaryPort {
   GoalAutoContinueSafeBoundary capture() {
     captureCalls += 1;
     return const GoalAutoContinueSafeBoundary(
+      hasPendingAssumptionConfirmation: false,
       isLoading: false,
       hasQueuedUserInput: false,
       hasPendingSshConnect: false,
