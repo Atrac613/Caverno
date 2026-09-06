@@ -118,6 +118,35 @@ from.
 **5. Revocation.** Revoke a device that holds a grant. Its socket closes, and
 the shield returns to "granted nothing". Re-pairing starts from an empty grant.
 
+## What the 2026-09-06 session established
+
+Run on the paired iPhone 17 Pro Max simulator against a macOS host at
+`192.168.100.5:8767`, driving the phone from the harness and the desktop by
+hand. Every line below was observed rather than inferred.
+
+| | Observed |
+|---|---|
+| Typed pairing (debug) | Paired with the camera prompt denied, payload bridged by `simctl pbcopy` |
+| Thread creation from the phone | Works, and already existed — the drawer's per-project `+`, reached through the app bar |
+| A declined command is not a disconnection | The rejection rendered as a banner with the thread list intact; before today's fix it replaced the page with the pairing screen |
+| An approval reaches the phone with its warning | "This command has host-wide filesystem access" and SEC4.4g's fresh-approval sentence, both on the sheet |
+| Resolving from the phone runs the command | `uptime` returned `up 6 days, 18:50` into the thread |
+| The audit records it | Device, kind label, timestamp, warning; a second entry from an earlier session survived a desktop restart |
+| **Ungranted desktop-origin is withheld** | At 17:07 the Mac sat blocked on `Local Command Approval` while the phone showed no sheet, no banner, and no notification |
+| **Granted desktop-origin arrives** | After ticking Shell commands on the device's shield, the same approval appeared on the phone with its warning |
+| Answering it closes the desktop's own sheet | Confirmed at the Mac |
+| The audit marks it as the widened authority | The entry carries "Answered this Mac's own request" |
+
+Two frictions this cost time on, both now in the setup notes above: the
+simulator's `text` action did not reach the Flutter composer, so prompts go in
+through `simctl pbcopy` and a long-press paste; and building macOS outside the
+canonical worktree produced a running app whose Dart code was a day old, because
+the DevFS attach failed and debug builds ship their Dart over that channel.
+
+Still unobserved from Part 1: the read-only rendering of a structured-input
+kind, immediate withdrawal of a grant while an approval is on screen, and
+revocation.
+
 ## Part 2 — P1 evidence, collected in the same session
 
 The three remaining P1 gates are `resilience_soak`, `support_packet_review`,
