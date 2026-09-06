@@ -1,0 +1,58 @@
+{
+  "schemaName": "remote_coding_p1_support_packet",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-06T18:29:54.834675",
+  "side": "mobile",
+  "review": {
+    "diagnosticsSchemaName": "remote_coding_mobile_diagnostics",
+    "protocolVersion": 2,
+    "endpoint": {
+      "host": "192.168.100.5",
+      "port": 8767,
+      "websocketPath": "/ws"
+    },
+    "connectionStatus": "disconnected",
+    "isRunning": null,
+    "activeConnectionCount": null,
+    "pairedDeviceCount": null,
+    "snapshotSequence": 0,
+    "snapshotGeneratedAt": null,
+    "redactionReady": true,
+    "endpointAndProtocolReady": true
+  },
+  "manualChecklistPatch": {
+    "schemaName": "remote_coding_p1_manual_checklist_patch",
+    "schemaVersion": 1,
+    "supportPacket": {
+      "mobileDiagnosticsCopied": true,
+      "desktopDiagnosticsCopied": false,
+      "diagnosticsContainNoTokenMaterial": true,
+      "supportPacketIdentifiesEndpointAndProtocol": true
+    }
+  },
+  "diagnostics": {
+    "schemaName": "remote_coding_mobile_diagnostics",
+    "schemaVersion": 1,
+    "protocolVersion": 2,
+    "generatedAt": "2026-09-06T18:29:54.834332",
+    "connectionStatus": "disconnected",
+    "hostConfigured": true,
+    "hostId": "8f31ba50-ac4b-4710-805b-7cfc5e2801c8",
+    "hostName": "MacBook-Pro-3.local",
+    "hostAddress": "192.168.100.5",
+    "hostPort": 8767,
+    "snapshotSequence": 0,
+    "snapshotGeneratedAt": null,
+    "reconnectAttempt": 0,
+    "autoReconnectScheduled": false,
+    "nextReconnectAt": null,
+    "pendingCommandCount": 0,
+    "isLoading": false,
+    "queuedCount": 0,
+    "hasPendingApproval": false,
+    "privacy": {
+      "mobileDeviceTokenIncluded": false,
+      "pairingSecretIncluded": false
+    }
+  }
+}

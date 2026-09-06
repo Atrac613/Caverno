@@ -78,7 +78,7 @@ promotion gates below still apply. Keep one implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Remote Coding | RC1 | current | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | SEC4.5g same-device pending-interaction ownership is complete, and the P1 gate now decides transport security and resource boundaries automatically (2026-09-06) — it had no sections for either, so a passing report said nothing about the two requirements RC1 exists for. Reconnect resilience is implemented; what remains is user-operated: the iOS/Android LAN soak, the support-packet review, and the multi-device household check. |
+| Remote Coding | RC1 | current | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | SEC4.5g same-device pending-interaction ownership is complete, the P1 gate now decides transport security and resource boundaries automatically, and on 2026-09-06 every gate but `resilience_soak` reached ready (2026-09-06) — it had no sections for either, so a passing report said nothing about the two requirements RC1 exists for. Reconnect resilience is implemented; what remains is user-operated: the iOS/Android LAN soak, the support-packet review, and the multi-device household check. |
 | Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Characterize the unowned `NetworkTools` route, interface, and path-MTU cluster selected by the 2026-07-18 full boundary inventory before extracting code. |
 | Knowledge Currency | KC1 | current | Measure claim correctness, not only tool coverage: classify version-sensitive prose and code-artifact claims, compare asserted values with a fixture oracle, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. | First slice landed 2026-09-03: paired replay, disk-derived oracle, negative control, separate truth/grounding axes, classes 2 and 4. Over 60 claims the asymmetry is the result — naming the dependency took class 4 from 100% stale to 0%, while naming the version left class 2 unmoved at 58% against 65%. KC2 should carry what changed, not which version. Three measurements now: a delta block carrying *what changed* cut stale claims 76% to 28% and fixed every API it covered and none it did not, and an offline replay of the same responses showed a post-generation symbol index catches 25 of 25 deprecation-class stale usages — including the one the block could not reach — while flagging 14 of 30 correct answers on bare-name collisions, which is why KC4's verdict must come from LL11 rather than the pattern that triggered it. Next: class 1 needs a networked oracle and class 3 a different verdict shape; the §4 gate stays open until both. Evidence: `docs/knowledge_currency_track_design.md` §§ First/Second/Third measurement. |
 | Local LLM | LL33 | current | Turn provenance: correlate the session log to the on-screen conversation (turnId + assistantMessageId) and record applied post-LLM transforms (guard notices), so log↔UI is traceable and guard firings are a direct triage signal instead of inferred from leaked notice prose. | Landed correlation keys + transform record + triage distribution; extend transforms to truncation/file-save/recovery next, defer Level 3 event-sourcing. |
@@ -2419,8 +2419,13 @@ looked like a disconnection, sheets were never taken away when the interaction
 stopped being pending, and the read-only sheet had no way out.
 
 Next action:
-- Part 2 needs real devices: the LAN soak, the support-packet review, and the
-  multi-device household check are the three P1 gates still open.
+- Part 2 is down to one gate. `support_packet_review` and
+  `multi_device_household` closed on 2026-09-06 with two paired simulators
+  against the real host — the household gate checks server-side authorization,
+  not hardware, and both of its interesting observations were taken with the
+  two connected at once. `resilience_soak` genuinely needs real devices: it
+  names iOS *and Android* thirty-minute LAN soaks, desktop sleep/wake, and an
+  IP change. Evidence in `docs/evidence/`.
 - SA-26's T1 remains a decision rather than a continuation: device-local
   authentication before a mutating resolution needs a `local_auth` dependency
   and an iOS usage description.

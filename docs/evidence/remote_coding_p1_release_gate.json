@@ -1,0 +1,115 @@
+{
+  "schemaName": "remote_coding_p1_release_gate",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-06T18:40:12.443181",
+  "status": "blocked",
+  "blockedGateIds": [
+    "resilience_soak"
+  ],
+  "nextAction": "Resolve blocked Remote Coding P1 gates before product release.",
+  "operationBoundary": "Static checks cover resilience and diagnostics. LAN soak, backgrounding, support packet review, and multi-device household review remain user-operated.",
+  "staticGates": [
+    {
+      "id": "mobile_auto_reconnect",
+      "label": "Mobile schedules bounded automatic reconnect after unexpected LAN drops.",
+      "status": "ready",
+      "evidence": [
+        "Client notifier uses finite reconnect backoff, socket ping intervals, and reconnect state tests."
+      ],
+      "userOperated": false
+    },
+    {
+      "id": "command_timeout_correlation",
+      "label": "Mobile tracks request IDs and exposes timed-out remote commands.",
+      "status": "ready",
+      "evidence": [
+        "Client notifier tracks command IDs, clears them on correlated replies, and surfaces timeout state."
+      ],
+      "userOperated": false
+    },
+    {
+      "id": "support_diagnostics",
+      "label": "Mobile and desktop diagnostics expose support state without token material.",
+      "status": "ready",
+      "evidence": [
+        "Diagnostics include protocol and reconnect metadata, while widget and unit tests prove redacted copy support."
+      ],
+      "userOperated": false
+    },
+    {
+      "id": "transport_security",
+      "label": "Credentials travel only over a pinned confidential transport, and a session is channel-bound and short-lived.",
+      "status": "ready",
+      "evidence": [
+        "Pinned WSS with platform roots disabled, a release policy that refuses a plaintext LAN bind, and a channel-bound challenge, each named by a test."
+      ],
+      "userOperated": false
+    },
+    {
+      "id": "resource_boundary",
+      "label": "Unauthenticated connections expire, and connection, frame, and message rates are bounded per source.",
+      "status": "ready",
+      "evidence": [
+        "Occupancy, frame-size, and rate limits are enforced at the server and rejected before the WebSocket upgrade, each named by a test."
+      ],
+      "userOperated": false
+    },
+    {
+      "id": "host_snapshot_metadata",
+      "label": "Host snapshots advertise protocol and Remote Coding capabilities.",
+      "status": "ready",
+      "evidence": [
+        "Host snapshots expose protocol version, safe mobile capabilities, and active session count."
+      ],
+      "userOperated": false
+    },
+    {
+      "id": "multi_device_evidence_flow",
+      "label": "Desktop exports mergeable multi-device evidence for the P1 household checklist.",
+      "status": "ready",
+      "evidence": [
+        "Desktop settings copy multi-device evidence and the release gate merges its checklist patch."
+      ],
+      "userOperated": false
+    },
+    {
+      "id": "p1_docs_and_gate",
+      "label": "Remote Coding P1 has a documented release gate.",
+      "status": "ready",
+      "evidence": [
+        "P1 documentation names the automated gate and manual evidence sections."
+      ],
+      "userOperated": false
+    }
+  ],
+  "manualGates": [
+    {
+      "id": "resilience_soak",
+      "label": "iOS and Android survive LAN soak, background/resume, sleep/wake, and desktop IP change recovery.",
+      "status": "blocked",
+      "evidence": [
+        "Missing or false checklist fields: resilienceSoak.iosLanSoakThirtyMinutes, resilienceSoak.androidLanSoakThirtyMinutes, resilienceSoak.desktopSleepWakeReconnect, resilienceSoak.mobileBackgroundResumeReconnect, resilienceSoak.desktopIpChangeRecovery"
+      ],
+      "userOperated": true,
+      "nextAction": "Run the P1 LAN resilience soak on real iOS and Android devices."
+    },
+    {
+      "id": "support_packet_review",
+      "label": "Mobile and desktop support packets are useful and contain no token material.",
+      "status": "ready",
+      "evidence": [
+        "All required checklist fields are true."
+      ],
+      "userOperated": true
+    },
+    {
+      "id": "multi_device_household",
+      "label": "Multiple paired devices can coexist, revoke independently, and preserve remote approval boundaries.",
+      "status": "ready",
+      "evidence": [
+        "All required checklist fields are true."
+      ],
+      "userOperated": true
+    }
+  ]
+}

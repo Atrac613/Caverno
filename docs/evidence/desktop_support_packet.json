@@ -1,0 +1,76 @@
+{
+  "schemaName": "remote_coding_p1_support_packet",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-06T18:32:06.012193",
+  "side": "desktop",
+  "review": {
+    "diagnosticsSchemaName": "remote_coding_host_diagnostics",
+    "protocolVersion": 2,
+    "endpoint": {
+      "host": "192.168.100.5",
+      "port": 8767,
+      "websocketPath": "/ws"
+    },
+    "connectionStatus": null,
+    "isRunning": true,
+    "activeConnectionCount": 0,
+    "pairedDeviceCount": 3,
+    "snapshotSequence": null,
+    "snapshotGeneratedAt": null,
+    "redactionReady": true,
+    "endpointAndProtocolReady": true
+  },
+  "manualChecklistPatch": {
+    "schemaName": "remote_coding_p1_manual_checklist_patch",
+    "schemaVersion": 1,
+    "supportPacket": {
+      "mobileDiagnosticsCopied": false,
+      "desktopDiagnosticsCopied": true,
+      "diagnosticsContainNoTokenMaterial": true,
+      "supportPacketIdentifiesEndpointAndProtocol": true
+    }
+  },
+  "diagnostics": {
+    "schemaName": "remote_coding_host_diagnostics",
+    "schemaVersion": 1,
+    "protocolVersion": 2,
+    "generatedAt": "2026-09-06T18:32:06.011344",
+    "enabled": true,
+    "isRunning": true,
+    "activeHost": "192.168.100.5",
+    "activeUrlAvailable": true,
+    "port": 8767,
+    "activeConnectionCount": 0,
+    "pairedDeviceCount": 3,
+    "pairingCodeActive": false,
+    "pairedDevices": [
+      {
+        "id": "8f31ba50-ac4b-4710-805b-7cfc5e2801c8",
+        "name": "MacBook-Pro-3.local",
+        "createdAt": "2026-09-06T18:08:00.942242",
+        "lastSeenAt": "2026-09-06T18:08:00.942242",
+        "notificationRelayConfigured": false
+      },
+      {
+        "id": "10d76ced-2e57-4ed4-9f1b-e00d37daf470",
+        "name": "localhost",
+        "createdAt": "2026-09-05T15:56:11.789492",
+        "lastSeenAt": "2026-09-06T11:23:56.460648",
+        "notificationRelayConfigured": false
+      },
+      {
+        "id": "8065757a-71f8-4712-8664-3f69f1397bdd",
+        "name": "localhost",
+        "createdAt": "2026-08-10T20:22:34.005019",
+        "lastSeenAt": "2026-08-10T22:34:21.939761",
+        "notificationRelayConfigured": true
+      }
+    ],
+    "privacy": {
+      "rawDeviceTokensIncluded": false,
+      "tokenHashesIncluded": false,
+      "relayIdentifiersIncluded": false,
+      "relayCredentialsIncluded": false
+    }
+  }
+}

@@ -167,6 +167,44 @@ half of that behaviour is covered by
 `remote_coding_page_notification_suppression_test.dart` instead, where the
 withdrawal can be driven directly.
 
+## Part 2 result: two of the three gates closed on simulators
+
+Run 2026-09-06 with two paired iPhone simulators against the same macOS host.
+Evidence files are kept in `docs/evidence/`.
+
+| Gate | Result |
+|---|---|
+| `support_packet_review` | **ready** — packets copied from both sides, each verified for token material independently of its own privacy flags: no 64-hex hashes, no base64url tokens, only device-id UUIDs |
+| `multi_device_household` | **ready** — all four observations |
+| `resilience_soak` | **blocked**, and honestly so: it names iOS *and Android* thirty-minute LAN soaks, desktop sleep/wake, and an IP change. None of that is simulable |
+
+Two simulators are legitimate evidence for the household gate because what it
+checks is server-side authorization, not device hardware: each is a distinct
+paired device with its own id and token. The two observations that matter were
+taken with both connected at once:
+
+- **18:24 — `approvalsReachOnlyRemoteOriginTurns`.** Device A started a turn
+  that blocked on a shell approval. A showed the sheet; **B showed the same
+  thread and the same tool call, and no sheet at all.** That is SEC4.5g's whole
+  property, seen on two screens at one timestamp.
+- **18:27 — `revokingOneDeviceKeepsOtherDeviceUsable`.** Revoking B left it with
+  "This mobile device was revoked on the desktop" and only Pair with Desktop,
+  while A stayed connected and could still send.
+
+Three things this cost time on, all worth knowing before a real-device run:
+
+- **The mobile support packet cannot be copied from a healthy session.** The
+  connected header has no such action; it is reachable only from the connection
+  view or an error banner. A packet was obtained by relaunching the app, which
+  keeps the pairing. The P1 requirement says "from both sides of a paired
+  session", so this is a gap against the wording rather than a defect in the
+  packet.
+- **`activeSessionCountUpdates` needs two live connections at the instant the
+  evidence is copied** (`activeConnectionCount >= 2`), not merely two paired
+  devices. Copying it after revoking one device reports false, correctly.
+- **A second simulator starts at onboarding**, which requires a reachable LLM
+  endpoint before it will finish. The desktop's own LAN endpoint works.
+
 ## Part 2 — P1 evidence, collected in the same session
 
 The three remaining P1 gates are `resilience_soak`, `support_packet_review`,

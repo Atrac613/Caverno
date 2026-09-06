@@ -1,0 +1,29 @@
+{
+  "schemaName": "remote_coding_p1_multi_device_evidence",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-06T18:39:43.410505",
+  "review": {
+    "pairedDeviceCount": 4,
+    "activeConnectionCount": 2,
+    "twoDevicesReady": true,
+    "activeSessionCountReady": true,
+    "independentRevocationConfirmed": true,
+    "remoteApprovalBoundaryConfirmed": true,
+    "pairedDevices": [
+      { "id": "6173bcce-c1d6-45ba-996a-934307287f93", "name": "MacBook-Pro-3.local", "createdAt": "2026-09-06T18:38:12.234653", "lastSeenAt": "2026-09-06T18:38:12.234653" },
+      { "id": "8f31ba50-ac4b-4710-805b-7cfc5e2801c8", "name": "MacBook-Pro-3.local", "createdAt": "2026-09-06T18:08:00.942242", "lastSeenAt": "2026-09-06T18:35:05.334478" },
+      { "id": "10d76ced-2e57-4ed4-9f1b-e00d37daf470", "name": "localhost", "createdAt": "2026-09-05T15:56:11.789492", "lastSeenAt": "2026-09-06T11:23:56.460648" },
+      { "id": "8065757a-71f8-4712-8664-3f69f1397bdd", "name": "localhost", "createdAt": "2026-08-10T20:22:34.005019", "lastSeenAt": "2026-08-10T22:34:21.939761" }
+    ]
+  },
+  "manualChecklistPatch": {
+    "schemaName": "remote_coding_p1_manual_checklist_patch",
+    "schemaVersion": 1,
+    "multiDevice": {
+      "twoDevicesCanPair": true,
+      "activeSessionCountUpdates": true,
+      "revokingOneDeviceKeepsOtherDeviceUsable": true,
+      "approvalsReachOnlyRemoteOriginTurns": true
+    }
+  }
+}
