@@ -480,13 +480,32 @@ controls are the ones that act at the moment of consequence.
 | | Threat | Control |
 |---|---|---|
 | T1 | A stolen, unlocked phone is a bearer of the desktop's execution authority | Device-local authentication (Face ID / passcode) immediately before a mutating resolution is sent |
-| T2 | Blind approval: the notification's Approve button resolves without the command ever being read | Bind the decision to what was displayed — the resolution carries a digest of the rendered body and the desktop rejects a mismatch |
+| T2 | Blind approval: the notification's Approve button resolves without the command ever being read | Make the surface where the decision is taken carry the whole question — see the correction below |
 | T3 | Confused deputy: the model at the Mac proposes something dangerous and a small screen rubber-stamps it | The per-device grant is per kind, so the dangerous kinds are opt-in rather than implied; optionally, offer desktop-origin approvals only once the Mac is idle or locked |
 | T4 | No record on the desktop of what a remote device approved | Audit every remote resolution with device id, kind, body, and timestamp, and surface it in the desktop UI |
 
 T2's control is a prerequisite for the grant in T3, not a parallel nicety: a
 grant of authority over a command the holder cannot be shown to have read is
 not a grant, it is an accident waiting for a plausible-looking payload.
+
+**Correction, 2026-09-06.** The control was first written as a digest of the
+rendered body, carried on the resolution and checked by the desktop. Measuring
+it before building it showed it would have been ceremonial: an approval id is a
+UUID minted at construction, every field of a `Pending*` is final, and the
+desktop resolves strictly by id against what is pending now. A different body
+is therefore always a different id, and the id check already binds the
+decision to the request. A digest would have attested to something the
+transport already guaranteed.
+
+What the intent actually required was the other half, and that half was broken.
+The notification body is built from the summary's `title`, which for a shell
+command is the command alone, so a **destructive** command arrived on the lock
+screen and the paired watch with Approve/Deny beside it and nothing saying it
+was destructive — the warning existed, in the sheet nobody had opened.
+`PendingApprovalSummary` now carries `warning` separately from `detail`, and
+the notification body states it. The buttons stay: the objection was never to
+answering from a notification, it was to answering a question that had been
+abridged on its way there.
 
 ### What this authorizes, in order
 
@@ -500,7 +519,8 @@ not a grant, it is an accident waiting for a plausible-looking payload.
    origin through the remaining pending types and projecting through the
    existing `describePendingApproval` flattener rather than the bespoke
    three-kind switch.
-2. **Bind a resolution to the body that was displayed.**
+2. **Make the decision surface carry the whole question** — see the correction
+   above for why this replaced the digest.
 3. **Grant desktop-equivalent authority per device**, defaulting to what a
    device has today, with the widening — including desktop-origin approvals —
    as an explicit per-device opt-in.

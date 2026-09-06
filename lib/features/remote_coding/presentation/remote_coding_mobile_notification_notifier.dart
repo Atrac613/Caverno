@@ -653,6 +653,8 @@ final class RemoteCodingMobileNotificationNotifier
       subtitle: approval.subtitle,
       detail: approval.detail,
       isSimpleDecision: approval.isSimpleDecision,
+      // The wire already carried the warning; only the sheet was reading it.
+      warning: approval.warningMessage,
       conversationId:
           clientState.currentConversationId ?? clientState.host?.id ?? '',
     );

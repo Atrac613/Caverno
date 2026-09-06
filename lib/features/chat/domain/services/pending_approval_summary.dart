@@ -19,6 +19,7 @@ class PendingApprovalSummary {
     required this.detail,
     required this.isSimpleDecision,
     required this.conversationId,
+    this.warning,
     this.origin = ChatInteractionOrigin.local,
     this.remoteDeviceId,
   });
@@ -37,6 +38,15 @@ class PendingApprovalSummary {
   /// False for approvals that need structured input (SSH credentials,
   /// computer-use smoke arming); those must be completed in the full UI.
   final bool isSimpleDecision;
+
+  /// What makes this request dangerous, when the raising code said so.
+  ///
+  /// Separate from [detail] because a notification body is built from [title]
+  /// and would otherwise drop it: a destructive shell command was offered on
+  /// the lock screen and the wrist with Approve/Deny and no hint that it was
+  /// destructive. Answering that honestly needs the warning where the decision
+  /// is made, not only in the sheet the person did not open.
+  final String? warning;
   final String conversationId;
 
   /// Where the turn that raised this interaction came from.
@@ -145,6 +155,7 @@ typedef _ApprovalFacts = ({
   String subtitle,
   String detail,
   bool isSimpleDecision,
+  String? warning,
 });
 
 PendingApprovalSummary describePendingApproval(
@@ -157,6 +168,7 @@ PendingApprovalSummary describePendingApproval(
       subtitle: request.path,
       detail: request.reason ?? request.preview,
       isSimpleDecision: true,
+      warning: null,
     ),
     PendingLocalCommand() => (
       kind: PendingApprovalKinds.localCommand,
@@ -166,6 +178,7 @@ PendingApprovalSummary describePendingApproval(
       // formality, so it outranks the model's stated reason.
       detail: request.warningMessage ?? request.reason ?? '',
       isSimpleDecision: true,
+      warning: request.warningMessage,
     ),
     PendingGitCommand() => (
       kind: PendingApprovalKinds.gitCommand,
@@ -173,6 +186,7 @@ PendingApprovalSummary describePendingApproval(
       subtitle: request.workingDirectory,
       detail: request.reason ?? '',
       isSimpleDecision: true,
+      warning: null,
     ),
     PendingSshCommand() => (
       kind: PendingApprovalKinds.sshCommand,
@@ -180,6 +194,7 @@ PendingApprovalSummary describePendingApproval(
       subtitle: '${request.username}@${request.host}',
       detail: request.reason ?? '',
       isSimpleDecision: true,
+      warning: null,
     ),
     PendingBrowserAction() => (
       kind: PendingApprovalKinds.browserAction,
@@ -189,6 +204,7 @@ PendingApprovalSummary describePendingApproval(
           ? request.warningMessage
           : request.summary,
       isSimpleDecision: true,
+      warning: request.warningMessage.isEmpty ? null : request.warningMessage,
     ),
     PendingBleConnect() => (
       kind: PendingApprovalKinds.bleConnect,
@@ -196,6 +212,7 @@ PendingApprovalSummary describePendingApproval(
       subtitle: request.deviceName ?? request.deviceId,
       detail: request.deviceId,
       isSimpleDecision: true,
+      warning: null,
     ),
     PendingSerialOpen() => (
       kind: PendingApprovalKinds.serialOpen,
@@ -203,6 +220,7 @@ PendingApprovalSummary describePendingApproval(
       subtitle: request.portName,
       detail: '${request.baudRate} baud',
       isSimpleDecision: true,
+      warning: null,
     ),
     PendingParticipantToolApproval() => (
       kind: PendingApprovalKinds.participantTool,
@@ -210,6 +228,7 @@ PendingApprovalSummary describePendingApproval(
       subtitle: '${request.participantName} (${request.participantRoleLabel})',
       detail: request.reason ?? '',
       isSimpleDecision: true,
+      warning: null,
     ),
     PendingComputerUseAction() => (
       kind: PendingApprovalKinds.computerUse,
@@ -221,6 +240,7 @@ PendingApprovalSummary describePendingApproval(
       // Smoke arming is a second, deliberate gesture no compact surface can
       // represent honestly.
       isSimpleDecision: false,
+      warning: request.warningMessage.isEmpty ? null : request.warningMessage,
     ),
     PendingAssumptionConfirmation() => (
       kind: PendingApprovalKinds.assumptionConfirmation,
@@ -233,6 +253,7 @@ PendingApprovalSummary describePendingApproval(
       // Approve or decline resolves it. Declining is not a deferral: the
       // assumption stays unconfirmed and the mutation stays refused.
       isSimpleDecision: true,
+      warning: null,
     ),
     PendingSshConnect() => (
       kind: PendingApprovalKinds.sshConnect,
@@ -241,6 +262,7 @@ PendingApprovalSummary describePendingApproval(
       detail: 'Credentials are required.',
       // Resolving needs an SshConnectApproval carrying credential material.
       isSimpleDecision: false,
+      warning: null,
     ),
   };
   return PendingApprovalSummary(
@@ -250,6 +272,7 @@ PendingApprovalSummary describePendingApproval(
     subtitle: facts.subtitle,
     detail: facts.detail,
     isSimpleDecision: facts.isSimpleDecision,
+    warning: facts.warning,
     conversationId: request.owner.conversationId,
     origin: request.origin,
     remoteDeviceId: request.remoteDeviceId,

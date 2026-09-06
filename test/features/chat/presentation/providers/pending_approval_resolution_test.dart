@@ -15,14 +15,15 @@ void main() {
     required String conversationId,
     required String id,
     String? remoteDeviceId,
+    String? warningMessage,
   }) => PendingLocalCommand(
     owner: owner(conversationId),
     id: id,
     command: 'dart analyze',
     workingDirectory: '/repo',
     reason: 'Inspect diagnostics.',
-    warningTitle: null,
-    warningMessage: null,
+    warningTitle: warningMessage == null ? null : 'Destructive',
+    warningMessage: warningMessage,
     completer: Completer<LocalCommandApproval>(),
     origin: remoteDeviceId == null
         ? ChatInteractionOrigin.local
@@ -141,39 +142,79 @@ void main() {
       expect(call.allowsDirectDecision, isTrue);
     });
 
-    test('withholds the decision when the kind needs structured input',
-        () async {
+    test(
+      'withholds the decision when the kind needs structured input',
+      () async {
+        final notifications = _RecordingNotificationService();
+        final registry = PendingToolApprovalRegistry()
+          ..register(
+            PendingSshConnect(
+              owner: owner('thread-a'),
+              id: 'ssh-1',
+              host: 'example.internal',
+              port: 22,
+              username: 'deploy',
+              savedCredential: null,
+              identityCandidates: const [],
+              completer: Completer<SshConnectApproval?>(),
+            ),
+          );
+
+        await showPendingApprovalNotification(
+          notifications,
+          conversationId: 'thread-a',
+          threadTitle: 'Deploy',
+          summary: findPendingApprovalSummary(
+            registry,
+            conversationId: 'thread-a',
+          ),
+        );
+
+        expect(
+          notifications.calls.single.allowsDirectDecision,
+          isFalse,
+          reason:
+              'An Approve button cannot stand in for the credentials this '
+              'request actually needs.',
+        );
+      },
+    );
+
+    test('a warning reaches the body, beside the buttons', () async {
+      // The body is built from the summary's title, which for a shell command
+      // is the command alone. A destructive one used to arrive on the lock
+      // screen and the wrist with Approve/Deny and nothing saying it was
+      // destructive; the warning was in the sheet nobody had opened.
       final notifications = _RecordingNotificationService();
       final registry = PendingToolApprovalRegistry()
         ..register(
-          PendingSshConnect(
-            owner: owner('thread-a'),
-            id: 'ssh-1',
-            host: 'example.internal',
-            port: 22,
-            username: 'deploy',
-            savedCredential: null,
-            identityCandidates: const [],
-            completer: Completer<SshConnectApproval?>(),
+          localCommand(
+            conversationId: 'thread-a',
+            id: 'a-1',
+            warningMessage: 'This deletes files outside the project.',
           ),
         );
 
       await showPendingApprovalNotification(
         notifications,
         conversationId: 'thread-a',
-        threadTitle: 'Deploy',
+        threadTitle: 'Fix the parser',
         summary: findPendingApprovalSummary(
           registry,
           conversationId: 'thread-a',
         ),
       );
 
+      final call = notifications.calls.single;
       expect(
-        notifications.calls.single.allowsDirectDecision,
-        isFalse,
-        reason:
-            'An Approve button cannot stand in for the credentials this '
-            'request actually needs.',
+        call.body,
+        'Fix the parser wants to run: dart analyze.\n'
+        '⚠️ This deletes files outside the project.',
+      );
+      expect(
+        call.allowsDirectDecision,
+        isTrue,
+        reason: 'the decision stays answerable once the question is complete',
       );
     });
 

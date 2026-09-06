@@ -86,6 +86,13 @@ bool resolveApprovalById(
 /// a paired Apple Watch, so the body names what is actually being approved. A
 /// generic "a thread is waiting" would be asking the user to approve a command
 /// they cannot see.
+///
+/// The warning goes in the body for the same reason, and it was missing. The
+/// body is built from the summary's `title`, which for a shell command is the
+/// command alone — so a destructive one arrived on the lock screen and the
+/// wrist with Approve/Deny and nothing saying it was destructive, while the
+/// sheet nobody opened had the warning in it. A button offered beside an
+/// incomplete question is the failure mode the actions exist to avoid.
 Future<void> showPendingApprovalNotification(
   NotificationService notifications, {
   required String conversationId,
@@ -95,10 +102,14 @@ Future<void> showPendingApprovalNotification(
   final subject = summary == null
       ? 'is waiting for your approval'
       : 'wants to run: ${summary.title}';
+  final opening = threadTitle.isEmpty
+      ? 'A thread $subject.'
+      : '$threadTitle $subject.';
+  final warning = summary?.warning?.trim() ?? '';
   return notifications.showApprovalRequiredNotification(
     conversationId: conversationId,
     title: threadTitle.isEmpty ? 'Caverno' : threadTitle,
-    body: threadTitle.isEmpty ? 'A thread $subject.' : '$threadTitle $subject.',
+    body: warning.isEmpty ? opening : '$opening\n⚠️ $warning',
     approvalId: summary?.id,
     // Actions are only offered when a bare yes/no is a truthful answer.
     allowsDirectDecision: summary?.isSimpleDecision ?? false,
