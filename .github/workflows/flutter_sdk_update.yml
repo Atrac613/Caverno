@@ -13,13 +13,16 @@ jobs:
   check-flutter-sdk:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Least privilege: every write (branch push and pull request creation) is
+    # performed by AUTOMATION_GITHUB_TOKEN inside the create-pull-request step,
+    # and the job fails closed when that secret is missing. GITHUB_TOKEN is only
+    # used to read the repository during checkout.
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Read current Flutter version
         id: current-version
@@ -34,7 +37,7 @@ jobs:
 
       - name: Discover latest stable Flutter version
         id: latest-version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
           dry-run: true
@@ -75,7 +78,7 @@ jobs:
 
       - name: Set up latest Flutter
         if: steps.compare.outputs.needs_update == 'true'
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ steps.compare.outputs.latest }}
           channel: stable
@@ -93,7 +96,7 @@ jobs:
 
       - name: Install FVM
         if: steps.compare.outputs.needs_update == 'true'
-        run: dart pub global activate fvm
+        run: dart pub global activate fvm 4.1.2
 
       - name: Update Flutter version references
         if: steps.compare.outputs.needs_update == 'true'
@@ -112,7 +115,7 @@ jobs:
 
       - name: Create pull request
         if: steps.compare.outputs.needs_update == 'true'
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
           commit-message: "chore: update Flutter SDK to ${{ steps.compare.outputs.latest }}"

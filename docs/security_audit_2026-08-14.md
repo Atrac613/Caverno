@@ -95,7 +95,7 @@ conventions:
 | SA-13 | Medium | Approval-audit redaction does not recurse into nested arguments | SEC4.6 |
 | SA-14 | Medium | Session-log migration can reverse an explicit opt-out | SEC4.6 |
 | SA-15 | Medium | Drift failure can resurrect stale deleted Hive conversations or memory | SEC4.6 |
-| SA-16 | Medium | CI, dependency update, Gradle, and Android signing controls are not fail-closed | SEC4.7 |
+| SA-16 | Medium | CI, dependency update, Gradle, and Android signing controls are not fail-closed (fixed 2026-08-28) | SEC4.7 |
 | SA-17 | Medium | Android backup policy does not exclude settings, logs, and conversation stores | SEC4.6 |
 | SA-18 | Low | Privacy declarations, debug-log handling, and attachment deletion need lifecycle review | SEC4.6 |
 
@@ -579,6 +579,17 @@ actions in the pull-request Flutter CI workflow to reviewed 40-character commit
 SHAs and enforces the exact action/version/SHA allowlist in a regression test.
 The SDK-update and manual-smoke workflows still require immutable pins.
 
+Remediation status (completed 2026-08-28): SEC4.7c closes the finding. The
+SDK-update and manual-smoke workflows are pinned to the same reviewed commits,
+so all seventeen external action invocations resolve to five immutable SHAs. The
+write-capable SDK-update job drops to `contents: read` because every write
+already runs through `AUTOMATION_GITHUB_TOKEN` behind a fail-closed preflight.
+FVM is installed at a pinned version, the Gradle wrapper verifies
+`distributionSha256Sum`, and the deployed `services/notification_relay` npm
+package gains a Dependabot policy. `test/tool/supply_chain_pinning_test.dart`
+enforces all five controls and was validated against four injected defects.
+Task: `docs/sec4_7c_supply_chain_residuals_task.md`.
+
 ### SA-17: Android Backup Boundary
 
 `android/app/src/main/AndroidManifest.xml:20-23` has no explicit backup or data
@@ -733,7 +744,7 @@ Add negative coverage for:
 | P1-1 | SEC4.4b/SEC4.4c/SEC4.4d/SEC4.4e/SEC4.4f mutation and autonomous containment (mutation fence completed 2026-08-19; routine MCP deny-by-default completed 2026-08-21; git cwd fence completed 2026-08-21; git pathspec fence completed 2026-08-21; local-command write fence completed 2026-08-21) | SA-08, SA-09 | Write/edit/delete go through a symlink-aware project fence. Unclassified external MCP tools are omitted from routine catalogs and denied at dispatch. Git working directories use the same fence. Relocating git globals and escaping pathspecs are denied. Local-command writes use the same fence when a project is selected. |
 | P1-2 | SEC4.3d/SEC4.5e/SEC4.5f resource and credential transport (completed 2026-08-22) | SA-10, SA-12 | HTTP and Remote Coding limits pass. Credential-bearing non-loopback LLM endpoints require HTTPS. |
 | P1-3 | SEC4.6 data protection and lifecycle | SA-11, SA-13, SA-14, SA-15, SA-17, SA-18 | Secret-free storage/export, recursive redaction, opt-out, migration, backup, and deletion tests pass. |
-| P1-4 | SEC4.7 release supply-chain hardening | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
+| P1-4 | SEC4.7 release supply-chain hardening (completed 2026-08-28) | SA-16 | Immutable actions, pinned toolchain, checksum, dependency monitoring, and fail-closed release signing are enforced. |
 | P1-F1 | SEC4.3f application-owned deserialization limits (completed 2026-08-24) | SA-21 | MCP HTTP/stdio rejects oversized or stalled input before decoding, JSON documents and tool text are capped, and settings QR import bounds Base64, compressed input, and chunked decompressed output. |
 | P1-F2 | SEC4.6k sensitive diagnostic storage | SA-22 | New, existing, and rotated sensitive logs are owner-only, and structured secrets never cross a string-only redaction boundary. |
 | P2-F1 | SEC4.5g / RC1 remote interaction ownership | SA-23 | Resolution rechecks remote origin and enforces the documented same-device or cross-device authorization policy. |
