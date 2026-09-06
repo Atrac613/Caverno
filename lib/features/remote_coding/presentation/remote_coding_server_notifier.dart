@@ -34,6 +34,7 @@ import '../data/remote_coding_tls_identity.dart';
 import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_listen_policy.dart';
+import '../domain/remote_coding_grant_kinds.dart';
 import '../domain/remote_coding_models.dart';
 import '../domain/remote_coding_resource_policy.dart';
 import '../domain/remote_coding_session_policy.dart';
@@ -209,6 +210,52 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     } else {
       await _stopServer();
     }
+  }
+
+  /// Sets which of the desktop's **own** interactions [deviceId] may answer.
+  ///
+  /// Empty is the default and the state every device starts in. Unknown kinds
+  /// are dropped rather than stored, so a grant cannot outlive the kind it
+  /// names, and connected clients are re-sent a snapshot immediately: a
+  /// withdrawn grant has to take the approval off the phone's screen now, not
+  /// at the next reconnect.
+  Future<void> setDeviceDesktopOriginKinds(
+    String deviceId,
+    Set<String> kinds,
+  ) async {
+    final device = state.settings.pairedDevices
+        .where((device) => device.id == deviceId)
+        .firstOrNull;
+    if (device == null) return;
+    final granted = <String>{
+      for (final kind in kinds)
+        if (RemoteCodingGrantKinds.all.contains(kind.trim())) kind.trim(),
+    };
+    if (granted.length == device.desktopOriginKinds.length &&
+        granted.containsAll(device.desktopOriginKinds)) {
+      return;
+    }
+    final settings = state.settings.copyWith(
+      pairedDevices: [
+        for (final item in state.settings.pairedDevices)
+          if (item.id == deviceId)
+            item.copyWith(desktopOriginKinds: granted)
+          else
+            item,
+      ],
+    );
+    await _repository.saveServerSettings(settings);
+    state = state.copyWith(settings: settings, clearError: true);
+    final names = granted.toList()..sort();
+    appLog(
+      '[RemoteCoding] device $deviceId may now answer this desktop\'s own '
+      '${names.isEmpty ? 'nothing' : names.join(', ')}',
+    );
+    // The generic type on purpose: the client dispatches server events through
+    // a closed switch, so a descriptive `grantChanged` would be dropped rather
+    // than applied, and a withdrawn grant has to take the approval off the
+    // phone's screen now.
+    _broadcastSnapshot('snapshot');
   }
 
   Future<void> revokeDevice(String deviceId) async {
@@ -1019,6 +1066,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           origin: pending.origin,
           ownerDeviceId: pending.remoteDeviceId,
           authenticatedDeviceId: client.deviceId,
+          kind: RemoteCodingGrantKinds.question,
         )) {
       client.sendError(
         id: message.id,
@@ -1157,6 +1205,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           origin: pending.origin,
           ownerDeviceId: pending.remoteDeviceId,
           authenticatedDeviceId: authenticatedDeviceId,
+          kind: RemoteCodingGrantKinds.question,
         )) {
       return null;
     }
@@ -1200,6 +1249,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         origin: summary.origin,
         ownerDeviceId: summary.remoteDeviceId,
         authenticatedDeviceId: authenticatedDeviceId,
+        kind: summary.kind,
       )) {
         continue;
       }
@@ -1276,26 +1326,53 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             origin: summary.origin,
             ownerDeviceId: summary.remoteDeviceId,
             authenticatedDeviceId: authenticatedDeviceId,
+            kind: summary.kind,
           );
     }
     return false;
   }
 
+  /// Whether [authenticatedDeviceId] may see and answer this interaction.
+  ///
+  /// Two distinct cases, switched on [origin] first. SA-24 recorded what goes
+  /// wrong when a caller reads `remoteDeviceId` instead and infers the origin
+  /// from an id being present; the second case below is a new origin rather
+  /// than a relaxation of the first, for the same reason.
+  ///
+  /// - **Remote origin** — the turn was started by a paired device. Unchanged
+  ///   from SEC4.5g: only that device, and only while its pairing is active.
+  /// - **Local origin** — the desktop's own turn, which belongs to no device.
+  ///   Withheld from every device until the desktop owner grants this one this
+  ///   [kind] (SA-26). Pairing already confers the desktop's execution
+  ///   authority through `sendMessage`, so this adds no new class of it; what
+  ///   the grant controls is whether a device may answer a question it did not
+  ///   author.
   bool _canResolveInteraction({
     required ChatInteractionOrigin origin,
     required String? ownerDeviceId,
     required String? authenticatedDeviceId,
+    required String kind,
   }) {
     final owner = ownerDeviceId?.trim() ?? '';
     final authenticated = authenticatedDeviceId?.trim() ?? '';
-    if (origin != ChatInteractionOrigin.remote ||
-        owner.isEmpty ||
-        owner != authenticated) {
-      return false;
-    }
-    return state.settings.pairedDevices.any(
-      (device) => device.id == authenticated && device.tokenHash.isNotEmpty,
-    );
+    if (authenticated.isEmpty) return false;
+    final device = state.settings.pairedDevices
+        .where(
+          (device) => device.id == authenticated && device.tokenHash.isNotEmpty,
+        )
+        .firstOrNull;
+    if (device == null) return false;
+
+    return switch (origin) {
+      ChatInteractionOrigin.remote =>
+        owner.isNotEmpty && owner == authenticated,
+      // An owner id on a local-origin interaction is a contradiction rather
+      // than a permission: `ChatNotifier` nulls it for local turns, so one
+      // present here means the two disagree, and the safe reading of a
+      // disagreement about ownership is no.
+      ChatInteractionOrigin.local =>
+        owner.isEmpty && device.desktopOriginKinds.contains(kind),
+    };
   }
 
   Map<String, dynamic> _projectToJson(CodingProject project) => {

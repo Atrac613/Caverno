@@ -2317,9 +2317,13 @@ Three slices, in this order:
    destructive shell command reached the lock screen and the wrist with
    Approve/Deny and no warning beside it. The summary now carries `warning`
    and the body states it. Prerequisite for slice 3, not a parallel nicety.
-3. **Grant per device.** `capabilities` in the snapshot is already the slot;
-   persist a per-kind grant on `RemoteCodingPairedDevice`, defaulting to what
-   a device has today, with desktop-origin approvals as an explicit opt-in.
+3. **Grant per device.** Shipped 2026-09-06 as
+   `RemoteCodingPairedDevice.desktopOriginKinds`, empty by default and edited
+   per device from Remote Coding settings. `_canResolveInteraction` now
+   switches on origin and answers the two cases separately, so SEC4.5g's
+   remote-origin rule is untouched. Per kind, not one switch: answering a
+   question the Mac asked is not the act of approving a shell command it wants
+   to run.
 
 Device-local authentication and the desktop audit surface follow; neither
 gates the three above.
@@ -2328,7 +2332,10 @@ Dependencies:
 - None. WATCH10 supplies the notification path.
 
 Next action:
-- Slice 1.
+- All three slices shipped 2026-09-06. What remains from SA-26 is
+  device-local authentication before a mutating resolution (T1) and the
+  desktop-side audit of what a remote device approved (T4). Neither gates the
+  others; T1 needs a `local_auth` dependency and an iOS usage description.
 
 ## Anabasis Orchestrator Track
 

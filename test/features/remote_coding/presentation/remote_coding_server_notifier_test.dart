@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
@@ -620,6 +621,93 @@ void main() {
           description: 'the desktop-origin approval rejection',
         );
         expect(chatNotifier.approvalResolved, isFalse);
+
+        // SA-26 slice 3: the desktop's own approval reaches a device only
+        // once this desktop grants that device that kind. The turn belongs to
+        // no device, so SEC4.5g withholds it from all of them by default.
+        await container
+            .read(remoteCodingServerProvider.notifier)
+            .setDeviceDesktopOriginKinds(ownerDevice.id, {
+              PendingApprovalKinds.file,
+            });
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'granted-desktop-snapshot',
+            payload: const {},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'granted-desktop-snapshot' &&
+                message.payload['pendingApproval']?['id'] == 'approval-1',
+          ),
+          description: 'the granted desktop-origin snapshot',
+        );
+        // The grant is per device: the other paired phone was not given one.
+        other.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'ungranted-desktop-snapshot',
+            payload: const {},
+          ),
+        );
+        await _waitUntil(
+          () => other!.messages.any(
+            (message) =>
+                message.id == 'ungranted-desktop-snapshot' &&
+                message.payload['pendingApproval'] == null,
+          ),
+          description: 'the ungranted cross-device snapshot',
+        );
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'granted-desktop-approval',
+            payload: const {'approvalId': 'approval-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'granted-desktop-approval' &&
+                message.type == 'approvalResolved',
+          ),
+          description: 'the granted desktop-origin resolution',
+        );
+        expect(chatNotifier.approvalResolved, isTrue);
+
+        // And it is per kind: granting git commands does not grant file
+        // writes, which is the whole reason the grant is not one switch.
+        await container
+            .read(remoteCodingServerProvider.notifier)
+            .setDeviceDesktopOriginKinds(ownerDevice.id, {
+              PendingApprovalKinds.gitCommand,
+            });
+        chatNotifier.setFileApproval(
+          origin: ChatInteractionOrigin.local,
+          remoteDeviceId: null,
+        );
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'wrong-kind-approval',
+            payload: const {'approvalId': 'approval-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'wrong-kind-approval' &&
+                message.payload['code'] == 'approval_not_found',
+          ),
+          description: 'the wrong-kind grant rejection',
+        );
+        expect(chatNotifier.approvalResolved, isFalse);
+        await container
+            .read(remoteCodingServerProvider.notifier)
+            .setDeviceDesktopOriginKinds(ownerDevice.id, const <String>{});
 
         // SA-26: a remote turn runs on the desktop with the desktop's whole
         // tool catalogue, so the kinds it can block on are not the three the

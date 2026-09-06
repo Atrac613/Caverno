@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'remote_coding_grant_kinds.dart';
 import 'remote_coding_transport_policy.dart';
 
 enum RemoteCodingConnectionStatus {
@@ -70,6 +71,7 @@ class RemoteCodingPairedDevice {
     this.relayDelegationId,
     this.relayCredentialExpiresAt,
     this.relayCredentialState = RemoteCodingRelayCredentialState.active,
+    this.desktopOriginKinds = const <String>{},
   });
 
   final String id;
@@ -82,6 +84,19 @@ class RemoteCodingPairedDevice {
   final String? relayDelegationId;
   final DateTime? relayCredentialExpiresAt;
   final RemoteCodingRelayCredentialState relayCredentialState;
+
+  /// Interaction kinds this device may answer on the **desktop's own** turns.
+  ///
+  /// Empty by default, which is what every device has today: SEC4.5g scopes an
+  /// interaction to the paired device that started it, and a turn begun at the
+  /// Mac belongs to no device. SA-26 decided that widening is the desktop
+  /// owner's to make, per device and per kind, so that granting "answer my
+  /// Mac's questions" does not silently also grant "approve my Mac's shell
+  /// commands". Values come from [RemoteCodingGrantKinds].
+  ///
+  /// A device's authority over turns it started itself is unaffected: that is
+  /// not a widening and is not configured here.
+  final Set<String> desktopOriginKinds;
 
   bool get hasNotificationRelay =>
       (relayDeliveryHandle?.trim().isNotEmpty ?? false) &&
@@ -131,6 +146,7 @@ class RemoteCodingPairedDevice {
           ? relayCredentialExpiresAt
           : null,
       relayCredentialState: relayCredentialState,
+      desktopOriginKinds: _grantedKinds(json['desktopOriginKinds']),
     );
   }
 
@@ -147,6 +163,8 @@ class RemoteCodingPairedDevice {
       'relayCredentialExpiresAt': relayCredentialExpiresAt!.toIso8601String(),
       'relayCredentialState': relayCredentialState.name,
     },
+    if (desktopOriginKinds.isNotEmpty)
+      'desktopOriginKinds': desktopOriginKinds.toList()..sort(),
   };
 
   RemoteCodingPairedDevice copyWith({
@@ -160,6 +178,7 @@ class RemoteCodingPairedDevice {
     String? relayDelegationId,
     DateTime? relayCredentialExpiresAt,
     RemoteCodingRelayCredentialState? relayCredentialState,
+    Set<String>? desktopOriginKinds,
   }) {
     return RemoteCodingPairedDevice(
       id: id ?? this.id,
@@ -173,6 +192,7 @@ class RemoteCodingPairedDevice {
       relayCredentialExpiresAt:
           relayCredentialExpiresAt ?? this.relayCredentialExpiresAt,
       relayCredentialState: relayCredentialState ?? this.relayCredentialState,
+      desktopOriginKinds: desktopOriginKinds ?? this.desktopOriginKinds,
     );
   }
 
@@ -183,8 +203,25 @@ class RemoteCodingPairedDevice {
       tokenHash: tokenHash,
       createdAt: createdAt,
       lastSeenAt: lastSeenAt,
+      // Dropping the relay must not silently drop the authority grant: this
+      // constructs a fresh device rather than copying one, so every field
+      // added above has to be repeated here on purpose.
+      desktopOriginKinds: desktopOriginKinds,
     );
   }
+}
+
+/// Reads a persisted grant, keeping only kinds this build still recognises.
+///
+/// A kind removed from the app must not stay granted through a settings file,
+/// and an unknown string must not become one by being carried forward.
+Set<String> _grantedKinds(Object? value) {
+  if (value is! List) return const <String>{};
+  return <String>{
+    for (final entry in value)
+      if (entry is String && RemoteCodingGrantKinds.all.contains(entry.trim()))
+        entry.trim(),
+  };
 }
 
 String? _nonEmptyString(Object? value) {

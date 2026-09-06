@@ -525,6 +525,26 @@ abridged on its way there.
    device has today, with the widening — including desktop-origin approvals —
    as an explicit per-device opt-in.
 
+Shipped 2026-09-06 as `RemoteCodingPairedDevice.desktopOriginKinds`, empty by
+default. `_canResolveInteraction` switches on origin first and answers the two
+cases separately: remote origin is unchanged from SEC4.5g, and local origin —
+the desktop's own turn, which belongs to no device — is admitted only for a
+kind this desktop granted this device. An owner id present on a local-origin
+interaction is treated as a contradiction rather than a permission.
+
+The grant is per kind rather than one switch because the kinds are not
+interchangeable: answering a question the Mac asked is not the act of
+approving a shell command it wants to run, and a single "trust this phone"
+would make them the same act. Unknown kinds are dropped when settings are
+read, so a grant cannot outlive the kind it names. Withdrawing one re-sends
+the snapshot immediately rather than at the next reconnect.
+
+A device sees exactly what it may answer; there is no view-without-resolve
+tier. That was SA-25's shape and it is not carried forward — with a grant
+available, "show me what the Mac is stuck on" is a grant of the question kind
+rather than a separate predicate. If the two ever need to diverge, they need
+two predicates, not a loosened one.
+
 Device-local authentication (T1) and the audit surface (T4) follow. Neither
 gates the first three.
 

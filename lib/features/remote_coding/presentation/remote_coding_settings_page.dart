@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../domain/remote_coding_grant_kinds.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_multi_device_evidence.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
@@ -136,6 +137,19 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
                           ),
                         ),
                       IconButton(
+                        icon: Icon(
+                          device.desktopOriginKinds.isEmpty
+                              ? Icons.shield_outlined
+                              : Icons.shield,
+                        ),
+                        tooltip: device.desktopOriginKinds.isEmpty
+                            ? 'This device answers only its own requests'
+                            : 'Answers ${device.desktopOriginKinds.length} of '
+                                  "this Mac's own request kinds",
+                        onPressed: () =>
+                            _showDesktopOriginGrantDialog(context, ref, device),
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.link_off),
                         tooltip: 'Revoke',
                         onPressed: () => notifier.revokeDevice(device.id),
@@ -168,6 +182,29 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
     ref
         .read(remoteCodingServerProvider.notifier)
         .cancelPairingPayload(payload.ticketId);
+  }
+
+  /// Edits which of this desktop's own interactions a device may answer.
+  ///
+  /// Separate from pairing, and empty by default. A paired device can already
+  /// make this Mac run anything, by sending a message and approving the
+  /// request it provokes — so what this grants is not new authority but the
+  /// right to answer a question the desktop asked rather than one the device
+  /// authored (SA-26). It is per kind so that letting a phone answer questions
+  /// does not also let it approve shell commands.
+  Future<void> _showDesktopOriginGrantDialog(
+    BuildContext context,
+    WidgetRef ref,
+    RemoteCodingPairedDevice device,
+  ) async {
+    final granted = await showDialog<Set<String>>(
+      context: context,
+      builder: (_) => _DesktopOriginGrantDialog(device: device),
+    );
+    if (granted == null) return;
+    await ref
+        .read(remoteCodingServerProvider.notifier)
+        .setDeviceDesktopOriginKinds(device.id, granted);
   }
 
   Future<void> _showNotificationRelayDialog(
@@ -556,5 +593,96 @@ class _NotificationRelayPairingDialogState
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+}
+
+class _DesktopOriginGrantDialog extends StatefulWidget {
+  const _DesktopOriginGrantDialog({required this.device});
+
+  final RemoteCodingPairedDevice device;
+
+  @override
+  State<_DesktopOriginGrantDialog> createState() =>
+      _DesktopOriginGrantDialogState();
+}
+
+class _DesktopOriginGrantDialogState extends State<_DesktopOriginGrantDialog> {
+  late final Set<String> _granted = {...widget.device.desktopOriginKinds};
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Consequential kinds last, so "grant everything" is a scroll and a
+    // decision rather than the first thing under the thumb.
+    final kinds = [
+      ...RemoteCodingGrantKinds.all.where(
+        (kind) => !RemoteCodingGrantKinds.consequential.contains(kind),
+      ),
+      ...RemoteCodingGrantKinds.all.where(
+        RemoteCodingGrantKinds.consequential.contains,
+      ),
+    ];
+    return AlertDialog(
+      title: Text('${widget.device.name}: this Mac\'s own requests'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This device already answers requests from turns it starts '
+              'itself. Tick a kind to also let it answer one raised by a turn '
+              'started here, at this Mac.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final kind in kinds)
+                    CheckboxListTile(
+                      dense: true,
+                      value: _granted.contains(kind),
+                      title: Text(RemoteCodingGrantKinds.label(kind)),
+                      subtitle:
+                          RemoteCodingGrantKinds.consequential.contains(kind)
+                          ? Text(
+                              'Can change this machine',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.error,
+                              ),
+                            )
+                          : null,
+                      onChanged: (checked) => setState(() {
+                        if (checked ?? false) {
+                          _granted.add(kind);
+                        } else {
+                          _granted.remove(kind);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => setState(_granted.clear),
+          child: const Text('Grant nothing'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _granted),
+          child: const Text('Save'),
+        ),
+      ],
+    );
   }
 }
