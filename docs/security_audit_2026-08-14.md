@@ -201,6 +201,28 @@ import call: provider rebuild, next turn, app restart, and manual resync must
 remain inert. Any change to command, argv, environment-key set, URL, schema, or
 normalized trust identity invalidates the prior review.
 
+Remediation status (recorded 2026-09-06, verified against the shipped code):
+SEC4.2 quarantines executable authority on import.
+`ExecutableSettingsQuarantineService.quarantineImportedSettings` runs on both
+paths this finding names — `SettingsNotifier.importSettings` for the file and
+encrypted-passphrase imports, and `SettingsNotifier.importFromQr` for the QR
+one. It disables MCP and clears its URLs, returns every imported server to
+`McpServerTrustState.pending` with `trustedAt` cleared, disables external tool
+hooks and clears `reviewedAt`, resets both approval modes to
+`ToolApprovalMode.defaultPermissions`, forces the file, local-command, and git
+confirmations back on, and empties the local-command permission rules and the
+routine computer-use allowlist. Anything arriving without one is stamped
+`import:settings` so a reviewer can see where it came from.
+
+Review is bound to the exact configuration reviewed rather than to the server:
+editing an MCP server's URL, command, or arguments returns it to `pending`, so
+a trusted entry cannot be edited into a different one after approval. Covered
+by `test/features/settings/domain/services/executable_settings_quarantine_service_test.dart`.
+
+This paragraph closes a bookkeeping gap rather than a code gap. SA-02 was the
+only High severity finding in this audit with no remediation status at all,
+which reads as open; the work had shipped.
+
 ### SA-03: Unapproved HTTP/Browser Egress, Mutation, And SSRF
 
 Severity: `High`

@@ -32,9 +32,10 @@ const _approvedActions = <String, ({String sha, String version})>{
 /// allowed to make. A new workflow or a new step fails here before it can run
 /// unreviewed third-party code.
 const _expectedActionUses = <String, int>{
-  // 11 since main added a setup-java invocation after SEC4.7c was written.
-  // The count is asserted so a new action cannot arrive unpinned and unnoticed;
-  // raise it only alongside the pin and the approval below.
+  // 11 since a second upload-artifact step -- the Dependabot pub lock
+  // artifact -- was added after SEC4.7c was written. The count is asserted so a
+  // new action cannot arrive unpinned and unnoticed; raise it only alongside
+  // the pin and the approval below.
   'flutter_ci.yml': 11,
   'flutter_sdk_update.yml': 4,
   'plan_mode_smoke_manual.yml': 3,
