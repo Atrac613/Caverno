@@ -6,6 +6,8 @@ handoffs can refer to the same unit of work over time.
 
 ## Milestone Conventions
 
+- Use `MEM<number>` for portable memory and model-continuity milestones,
+  documented in `docs/portable_memory_investigation_2026-09-06.md`.
 - Use `PM<number>` for Plan Mode milestones.
 - Keep `M<number>` for the existing macOS Computer Use milestones documented in
   `docs/macos_computer_use_helper_architecture.md`.
@@ -145,6 +147,9 @@ promotion gates below still apply. Keep one implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
+| Memory Continuity | MEM1 | later | Export and restore versioned user-owned memory, including pending review and suppression state. | Freeze the archive/expiry contract, then implement a codec and clean-store restore with rollback and cross-process ownership evidence. See `docs/portable_memory_investigation_2026-09-06.md`; settings export alone is not memory portability. |
+| Memory Continuity | MEM2 | later | Measure fact, preference, and constraint continuity across model changes. | After MEM1, freeze synthetic cases and thresholds; compare at least two model configurations with memory/no-memory controls. Do not equate shared memory with identical personality. |
+| Memory Continuity | MEM3 | later | Preserve memory evidence and correction history. | Add source-message references, assertion origin, and supersession semantics with legacy decoding and archive compatibility. Reuse the existing memory store and approval boundaries. |
 | Plan Mode | PM3 | done | Finish scenario harness decomposition and keep deterministic smoke coverage stable. | Keep the extracted support modules covered while working on report quality. |
 | Plan Mode | PM4 | done | Make deterministic Plan Mode reports easy to review and fail for actionable warnings. | Keep warning reasons and quality blockers aligned across suite report formats. |
 | Plan Mode | PM5 | done | Stabilize live Plan Mode smoke runs against OpenAI-compatible endpoints. | Keep the PM5 live gate in the release checklist while preparing the MVP handoff. |
@@ -270,6 +275,21 @@ Keep each row as a separate task and focused PR. Remaining SEC4.7/SA-16 work is
 still required, but follows the two High severity release blockers unless the
 affected local-command and HTML Preview capabilities are absent from the release
 artifact under the audit risk-acceptance policy.
+
+## Memory Continuity Track
+
+Investigation and acceptance criteria:
+[Portable Memory And Model Continuity](portable_memory_investigation_2026-09-06.md).
+
+All three milestones remain `later`; this proposal does not displace current
+work. MEM1 is the first slice within this track. It builds on F4 storage and CLI3
+memory ownership. MEM2 evaluates model behavior separately from deterministic
+archive fidelity; MEM3 adds evidence and correction history without blocking the
+initial archive contract.
+
+Workflow learning reuses completed SKILL1/SKILL2 and planned SKILL3 in
+`docs/local_llm_agent_roadmap.md`; no duplicate skill-mining milestone is added.
+The proposal does not reopen RAG3's blocked retrieval candidates.
 
 ## Codex Developer Efficiency Track
 
