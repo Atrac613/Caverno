@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui';
 
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../utils/debouncer.dart';
@@ -9,6 +10,10 @@ import 'window_settings_service.dart';
 
 class WindowManagerService with WindowListener {
   WindowManagerService(this._settingsService);
+
+  static const _launchWindowChannel = MethodChannel(
+    'com.caverno/launch_window',
+  );
 
   final WindowSettingsService _settingsService;
   final Debouncer _saveDebouncer = Debouncer(
@@ -49,13 +54,24 @@ class WindowManagerService with WindowListener {
             _isPositionOnScreen(geometry.x!, geometry.y!)) {
           await windowManager.setPosition(Offset(geometry.x!, geometry.y!));
         }
+        await _allowNativeShow();
         await windowManager.show();
         await windowManager.focus();
       });
     } catch (_) {
+      await _allowNativeShow();
       await windowManager.show();
       await windowManager.focus();
     }
+  }
+
+  Future<void> _allowNativeShow() async {
+    if (!Platform.isMacOS) {
+      return;
+    }
+    try {
+      await _launchWindowChannel.invokeMethod<void>('allowShow');
+    } catch (_) {}
   }
 
   @override

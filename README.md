@@ -210,8 +210,7 @@ All settings are configurable in-app via the Settings page:
 | API Key | `no-key` |
 | Temperature | 0.7 |
 | Max Tokens | 4096 |
-| MCP Enabled | `true` |
-| Default MCP Server | `http://localhost:8081` |
+| MCP Enabled | `true` (no remote server until you add one) |
 | Whisper URL | `http://localhost:8080` |
 | VOICEVOX URL | `http://localhost:50021` |
 | Language | `system` |

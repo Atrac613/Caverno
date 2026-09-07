@@ -44,12 +44,9 @@ import FlutterMacOS
 
   override func applicationShouldHandleReopen(
     _ sender: NSApplication,
-    hasVisibleWindows flag: Bool
+    hasVisibleWindows _: Bool
   ) -> Bool {
-    if !flag {
-      sender.unhide(nil)
-      (mainFlutterWindow as? MainFlutterWindow)?.handleReopen()
-    }
+    (mainFlutterWindow as? MainFlutterWindow)?.handleReopen()
     return true
   }
 

@@ -113,7 +113,10 @@ void main() {
     expect(hiveInit, greaterThan(runAppAt));
     expect(mainSource, contains('CavernoGuiBootstrap'));
     expect(mainSource, contains('showAfterFirstFrame()'));
+    expect(mainSource, contains('_startOnce()'));
     expect(windowManagerSource, contains('void showAfterFirstFrame()'));
+    expect(windowManagerSource, contains("com.caverno/launch_window"));
+    expect(windowManagerSource, contains('allowShow'));
     expect(mainSource, contains('CavernoLegacyHiveBoxes.open'));
     expect(
       mainSource,
@@ -132,6 +135,9 @@ void main() {
     final windowSource = File(
       'macos/Runner/MainFlutterWindow.swift',
     ).readAsStringSync();
+    final mainMenuXib = File(
+      'macos/Runner/Base.lproj/MainMenu.xib',
+    ).readAsStringSync();
 
     expect(
       appDelegateSource,
@@ -142,9 +148,14 @@ void main() {
       contains('return false'),
     );
     expect(windowSource, contains('isRestorable = false'));
-    expect(windowSource, contains('hideUntilDartShow()'));
+    expect(windowSource, contains('dartMayShow'));
+    expect(windowSource, contains('allowDartShow()'));
+    expect(windowSource, contains('alphaValue = 0'));
+    expect(windowSource, contains('com.caverno/launch_window'));
     expect(windowSource, contains('handleReopen()'));
-    expect(windowSource, contains('setIsVisible(false)'));
+    expect(windowSource, isNot(contains('orderOut(nil)')));
+    expect(windowSource, isNot(contains('flag && dartMayShow')));
+    expect(mainMenuXib, contains('visibleAtLaunch="NO"'));
     expect(windowSource, contains('startIfNeeded()'));
     expect(appDelegateSource, contains('NSQuitAlwaysKeepsWindows'));
     expect(appDelegateSource, contains('discardPersistedWindowState'));

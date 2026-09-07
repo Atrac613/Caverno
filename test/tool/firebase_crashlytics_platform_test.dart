@@ -42,6 +42,14 @@ void main() {
     expect(mainSource, contains('installCavernoCrashlytics()'));
     expect(mainSource, contains('_installCrashlyticsWithoutBlockingLaunch'));
     expect(
+      mainSource.indexOf('runApp('),
+      lessThan(
+        mainSource.indexOf(
+          'unawaited(_installCrashlyticsWithoutBlockingLaunch())',
+        ),
+      ),
+    );
+    expect(
       mainSource.indexOf('looksLikeCliInvocation'),
       lessThan(mainSource.indexOf('installCavernoCrashlytics()')),
     );

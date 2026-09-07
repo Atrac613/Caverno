@@ -38,6 +38,8 @@ class SettingsRepository {
   static const _enableLlmSessionLogsKey = 'enableLlmSessionLogs';
   static const _llmSessionLogsDefaultOnMigrationKey =
       'migration.enable_llm_session_logs_default_on.v1';
+  static const _clearPlaceholderDefaultMcpMigrationKey =
+      'migration.clear_placeholder_default_mcp.v1';
 
   Future<void> initialize() async {
     final credentialStore = _credentialStore;
@@ -53,7 +55,7 @@ class SettingsRepository {
 
     final legacySettings = AppSettings.fromJson(
       _hydrateCredentials(decoded),
-    ).withNormalizedLlmEndpoints();
+    ).withNormalizedLlmEndpoints().withoutPlaceholderDefaultMcpServer();
     await save(legacySettings);
   }
 
@@ -70,9 +72,16 @@ class SettingsRepository {
     try {
       // Seeds the saved-endpoint list from the primary connection fields on
       // installs that predate multi-endpoint support.
-      final settings = AppSettings.fromJson(
+      var settings = AppSettings.fromJson(
         _hydrateCredentials(decoded),
       ).withNormalizedLlmEndpoints();
+      if (_shouldClearPlaceholderDefaultMcp()) {
+        final migrated = settings.withoutPlaceholderDefaultMcpServer();
+        if (persistMigrations && !identical(migrated, settings)) {
+          _persistClearedPlaceholderDefaultMcp(migrated);
+        }
+        settings = migrated;
+      }
       if (_shouldEnableSessionLogsForDefaultOnMigration(decoded)) {
         final migrated = settings.copyWith(enableLlmSessionLogs: true);
         if (persistMigrations) {
@@ -97,6 +106,7 @@ class SettingsRepository {
       });
     }
     await _prefs.setBool(_llmSessionLogsDefaultOnMigrationKey, true);
+    await _prefs.setBool(_clearPlaceholderDefaultMcpMigrationKey, true);
     await _prefs.setString(_settingsKey, jsonEncode(persistence.settingsJson));
     _credentials = persistence.credentials;
     _volatileCredentialsByPreferences[_prefs] = _credentials;
@@ -377,6 +387,15 @@ class SettingsRepository {
 
   void _persistMigratedSessionLogDefault(AppSettings settings) {
     unawaited(_prefs.setBool(_llmSessionLogsDefaultOnMigrationKey, true));
+    unawaited(save(settings));
+  }
+
+  bool _shouldClearPlaceholderDefaultMcp() {
+    return _prefs.getBool(_clearPlaceholderDefaultMcpMigrationKey) != true;
+  }
+
+  void _persistClearedPlaceholderDefaultMcp(AppSettings settings) {
+    unawaited(_prefs.setBool(_clearPlaceholderDefaultMcpMigrationKey, true));
     unawaited(save(settings));
   }
 }
