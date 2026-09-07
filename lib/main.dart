@@ -48,10 +48,6 @@ Future<void> main(List<String> arguments) async {
   if (CavernoCliInvocation.looksLikeCliInvocation(arguments)) {
     exit(await runCavernoCliProcess(arguments));
   }
-  // Native Firebase already configures itself during plugin registration.
-  // Awaiting Dart install here used to leave a visible empty FlutterView if
-  // Installations/Messaging blocked on the keychain.
-  unawaited(_installCrashlyticsWithoutBlockingLaunch());
   await EasyLocalization.ensureInitialized();
 
   final prefs = await SharedPreferences.getInstance();
@@ -186,14 +182,32 @@ class CavernoGuiBootstrap extends StatefulWidget {
 class _CavernoGuiBootstrapState extends State<CavernoGuiBootstrap> {
   Widget? _app;
   Object? _error;
+  bool _started = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.windowManagerService?.showAfterFirstFrame();
-      unawaited(_hydrate());
+      _startOnce();
     });
+    // A hidden macOS FlutterView may not vsync, so don't wait forever
+    // for the first frame before allowing the native window to appear.
+    Future<void>.delayed(const Duration(milliseconds: 50), () {
+      if (!mounted) {
+        return;
+      }
+      _startOnce();
+    });
+  }
+
+  void _startOnce() {
+    if (_started) {
+      return;
+    }
+    _started = true;
+    widget.windowManagerService?.showAfterFirstFrame();
+    unawaited(_installCrashlyticsWithoutBlockingLaunch());
+    unawaited(_hydrate());
   }
 
   Future<void> _hydrate() async {

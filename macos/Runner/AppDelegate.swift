@@ -47,7 +47,6 @@ import FlutterMacOS
     hasVisibleWindows flag: Bool
   ) -> Bool {
     if !flag {
-      sender.unhide(nil)
       (mainFlutterWindow as? MainFlutterWindow)?.handleReopen()
     }
     return true

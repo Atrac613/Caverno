@@ -19,8 +19,8 @@ class MainFlutterWindow: NSWindow {
   private var sparkleUpdateChannel: MacosSparkleUpdateChannel?
   private var appMenuChannel: MacosAppMenuChannel?
   private var appleFoundationModelsChannel: MacosAppleFoundationModelsChannel?
-  private var didHideAtLaunch = false
-  private var hasBeenShownByDart = false
+  private var launchWindowChannel: FlutterMethodChannel?
+  private var dartMayShow = false
 
   /// Asks the Flutter side to present the in-app settings modal. Invoked from the
   /// native application menu (Caverno > Settings…) via the AppDelegate.
@@ -45,10 +45,27 @@ class MainFlutterWindow: NSWindow {
     let originY = screenFrame.origin.y + (screenFrame.height - windowHeight) / 2
     let windowFrame = NSRect(x: originX, y: originY, width: windowWidth, height: windowHeight)
     self.isRestorable = false
+    self.alphaValue = 0
     self.setFrame(windowFrame, display: false)
     self.minSize = NSSize(width: 480, height: 600)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    launchWindowChannel = FlutterMethodChannel(
+      name: "com.caverno/launch_window",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    launchWindowChannel?.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(nil)
+        return
+      }
+      if call.method == "allowShow" {
+        self.allowDartShow()
+        result(nil)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
     securityScopedBookmarkChannel = SecurityScopedBookmarkChannel(
       messenger: flutterViewController.engine.binaryMessenger,
       window: self
@@ -67,7 +84,7 @@ class MainFlutterWindow: NSWindow {
     )
 
     super.awakeFromNib()
-    hideUntilDartShow()
+    orderOut(nil)
     // Start Sparkle after the nib is up. Do not call this from
     // AppDelegate.applicationDidFinishLaunching: Firebase GUL swizzles that
     // selector and `super` raises NSInvalidArgumentException, which leaves a
@@ -77,36 +94,63 @@ class MainFlutterWindow: NSWindow {
     }
   }
 
-  // window_manager's macOS waitUntilReadyToShow is a no-op, so AppKit would
-  // otherwise order a FlutterView with no Dart frame (a black window) during
-  // launch / restoration. Hide on the first order; Dart show() makes it visible.
+  // AppKit, FlutterViewController, and window_manager setFrame(display: true)
+  // all try to reveal the nib window at 1280x800 before Dart has a frame.
+  // Ignore those until allowShow arrives from CavernoGuiBootstrap.
+  func allowDartShow() {
+    dartMayShow = true
+    alphaValue = 1
+  }
+
   override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
+    if !dartMayShow && place != .out {
+      return
+    }
     super.order(place, relativeTo: otherWin)
-    hideUntilDartShow()
   }
 
   override func setIsVisible(_ flag: Bool) {
-    if flag {
-      hasBeenShownByDart = true
+    if flag && !dartMayShow {
+      return
     }
     super.setIsVisible(flag)
   }
 
-  func handleReopen() {
-    // Ignore Dock clicks that arrive after launch hide and before Dart show().
-    // After the first Dart show(), bring the window back even if the user hid it.
-    guard hasBeenShownByDart else {
+  override func makeKeyAndOrderFront(_ sender: Any?) {
+    guard dartMayShow else {
       return
     }
-    makeKeyAndOrderFront(nil)
+    super.makeKeyAndOrderFront(sender)
   }
 
-  private func hideUntilDartShow() {
-    if didHideAtLaunch {
+  override func orderFront(_ sender: Any?) {
+    guard dartMayShow else {
       return
     }
-    didHideAtLaunch = true
-    setIsVisible(false)
+    super.orderFront(sender)
+  }
+
+  override func orderFrontRegardless() {
+    guard dartMayShow else {
+      return
+    }
+    super.orderFrontRegardless()
+  }
+
+  override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+    super.setFrame(frameRect, display: flag && dartMayShow)
+  }
+
+  override func setFrame(_ frameRect: NSRect, display flag: Bool, animate animateFlag: Bool) {
+    super.setFrame(frameRect, display: flag && dartMayShow, animate: animateFlag)
+  }
+
+  func handleReopen() {
+    guard dartMayShow else {
+      return
+    }
+    NSApp.unhide(nil)
+    makeKeyAndOrderFront(nil)
   }
 }
 
