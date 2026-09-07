@@ -83,8 +83,13 @@ class MainFlutterWindow: NSWindow {
       messenger: flutterViewController.engine.binaryMessenger
     )
 
+    ignoresMouseEvents = true
     super.awakeFromNib()
-    orderOut(nil)
+    // Keep an alpha-0 window on the display list so FlutterView still vsyncs.
+    // orderOut plus blocking order/setIsVisible left the engine without a
+    // drawable, so Dart never reached allowShow and `flutter run` hung after
+    // the Crashlytics native log.
+    super.order(.above, relativeTo: 0)
     // Start Sparkle after the nib is up. Do not call this from
     // AppDelegate.applicationDidFinishLaunching: Firebase GUL swizzles that
     // selector and `super` raises NSInvalidArgumentException, which leaves a
@@ -92,65 +97,27 @@ class MainFlutterWindow: NSWindow {
     DispatchQueue.main.async {
       MacosSparkleUpdateController.shared.startIfNeeded()
     }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+      self?.allowDartShow()
+    }
   }
 
-  // AppKit, FlutterViewController, and window_manager setFrame(display: true)
-  // all try to reveal the nib window at 1280x800 before Dart has a frame.
-  // Ignore those until allowShow arrives from CavernoGuiBootstrap.
+  // Stay visually hidden (alpha 0) until Dart allowShow or the fallback timer.
+  // Do not orderOut or swallow setFrame(display:) — those prevent vsync.
   func allowDartShow() {
+    guard !dartMayShow else {
+      return
+    }
     dartMayShow = true
     alphaValue = 1
-  }
-
-  override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
-    if !dartMayShow && place != .out {
-      return
-    }
-    super.order(place, relativeTo: otherWin)
-  }
-
-  override func setIsVisible(_ flag: Bool) {
-    if flag && !dartMayShow {
-      return
-    }
-    super.setIsVisible(flag)
-  }
-
-  override func makeKeyAndOrderFront(_ sender: Any?) {
-    guard dartMayShow else {
-      return
-    }
-    super.makeKeyAndOrderFront(sender)
-  }
-
-  override func orderFront(_ sender: Any?) {
-    guard dartMayShow else {
-      return
-    }
-    super.orderFront(sender)
-  }
-
-  override func orderFrontRegardless() {
-    guard dartMayShow else {
-      return
-    }
-    super.orderFrontRegardless()
-  }
-
-  override func setFrame(_ frameRect: NSRect, display flag: Bool) {
-    super.setFrame(frameRect, display: flag && dartMayShow)
-  }
-
-  override func setFrame(_ frameRect: NSRect, display flag: Bool, animate animateFlag: Bool) {
-    super.setFrame(frameRect, display: flag && dartMayShow, animate: animateFlag)
+    ignoresMouseEvents = false
+    NSApp.unhide(nil)
+    super.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
   }
 
   func handleReopen() {
-    guard dartMayShow else {
-      return
-    }
-    NSApp.unhide(nil)
-    makeKeyAndOrderFront(nil)
+    allowDartShow()
   }
 }
 

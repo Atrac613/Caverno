@@ -89,6 +89,46 @@ void main() {
     }
   });
 
+  test('macOS disables Firebase Messaging auto-init', () {
+    // firebase_messaging calls registerForRemoteNotifications at plugin
+    // load when auto-init is on. macOS is not an FCM receive target, and
+    // Debug signing does not include aps-environment, so that call logs
+    // OSStatus 13 ("The operation couldn't be completed.") during
+    // `flutter run -d macos`.
+    final info = File('macos/Runner/Info.plist').readAsStringSync();
+    expect(info, contains('FirebaseMessagingAutoInitEnabled'));
+    expect(
+      info.contains('<key>FirebaseMessagingAutoInitEnabled</key>\n\t<false/>'),
+      isTrue,
+    );
+  });
+
+  test('macOS debug entitlements allow the debugger to attach', () {
+    // Signing.xcconfig sets CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO so
+    // Xcode will not add get-task-allow for us. Without it, debugserver
+    // reports "Not allowed to attach to process".
+    final debugEntitlements = File(
+      'macos/Runner/DebugProfile.entitlements',
+    ).readAsStringSync();
+    final releaseEntitlements = File(
+      'macos/Runner/Release.entitlements',
+    ).readAsStringSync();
+    final project = File(
+      'macos/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    final runnerDebugStart = project.indexOf(
+      '33CC10FC2044A3C60003C045 /* Debug */',
+    );
+    final runnerDebugEnd = project.indexOf('name = Debug;', runnerDebugStart);
+    final runnerDebug = project.substring(runnerDebugStart, runnerDebugEnd);
+
+    expect(debugEntitlements, contains('com.apple.security.get-task-allow'));
+    expect(debugEntitlements, contains('com.apple.security.cs.allow-jit'));
+    expect(releaseEntitlements, isNot(contains('get-task-allow')));
+    expect(runnerDebug, isNot(contains('ENABLE_HARDENED_RUNTIME = YES;')));
+    expect(runnerDebug, contains('ENABLE_APP_SANDBOX = NO;'));
+  });
+
   test('macOS entitlements grant the keychain access secure storage needs', () {
     // flutter_secure_storage holds the relay delivery credential and the SSH
     // credentials. Without this entitlement the macOS keychain answers

@@ -150,8 +150,11 @@ void main() {
     expect(windowSource, contains('isRestorable = false'));
     expect(windowSource, contains('dartMayShow'));
     expect(windowSource, contains('allowDartShow()'));
+    expect(windowSource, contains('alphaValue = 0'));
     expect(windowSource, contains('com.caverno/launch_window'));
     expect(windowSource, contains('handleReopen()'));
+    expect(windowSource, isNot(contains('orderOut(nil)')));
+    expect(windowSource, isNot(contains('flag && dartMayShow')));
     expect(mainMenuXib, contains('visibleAtLaunch="NO"'));
     expect(windowSource, contains('startIfNeeded()'));
     expect(appDelegateSource, contains('NSQuitAlwaysKeepsWindows'));

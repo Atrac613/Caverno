@@ -29,6 +29,11 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- firebase_messaging registers for APNs at plugin load unless this is
+	     false. macOS is not an FCM receive target, and Debug signing does
+	     not include aps-environment, so auto-init would log OSStatus 13. -->
+	<key>FirebaseMessagingAutoInitEnabled</key>
+	<false/>
 	<key>SUAllowsAutomaticUpdates</key>
 	<false/>
 	<key>SUAutomaticallyUpdate</key>
