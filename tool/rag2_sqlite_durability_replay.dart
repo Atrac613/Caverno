@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
 
+import 'dart_tool_child_process.dart';
 import 'rag2_explicit_source_roots_replay.dart';
 import 'rag2_knowledge_object_replay.dart';
 import 'rag2_persistence_reopen_replay.dart';
@@ -731,38 +732,10 @@ Future<void> applyRag2SqliteSnapshotInChild({
 }
 
 Future<Process> _startSqliteReplayChild(List<String> arguments) {
-  return Process.start(_sqliteDartExecutable(), [
-    '--disable-dart-dev',
-    'tool/rag2_sqlite_durability_replay.dart',
-    ...arguments,
-  ], workingDirectory: Directory.current.path);
-}
-
-String _sqliteDartExecutable() {
-  final executableName = Platform.isWindows ? 'dart.exe' : 'dart';
-  final flutterRoots = <String>[
-    Directory.current.uri.resolve('.fvm/flutter_sdk/').toFilePath(),
-    if ((Platform.environment['FLUTTER_ROOT'] ?? '').trim().isNotEmpty)
-      Platform.environment['FLUTTER_ROOT']!.trim(),
-  ];
-  for (final flutterRoot in flutterRoots) {
-    final candidate = File.fromUri(
-      Directory(
-        flutterRoot,
-      ).uri.resolve('bin/cache/dart-sdk/bin/$executableName'),
-    );
-    if (candidate.existsSync()) {
-      return candidate.path;
-    }
-  }
-  final which = Process.runSync('which', [executableName]);
-  if (which.exitCode == 0) {
-    final path = (which.stdout as String).trim();
-    if (path.isNotEmpty && File(path).existsSync()) {
-      return path;
-    }
-  }
-  return executableName;
+  return startDartToolChild(
+    scriptPath: 'tool/rag2_sqlite_durability_replay.dart',
+    arguments: arguments,
+  );
 }
 
 final class Rag2SqliteCrashChildOptions {

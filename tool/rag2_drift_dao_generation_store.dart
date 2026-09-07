@@ -8,6 +8,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'dart_tool_child_process.dart';
 import 'rag2_drift_additive_schema_replay.dart';
 import 'rag2_explicit_source_roots_replay.dart';
 import 'rag2_knowledge_object_replay.dart';
@@ -922,36 +923,8 @@ Future<void> applyRag2DriftDaoSnapshotInChild({
 }
 
 Future<Process> _startDriftDaoReplayChild(List<String> arguments) {
-  return Process.start(_driftDaoDartExecutable(), [
-    '--disable-dart-dev',
-    'tool/rag2_drift_dao_generation_store.dart',
-    ...arguments,
-  ], workingDirectory: Directory.current.path);
-}
-
-String _driftDaoDartExecutable() {
-  final executableName = Platform.isWindows ? 'dart.exe' : 'dart';
-  final flutterRoots = <String>[
-    Directory.current.uri.resolve('.fvm/flutter_sdk/').toFilePath(),
-    if ((Platform.environment['FLUTTER_ROOT'] ?? '').trim().isNotEmpty)
-      Platform.environment['FLUTTER_ROOT']!.trim(),
-  ];
-  for (final flutterRoot in flutterRoots) {
-    final candidate = File.fromUri(
-      Directory(
-        flutterRoot,
-      ).uri.resolve('bin/cache/dart-sdk/bin/$executableName'),
-    );
-    if (candidate.existsSync()) {
-      return candidate.path;
-    }
-  }
-  final which = Process.runSync('which', [executableName]);
-  if (which.exitCode == 0) {
-    final path = (which.stdout as String).trim();
-    if (path.isNotEmpty && File(path).existsSync()) {
-      return path;
-    }
-  }
-  return executableName;
+  return startDartToolChild(
+    scriptPath: 'tool/rag2_drift_dao_generation_store.dart',
+    arguments: arguments,
+  );
 }
