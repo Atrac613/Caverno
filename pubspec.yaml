@@ -165,6 +165,7 @@ dependencies:
   firebase_core: ^4.13.0
   firebase_messaging: ^16.6.0
   firebase_app_check: ^0.4.7
+  firebase_crashlytics: ^5.3.0
 
 dev_dependencies:
   flutter_test:

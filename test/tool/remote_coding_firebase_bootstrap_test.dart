@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -67,5 +68,32 @@ void main() {
     expect(isValidFirebaseProjectId('Caverno'), isFalse);
     expect(isValidFirebaseProjectId('short'), isFalse);
     expect(isValidFirebaseProjectId('contains_underscore'), isFalse);
+  });
+
+  test('copies the iOS Firebase plist onto macOS', () {
+    final root = Directory.systemTemp.createTempSync('firebase_macos_config_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final ios = File('${root.path}/ios/Runner/GoogleService-Info.plist')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('<string>$remoteCodingFirebaseNamespace</string>');
+    final macos = File('${root.path}/macos/Runner/GoogleService-Info.plist');
+
+    copyIosFirebaseConfigToMacos(iosPlist: ios, macosPlist: macos);
+
+    expect(macos.existsSync(), isTrue);
+    expect(firebaseConfigMatchesNamespace(macos), isTrue);
+  });
+
+  test('refuses to copy a missing iOS Firebase plist onto macOS', () {
+    final root = Directory.systemTemp.createTempSync('firebase_macos_missing_');
+    addTearDown(() => root.deleteSync(recursive: true));
+
+    expect(
+      () => copyIosFirebaseConfigToMacos(
+        iosPlist: File('${root.path}/ios/Runner/GoogleService-Info.plist'),
+        macosPlist: File('${root.path}/macos/Runner/GoogleService-Info.plist'),
+      ),
+      throwsStateError,
+    );
   });
 }

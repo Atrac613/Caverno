@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/services/attachment_storage_service.dart';
 import 'core/services/caverno_app_exit_handler.dart';
+import 'core/services/crashlytics_service.dart';
 import 'core/services/login_shell_environment.dart';
 import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
@@ -45,6 +46,7 @@ Future<void> main(List<String> arguments) async {
   if (CavernoCliInvocation.looksLikeCliInvocation(arguments)) {
     exit(await runCavernoCliProcess(arguments));
   }
+  await installCavernoCrashlytics();
   await EasyLocalization.ensureInitialized();
 
   // Initialize Hive
