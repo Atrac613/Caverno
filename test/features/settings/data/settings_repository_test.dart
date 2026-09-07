@@ -10,6 +10,8 @@ void main() {
   const settingsKey = 'app_settings';
   const llmSessionLogsDefaultOnMigrationKey =
       'migration.enable_llm_session_logs_default_on.v1';
+  const clearPlaceholderDefaultMcpMigrationKey =
+      'migration.clear_placeholder_default_mcp.v1';
 
   test('defaults session logging off when no settings exist', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -95,6 +97,59 @@ void main() {
         jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
     expect(persistedJson, isNot(contains('enableLlmSessionLogs')));
     expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
+  });
+
+  test('strips the shipped localhost MCP placeholder on load', () async {
+    final legacySettings = AppSettings.defaults()
+        .copyWith(
+          mcpUrl: 'http://localhost:8081',
+          mcpUrls: const ['http://localhost:8081'],
+          mcpServers: const [
+            McpServerConfig(url: 'http://localhost:8081', enabled: true),
+            McpServerConfig(url: 'http://127.0.0.1:9000', enabled: true),
+          ],
+        )
+        .toJson();
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      settingsKey: jsonEncode(legacySettings),
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SettingsRepository(prefs).load();
+
+    expect(loaded.mcpUrl, isEmpty);
+    expect(loaded.mcpUrls, isEmpty);
+    expect(loaded.mcpServers, [
+      const McpServerConfig(url: 'http://127.0.0.1:9000', enabled: true),
+    ]);
+    expect(loaded.mcpEnabled, isTrue);
+
+    await Future<void>.delayed(Duration.zero);
+    final persistedJson =
+        jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
+    expect(persistedJson['mcpUrl'], '');
+    expect(persistedJson['mcpUrls'], isEmpty);
+    expect((persistedJson['mcpServers'] as List).length, 1);
+    expect(prefs.getBool(clearPlaceholderDefaultMcpMigrationKey), isTrue);
+  });
+
+  test('keeps a user-added localhost MCP server after the migration', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final prefs = await SharedPreferences.getInstance();
+    final repository = SettingsRepository(prefs);
+    await repository.save(
+      AppSettings.defaults().copyWith(
+        mcpUrl: 'http://localhost:8081',
+        mcpServers: const [
+          McpServerConfig(url: 'http://localhost:8081', enabled: true),
+        ],
+      ),
+    );
+
+    final loaded = SettingsRepository(prefs).load();
+    expect(loaded.mcpServers.single.url, 'http://localhost:8081');
+    expect(prefs.getBool(clearPlaceholderDefaultMcpMigrationKey), isTrue);
   });
 
   test('marks the migration complete when saving settings', () async {

@@ -224,7 +224,7 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
 - Model: `qwen3.6-27b-mtp-vision`
 - API Key: `no-key`
 - Temperature: 0.7, Max Tokens: 4096
-- MCP: enabled by default with `http://localhost:8081`
+- MCP: enabled by default with no remote server configured
 - Voice servers: Whisper `http://localhost:8080`, VOICEVOX `http://localhost:50021`
 - Assistant modes: `general` (default), `coding`, `plan`
 

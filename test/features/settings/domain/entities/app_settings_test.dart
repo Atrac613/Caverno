@@ -60,6 +60,61 @@ void main() {
     expect(AppSettings.defaults().maxTokens, 8192);
   });
 
+  test('defaults enable MCP tools without a remote server URL', () {
+    final settings = AppSettings.defaults();
+
+    expect(settings.mcpEnabled, isTrue);
+    expect(settings.mcpUrl, isEmpty);
+    expect(settings.mcpUrls, isEmpty);
+    expect(settings.mcpServers, isEmpty);
+    expect(settings.configuredMcpServers, isEmpty);
+    expect(settings.effectiveMcpUrls, isEmpty);
+    expect(settings.primaryMcpUrl, isEmpty);
+  });
+
+  test('configured MCP servers stay empty when mcpUrl is blank', () {
+    const settings = AppSettings(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'test-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      mcpEnabled: true,
+    );
+
+    expect(settings.configuredMcpServers, isEmpty);
+  });
+
+  test('drops the localhost:8081 placeholder and keeps other MCP servers', () {
+    const placeholder = McpServerConfig(
+      url: 'http://localhost:8081/',
+      enabled: true,
+    );
+    const kept = McpServerConfig(url: 'http://127.0.0.1:9000', enabled: true);
+    const stdio = McpServerConfig(
+      type: McpServerType.stdio,
+      command: 'uvx',
+      args: ['demo'],
+      enabled: true,
+    );
+    final settings = AppSettings.defaults().copyWith(
+      mcpUrl: 'http://localhost:8081',
+      mcpUrls: const ['http://localhost:8081', 'http://127.0.0.1:9000'],
+      mcpServers: const [placeholder, kept, stdio],
+    );
+
+    final migrated = settings.withoutPlaceholderDefaultMcpServer();
+
+    expect(migrated.mcpUrl, isEmpty);
+    expect(migrated.mcpUrls, ['http://127.0.0.1:9000']);
+    expect(migrated.mcpServers, [kept, stdio]);
+    expect(identical(migrated, settings), isFalse);
+    expect(
+      identical(migrated.withoutPlaceholderDefaultMcpServer(), migrated),
+      isTrue,
+    );
+  });
+
   test('only trusted MCP servers are exposed to the model', () {
     const settings = AppSettings(
       baseUrl: 'http://localhost:1234/v1',
@@ -774,7 +829,7 @@ void main() {
   test('missing session log field defaults off outside stored migration', () {
     final importedJson =
         jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
-            as Map<String, dynamic>
+              as Map<String, dynamic>
           ..remove('enableLlmSessionLogs');
 
     final decoded = AppSettings.fromJson(importedJson);

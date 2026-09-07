@@ -1025,9 +1025,6 @@ abstract class AppSettings with _$AppSettings {
     apiKey: ApiConstants.defaultApiKey,
     temperature: ApiConstants.defaultTemperature,
     maxTokens: ApiConstants.defaultMaxTokens,
-    mcpUrl: 'http://localhost:8081',
-    mcpUrls: ['http://localhost:8081'],
-    mcpServers: [McpServerConfig(url: 'http://localhost:8081', enabled: true)],
     mcpEnabled: true,
   );
 
@@ -1534,12 +1531,53 @@ abstract class AppSettings with _$AppSettings {
         .toList(growable: false);
   }
 
+  static const String placeholderDefaultMcpUrl = 'http://localhost:8081';
+
+  static bool isPlaceholderDefaultMcpUrl(String url) {
+    var normalized = url.trim().toLowerCase();
+    if (normalized.endsWith('/')) {
+      normalized = normalized.substring(0, normalized.length - 1);
+    }
+    return normalized == placeholderDefaultMcpUrl;
+  }
+
+  /// Drops the shipped localhost:8081 placeholder without touching other
+  /// HTTP or stdio servers the user actually configured.
+  AppSettings withoutPlaceholderDefaultMcpServer() {
+    final remainingServers = mcpServers
+        .where(
+          (server) =>
+              server.type != McpServerType.http ||
+              !isPlaceholderDefaultMcpUrl(server.url),
+        )
+        .toList(growable: false);
+    final remainingUrls = mcpUrls
+        .where((url) => !isPlaceholderDefaultMcpUrl(url))
+        .toList(growable: false);
+    final remainingUrl = isPlaceholderDefaultMcpUrl(mcpUrl) ? '' : mcpUrl;
+    if (remainingServers.length == mcpServers.length &&
+        remainingUrls.length == mcpUrls.length &&
+        remainingUrl == mcpUrl) {
+      return this;
+    }
+    return copyWith(
+      mcpUrl: remainingUrl,
+      mcpUrls: remainingUrls,
+      mcpServers: remainingServers,
+    );
+  }
+
   List<McpServerConfig> get configuredMcpServers {
     if (mcpServers.isNotEmpty) {
       return List<McpServerConfig>.from(mcpServers);
     }
-
-    return buildMcpServersFromUrls(mcpUrls.isNotEmpty ? mcpUrls : [mcpUrl]);
+    if (mcpUrls.isNotEmpty) {
+      return buildMcpServersFromUrls(mcpUrls);
+    }
+    if (mcpUrl.trim().isEmpty) {
+      return const <McpServerConfig>[];
+    }
+    return buildMcpServersFromUrls([mcpUrl]);
   }
 
   List<McpServerConfig> get effectiveMcpServers {
