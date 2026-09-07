@@ -21,6 +21,13 @@ class AppDelegate: FlutterAppDelegate {
     super.applicationWillFinishLaunching(notification)
   }
 
+  override func applicationDidFinishLaunching(_ notification: Notification) {
+    super.applicationDidFinishLaunching(notification)
+    DispatchQueue.main.async {
+      MacosSparkleUpdateController.shared.startIfNeeded()
+    }
+  }
+
   @IBAction func checkForUpdates(_ sender: Any?) {
     MacosSparkleUpdateController.shared.checkForUpdatesFromMenu(sender)
   }
@@ -49,7 +56,7 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
-    return true
+    return false
   }
 
   static func isCommandLineInvocation(arguments: [String]) -> Bool {

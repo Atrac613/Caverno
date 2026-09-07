@@ -2,8 +2,10 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_listing_codec.dart';
 import 'package:caverno/features/chat/data/repositories/drift_conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 
 Conversation _conversation(
   String id, {
@@ -117,5 +119,32 @@ void main() {
     final all = await repo.getAll();
     expect(all.map((c) => c.id), ['ok']);
     expect(await repo.getById('broken'), isNull);
+  });
+
+  test('listForCache omits stored message bodies', () async {
+    await repo.save(
+      Conversation(
+        id: 'heavy',
+        title: 'Heavy',
+        messages: [
+          Message(
+            id: 'm1',
+            content: 'unique-listing-body-token',
+            role: MessageRole.user,
+            timestamp: DateTime.fromMillisecondsSinceEpoch(0),
+          ),
+        ],
+        createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(3),
+      ),
+    );
+
+    final listed = await repo.listForCache();
+    expect(listed, hasLength(1));
+    expect(listed.single.messages.single.id, ConversationListingCodec.stubMessageId);
+    expect(listed.single.messages.single.content, isEmpty);
+
+    final full = await repo.getById('heavy');
+    expect(full!.messages.single.content, 'unique-listing-body-token');
   });
 }

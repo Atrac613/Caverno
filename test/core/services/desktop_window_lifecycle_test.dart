@@ -85,6 +85,66 @@ void main() {
       isNot(contains('func applicationShouldTerminate(_')),
     );
     expect(mainFlutterWindowSource, contains('SPUStandardUpdaterController'));
-    expect(mainFlutterWindowSource, contains('updaterDelegate: nil'));
+    expect(mainFlutterWindowSource, contains('startingUpdater: false'));
+    expect(mainFlutterWindowSource, contains('startIfNeeded()'));
+    expect(
+      mainFlutterWindowSource,
+      contains('updaterController.startUpdater()'),
+    );
+    expect(appDelegateSource, contains('applicationDidFinishLaunching'));
+    expect(appDelegateSource, contains('startIfNeeded()'));
+    expect(appDelegateSource, contains('return false'));
+    expect(
+      appDelegateSource,
+      contains('applicationSupportsSecureRestorableState'),
+    );
+  });
+
+  test('desktop GUI shows the window before Hive and Drift hydrate', () {
+    final mainSource = File('lib/main.dart').readAsStringSync();
+    final windowInit = mainSource.indexOf('windowService.initialize()');
+    final hiveInit = mainSource.indexOf('Hive.initFlutter()');
+    expect(windowInit, greaterThan(0));
+    expect(hiveInit, greaterThan(windowInit));
+    expect(mainSource, contains('CavernoLegacyHiveBoxes.open'));
+    expect(
+      mainSource,
+      isNot(contains("Hive.openBox<String>('conversations')")),
+    );
+  });
+
+  test('macOS launch does not restore AppKit windows or block on Sparkle', () {
+    final appDelegateSource = File(
+      'macos/Runner/AppDelegate.swift',
+    ).readAsStringSync();
+    final entitlements = File(
+      'macos/Runner/Release.entitlements',
+    ).readAsStringSync();
+    final infoPlist = File('macos/Runner/Info.plist').readAsStringSync();
+    final windowSource = File(
+      'macos/Runner/MainFlutterWindow.swift',
+    ).readAsStringSync();
+
+    expect(
+      appDelegateSource,
+      contains('applicationSupportsSecureRestorableState'),
+    );
+    expect(
+      appDelegateSource.split('applicationSupportsSecureRestorableState').last,
+      contains('return false'),
+    );
+    expect(windowSource, contains('isRestorable = false'));
+    expect(
+      entitlements,
+      contains('com.apple.security.automation.apple-events'),
+    );
+    expect(infoPlist, contains('NSAppleEventsUsageDescription'));
+  });
+
+  test('CLI hydrates full conversation payloads', () {
+    final cliPersistence = File(
+      'lib/features/terminal/application/caverno_cli_persistence.dart',
+    ).readAsStringSync();
+    expect(cliPersistence, contains('hydrateConversationListingOnly: false'));
   });
 }

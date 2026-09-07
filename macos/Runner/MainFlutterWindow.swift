@@ -43,7 +43,7 @@ class MainFlutterWindow: NSWindow {
     let originY = screenFrame.origin.y + (screenFrame.height - windowHeight) / 2
     let windowFrame = NSRect(x: originX, y: originY, width: windowWidth, height: windowHeight)
     self.setFrame(windowFrame, display: true)
-
+    self.isRestorable = false
     self.minSize = NSSize(width: 480, height: 600)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
@@ -255,19 +255,28 @@ final class MacosSparkleUpdateController {
   private let updaterController: SPUStandardUpdaterController?
   private let configuredFeedURL: String?
   private let publicKeyConfigured: Bool
+  private var didStartUpdater = false
 
   private init() {
     configuredFeedURL = Self.validConfiguredFeedURL()
     publicKeyConfigured = Self.hasConfiguredPublicKey()
     if configuredFeedURL != nil && publicKeyConfigured {
       updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
+        startingUpdater: false,
         updaterDelegate: nil,
         userDriverDelegate: nil
       )
     } else {
       updaterController = nil
     }
+  }
+
+  func startIfNeeded() {
+    guard !didStartUpdater, let updaterController else {
+      return
+    }
+    didStartUpdater = true
+    updaterController.startUpdater()
   }
 
   func checkForUpdates(result: @escaping FlutterResult) {
@@ -283,6 +292,7 @@ final class MacosSparkleUpdateController {
     }
 
     DispatchQueue.main.async {
+      self.startIfNeeded()
       updaterController.checkForUpdates(nil)
       result(self.statusPayload())
     }
@@ -295,6 +305,7 @@ final class MacosSparkleUpdateController {
     }
 
     DispatchQueue.main.async {
+      self.startIfNeeded()
       updaterController.checkForUpdates(sender)
     }
   }

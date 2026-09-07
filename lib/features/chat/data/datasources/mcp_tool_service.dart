@@ -15,6 +15,7 @@ import '../../../../core/services/wifi_service.dart';
 import '../../../../core/services/script_runtime/script_runtime.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
+import '../../domain/entities/conversation.dart';
 import '../../domain/entities/session_memory.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/services/tool_definition_search_service.dart';
@@ -228,6 +229,45 @@ class McpToolService extends McpToolServiceFacadeBase {
     await connect();
   }
 
+  Future<List<Conversation>> _conversationsForHistorySearch({
+    required ConversationRepositoryApi repository,
+    required Map<String, dynamic> arguments,
+  }) async {
+    final query = (arguments['query'] as String?)?.trim() ?? '';
+    if (query.isEmpty) {
+      return const [];
+    }
+    final searched = await repository.search(query);
+    final ranker = semanticConversationRanker;
+    if (ranker == null) {
+      return searched;
+    }
+    final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 5).clamp(
+      1,
+      10,
+    );
+    final rankedIds = await ranker(query, maxResults);
+    if (rankedIds.isEmpty) {
+      return searched;
+    }
+    final byId = {
+      for (final conversation in searched) conversation.id: conversation,
+    };
+    for (final id in rankedIds) {
+      if (byId.containsKey(id)) {
+        continue;
+      }
+      final loaded = await repository.refresh(id);
+      if (loaded != null) {
+        byId[id] = loaded;
+      }
+    }
+    return [
+      for (final id in rankedIds) ?byId[id],
+      ...searched.where((conversation) => !rankedIds.contains(conversation.id)),
+    ];
+  }
+
   /// Returns tool definitions for the LLM.
   ///
   /// Returns dynamically fetched tools when MCP is connected.
@@ -425,9 +465,14 @@ class McpToolService extends McpToolServiceFacadeBase {
 
     if (name == ConversationSearchTool.toolName &&
         conversationRepository != null) {
+      final repository = conversationRepository!;
+      final conversations = await _conversationsForHistorySearch(
+        repository: repository,
+        arguments: arguments,
+      );
       final result = await const ConversationSearchTool().run(
         arguments: arguments,
-        conversations: conversationRepository!.getAll(),
+        conversations: conversations,
         semanticRanker: semanticConversationRanker,
       );
       appLog(

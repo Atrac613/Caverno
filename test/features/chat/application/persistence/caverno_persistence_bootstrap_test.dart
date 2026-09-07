@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:caverno/features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_listing_codec.dart';
 import 'package:caverno/features/chat/data/repositories/drift_chat_memory_store.dart';
 import 'package:caverno/features/chat/data/repositories/drift_conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -72,6 +74,85 @@ void main() {
     await storage.close();
     await storage.close();
     expect(closeCount, 1);
+  });
+
+  test('GUI hydrate lists conversations without message bodies', () async {
+    final database = AppDatabase.memory();
+    final conversation = _conversation(
+      'conversation-3',
+      messages: [
+        Message(
+          id: 'm1',
+          content: 'unique-bootstrap-payload-token',
+          role: MessageRole.user,
+          timestamp: DateTime.utc(2026, 7, 16),
+        ),
+      ],
+    );
+    await DriftConversationRepository(database).save(conversation);
+
+    final storage = await bootstrap.open(
+      openDatabase: () async => database,
+      conversationsMigrated: true,
+      chatMemoryMigrated: true,
+      readLegacyConversations: () => throw StateError('unexpected read'),
+      readLegacyChatMemory: () => throw StateError('unexpected read'),
+      markConversationsMigrated: () => throw StateError('unexpected marker'),
+      markChatMemoryMigrated: () => throw StateError('unexpected marker'),
+    );
+
+    final listed = storage.conversationRepository.getById(conversation.id);
+    expect(listed, isNotNull);
+    expect(listed!.messages.single.id, ConversationListingCodec.stubMessageId);
+    expect(listed.messages.single.content, isEmpty);
+
+    final refreshed = await storage.conversationRepository.refresh(
+      conversation.id,
+    );
+    expect(
+      refreshed!.messages.single.content,
+      'unique-bootstrap-payload-token',
+    );
+
+    await storage.close();
+  });
+
+  test('CLI hydrate keeps message bodies', () async {
+    final database = AppDatabase.memory();
+    final conversation = _conversation(
+      'conversation-4',
+      messages: [
+        Message(
+          id: 'm1',
+          content: 'unique-cli-payload-token',
+          role: MessageRole.user,
+          timestamp: DateTime.utc(2026, 7, 16),
+        ),
+      ],
+    );
+    await DriftConversationRepository(database).save(conversation);
+
+    final storage = await bootstrap.open(
+      openDatabase: () async => database,
+      conversationsMigrated: true,
+      chatMemoryMigrated: true,
+      readLegacyConversations: () => throw StateError('unexpected read'),
+      readLegacyChatMemory: () => throw StateError('unexpected read'),
+      markConversationsMigrated: () => throw StateError('unexpected marker'),
+      markChatMemoryMigrated: () => throw StateError('unexpected marker'),
+      hydrateConversationListingOnly: false,
+    );
+
+    expect(
+      storage.conversationRepository
+          .getById(conversation.id)!
+          .messages
+          .single
+          .content,
+      'unique-cli-payload-token',
+    );
+
+    await storage.close();
   });
 
   test('a failed database close stays retryable', () async {
@@ -280,12 +361,12 @@ void main() {
   });
 }
 
-Conversation _conversation(String id) {
+Conversation _conversation(String id, {List<Message> messages = const []}) {
   final timestamp = DateTime.utc(2026, 7, 16);
   return Conversation(
     id: id,
     title: 'Conversation $id',
-    messages: const [],
+    messages: messages,
     createdAt: timestamp,
     updatedAt: timestamp,
   );

@@ -26,6 +26,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
+import '../../data/repositories/conversation_listing_codec.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../application/runtime/turn_release_scope.dart';
 import '../../application/runtime/turn_runtime.dart';
@@ -465,8 +466,12 @@ class ChatNotifier extends Notifier<ChatState> {
     _sshService = ref.read(sshServiceProvider);
     _mcpToolService?.connect();
     final conversationsState = ref.read(conversationsNotifierProvider);
-    final initialMessages =
+    final currentMessages =
         conversationsState.currentConversation?.messages ?? const <Message>[];
+    final initialMessages =
+        ConversationListingCodec.isListingStub(currentMessages)
+        ? const <Message>[]
+        : currentMessages;
     conversationId = conversationsState.currentConversation?.id;
     _turnRuntimeOwnerLease.mount(
       visibleConversationId: conversationId,
@@ -717,6 +722,9 @@ class ChatNotifier extends Notifier<ChatState> {
     required String? conversationId,
     required List<Message> messages,
   }) {
+    if (ConversationListingCodec.isListingStub(messages)) {
+      return;
+    }
     _turnRuntimeOwnerLease.updateSelectedConversation(conversationId);
     final sameConversation = this.conversationId == conversationId;
     final sameMessages = listEquals(state.messages, messages);

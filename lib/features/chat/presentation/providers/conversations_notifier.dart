@@ -8,6 +8,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/conversation_repository_api.dart';
+import '../../data/repositories/conversation_listing_codec.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
 import 'conversation_semantic_index_sync.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
@@ -176,6 +177,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       preferNoConversation: deferInitialConversationCreation,
     );
     Future<void>.microtask(() async {
+      if (!ref.mounted) {
+        return;
+      }
+      final currentId = state.currentConversationId;
+      if (currentId != null) {
+        await refreshConversationForExecution(currentId);
+      }
       if (!ref.mounted) {
         return;
       }
@@ -542,7 +550,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       activeProjectId: conversation.normalizedProjectId,
       clearActiveProject: !conversation.workspaceMode.usesProjects,
     );
-    ensureCurrentPlanArtifactBackfilled();
+    unawaited(_hydrateThenBackfill(id));
+  }
+
+  Future<void> _hydrateThenBackfill(String? conversationId) async {
+    if (conversationId == null) {
+      return;
+    }
+    await refreshConversationForExecution(conversationId);
+    if (!ref.mounted) {
+      return;
+    }
+    await ensureCurrentPlanArtifactBackfilled(conversationId: conversationId);
   }
 
   void activateWorkspace({
@@ -576,7 +595,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       preferNoConversation:
           shouldCreateFreshConversation && deferFreshConversationCreation,
     );
-    ensureCurrentPlanArtifactBackfilled();
+    unawaited(_hydrateThenBackfill(state.currentConversationId));
   }
 
   /// Deletes a conversation.
@@ -603,6 +622,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
           : state.currentConversationId,
       createIfMissing: state.activeWorkspaceMode == WorkspaceMode.chat,
     );
+    unawaited(_hydrateThenBackfill(state.currentConversationId));
   }
 
   /// Deletes all conversations in the active scope.
@@ -632,6 +652,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       projectId: state.activeProjectId,
       createIfMissing: state.activeWorkspaceMode == WorkspaceMode.chat,
     );
+    unawaited(_hydrateThenBackfill(state.currentConversationId));
   }
 
   Future<void> deleteConversationsForProject(String projectId) async {
@@ -673,10 +694,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     String conversationId,
     List<Message> messages,
   ) async {
-    final conversation = state.conversations
+    var conversation = state.conversations
         .where((item) => item.id == conversationId)
         .firstOrNull;
     if (conversation == null) return;
+    if (ConversationListingCodec.isListingStub(conversation.messages)) {
+      await refreshConversationForExecution(conversationId);
+      if (!ref.mounted) return;
+      conversation = state.conversations
+          .where((item) => item.id == conversationId)
+          .firstOrNull;
+      if (conversation == null) return;
+    }
 
     String title = conversation.title;
     if (title == defaultConversationTitle && messages.isNotEmpty) {

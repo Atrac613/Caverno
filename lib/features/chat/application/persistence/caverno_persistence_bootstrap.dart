@@ -92,6 +92,7 @@ final class CavernoPersistenceBootstrap {
     CavernoAppDatabaseCloser closeDatabase = _closeAppDatabase,
     ChatMemoryMutationCoordinator mutationCoordinator =
         const DirectChatMemoryMutationCoordinator(),
+    bool hydrateConversationListingOnly = true,
   }) async {
     AppDatabase? database;
     var driftIsAuthoritative = conversationsMigrated || chatMemoryMigrated;
@@ -122,7 +123,10 @@ final class CavernoPersistenceBootstrap {
       }
 
       final conversationRepository =
-          await CachedDriftConversationRepository.hydrate(conversationStore);
+          await CachedDriftConversationRepository.hydrate(
+            conversationStore,
+            listingOnly: hydrateConversationListingOnly,
+          );
       final chatMemoryKeyValueStore = await CachedDriftKeyValueStore.hydrate(
         chatMemoryStore,
       );
