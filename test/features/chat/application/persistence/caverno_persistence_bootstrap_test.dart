@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:caverno/features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/repositories/drift_chat_memory_store.dart';
@@ -69,6 +71,58 @@ void main() {
 
     await storage.close();
     await storage.close();
+    expect(closeCount, 1);
+  });
+
+  test('a failed database close stays retryable', () async {
+    final database = AppDatabase.memory();
+    var closeCount = 0;
+    final storage = await bootstrap.open(
+      openDatabase: () async => database,
+      conversationsMigrated: true,
+      chatMemoryMigrated: true,
+      readLegacyConversations: () => throw StateError('unexpected read'),
+      readLegacyChatMemory: () => throw StateError('unexpected read'),
+      markConversationsMigrated: () => throw StateError('unexpected marker'),
+      markChatMemoryMigrated: () => throw StateError('unexpected marker'),
+      closeDatabase: (database) async {
+        closeCount += 1;
+        if (closeCount == 1) {
+          throw StateError('close failed');
+        }
+        await database.close();
+      },
+    );
+
+    await expectLater(storage.close(), throwsA(isA<StateError>()));
+    await storage.close();
+    expect(closeCount, 2);
+  });
+
+  test('concurrent close calls share one in-flight database close', () async {
+    final database = AppDatabase.memory();
+    final allowClose = Completer<void>();
+    var closeCount = 0;
+    final storage = await bootstrap.open(
+      openDatabase: () async => database,
+      conversationsMigrated: true,
+      chatMemoryMigrated: true,
+      readLegacyConversations: () => throw StateError('unexpected read'),
+      readLegacyChatMemory: () => throw StateError('unexpected read'),
+      markConversationsMigrated: () => throw StateError('unexpected marker'),
+      markChatMemoryMigrated: () => throw StateError('unexpected marker'),
+      closeDatabase: (database) async {
+        closeCount += 1;
+        await allowClose.future;
+        await database.close();
+      },
+    );
+
+    final first = storage.close();
+    final second = storage.close();
+    allowClose.complete();
+    await first;
+    await second;
     expect(closeCount, 1);
   });
 

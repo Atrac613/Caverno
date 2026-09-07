@@ -7,6 +7,10 @@ import 'app_database.dart';
 
 /// Opens the production drift database backed by a SQLite file in the app
 /// support directory. F4 bootstrap calls this once; failures fall back to Hive.
+///
+/// The background isolate must be closed via [AppDatabase.close] before Flutter
+/// engine teardown. Sparkle's `NSApp.terminate` path does that through
+/// `CavernoAppExitHandler`.
 Future<AppDatabase> openAppDatabase({File? databaseFile}) async {
   final file =
       databaseFile ??

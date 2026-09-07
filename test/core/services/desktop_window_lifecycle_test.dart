@@ -59,4 +59,32 @@ void main() {
     expect(mainMenuXib, contains('selector="requestQuit:"'));
     expect(mainMenuXib, isNot(contains('selector="terminate:"')));
   });
+
+  test('Sparkle terminate closes drift before engine teardown', () {
+    final mainSource = File('lib/main.dart').readAsStringSync();
+    final exitHandlerSource = File(
+      'lib/core/services/caverno_app_exit_handler.dart',
+    ).readAsStringSync();
+    final appDelegateSource = File(
+      'macos/Runner/AppDelegate.swift',
+    ).readAsStringSync();
+    final mainFlutterWindowSource = File(
+      'macos/Runner/MainFlutterWindow.swift',
+    ).readAsStringSync();
+
+    expect(mainSource, contains('didRequestAppExit'));
+    expect(mainSource, contains('handleExitRequest'));
+    expect(mainSource, contains('withMaintenancePausedForExit'));
+    expect(mainSource, contains('AppExitResponse.cancel'));
+    expect(mainSource, contains('CavernoAppExitHandler('));
+    expect(exitHandlerSource, contains('sqlite3_finalize'));
+    expect(exitHandlerSource, contains('NSApp.terminate'));
+    expect(exitHandlerSource, contains('AppExitResponse.cancel'));
+    expect(
+      appDelegateSource,
+      isNot(contains('func applicationShouldTerminate(_')),
+    );
+    expect(mainFlutterWindowSource, contains('SPUStandardUpdaterController'));
+    expect(mainFlutterWindowSource, contains('updaterDelegate: nil'));
+  });
 }

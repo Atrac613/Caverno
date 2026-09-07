@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Directory, File, Platform, exit;
+import 'dart:ui' show AppExitResponse;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/services/attachment_storage_service.dart';
+import 'core/services/caverno_app_exit_handler.dart';
 import 'core/services/login_shell_environment.dart';
 import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
@@ -112,7 +114,12 @@ Future<void> main(List<String> arguments) async {
             appDatabaseProvider.overrideWithValue(driftStorage.database),
           ],
         ],
-        child: MyApp(windowManagerService: windowService),
+        child: MyApp(
+          windowManagerService: windowService,
+          exitHandler: CavernoAppExitHandler(
+            closePersistence: driftStorage?.close,
+          ),
+        ),
       ),
     ),
   );
@@ -181,9 +188,10 @@ Future<void> _deleteExpiredToolResultArtifacts() async {
 }
 
 class MyApp extends ConsumerStatefulWidget {
-  const MyApp({super.key, this.windowManagerService});
+  const MyApp({super.key, this.windowManagerService, this.exitHandler});
 
   final WindowManagerService? windowManagerService;
+  final CavernoAppExitHandler? exitHandler;
 
   @override
   ConsumerState<MyApp> createState() => _MyAppState();
@@ -259,6 +267,11 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         return;
       }
 
+      final exitResponse = await _handleAppExit();
+      if (exitResponse == AppExitResponse.cancel) {
+        return;
+      }
+
       final windowManagerService = widget.windowManagerService;
       if (windowManagerService != null) {
         await windowManagerService.quitApplication();
@@ -269,6 +282,26 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     } finally {
       _quitDialogOpen = false;
     }
+  }
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() => _handleAppExit();
+
+  Future<AppExitResponse> _handleAppExit() async {
+    Future<AppExitResponse> requestExit() {
+      return widget.exitHandler?.handleExitRequest() ??
+          Future<AppExitResponse>.value(AppExitResponse.exit);
+    }
+
+    if (!(Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+      return requestExit();
+    }
+    final scheduler = ref.read(idleMaintenanceSchedulerProvider);
+    return withMaintenancePausedForExit(
+      stopMaintenance: scheduler.stop,
+      startMaintenance: scheduler.start,
+      requestExit: requestExit,
+    );
   }
 
   @override
