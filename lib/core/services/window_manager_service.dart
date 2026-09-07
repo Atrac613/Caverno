@@ -19,9 +19,15 @@ class WindowManagerService with WindowListener {
   Future<void> initialize() async {
     await windowManager.ensureInitialized();
     await windowManager.setPreventClose(true);
+    windowManager.addListener(this);
+  }
 
+  /// Reveals the native window after Flutter has painted at least one frame.
+  ///
+  /// macOS `waitUntilReadyToShow` does not wait for that frame, so calling this
+  /// from `main()` before `runApp` shows an empty FlutterView (a black window).
+  void showAfterFirstFrame() {
     final geometry = _settingsService.load();
-
     final windowOptions = WindowOptions(
       size: Size(geometry.width, geometry.height),
       minimumSize: const Size(
@@ -30,10 +36,7 @@ class WindowManagerService with WindowListener {
       ),
       center: !geometry.hasPosition,
     );
-
     unawaited(_showWhenReady(windowOptions, geometry));
-
-    windowManager.addListener(this);
   }
 
   Future<void> _showWhenReady(

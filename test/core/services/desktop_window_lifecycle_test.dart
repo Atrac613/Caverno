@@ -102,12 +102,18 @@ void main() {
     );
   });
 
-  test('desktop GUI shows the window before Hive and Drift hydrate', () {
+  test('desktop GUI paints a Flutter frame before Hive and Drift hydrate', () {
     final mainSource = File('lib/main.dart').readAsStringSync();
-    final windowInit = mainSource.indexOf('windowService.initialize()');
+    final windowManagerSource = File(
+      'lib/core/services/window_manager_service.dart',
+    ).readAsStringSync();
+    final runAppAt = mainSource.indexOf('runApp(');
     final hiveInit = mainSource.indexOf('Hive.initFlutter()');
-    expect(windowInit, greaterThan(0));
-    expect(hiveInit, greaterThan(windowInit));
+    expect(runAppAt, greaterThan(0));
+    expect(hiveInit, greaterThan(runAppAt));
+    expect(mainSource, contains('CavernoGuiBootstrap'));
+    expect(mainSource, contains('showAfterFirstFrame()'));
+    expect(windowManagerSource, contains('void showAfterFirstFrame()'));
     expect(mainSource, contains('CavernoLegacyHiveBoxes.open'));
     expect(
       mainSource,
@@ -136,7 +142,12 @@ void main() {
       contains('return false'),
     );
     expect(windowSource, contains('isRestorable = false'));
+    expect(windowSource, contains('hideUntilDartShow()'));
+    expect(windowSource, contains('handleReopen()'));
+    expect(windowSource, contains('setIsVisible(false)'));
     expect(windowSource, contains('startIfNeeded()'));
+    expect(appDelegateSource, contains('NSQuitAlwaysKeepsWindows'));
+    expect(appDelegateSource, contains('discardPersistedWindowState'));
     expect(
       appDelegateSource,
       isNot(contains('super.applicationDidFinishLaunching')),

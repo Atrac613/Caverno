@@ -40,6 +40,7 @@ void main() {
       contains('/macos/Runner/GoogleService-Info.plist'),
     );
     expect(mainSource, contains('installCavernoCrashlytics()'));
+    expect(mainSource, contains('_installCrashlyticsWithoutBlockingLaunch'));
     expect(
       mainSource.indexOf('looksLikeCliInvocation'),
       lessThan(mainSource.indexOf('installCavernoCrashlytics()')),

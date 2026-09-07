@@ -8,10 +8,15 @@ import FlutterMacOS
     // Finder launches can inherit a closed output pipe; ignore SIGPIPE so
     // incidental logging cannot terminate the app.
     _ = signal(SIGPIPE, SIG_IGN)
+    // Firebase GUL may hide applicationSupportsSecureRestorableState from
+    // AppKit. Turning this default off is the reliable way to stop a restored
+    // empty window from covering the Flutter surface.
+    UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
     super.init()
   }
 
   override func applicationWillFinishLaunching(_ notification: Notification) {
+    Self.discardPersistedWindowState()
     let arguments = ProcessInfo.processInfo.arguments
     if !Self.isCommandLineInvocation(arguments: arguments) &&
       Self.activateExistingInstanceIfNeeded()
@@ -43,13 +48,23 @@ import FlutterMacOS
   ) -> Bool {
     if !flag {
       sender.unhide(nil)
-      mainFlutterWindow?.makeKeyAndOrderFront(nil)
+      (mainFlutterWindow as? MainFlutterWindow)?.handleReopen()
     }
     return true
   }
 
   @objc override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return false
+  }
+
+  private static func discardPersistedWindowState() {
+    let savedState = FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent("Library/Saved Application State", isDirectory: true)
+      .appendingPathComponent(
+        "\(Bundle.main.bundleIdentifier ?? "com.noguwo.apps.caverno").savedState",
+        isDirectory: true
+      )
+    try? FileManager.default.removeItem(at: savedState)
   }
 
   static func isCommandLineInvocation(arguments: [String]) -> Bool {

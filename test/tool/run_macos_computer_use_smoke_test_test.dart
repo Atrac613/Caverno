@@ -328,6 +328,7 @@ void main() {
     expect(windowManagerSource, contains('unawaited(_showWhenReady'));
     expect(windowManagerSource, contains('Future<void> _showWhenReady'));
     expect(windowManagerSource, contains('windowManager.waitUntilReadyToShow'));
+    expect(windowManagerSource, contains('void showAfterFirstFrame()'));
   });
 
   test('M7 sign-off expands to release strict XPC artifact checks', () {

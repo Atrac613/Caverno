@@ -19,6 +19,8 @@ class MainFlutterWindow: NSWindow {
   private var sparkleUpdateChannel: MacosSparkleUpdateChannel?
   private var appMenuChannel: MacosAppMenuChannel?
   private var appleFoundationModelsChannel: MacosAppleFoundationModelsChannel?
+  private var didHideAtLaunch = false
+  private var hasBeenShownByDart = false
 
   /// Asks the Flutter side to present the in-app settings modal. Invoked from the
   /// native application menu (Caverno > Settings…) via the AppDelegate.
@@ -42,8 +44,8 @@ class MainFlutterWindow: NSWindow {
     let originX = screenFrame.origin.x + (screenFrame.width - windowWidth) / 2
     let originY = screenFrame.origin.y + (screenFrame.height - windowHeight) / 2
     let windowFrame = NSRect(x: originX, y: originY, width: windowWidth, height: windowHeight)
-    self.setFrame(windowFrame, display: true)
     self.isRestorable = false
+    self.setFrame(windowFrame, display: false)
     self.minSize = NSSize(width: 480, height: 600)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
@@ -65,6 +67,7 @@ class MainFlutterWindow: NSWindow {
     )
 
     super.awakeFromNib()
+    hideUntilDartShow()
     // Start Sparkle after the nib is up. Do not call this from
     // AppDelegate.applicationDidFinishLaunching: Firebase GUL swizzles that
     // selector and `super` raises NSInvalidArgumentException, which leaves a
@@ -72,6 +75,38 @@ class MainFlutterWindow: NSWindow {
     DispatchQueue.main.async {
       MacosSparkleUpdateController.shared.startIfNeeded()
     }
+  }
+
+  // window_manager's macOS waitUntilReadyToShow is a no-op, so AppKit would
+  // otherwise order a FlutterView with no Dart frame (a black window) during
+  // launch / restoration. Hide on the first order; Dart show() makes it visible.
+  override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
+    super.order(place, relativeTo: otherWin)
+    hideUntilDartShow()
+  }
+
+  override func setIsVisible(_ flag: Bool) {
+    if flag {
+      hasBeenShownByDart = true
+    }
+    super.setIsVisible(flag)
+  }
+
+  func handleReopen() {
+    // Ignore Dock clicks that arrive after launch hide and before Dart show().
+    // After the first Dart show(), bring the window back even if the user hid it.
+    guard hasBeenShownByDart else {
+      return
+    }
+    makeKeyAndOrderFront(nil)
+  }
+
+  private func hideUntilDartShow() {
+    if didHideAtLaunch {
+      return
+    }
+    didHideAtLaunch = true
+    setIsVisible(false)
   }
 }
 

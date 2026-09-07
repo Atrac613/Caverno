@@ -48,14 +48,13 @@ Future<void> main(List<String> arguments) async {
   if (CavernoCliInvocation.looksLikeCliInvocation(arguments)) {
     exit(await runCavernoCliProcess(arguments));
   }
-  await installCavernoCrashlytics();
+  // Native Firebase already configures itself during plugin registration.
+  // Awaiting Dart install here used to leave a visible empty FlutterView if
+  // Installations/Messaging blocked on the keychain.
+  unawaited(_installCrashlyticsWithoutBlockingLaunch());
   await EasyLocalization.ensureInitialized();
 
   final prefs = await SharedPreferences.getInstance();
-
-  // Show the native window before Hive/Drift hydrate. Opening hundreds of
-  // conversation payloads used to leave a restored empty window frozen for
-  // several seconds with no first Flutter frame.
   WindowManagerService? windowService;
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
     windowService = WindowManagerService(WindowSettingsService(prefs));
@@ -63,38 +62,8 @@ Future<void> main(List<String> arguments) async {
   }
 
   final settingsRepository = await SettingsRepository.create(prefs);
-  final dataRoot = await resolveCavernoDataRoot();
-
-  await Hive.initFlutter();
-  final hiveBoxes = await CavernoLegacyHiveBoxes.open(
-    conversationsMigrated:
-        prefs.getBool(cavernoConversationsMigrationKey) ?? false,
-    chatMemoryMigrated: prefs.getBool(cavernoChatMemoryMigrationKey) ?? false,
-  );
-  final conversationBox = hiveBoxes.conversations;
-  final memoryBox = hiveBoxes.memory;
-  final skillBox = hiveBoxes.skills;
-
-  // F4: migrate conversations and chat memory from Hive to drift/SQLite and
-  // serve them from drift. Pre-migration failures may retry through Hive, but
-  // once drift is authoritative startup fails closed instead of resurrecting
-  // stale legacy data.
-  final driftStorage = await _initDriftStorage(
-    prefs: prefs,
-    conversationBox: conversationBox,
-    memoryBox: memoryBox,
-    dataRoot: dataRoot,
-  );
-
   final initialSettings = settingsRepository.load();
   final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
-  unawaited(_deleteExpiredToolResultArtifacts());
-  unawaited(AttachmentStorageService.sweepOldAttachments());
-
-  // Warm up the login-shell PATH so stdio MCP servers and shell/git tools can
-  // resolve user-installed binaries (dart, npx, uvx, ...) even when launched
-  // from Finder/Dock with launchd's minimal PATH.
-  unawaited(LoginShellEnvironment.instance.ensureResolved());
 
   runApp(
     EasyLocalization(
@@ -107,35 +76,24 @@ Future<void> main(List<String> arguments) async {
       ),
       saveLocale: false,
       useOnlyLangCode: true,
-      child: ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          settingsRepositoryProvider.overrideWithValue(settingsRepository),
-          if (conversationBox != null)
-            conversationBoxProvider.overrideWithValue(conversationBox),
-          if (memoryBox != null)
-            chatMemoryBoxProvider.overrideWithValue(memoryBox),
-          skillBoxProvider.overrideWithValue(skillBox),
-          cavernoRuntimeDataRootProvider.overrideWithValue(dataRoot),
-          if (driftStorage != null) ...[
-            conversationRepositoryProvider.overrideWithValue(
-              driftStorage.conversationRepository,
-            ),
-            chatMemoryRepositoryProvider.overrideWithValue(
-              driftStorage.chatMemoryRepository,
-            ),
-            appDatabaseProvider.overrideWithValue(driftStorage.database),
-          ],
-        ],
-        child: MyApp(
-          windowManagerService: windowService,
-          exitHandler: CavernoAppExitHandler(
-            closePersistence: driftStorage?.close,
-          ),
-        ),
+      child: CavernoGuiBootstrap(
+        prefs: prefs,
+        settingsRepository: settingsRepository,
+        windowManagerService: windowService,
       ),
     ),
   );
+}
+
+Future<void> _installCrashlyticsWithoutBlockingLaunch() async {
+  try {
+    await installCavernoCrashlytics().timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => false,
+    );
+  } catch (_) {
+    // Fail closed so the GUI can still paint its first frame.
+  }
 }
 
 /// F4: open the drift database, run the one-time Hive->drift migrations, and
@@ -206,6 +164,135 @@ Future<void> _deleteExpiredToolResultArtifacts() async {
     }
   } catch (error) {
     appLog('[Startup] Failed to delete expired tool result artifacts: $error');
+  }
+}
+
+class CavernoGuiBootstrap extends StatefulWidget {
+  const CavernoGuiBootstrap({
+    super.key,
+    required this.prefs,
+    required this.settingsRepository,
+    this.windowManagerService,
+  });
+
+  final SharedPreferences prefs;
+  final SettingsRepository settingsRepository;
+  final WindowManagerService? windowManagerService;
+
+  @override
+  State<CavernoGuiBootstrap> createState() => _CavernoGuiBootstrapState();
+}
+
+class _CavernoGuiBootstrapState extends State<CavernoGuiBootstrap> {
+  Widget? _app;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.windowManagerService?.showAfterFirstFrame();
+      unawaited(_hydrate());
+    });
+  }
+
+  Future<void> _hydrate() async {
+    try {
+      final prefs = widget.prefs;
+      final dataRoot = await resolveCavernoDataRoot();
+      await Hive.initFlutter();
+      final hiveBoxes = await CavernoLegacyHiveBoxes.open(
+        conversationsMigrated:
+            prefs.getBool(cavernoConversationsMigrationKey) ?? false,
+        chatMemoryMigrated:
+            prefs.getBool(cavernoChatMemoryMigrationKey) ?? false,
+      );
+      final conversationBox = hiveBoxes.conversations;
+      final memoryBox = hiveBoxes.memory;
+      final skillBox = hiveBoxes.skills;
+      final driftStorage = await _initDriftStorage(
+        prefs: prefs,
+        conversationBox: conversationBox,
+        memoryBox: memoryBox,
+        dataRoot: dataRoot,
+      );
+      unawaited(_deleteExpiredToolResultArtifacts());
+      unawaited(AttachmentStorageService.sweepOldAttachments());
+      unawaited(LoginShellEnvironment.instance.ensureResolved());
+      if (!mounted) {
+        await driftStorage?.close();
+        return;
+      }
+      setState(() {
+        _app = ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            settingsRepositoryProvider.overrideWithValue(
+              widget.settingsRepository,
+            ),
+            if (conversationBox != null)
+              conversationBoxProvider.overrideWithValue(conversationBox),
+            if (memoryBox != null)
+              chatMemoryBoxProvider.overrideWithValue(memoryBox),
+            skillBoxProvider.overrideWithValue(skillBox),
+            cavernoRuntimeDataRootProvider.overrideWithValue(dataRoot),
+            if (driftStorage != null) ...[
+              conversationRepositoryProvider.overrideWithValue(
+                driftStorage.conversationRepository,
+              ),
+              chatMemoryRepositoryProvider.overrideWithValue(
+                driftStorage.chatMemoryRepository,
+              ),
+              appDatabaseProvider.overrideWithValue(driftStorage.database),
+            ],
+          ],
+          child: MyApp(
+            windowManagerService: widget.windowManagerService,
+            exitHandler: CavernoAppExitHandler(
+              closePersistence: driftStorage?.close,
+            ),
+          ),
+        );
+      });
+    } catch (error, stackTrace) {
+      appLog('[Startup] GUI persistence hydrate failed: $error');
+      appLog('[Startup] $stackTrace');
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = _app;
+    if (ready != null) {
+      return ready;
+    }
+    final themePreference = widget.settingsRepository.load().themePreference;
+    return MaterialApp(
+      title: 'Caverno',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: themePreference.themeMode,
+      home: Scaffold(
+        body: Center(
+          child: _error == null
+              ? const CircularProgressIndicator()
+              : Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Caverno could not finish starting.\n$_error',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+        ),
+      ),
+    );
   }
 }
 
