@@ -458,6 +458,21 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (!decision.shouldContinue) {
       final transition = runtime.applyGoalTrackerTransition(delta);
       tracker = transition.snapshot;
+      final spentElicitation = delta.completionElicitationMutationGeneration;
+      if (spentElicitation != null) {
+        try {
+          await ref
+              .read(conversationsNotifierProvider.notifier)
+              .recordCompletionElicitationMutationGeneration(
+                conversationId: owner.conversationId,
+                mutationGeneration: spentElicitation,
+              );
+        } catch (error) {
+          appLog(
+            '[GoalAutoContinue] Failed to persist elicitation spend: $error',
+          );
+        }
+      }
       final budgetNoticePresented = transition.budgetNoticePresented;
       _logGoalAutoContinueSkip(
         '${decision.reason}; conversation=$currentConversationId',

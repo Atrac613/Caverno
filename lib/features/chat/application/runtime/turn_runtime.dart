@@ -441,5 +441,7 @@ ToolResultCompletionEvidence _copyEvidence(
   hasAuthoritativeDiagnosticSnapshot:
       evidence.hasAuthoritativeDiagnosticSnapshot,
   hasUnexecutedActionClaim: evidence.hasUnexecutedActionClaim,
+  hasReportedRemainingWork: evidence.hasReportedRemainingWork,
+  remainingWorkMessage: evidence.remainingWorkMessage,
   diagnosticSignature: evidence.diagnosticSignature,
 );

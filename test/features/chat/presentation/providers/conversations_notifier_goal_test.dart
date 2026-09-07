@@ -283,6 +283,75 @@ void main() {
     },
   );
 
+  test('new or cleared goals drop completion elicitation spend', () async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Ship 1.3.21',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+    final conversationId = container
+        .read(conversationsNotifierProvider)
+        .currentConversationId!;
+    await notifier.recordCompletionElicitationMutationGeneration(
+      conversationId: conversationId,
+      mutationGeneration: 1,
+    );
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.completionElicitationMutationGeneration,
+      1,
+    );
+
+    await notifier.saveCurrentGoal(
+      objective: 'Ship 1.3.21',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.completionElicitationMutationGeneration,
+      1,
+    );
+
+    await notifier.saveCurrentGoal(
+      objective: 'Write the release notes',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.completionElicitationMutationGeneration,
+      isNull,
+    );
+
+    await notifier.recordCompletionElicitationMutationGeneration(
+      conversationId: conversationId,
+      mutationGeneration: 2,
+    );
+    await notifier.clearCurrentGoal();
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.completionElicitationMutationGeneration,
+      isNull,
+    );
+  });
+
   test('saveCurrentGoal stores and preserves the auto-continue flag', () async {
     final container = createContainer();
     addTearDown(container.dispose);

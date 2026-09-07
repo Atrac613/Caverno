@@ -697,6 +697,39 @@ void main() {
       },
     );
 
+    test('carries remaining work across inspection-only follow-up', () {
+      const previous = ToolResultCompletionEvidence(
+        hasReportedRemainingWork: true,
+        remainingWorkMessage: 'bump pubspec.yaml to 1.3.21+33',
+      );
+
+      final carried = const ToolResultCompletionEvidence()
+          .carryForwardIncompleteFrom(previous);
+
+      expect(carried.hasReportedRemainingWork, isTrue);
+      expect(carried.remainingWorkMessage, 'bump pubspec.yaml to 1.3.21+33');
+      expect(carried.hasIncompleteEvidence, isTrue);
+    });
+
+    test('keeps remaining work after successful execution verification', () {
+      const previous = ToolResultCompletionEvidence(
+        hasReportedRemainingWork: true,
+        remainingWorkMessage: 'bump pubspec.yaml to 1.3.21+33',
+        mutatedWithoutExecutionVerification: true,
+      );
+
+      final carried = const ToolResultCompletionEvidence(
+        hasExecutionVerification: true,
+        hasSuccessfulExecutionVerification: true,
+      ).carryForwardIncompleteFrom(previous);
+
+      expect(carried.mutatedWithoutExecutionVerification, isFalse);
+      expect(carried.hasSuccessfulExecutionVerification, isTrue);
+      expect(carried.hasReportedRemainingWork, isTrue);
+      expect(carried.remainingWorkMessage, 'bump pubspec.yaml to 1.3.21+33');
+      expect(carried.hasIncompleteEvidence, isTrue);
+    });
+
     test('settles stale evidence when the current mutation is verified', () {
       const evidence = ToolResultCompletionEvidence(
         boundedToolLoopExhausted: true,
@@ -891,7 +924,6 @@ void main() {
       for (final toolName in const [
         'local_execute_command',
         'run_tests',
-        'git_execute_command',
         'process_start',
         'process_wait',
       ]) {
@@ -921,6 +953,110 @@ void main() {
         );
       }
     });
+
+    test('does not treat inspection git as execution verification', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'mutation',
+          name: 'write_file',
+          arguments: const {},
+          result: jsonEncode({'path': '/tmp/app/lib/main.dart'}),
+        ),
+        ToolResultInfo(
+          id: 'git-status',
+          name: 'git_execute_command',
+          arguments: const {'command': 'status'},
+          result: jsonEncode({'exit_code': 0}),
+        ),
+      ]);
+
+      expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+      expect(evidence.hasExecutionVerification, isFalse);
+      expect(evidence.mutatedWithoutExecutionVerification, isTrue);
+    });
+
+    test('does not treat git rev-list as a file mutation', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'count',
+          name: 'git_execute_command',
+          arguments: const {'command': 'rev-list --count HEAD'},
+          result: jsonEncode({'exit_code': 0, 'stdout': '78\n'}),
+        ),
+      ]);
+
+      expect(evidence.mutatedWithoutExecutionVerification, isFalse);
+      expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+      expect(evidence.hasIncompleteEvidence, isFalse);
+    });
+
+    test('treats an update_goal progress ack as remaining work', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'goal-1',
+          name: 'update_goal',
+          arguments: const {
+            'completed': false,
+            'message': 'bump pubspec.yaml to 1.3.21+33',
+          },
+          result:
+              'Progress logged: bump pubspec.yaml to 1.3.21+33. '
+              'Keep working toward the goal.',
+        ),
+      ]);
+
+      expect(evidence.hasReportedRemainingWork, isTrue);
+      expect(evidence.hasIncompleteEvidence, isTrue);
+      expect(evidence.remainingWorkMessage, 'bump pubspec.yaml to 1.3.21+33');
+      expect(evidence.summary, contains('bump pubspec.yaml to 1.3.21+33'));
+    });
+
+    test(
+      'treats an update_goal progress call as remaining work without the ack phrase',
+      () {
+        final evidence = ToolResultPromptBuilder.completionEvidence([
+          ToolResultInfo(
+            id: 'goal-1',
+            name: 'update_goal',
+            arguments: const {
+              'completed': false,
+              'message': 'bump pubspec.yaml to 1.3.21+33',
+            },
+            result: 'Progress noted.',
+          ),
+        ]);
+
+        expect(evidence.hasReportedRemainingWork, isTrue);
+        expect(evidence.remainingWorkMessage, 'bump pubspec.yaml to 1.3.21+33');
+      },
+    );
+
+    test(
+      'does not treat a completion or blocker update_goal as remaining work',
+      () {
+        final completed = ToolResultPromptBuilder.completionEvidence([
+          ToolResultInfo(
+            id: 'done',
+            name: 'update_goal',
+            arguments: const {'completed': true},
+            result:
+                'Completion accepted: no mechanical evidence contradicts it. '
+                'Keep working toward the goal.',
+          ),
+        ]);
+        final blocked = ToolResultPromptBuilder.completionEvidence([
+          ToolResultInfo(
+            id: 'blocked',
+            name: 'update_goal',
+            arguments: const {'blocked_reason': 'missing API key'},
+            result: 'Goal marked blocked: missing API key.',
+          ),
+        ]);
+
+        expect(completed.hasReportedRemainingWork, isFalse);
+        expect(blocked.hasReportedRemainingWork, isFalse);
+      },
+    );
 
     test(
       'treats a running process as dispatch but not successful verification',

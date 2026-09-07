@@ -364,6 +364,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       executionProgress: conversation.executionProgress,
       mutationGeneration: conversation.mutationGeneration,
       verificationGeneration: conversation.verificationGeneration,
+      completionElicitationMutationGeneration:
+          conversation.completionElicitationMutationGeneration,
       openQuestionProgress: conversation.openQuestionProgress,
       goal: conversation.goal,
       planArtifact: conversation.planArtifact,
@@ -767,6 +769,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
           const <ConversationExecutionTaskProgress>[],
       mutationGeneration: checkpoint?.mutationGeneration ?? 0,
       verificationGeneration: checkpoint?.verificationGeneration ?? -1,
+      completionElicitationMutationGeneration:
+          checkpoint?.completionElicitationMutationGeneration,
       openQuestionProgress:
           checkpoint?.openQuestionProgress ??
           const <ConversationOpenQuestionProgress>[],
@@ -1032,7 +1036,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       lastBlockerSeenAt: resetProgress ? null : previous.lastBlockerSeenAt,
     );
 
-    await _persistCurrentGoal(nextGoal);
+    await _persistCurrentGoal(
+      nextGoal,
+      resetCompletionElicitation: resetProgress,
+    );
   }
 
   Future<void> setCurrentGoalEnabled(bool enabled) async {
@@ -1073,6 +1080,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     final updatedConversation = conversation.copyWith(
       goal: null,
+      completionElicitationMutationGeneration: null,
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
@@ -1164,6 +1172,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   Future<void> _persistCurrentGoal(
     ConversationGoal goal, {
     String? conversationId,
+    bool resetCompletionElicitation = false,
   }) async {
     final conversation = state.conversationForId(conversationId);
     if (conversation == null) {
@@ -1172,6 +1181,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     final updatedConversation = conversation.copyWith(
       goal: goal,
+      completionElicitationMutationGeneration: resetCompletionElicitation
+          ? null
+          : conversation.completionElicitationMutationGeneration,
       updatedAt: goal.updatedAt,
     );
     await _persistUpdatedConversation(updatedConversation);
@@ -1320,6 +1332,26 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final currentConversationId = state.currentConversationId;
     if (currentConversationId == null) return;
     await recordVerificationGeneration(conversationId: currentConversationId);
+  }
+
+  Future<void> recordCompletionElicitationMutationGeneration({
+    required String conversationId,
+    required int mutationGeneration,
+  }) async {
+    final conversation = state.conversations
+        .where((candidate) => candidate.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) return;
+    final previous = conversation.completionElicitationMutationGeneration;
+    if (previous != null && previous >= mutationGeneration) {
+      return;
+    }
+    await _persistUpdatedConversation(
+      conversation.copyWith(
+        completionElicitationMutationGeneration: mutationGeneration,
+        updatedAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> updateCurrentExecutionTaskProgressFromAssistantTurn({

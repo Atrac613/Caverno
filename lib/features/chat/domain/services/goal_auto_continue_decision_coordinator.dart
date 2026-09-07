@@ -401,7 +401,10 @@ _elicitation(
       markAwaitingConfirmation: true,
     );
   }
-  final lastElicitation = input.tracker.completionElicitationMutationGeneration;
+  final lastElicitation = _latestElicitationSpend(
+    trackerSpend: input.tracker.completionElicitationMutationGeneration,
+    conversationSpend: conversation.completionElicitationMutationGeneration,
+  );
   if (lastElicitation != null &&
       lastElicitation >= conversation.mutationGeneration) {
     return (
@@ -415,6 +418,19 @@ _elicitation(
     mutationGeneration: conversation.mutationGeneration,
     markAwaitingConfirmation: false,
   );
+}
+
+int? _latestElicitationSpend({
+  required int? trackerSpend,
+  required int? conversationSpend,
+}) {
+  if (trackerSpend == null) {
+    return conversationSpend;
+  }
+  if (conversationSpend == null || trackerSpend >= conversationSpend) {
+    return trackerSpend;
+  }
+  return conversationSpend;
 }
 
 GoalAutoContinueTrackerDelta _trackerDelta({

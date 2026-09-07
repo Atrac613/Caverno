@@ -132,6 +132,23 @@ void main() {
       expect(ack.gaps.any((g) => g.contains('lib/x.dart')), isTrue);
     });
 
+    test('rejects completion when remaining work was reported', () {
+      final ack = resolver.resolve(
+        input: const GoalUpdateInput(completed: true),
+        goal: _goal(),
+        evidence: const ToolResultCompletionEvidence(
+          hasReportedRemainingWork: true,
+          remainingWorkMessage: 'bump pubspec.yaml to 1.3.21+33',
+        ),
+      );
+
+      expect(ack.outcome, GoalUpdateAckOutcome.completionRejected);
+      expect(
+        ack.gaps,
+        contains('remaining work was reported: bump pubspec.yaml to 1.3.21+33'),
+      );
+    });
+
     test('surfaces every distinct evidence source, in priority order', () {
       final ack = resolver.resolve(
         input: const GoalUpdateInput(completed: true),
@@ -143,13 +160,16 @@ void main() {
           unverifiedChangePaths: ['a', 'b'],
           mutatedWithoutExecutionVerification: true,
           hasUnexecutedActionClaim: true,
+          hasReportedRemainingWork: true,
+          remainingWorkMessage: 'bump the version',
         ),
       );
 
-      // Six distinct evidence sources, so six gaps, bounded by construction.
-      expect(ack.gaps.length, 6);
+      // Seven distinct evidence sources, so seven gaps, bounded by construction.
+      expect(ack.gaps.length, 7);
       expect(ack.gaps.first, contains('unresolved error'));
       expect(ack.gaps[1], contains('verification command failed'));
+      expect(ack.gaps.last, contains('remaining work was reported'));
     });
   });
 

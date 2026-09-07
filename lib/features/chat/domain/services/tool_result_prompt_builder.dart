@@ -38,6 +38,8 @@ class ToolResultCompletionEvidence {
     this.hasFailedExecutionVerification = false,
     this.hasAuthoritativeDiagnosticSnapshot = false,
     this.hasUnexecutedActionClaim = false,
+    this.hasReportedRemainingWork = false,
+    this.remainingWorkMessage = '',
     this.diagnosticSignature = '',
   });
 
@@ -53,6 +55,8 @@ class ToolResultCompletionEvidence {
   final bool hasFailedExecutionVerification;
   final bool hasAuthoritativeDiagnosticSnapshot;
   final bool hasUnexecutedActionClaim;
+  final bool hasReportedRemainingWork;
+  final String remainingWorkMessage;
   final String diagnosticSignature;
 
   bool get hasIncompleteEvidence =>
@@ -61,7 +65,8 @@ class ToolResultCompletionEvidence {
       unresolvedErrorCount > 0 ||
       unverifiedChangePaths.isNotEmpty ||
       mutatedWithoutExecutionVerification ||
-      hasUnexecutedActionClaim;
+      hasUnexecutedActionClaim ||
+      hasReportedRemainingWork;
 
   bool get hasBlockingEvidence =>
       boundedToolLoopExhausted ||
@@ -109,6 +114,14 @@ class ToolResultCompletionEvidence {
     if (hasUnexecutedActionClaim) {
       parts.add('claimed file or command actions were not executed');
     }
+    if (hasReportedRemainingWork) {
+      final message = remainingWorkMessage.trim();
+      parts.add(
+        message.isEmpty
+            ? 'remaining work was reported without completion'
+            : message,
+      );
+    }
     return parts.isEmpty ? 'no incomplete evidence' : parts.join('; ');
   }
 
@@ -137,8 +150,20 @@ class ToolResultCompletionEvidence {
   ToolResultCompletionEvidence carryForwardIncompleteFrom(
     ToolResultCompletionEvidence previous,
   ) {
+    final carriedRemainingWork =
+        hasReportedRemainingWork || previous.hasReportedRemainingWork;
+    final carriedRemainingMessage = remainingWorkMessage.trim().isNotEmpty
+        ? remainingWorkMessage
+        : previous.remainingWorkMessage;
+
+    // Remaining work is a goal-progress report, not a verification gap.
+    // Inspection-only follow-ups and green tests must not drop it, or an
+    // elicitation resume strands after the first read-only batch.
     if (!previous.hasIncompleteEvidence || hasSuccessfulExecutionVerification) {
-      return this;
+      return _withRemainingWork(
+        hasReportedRemainingWork: carriedRemainingWork,
+        remainingWorkMessage: carriedRemainingMessage,
+      );
     }
 
     final carryDiagnostics =
@@ -176,9 +201,38 @@ class ToolResultCompletionEvidence {
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
       hasUnexecutedActionClaim:
           hasUnexecutedActionClaim || previous.hasUnexecutedActionClaim,
+      hasReportedRemainingWork: carriedRemainingWork,
+      remainingWorkMessage: carriedRemainingMessage,
       diagnosticSignature: carryDiagnostics
           ? previous.diagnosticSignature
           : diagnosticSignature,
+    );
+  }
+
+  ToolResultCompletionEvidence _withRemainingWork({
+    required bool hasReportedRemainingWork,
+    required String remainingWorkMessage,
+  }) {
+    if (this.hasReportedRemainingWork == hasReportedRemainingWork &&
+        this.remainingWorkMessage == remainingWorkMessage) {
+      return this;
+    }
+    return ToolResultCompletionEvidence(
+      boundedToolLoopExhausted: boundedToolLoopExhausted,
+      unexecutedToolNames: unexecutedToolNames,
+      unresolvedErrorCount: unresolvedErrorCount,
+      unresolvedErrorPaths: unresolvedErrorPaths,
+      unresolvedErrorDiagnostics: unresolvedErrorDiagnostics,
+      unverifiedChangePaths: unverifiedChangePaths,
+      mutatedWithoutExecutionVerification: mutatedWithoutExecutionVerification,
+      hasExecutionVerification: hasExecutionVerification,
+      hasSuccessfulExecutionVerification: hasSuccessfulExecutionVerification,
+      hasFailedExecutionVerification: hasFailedExecutionVerification,
+      hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
+      hasUnexecutedActionClaim: hasUnexecutedActionClaim,
+      hasReportedRemainingWork: hasReportedRemainingWork,
+      remainingWorkMessage: remainingWorkMessage,
+      diagnosticSignature: diagnosticSignature,
     );
   }
 
@@ -198,6 +252,8 @@ class ToolResultCompletionEvidence {
       hasExecutionVerification: true,
       hasSuccessfulExecutionVerification: true,
       hasUnexecutedActionClaim: hasUnexecutedActionClaim,
+      hasReportedRemainingWork: hasReportedRemainingWork,
+      remainingWorkMessage: remainingWorkMessage,
     );
   }
 }
@@ -704,10 +760,19 @@ class ToolResultPromptBuilder {
     final diagnosticSignatureComponents = <String>{};
     var hasAuthoritativeDiagnosticSnapshot = false;
     var hasUnexecutedActionClaim = false;
+    var hasReportedRemainingWork = false;
+    var remainingWorkMessage = '';
     var unresolvedErrorCount = 0;
 
     for (var index = 0; index < toolResults.length; index += 1) {
       final toolResult = toolResults[index];
+      final remaining = _remainingWorkFromUpdateGoalResult(toolResult);
+      if (remaining != null) {
+        hasReportedRemainingWork = true;
+        if (remaining.isNotEmpty) {
+          remainingWorkMessage = remaining;
+        }
+      }
       final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) {
         continue;
@@ -815,6 +880,8 @@ class ToolResultPromptBuilder {
       hasFailedExecutionVerification: hasFailedExecutionVerification,
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
       hasUnexecutedActionClaim: hasUnexecutedActionClaim,
+      hasReportedRemainingWork: hasReportedRemainingWork,
+      remainingWorkMessage: remainingWorkMessage,
       diagnosticSignature: (diagnosticSignatureComponents.toList()..sort())
           .join('\n'),
     );
@@ -1017,7 +1084,8 @@ class ToolResultPromptBuilder {
 
   static bool _isVerificationRunToolResult(ToolResultInfo toolResult) {
     final normalizedName = toolResult.name.trim().toLowerCase();
-    if (normalizedName == 'local_execute_command') {
+    if (normalizedName == 'local_execute_command' ||
+        normalizedName == 'git_execute_command') {
       return const ToolCapabilityClassifier()
               .classify(toolResult.name, arguments: toolResult.arguments)
               .commandEffect ==
@@ -1026,12 +1094,70 @@ class ToolResultPromptBuilder {
     switch (normalizedName) {
       case 'analyze_project':
       case 'run_tests':
-      case 'git_execute_command':
       case 'process_start':
       case 'process_wait':
         return true;
     }
     return false;
+  }
+
+  /// True when [toolResult] is an `update_goal` progress report that named
+  /// remaining work rather than completion or a blocker.
+  ///
+  /// The elicitation turn only offers `update_goal`. A `completed: false`
+  /// progress ack is the signal to resume with full tools; treating it as
+  /// "no incomplete evidence" strands the goal. Arguments are the contract;
+  /// the ack body is only a fallback when a replayed result lost them.
+  static String? _remainingWorkFromUpdateGoalResult(ToolResultInfo toolResult) {
+    if (toolResult.name.trim().toLowerCase() != 'update_goal') {
+      return null;
+    }
+    final arguments = toolResult.arguments;
+    if (arguments['completed'] == true) {
+      return null;
+    }
+    final blockedReason = arguments['blocked_reason']?.toString().trim() ?? '';
+    if (blockedReason.isNotEmpty) {
+      return null;
+    }
+
+    final argumentMessage = arguments['message']?.toString().trim() ?? '';
+    final explicitProgress =
+        arguments.containsKey('completed') || arguments.containsKey('message');
+    final bodyMessage = _remainingWorkMessageFromProgressAck(toolResult.result);
+
+    if (explicitProgress) {
+      if (argumentMessage.isNotEmpty) {
+        return argumentMessage;
+      }
+      if (bodyMessage != null) {
+        return bodyMessage;
+      }
+      return arguments['completed'] == false ? '' : null;
+    }
+    return bodyMessage;
+  }
+
+  static String? _remainingWorkMessageFromProgressAck(String rawResult) {
+    var body = rawResult.trim();
+    final decoded = _tryDecodeJsonMap(body);
+    if (decoded != null) {
+      final nested = decoded['prior_result'] ?? decoded['result'];
+      if (nested is String && nested.trim().isNotEmpty) {
+        body = nested.trim();
+      }
+    }
+    const keepWorking = 'Keep working toward the goal.';
+    if (!body.contains(keepWorking)) {
+      return null;
+    }
+    final logged = RegExp(
+      r'^Progress logged: (.*)\. Keep working toward the goal\.$',
+    ).firstMatch(body);
+    if (logged != null) {
+      return logged.group(1)!.trim();
+    }
+    return '';
   }
 
   static bool _isBackgroundProcessVerificationTool(String normalizedName) =>
