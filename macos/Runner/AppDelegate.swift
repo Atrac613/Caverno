@@ -3,7 +3,7 @@ import Darwin
 import FlutterMacOS
 
 @main
-class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate {
   override init() {
     // Finder launches can inherit a closed output pipe; ignore SIGPIPE so
     // incidental logging cannot terminate the app.
@@ -19,13 +19,6 @@ class AppDelegate: FlutterAppDelegate {
       Darwin.exit(0)
     }
     super.applicationWillFinishLaunching(notification)
-  }
-
-  override func applicationDidFinishLaunching(_ notification: Notification) {
-    super.applicationDidFinishLaunching(notification)
-    DispatchQueue.main.async {
-      MacosSparkleUpdateController.shared.startIfNeeded()
-    }
   }
 
   @IBAction func checkForUpdates(_ sender: Any?) {
@@ -55,7 +48,7 @@ class AppDelegate: FlutterAppDelegate {
     return true
   }
 
-  override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+  @objc override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return false
   }
 

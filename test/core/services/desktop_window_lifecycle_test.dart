@@ -91,8 +91,10 @@ void main() {
       mainFlutterWindowSource,
       contains('updaterController.startUpdater()'),
     );
-    expect(appDelegateSource, contains('applicationDidFinishLaunching'));
-    expect(appDelegateSource, contains('startIfNeeded()'));
+    expect(
+      appDelegateSource,
+      isNot(contains('func applicationDidFinishLaunching')),
+    );
     expect(appDelegateSource, contains('return false'));
     expect(
       appDelegateSource,
@@ -134,6 +136,11 @@ void main() {
       contains('return false'),
     );
     expect(windowSource, contains('isRestorable = false'));
+    expect(windowSource, contains('startIfNeeded()'));
+    expect(
+      appDelegateSource,
+      isNot(contains('super.applicationDidFinishLaunching')),
+    );
     expect(
       entitlements,
       contains('com.apple.security.automation.apple-events'),

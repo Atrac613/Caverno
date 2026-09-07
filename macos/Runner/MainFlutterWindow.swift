@@ -65,6 +65,13 @@ class MainFlutterWindow: NSWindow {
     )
 
     super.awakeFromNib()
+    // Start Sparkle after the nib is up. Do not call this from
+    // AppDelegate.applicationDidFinishLaunching: Firebase GUL swizzles that
+    // selector and `super` raises NSInvalidArgumentException, which leaves a
+    // windowless hung process after AppKit window restoration.
+    DispatchQueue.main.async {
+      MacosSparkleUpdateController.shared.startIfNeeded()
+    }
   }
 }
 
