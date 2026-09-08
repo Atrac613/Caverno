@@ -31,4 +31,18 @@ abstract final class RemoteCodingErrorPolicy {
     final trimmed = code.trim();
     return trimmed != unauthorized && !endsTheSession(trimmed);
   }
+
+  /// Host-start copy. The TLS identity lives in the macOS data-protection
+  /// keychain, which rejects writes with errSecMissingEntitlement (-34018)
+  /// when the running app was signed without keychain-access-groups.
+  static String describeHostStartFailure(Object error) {
+    final text = error.toString();
+    if (text.contains('-34018')) {
+      return 'Failed to start remote coding host: macOS Keychain denied TLS '
+          'identity storage because this app is missing keychain-access-groups '
+          '(errSecMissingEntitlement -34018). Use a build whose signed '
+          'entitlements include that group.';
+    }
+    return 'Failed to start remote coding host: $error';
+  }
 }

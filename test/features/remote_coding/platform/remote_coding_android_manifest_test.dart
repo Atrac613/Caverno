@@ -129,6 +129,33 @@ void main() {
     expect(runnerDebug, contains('ENABLE_APP_SANDBOX = NO;'));
   });
 
+  test('Sparkle re-sign applies expanded Release entitlements', () {
+    // Preserve-metadata cannot restore a dump Sparkle already emptied, and it
+    // can copy get-task-allow. The outer app must be signed with --entitlements
+    // from the expanded Release file, then verified without swallowing codesign
+    // errors.
+    final script = File(
+      'tool/build_macos_sparkle_release.sh',
+    ).readAsStringSync();
+    final signApp = RegExp(
+      r'sign_macos_release_app\(\) \{[\s\S]*?\n\}',
+    ).firstMatch(script);
+    expect(signApp, isNotNull);
+    expect(signApp!.group(0), contains('--entitlements'));
+    expect(
+      signApp.group(0),
+      isNot(contains('preserve-metadata=identifier,entitlements')),
+    );
+    expect(script, contains('macos_release_app_entitlements.py'));
+    expect(script, contains('verify-app'));
+    final verify = RegExp(
+      r'verify_signed_app_entitlements\(\) \{[\s\S]*?\n\}',
+    ).firstMatch(script);
+    expect(verify, isNotNull);
+    expect(verify!.group(0), isNot(contains('/dev/null')));
+    expect(verify.group(0), isNot(contains('|| true')));
+  });
+
   test('macOS entitlements grant the keychain access secure storage needs', () {
     // flutter_secure_storage holds the relay delivery credential and the SSH
     // credentials. Without this entitlement the macOS keychain answers

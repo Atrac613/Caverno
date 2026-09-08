@@ -52,6 +52,28 @@ void main() {
       );
     });
 
+    test('host start maps a missing keychain entitlement to a supportable error', () {
+      const exception =
+          "PlatformException(Unexpected security result code, Code: -34018, "
+          "Message: A required entitlement isn't present., -34018, null)";
+      final message = RemoteCodingErrorPolicy.describeHostStartFailure(
+        exception,
+      );
+      expect(message, contains('keychain-access-groups'));
+      expect(message, contains('-34018'));
+      expect(
+        RemoteCodingErrorPolicy.describeHostStartFailure(
+          "PlatformException(Unexpected security result code, "
+          "A required entitlement isn't present.)",
+        ),
+        isNot(contains('keychain-access-groups')),
+      );
+      expect(
+        RemoteCodingErrorPolicy.describeHostStartFailure(StateError('bind')),
+        'Failed to start remote coding host: Bad state: bind',
+      );
+    });
+
     test('an unknown code is reported rather than acted on', () {
       // A newer desktop's code should not log this one out. Showing a message
       // is the recoverable reading of something this build cannot classify.

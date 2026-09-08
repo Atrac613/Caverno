@@ -380,16 +380,6 @@ resign_sparkle_updater_components() {
     runtime
     --preserve-metadata=identifier,entitlements,requirements
   )
-  local app_sign_args=(
-    /usr/bin/codesign
-    --force
-    --sign
-    "${identity}"
-    --timestamp
-    --options
-    runtime
-    --preserve-metadata=identifier,requirements
-  )
   local sparkle_items=(
     "${sparkle_version_dir}/XPCServices/Downloader.xpc"
     "${sparkle_version_dir}/XPCServices/Installer.xpc"
@@ -399,21 +389,94 @@ resign_sparkle_updater_components() {
   local computer_use_helper="${APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
 
   sign_embedded_python_binaries "${identity}"
-  if [[ "${DRY_RUN}" != "yes" && ! -d "${sparkle_framework}" ]]; then
+  if [[ "${DRY_RUN}" == "yes" || -d "${sparkle_framework}" ]]; then
+    echo "Re-signing Sparkle updater components with Developer ID"
+    for item in "${sparkle_items[@]}"; do
+      if [[ "${DRY_RUN}" == "yes" || -e "${item}" ]]; then
+        run "${sign_args[@]}" "${item}"
+      fi
+    done
+    run "${sign_args[@]}" "${sparkle_framework}"
+  fi
+  if [[ "${DRY_RUN}" == "yes" || -d "${computer_use_helper}" ]]; then
+    run "${sign_args[@]}" "${computer_use_helper}"
+  fi
+}
+
+resolve_team_identifier() {
+  if [[ "${DRY_RUN}" == "yes" ]]; then
+    printf '%s\n' "TEAMID"
     return 0
   fi
-
-  echo "Re-signing Sparkle updater components with Developer ID"
-  for item in "${sparkle_items[@]}"; do
-    if [[ "${DRY_RUN}" == "yes" || -e "${item}" ]]; then
-      run "${sign_args[@]}" "${item}"
-    fi
-  done
-  run "${sign_args[@]}" "${sparkle_framework}"
-  if [[ "${DRY_RUN}" == "yes" || -d "${computer_use_helper}" ]]; then
-    run "${app_sign_args[@]}" "${computer_use_helper}"
+  local team=""
+  team="$(
+    /usr/bin/codesign -dv --verbose=4 "${APP_PATH}" 2>&1 |
+      awk -F= '/^TeamIdentifier=/ { print $2; exit }'
+  )"
+  if [[ -z "${team}" || "${team}" == "-" ]]; then
+    echo "Release app has no TeamIdentifier; cannot expand keychain-access-groups." >&2
+    exit 65
   fi
-  run "${app_sign_args[@]}" "${APP_PATH}"
+  printf '%s\n' "${team}"
+}
+
+resolve_bundle_identifier() {
+  local info_plist="${APP_PATH}/Contents/Info.plist"
+  if [[ "${DRY_RUN}" == "yes" && ! -f "${info_plist}" ]]; then
+    printf '%s\n' "com.noguwo.apps.caverno"
+    return 0
+  fi
+  local bundle=""
+  bundle="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${info_plist}")"
+  if [[ -z "${bundle}" ]]; then
+    echo "Release app is missing CFBundleIdentifier." >&2
+    exit 65
+  fi
+  printf '%s\n' "${bundle}"
+}
+
+sign_macos_release_app() {
+  local identity="$1"
+  if [[ -z "${identity}" ]]; then
+    echo "Could not resolve a Developer ID signing identity from ${APP_PATH}." >&2
+    echo "Set CAVERNO_MACOS_CODESIGN_IDENTITY to the exact Developer ID identity." >&2
+    exit 65
+  fi
+  local team_id bundle_id expanded
+  team_id="$(resolve_team_identifier)"
+  bundle_id="$(resolve_bundle_identifier)"
+  if [[ "${DRY_RUN}" == "yes" ]]; then
+    expanded="/tmp/caverno-release-entitlements.plist"
+  else
+    expanded="$(mktemp -t caverno-release-entitlements.XXXXXX)"
+  fi
+  # --force replaces the signature. Preserve-metadata cannot restore a dump
+  # that Sparkle or a prior re-sign already emptied, and it can copy
+  # get-task-allow. Apply the expanded Release entitlements file instead.
+  run python3 "${ROOT_DIR}/tool/macos_release_app_entitlements.py" expand \
+    --source "${ROOT_DIR}/macos/Runner/Release.entitlements" \
+    --team-id "${team_id}" \
+    --bundle-id "${bundle_id}" \
+    --output "${expanded}"
+  run /usr/bin/codesign \
+    --force \
+    --sign \
+    "${identity}" \
+    --timestamp \
+    --options \
+    runtime \
+    --entitlements \
+    "${expanded}" \
+    --preserve-metadata=identifier,requirements \
+    "${APP_PATH}"
+  if [[ "${DRY_RUN}" != "yes" ]]; then
+    rm -f "${expanded}"
+  fi
+}
+
+verify_signed_app_entitlements() {
+  run python3 "${ROOT_DIR}/tool/macos_release_app_entitlements.py" verify-app \
+    --app "${APP_PATH}"
 }
 
 verify_sparkle_release_configuration() {
@@ -489,7 +552,9 @@ if [[ "${DRY_RUN}" != "yes" && ! -d "${APP_PATH}" ]]; then
 fi
 
 resign_sparkle_updater_components
+sign_macos_release_app "$(resolve_codesign_identity)"
 run /usr/bin/codesign --verify --deep --strict --verbose=4 "${APP_PATH}"
+verify_signed_app_entitlements
 verify_sparkle_release_configuration
 
 if [[ "${SKIP_NOTARIZATION}" != "yes" ]]; then

@@ -63,6 +63,16 @@ write at runtime with `errSecMissingEntitlement` (-34018), which also breaks the
 SSH credentials manager. Treat a macOS signing failure here as the capability
 being absent from the profile, not as a reason to drop the entitlement.
 
+The Sparkle release driver re-signs nested Sparkle binaries with `--force`
+before notarization, then signs the outer app with `--entitlements` pointing at
+an expanded copy of `macos/Runner/Release.entitlements`. Preserve-metadata on
+the outer app is not enough: a dump that is already empty stays empty, and it
+can copy `get-task-allow`. The driver then dumps the signed entitlements
+without swallowing codesign errors and fails closed if `keychain-access-groups`
+or `get-task-allow` is wrong. A `--skip-build` re-sign of a previously stripped
+app is recovered the same way, as long as the Developer ID profile still
+permits Keychain Sharing.
+
 ## Bootstrap the Firebase mobile apps
 
 Create or select a dedicated Firebase project first. Project creation is kept

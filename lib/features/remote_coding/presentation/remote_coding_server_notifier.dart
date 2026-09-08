@@ -35,6 +35,7 @@ import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../domain/remote_coding_listen_policy.dart';
 import '../domain/remote_coding_audit.dart';
+import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_grant_kinds.dart';
 import '../domain/remote_coding_models.dart';
 import '../domain/remote_coding_resource_policy.dart';
@@ -460,7 +461,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     } catch (error) {
       state = state.copyWith(
         isRunning: false,
-        error: 'Failed to start remote coding host: $error',
+        error: RemoteCodingErrorPolicy.describeHostStartFailure(error),
       );
     } finally {
       _startInProgress = false;

@@ -708,6 +708,20 @@ void main() {
       sparkleBuildScript,
       contains('--preserve-metadata=identifier,entitlements,requirements'),
     );
+    expect(sparkleBuildScript, contains('sign_macos_release_app'));
+    expect(sparkleBuildScript, contains('macos_release_app_entitlements.py'));
+    expect(sparkleBuildScript, contains('verify-app'));
+    expect(sparkleBuildScript, contains('verify_signed_app_entitlements'));
+    expect(sparkleBuildScript, contains('keychain-access-groups'));
+    final signApp = RegExp(
+      r'sign_macos_release_app\(\) \{[\s\S]*?\n\}',
+    ).firstMatch(sparkleBuildScript);
+    expect(signApp, isNotNull);
+    expect(signApp!.group(0), contains('--entitlements'));
+    expect(
+      signApp.group(0),
+      isNot(contains('preserve-metadata=identifier,entitlements')),
+    );
     expect(sparkleBuildScript, contains('codesign --verify --deep --strict'));
     expect(
       sparkleBuildScript,
