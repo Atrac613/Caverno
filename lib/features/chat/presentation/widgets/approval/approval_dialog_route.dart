@@ -1,9 +1,7 @@
 /// Route name for the modal that presents one pending interaction.
 ///
-/// Naming the route is what lets the phone take a dialog away again when the
-/// interaction is answered somewhere else — today, the Apple Watch. Dismissal
-/// pops by name rather than popping whatever happens to be on top, so a
-/// mistimed resolution can never close an unrelated screen.
+/// The presenter uses this name to capture the newly pushed route, then removes
+/// that exact route when another device answers, even beneath another screen.
 ///
 /// Lives beside the approval sheets rather than with the presenter that
 /// dismisses them: the sheets are what push the route, and a widget has no

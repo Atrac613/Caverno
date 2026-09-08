@@ -77,6 +77,19 @@ void main() {
     expect(find.text('sheet a'), findsNothing);
   });
 
+  testWidgets('does not open a prompt resolved before the next frame', (
+    tester,
+  ) async {
+    await pumpHost(tester);
+    sync(null, const _Pending('a'));
+    sync(const _Pending('a'), null);
+    await tester.pumpAndSettle();
+
+    expect(presented, isEmpty);
+    expect(find.text('sheet a'), findsNothing);
+    expect(presenter.isOpen('a'), isFalse);
+  });
+
   testWidgets('a replacement pending closes the previous sheet and opens the '
       'next', (tester) async {
     await pumpHost(tester);
@@ -107,11 +120,45 @@ void main() {
     expect(
       find.text('unrelated'),
       findsOneWidget,
-      reason:
-          'popUntil with a name predicate must be a no-op when the approval '
-          'route is not topmost, or a mistimed resolution closes whatever the '
-          'user is actually looking at.',
+      reason: 'resolving a covered approval must preserve the top screen',
     );
+  });
+
+  testWidgets('removes a covered approval before returning to the host', (
+    tester,
+  ) async {
+    await pumpHost(tester);
+    sync(null, const _Pending('a'));
+    await tester.pumpAndSettle();
+    unawaitedPush(hostContext);
+    await tester.pumpAndSettle();
+
+    sync(const _Pending('a'), null);
+    await tester.pumpAndSettle();
+    expect(find.text('unrelated'), findsOneWidget);
+    expect(find.text('sheet a', skipOffstage: false), findsNothing);
+
+    Navigator.of(hostContext).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('host'), findsOneWidget);
+    expect(find.text('sheet a'), findsNothing);
+    expect(presenter.isOpen('a'), isFalse);
+  });
+
+  testWidgets('concurrent local dismissal does not remove the host', (
+    tester,
+  ) async {
+    await pumpHost(tester);
+    sync(null, const _Pending('a'));
+    await tester.pumpAndSettle();
+
+    sync(const _Pending('a'), null);
+    Navigator.of(hostContext).pop();
+    await tester.pumpAndSettle();
+
+    expect(find.text('host'), findsOneWidget);
+    expect(find.text('sheet a'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('skips a pending the caller says not to present', (tester) async {

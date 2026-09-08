@@ -6,20 +6,15 @@ import '../widgets/approval/approval_dialog_route.dart';
 /// Opens an approval or question dialog once per pending interaction, and
 /// closes it again when that interaction is resolved somewhere else.
 ///
-/// "Somewhere else" is the Apple Watch today. The phone used to only open these
-/// dialogs: closing was the job of whoever answered, and the phone was always
-/// the answerer. Remote Coding never broke that assumption because
-/// `shouldPresentDesktopQuestion` suppresses remote-origin interactions
-/// outright. The watch is deliberately local-origin — it is a peripheral of
-/// this device, not a paired principal — so the phone does present the sheet,
-/// and something has to take it away when the wrist answers first.
+/// Both the desktop and the initiating Remote Coding device can answer the
+/// same interaction, as can a connected Apple Watch for local interactions.
+/// The pending state clearing dismisses the other surface.
 ///
-/// Dismissal pops by route name rather than popping whatever is on top.
-/// `popUntil` with a name predicate is the safe primitive here: it pops the
-/// dialog when it is topmost and does nothing at all when something else is,
-/// so a mistimed resolution can never dismiss an unrelated screen.
+/// Retains the exact route when presenting, so resolution can remove a covered
+/// approval without disturbing any screen above it.
 class ApprovalDialogPresenter {
   final Set<String> _openIds = <String>{};
+  final Map<String, Route<dynamic>> _routes = {};
 
   bool isOpen(String id) => _openIds.contains(id);
 
@@ -40,37 +35,55 @@ class ApprovalDialogPresenter {
     final previousId = previous == null ? null : idOf(previous);
     final nextId = next == null ? null : idOf(next);
     if (previousId != null && previousId != nextId) {
-      _dismiss(context, previousId);
+      _dismiss(previousId);
     }
     if (next == null || nextId == previousId) return;
     if (shouldPresent != null && !shouldPresent(next)) return;
-    _presentOnce(nextId!, isMounted, () => present(next));
+    _presentOnce(context, nextId!, isMounted, () => present(next));
   }
 
   void _presentOnce(
+    BuildContext context,
     String id,
     bool Function() isMounted,
     Future<void> Function() present,
   ) {
     if (!_openIds.add(id)) return;
     SchedulerBinding.instance.addPostFrameCallback((_) async {
-      if (!isMounted()) {
+      if (!isMounted() || !context.mounted || !_openIds.contains(id)) {
         _openIds.remove(id);
         return;
       }
       try {
-        await present();
+        // Presenters push their named route synchronously before awaiting its
+        // result. A predicate that always returns true inspects the top route
+        // without popping it or any unrelated route.
+        final navigator = Navigator.of(context);
+        final completion = present();
+        navigator.popUntil((route) {
+          if (route.settings.name == approvalDialogRouteName(id)) {
+            _routes[id] = route;
+          }
+          return true;
+        });
+        await completion;
       } finally {
+        _routes.remove(id);
         _openIds.remove(id);
       }
     });
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
-  void _dismiss(BuildContext context, String id) {
+  void _dismiss(String id) {
     if (!_openIds.remove(id)) return;
-    final navigator = Navigator.maybeOf(context);
-    if (navigator == null) return;
-    final name = approvalDialogRouteName(id);
-    navigator.popUntil((route) => route.settings.name != name);
+    final route = _routes.remove(id);
+    if (route == null) return;
+    // State may clear during a build or a navigation callback. Defer mutation
+    // until the frame finishes, then check for a concurrent local dismissal.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (route.isActive) route.navigator?.removeRoute(route);
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 }

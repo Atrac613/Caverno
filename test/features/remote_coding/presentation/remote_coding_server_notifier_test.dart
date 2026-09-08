@@ -600,7 +600,59 @@ void main() {
           description: 'the owner approval resolution',
         );
         expect(chatNotifier.approvalResolved, isTrue);
-        expect(chatNotifier.approvalResolved, isTrue);
+
+        // A desktop decision must reach the initiating phone without a poll.
+        chatNotifier.setFileApproval(
+          origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: ownerDevice.id,
+        );
+        final desktopDecision = container
+            .read(chatNotifierProvider)
+            .pendingFileOperation!;
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'requestSnapshot',
+            id: 'before-desktop-decision',
+            payload: const {},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'before-desktop-decision' &&
+                message.payload['pendingApproval']?['id'] == desktopDecision.id,
+          ),
+          description: 'the phone sees the approval before the desktop answers',
+        );
+        owner.messages.clear();
+        chatNotifier.resolveRemoteApproval(
+          id: desktopDecision.id,
+          approved: false,
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.payload.containsKey('pendingApproval') &&
+                message.payload['pendingApproval'] == null,
+          ),
+          description: 'the desktop decision pushed to the phone',
+        );
+        owner.socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'resolveApproval',
+            id: 'late-phone-decision',
+            payload: const {'approvalId': 'approval-1', 'approved': true},
+          ),
+        );
+        await _waitUntil(
+          () => owner!.messages.any(
+            (message) =>
+                message.id == 'late-phone-decision' &&
+                message.payload['code'] == 'approval_not_found',
+          ),
+          description: 'the competing phone decision rejected',
+        );
+        expect(await desktopDecision.completer.future, isFalse);
 
         chatNotifier.setFileApproval(
           origin: ChatInteractionOrigin.local,

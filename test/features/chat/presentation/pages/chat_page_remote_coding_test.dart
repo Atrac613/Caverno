@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno/features/chat/presentation/widgets/approval/git_command_approval_sheet.dart';
 
 import 'package:caverno/core/services/security_scoped_bookmark_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
@@ -179,6 +183,14 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
 class _TestChatNotifier extends ChatNotifier {
   @override
   ChatState build() => ChatState.initial();
+
+  void setPendingGitCommand(PendingGitCommand? pending) {
+    state = state.copyWith(pendingGitCommand: pending);
+  }
+
+  void setPendingQuestion(PendingAskUserQuestion pending) {
+    state = state.copyWith(pendingAskUserQuestion: pending);
+  }
 }
 
 class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
@@ -356,11 +368,76 @@ void main() {
     debugRemoteCodingMobilePlatformOverride = null;
   });
 
-  test('desktop prompt UI is only used for local-origin requests', () {
-    expect(shouldPresentDesktopApproval(ChatInteractionOrigin.local), isTrue);
-    expect(shouldPresentDesktopApproval(ChatInteractionOrigin.remote), isFalse);
-    expect(shouldPresentDesktopQuestion(ChatInteractionOrigin.local), isTrue);
-    expect(shouldPresentDesktopQuestion(ChatInteractionOrigin.remote), isFalse);
+  testWidgets('desktop shows remote approval and closes when mobile answers', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final container = await _pumpCodingWorkspace(tester);
+    final notifier =
+        container.read(chatNotifierProvider.notifier) as _TestChatNotifier;
+    final pending = PendingGitCommand(
+      owner: ChatTurnOwner(
+        conversationId: 'remote-thread',
+        interactionGeneration: 1,
+      ),
+      id: 'remote-git',
+      origin: ChatInteractionOrigin.remote,
+      remoteDeviceId: 'phone-1',
+      command: 'git status',
+      workingDirectory: '/workspace',
+      reason: 'Inspect changes',
+      completer: Completer<bool>(),
+    );
+    notifier.setPendingGitCommand(pending);
+    await tester.pumpAndSettle();
+    expect(find.byType(GitCommandApprovalSheet), findsOneWidget);
+
+    pending.completer.complete(true);
+    notifier.setPendingGitCommand(null);
+    await tester.pumpAndSettle();
+    expect(find.byType(GitCommandApprovalSheet), findsNothing);
+    expect(await pending.completer.future, isTrue);
+  });
+
+  testWidgets('desktop presents a remote question and ignores a late answer', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final container = await _pumpCodingWorkspace(tester);
+    final notifier =
+        container.read(chatNotifierProvider.notifier) as _TestChatNotifier;
+    final pending = PendingAskUserQuestion(
+      id: 'remote-question',
+      conversationId: null,
+      question: 'Which environment?',
+      help: '',
+      options: const [
+        AskUserQuestionOption(id: 'test', label: 'Test environment'),
+      ],
+      allowMultiple: false,
+      allowOther: false,
+      otherPlaceholder: '',
+      completer: Completer<AskUserQuestionAnswer?>(),
+      origin: ChatInteractionOrigin.remote,
+      remoteDeviceId: 'phone-1',
+    );
+    notifier.setPendingQuestion(pending);
+    await tester.pumpAndSettle();
+    expect(find.text('Which environment?'), findsOneWidget);
+
+    // Use the production resolver; the local sheet's null result after removal
+    // must not overwrite the answer already accepted from the phone.
+    final answer = AskUserQuestionAnswer(
+      question: pending.question,
+      selectedOptions: const [],
+      otherText: 'Test environment',
+    );
+    notifier.resolveAskUserQuestion(id: pending.id, answer: answer);
+    await tester.pumpAndSettle();
+    expect(find.text('Which environment?'), findsNothing);
+    notifier.resolveAskUserQuestion(id: pending.id);
+    expect(await pending.completer.future, same(answer));
+    expect(container.read(chatNotifierProvider).pendingAskUserQuestion, isNull);
   });
 
   test('mobile remote coding platform decision can be tested explicitly', () {

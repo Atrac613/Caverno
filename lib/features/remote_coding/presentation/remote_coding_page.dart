@@ -43,7 +43,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
 
   /// Opens each sheet once and closes it again when the interaction is
   /// answered or withdrawn elsewhere. Shared with the chat page rather than
-  /// reimplemented: it already pops by route name, which is what stops a
+  /// reimplemented: it removes the exact approval route, which stops a
   /// mistimed dismissal from closing an unrelated screen.
   final ApprovalDialogPresenter _approvalDialogs = ApprovalDialogPresenter();
   final Set<String> _handledNotificationTapEventIds = <String>{};

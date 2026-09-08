@@ -11,9 +11,8 @@ extension _ChatPageApprovalListeners on _ChatPageState {
     BuildContext context,
     T? Function(ChatState) select,
     String Function(T) idOf,
-    Future<void> Function(T) present, {
-    bool Function(T)? shouldPresent,
-  }) {
+    Future<void> Function(T) present,
+  ) {
     ref.listen<T?>(
       chatNotifierProvider.select(select),
       (previous, next) => _approvalDialogs.sync<T>(
@@ -23,7 +22,6 @@ extension _ChatPageApprovalListeners on _ChatPageState {
         idOf: idOf,
         present: present,
         isMounted: () => mounted,
-        shouldPresent: shouldPresent,
       ),
     );
   }
@@ -49,7 +47,6 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       (s) => s.pendingGitCommand,
       (p) => p.id,
       (p) => sheets.showGitCommand(context, p),
-      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
     _syncApprovalDialog<PendingLocalCommand>(
@@ -57,7 +54,6 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       (s) => s.pendingLocalCommand,
       (p) => p.id,
       (p) => sheets.showLocalCommand(context, p),
-      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
     _syncApprovalDialog<PendingComputerUseAction>(
@@ -79,7 +75,6 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       (s) => s.pendingFileOperation,
       (p) => p.id,
       (p) => sheets.showFileOperation(context, p),
-      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
     _syncApprovalDialog<PendingWorkflowDecision>(
@@ -94,7 +89,6 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       (s) => s.pendingAskUserQuestion,
       (p) => p.id,
       (p) => _showAskUserQuestionDialog(context, p),
-      shouldPresent: (p) => shouldPresentDesktopQuestion(p.origin),
     );
 
     _syncApprovalDialog<PendingAssumptionConfirmation>(
@@ -102,7 +96,6 @@ extension _ChatPageApprovalListeners on _ChatPageState {
       (s) => s.pendingAssumptionConfirmation,
       (p) => p.id,
       (p) => sheets.showAssumptionConfirmation(context, p),
-      shouldPresent: (p) => shouldPresentDesktopApproval(p.origin),
     );
 
     _syncApprovalDialog<PendingBleConnect>(

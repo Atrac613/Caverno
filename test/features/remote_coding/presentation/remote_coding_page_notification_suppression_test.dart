@@ -132,6 +132,16 @@ void main() {
       reason: 'the approval sheet has to be open before it can be taken away',
     );
 
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    unawaited(
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('Other screen')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
     (container.read(remoteCodingClientProvider.notifier) as _ConnectedClient)
         .withdraw();
     await tester.pumpAndSettle();
@@ -141,6 +151,10 @@ void main() {
       findsNothing,
       reason: 'a question the desktop is no longer asking must not stay up',
     );
+    expect(find.text('Other screen'), findsOneWidget);
+    navigator.pop();
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(FilledButton, 'Approve'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
