@@ -180,6 +180,8 @@ import '../../domain/services/code_unit_text_scan.dart';
 import '../../domain/services/planning_retry_context_builder.dart';
 import '../../domain/services/skipped_browser_action_repair_prompt.dart';
 import '../../domain/services/skipped_skill_load_text.dart';
+import '../../domain/services/enabled_skill_named_in_text.dart';
+import '../../domain/services/memory_update_tool_use.dart';
 import '../../domain/services/task_proposal_quality_gate_fallback.dart';
 import '../../domain/services/verification_target_authority.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
@@ -877,7 +879,15 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
-    final skill = _findEnabledSkillNamedInText(latestUserContent);
+    Skill? skill;
+    try {
+      skill = EnabledSkillNamedInText.find(
+        latestUserContent,
+        ref.read(skillsNotifierProvider).enabledSkills,
+      );
+    } catch (_) {
+      skill = null;
+    }
     if (skill == null) {
       return null;
     }
@@ -1001,28 +1011,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String _latestUserContentForGeneration(int generation) =>
       _turnOwnerSnapshotForGeneration(generation)?.latestUserContent ?? '';
-
-  Skill? _findEnabledSkillNamedInText(String text) {
-    final normalizedText = text.toLowerCase();
-    if (normalizedText.isEmpty) {
-      return null;
-    }
-    try {
-      final skills = ref.read(skillsNotifierProvider).enabledSkills;
-      for (final skill in skills) {
-        final name = skill.normalizedName.trim();
-        if (name.isEmpty) {
-          continue;
-        }
-        if (normalizedText.contains(name.toLowerCase())) {
-          return skill;
-        }
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
-  }
 
   AssistantMode _resolveAssistantMode({Conversation? currentConversation}) {
     final override = _assistantModeOverride;
@@ -8668,7 +8656,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    final memoryTag = _buildMemoryUpdateToolUse(result);
+    final memoryTag = MemoryUpdateToolUse.build(result);
     if (targetMessage.content.contains(memoryTag)) return;
 
     updatedMessages[targetIndex] = targetMessage.copyWith(
@@ -8693,22 +8681,6 @@ class ChatNotifier extends Notifier<ChatState> {
     route: _settings._memoryExtractionCompletionRoute,
     maxTokens: _settings.maxTokens,
   );
-
-  String _buildMemoryUpdateToolUse(MemoryUpdateResult result) {
-    final payload = <String, dynamic>{
-      'name': 'memory_update',
-      'arguments': <String, dynamic>{
-        'summaryUpdated': result.summaryUpdated,
-        'added': result.addedMemoryCount,
-        'updated': result.updatedMemoryCount,
-        'queuedReview': result.queuedReviewCount,
-        'suppressed': result.suppressedCandidateCount,
-        'profileUpdated': result.profileUpdated,
-        'method': result.generationMethod.name,
-      },
-    };
-    return '<tool_use>${jsonEncode(payload)}</tool_use>';
-  }
 
   bool get _isCancellationMounted => ref.mounted;
 
