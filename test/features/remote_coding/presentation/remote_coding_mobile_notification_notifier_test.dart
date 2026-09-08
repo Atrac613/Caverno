@@ -26,7 +26,34 @@ void main() {
   // WidgetsBinding.instance needs a binding to exist.
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final now = DateTime.utc(2026, 8, 10, 16);
+  final now = DateTime.now().toUtc();
+
+  test('relay outage preserves cold-start taps and local fallback', () async {
+    final fixture = await _fixture(now);
+    addTearDown(fixture.dispose);
+    await fixture.waitForStatus(
+      RemoteCodingMobileNotificationStatus.notDetermined,
+    );
+    await fixture.repository.saveMobileRelayNotificationsEnabled(true);
+    fixture.gateway.authorized = true;
+    fixture.gateway.initialTap = _terminalData(now);
+    fixture.relayClient.failRegistration = true;
+    await fixture.notifier.initialize();
+    final state = fixture.container.read(
+      remoteCodingMobileNotificationProvider,
+    );
+    expect(state.status, RemoteCodingMobileNotificationStatus.unavailable);
+    expect(state.pendingNotificationTap?.eventId, 'event_123456');
+    fixture.clientNotifier.emitTerminalNotification(
+      RemoteCodingNotificationPayload.fromFcmData(_terminalData(now)),
+    );
+    await _waitUntil(
+      () => fixture.notificationService.shownNotifications.length == 1,
+    );
+    fixture.gateway.foregroundController.add(_terminalData(now));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(fixture.notificationService.shownNotifications, hasLength(1));
+  });
 
   test(
     'permission is requested only when the user enables notifications',
@@ -850,12 +877,15 @@ final class _FakeNotificationGateway
   final tapController = StreamController<Map<String, dynamic>>.broadcast();
   int permissionRequestCount = 0;
   int tokenDisableCount = 0;
+  bool authorized = false;
+  Map<String, dynamic>? initialTap;
   @override
   RemoteCodingRelayPlatform get platform => RemoteCodingRelayPlatform.ios;
 
   @override
-  Future<RemoteCodingNotificationPermission> initialize() async =>
-      RemoteCodingNotificationPermission.notDetermined;
+  Future<RemoteCodingNotificationPermission> initialize() async => authorized
+      ? RemoteCodingNotificationPermission.authorized
+      : RemoteCodingNotificationPermission.notDetermined;
 
   @override
   Future<RemoteCodingNotificationPermission> requestPermission() async {
@@ -885,7 +915,7 @@ final class _FakeNotificationGateway
   Stream<Map<String, dynamic>> get onNotificationTap => tapController.stream;
 
   @override
-  Future<Map<String, dynamic>?> getInitialNotificationTap() async => null;
+  Future<Map<String, dynamic>?> getInitialNotificationTap() async => initialTap;
 }
 
 final class _FakeRelayClient implements RemoteCodingNotificationRelayClient {
@@ -893,6 +923,7 @@ final class _FakeRelayClient implements RemoteCodingNotificationRelayClient {
 
   final DateTime now;
   int registrationCount = 0;
+  bool failRegistration = false;
   int rotationCount = 0;
   int revocationFailuresRemaining = 0;
   String? rotatedFcmToken;
@@ -909,6 +940,7 @@ final class _FakeRelayClient implements RemoteCodingNotificationRelayClient {
     required RemoteCodingRelayRegistrationRequest request,
     required String appCheckToken,
   }) async {
+    if (failRegistration) throw StateError('Relay unavailable');
     registrationCount += 1;
     return registration;
   }

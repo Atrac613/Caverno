@@ -224,6 +224,7 @@ final class RemoteCodingMobileNotificationNotifier
     _operationInProgress = true;
     try {
       final permission = await _gateway.initialize();
+      await _listenForMessages();
       if (!_repository.loadMobileRelayNotificationsEnabled()) {
         state = RemoteCodingMobileNotificationState(
           status: _disabledStatus(permission),
@@ -240,15 +241,15 @@ final class RemoteCodingMobileNotificationNotifier
       }
       await _ensureRegistration();
       _listenForTokenRefresh();
-      await _listenForMessages();
-      state = const RemoteCodingMobileNotificationState(
+      state = state.copyWith(
         status: RemoteCodingMobileNotificationStatus.enabled,
+        clearMessage: true,
       );
     } catch (error, stackTrace) {
       appLog(
         '[RemoteCodingNotifications] initialize failed: $error\n$stackTrace',
       );
-      state = const RemoteCodingMobileNotificationState(
+      state = state.copyWith(
         status: RemoteCodingMobileNotificationStatus.unavailable,
         message: 'Firebase notifications are unavailable in this build.',
       );
@@ -286,8 +287,9 @@ final class RemoteCodingMobileNotificationNotifier
       await _repository.saveMobileRelayNotificationsEnabled(true);
       _listenForTokenRefresh();
       await _listenForMessages();
-      state = const RemoteCodingMobileNotificationState(
+      state = state.copyWith(
         status: RemoteCodingMobileNotificationStatus.enabled,
+        clearMessage: true,
       );
       return true;
     } catch (error, stackTrace) {
@@ -435,7 +437,7 @@ final class RemoteCodingMobileNotificationNotifier
     ref
         .read(remoteCodingClientProvider.notifier)
         .clearLastTerminalNotification();
-    if (_repository.loadMobileRelayNotificationsEnabled()) {
+    if (state.isEnabled) {
       return;
     }
     await _presentNotificationOnce(notification);
