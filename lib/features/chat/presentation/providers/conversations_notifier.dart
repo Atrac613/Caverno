@@ -516,16 +516,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// turn mutates it. Returns false when another frontend deleted it.
   Future<bool> refreshConversationForExecution(String id) async {
     final refreshed = await _repository.refresh(id);
+    if (!ref.mounted) {
+      return refreshed != null;
+    }
     if (refreshed == null) {
-      final existing = state.conversations
-          .where((conversation) => conversation.id == id)
-          .firstOrNull;
-      // In-memory test doubles often implement save/getAll but not refresh.
-      // Listing stubs must still be dropped when the store has no payload.
-      if (existing != null &&
-          !ConversationListingCodec.isListingStub(existing.messages)) {
-        return true;
-      }
       final remaining = state.conversations
           .where((conversation) => conversation.id != id)
           .toList(growable: false);
@@ -534,6 +528,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         clearCurrentConversation: state.currentConversationId == id,
       );
       return false;
+    }
+
+    final existing = state.conversations
+        .where((conversation) => conversation.id == id)
+        .firstOrNull;
+    if (existing == refreshed) {
+      return true;
     }
 
     final conversations = <Conversation>[
