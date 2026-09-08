@@ -102,7 +102,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart':
       76,
   'lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart':
-      459,
+      457,
   'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart':
       137,
   'lib/features/chat/domain/services/goal_update_tool_handler.dart': 64,
@@ -631,7 +631,7 @@ const Map<String, int> _lineBudgets = {
       100,
   'lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart':
       63,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1123,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1122,
   'lib/features/chat/data/datasources/memory_recall_scoring.dart': 20,
   // File-turn checkpoint delegation moved to the rollback facade that already
   // owns that concern, leaving this one to owner-bound tool dispatch.
@@ -936,7 +936,7 @@ const Map<String, int> _libraryLineBudgets = {
   // -2 matching the primary file: project directory picking left this library
   // for coding_project_picker.dart.
   'lib/features/chat/presentation/pages/chat_page.dart': 8605,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1198,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1197,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };
 

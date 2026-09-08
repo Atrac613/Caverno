@@ -16,7 +16,6 @@ import '../../../../core/services/script_runtime/script_runtime.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/conversation.dart';
-import '../../domain/entities/session_memory.dart';
 import '../../domain/entities/skill.dart';
 import 'memory_recall_scoring.dart';
 import '../../domain/services/tool_definition_search_service.dart';

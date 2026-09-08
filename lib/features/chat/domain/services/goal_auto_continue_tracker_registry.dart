@@ -355,9 +355,7 @@ final class GoalAutoContinueTrackerRegistry {
       noProgressStreak: state.noProgressStreak,
       consecutiveValidationMisses: state.consecutiveValidationMisses,
       failedVerificationObserved: state.failedVerificationObserved,
-      previousEvidence: state.previousEvidence == null
-          ? null
-          : state.previousEvidence!.copyUnmodifiable(),
+      previousEvidence: state.previousEvidence?.copyUnmodifiable(),
       previousDiagnosticSignature: state.previousDiagnosticSignature,
       identicalDiagnosticSignatureStreak:
           state.identicalDiagnosticSignatureStreak,
