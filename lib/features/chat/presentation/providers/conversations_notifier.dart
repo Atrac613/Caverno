@@ -542,6 +542,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     if (existing == refreshed) {
       return true;
     }
+    if (existing != null &&
+        !_shouldApplyRefreshedConversation(existing, refreshed)) {
+      return true;
+    }
 
     final conversations = <Conversation>[
       for (final conversation in state.conversations)
@@ -551,6 +555,22 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     _sortConversations(conversations);
     state = state.copyWith(conversations: conversations);
     return true;
+  }
+
+  /// Listing stubs must be replaced with the full payload. A newer in-memory
+  /// copy must not be replaced by an older storage snapshot: a gated or
+  /// in-flight save still holds the authoritative transcript.
+  bool _shouldApplyRefreshedConversation(
+    Conversation existing,
+    Conversation refreshed,
+  ) {
+    if (ConversationListingCodec.isListingStub(existing.messages)) {
+      return !ConversationListingCodec.isListingStub(refreshed.messages);
+    }
+    if (ConversationListingCodec.isListingStub(refreshed.messages)) {
+      return false;
+    }
+    return refreshed.updatedAt.isAfter(existing.updatedAt);
   }
 
   /// Selects a conversation.
@@ -573,9 +593,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     if (conversationId == null) {
       return;
     }
-    await refreshConversationForExecution(conversationId);
-    if (!ref.mounted) {
-      return;
+    final existing = state.conversations
+        .where((conversation) => conversation.id == conversationId)
+        .firstOrNull;
+    // Full in-memory threads are already the working copy. Refreshing them on
+    // every select/activate races an in-flight save and can wipe the thread
+    // when storage has not caught up yet (delayed fake repos, gated Hive puts).
+    if (existing != null &&
+        ConversationListingCodec.isListingStub(existing.messages)) {
+      await refreshConversationForExecution(conversationId);
+      if (!ref.mounted) {
+        return;
+      }
     }
     await ensureCurrentPlanArtifactBackfilled(conversationId: conversationId);
   }
