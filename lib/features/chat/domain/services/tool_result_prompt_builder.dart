@@ -84,6 +84,28 @@ class ToolResultCompletionEvidence {
   bool get requiresValidationContinuation =>
       hasPendingExecutionVerification || mutatedWithoutExecutionVerification;
 
+  ToolResultCompletionEvidence copyUnmodifiable() {
+    return ToolResultCompletionEvidence(
+      boundedToolLoopExhausted: boundedToolLoopExhausted,
+      unexecutedToolNames: List<String>.unmodifiable(unexecutedToolNames),
+      unresolvedErrorCount: unresolvedErrorCount,
+      unresolvedErrorPaths: List<String>.unmodifiable(unresolvedErrorPaths),
+      unresolvedErrorDiagnostics: List<UnresolvedErrorDiagnostic>.unmodifiable(
+        unresolvedErrorDiagnostics,
+      ),
+      unverifiedChangePaths: List<String>.unmodifiable(unverifiedChangePaths),
+      mutatedWithoutExecutionVerification: mutatedWithoutExecutionVerification,
+      hasExecutionVerification: hasExecutionVerification,
+      hasSuccessfulExecutionVerification: hasSuccessfulExecutionVerification,
+      hasFailedExecutionVerification: hasFailedExecutionVerification,
+      hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
+      hasUnexecutedActionClaim: hasUnexecutedActionClaim,
+      hasReportedRemainingWork: hasReportedRemainingWork,
+      remainingWorkMessage: remainingWorkMessage,
+      diagnosticSignature: diagnosticSignature,
+    );
+  }
+
   String get summary {
     final parts = <String>[];
     if (hasFailedExecutionVerification) {

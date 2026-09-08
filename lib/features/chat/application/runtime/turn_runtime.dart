@@ -76,7 +76,7 @@ final class TurnRuntimeGoalContinuationInput {
     required this.languageCode,
     required ToolResultCompletionEvidence evidence,
     required this.isVoiceMode,
-  }) : evidence = _copyEvidence(evidence);
+  }) : evidence = evidence.copyUnmodifiable();
 
   final String finalizedAssistantResponse;
   final String languageCode;
@@ -205,7 +205,7 @@ final class TurnRuntimeHiddenTurnRequest {
     this.replayVerifierImmediatelyAfterMutation = false,
     this.verifierOnlyContinuation = false,
     Set<String>? allowedToolNames,
-  }) : evidence = _copyEvidence(evidence),
+  }) : evidence = evidence.copyUnmodifiable(),
        allowedToolNames = allowedToolNames == null
            ? null
            : Set<String>.unmodifiable(allowedToolNames);
@@ -416,32 +416,3 @@ final class TurnRuntime {
     _isSchedulingGoalContinuation = false;
   }
 }
-
-ToolResultCompletionEvidence _copyEvidence(
-  ToolResultCompletionEvidence evidence,
-) => ToolResultCompletionEvidence(
-  boundedToolLoopExhausted: evidence.boundedToolLoopExhausted,
-  unexecutedToolNames: List<String>.unmodifiable(evidence.unexecutedToolNames),
-  unresolvedErrorCount: evidence.unresolvedErrorCount,
-  unresolvedErrorPaths: List<String>.unmodifiable(
-    evidence.unresolvedErrorPaths,
-  ),
-  unresolvedErrorDiagnostics: List<UnresolvedErrorDiagnostic>.unmodifiable(
-    evidence.unresolvedErrorDiagnostics,
-  ),
-  unverifiedChangePaths: List<String>.unmodifiable(
-    evidence.unverifiedChangePaths,
-  ),
-  mutatedWithoutExecutionVerification:
-      evidence.mutatedWithoutExecutionVerification,
-  hasExecutionVerification: evidence.hasExecutionVerification,
-  hasSuccessfulExecutionVerification:
-      evidence.hasSuccessfulExecutionVerification,
-  hasFailedExecutionVerification: evidence.hasFailedExecutionVerification,
-  hasAuthoritativeDiagnosticSnapshot:
-      evidence.hasAuthoritativeDiagnosticSnapshot,
-  hasUnexecutedActionClaim: evidence.hasUnexecutedActionClaim,
-  hasReportedRemainingWork: evidence.hasReportedRemainingWork,
-  remainingWorkMessage: evidence.remainingWorkMessage,
-  diagnosticSignature: evidence.diagnosticSignature,
-);

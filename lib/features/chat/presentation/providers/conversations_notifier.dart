@@ -21,6 +21,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_attachment_paths.dart';
+import '../../domain/services/conversation_checkpoint_recorder.dart';
 import '../../domain/services/conversation_default_title.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_goal_progress_inference.dart';
@@ -29,87 +30,10 @@ import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import 'conversations_state.dart';
 import 'mcp_tool_provider.dart';
 
-/// State for the conversation list.
-class ConversationsState {
-  const ConversationsState({
-    required this.conversations,
-    required this.currentConversationId,
-    required this.activeWorkspaceMode,
-    required this.activeProjectId,
-    this.isLoading = false,
-  });
-
-  final List<Conversation> conversations;
-  final String? currentConversationId;
-  final WorkspaceMode activeWorkspaceMode;
-  final String? activeProjectId;
-  final bool isLoading;
-
-  factory ConversationsState.initial() => const ConversationsState(
-    conversations: [],
-    currentConversationId: null,
-    activeWorkspaceMode: WorkspaceMode.chat,
-    activeProjectId: null,
-  );
-
-  ConversationsState copyWith({
-    List<Conversation>? conversations,
-    String? currentConversationId,
-    WorkspaceMode? activeWorkspaceMode,
-    String? activeProjectId,
-    bool? isLoading,
-    bool clearCurrentConversation = false,
-    bool clearActiveProject = false,
-  }) {
-    return ConversationsState(
-      conversations: conversations ?? this.conversations,
-      currentConversationId: clearCurrentConversation
-          ? null
-          : (currentConversationId ?? this.currentConversationId),
-      activeWorkspaceMode: activeWorkspaceMode ?? this.activeWorkspaceMode,
-      activeProjectId: clearActiveProject
-          ? null
-          : (activeProjectId ?? this.activeProjectId),
-      isLoading: isLoading ?? this.isLoading,
-    );
-  }
-
-  /// Returns the currently selected conversation.
-  Conversation? get currentConversation {
-    if (currentConversationId == null) return null;
-    try {
-      return conversations.firstWhere((c) => c.id == currentConversationId);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Conversation? conversationForId(String? conversationId) =>
-      conversationId == null
-      ? currentConversation
-      : conversations
-            .where((candidate) => candidate.id == conversationId)
-            .firstOrNull;
-
-  List<Conversation> get visibleConversations {
-    if (!activeWorkspaceMode.usesConversations) {
-      return const [];
-    }
-    return conversations
-        .where((conversation) {
-          if (conversation.workspaceMode != activeWorkspaceMode) {
-            return false;
-          }
-          if (!activeWorkspaceMode.usesProjects) {
-            return true;
-          }
-          return conversation.normalizedProjectId == activeProjectId;
-        })
-        .toList(growable: false);
-  }
-}
+export 'conversations_state.dart';
 
 /// Provider for `ConversationsNotifier`.
 final conversationsNotifierProvider =
@@ -135,8 +59,6 @@ const defaultConversationTitle = '__new_conversation__';
 
 /// Notifier that manages the conversation list.
 class ConversationsNotifier extends Notifier<ConversationsState> {
-  static const int _maxConversationCheckpoints = 80;
-
   late final ConversationRepositoryApi _repository;
   late final ToolResultArtifactStore _toolResultArtifactStore;
   final _uuid = const Uuid();
@@ -182,7 +104,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       }
       final currentId = state.currentConversationId;
       if (currentId != null) {
-        await refreshConversationForExecution(currentId);
+        final current = state.conversations
+            .where((conversation) => conversation.id == currentId)
+            .firstOrNull;
+        if (current != null &&
+            ConversationListingCodec.isListingStub(current.messages)) {
+          await refreshConversationForExecution(currentId);
+        }
       }
       if (!ref.mounted) {
         return;
@@ -334,7 +262,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     bool recordCheckpoint = true,
   }) async {
     final conversationToSave = recordCheckpoint
-        ? _recordConversationCheckpoint(updatedConversation)
+        ? ConversationCheckpointRecorder.record(updatedConversation)
         : updatedConversation;
     await _repository.save(conversationToSave);
 
@@ -347,50 +275,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     _sortConversations(newConversations);
     state = state.copyWith(conversations: newConversations);
-  }
-
-  Conversation _recordConversationCheckpoint(Conversation conversation) {
-    final messages = conversation.messages
-        .where((message) => !message.isStreaming)
-        .toList(growable: false);
-    if (messages.isEmpty) {
-      return conversation.copyWith(checkpoints: const []);
-    }
-
-    final message = messages.last;
-    final messageCount = messages.length;
-    final checkpoint = ConversationCheckpoint(
-      messageId: message.id,
-      messageCount: messageCount,
-      title: conversation.title,
-      createdAt: DateTime.now(),
-      executionMode: conversation.executionMode,
-      workflowStage: conversation.workflowStage,
-      workflowSpec: conversation.workflowSpec,
-      workflowSourceHash: conversation.workflowSourceHash,
-      workflowDerivedAt: conversation.workflowDerivedAt,
-      executionProgress: conversation.executionProgress,
-      mutationGeneration: conversation.mutationGeneration,
-      verificationGeneration: conversation.verificationGeneration,
-      completionElicitationMutationGeneration:
-          conversation.completionElicitationMutationGeneration,
-      openQuestionProgress: conversation.openQuestionProgress,
-      goal: conversation.goal,
-      planArtifact: conversation.planArtifact,
-      compactionArtifact: conversation.compactionArtifact,
-    );
-
-    final checkpoints = [
-      for (final existing in conversation.checkpoints)
-        if (existing.messageId != message.id &&
-            existing.messageCount <= messageCount)
-          existing,
-      checkpoint,
-    ]..sort((a, b) => a.messageCount.compareTo(b.messageCount));
-    final retained = checkpoints.length <= _maxConversationCheckpoints
-        ? checkpoints
-        : checkpoints.sublist(checkpoints.length - _maxConversationCheckpoints);
-    return conversation.copyWith(checkpoints: retained);
   }
 
   /// Creates a new conversation.
@@ -516,6 +400,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// turn mutates it. Returns false when another frontend deleted it.
   Future<bool> refreshConversationForExecution(String id) async {
     final refreshed = await _repository.refresh(id);
+    if (!ref.mounted) {
+      return refreshed != null;
+    }
     if (refreshed == null) {
       final remaining = state.conversations
           .where((conversation) => conversation.id != id)
@@ -527,6 +414,17 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       return false;
     }
 
+    final existing = state.conversations
+        .where((conversation) => conversation.id == id)
+        .firstOrNull;
+    if (existing == refreshed) {
+      return true;
+    }
+    if (existing != null &&
+        !_shouldApplyRefreshedConversation(existing, refreshed)) {
+      return true;
+    }
+
     final conversations = <Conversation>[
       for (final conversation in state.conversations)
         if (conversation.id != id) conversation,
@@ -535,6 +433,22 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     _sortConversations(conversations);
     state = state.copyWith(conversations: conversations);
     return true;
+  }
+
+  /// Listing stubs must be replaced with the full payload. A newer in-memory
+  /// copy must not be replaced by an older storage snapshot: a gated or
+  /// in-flight save still holds the authoritative transcript.
+  bool _shouldApplyRefreshedConversation(
+    Conversation existing,
+    Conversation refreshed,
+  ) {
+    if (ConversationListingCodec.isListingStub(existing.messages)) {
+      return !ConversationListingCodec.isListingStub(refreshed.messages);
+    }
+    if (ConversationListingCodec.isListingStub(refreshed.messages)) {
+      return false;
+    }
+    return refreshed.updatedAt.isAfter(existing.updatedAt);
   }
 
   /// Selects a conversation.
@@ -557,9 +471,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     if (conversationId == null) {
       return;
     }
-    await refreshConversationForExecution(conversationId);
-    if (!ref.mounted) {
-      return;
+    final existing = state.conversations
+        .where((conversation) => conversation.id == conversationId)
+        .firstOrNull;
+    // Full in-memory threads are already the working copy. Refreshing them on
+    // every select/activate races an in-flight save and can wipe the thread
+    // when storage has not caught up yet (delayed fake repos, gated Hive puts).
+    if (existing != null &&
+        ConversationListingCodec.isListingStub(existing.messages)) {
+      await refreshConversationForExecution(conversationId);
+      if (!ref.mounted) {
+        return;
+      }
     }
     await ensureCurrentPlanArtifactBackfilled(conversationId: conversationId);
   }

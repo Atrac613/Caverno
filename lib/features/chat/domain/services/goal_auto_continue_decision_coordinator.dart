@@ -9,72 +9,11 @@ import 'goal_auto_continue_tracker_registry.dart';
 import 'short_prompt_contract_builder.dart';
 import 'stalled_diagnostic_repair_contract.dart';
 import 'tool_result_prompt_builder.dart';
+import 'goal_auto_continue_decision_types.dart';
+
+export 'goal_auto_continue_decision_types.dart';
 
 // ChatNotifier decomposition collaborator: goal-auto-continue-decision-coordinator
-
-enum GoalAutoContinueCoordinationReasonCode {
-  ownerConversationMismatch,
-  nonCodingWorkspace,
-  voiceModeActive,
-  savedWorkflowOwnsContinuation,
-  policyContinue,
-  policySkip,
-  policyStopAndBlock,
-}
-
-enum GoalCompletionElicitationEligibility {
-  notApplicable,
-  goalStatusNotActive,
-  noProducedWork,
-  alreadySpentForMutation,
-  eligible,
-}
-
-typedef GoalAutoContinueStructuredReason = ({
-  GoalAutoContinueCoordinationReasonCode code,
-  String detail,
-});
-
-typedef GoalAutoContinueContinuationLimits = ({
-  int nextTurnNumber,
-  int effectiveTurnBudget,
-  Set<String>? allowedToolNames,
-  bool replayVerifierImmediatelyAfterMutation,
-  bool verifierOnlyContinuation,
-});
-
-typedef GoalAutoContinueTrackerDelta = ({
-  int consecutiveAutoContinuationsDelta,
-  int diagnosticRepairContinuationsDelta,
-  bool? diagnosticRepairExtensionUsed,
-  int? noProgressStreak,
-  int? consecutiveValidationMisses,
-  bool? failedVerificationObserved,
-  ToolResultCompletionEvidence? previousEvidence,
-  String? previousDiagnosticSignature,
-  int? identicalDiagnosticSignatureStreak,
-  bool? pendingPostRepairReplayOutcome,
-  bool? pendingRepairContractOutcome,
-  bool? repairNoMutationRetryUsed,
-  int? completionElicitationMutationGeneration,
-  bool markBudgetNoticePresented,
-  bool removeTracker,
-});
-
-typedef GoalAutoContinueDecisionPlan = ({
-  GoalAutoContinueDecision policyDecision,
-  GoalAutoContinuePolicyInput? policyInput,
-  GoalAutoContinueTrackerDelta trackerDelta,
-  ExecutionSnapshot? executionSnapshot,
-  String? repairContract,
-  GoalAutoContinueCapabilityProfile? capabilityProfile,
-  GoalAutoContinueContinuationLimits? continuationLimits,
-  String? stopNotice,
-  GoalCompletionElicitationEligibility elicitationEligibility,
-  bool shouldMarkAwaitingConfirmation,
-  int? effectiveTurnBudget,
-  GoalAutoContinueStructuredReason reason,
-});
 
 final class GoalAutoContinueDecisionInput {
   const GoalAutoContinueDecisionInput({

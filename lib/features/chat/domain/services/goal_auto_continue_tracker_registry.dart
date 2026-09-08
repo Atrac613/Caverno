@@ -135,7 +135,7 @@ final class GoalAutoContinueTrackerRegistry {
           ? null
           : previousEvidence == null
           ? state.previousEvidence
-          : _copyEvidence(previousEvidence)
+          : previousEvidence.copyUnmodifiable()
       ..previousDiagnosticSignature =
           previousDiagnosticSignature ?? state.previousDiagnosticSignature
       ..identicalDiagnosticSignatureStreak =
@@ -355,9 +355,7 @@ final class GoalAutoContinueTrackerRegistry {
       noProgressStreak: state.noProgressStreak,
       consecutiveValidationMisses: state.consecutiveValidationMisses,
       failedVerificationObserved: state.failedVerificationObserved,
-      previousEvidence: state.previousEvidence == null
-          ? null
-          : _copyEvidence(state.previousEvidence!),
+      previousEvidence: state.previousEvidence?.copyUnmodifiable(),
       previousDiagnosticSignature: state.previousDiagnosticSignature,
       identicalDiagnosticSignatureStreak:
           state.identicalDiagnosticSignatureStreak,
@@ -453,35 +451,6 @@ ToolCallInfo _copyToolCall(ToolCallInfo call) => ToolCallInfo(
   id: call.id,
   name: call.name,
   arguments: _freezeMap(call.arguments),
-);
-
-ToolResultCompletionEvidence _copyEvidence(
-  ToolResultCompletionEvidence evidence,
-) => ToolResultCompletionEvidence(
-  boundedToolLoopExhausted: evidence.boundedToolLoopExhausted,
-  unexecutedToolNames: List<String>.unmodifiable(evidence.unexecutedToolNames),
-  unresolvedErrorCount: evidence.unresolvedErrorCount,
-  unresolvedErrorPaths: List<String>.unmodifiable(
-    evidence.unresolvedErrorPaths,
-  ),
-  unresolvedErrorDiagnostics: List<UnresolvedErrorDiagnostic>.unmodifiable(
-    evidence.unresolvedErrorDiagnostics,
-  ),
-  unverifiedChangePaths: List<String>.unmodifiable(
-    evidence.unverifiedChangePaths,
-  ),
-  mutatedWithoutExecutionVerification:
-      evidence.mutatedWithoutExecutionVerification,
-  hasExecutionVerification: evidence.hasExecutionVerification,
-  hasSuccessfulExecutionVerification:
-      evidence.hasSuccessfulExecutionVerification,
-  hasFailedExecutionVerification: evidence.hasFailedExecutionVerification,
-  hasAuthoritativeDiagnosticSnapshot:
-      evidence.hasAuthoritativeDiagnosticSnapshot,
-  hasUnexecutedActionClaim: evidence.hasUnexecutedActionClaim,
-  hasReportedRemainingWork: evidence.hasReportedRemainingWork,
-  remainingWorkMessage: evidence.remainingWorkMessage,
-  diagnosticSignature: evidence.diagnosticSignature,
 );
 
 Map<String, dynamic> _freezeMap(Map<String, dynamic> value) =>
