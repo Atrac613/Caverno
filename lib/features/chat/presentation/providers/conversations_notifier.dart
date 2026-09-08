@@ -182,7 +182,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       }
       final currentId = state.currentConversationId;
       if (currentId != null) {
-        await refreshConversationForExecution(currentId);
+        final current = state.conversations
+            .where((conversation) => conversation.id == currentId)
+            .firstOrNull;
+        if (current != null &&
+            ConversationListingCodec.isListingStub(current.messages)) {
+          await refreshConversationForExecution(currentId);
+        }
       }
       if (!ref.mounted) {
         return;
