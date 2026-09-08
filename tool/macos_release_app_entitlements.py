@@ -11,11 +11,9 @@ checks that the codesign dump actually contains those keys.
 from __future__ import annotations
 
 import argparse
-import os
 import plistlib
 import subprocess
 import sys
-import tempfile
 
 REQUIRED_TRUE_KEYS = (
     "com.apple.security.network.client",
@@ -109,28 +107,17 @@ def validate_signed_entitlements(entitlements: dict) -> list[str]:
 
 
 def dump_app_entitlements(app_path: str) -> dict:
-    fd, path = tempfile.mkstemp(prefix="caverno-entitlements-")
-    os.close(fd)
-    try:
-        result = subprocess.run(
-            ["/usr/bin/codesign", "-d", "--entitlements", path, app_path],
-            capture_output=True,
-            check=False,
+    result = subprocess.run(
+        ["/usr/bin/codesign", "-d", "--entitlements", ":-", app_path],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        err = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"codesign failed to dump entitlements for {app_path}: {err}"
         )
-        if result.returncode != 0:
-            err = result.stderr.decode("utf-8", errors="replace").strip()
-            raise RuntimeError(
-                f"codesign failed to dump entitlements for {app_path}: {err}"
-            )
-        if not os.path.exists(path) or os.path.getsize(path) == 0:
-            return {}
-        with open(path, "rb") as handle:
-            return parse_entitlements_blob(handle.read())
-    finally:
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+    return parse_entitlements_blob(result.stdout)
 
 
 def _load_plist(path: str) -> dict:

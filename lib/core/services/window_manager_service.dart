@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:ui';
 
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
