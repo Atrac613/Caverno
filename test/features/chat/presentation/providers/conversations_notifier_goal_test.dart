@@ -27,6 +27,9 @@ class _FakeConversationRepository extends ConversationRepository {
   }
 
   @override
+  Conversation? getById(String id) => _store[id];
+
+  @override
   Future<void> save(Conversation conversation) async {
     _store[conversation.id] = conversation;
   }
