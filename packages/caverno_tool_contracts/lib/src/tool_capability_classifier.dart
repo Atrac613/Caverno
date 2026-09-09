@@ -205,24 +205,7 @@ class ToolCapabilityClassifier {
         .trim();
     if (normalized.isEmpty) return ToolCommandEffect.unknown;
     if (git) {
-      final verb = normalized.split(' ').first;
-      if (const {
-        'status',
-        'diff',
-        'log',
-        'show',
-        'branch',
-        'tag',
-        'remote',
-        'rev-parse',
-        'ls-files',
-      }.contains(verb)) {
-        return ToolCommandEffect.inspection;
-      }
-      if (const {'push', 'fetch', 'pull', 'clone'}.contains(verb)) {
-        return ToolCommandEffect.externalSideEffect;
-      }
-      return ToolCommandEffect.workspaceMutation;
+      return _gitCommandEffect(normalized);
     }
     final commandSegments = _splitShellCommandSegments(normalized);
     if (commandSegments.length > 1) {
@@ -297,6 +280,87 @@ class ToolCapabilityClassifier {
       return ToolCommandEffect.inspection;
     }
     return ToolCommandEffect.workspaceMutation;
+  }
+
+  /// Always-read-only git verbs, plus `branch` and `remote`.
+  ///
+  /// Always-read-only names match `GitTools._readOnlySubcommands`. `branch`
+  /// and `remote` stay inspection here even when GitTools would treat some
+  /// argument patterns as writes. `tag` is classified separately. `rev-list`
+  /// used to fall through to workspaceMutation, so a count of commits was
+  /// recorded as produced work and could dry a coding goal.
+  static const Set<String> _gitInspectionVerbs = {
+    'status',
+    'log',
+    'diff',
+    'show',
+    'blame',
+    'rev-parse',
+    'describe',
+    'shortlog',
+    'ls-files',
+    'ls-tree',
+    'cat-file',
+    'for-each-ref',
+    'name-rev',
+    'rev-list',
+    'show-ref',
+    'count-objects',
+    'verify-pack',
+    'diff-tree',
+    'diff-files',
+    'diff-index',
+    'ls-remote',
+    'branch',
+    'remote',
+  };
+
+  static const Set<String> _gitTagWriteFlags = {
+    '-a',
+    '-d',
+    '-s',
+    '-f',
+    '-u',
+    '--annotate',
+    '--delete',
+    '--sign',
+    '--force',
+  };
+
+  ToolCommandEffect _gitCommandEffect(String normalized) {
+    final verb = normalized.split(' ').first;
+    if (verb == 'tag') {
+      return _gitTagCommandEffect(normalized);
+    }
+    if (_gitInspectionVerbs.contains(verb)) {
+      return ToolCommandEffect.inspection;
+    }
+    if (const {'push', 'fetch', 'pull', 'clone'}.contains(verb)) {
+      return ToolCommandEffect.externalSideEffect;
+    }
+    return ToolCommandEffect.workspaceMutation;
+  }
+
+  ToolCommandEffect _gitTagCommandEffect(String normalized) {
+    final tokens = normalized.split(' ');
+    for (final token in tokens.skip(1)) {
+      if (_gitTagWriteFlags.contains(token) ||
+          token.startsWith('--local-user=') ||
+          token.startsWith('-u')) {
+        return ToolCommandEffect.workspaceMutation;
+      }
+    }
+    final hasList =
+        tokens.contains('-l') ||
+        tokens.contains('--list') ||
+        tokens.any((token) => token.startsWith('--list='));
+    final hasPositionalTag = tokens
+        .skip(1)
+        .any((token) => !token.startsWith('-'));
+    if (!hasList && hasPositionalTag) {
+      return ToolCommandEffect.workspaceMutation;
+    }
+    return ToolCommandEffect.inspection;
   }
 
   bool _containsShellRedirection(String command) {

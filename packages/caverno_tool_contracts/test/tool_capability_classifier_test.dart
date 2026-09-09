@@ -245,7 +245,23 @@ void main() {
         ToolCommandEffect.inspection,
       );
       expect(
+        effectOf('git_execute_command', 'rev-list --count 1.3.20+32..HEAD'),
+        ToolCommandEffect.inspection,
+      );
+      expect(
+        effectOf('git_execute_command', 'log 1.3.20+32..HEAD --oneline'),
+        ToolCommandEffect.inspection,
+      );
+      expect(
+        effectOf('git_execute_command', 'tag --list --sort=-v:refname'),
+        ToolCommandEffect.inspection,
+      );
+      expect(
         effectOf('git_execute_command', 'commit -m test'),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf('git_execute_command', 'tag -a 1.3.21+33 -m Release'),
         ToolCommandEffect.workspaceMutation,
       );
       expect(

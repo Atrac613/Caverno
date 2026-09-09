@@ -18,10 +18,20 @@ class CachedDriftConversationRepository implements ConversationRepositoryApi {
 
   /// Builds the repository, hydrating the in-memory cache from [store] so reads
   /// are synchronous. Call once during bootstrap after the database is ready.
+  ///
+  /// The cache uses [ConversationStore.listForCache] so launching does not
+  /// `jsonDecode` every message of every conversation. Opening a thread calls
+  /// [refresh] to load the full payload.
+  ///
+  /// CLI and other headless readers pass [listingOnly] `false` so `show` /
+  /// resume see real message bodies without a separate refresh.
   static Future<CachedDriftConversationRepository> hydrate(
-    ConversationStore store,
-  ) async {
-    final initial = await store.getAll();
+    ConversationStore store, {
+    bool listingOnly = true,
+  }) async {
+    final initial = listingOnly
+        ? await store.listForCache()
+        : await store.getAll();
     return CachedDriftConversationRepository.fromCache(store, {
       for (final conversation in initial) conversation.id: conversation,
     });

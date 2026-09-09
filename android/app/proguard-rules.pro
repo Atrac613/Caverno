@@ -17,3 +17,7 @@
 -dontwarn io.flutter.embedding.**
 -dontwarn com.google.android.gms.**
 -dontwarn androidx.**
+
+# Firebase Crashlytics: keep enough metadata for deobfuscated stacks.
+-keepattributes SourceFile,LineNumberTable
+-keep public class * extends java.lang.Exception

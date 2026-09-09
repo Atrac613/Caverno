@@ -69,5 +69,7 @@
 	<string>Caverno needs access to downloads folders when you choose local coding projects stored there.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Caverno uses Bluetooth to scan for and communicate with BLE devices.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Caverno uses Apple Events to bring an already-running window forward when you open the app again.</string>
 </dict>
 </plist>

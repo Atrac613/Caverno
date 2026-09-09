@@ -368,6 +368,7 @@
 				12D13D7C86FAD0DE834A55AC /* [CP] Embed Pods Frameworks */,
 				4784B168A7007187ABA8B78F /* [CP] Copy Pods Resources */,
 				A7C2F31B5D8E4906B1E0F245 /* Copy Firebase Configuration */,
+				B8E4C0A17D6F4B2E9C5A3841 /* Upload Crashlytics dSYMs */,
 			);
 			buildRules = (
 			);
@@ -609,7 +610,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the environment-owned Firebase app configuration into the bundle.\n# The file is gitignored, so builds without it must still succeed and keep\n# Remote Coding push notifications fail-closed.\nset -e\nCONFIG_SOURCE=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nif [ ! -f \"${CONFIG_SOURCE}\" ]; then\n  echo \"warning: GoogleService-Info.plist is absent; Remote Coding push notifications stay disabled in this build.\"\n  exit 0\nfi\ncp \"${CONFIG_SOURCE}\" \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\n";
+			shellScript = "# Copy the environment-owned Firebase app configuration into the bundle.\n# The file is gitignored, so builds without it must still succeed and keep\n# Firebase Messaging and Crashlytics fail-closed.\nset -e\nCONFIG_SOURCE=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nif [ ! -f \"${CONFIG_SOURCE}\" ]; then\n  echo \"warning: GoogleService-Info.plist is absent; Firebase Messaging and Crashlytics stay disabled in this build.\"\n  exit 0\nfi\ncp \"${CONFIG_SOURCE}\" \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\n";
+		};
+		B8E4C0A17D6F4B2E9C5A3841 /* Upload Crashlytics dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}",
+			);
+			name = "Upload Crashlytics dSYMs";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Upload dSYMs to Firebase Crashlytics for release/profile builds that include\n# the environment-owned GoogleService-Info.plist. Debug builds and checkouts\n# without Firebase configuration skip this so the iOS build still succeeds.\nset -e\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  echo \"Skipping Crashlytics dSYM upload for Debug.\"\n  exit 0\nfi\nCONFIG_PLIST=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ ! -f \"${CONFIG_PLIST}\" ]; then\n  echo \"warning: GoogleService-Info.plist is absent; skipping Crashlytics dSYM upload.\"\n  exit 0\nfi\nRUN_SCRIPT=\"${PODS_ROOT}/FirebaseCrashlytics/run\"\nif [ ! -f \"${RUN_SCRIPT}\" ]; then\n  echo \"warning: FirebaseCrashlytics/run is absent; skipping Crashlytics dSYM upload.\"\n  exit 0\nfi\n\"${RUN_SCRIPT}\"\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
