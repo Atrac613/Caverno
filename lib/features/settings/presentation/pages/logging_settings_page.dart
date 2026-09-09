@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../data/log_file_cleanup_service.dart';
 import '../providers/settings_notifier.dart';
@@ -109,6 +110,47 @@ class _LogSystemCardState extends ConsumerState<_LogSystemCard> {
     setState(() => _usage = usage);
   }
 
+  /// Hands this sink's files to the share sheet.
+  ///
+  /// The only way off a phone: the app container is not browsable, a profile
+  /// build prints nothing, and `flutter run` is not attached to the device
+  /// where the failure happened. Redaction already ran on the write path, so
+  /// what is shared is what the sink chose to keep.
+  Future<void> _share() async {
+    setState(() => _busy = true);
+    try {
+      final files = await ref
+          .read(logFileCleanupServiceProvider)
+          .files(widget.target);
+      if (!mounted) return;
+      if (files.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('settings.logging_share_empty'.tr())),
+        );
+        return;
+      }
+      await SharePlus.instance.share(
+        ShareParams(
+          files: files.map((file) => XFile(file.path)).toList(),
+          subject: widget.title,
+        ),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'settings.logging_share_failed'.tr(
+              namedArgs: {'error': error.toString()},
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _confirmAndDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -160,6 +202,14 @@ class _LogSystemCardState extends ConsumerState<_LogSystemCard> {
       child: Column(
         children: [
           _header(),
+          const Divider(height: 1),
+          ListTile(
+            key: ValueKey('${widget.deleteKey}-share'),
+            leading: const Icon(Icons.ios_share),
+            title: Text('settings.logging_share_files'.tr()),
+            enabled: !_busy && !isEmpty,
+            onTap: _busy || isEmpty ? null : () => unawaited(_share()),
+          ),
           const Divider(height: 1),
           ListTile(
             key: ValueKey(widget.deleteKey),

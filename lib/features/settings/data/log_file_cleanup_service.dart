@@ -87,6 +87,32 @@ class LogFileCleanupService {
     return LogDirectoryUsage(fileCount: fileCount, totalBytes: totalBytes);
   }
 
+  /// Every file belonging to [target], newest first.
+  ///
+  /// Exists so a settings surface can hand them to the share sheet. On a phone
+  /// there is no other way out: the container is not browsable, a profile
+  /// build prints nothing, and `flutter run` is not attached to the device
+  /// where the interesting failure happened.
+  Future<List<File>> files(LogFileTarget target) async {
+    if (!_enabled) return const <File>[];
+    final directory = await _directoryFor(target);
+    if (directory == null || !directory.existsSync()) return const <File>[];
+    final found = <File>[];
+    try {
+      await for (final entity in directory.list(
+        recursive: _isRecursive(target),
+        followLinks: false,
+      )) {
+        if (entity is! File || !_matchesTarget(target, entity)) continue;
+        found.add(entity);
+      }
+    } on Object {
+      // A partially readable directory still offers what it managed to scan.
+    }
+    found.sort((a, b) => b.path.compareTo(a.path));
+    return found;
+  }
+
   /// Deletes every file belonging to [target] and returns how many went away.
   Future<int> deleteAll(LogFileTarget target) async {
     if (!_enabled) return 0;

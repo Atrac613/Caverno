@@ -34,6 +34,10 @@ class AppLogFile {
 
   final Directory? _directoryOverride;
 
+  /// Where the sink writes on a platform whose `HOME` is not a writable
+  /// developer home. Set once at startup by [bindDirectory].
+  Directory? _boundDirectory;
+
   static const int retainedDays = 7;
 
   bool _disabled = false;
@@ -50,6 +54,31 @@ class AppLogFile {
   void setFileLoggingEnabled(bool enabled) {
     _fileLoggingEnabled = enabled;
   }
+
+  /// Binds the sink to a directory resolved from the platform at startup.
+  ///
+  /// The `$HOME/.caverno/app_logs` fallback below is a desktop path. On iOS and
+  /// Android `HOME` is the sandbox root, and a write outside Documents or
+  /// Library fails — so `_disabled` latched on the first line and **every**
+  /// mobile log was dropped, silently. That is precisely where the sink is
+  /// needed: a device has no attached `flutter run`, and a profile build does
+  /// not print at all, so a notification that appears to do nothing leaves no
+  /// evidence anywhere. Desktop keeps its existing path so the tooling that
+  /// reads it is untouched.
+  ///
+  /// Resets the cached file so a rebind takes effect on the next line.
+  void bindDirectory(Directory directory) {
+    _boundDirectory = directory;
+    _file = null;
+    _fileDate = null;
+    _disabled = false;
+  }
+
+  /// The directory the sink is writing to, or null when it has none.
+  ///
+  /// Exposed so a settings surface can offer the files for export: a log the
+  /// person cannot get off the device is only marginally better than none.
+  Directory? get currentDirectory => _directory();
 
   void write(String message) {
     if (_disabled || !_fileLoggingEnabled) return;
@@ -97,6 +126,8 @@ class AppLogFile {
     if (injected != null) return injected;
     final override = Platform.environment['CAVERNO_APP_LOG_DIR']?.trim();
     if (override != null && override.isNotEmpty) return Directory(override);
+    final bound = _boundDirectory;
+    if (bound != null) return bound;
     final home = Platform.environment['HOME']?.trim();
     if (home == null || home.isEmpty) return null;
     return Directory('$home/.caverno/app_logs');
