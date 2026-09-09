@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:caverno/features/settings/data/settings_credential_store.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -13,13 +14,14 @@ void main() {
   const clearPlaceholderDefaultMcpMigrationKey =
       'migration.clear_placeholder_default_mcp.v1';
 
-  test('defaults session logging off when no settings exist', () async {
+  test('defaults session logging to the build mode when no settings exist',
+      () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 
     final prefs = await SharedPreferences.getInstance();
     final loaded = SettingsRepository(prefs).load();
 
-    expect(loaded.enableLlmSessionLogs, isFalse);
+    expect(loaded.enableLlmSessionLogs, kDebugMode);
     expect(prefs.getString(settingsKey), isNull);
     expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
   });
@@ -79,6 +81,49 @@ void main() {
         jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
     expect(persistedJson['enableLlmSessionLogs'], isTrue);
     expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
+  });
+
+  test('defaults the app log file to the build mode', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SettingsRepository(prefs).load();
+
+    expect(loaded.enableAppLogFile, kDebugMode);
+  });
+
+  test('falls back to the build-mode app log file for predated keys', () async {
+    final legacySettings = AppSettings.defaults().toJson()
+      ..remove('enableAppLogFile');
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      settingsKey: jsonEncode(legacySettings),
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SettingsRepository(prefs).load();
+
+    expect(loaded.enableAppLogFile, kDebugMode);
+  });
+
+  test('round-trips an app log file opt-in', () async {
+    final toggledSettings = AppSettings.defaults()
+        .copyWith(enableAppLogFile: true)
+        .toJson();
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      settingsKey: jsonEncode(toggledSettings),
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SettingsRepository(prefs).load();
+
+    expect(loaded.enableAppLogFile, isTrue);
+    await Future<void>.delayed(Duration.zero);
+    final persistedJson =
+        jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
+    expect(persistedJson['enableAppLogFile'], isTrue);
+    // The approval audit trail has no persisted setting: it is unconditional,
+    // and only the Logging page's delete action clears it.
+    expect(persistedJson.containsKey('enableApprovalAuditLog'), isFalse);
   });
 
   test('supports a read-only load without persisting migrations', () async {

@@ -135,4 +135,22 @@ private-key-material
 
     expect(unrelated.existsSync(), isTrue);
   });
+
+  test('a disabled sink writes nothing and re-enabling resumes', () {
+    final sink = AppLogFile.forDirectory(tempDir)
+      ..setFileLoggingEnabled(false)
+      ..write('suppressed');
+
+    expect(logFiles(tempDir), isEmpty);
+
+    sink
+      ..setFileLoggingEnabled(true)
+      ..write('resumed');
+
+    expect(logFiles(tempDir), hasLength(1));
+    expect(
+      logFiles(tempDir).single.readAsStringSync(),
+      contains('resumed'),
+    );
+  });
 }

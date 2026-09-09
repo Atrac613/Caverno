@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/types/assistant_mode.dart';
+import '../../../../core/utils/app_log_file.dart';
 import '../../data/external_settings_service.dart';
 import '../../data/settings_file_service.dart';
 import '../../data/settings_qr_service.dart';
@@ -55,6 +56,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     _externalSettingsService = ref.read(externalSettingsServiceProvider);
     _quarantineService = ref.read(executableSettingsQuarantineServiceProvider);
     final settings = _repository.load();
+    AppLogFile.instance.setFileLoggingEnabled(settings.enableAppLogFile);
     if (settings.externalSettingsSyncEnabled) {
       unawaited(Future<void>.microtask(syncExternalSettings));
     }
@@ -1108,6 +1110,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> updateEnableLlmSessionLogs(bool value) async {
     state = state.copyWith(enableLlmSessionLogs: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateEnableAppLogFile(bool value) async {
+    state = state.copyWith(enableAppLogFile: value);
+    AppLogFile.instance.setFileLoggingEnabled(value);
     await _repository.save(state);
   }
 

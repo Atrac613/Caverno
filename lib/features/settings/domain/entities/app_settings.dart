@@ -844,6 +844,17 @@ List<Map<String, dynamic>> _externalToolHooksToJson(
     .map((hook) => hook.normalizedForPersistence().toJson())
     .toList(growable: false);
 
+/// Mirrors `kDebugMode` without importing `package:flutter/foundation.dart`.
+///
+/// This entity is also loaded by VM-only tool scripts
+/// (`tool/live_mcp_loopback_relay.dart`,
+/// `tool/live_llm_benchmark_mcp_config.dart`), where anything reaching
+/// `dart:ui` fails to compile. Defined exactly as `foundation` defines it, so
+/// the two always agree.
+const bool isDebugBuild =
+    !bool.fromEnvironment('dart.vm.product') &&
+    !bool.fromEnvironment('dart.vm.profile');
+
 @freezed
 abstract class AppSettings with _$AppSettings {
   const AppSettings._();
@@ -980,7 +991,14 @@ abstract class AppSettings with _$AppSettings {
     // behaviour (follow the primary).
     @Default('') String embeddingsEndpointId,
     @Default(false) bool showMemoryUpdates,
-    @Default(false) bool enableLlmSessionLogs,
+    // On in debug builds so development traces are captured without setup;
+    // a fresh release install stays off (SEC4.6k opt-in) unless the stored
+    // choice or the legacy default-on migration says otherwise.
+    @Default(isDebugBuild) bool enableLlmSessionLogs,
+    // File sink for appLog, including release builds. On in debug builds;
+    // a fresh release install writes nothing until the user opts in on the
+    // Logging page.
+    @Default(isDebugBuild) bool enableAppLogFile,
     @Default(true) bool feedbackUploadEnabled,
     @Default(defaultFeedbackEndpointUrl) String feedbackEndpointUrl,
     @Default('') String feedbackEndpointAuthToken,

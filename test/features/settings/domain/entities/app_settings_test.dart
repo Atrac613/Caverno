@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -826,21 +828,22 @@ void main() {
     expect(decoded.chatApprovalMode, ToolApprovalMode.defaultPermissions);
   });
 
-  test('defaults LLM session logs to disabled and persists opt in', () {
-    expect(AppSettings.defaults().enableLlmSessionLogs, isFalse);
+  test('defaults LLM session logs to the build mode and persists opt out',
+      () {
+    expect(AppSettings.defaults().enableLlmSessionLogs, kDebugMode);
 
     final settings = AppSettings.defaults().copyWith(
-      enableLlmSessionLogs: true,
+      enableLlmSessionLogs: false,
     );
 
     final decoded = AppSettings.fromJson(
       jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
     );
 
-    expect(decoded.enableLlmSessionLogs, isTrue);
+    expect(decoded.enableLlmSessionLogs, isFalse);
   });
 
-  test('missing session log field defaults off outside stored migration', () {
+  test('missing session log field falls back to the build mode', () {
     final importedJson =
         jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
               as Map<String, dynamic>
@@ -848,7 +851,7 @@ void main() {
 
     final decoded = AppSettings.fromJson(importedJson);
 
-    expect(decoded.enableLlmSessionLogs, isFalse);
+    expect(decoded.enableLlmSessionLogs, kDebugMode);
   });
 
   test('defaults onboarding to incomplete and persists completion', () {

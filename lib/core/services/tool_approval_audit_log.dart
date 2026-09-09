@@ -207,6 +207,14 @@ class ToolApprovalAuditLog {
     }
   }
 
+  /// The directory holding the day-files, resolved the same way [record]
+  /// resolves it. Exposed so settings can report and clear this trail without
+  /// duplicating the path rules.
+  Future<Directory> resolveLogDirectory() async {
+    final root = await _rootDirectoryProvider();
+    return Directory('${root.path}/approval_audit');
+  }
+
   Future<File> _fileFor(DateTime now) async {
     final root = await _rootDirectoryProvider();
     return File('${root.path}/approval_audit/${_dayStamp(now)}.jsonl');

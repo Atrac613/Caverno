@@ -943,9 +943,18 @@ class LlmSessionLogStore {
     await file.rename('${file.path}.1');
   }
 
+  /// Whether [name] is a session log this store wrote, counting the rotated
+  /// `<session>.jsonl.<n>` siblings. Shared with the settings cleanup path so
+  /// both agree on what belongs to this corpus.
+  static bool isSessionLogFileName(String name) =>
+      _sessionLogFileNamePattern.hasMatch(name);
+
+  static final RegExp _sessionLogFileNamePattern = RegExp(
+    r'\.jsonl(?:\.\d+)?$',
+  );
+
   bool _isSessionLogFile(File file) {
-    final name = file.path.split(Platform.pathSeparator).last;
-    return RegExp(r'\.jsonl(?:\.\d+)?$').hasMatch(name);
+    return isSessionLogFileName(file.path.split(Platform.pathSeparator).last);
   }
 
   LlmSessionLogContext _fallbackContext() {
@@ -955,6 +964,11 @@ class LlmSessionLogStore {
       phase: 'unscoped',
     );
   }
+
+  /// The root holding the per-workspace session-log subdirectories, resolved
+  /// the same way writes resolve it. Exposed so settings can report and clear
+  /// this corpus without duplicating the path rules.
+  Future<Directory> resolveLogDirectory() => _rootDirectoryProvider();
 
   static Future<Directory> _defaultRootDirectoryProvider() async {
     final override = Platform.environment[directoryEnvironmentKey]?.trim();

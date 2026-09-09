@@ -5,13 +5,18 @@ import 'package:flutter/foundation.dart';
 import '../security/sensitive_data_redactor.dart';
 import '../security/sensitive_file_permissions.dart';
 
-/// Debug-build file sink for [appLog], at `~/.caverno/app_logs/<date>.log`.
+/// File sink for [appLog], at `~/.caverno/app_logs/<date>.log`.
 ///
 /// Exists because the interesting failures are the ones where the app stops
 /// making progress: `debugPrint` output only survives while a `flutter run`
 /// terminal is attached, so a stall reproduced outside one leaves no trace and
 /// the next session can only guess. Writes are synchronous and unbuffered for
 /// that reason — a hung isolate must still have its last lines on disk.
+///
+/// Available in release builds behind the Logging settings toggle, which
+/// defaults off: a fresh install writes nothing until the user opts in.
+/// In-memory default follows the build mode so release never writes before
+/// settings load.
 ///
 /// Never throws: a sink that cannot write disables itself for the process
 /// rather than turning logging into a second failure.
@@ -32,11 +37,22 @@ class AppLogFile {
   static const int retainedDays = 7;
 
   bool _disabled = false;
+  bool _fileLoggingEnabled = kDebugMode;
   File? _file;
   DateTime? _fileDate;
 
+  /// User-controlled kill switch for the file sink, fed from settings.
+  ///
+  /// The in-memory default is [kDebugMode], so a release build writes nothing
+  /// until settings load and opt in. Disabling also stops [_pruneExpired],
+  /// which only runs on the write path — retention is deliberately not a
+  /// background job, so stale files are removed by [deleteAll] instead.
+  void setFileLoggingEnabled(bool enabled) {
+    _fileLoggingEnabled = enabled;
+  }
+
   void write(String message) {
-    if (_disabled) return;
+    if (_disabled || !_fileLoggingEnabled) return;
     try {
       final redactedMessage = SensitiveDataRedactor.redactText(message);
       final now = DateTime.now();
@@ -105,6 +121,33 @@ class AppLogFile {
         SensitiveFilePermissions.ownerOnlyFileSync(entity);
       }
     }
+  }
+
+  /// Where this sink writes, or null when no home directory is resolvable.
+  /// Exposed so the Logging settings page can report and clear the same files
+  /// [write] produces, rather than re-deriving the path.
+  Directory? get logDirectory => _directory();
+
+  /// Removes every `.log` file this sink has produced and returns how many
+  /// were deleted. The day-file cache is dropped so the next [write] goes back
+  /// through [_fileFor] — otherwise it would append to a deleted path and
+  /// recreate the file without owner-only permissions.
+  int deleteAll() {
+    final directory = _directory();
+    if (directory == null || !directory.existsSync()) return 0;
+    var deleted = 0;
+    for (final entity in directory.listSync(followLinks: false)) {
+      if (entity is! File || !entity.path.endsWith('.log')) continue;
+      try {
+        entity.deleteSync();
+        deleted++;
+      } on Object {
+        // Another process may hold it; report only what actually went away.
+      }
+    }
+    _file = null;
+    _fileDate = null;
+    return deleted;
   }
 
   void _pruneExpired(Directory directory, DateTime today) {

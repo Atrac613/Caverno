@@ -13,11 +13,20 @@ after the fact.
 
 ## Enablement
 
-Session logs are enabled by default, including release builds, so feedback and
-diagnostic flows can include the current session trace when the user submits
-feedback.
+Session logs are on by default in debug builds, and on in release builds for
+any install that predates the setting — `SettingsRepository` migrates those to
+enabled once, so feedback and diagnostic flows can include the current session
+trace when the user submits feedback. A *fresh* release install starts disabled
+(SEC4.6k-C); the user opts in.
 
-- In the app, disable them from Advanced > Debug > Save LLM session logs.
+- In the app, toggle them at Advanced > Logging > Save LLM session logs. The
+  same page lists the approval audit trail and the app log file, each with a
+  "Delete saved files" action. The app log file is not debug-only: it writes in
+  release builds too when enabled. The audit trail has no switch — it is always
+  on, and only the delete action clears it.
+- Turning a switch off only stops new writes. Nothing prunes on a timer, and
+  both the audit trail and the app log file prune only while writing, so use
+  the delete action to clear what is already on disk.
 - For local diagnostics, set `CAVERNO_SESSION_LOG_ENABLED=1`.
 - Set `CAVERNO_SESSION_LOG_ENABLED=0` to force logging off even when the app
   setting is enabled.

@@ -161,8 +161,15 @@ The tool calling implementation in `ChatNotifier._sendWithTools()` /
 
 Caverno records Chat, Coding, and Routines LLM request/response exchanges as
 JSONL session logs for later debugging and Codex analysis.
-- Logs are enabled by default. The user can disable Advanced > Debug > Save LLM
-  session logs, or set `CAVERNO_SESSION_LOG_ENABLED=0` to force logging off.
+- Enabled by default in debug builds and for installs that predate the setting
+  (`_shouldEnableSessionLogsForDefaultOnMigration` turns them on once); a fresh
+  release install starts off, per SEC4.6k-C. The user toggles them at
+  Advanced > Logging > Save LLM session logs, or sets
+  `CAVERNO_SESSION_LOG_ENABLED=0` to force logging off.
+- Advanced > Logging is the single home for every local file sink: session
+  logs, the approval audit trail, and the app log file, each with a
+  "Delete saved files" action. Session logs and the app log file also have an
+  on/off switch; the audit trail does not (see below).
 - Default location: `$HOME/.caverno/session_logs/`
 - Override: `CAVERNO_SESSION_LOG_DIR`
 - Retention controls: `CAVERNO_SESSION_LOG_MAX_FILE_BYTES`,
@@ -193,13 +200,42 @@ JSONL session logs for later debugging and Codex analysis.
 
 ### Approval Audit Log
 
-Caverno always-on records automated high-risk tool approvals (full-access
-auto-runs and LLM auto-review verdicts) as JSONL.
+Caverno records automated high-risk tool approvals (full-access auto-runs and
+LLM auto-review verdicts) as JSONL.
+- Always on, including release builds, and deliberately not user-disableable.
+  It records only the high-risk approvals the user never saw individually, one
+  redacted line each, and never leaves the machine — so unlike session logs
+  there is no exposure to opt out of. Advanced > Logging offers a delete action
+  instead, which serves the same "don't keep this around" need without blinding
+  the trail while an agent is running.
 - Default location: `$HOME/.caverno/approval_audit/<YYYY-MM-DD>.jsonl`
 - Override: `CAVERNO_APPROVAL_AUDIT_DIR`
+- Retention: `ToolApprovalAuditRetentionPolicy` (30 days / 60 day-files by
+  default, `CAVERNO_APPROVAL_AUDIT_MAX_AGE_DAYS` /
+  `CAVERNO_APPROVAL_AUDIT_MAX_FILES`). Pruning runs on the write path only, so
+  a disabled trail keeps whatever it already wrote until the user deletes it.
 - Schema name: `caverno_tool_approval_audit_entry` (v3); each entry carries
   `capabilityClass` / `capabilityRisk` (SEC1) and `untrustedInfluence` (SEC2).
 - Manual approvals are intentionally not recorded (the user decided those).
+  One exception: releasing a file outside the project root is recorded with
+  `decisionSource: manual_outside_root_read`, because that grant outlives the
+  prompt that asked for it.
+
+### App Log File
+
+`appLog` mirrors its output to a daily plain-text file so a stall reproduced
+without an attached `flutter run` terminal still leaves evidence behind.
+- Default location: `$HOME/.caverno/app_logs/<YYYY-MM-DD>.log`
+- Override: `CAVERNO_APP_LOG_DIR`
+- Console output stays debug-only; the file sink also works in release builds,
+  gated by Advanced > Logging > Save app log file. On by default in debug, off
+  in release, so a fresh install writes nothing until the user opts in.
+- Retention: `AppLogFile.retainedDays` (7). Like the audit trail, pruning runs
+  on the write path only.
+- Writes go through `SensitiveDataRedactor`, which strips credentials and
+  tokens — not PII such as addresses or message content. Treat the file as
+  sensitive.
+- Never written under `flutter test`.
 
 ### Content Parsing
 

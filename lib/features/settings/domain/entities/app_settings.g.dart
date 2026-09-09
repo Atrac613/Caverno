@@ -662,7 +662,8 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   embeddingsModel: json['embeddingsModel'] as String? ?? '',
   embeddingsEndpointId: json['embeddingsEndpointId'] as String? ?? '',
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
-  enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
+  enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? isDebugBuild,
+  enableAppLogFile: json['enableAppLogFile'] as bool? ?? isDebugBuild,
   feedbackUploadEnabled: json['feedbackUploadEnabled'] as bool? ?? true,
   feedbackEndpointUrl:
       json['feedbackEndpointUrl'] as String? ?? defaultFeedbackEndpointUrl,
@@ -794,6 +795,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'embeddingsEndpointId': instance.embeddingsEndpointId,
   'showMemoryUpdates': instance.showMemoryUpdates,
   'enableLlmSessionLogs': instance.enableLlmSessionLogs,
+  'enableAppLogFile': instance.enableAppLogFile,
   'feedbackUploadEnabled': instance.feedbackUploadEnabled,
   'feedbackEndpointUrl': instance.feedbackEndpointUrl,
   'feedbackEndpointAuthToken': instance.feedbackEndpointAuthToken,

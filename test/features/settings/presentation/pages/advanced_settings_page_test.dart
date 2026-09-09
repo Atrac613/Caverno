@@ -6,6 +6,8 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/debug_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/live_llm_diagnostic_page.dart';
+import 'package:caverno/features/settings/data/log_file_cleanup_service.dart';
+import 'package:caverno/features/settings/presentation/pages/logging_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -71,7 +73,8 @@ void main() {
     expect(find.byType(DebugSettingsPage), findsOneWidget);
     expect(find.text('Debug'), findsAtLeastNWidgets(1));
     expect(find.text('Computer Use Smoke Sequence'), findsOneWidget);
-    expect(find.text('Save LLM session logs'), findsOneWidget);
+    // File logging moved to the Logging page: nothing about log files here.
+    expect(find.text('Save LLM session logs'), findsNothing);
     // Promoted out of Debug: macOS updates now live in General settings and
     // Live LLM Diagnostics in Advanced settings.
     expect(find.text('macOS Updates'), findsNothing);
@@ -99,7 +102,7 @@ void main() {
     expect(find.byType(LiveLlmDiagnosticPage), findsOneWidget);
   });
 
-  testWidgets('toggles LLM session logs from Debug settings', (tester) async {
+  testWidgets('opens Logging from Advanced settings', (tester) async {
     final prefs = await _setUpPreferences();
     await _pumpPage(
       tester,
@@ -108,19 +111,100 @@ void main() {
           const Scaffold(body: Center(child: Text('Computer Use destination'))),
     );
 
-    await tester.tap(find.byKey(const ValueKey('settings-menu-debug')));
+    expect(find.text('Logging'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('settings-menu-logging')));
     await tester.pumpAndSettle();
 
-    // SEC4.6k-c made session logging opt-in, so the first tap turns it on.
-    // Both directions are asserted because the toggle is the only way back off
-    // and a one-way check would pass against a control that cannot be undone.
+    expect(find.byType(LoggingSettingsPage), findsOneWidget);
+    expect(find.text('Save LLM session logs'), findsOneWidget);
+    expect(find.text('Save app log file'), findsOneWidget);
+    // The audit trail is listed but has no opt-out: only a delete action.
+    expect(find.text('Approval audit log'), findsOneWidget);
+    expect(find.byType(SwitchListTile), findsNWidgets(2));
+  });
+
+  testWidgets('toggles each file logging system from Logging settings', (
+    tester,
+  ) async {
+    final prefs = await _setUpPreferences();
+    await _pumpPage(
+      tester,
+      prefs,
+      computerUseBuilder: (_) =>
+          const Scaffold(body: Center(child: Text('Computer Use destination'))),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-menu-logging')));
+    await tester.pumpAndSettle();
+
+    // Both directions are asserted for every toggle because the switch is the
+    // only way back and a one-way check would pass against a stuck control.
+    // Widget tests run in debug, where every system defaults on, so each
+    // first tap turns its toggle off.
+    await tester.tap(find.text('Save LLM session logs'));
+    await tester.pumpAndSettle();
+    expect(_persistedSettings(prefs).enableLlmSessionLogs, isFalse);
+
     await tester.tap(find.text('Save LLM session logs'));
     await tester.pumpAndSettle();
     expect(_persistedSettings(prefs).enableLlmSessionLogs, isTrue);
 
-    await tester.tap(find.text('Save LLM session logs'));
+    final appLogTile = find.text('Save app log file');
+    await tester.ensureVisible(appLogTile);
     await tester.pumpAndSettle();
-    expect(_persistedSettings(prefs).enableLlmSessionLogs, isFalse);
+    await tester.tap(appLogTile);
+    await tester.pumpAndSettle();
+    expect(_persistedSettings(prefs).enableAppLogFile, isFalse);
+
+    await tester.tap(appLogTile);
+    await tester.pumpAndSettle();
+    expect(_persistedSettings(prefs).enableAppLogFile, isTrue);
+  });
+
+  testWidgets('deletes one log system\'s files from Logging settings', (
+    tester,
+  ) async {
+    final prefs = await _setUpPreferences();
+    final cleanup = _RecordingLogFileCleanupService();
+    await _pumpPage(
+      tester,
+      prefs,
+      computerUseBuilder: (_) =>
+          const Scaffold(body: Center(child: Text('Computer Use destination'))),
+      logCleanupService: cleanup,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-menu-logging')));
+    await tester.pumpAndSettle();
+
+    // Each sink reports what it has on disk, so the user knows what a delete
+    // would remove before confirming.
+    expect(find.text('3 files, 2.0 KB'), findsNWidgets(3));
+
+    await tester.tap(
+      find.byKey(const ValueKey('logging-delete-approval-audit')),
+    );
+    await tester.pumpAndSettle();
+
+    // Deletion is destructive and irreversible, so it is confirmed first.
+    expect(find.text('Delete log files?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(cleanup.deleted, isEmpty);
+
+    await tester.tap(
+      find.byKey(const ValueKey('logging-delete-approval-audit')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Only the tapped sink is cleared; the other two keep their files.
+    expect(cleanup.deleted, [LogFileTarget.approvalAudit]);
+    expect(find.text('Deleted 3 files.'), findsOneWidget);
+    expect(find.text('No files saved'), findsOneWidget);
+    expect(find.text('3 files, 2.0 KB'), findsNWidgets(2));
   });
 
   testWidgets('configures feedback endpoint upload from Debug settings', (
@@ -183,10 +267,33 @@ Future<SharedPreferences> _setUpPreferences() async {
   return SharedPreferences.getInstance();
 }
 
+
+class _RecordingLogFileCleanupService implements LogFileCleanupService {
+  _RecordingLogFileCleanupService();
+
+  final List<LogFileTarget> deleted = <LogFileTarget>[];
+  final Map<LogFileTarget, LogDirectoryUsage> usageByTarget = {
+    for (final target in LogFileTarget.values)
+      target: const LogDirectoryUsage(fileCount: 3, totalBytes: 2048),
+  };
+
+  @override
+  Future<LogDirectoryUsage> usage(LogFileTarget target) async =>
+      usageByTarget[target] ?? LogDirectoryUsage.empty;
+
+  @override
+  Future<int> deleteAll(LogFileTarget target) async {
+    deleted.add(target);
+    usageByTarget[target] = LogDirectoryUsage.empty;
+    return 3;
+  }
+}
+
 Future<void> _pumpPage(
   WidgetTester tester,
   SharedPreferences prefs, {
   required WidgetBuilder computerUseBuilder,
+  LogFileCleanupService? logCleanupService,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1000, 1200);
@@ -210,6 +317,10 @@ Future<void> _pumpPage(
               macosUpdateServiceProvider.overrideWithValue(
                 const _FakeMacosUpdateService(),
               ),
+              if (logCleanupService != null)
+                logFileCleanupServiceProvider.overrideWithValue(
+                  logCleanupService,
+                ),
             ],
             child: MaterialApp(
               localizationsDelegates: context.localizationDelegates,

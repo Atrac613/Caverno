@@ -6,15 +6,17 @@ import 'package:flutter/foundation.dart';
 import '../security/sensitive_data_redactor.dart';
 import 'app_log_file.dart';
 
-/// Debug-only logger that suppresses output in release builds.
+/// Logger with debug-only console output and a settings-gated file sink.
 ///
-/// In debug builds the message also lands in `~/.caverno/app_logs/<date>.log`,
-/// so a stall reproduced without a `flutter run` terminal attached still leaves
-/// evidence behind. Tests are excluded: a unit-test run must not write into the
-/// developer's home directory.
+/// The message also lands in `~/.caverno/app_logs/<date>.log` whenever the
+/// Logging settings toggle allows it — including release builds, where there
+/// is no attached terminal at all — so a stall still leaves evidence behind.
+/// Tests are excluded: a unit-test run must not write into the developer's
+/// home directory.
 void appLog(String message) {
-  if (!kDebugMode) return;
-  appDebugPrint(message);
+  if (kDebugMode) {
+    appDebugPrint(message);
+  }
   if (_isFlutterTest) return;
   AppLogFile.instance.write(message);
 }
