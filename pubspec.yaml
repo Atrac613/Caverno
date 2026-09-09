@@ -95,7 +95,7 @@ dependencies:
   # petitparser ^7, while serious_python -> toml 0.15 pins petitparser ^6.
   # Raising this requires serious_python to ship a newer toml first.
   # The upper bound is closed so a lockfile refresh cannot walk onto 33.2.13+1.
-  syncfusion_flutter_pdf: '>=33.2.12 <33.2.13'
+  syncfusion_flutter_pdf: ^33.2.13
 
   # Speech I/O
   speech_to_text: ^7.0.0
@@ -139,7 +139,7 @@ dependencies:
   # WiFi scanning tool
   wifi_scan: ^0.4.1
   network_info_plus: ^7.0.0
-  desktop_drop: ^0.8.2
+  desktop_drop: ^0.8.4
 
   # AC/battery power state for the LL18 idle-maintenance gate
   # (macOS/Windows/Linux/iOS/Android)
@@ -154,7 +154,7 @@ dependencies:
   # Embedded Python runtime for on-device LLM script execution
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
-  serious_python: ^4.5.1
+  serious_python: ^4.6.0
   drift: ^2.34.4
   sqlite3_flutter_libs: ^0.6.0+eol
   # Embedded terminal for the coding workspace bottom panel (desktop only:
@@ -181,7 +181,7 @@ dev_dependencies:
   analyzer: ^10.2.0
   coverage: ^1.15.1
   mocktail: ^1.0.5
-  pubspec_parse: ^1.5.0
+  pubspec_parse: ^1.6.0
   # Read-only persisted-data audit tools use the resolved SQLite API directly.
   sqlite3: ^3.5.2
   test: ^1.31.0
