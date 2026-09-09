@@ -390,6 +390,15 @@ void main() {
 
     test('every arm runs, and each carries what it is meant to', () async {
       final seen = <String>[];
+      final oracle = _oracle();
+      final riverpodVersion = oracle.packageVersion('riverpod');
+      expect(
+        riverpodVersion,
+        isNotNull,
+        reason:
+            'The grounded arm is identified by the installed version. A '
+            'hard-coded literal expires on the next riverpod bump.',
+      );
       final options = CensusOptions.parse(const [
         '--endpoint',
         'http://scripted/v1/chat/completions',
@@ -401,13 +410,13 @@ void main() {
 
       final summary = await runCutoffCensus(
         options: options!,
-        oracle: _oracle(),
+        oracle: oracle,
         cases: [_caseNamed('riverpod-notifier')],
         send: (system, user) async {
           seen.add(
             user.contains('Recent changes')
                 ? 'delta'
-                : user.contains('riverpod: 3.4.2')
+                : user.contains('riverpod: $riverpodVersion')
                 ? 'grounded'
                 : 'bare',
           );
