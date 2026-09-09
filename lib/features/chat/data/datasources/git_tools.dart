@@ -33,6 +33,9 @@ class GitTools {
   // -------------------------------------------------------------------------
 
   /// Subcommands that are always read-only.
+  ///
+  /// Keep [ToolCapabilityClassifier] git inspection verbs in lockstep with
+  /// this set. A read-only verb missing there is recorded as produced work.
   static const Set<String> _readOnlySubcommands = {
     'status',
     'log',

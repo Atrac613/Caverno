@@ -13,6 +13,17 @@ struct QuestionView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
+        // Same reason as the approval card: one screen, and the answer goes
+        // back to whichever machine asked.
+        if question.source == .remote {
+          Label(
+            question.host.isEmpty ? "Desktop" : question.host,
+            systemImage: "desktopcomputer"
+          )
+          .font(.caption2)
+          .foregroundStyle(.blue)
+        }
+
         Text(question.question)
           .font(.headline)
 

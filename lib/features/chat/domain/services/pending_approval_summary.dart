@@ -110,6 +110,42 @@ abstract final class PendingApprovalKinds {
   ];
 }
 
+/// Approval kinds, highest-consequence first.
+///
+/// The order lives here as kinds rather than inside
+/// [pendingApprovalsByPriority] as a list of `ChatState` fields, because more
+/// than one surface needs it and only one of them has a `ChatState`. The Apple
+/// Watch shows a single card and must choose between an interaction raised on
+/// this phone and one raised on a paired desktop; ranking those against each
+/// other needs the order by name.
+///
+/// A kind missing from here is a kind no surface can rank, so
+/// `pending_approval_summary_test.dart` asserts this covers
+/// [PendingApprovalKinds.all].
+const List<String> pendingApprovalKindPriority = <String>[
+  // The kinds that change the machine come first.
+  PendingApprovalKinds.file,
+  PendingApprovalKinds.localCommand,
+  PendingApprovalKinds.gitCommand,
+  PendingApprovalKinds.sshCommand,
+  PendingApprovalKinds.browserAction,
+  // Gates a mutation rather than being one, so it outranks the device kinds.
+  PendingApprovalKinds.assumptionConfirmation,
+  PendingApprovalKinds.bleConnect,
+  PendingApprovalKinds.serialOpen,
+  PendingApprovalKinds.participantTool,
+  // Last two need input no compact surface can collect; they are shown
+  // read-only, so they must not displace one that can actually be answered.
+  PendingApprovalKinds.computerUse,
+  PendingApprovalKinds.sshConnect,
+];
+
+/// Where [kind] sits in [pendingApprovalKindPriority]; unknown kinds sort last.
+int pendingApprovalKindRank(String kind) {
+  final index = pendingApprovalKindPriority.indexOf(kind);
+  return index < 0 ? pendingApprovalKindPriority.length : index;
+}
+
 /// The pending approvals of [state], highest-consequence first.
 ///
 /// Only one approval fits on a watch face or in a notification, and a paired
@@ -117,30 +153,30 @@ abstract final class PendingApprovalKinds {
 /// answer to "which one first". It lived in `WatchApprovalMapper` and was
 /// copied nowhere, which is why `pendingAssumptionConfirmation` — added later —
 /// reached no compact surface at all despite being a plain yes/no.
-///
-/// A list cannot be exhaustive the way the sealed switch in
-/// [describePendingApproval] is, so the count is asserted against
-/// [PendingApprovalKinds] in `pending_approval_summary_test.dart`: adding a
-/// kind without ranking it fails there rather than silently dropping it.
 Iterable<PendingToolApproval<dynamic>> pendingApprovalsByPriority(
   ChatState state,
-) => <PendingToolApproval<dynamic>?>[
-  // The kinds that change the machine come first.
-  state.pendingFileOperation,
-  state.pendingLocalCommand,
-  state.pendingGitCommand,
-  state.pendingSshCommand,
-  state.pendingBrowserAction,
-  // Gates a mutation rather than being one, so it outranks the device kinds.
-  state.pendingAssumptionConfirmation,
-  state.pendingBleConnect,
-  state.pendingSerialOpen,
-  state.pendingParticipantToolApproval,
-  // Last two need input no compact surface can collect; they are shown
-  // read-only, so they must not displace one that can actually be answered.
-  state.pendingComputerUseAction,
-  state.pendingSshConnect,
-].whereType<PendingToolApproval<dynamic>>();
+) {
+  final byKind = <String, PendingToolApproval<dynamic>>{
+    for (final request in <PendingToolApproval<dynamic>?>[
+      state.pendingFileOperation,
+      state.pendingLocalCommand,
+      state.pendingGitCommand,
+      state.pendingSshCommand,
+      state.pendingBrowserAction,
+      state.pendingAssumptionConfirmation,
+      state.pendingBleConnect,
+      state.pendingSerialOpen,
+      state.pendingParticipantToolApproval,
+      state.pendingComputerUseAction,
+      state.pendingSshConnect,
+    ].whereType<PendingToolApproval<dynamic>>())
+      describePendingApproval(request).kind: request,
+  };
+  return [
+    for (final kind in pendingApprovalKindPriority)
+      if (byKind[kind] != null) byKind[kind]!,
+  ];
+}
 
 /// Describes [request] for a compact surface.
 ///

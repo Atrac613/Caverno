@@ -52,6 +52,9 @@ void main(List<String> args) {
       ),
     ],
     messagesTruncated: true,
+    // Remote on purpose, and the question below stays local: one snapshot then
+    // crosses both the new WATCH11 fields and their absence, so a watch that
+    // stopped decoding either is caught.
     approval: const WatchApproval(
       id: 'approval-1',
       kind: 'localCommand',
@@ -59,6 +62,8 @@ void main(List<String> args) {
       subtitle: 'dart analyze',
       detail: 'Runs in the project root.',
       canResolveOnWatch: true,
+      source: WatchInteractionSource.remote,
+      host: 'MacBook-Pro-3.local',
     ),
     question: const WatchQuestion(
       id: 'question-1',

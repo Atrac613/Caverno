@@ -3,7 +3,7 @@ import Darwin
 import FlutterMacOS
 
 @main
-class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate {
   override init() {
     // Finder launches can inherit a closed output pipe; ignore SIGPIPE so
     // incidental logging cannot terminate the app.
@@ -48,8 +48,8 @@ class AppDelegate: FlutterAppDelegate {
     return true
   }
 
-  override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
-    return true
+  @objc override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+    return false
   }
 
   static func isCommandLineInvocation(arguments: [String]) -> Bool {

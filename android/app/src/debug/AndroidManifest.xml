@@ -4,4 +4,11 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <application>
+        <!-- Native Crashlytics stays off in debug until Dart can opt in
+             with CAVERNO_CRASHLYTICS_DEBUG. Release uses the default. -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+    </application>
 </manifest>

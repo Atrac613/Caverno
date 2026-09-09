@@ -301,7 +301,15 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     final service = semantic;
     return (String query) async {
       final result = await service.search(query);
-      return [for (final id in result.conversationIds) ?repository.getById(id)];
+      final conversations = <Conversation>[];
+      for (final id in result.conversationIds) {
+        final loaded =
+            await repository.refresh(id) ?? repository.getById(id);
+        if (loaded != null) {
+          conversations.add(loaded);
+        }
+      }
+      return conversations;
     };
   }
 

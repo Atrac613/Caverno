@@ -142,10 +142,8 @@ final class _FirebaseCli {
 }
 
 bool _localConfigurationReady() {
-  final ios = File('ios/Runner/GoogleService-Info.plist');
-  final android = File('android/app/google-services.json');
-  return ios.existsSync() &&
-      ios.readAsStringSync().contains(remoteCodingFirebaseNamespace) &&
-      android.existsSync() &&
-      android.readAsStringSync().contains(remoteCodingFirebaseNamespace);
+  final ios = File(iosGoogleServiceInfoPath);
+  final android = File(androidGoogleServicesJsonPath);
+  return firebaseConfigMatchesNamespace(ios) &&
+      firebaseConfigMatchesNamespace(android);
 }

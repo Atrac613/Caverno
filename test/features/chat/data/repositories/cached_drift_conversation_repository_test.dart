@@ -2,8 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/repositories/cached_drift_conversation_repository.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_listing_codec.dart';
 import 'package:caverno/features/chat/data/repositories/drift_conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 
 Conversation _conversation(String id, {required int updatedAtMs}) {
   return Conversation(
@@ -98,5 +100,67 @@ void main() {
     await repo.deleteAll();
     expect(repo.getAll(), isEmpty);
     expect(await store.getAll(), isEmpty);
+  });
+
+  test('hydrate skips message bodies until refresh', () async {
+    final heavy = Conversation(
+      id: 'heavy',
+      title: 'Heavy thread',
+      messages: [
+        Message(
+          id: 'm1',
+          content: 'unique-startup-payload-token',
+          role: MessageRole.user,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      ],
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(20),
+    );
+    await store.save(heavy);
+
+    final repo = await CachedDriftConversationRepository.hydrate(store);
+    final listed = repo.getById('heavy');
+
+    expect(listed, isNotNull);
+    expect(listed!.title, 'Heavy thread');
+    expect(listed.messages.single.id, ConversationListingCodec.stubMessageId);
+    expect(listed.messages.single.content, isEmpty);
+
+    final refreshed = await repo.refresh('heavy');
+    expect(refreshed, isNotNull);
+    expect(refreshed!.messages.single.content, 'unique-startup-payload-token');
+    expect(
+      repo.getById('heavy')!.messages.single.content,
+      'unique-startup-payload-token',
+    );
+  });
+
+  test('hydrate listingOnly false keeps message bodies', () async {
+    final heavy = Conversation(
+      id: 'heavy',
+      title: 'Heavy thread',
+      messages: [
+        Message(
+          id: 'm1',
+          content: 'unique-startup-payload-token',
+          role: MessageRole.user,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      ],
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(20),
+    );
+    await store.save(heavy);
+
+    final repo = await CachedDriftConversationRepository.hydrate(
+      store,
+      listingOnly: false,
+    );
+
+    expect(
+      repo.getById('heavy')!.messages.single.content,
+      'unique-startup-payload-token',
+    );
   });
 }
