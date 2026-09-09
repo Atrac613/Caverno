@@ -42,6 +42,18 @@ caverno_load_dart_define_args() {
 
   CAVERNO_DART_DEFINE_ARGS=()
   if [[ -f "${defines_file}" ]]; then
+    # The App Check debug provider accepts a registered debug token in place of
+    # real device attestation. It belongs on a `flutter run` command line for as
+    # long as one developer needs it, never in the file every build reads: a
+    # release carrying it would ship an attestation bypass.
+    if [[ "${on_absent}" == "require" ]] \
+       && grep -q "CAVERNO_FIREBASE_APP_CHECK_DEBUG" "${defines_file}"; then
+      echo "Error: ${defines_file} sets CAVERNO_FIREBASE_APP_CHECK_DEBUG." >&2
+      echo "       That disables App Check attestation. Remove it before releasing," >&2
+      echo "       and pass it per-run instead:" >&2
+      echo "       tool/safe-flutter run --dart-define=CAVERNO_FIREBASE_APP_CHECK_DEBUG=true" >&2
+      return 1
+    fi
     CAVERNO_DART_DEFINE_ARGS=(--dart-define-from-file="${defines_file}")
     return 0
   fi
