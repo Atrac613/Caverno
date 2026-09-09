@@ -73,6 +73,7 @@ Future<void> _verifyTerminalCreatedResume({required bool planning}) async {
   SharedPreferences.setMockInitialValues(const <String, Object>{});
   final preferences = await SharedPreferences.getInstance();
   final firstStorage = await _openStorage(databaseFile);
+
   final firstContainer = _buildContainer(
     preferences: preferences,
     storage: firstStorage,
@@ -269,5 +270,6 @@ Future<CavernoPersistenceStorage> _openStorage(File databaseFile) {
         throw StateError('Legacy chat memory must not be read by the fixture.'),
     markConversationsMigrated: () async {},
     markChatMemoryMigrated: () async {},
+    hydrateConversationListingOnly: false,
   );
 }

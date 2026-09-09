@@ -7,6 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_listing_codec.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
@@ -53,6 +54,34 @@ class _FakeConversationRepository extends ConversationRepository {
   Future<void> deleteAll() async {
     _store.clear();
   }
+}
+
+class _DelayedConversationRepository extends _FakeConversationRepository {
+  _DelayedConversationRepository({required this.saveDelay});
+
+  final Duration saveDelay;
+
+  @override
+  Future<void> save(Conversation conversation) async {
+    await Future<void>.delayed(saveDelay);
+    await super.save(conversation);
+  }
+}
+
+class _ListingThenFullRepository extends _FakeConversationRepository {
+  _ListingThenFullRepository({
+    required List<Conversation> listings,
+    required Map<String, Conversation> full,
+  }) : _full = full {
+    for (final conversation in listings) {
+      _store[conversation.id] = conversation;
+    }
+  }
+
+  final Map<String, Conversation> _full;
+
+  @override
+  Future<Conversation?> refresh(String id) async => _full[id] ?? getById(id);
 }
 
 void main() {
@@ -276,6 +305,135 @@ void main() {
           .where((conversation) => conversation.id == initial.id),
       isEmpty,
     );
+  });
+
+  test(
+    'execution refresh keeps in-memory messages over a stale storage snapshot',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      final messages = [
+        Message(
+          id: 'm1',
+          content: 'Keep this turn',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 9, 8, 21),
+        ),
+      ];
+      await notifier.updateCurrentConversation(messages);
+      final current = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      await repository.save(
+        current.copyWith(
+          messages: const <Message>[],
+          updatedAt: current.updatedAt.subtract(const Duration(minutes: 1)),
+        ),
+      );
+
+      expect(
+        await notifier.refreshConversationForExecution(current.id),
+        isTrue,
+      );
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .messages,
+        messages,
+      );
+    },
+  );
+
+  test(
+    'activateWorkspace keeps a conversation whose save has not landed',
+    () async {
+      final delayed = _DelayedConversationRepository(
+        saveDelay: const Duration(milliseconds: 50),
+      );
+      final delayedContainer = ProviderContainer(
+        overrides: [
+          conversationRepositoryProvider.overrideWithValue(delayed),
+          toolResultArtifactStoreProvider.overrideWithValue(artifactStore),
+        ],
+      );
+      addTearDown(delayedContainer.dispose);
+
+      delayedContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: 'project-1',
+            createIfMissing: true,
+          );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        delayedContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation,
+        isNotNull,
+      );
+    },
+  );
+
+  test('selectConversation hydrates a listing stub from storage', () async {
+    final now = DateTime(2026, 9, 8, 12);
+    final stub = Conversation(
+      id: 'listed',
+      title: 'Listed thread',
+      messages: [
+        Message(
+          id: ConversationListingCodec.stubMessageId,
+          content: '',
+          role: MessageRole.user,
+          timestamp: now,
+        ),
+      ],
+      createdAt: now,
+      updatedAt: now,
+      workspaceMode: WorkspaceMode.chat,
+    );
+    final full = stub.copyWith(
+      messages: [
+        Message(
+          id: 'real-message',
+          content: 'Persisted body',
+          role: MessageRole.user,
+          timestamp: now,
+        ),
+      ],
+    );
+    final listingRepo = _ListingThenFullRepository(
+      listings: [stub],
+      full: {full.id: full},
+    );
+    final listingContainer = ProviderContainer(
+      overrides: [
+        conversationRepositoryProvider.overrideWithValue(listingRepo),
+        toolResultArtifactStoreProvider.overrideWithValue(artifactStore),
+      ],
+    );
+    addTearDown(listingContainer.dispose);
+
+    final notifier = listingContainer.read(
+      conversationsNotifierProvider.notifier,
+    );
+    await Future<void>.delayed(Duration.zero);
+    notifier.selectConversation(stub.id);
+    List<Message> listedMessages() => listingContainer
+        .read(conversationsNotifierProvider)
+        .conversations
+        .firstWhere((conversation) => conversation.id == stub.id)
+        .messages;
+    for (
+      var i = 0;
+      i < 20 && ConversationListingCodec.isListingStub(listedMessages());
+      i++
+    ) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(listedMessages().single.content, 'Persisted body');
   });
 
   test(

@@ -54,7 +54,9 @@ const Map<String, int> _lineBudgets = {
   // Then -2: the three identical assistant-message literals became one
   // _newAssistantMessage, which is also what stops the next field being set
   // on one path out of three.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8745,
+  // -20: the memory-update display tag and named-skill lookup are string
+  // work with no notifier state.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8725,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 43,
@@ -89,7 +91,8 @@ const Map<String, int> _lineBudgets = {
       480,
   'lib/features/chat/domain/services/git_tool_handler.dart': 315,
   'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart':
-      494,
+      449,
+  'lib/features/chat/domain/services/goal_auto_continue_decision_types.dart': 67,
   // +4 for the assumption-confirmation blocker: one constructor parameter,
   // one field, and the two lines mapping it through. ANA0's kind reached
   // neither this boundary nor the veto behind it, so a goal with
@@ -99,7 +102,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart':
       76,
   'lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart':
-      486,
+      457,
   'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart':
       137,
   'lib/features/chat/domain/services/goal_update_tool_handler.dart': 64,
@@ -628,7 +631,8 @@ const Map<String, int> _lineBudgets = {
       100,
   'lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart':
       63,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1131,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1122,
+  'lib/features/chat/data/datasources/memory_recall_scoring.dart': 20,
   // File-turn checkpoint delegation moved to the rollback facade that already
   // owns that concern, leaving this one to owner-bound tool dispatch.
   'lib/features/chat/data/datasources/mcp_tool_service_owner_facade.dart': 59,
@@ -698,9 +702,13 @@ const Map<String, int> _lineBudgets = {
   // its own.
   // -28: collecting the files a conversation owns is per-message string work
   // with no notifier state, and deletion is the only caller.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1791,
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1775,
+  'lib/features/chat/presentation/providers/conversations_state.dart': 82,
   'lib/features/chat/domain/services/conversation_attachment_paths.dart': 46,
+  'lib/features/chat/domain/services/conversation_checkpoint_recorder.dart': 50,
   'lib/features/chat/domain/services/conversation_default_title.dart': 46,
+  'lib/features/chat/domain/services/enabled_skill_named_in_text.dart': 21,
+  'lib/features/chat/domain/services/memory_update_tool_use.dart': 23,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       329,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
@@ -799,7 +807,7 @@ const Map<String, int> _lineBudgets = {
   // The turn's eleven owner-scoped releases, moved from the destructor to the
   // turn that owes them.
   'lib/features/chat/application/runtime/turn_release_scope.dart': 98,
-  'lib/features/chat/application/runtime/turn_runtime.dart': 445,
+  'lib/features/chat/application/runtime/turn_runtime.dart': 418,
   'lib/features/chat/application/runtime/turn_runtime_conversation_goal_adapter.dart':
       47,
   'lib/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart':
@@ -890,7 +898,8 @@ const Map<String, int> _libraryLineBudgets = {
   // sites in the parts, less three saved where resolveRemoteApproval stopped
   // keeping a chain of its own.
   // The merged task-plan retry extraction reduces the aggregate to 19,712.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19712,
+  // -5: memory-update tag rendering and named-skill lookup left the library.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19707,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
@@ -927,7 +936,7 @@ const Map<String, int> _libraryLineBudgets = {
   // -2 matching the primary file: project directory picking left this library
   // for coding_project_picker.dart.
   'lib/features/chat/presentation/pages/chat_page.dart': 8605,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1223,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1197,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };
 

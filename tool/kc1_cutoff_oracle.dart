@@ -43,10 +43,16 @@ class CutoffOracle {
     required this.projectRoot,
   });
 
-  /// Resolves the SDK from `.fvmrc` and the pub cache from the usual location.
+  /// Resolves the SDK from the project pin and the pub cache from the usual
+  /// location.
   ///
-  /// Both are overridable so a run can be pinned, which the KC1 acceptance
-  /// criteria require: the oracle is part of the run's identity.
+  /// Prefers an on-disk FVM checkout (`.fvm/flutter_sdk`, then
+  /// `$HOME/fvm/versions` from `.fvmrc`). GitHub Actions installs Flutter via
+  /// `subosito/flutter-action` into `FLUTTER_ROOT` instead, so a missing FVM
+  /// path must not win over an SDK that is actually present.
+  ///
+  /// Both roots are overridable so a run can be pinned, which the KC1
+  /// acceptance criteria require: the oracle is part of the run's identity.
   factory CutoffOracle.resolve({
     String? projectRoot,
     String? flutterSdkRoot,
@@ -54,18 +60,16 @@ class CutoffOracle {
     Map<String, String> environment = const {},
   }) {
     final root = projectRoot ?? Directory.current.path;
-    final home = environment['HOME'] ?? Platform.environment['HOME'] ?? '';
-    var sdk = flutterSdkRoot;
-    if (sdk == null) {
-      final fvmrc = File('$root/.fvmrc');
-      if (fvmrc.existsSync()) {
-        final decoded = jsonDecode(fvmrc.readAsStringSync());
-        final version = (decoded as Map<String, dynamic>)['flutter'] as String?;
-        if (version != null) sdk = '$home/fvm/versions/$version';
-      }
-    }
+    final home = _env(environment, 'HOME') ?? '';
     return CutoffOracle(
-      flutterSdkRoot: sdk ?? '',
+      flutterSdkRoot:
+          _firstUsableSdkRoot([
+            flutterSdkRoot,
+            '$root/.fvm/flutter_sdk',
+            _fvmVersionRoot(projectRoot: root, home: home),
+            _env(environment, 'FLUTTER_ROOT'),
+          ]) ??
+          '',
       pubCacheRoot: pubCacheRoot ?? '$home/.pub-cache/hosted/pub.dev',
       projectRoot: root,
     );
@@ -366,6 +370,49 @@ class CutoffOracle {
     '$flutterSdkRoot/packages/flutter/lib/src',
     '$flutterSdkRoot/bin/cache/pkg/sky_engine/lib/ui',
   ];
+
+  static String? _env(Map<String, String> environment, String key) {
+    final raw = environment.containsKey(key)
+        ? environment[key]
+        : Platform.environment[key];
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+    return value;
+  }
+
+  static String? _fvmVersionRoot({
+    required String projectRoot,
+    required String home,
+  }) {
+    final fvmrc = File('$projectRoot/.fvmrc');
+    if (!fvmrc.existsSync()) {
+      return null;
+    }
+    final decoded = jsonDecode(fvmrc.readAsStringSync());
+    final version = (decoded as Map<String, dynamic>)['flutter'] as String?;
+    if (version == null || version.trim().isEmpty) {
+      return null;
+    }
+    return '$home/fvm/versions/${version.trim()}';
+  }
+
+  static String? _firstUsableSdkRoot(Iterable<String?> candidates) {
+    for (final candidate in candidates) {
+      if (candidate == null || candidate.trim().isEmpty) {
+        continue;
+      }
+      if (_sdkRootIsUsable(candidate.trim())) {
+        return candidate.trim();
+      }
+    }
+    return null;
+  }
+
+  static bool _sdkRootIsUsable(String path) {
+    return Directory('$path/packages/flutter/lib/src').existsSync();
+  }
 
   /// The `@Deprecated('...')` message on the declaration of [symbol], if the
   /// annotation sits within a few lines above it.

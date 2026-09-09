@@ -104,7 +104,7 @@ Future<void> _verifyGuiToTerminalResume({required bool planning}) async {
   guiContainer.dispose();
   await guiStorage.close();
 
-  final terminalStorage = await _openStorage(databaseFile);
+  final terminalStorage = await _openStorage(databaseFile, listingOnly: false);
   final terminalContainer = _buildContainer(
     preferences: preferences,
     storage: terminalStorage,
@@ -166,7 +166,7 @@ Future<void> _verifyGuiToTerminalResume({required bool planning}) async {
   terminalContainer.dispose();
   await terminalStorage.close();
 
-  final assertionStorage = await _openStorage(databaseFile);
+  final assertionStorage = await _openStorage(databaseFile, listingOnly: false);
   final persisted = assertionStorage.conversationRepository.getById(
     conversationId,
   );
@@ -245,7 +245,10 @@ final class _EmptyRuntimeToolPort implements CavernoRuntimeToolPort {
   List<String> get availableToolNames => const <String>[];
 }
 
-Future<CavernoPersistenceStorage> _openStorage(File databaseFile) {
+Future<CavernoPersistenceStorage> _openStorage(
+  File databaseFile, {
+  bool listingOnly = true,
+}) {
   return const CavernoPersistenceBootstrap().open(
     openDatabase: () => openAppDatabase(databaseFile: databaseFile),
     conversationsMigrated: true,
@@ -257,6 +260,7 @@ Future<CavernoPersistenceStorage> _openStorage(File databaseFile) {
         throw StateError('Legacy chat memory must not be read by the fixture.'),
     markConversationsMigrated: () async {},
     markChatMemoryMigrated: () async {},
+    hydrateConversationListingOnly: listingOnly,
   );
 }
 

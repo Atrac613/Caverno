@@ -197,7 +197,29 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     }
 
     conversations.selectConversation(conversation.id);
-    return conversation;
+    final hydrated = await conversations.refreshConversationForExecution(
+      conversation.id,
+    );
+    if (!hydrated) {
+      throw CavernoCliFailure(
+        code: 'conversation_not_found',
+        message: 'Conversation not found: $conversationId',
+        exitCode: CavernoCliExitCode.input,
+      );
+    }
+    final resolved = container
+        .read(conversationsNotifierProvider)
+        .conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
+    if (resolved == null) {
+      throw CavernoCliFailure(
+        code: 'conversation_not_found',
+        message: 'Conversation not found: $conversationId',
+        exitCode: CavernoCliExitCode.input,
+      );
+    }
+    return resolved;
   }
 
   AssistantMode _assistantModeForConversation(Conversation conversation) {

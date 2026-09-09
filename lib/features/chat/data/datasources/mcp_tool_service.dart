@@ -16,8 +16,8 @@ import '../../../../core/services/script_runtime/script_runtime.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/conversation.dart';
-import '../../domain/entities/session_memory.dart';
 import '../../domain/entities/skill.dart';
+import 'memory_recall_scoring.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../repositories/chat_memory_repository.dart';
@@ -83,7 +83,6 @@ class McpToolService extends McpToolServiceFacadeBase {
     ...BuiltInBrowserToolHandler.toolNames,
     ToolDefinitionSearchService.toolName,
   };
-  static final RegExp _whitespaceRun = RegExp(r'\s+');
   McpToolService({
     this.mcpClients = const [],
     this.conversationRepository,
@@ -1058,18 +1057,18 @@ class McpToolService extends McpToolServiceFacadeBase {
     final memories = memoryRepository!.loadMemories();
     if (memories.isEmpty) return 'No memories stored yet.';
 
-    final queryBiGrams = _biGrams(query);
-    final scored = <_ScoredMemoryMatch>[];
+    final queryBiGrams = memoryTextBiGrams(query);
+    final scored = <ScoredMemoryMatch>[];
 
     for (final memory in memories) {
       if (memory.isExpired) continue;
-      final textBiGrams = _biGrams(memory.text);
+      final textBiGrams = memoryTextBiGrams(memory.text);
       if (queryBiGrams.isEmpty || textBiGrams.isEmpty) continue;
       final intersection = queryBiGrams.intersection(textBiGrams).length;
       final union = queryBiGrams.union(textBiGrams).length;
       final similarity = union == 0 ? 0.0 : intersection / union;
       if (similarity > 0.05) {
-        scored.add(_ScoredMemoryMatch(memory: memory, score: similarity));
+        scored.add(ScoredMemoryMatch(memory: memory, score: similarity));
       }
     }
 
@@ -1120,22 +1119,4 @@ class McpToolService extends McpToolServiceFacadeBase {
       'content': skill.normalizedContent,
     };
   }
-
-  Set<String> _biGrams(String text) {
-    final normalized = text.toLowerCase().replaceAll(_whitespaceRun, '');
-    if (normalized.isEmpty) return const {};
-    if (normalized.length == 1) return {normalized};
-    final grams = <String>{};
-    for (var i = 0; i < normalized.length - 1; i++) {
-      grams.add(normalized.substring(i, i + 2));
-    }
-    return grams;
-  }
-}
-
-class _ScoredMemoryMatch {
-  _ScoredMemoryMatch({required this.memory, required this.score});
-
-  final MemoryEntry memory;
-  final double score;
 }
