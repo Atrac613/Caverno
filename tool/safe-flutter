@@ -88,28 +88,17 @@ fi
 # are read at runtime via BuildInfo (lib/core/constants/build_info.dart).
 case "${1:-}" in
   run|build|drive|test|attach|install)
-    BUILD_COMMIT="$(git -C "$WORKTREE" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-    if git -C "$WORKTREE" diff --quiet --ignore-submodules 2>/dev/null \
-       && git -C "$WORKTREE" diff --cached --quiet --ignore-submodules 2>/dev/null
-    then
-      BUILD_DIRTY=false
-    else
-      BUILD_DIRTY=true
-    fi
-    set -- "$@" \
-      --dart-define=CAVERNO_BUILD_COMMIT="$BUILD_COMMIT" \
-      --dart-define=CAVERNO_BUILD_DIRTY="$BUILD_DIRTY" \
-      --dart-define=CAVERNO_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
     # Inject the environment-owned Firebase defines (relay origin). Without
     # them the Remote Coding relay client resolves to null and push delivery
     # silently no-ops, so warn on the subcommands that produce a binary a
     # human will then test on a device.
     source "$WORKTREE/tool/caverno_dart_defines.sh"
+    caverno_load_build_provenance_define_args "$WORKTREE"
     case "${1:-}" in
       run|build) caverno_load_dart_define_args "$WORKTREE" warn ;;
       *) caverno_load_dart_define_args "$WORKTREE" ;;
     esac
+    set -- "$@" "${CAVERNO_BUILD_DART_DEFINE_ARGS[@]}"
     if [[ ${#CAVERNO_DART_DEFINE_ARGS[@]} -gt 0 ]]; then
       set -- "$@" "${CAVERNO_DART_DEFINE_ARGS[@]}"
     fi

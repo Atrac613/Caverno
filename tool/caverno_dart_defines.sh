@@ -24,6 +24,30 @@
 #
 # Override the file location with CAVERNO_DART_DEFINES_FILE.
 
+# Populates the CAVERNO_BUILD_DART_DEFINE_ARGS array with the same build
+# provenance defines used by tool/safe-flutter. The values are resolved from
+# the worktree being built rather than from this helper's location.
+caverno_load_build_provenance_define_args() {
+  local worktree="${1:-$PWD}"
+  local build_commit
+  local build_dirty
+
+  build_commit="$(git -C "${worktree}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  if git -C "${worktree}" diff --quiet --ignore-submodules 2>/dev/null \
+     && git -C "${worktree}" diff --cached --quiet --ignore-submodules 2>/dev/null
+  then
+    build_dirty=false
+  else
+    build_dirty=true
+  fi
+
+  CAVERNO_BUILD_DART_DEFINE_ARGS=(
+    "--dart-define=CAVERNO_BUILD_COMMIT=${build_commit}"
+    "--dart-define=CAVERNO_BUILD_DIRTY=${build_dirty}"
+    "--dart-define=CAVERNO_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  )
+}
+
 # Populates the CAVERNO_DART_DEFINE_ARGS array with the
 # --dart-define-from-file argument, or leaves it empty when no defines file is
 # present.
