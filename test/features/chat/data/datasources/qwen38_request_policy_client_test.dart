@@ -19,6 +19,30 @@ class _RecordingClient extends http.BaseClient {
 }
 
 void main() {
+  test(
+    'explicit thinking reaches streaming and non-streaming requests',
+    () async {
+      for (final stream in [true, false]) {
+        for (final enabled in [true, false]) {
+          final delegate = _RecordingClient();
+          final client = Qwen38RequestPolicyClient(
+            delegate: delegate,
+            policy: Qwen38RequestThinkingPolicy(enableThinking: enabled),
+          );
+          final request = http.Request(
+            'POST',
+            Uri.parse('http://localhost/v1/chat/completions'),
+          )..body = jsonEncode({'model': 'custom-model', 'stream': stream});
+          await client.send(request);
+          final body = jsonDecode(delegate.sentBody!) as Map<String, dynamic>;
+          expect(body['chat_template_kwargs'], {'enable_thinking': enabled});
+          expect(body['stream'], stream);
+          client.close();
+        }
+      }
+    },
+  );
+
   Future<Map<String, dynamic>> sendUnder(ModelUsageRole role) async {
     final delegate = _RecordingClient();
     final client = Qwen38RequestPolicyClient(
@@ -39,16 +63,19 @@ void main() {
     return jsonDecode(delegate.sentBody!) as Map<String, dynamic>;
   }
 
-  test('a memory-extraction request reaches the wire without thinking', () async {
-    final body = await sendUnder(ModelUsageRole.memoryExtraction);
+  test(
+    'a memory-extraction request reaches the wire without thinking',
+    () async {
+      final body = await sendUnder(ModelUsageRole.memoryExtraction);
 
-    expect(
-      (body['chat_template_kwargs'] as Map)['enable_thinking'],
-      isFalse,
-      reason: 'the role must survive the zone hop into the http client',
-    );
-    expect(body['max_tokens'], 1200);
-  });
+      expect(
+        (body['chat_template_kwargs'] as Map)['enable_thinking'],
+        isFalse,
+        reason: 'the role must survive the zone hop into the http client',
+      );
+      expect(body['max_tokens'], 1200);
+    },
+  );
 
   test('a chat request keeps its thinking budget', () async {
     final body = await sendUnder(ModelUsageRole.chat);

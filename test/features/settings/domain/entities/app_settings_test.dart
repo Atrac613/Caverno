@@ -7,6 +7,20 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
+  test('thinking preference round trips and old settings stay automatic', () {
+    expect(
+      AppSettings.fromJson(
+        AppSettings.defaults().toJson()..remove('enableThinking'),
+      ).enableThinking,
+      isNull,
+    );
+    for (final value in <bool?>[null, true, false]) {
+      final settings = AppSettings.defaults().copyWith(enableThinking: value);
+      expect(AppSettings.fromJson(settings.toJson()).enableThinking, value);
+      expect(settings.copyWith(enableThinking: null).enableThinking, isNull);
+    }
+  });
+
   group('executable configuration review freshness', () {
     final now = DateTime(2026, 8, 14, 12);
 

@@ -67,5 +67,6 @@ final class ModelSwitchSettingsPolicy {
       previous.baseUrl != next.baseUrl ||
       previous.apiKey != next.apiKey ||
       previous.reasoningEffort != next.reasoningEffort ||
+      previous.enableThinking != next.enableThinking ||
       previous.enableLlmSessionLogs != next.enableLlmSessionLogs;
 }

@@ -57,6 +57,7 @@ class ChatRemoteDataSource
     String? baseUrl,
     String? apiKey,
     String? reasoningEffort,
+    bool? enableThinking,
     http.Client? httpClient,
     http.Client Function()? streamClientFactory,
     ModelUsageSink? usageSink,
@@ -67,6 +68,7 @@ class ChatRemoteDataSource
   }) : _videoAttachmentResolver = videoAttachmentResolver,
        _qwen38RequestPolicy = Qwen38RequestThinkingPolicy(
          reasoningEffort: reasoningEffort,
+         enableThinking: enableThinking,
        ),
        _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
        _telemetry = ChatResponseTelemetry(
@@ -89,6 +91,7 @@ class ChatRemoteDataSource
              delegate: httpClient ?? http.Client(),
              policy: Qwen38RequestThinkingPolicy(
                reasoningEffort: reasoningEffort,
+               enableThinking: enableThinking,
              ),
            ),
          ),
@@ -97,6 +100,7 @@ class ChatRemoteDataSource
              delegate: streamClientFactory?.call() ?? http.Client(),
              policy: Qwen38RequestThinkingPolicy(
                reasoningEffort: reasoningEffort,
+               enableThinking: enableThinking,
              ),
            ),
          ),

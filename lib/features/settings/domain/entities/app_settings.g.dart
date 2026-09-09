@@ -545,6 +545,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
         unknownValue: ReasoningEffortPreference.automatic,
       ) ??
       ReasoningEffortPreference.automatic,
+  enableThinking: json['enableThinking'] as bool?,
   proReasoningEnabled: json['proReasoningEnabled'] as bool? ?? false,
   proReasoningDepth:
       $enumDecodeNullable(
@@ -729,6 +730,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'maxTokens': instance.maxTokens,
   'reasoningEffort':
       _$ReasoningEffortPreferenceEnumMap[instance.reasoningEffort]!,
+  'enableThinking': instance.enableThinking,
   'proReasoningEnabled': instance.proReasoningEnabled,
   'proReasoningDepth': _$ProReasoningDepthEnumMap[instance.proReasoningDepth]!,
   'proReasoningCandidateRouting':

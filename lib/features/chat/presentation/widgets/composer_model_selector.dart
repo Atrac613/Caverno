@@ -14,11 +14,9 @@ import 'composer_control_chip.dart';
 import 'composer_menu_rows.dart';
 import 'message_input_control_labels.dart';
 
-/// Composer chip that carries the two settings describing *how* the next turn
-/// is answered: which model runs it, and how much reasoning effort it is asked
-/// for. They travel together because they are read together — "which model, at
-/// what effort" is one decision — so the chip shows both and one menu edits
-/// both, instead of a model chip next to an unlabelled brain icon.
+/// Composer chip for model selection, reasoning effort, and template thinking.
+/// The chip shows the model and effort; its menu also exposes the independent
+/// thinking preference with automatic, enabled, and disabled states.
 ///
 /// Apple Foundation Models pins its own model id, so the model row is then a
 /// read-only value.
@@ -79,6 +77,7 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
           menuChildren: [
             _buildModelSubmenu(theme, settings, selectedModel),
             _buildEffortSubmenu(theme, settings, effortLabel),
+            _buildThinkingSubmenu(theme, settings),
           ],
           builder: (context, controller, _) => InkWell(
             borderRadius: BorderRadius.circular(12),
@@ -151,6 +150,36 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
               ),
             ],
       child: Text('message.model_menu_label'.tr()),
+    );
+  }
+
+  Widget _buildThinkingSubmenu(ThemeData theme, AppSettings settings) {
+    String label(bool? value) => switch (value) {
+      null => 'Auto',
+      true => 'On',
+      false => 'Off',
+    };
+    return SubmenuButton(
+      trailingIcon: buildComposerSubmenuValue(
+        theme,
+        label(settings.enableThinking),
+      ),
+      menuChildren: [
+        for (final value in <bool?>[null, true, false])
+          MenuItemButton(
+            leadingIcon: buildComposerMenuCheckIcon(
+              theme,
+              settings.enableThinking == value,
+            ),
+            onPressed: () => unawaited(
+              ref
+                  .read(settingsNotifierProvider.notifier)
+                  .updateEnableThinking(value),
+            ),
+            child: Text(label(value)),
+          ),
+      ],
+      child: const Text('enable_thinking'),
     );
   }
 

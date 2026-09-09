@@ -868,6 +868,7 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)
     @Default(ReasoningEffortPreference.automatic)
     ReasoningEffortPreference reasoningEffort,
+    bool? enableThinking,
     @Default(false) bool proReasoningEnabled,
     @JsonKey(unknownEnumValue: ProReasoningDepth.deep)
     @Default(ProReasoningDepth.deep)

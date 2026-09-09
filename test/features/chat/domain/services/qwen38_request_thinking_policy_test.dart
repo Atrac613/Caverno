@@ -7,12 +7,56 @@ void main() {
   const model = ApiConstants.qwen38VisionModel;
 
   group('Qwen38RequestThinkingPolicy', () {
+    test('explicit off overrides high effort without inflating the budget', () {
+      final result = const Qwen38RequestThinkingPolicy(
+        reasoningEffort: 'high',
+        enableThinking: false,
+      ).resolve(model: model, maxTokens: 100)!;
+      expect(result.chatTemplateKwargs, {'enable_thinking': false});
+      expect(result.maxTokens, 100);
+    });
+
+    test(
+      'explicit on enables automatic effort but preserves utility suppression',
+      () {
+        const policy = Qwen38RequestThinkingPolicy(enableThinking: true);
+        expect(
+          policy.resolve(model: model, maxTokens: 100)!.chatTemplateKwargs,
+          {'enable_thinking': true},
+        );
+        expect(
+          policy
+              .resolve(
+                model: model,
+                maxTokens: 100,
+                role: ModelUsageRole.memoryExtraction,
+              )!
+              .chatTemplateKwargs,
+          {'enable_thinking': false},
+        );
+      },
+    );
+
+    test('explicit preferences preserve other models request fields', () {
+      for (final enabled in [true, false]) {
+        final result = Qwen38RequestThinkingPolicy(enableThinking: enabled)
+            .resolve(model: 'custom-model', maxTokens: 100)!
+            .applyTo({
+              'model': 'custom-model',
+              'reasoning_effort': 'high',
+              'chat_template_kwargs': {'custom': 42},
+            });
+        expect(result['reasoning_effort'], 'high');
+        expect(result['chat_template_kwargs'], {
+          'custom': 42,
+          'enable_thinking': enabled,
+        });
+      }
+    });
+
     test('leaves other models untouched', () {
       const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'medium');
-      expect(
-        policy.resolve(model: 'gpt-5.6-luna', maxTokens: 1200),
-        isNull,
-      );
+      expect(policy.resolve(model: 'gpt-5.6-luna', maxTokens: 1200), isNull);
     });
 
     test('medium effort enables thinking and raises a small chat budget', () {

@@ -549,6 +549,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateEnableThinking(bool? value) async {
+    state = state.copyWith(enableThinking: value);
+    await _repository.save(state);
+  }
+
   Future<void> updateReasoningEffort(
     ReasoningEffortPreference reasoningEffort,
   ) async {

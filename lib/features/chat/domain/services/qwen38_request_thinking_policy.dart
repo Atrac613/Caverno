@@ -1,9 +1,12 @@
 import '../../../../core/constants/api_constants.dart';
 import '../entities/model_usage_role.dart';
 
-/// Wire-level request overrides for Qwen3.8's llama.cpp chat template.
+/// Applies explicit template thinking preferences and Qwen3.8 defaults.
 final class Qwen38RequestThinkingPolicy {
-  const Qwen38RequestThinkingPolicy({this.reasoningEffort});
+  const Qwen38RequestThinkingPolicy({
+    this.reasoningEffort,
+    this.enableThinking,
+  });
 
   static const int mediumMinimumMaxTokens = 1536;
 
@@ -25,6 +28,9 @@ final class Qwen38RequestThinkingPolicy {
 
   final String? reasoningEffort;
 
+  /// Null preserves the model-specific automatic behavior.
+  final bool? enableThinking;
+
   static bool suppressesThinking(ModelUsageRole role) =>
       _structuredUtilityRoles.contains(role);
 
@@ -34,10 +40,16 @@ final class Qwen38RequestThinkingPolicy {
     ModelUsageRole role = ModelUsageRole.unknown,
   }) {
     if (model.trim() != ApiConstants.qwen38VisionModel) {
-      return null;
+      return enableThinking == null
+          ? null
+          : Qwen38RequestOverrides(
+              maxTokens: maxTokens,
+              chatTemplateKwargs: {'enable_thinking': enableThinking!},
+              preserveReasoningEffort: true,
+            );
     }
 
-    if (suppressesThinking(role)) {
+    if (suppressesThinking(role) || enableThinking == false) {
       return Qwen38RequestOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: const {'enable_thinking': false},
@@ -62,7 +74,7 @@ final class Qwen38RequestThinkingPolicy {
       ),
       _ => Qwen38RequestOverrides(
         maxTokens: maxTokens,
-        chatTemplateKwargs: const {'enable_thinking': false},
+        chatTemplateKwargs: {'enable_thinking': enableThinking ?? false},
       ),
     };
   }
@@ -79,19 +91,24 @@ final class Qwen38RequestOverrides {
   const Qwen38RequestOverrides({
     required this.maxTokens,
     required this.chatTemplateKwargs,
+    this.preserveReasoningEffort = false,
   });
 
+  final bool preserveReasoningEffort;
   final int? maxTokens;
   final Map<String, dynamic> chatTemplateKwargs;
 
   Map<String, dynamic> applyTo(Map<String, dynamic> body) {
-    final result = Map<String, dynamic>.of(body)
-      ..remove('reasoning_effort')
-      ..remove('max_tokens');
+    final result = Map<String, dynamic>.of(body)..remove('max_tokens');
     if (maxTokens != null) {
       result['max_tokens'] = maxTokens;
     }
-    result['chat_template_kwargs'] = chatTemplateKwargs;
+    if (!preserveReasoningEffort) result.remove('reasoning_effort');
+    result['chat_template_kwargs'] = {
+      if (body['chat_template_kwargs'] is Map)
+        ...Map<String, dynamic>.from(body['chat_template_kwargs'] as Map),
+      ...chatTemplateKwargs,
+    };
     return result;
   }
 }

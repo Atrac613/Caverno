@@ -1039,6 +1039,29 @@ void main() {
     );
   });
 
+  testWidgets('persists thinking from the composer model menu', (tester) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+    final preferences = await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      modelCatalog: const [ModelCatalogEntry(id: 'model-a')],
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('composer-model-chip')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SubmenuButton, 'enable_thinking'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'Off'));
+    await tester.pumpAndSettle();
+    final stored = AppSettings.fromJson(
+      jsonDecode(preferences.getString('app_settings')!)
+          as Map<String, dynamic>,
+    );
+    expect(stored.enableThinking, isFalse);
+  });
+
   testWidgets('sets reasoning effort from the same composer chip', (
     tester,
   ) async {

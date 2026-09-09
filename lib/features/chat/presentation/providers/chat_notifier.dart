@@ -446,6 +446,7 @@ class ChatNotifier extends Notifier<ChatState> {
           baseUrl: baseUrl,
           apiKey: apiKey,
           reasoningEffort: _settings.reasoningEffort.apiValue,
+          enableThinking: _settings.enableThinking,
         ),
         _settings,
       ),
