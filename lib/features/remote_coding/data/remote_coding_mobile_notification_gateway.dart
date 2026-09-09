@@ -43,7 +43,17 @@ final class FirebaseRemoteCodingMobileNotificationGateway
     FirebaseMessaging? messaging,
     FirebaseAppCheck? appCheck,
   }) : _messaging = messaging,
-       _appCheck = appCheck;
+       _appCheck = appCheck,
+       _firebaseInitializerForTest = null;
+
+  @visibleForTesting
+  FirebaseRemoteCodingMobileNotificationGateway.forTesting({
+    required FirebaseMessaging messaging,
+    required Future<void> Function() initializeFirebase,
+  }) : _messaging = messaging,
+       _firebaseInitializerForTest = initializeFirebase;
+
+  final Future<void> Function()? _firebaseInitializerForTest;
 
   static const bool _useDebugAppCheck = bool.fromEnvironment(
     'CAVERNO_FIREBASE_APP_CHECK_DEBUG',
@@ -55,6 +65,9 @@ final class FirebaseRemoteCodingMobileNotificationGateway
 
   @override
   RemoteCodingRelayPlatform? get platform {
+    if (_firebaseInitializerForTest != null) {
+      return RemoteCodingRelayPlatform.ios;
+    }
     if (kIsWeb) {
       return null;
     }
@@ -74,8 +87,18 @@ final class FirebaseRemoteCodingMobileNotificationGateway
         'Remote coding push notifications require iOS or Android.',
       );
     }
-    _initialization ??= _initializeFirebase();
-    await _initialization;
+    final initialization = _initialization ??=
+        (_firebaseInitializerForTest ?? _initializeFirebase)();
+    try {
+      await initialization;
+    } catch (_) {
+      // Share one attempt, but do not cache a failed initialization forever.
+      // An older waiter must not discard a newer retry.
+      if (identical(_initialization, initialization)) {
+        _initialization = null;
+      }
+      rethrow;
+    }
     final settings = await _requireMessaging().getNotificationSettings();
     return _mapAuthorizationStatus(settings.authorizationStatus);
   }
