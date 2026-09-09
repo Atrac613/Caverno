@@ -458,7 +458,11 @@ final class RemoteCodingRelayRevocationRequest {
 final class RemoteCodingRelayDeliveryRequest {
   const RemoteCodingRelayDeliveryRequest({required this.notification});
 
-  final RemoteCodingNotificationPayload notification;
+  /// Either notification shape. Typed to the interface rather than to the run
+  /// payload so that adding a shape does not reopen the transport, the
+  /// signing, or the retry policy — all of which are indifferent to which one
+  /// they carry.
+  final RemoteCodingRelayNotification notification;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'schemaVersion': RemoteCodingNotificationRelayContract.schemaVersion,
@@ -472,7 +476,7 @@ final class RemoteCodingRelayDeliveryRequest {
       throw const FormatException('Relay notification payload is required.');
     }
     return RemoteCodingRelayDeliveryRequest(
-      notification: RemoteCodingNotificationPayload.fromFcmData(
+      notification: parseRemoteCodingRelayNotification(
         Map<String, dynamic>.from(notification),
       ),
     );

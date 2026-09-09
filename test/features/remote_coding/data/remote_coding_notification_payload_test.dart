@@ -1,4 +1,5 @@
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_grant_kinds.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -92,6 +93,180 @@ void main() {
           _validData()..['completedAt'] = 'not-a-timestamp',
         ),
         throwsFormatException,
+      );
+    });
+  });
+
+  group('RemoteCodingApprovalNotificationPayload', () {
+    RemoteCodingApprovalNotificationPayload build({
+      String approvalKind = 'localCommand',
+      bool hasWarning = false,
+      String hostName = "Osamu's MacBook Pro",
+    }) => RemoteCodingApprovalNotificationPayload.forApproval(
+      eventId: 'event-9',
+      approvalId: 'approval-3',
+      conversationId: 'conversation-7',
+      approvalKind: approvalKind,
+      hasWarning: hasWarning,
+      hostName: hostName,
+      requestedAt: DateTime.utc(2026, 9, 9, 4, 15),
+    );
+
+    test('round-trips the allowlisted FCM data', () {
+      final encoded = build().toFcmData();
+
+      expect(encoded, <String, String>{
+        'kind': 'remote_coding_approval_requested',
+        'schemaVersion': '1',
+        'eventId': 'event-9',
+        'approvalId': 'approval-3',
+        'conversationId': 'conversation-7',
+        'approvalKind': 'localCommand',
+        'hasWarning': 'false',
+        'title': 'Caverno needs your approval',
+        'body': "Osamu's MacBook Pro is waiting on a shell command.",
+        'requestedAt': '2026-09-09T04:15:00.000Z',
+      });
+
+      final decoded = RemoteCodingApprovalNotificationPayload.fromFcmData(
+        encoded,
+      );
+      expect(decoded.approvalId, 'approval-3');
+      expect(decoded.approvalKind, 'localCommand');
+      expect(decoded.hasWarning, isFalse);
+      expect(decoded.requestedAt, DateTime.utc(2026, 9, 9, 4, 15));
+    });
+
+    test('carries no request detail, whatever the request said', () {
+      // The privacy boundary this payload exists to hold. A lock screen is the
+      // least private surface the app has, and the relay is the only place
+      // Caverno data leaves the machine, so the encoded form must be a pure
+      // function of the kind, the flag, and the host name — never of the
+      // command, its target, or the warning prose.
+      final encoded = build(hasWarning: true).toFcmData();
+      final wire = encoded.values.join(' ');
+
+      for (final secret in const <String>[
+        'rm -rf /Users/dev/scratch',
+        '/Users/dev/caverno',
+        'Recursive file deletion',
+        'This command can permanently remove files or directories.',
+      ]) {
+        expect(
+          wire,
+          isNot(contains(secret)),
+          reason: 'the wire must not carry $secret',
+        );
+      }
+      expect(
+        encoded.keys.toSet(),
+        <String>{
+          'kind',
+          'schemaVersion',
+          'eventId',
+          'approvalId',
+          'conversationId',
+          'approvalKind',
+          'hasWarning',
+          'title',
+          'body',
+          'requestedAt',
+        },
+        reason: 'a new key here is a privacy-boundary change',
+      );
+    });
+
+    test('says to review the request when a warning is attached', () {
+      expect(build(hasWarning: true).body, contains('Review it'));
+      expect(build().body, isNot(contains('Review it')));
+    });
+
+    test('names the host, and clamps one that would not fit', () {
+      expect(build(hostName: '   ').body, startsWith('Your Mac is waiting'));
+      final long = build(hostName: 'M' * 80).body;
+      expect(long, contains('\u2026'));
+      expect(long.length, lessThan(80));
+    });
+
+    test('phrases every kind the desktop may grant', () {
+      // A kind with no phrase would read "is waiting on an approval", which
+      // says less than the sheet the person is being asked to open.
+      for (final kind in RemoteCodingGrantKinds.all) {
+        expect(
+          build(approvalKind: kind).body,
+          isNot(contains('is waiting on an approval')),
+          reason: '$kind has no phrase',
+        );
+      }
+    });
+
+    test('refuses a kind the desktop cannot grant, in both directions', () {
+      expect(
+        () => build(approvalKind: 'somethingElse'),
+        throwsA(isA<FormatException>()),
+      );
+      final encoded = build().toFcmData();
+      expect(
+        () => RemoteCodingApprovalNotificationPayload.fromFcmData({
+          ...encoded,
+          'approvalKind': 'somethingElse',
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('refuses a warning flag that is not a boolean', () {
+      final encoded = build().toFcmData();
+      expect(
+        () => RemoteCodingApprovalNotificationPayload.fromFcmData({
+          ...encoded,
+          'hasWarning': 'maybe',
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  });
+
+  group('parseRemoteCodingRelayNotification', () {
+    test('dispatches on kind and names an unknown one', () {
+      final terminal = RemoteCodingNotificationPayload(
+        eventId: 'event-1',
+        turnId: 'gen-42',
+        conversationId: 'conversation-7',
+        outcome: RemoteCodingNotificationOutcome.failed,
+        title: 'Remote coding failed',
+        body: 'Open Caverno to review the failure.',
+        completedAt: DateTime.utc(2026, 8, 10),
+      );
+      final approval = RemoteCodingApprovalNotificationPayload.forApproval(
+        eventId: 'event-9',
+        approvalId: 'approval-3',
+        conversationId: 'conversation-7',
+        approvalKind: 'askUserQuestion',
+        hasWarning: false,
+        hostName: 'Mac',
+        requestedAt: DateTime.utc(2026, 9, 9),
+      );
+
+      expect(
+        parseRemoteCodingRelayNotification(terminal.toFcmData()),
+        isA<RemoteCodingNotificationPayload>(),
+      );
+      expect(
+        parseRemoteCodingRelayNotification(approval.toFcmData()),
+        isA<RemoteCodingApprovalNotificationPayload>(),
+      );
+      expect(
+        () => parseRemoteCodingRelayNotification(<String, dynamic>{
+          'kind': 'remote_coding_something_new',
+        }),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('remote_coding_something_new'),
+          ),
+        ),
       );
     });
   });

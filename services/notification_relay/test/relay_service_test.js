@@ -293,6 +293,109 @@ test("delivery rejects fields outside the privacy allowlist", async () => {
   assert.equal(fixture.provider.attemptCount, 0);
 });
 
+
+test("delivery forwards an approval notice", async () => {
+  const fixture = await activeCredentialFixture();
+
+  await fixture.service.deliver(
+    signedContext({
+      method: "POST",
+      path: `/v2/registrations/${fixture.registration.deliveryHandle}/deliveries`,
+      body: approvalDeliveryBody(fixture.now),
+      deliveryHandle: fixture.registration.deliveryHandle,
+      keyId: fixture.credential.deliveryKeyId,
+      secret: fixture.credential.deliverySecret,
+      now: fixture.now,
+      nonce: "nonce_approval_ok",
+    }),
+  );
+
+  assert.equal(fixture.provider.attemptCount, 1);
+  const sent = fixture.provider.messages.at(-1).data;
+  assert.equal(sent.kind, "remote_coding_approval_requested");
+  assert.equal(sent.approvalKind, "localCommand");
+  assert.equal(sent.hasWarning, "true");
+  assert.equal(sent.approvalId, "approval_1234567");
+});
+
+test("delivery rejects an approval carrying request detail", async () => {
+  // The privacy boundary. The relay re-validates rather than trusting the
+  // desktop, so a desktop that starts sending the command text is rejected
+  // here instead of forwarding it to a lock screen.
+  const fixture = await activeCredentialFixture();
+  const body = approvalDeliveryBody(fixture.now);
+  body.notification.command = "rm -rf /Users/dev/scratch";
+
+  await assert.rejects(
+    fixture.service.deliver(
+      signedContext({
+        method: "POST",
+        path: `/v2/registrations/${fixture.registration.deliveryHandle}/deliveries`,
+        body,
+        deliveryHandle: fixture.registration.deliveryHandle,
+        keyId: fixture.credential.deliveryKeyId,
+        secret: fixture.credential.deliverySecret,
+        now: fixture.now,
+        nonce: "nonce_approval_detail",
+      }),
+    ),
+    (error) => error instanceof RelayError && error.code === "invalid_request",
+  );
+  assert.equal(fixture.provider.attemptCount, 0);
+});
+
+test("delivery rejects an approval kind the relay does not know", async () => {
+  const fixture = await activeCredentialFixture();
+
+  for (const [index, overrides] of [
+    { approvalKind: "somethingElse" },
+    { hasWarning: "maybe" },
+    { schemaVersion: "2" },
+  ].entries()) {
+    await assert.rejects(
+      fixture.service.deliver(
+        signedContext({
+          method: "POST",
+          path: `/v2/registrations/${fixture.registration.deliveryHandle}/deliveries`,
+          body: approvalDeliveryBody(fixture.now, overrides),
+          deliveryHandle: fixture.registration.deliveryHandle,
+          keyId: fixture.credential.deliveryKeyId,
+          secret: fixture.credential.deliverySecret,
+          now: fixture.now,
+          nonce: `nonce_approval_bad_${index}`,
+        }),
+      ),
+      (error) =>
+        error instanceof RelayError && error.code === "invalid_request",
+    );
+  }
+  assert.equal(fixture.provider.attemptCount, 0);
+});
+
+test("delivery rejects a notification kind the relay does not know", async () => {
+  const fixture = await activeCredentialFixture();
+  const body = approvalDeliveryBody(fixture.now, {
+    kind: "remote_coding_something_new",
+  });
+
+  await assert.rejects(
+    fixture.service.deliver(
+      signedContext({
+        method: "POST",
+        path: `/v2/registrations/${fixture.registration.deliveryHandle}/deliveries`,
+        body,
+        deliveryHandle: fixture.registration.deliveryHandle,
+        keyId: fixture.credential.deliveryKeyId,
+        secret: fixture.credential.deliverySecret,
+        now: fixture.now,
+        nonce: "nonce_unknown_kind",
+      }),
+    ),
+    (error) => error instanceof RelayError && error.code === "invalid_request",
+  );
+  assert.equal(fixture.provider.attemptCount, 0);
+});
+
 async function activeCredentialFixture() {
   const now = new Date("2026-08-10T12:00:00.000Z");
   const store = new MemoryRelayStore();
@@ -423,6 +526,25 @@ function signedContext({
       "x-caverno-relay-timestamp": String(timestampSeconds),
       "x-caverno-relay-nonce": nonce,
       "x-caverno-relay-signature": signature,
+    },
+  };
+}
+
+function approvalDeliveryBody(now, overrides = {}) {
+  return {
+    schemaVersion: 2,
+    notification: {
+      kind: "remote_coding_approval_requested",
+      schemaVersion: "1",
+      eventId: "event_654321",
+      approvalId: "approval_1234567",
+      conversationId: "conversation_123",
+      approvalKind: "localCommand",
+      hasWarning: "true",
+      title: "Caverno needs your approval",
+      body: "Your Mac is waiting on a shell command. Review it before approving.",
+      requestedAt: now.toISOString(),
+      ...overrides,
     },
   };
 }

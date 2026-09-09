@@ -46,7 +46,7 @@ void main() {
         deliverySecret: 'secret_2',
       );
       relayClient.transientFailuresByHandle['handle_device_1'] = 2;
-      final service = RemoteCodingTerminalNotificationDeliveryService(
+      final service = RemoteCodingRelayNotificationDeliveryService(
         repository: repository,
         relayClient: relayClient,
         clock: () => now,
@@ -89,7 +89,7 @@ void main() {
         deliverySecret: 'secret_rejected',
       );
       relayClient.statusByHandle['handle_device_rejected'] = 401;
-      final service = RemoteCodingTerminalNotificationDeliveryService(
+      final service = RemoteCodingRelayNotificationDeliveryService(
         repository: repository,
         relayClient: relayClient,
         clock: () => now,
@@ -116,7 +116,7 @@ void main() {
       deliverySecret: 'secret_replay',
     );
     relayClient.statusByHandle['handle_device_replay'] = 409;
-    final service = RemoteCodingTerminalNotificationDeliveryService(
+    final service = RemoteCodingRelayNotificationDeliveryService(
       repository: repository,
       relayClient: relayClient,
       clock: () => now,
@@ -170,7 +170,7 @@ final class _FakeRelayClient implements RemoteCodingNotificationRelayClient {
   final Map<String, int> transientFailuresByHandle = <String, int>{};
   final Map<String, int> statusByHandle = <String, int>{};
   final Map<String, int> attemptsByHandle = <String, int>{};
-  final List<RemoteCodingNotificationPayload> notifications =
+  final List<RemoteCodingRelayNotification> notifications =
       <RemoteCodingNotificationPayload>[];
 
   @override

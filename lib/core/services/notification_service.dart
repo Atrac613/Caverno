@@ -44,6 +44,8 @@ class NotificationService {
 
   static const remoteCodingChannelId = 'remote_coding_completion';
   static const remoteCodingChannelName = 'Remote Coding Completion';
+  static const approvalChannelId = 'approval_required';
+  static const approvalChannelName = 'Approval Required';
 
   /// Category carrying Approve/Deny. Registering it is what makes the buttons
   /// appear on the lock screen and, because iOS forwards notifications and
@@ -305,8 +307,8 @@ class NotificationService {
       id: conversationId.hashCode & 0x7fffffff,
       title: title,
       body: body,
-      channelId: 'approval_required',
-      channelName: 'Approval Required',
+      channelId: approvalChannelId,
+      channelName: approvalChannelName,
       payload: jsonEncode({
         'kind': 'approval_required',
         'conversationId': conversationId,
@@ -411,6 +413,19 @@ class NotificationService {
         remoteCodingChannelId,
         remoteCodingChannelName,
         importance: Importance.defaultImportance,
+      ),
+    );
+    // Created here, not left to the first local notification. A push that
+    // arrives while the app is terminated is posted by the system, and Android
+    // drops a notification naming a channel that does not exist yet onto the
+    // manifest default — which is the completion channel, so a blocked turn
+    // would arrive silently under "Remote Coding Completion". High importance
+    // because the desktop is standing still until this is answered.
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        approvalChannelId,
+        approvalChannelName,
+        importance: Importance.high,
       ),
     );
   }

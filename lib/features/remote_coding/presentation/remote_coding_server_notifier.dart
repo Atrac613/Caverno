@@ -180,6 +180,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           next.pendingAskUserQuestion?.id;
       if (approvalChanged) {
         _broadcastSnapshot('approvalRequested');
+        unawaited(_deliverApprovalNotification(next));
       } else if (questionChanged) {
         _broadcastSnapshot('questionRequested');
       } else {
@@ -1666,16 +1667,102 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     unawaited(_deliverTerminalNotification(payload));
   }
 
+  /// Pushes a blocked turn to the devices entitled to answer it.
+  ///
+  /// The socket already carries this to a *connected* phone, which raises a
+  /// local notification from it. That path stops at the app being alive: iOS
+  /// suspends a backgrounded app within seconds and tears the socket down, so
+  /// a person who put the phone in their pocket learns nothing until they open
+  /// the app again. Only a push reaches a suspended device.
+  ///
+  /// Delivery is gated by [_canResolveInteraction] per device, exactly as the
+  /// snapshot is. A device that may not answer this kind must not learn that
+  /// the approval exists, and would be shown buttons that resolve nothing.
+  Future<void> _deliverApprovalNotification(ChatState chatState) async {
+    final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+    if (relayClient == null) {
+      return;
+    }
+    final request = pendingApprovalsByPriority(chatState).firstOrNull;
+    if (request == null) {
+      // Resolved or withdrawn. A connected phone withdraws its own
+      // notification off the snapshot, and a pushed one is replaced by the
+      // next delivery for the same approval id.
+      return;
+    }
+    final summary = describePendingApproval(request);
+    if (summary.id.isEmpty) {
+      return;
+    }
+    final now = DateTime.now().toUtc();
+    final entitled = state.settings.pairedDevices
+        .where(
+          (device) => _canResolveInteraction(
+            origin: summary.origin,
+            ownerDeviceId: summary.remoteDeviceId,
+            authenticatedDeviceId: device.id,
+            kind: summary.kind,
+          ),
+        )
+        .toList(growable: false);
+    if (entitled.isEmpty) {
+      return;
+    }
+
+    final RemoteCodingApprovalNotificationPayload payload;
+    try {
+      payload = RemoteCodingApprovalNotificationPayload.forApproval(
+        eventId: _uuid.v4(),
+        approvalId: summary.id,
+        conversationId: summary.conversationId,
+        approvalKind: summary.kind,
+        hasWarning: summary.warning?.trim().isNotEmpty ?? false,
+        // The same name pairing advertises, so the push names the machine the
+        // way the phone already lists it.
+        hostName: Platform.localHostname,
+        requestedAt: now,
+      );
+    } on FormatException catch (error) {
+      // A kind the payload cannot phrase. Better a log than a push reading
+      // "is waiting on an approval", which says less than opening the app.
+      appLog('[RemoteCodingRelay] approval notice not built: $error');
+      return;
+    }
+
+    try {
+      await RemoteCodingRelayNotificationDeliveryService(
+        repository: _repository,
+        relayClient: relayClient,
+        clock: DateTime.now,
+      ).deliver(notification: payload, devices: entitled);
+    } catch (error, stackTrace) {
+      // Best effort. The socket path and the desktop's own dialog both still
+      // work, and a failed push must never block the turn.
+      appLog(
+        '[RemoteCodingRelay] approval delivery failed: $error\n$stackTrace',
+      );
+    }
+  }
+
   Future<void> _deliverTerminalNotification(
     RemoteCodingNotificationPayload notification,
   ) async {
     final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
     if (relayClient == null) {
+      // Say so instead of returning silently. A build without
+      // CAVERNO_NOTIFICATION_RELAY_URL looks identical to a healthy one from
+      // the desktop: pairing succeeds, runs complete, and no push is ever
+      // attempted. Leaving no trace here made that indistinguishable from an
+      // FCM or APNs fault during device testing.
+      appLog(
+        '[RemoteCodingRelay] skipped delivery: no relay origin is configured '
+        '(CAVERNO_NOTIFICATION_RELAY_URL missing from this build).',
+      );
       return;
     }
     try {
       final report =
-          await RemoteCodingTerminalNotificationDeliveryService(
+          await RemoteCodingRelayNotificationDeliveryService(
             repository: _repository,
             relayClient: relayClient,
             clock: DateTime.now,

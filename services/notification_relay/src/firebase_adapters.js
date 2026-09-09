@@ -39,7 +39,23 @@ export class FirebaseMessagingProvider {
   }
 }
 
+// A completion can wait; a blocked turn is the desktop standing still until
+// the person answers. They are separate Android channels so that silencing the
+// first does not silence the second, and the app creates both before it
+// registers for delivery — a channel that does not exist yet when a push
+// arrives at a terminated app is dropped to the manifest default.
+const NOTIFICATION_CHANNELS = {
+  remote_coding_run_terminal: "remote_coding_completion",
+  remote_coding_approval_requested: "approval_required",
+};
+
 export function buildFirebaseMessage({ token, data }) {
+  const channelId =
+    NOTIFICATION_CHANNELS[data.kind] ?? "remote_coding_completion";
+  // Collapse on the approval rather than the event, so a re-raise of the same
+  // request replaces its notification instead of stacking a second one the
+  // person could answer twice.
+  const collapseId = data.approvalId ?? data.eventId;
   return {
     token,
     data,
@@ -49,22 +65,28 @@ export function buildFirebaseMessage({ token, data }) {
     },
     android: {
       priority: "high",
-      collapseKey: data.eventId,
+      collapseKey: collapseId,
       notification: {
-        channelId: "remote_coding_completion",
-        tag: data.eventId,
+        channelId,
+        tag: collapseId,
       },
     },
     apns: {
       headers: {
         "apns-push-type": "alert",
         "apns-priority": "10",
-        "apns-collapse-id": data.eventId,
+        "apns-collapse-id": collapseId,
       },
       payload: {
         aps: {
           sound: "default",
           "thread-id": data.conversationId,
+          // Lets the app answer from the notification itself. The category is
+          // registered natively; iOS shows no buttons when it is absent, which
+          // is the correct degradation for a build that predates it.
+          ...(data.kind === "remote_coding_approval_requested"
+            ? { category: "caverno_approval" }
+            : {}),
         },
       },
     },
