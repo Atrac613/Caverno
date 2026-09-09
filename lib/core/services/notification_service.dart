@@ -53,6 +53,11 @@ class NotificationService {
   /// watchOS code involved. That is the fallback path for when the watch app
   /// itself is not running.
   static const approvalCategoryId = 'caverno_approval';
+
+  /// The pushed variant, whose actions launch the app in the foreground.
+  /// Separate from [approvalCategoryId] because the right answer differs
+  /// by whether the app is running, and only the sender knows that.
+  static const pushApprovalCategoryId = 'caverno_approval_push';
   static const approveActionId = 'caverno_approve';
   static const denyActionId = 'caverno_deny';
 
@@ -99,6 +104,10 @@ class NotificationService {
       requestSoundPermission: false,
       requestBadgePermission: false,
       notificationCategories: [
+        // Raised by a running app. The process is alive, so a background
+        // action reaches a live isolate and the person never leaves the
+        // screen they were on — which is also what lets a paired Apple Watch
+        // resolve one on the wrist.
         DarwinNotificationCategory(
           approvalCategoryId,
           actions: [
@@ -111,6 +120,32 @@ class NotificationService {
           ],
           // The buttons must be reachable without unlocking, or the feature
           // solves nothing that opening the app does not already solve.
+          options: {DarwinNotificationCategoryOption.hiddenPreviewShowTitle},
+        ),
+        // Delivered by push, which happens precisely when the app is not
+        // running. A background action there makes iOS cold-launch the app
+        // headless to service it, and a Flutter app cannot be serviced that
+        // way: the scene fails to create and the process takes SIGSEGV about
+        // 60ms in, so the button silently does nothing. Foreground actions
+        // launch the app properly, which is also what the answer needs — it
+        // has to reconnect to the desktop before it can resolve anything.
+        DarwinNotificationCategory(
+          pushApprovalCategoryId,
+          actions: [
+            DarwinNotificationAction.plain(
+              approveActionId,
+              'Approve',
+              options: {DarwinNotificationActionOption.foreground},
+            ),
+            DarwinNotificationAction.plain(
+              denyActionId,
+              'Deny',
+              options: {
+                DarwinNotificationActionOption.destructive,
+                DarwinNotificationActionOption.foreground,
+              },
+            ),
+          ],
           options: {DarwinNotificationCategoryOption.hiddenPreviewShowTitle},
         ),
       ],

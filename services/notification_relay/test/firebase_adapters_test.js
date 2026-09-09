@@ -56,7 +56,10 @@ test("an approval push takes its own channel, collapse key and category", () => 
   });
 
   assert.equal(message.android.notification.channelId, "approval_required");
-  assert.equal(message.apns.payload.aps.category, "caverno_approval");
+  assert.equal(
+    message.apns.payload.aps.category,
+    "caverno_approval_push",
+  );
   // Collapsed on the approval, so re-raising the same request replaces its
   // notification rather than stacking a second answerable copy.
   assert.equal(message.android.collapseKey, "approval_1234567");

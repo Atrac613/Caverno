@@ -81,11 +81,15 @@ export function buildFirebaseMessage({ token, data }) {
         aps: {
           sound: "default",
           "thread-id": data.conversationId,
-          // Lets the app answer from the notification itself. The category is
-          // registered natively; iOS shows no buttons when it is absent, which
-          // is the correct degradation for a build that predates it.
+          // Lets the app answer from the notification itself. Its actions
+          // launch the app in the foreground, unlike the category the app uses
+          // for its own local notifications: a push arrives when the app is not
+          // running, and a background action then makes iOS cold-launch a
+          // Flutter app headless, which crashes it. iOS shows no buttons when
+          // the category is absent, which is the correct degradation for a
+          // build that predates it.
           ...(data.kind === "remote_coding_approval_requested"
-            ? { category: "caverno_approval" }
+            ? { category: "caverno_approval_push" }
             : {}),
         },
       },
