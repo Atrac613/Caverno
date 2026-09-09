@@ -72,6 +72,7 @@ class RemoteCodingProtocol {
     'resolveQuestion',
     'requestSnapshot',
     'relayDelegationReady',
+    'requestNotificationRelay',
   };
 
   static const Set<String> allowedServerEvents = {

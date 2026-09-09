@@ -25,6 +25,7 @@ import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart'
 import 'package:caverno/features/remote_coding/domain/remote_coding_resource_policy.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_session_policy.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -226,7 +227,27 @@ final class _ProvisioningRelayClient
     implements RemoteCodingNotificationRelayClient {
   int redemptionCount = 0;
   int activationCount = 0;
+  int delegationCount = 0;
+  int activationFailures = 0;
+  Completer<void>? delegationBarrier;
   RemoteCodingRelayDelegationRedemptionRequest? redemptionRequest;
+
+  @override
+  Future<RemoteCodingRelayDelegationCreationResponse> createDelegation({
+    required String deliveryHandle,
+    required String managementKeyId,
+    required String managementSecret,
+    required RemoteCodingRelayDelegationCreationRequest request,
+  }) async {
+    delegationCount++;
+    await delegationBarrier?.future;
+    return RemoteCodingRelayDelegationCreationResponse(
+      delegationId: 'delegation-$delegationCount',
+      challengeId: request.challengeId,
+      targetDeviceId: request.targetDeviceId,
+      expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 2)),
+    );
+  }
 
   @override
   Future<RemoteCodingRelayDelegationRedemptionResponse> redeemDelegation({
@@ -253,6 +274,10 @@ final class _ProvisioningRelayClient
     required RemoteCodingRelayDelegationActivationRequest request,
   }) async {
     activationCount += 1;
+    if (activationFailures > 0) {
+      activationFailures--;
+      throw StateError('Relay activation unavailable');
+    }
   }
 
   @override
@@ -1276,116 +1301,321 @@ void main() {
     },
   );
 
-  test('authenticated device completes relay redemption over HTTPS', () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final port = await _unusedPort();
-    const rawToken = 'mobile-token';
-    final secureStore = _MemorySecureStore();
-    final repository = RemoteCodingRepository(prefs, secureStore: secureStore);
-    final relayClient = _ProvisioningRelayClient();
-    final device = RemoteCodingPairedDevice(
-      id: 'device-1',
-      name: 'Phone',
-      tokenHash: RemoteCodingSecurity.hashToken(rawToken),
-      createdAt: DateTime.now(),
-      lastSeenAt: DateTime.now(),
-    );
-    await repository.saveServerSettings(
-      RemoteCodingServerSettings(
-        enabled: true,
-        port: port,
-        pairedDevices: [device],
-      ),
-    );
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        remoteCodingRepositoryProvider.overrideWithValue(repository),
-        remoteCodingNotificationRelayClientProvider.overrideWithValue(
-          relayClient,
-        ),
-        codingProjectsNotifierProvider.overrideWith(
-          _TestCodingProjectsNotifier.new,
-        ),
-        conversationsNotifierProvider.overrideWith(
-          _TestConversationsNotifier.new,
-        ),
-        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
-      ],
-    );
+  for (final integrated in [false, true]) {
+    test(
+      'authenticated device completes relay redemption (integrated: $integrated)',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final port = await _unusedPort();
+        const rawToken = 'mobile-token';
+        final secureStore = _MemorySecureStore();
+        final repository = RemoteCodingRepository(
+          prefs,
+          secureStore: secureStore,
+        );
+        final relayClient = _ProvisioningRelayClient();
+        final device = RemoteCodingPairedDevice(
+          id: 'device-1',
+          name: 'Phone',
+          tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+          createdAt: DateTime.now(),
+          lastSeenAt: DateTime.now(),
+        );
+        await repository.saveServerSettings(
+          RemoteCodingServerSettings(
+            enabled: true,
+            port: port,
+            pairedDevices: [device],
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            remoteCodingRepositoryProvider.overrideWithValue(repository),
+            remoteCodingNotificationRelayClientProvider.overrideWithValue(
+              relayClient,
+            ),
+            codingProjectsNotifierProvider.overrideWith(
+              _TestCodingProjectsNotifier.new,
+            ),
+            conversationsNotifierProvider.overrideWith(
+              _TestConversationsNotifier.new,
+            ),
+            chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+          ],
+        );
 
-    WebSocket? socket;
-    StreamSubscription<dynamic>? subscription;
-    final messages = <RemoteCodingProtocolMessage>[];
-    try {
-      container.read(remoteCodingServerProvider);
-      await _waitUntil(
-        () => container.read(remoteCodingServerProvider).isRunning,
-      );
-      final qr = await container
-          .read(remoteCodingServerProvider.notifier)
-          .createNotificationRelayPairingPayload(device.id);
-      expect(qr, isNotNull);
+        WebSocket? socket;
+        StreamSubscription<dynamic>? subscription;
+        final messages = <RemoteCodingProtocolMessage>[];
+        try {
+          container.read(remoteCodingServerProvider);
+          await _waitUntil(
+            () => container.read(remoteCodingServerProvider).isRunning,
+          );
+          final qr = integrated
+              ? null
+              : await container
+                    .read(remoteCodingServerProvider.notifier)
+                    .createNotificationRelayPairingPayload(device.id);
+          String? challengeId = qr?.challengeId;
+          String? challengeDigest = qr?.challengeDigest;
 
-      socket = await _connectPinned(container, port);
-      subscription = socket.listen((raw) {
-        if (raw is String) {
-          messages.add(RemoteCodingProtocolMessage.decode(raw));
+          socket = await _connectPinned(container, port);
+          subscription = socket.listen((raw) {
+            if (raw is String) {
+              messages.add(RemoteCodingProtocolMessage.decode(raw));
+            }
+          });
+          final challenge = await _waitForChallenge(messages);
+          socket.add(
+            RemoteCodingProtocol.encode(
+              type: 'requestNotificationRelay',
+              id: 'unauthenticated-setup',
+              payload: const {},
+            ),
+          );
+          await _waitUntil(
+            () => messages.any((m) => m.id == 'unauthenticated-setup'),
+          );
+          expect(
+            messages
+                .firstWhere((m) => m.id == 'unauthenticated-setup')
+                .payload['code'],
+            'unauthorized',
+          );
+
+          _sendChallengedAuth(
+            socket,
+            id: 'auth-relay',
+            challenge: challenge,
+            certificatePin: _certificatePin(container),
+            credential: rawToken,
+            token: rawToken,
+          );
+          await _waitUntil(
+            () => messages.any((message) => message.id == 'auth-relay'),
+          );
+          if (integrated) {
+            socket.add(
+              RemoteCodingProtocol.encode(
+                type: 'requestNotificationRelay',
+                id: 'wrong-target',
+                payload: {'targetDeviceId': 'another-device'},
+              ),
+            );
+            await _waitUntil(() => messages.any((m) => m.id == 'wrong-target'));
+            expect(
+              messages.firstWhere((m) => m.id == 'wrong-target').type,
+              'error',
+            );
+            socket.add(
+              RemoteCodingProtocol.encode(
+                type: 'requestNotificationRelay',
+                id: 'setup',
+                payload: const {},
+              ),
+            );
+            await _waitUntil(() => messages.any((m) => m.id == 'setup'));
+            final setup = messages.firstWhere((m) => m.id == 'setup');
+            final data =
+                setup.payload['notificationRelayChallenge']
+                    as Map<String, dynamic>;
+            expect(data['targetDeviceId'], device.id);
+            expect(data.containsKey('challengeSecret'), isFalse);
+            challengeId = data['challengeId'] as String;
+            challengeDigest = data['challengeDigest'] as String;
+            expect(
+              container.read(remoteCodingServerProvider).relayPairingPayload,
+              isNull,
+            );
+          }
+          socket.add(
+            RemoteCodingProtocol.encode(
+              type: 'relayDelegationReady',
+              id: 'relay-ready',
+              payload: RemoteCodingRelayDelegationReadyMessage(
+                challengeId: challengeId!,
+                delegationId: 'delegation-1',
+                expiresAt: DateTime.now().toUtc().add(
+                  const Duration(minutes: 2),
+                ),
+              ).toPayload(),
+            ),
+          );
+          await _waitUntil(
+            () => messages.any(
+              (message) =>
+                  message.id == 'relay-ready' && message.type == 'snapshot',
+            ),
+          );
+
+          expect(relayClient.redemptionCount, 1);
+          expect(relayClient.activationCount, 1);
+          expect(
+            messages
+                .firstWhere((m) => m.id == 'relay-ready')
+                .payload['notificationRelayHandle'],
+            'delivery_handle_1',
+          );
+          socket.add(
+            RemoteCodingProtocol.encode(
+              type: 'relayDelegationReady',
+              id: 'replay',
+              payload: RemoteCodingRelayDelegationReadyMessage(
+                challengeId: challengeId,
+                delegationId: 'delegation-1',
+                expiresAt: DateTime.now().toUtc().add(
+                  const Duration(minutes: 2),
+                ),
+              ).toPayload(),
+            ),
+          );
+          await _waitUntil(() => messages.any((m) => m.id == 'replay'));
+          expect(messages.firstWhere((m) => m.id == 'replay').type, 'error');
+          expect(relayClient.redemptionCount, 1);
+          expect(
+            RemoteCodingSecurity.hashToken(
+              relayClient.redemptionRequest!.challengeSecret,
+            ),
+            challengeDigest,
+          );
+          final configured = repository
+              .loadServerSettings()
+              .pairedDevices
+              .single;
+          expect(configured.relayDelegationId, 'delegation-1');
+          expect(
+            configured.relayCredentialState,
+            RemoteCodingRelayCredentialState.active,
+          );
+          expect(
+            await repository.loadDesktopRelayDeliverySecret(device.id),
+            'desktop-delivery-secret',
+          );
+        } finally {
+          await subscription?.cancel();
+          await socket?.close();
+          container.dispose();
         }
-      });
-      final challenge = await _waitForChallenge(messages);
-      _sendChallengedAuth(
-        socket,
-        id: 'auth-relay',
-        challenge: challenge,
-        certificatePin: _certificatePin(container),
-        credential: rawToken,
-        token: rawToken,
-      );
-      await _waitUntil(
-        () => messages.any((message) => message.id == 'auth-relay'),
-      );
-      socket.add(
-        RemoteCodingProtocol.encode(
-          type: 'relayDelegationReady',
-          id: 'relay-ready',
-          payload: RemoteCodingRelayDelegationReadyMessage(
-            challengeId: qr!.challengeId,
-            delegationId: 'delegation-1',
-            expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 2)),
-          ).toPayload(),
-        ),
-      );
-      await _waitUntil(
-        () => messages.any(
-          (message) =>
-              message.id == 'relay-ready' && message.type == 'snapshot',
-        ),
-      );
+      },
+    );
+  }
 
-      expect(relayClient.redemptionCount, 1);
-      expect(relayClient.activationCount, 1);
-      expect(
-        relayClient.redemptionRequest?.challengeSecret,
-        qr.challengeSecret,
+  test(
+    'mobile completes notification setup, retries failure, and rejects a changed connection',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: _MemorySecureStore(),
       );
-      final configured = repository.loadServerSettings().pairedDevices.single;
-      expect(configured.relayDelegationId, 'delegation-1');
-      expect(
-        configured.relayCredentialState,
-        RemoteCodingRelayCredentialState.active,
+      final relay = _ProvisioningRelayClient()..activationFailures = 1;
+      final port = await _unusedPort();
+      final now = DateTime.now().toUtc();
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [
+            RemoteCodingPairedDevice(
+              id: 'device-1',
+              name: 'Phone',
+              tokenHash: RemoteCodingSecurity.hashToken('mobile-token'),
+              createdAt: now,
+              lastSeenAt: now,
+            ),
+          ],
+        ),
       );
-      expect(
-        await repository.loadDesktopRelayDeliverySecret(device.id),
-        'desktop-delivery-secret',
+      await repository.saveMobileRelayRegistration(
+        RemoteCodingRelayRegistrationResponse(
+          deliveryHandle: 'delivery_handle_1',
+          managementKeyId: 'management-key',
+          managementSecret: 'management-secret',
+          expiresAt: now.add(const Duration(days: 30)),
+        ),
       );
-    } finally {
-      await subscription?.cancel();
-      await socket?.close();
-      container.dispose();
-    }
-  });
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          remoteCodingNotificationRelayClientProvider.overrideWithValue(relay),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        ],
+      );
+      try {
+        container.read(remoteCodingServerProvider);
+        await _waitUntil(
+          () => container.read(remoteCodingServerProvider).isRunning,
+        );
+        await repository.saveMobileHost(
+          RemoteCodingHost(
+            id: 'device-1',
+            name: 'Desktop',
+            host: '127.0.0.1',
+            port: port,
+            createdAt: now,
+            updatedAt: now,
+            certificatePin: _certificatePin(container),
+          ),
+          'mobile-token',
+        );
+        final client = container.read(remoteCodingClientProvider.notifier);
+        await client.connectSavedHost();
+        await _waitUntil(
+          () => container.read(remoteCodingClientProvider).isConnected,
+        );
+        expect(
+          container
+              .read(remoteCodingClientProvider)
+              .supportsNotificationRelaySetup,
+          isTrue,
+        );
+        await expectLater(
+          client.authorizeNotificationRelay(),
+          throwsStateError,
+        );
+        expect(container.read(remoteCodingClientProvider).isConnected, isTrue);
+        await client.authorizeNotificationRelay();
+        expect(
+          container.read(remoteCodingClientProvider).notificationRelayHandle,
+          'delivery_handle_1',
+        );
+        final count = relay.delegationCount;
+        await client.authorizeNotificationRelay();
+        expect(relay.delegationCount, count);
+        // A new mobile registration needs a new desktop delegation.
+        await repository.saveMobileRelayRegistration(
+          RemoteCodingRelayRegistrationResponse(
+            deliveryHandle: 'replacement_handle',
+            managementKeyId: 'management-key',
+            managementSecret: 'management-secret',
+            expiresAt: now.add(const Duration(days: 30)),
+          ),
+        );
+        relay.delegationBarrier = Completer<void>();
+        final pending = client.authorizeNotificationRelay();
+        final expectation = expectLater(pending, throwsStateError);
+        await _waitUntil(() => relay.delegationCount == count + 1);
+        await client.disconnect();
+        relay.delegationBarrier!.complete();
+        await expectation;
+        expect(relay.redemptionCount, 2);
+      } finally {
+        await container.read(remoteCodingClientProvider.notifier).disconnect();
+        container.dispose();
+      }
+    },
+  );
 
   test(
     'revoking disconnects sockets and retains relay cleanup for retry',

@@ -341,7 +341,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   }
 
   Future<RemoteCodingNotificationRelayPairingPayload?>
-  createNotificationRelayPairingPayload(String deviceId) async {
+  createNotificationRelayPairingPayload(
+    String deviceId, {
+    bool showQr = true,
+  }) async {
     final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
     if (relayClient == null) {
       state = state.copyWith(error: 'Notification relay is not configured.');
@@ -363,10 +366,17 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       targetDeviceId: deviceId,
       expiresAt: DateTime.now().toUtc().add(_relayPairingLifetime),
     );
-    _relayPairingRegistry.clear();
+    if (!showQr && state.relayPairingPayload?.targetDeviceId == deviceId) {
+      cancelNotificationRelayPairingPayload(
+        state.relayPairingPayload!.challengeId,
+      );
+    }
+    _relayPairingRegistry.removeForDevice(deviceId);
     _relayPairingRegistry.add(payload);
-    state = state.copyWith(relayPairingPayload: payload, clearError: true);
-    _scheduleRelayPairingExpiryTimer();
+    if (showQr) {
+      state = state.copyWith(relayPairingPayload: payload, clearError: true);
+      _scheduleRelayPairingExpiryTimer();
+    }
     return payload;
   }
 
@@ -664,6 +674,40 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         _handleResolveQuestion(client, message);
       case 'requestSnapshot':
         client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
+      case 'requestNotificationRelay':
+        if (message.payload.isNotEmpty) {
+          client.sendError(
+            id: message.id,
+            code: 'invalid_request',
+            message: 'Notification setup does not accept a target device.',
+          );
+          return;
+        }
+        final challenge = await createNotificationRelayPairingPayload(
+          client.deviceId!,
+          showQr: false,
+        );
+        if (challenge == null) {
+          client.sendError(
+            id: message.id,
+            code: 'relay_unavailable',
+            message: 'Notification relay is unavailable.',
+          );
+          return;
+        }
+        client.sendSnapshot(
+          id: message.id,
+          payload: {
+            ..._snapshotFor(client),
+            'notificationRelayChallenge': {
+              'kind': RemoteCodingNotificationRelayPairingPayload.kind,
+              'challengeId': challenge.challengeId,
+              'challengeDigest': challenge.challengeDigest,
+              'targetDeviceId': challenge.targetDeviceId,
+              'expiresAt': challenge.expiresAt.toIso8601String(),
+            },
+          },
+        );
       case 'relayDelegationReady':
         await _handleRelayDelegationReady(client, message);
     }
@@ -707,9 +751,11 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       );
       return;
     }
-    _relayPairingExpiryTimer?.cancel();
-    _relayPairingExpiryTimer = null;
-    state = state.copyWith(clearRelayPairingPayload: true);
+    if (state.relayPairingPayload?.challengeId == ready.challengeId) {
+      _relayPairingExpiryTimer?.cancel();
+      _relayPairingExpiryTimer = null;
+      state = state.copyWith(clearRelayPairingPayload: true);
+    }
     final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
     if (relayClient == null) {
       client.sendError(
@@ -1351,6 +1397,17 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     };
 
     return {
+      'notificationRelayHandle':
+          ref.read(remoteCodingNotificationRelayClientProvider) == null
+          ? null
+          : state.settings.pairedDevices
+                .where(
+                  (device) =>
+                      device.id == authenticatedDeviceId &&
+                      device.hasUsableNotificationRelayAt(generatedAt.toUtc()),
+                )
+                .firstOrNull
+                ?.relayDeliveryHandle,
       'snapshotSequence': _snapshotSequence,
       'snapshotGeneratedAt': generatedAt.toIso8601String(),
       'protocolVersion': remoteCodingProtocolVersion,
@@ -1364,6 +1421,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         'threadCreation': true,
         'streamCancel': true,
         'mobileApprovals': true,
+        'notificationRelaySetup': true,
       },
       'projects': projectsState.projects.map(_projectToJson).toList(),
       'selectedProjectId': selectedProjectId,

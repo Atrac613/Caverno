@@ -34,6 +34,7 @@ final class RemoteCodingRelayLogRedactor {
       'turnid',
       'conversationid',
       'deliveryhandle',
+      'notificationrelayhandle',
       'installationid',
       'managementkeyid',
       'deliverykeyid',

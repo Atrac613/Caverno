@@ -8,6 +8,7 @@ void main() {
     final redacted = RemoteCodingRelayLogRedactor.redact({
       'operation': 'deliver',
       'deliveryHandle': 'delivery_handle_1',
+      'notificationRelayHandle': 'notification-handle-1',
       'headers': {
         'Authorization': 'Bearer provider-token',
         'X-Firebase-AppCheck': 'app-check-token',
@@ -40,6 +41,7 @@ void main() {
     expect(encoded, contains('completed'));
     for (final sensitiveValue in <String>[
       'delivery_handle_1',
+      'notification-handle-1',
       'provider-token',
       'app-check-token',
       'delivery-key-1',

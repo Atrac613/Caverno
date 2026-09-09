@@ -131,6 +131,10 @@ final class RemoteCodingNotificationRelayPairingRegistry {
 
   void clear() => _challenges.clear();
 
+  void removeForDevice(String deviceId) => _challenges.removeWhere(
+    (_, challenge) => challenge.targetDeviceId == deviceId,
+  );
+
   bool contains(String challengeId) => _challenges.containsKey(challengeId);
 
   RemoteCodingRelayPairingConsumeResult consume({

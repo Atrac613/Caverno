@@ -50,6 +50,8 @@ class RemoteCodingClientState {
     this.nextReconnectAt,
     this.pendingCommandCount = 0,
     this.lastTerminalNotification,
+    this.supportsNotificationRelaySetup = false,
+    this.notificationRelayHandle,
   });
 
   final RemoteCodingConnectionStatus status;
@@ -71,6 +73,9 @@ class RemoteCodingClientState {
   final DateTime? nextReconnectAt;
   final int pendingCommandCount;
   final RemoteCodingNotificationPayload? lastTerminalNotification;
+
+  final bool supportsNotificationRelaySetup;
+  final String? notificationRelayHandle;
 
   bool get isConnected => status == RemoteCodingConnectionStatus.connected;
   bool get hasScheduledReconnect => nextReconnectAt != null;
@@ -95,6 +100,9 @@ class RemoteCodingClientState {
     DateTime? nextReconnectAt,
     int? pendingCommandCount,
     RemoteCodingNotificationPayload? lastTerminalNotification,
+    bool? supportsNotificationRelaySetup,
+    String? notificationRelayHandle,
+    bool clearNotificationRelayHandle = false,
     bool clearError = false,
     bool clearSelectedProjectId = false,
     bool clearCurrentConversationId = false,
@@ -105,6 +113,11 @@ class RemoteCodingClientState {
     bool clearLastTerminalNotification = false,
   }) {
     return RemoteCodingClientState(
+      supportsNotificationRelaySetup:
+          supportsNotificationRelaySetup ?? this.supportsNotificationRelaySetup,
+      notificationRelayHandle: clearNotificationRelayHandle
+          ? null
+          : notificationRelayHandle ?? this.notificationRelayHandle,
       status: status ?? this.status,
       host: host ?? this.host,
       error: clearError ? null : (error ?? this.error),
@@ -160,6 +173,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   final Map<String, Timer> _pendingCommandTimers = <String, Timer>{};
   bool _manualDisconnectRequested = false;
   Completer<RemoteCodingSessionChallenge>? _pendingAuthChallenge;
+  final _relayReplies = <String, Completer<RemoteCodingProtocolMessage>>{};
 
   @override
   RemoteCodingClientState build() {
@@ -257,12 +271,125 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     );
   }
 
+  /// Complete notification delegation on the authenticated, pinned connection.
+  Future<void> authorizeNotificationRelay() async {
+    final host = state.host;
+    final socket = _socket;
+    if (!state.isConnected ||
+        host?.certificatePin == null ||
+        socket == null ||
+        !state.supportsNotificationRelaySetup) {
+      throw StateError('This desktop requires the notification QR setup.');
+    }
+    final registration = await _repository.loadMobileRelayRegistration();
+    if (registration != null &&
+        registration.expiresAt.isAfter(DateTime.now()) &&
+        state.notificationRelayHandle == registration.deliveryHandle) {
+      return;
+    }
+    final reply = await _requestRelayCommand(
+      'requestNotificationRelay',
+      const {},
+    );
+    final raw = reply.payload['notificationRelayChallenge'];
+    if (raw is! Map<String, dynamic> ||
+        raw['targetDeviceId'] != host!.id ||
+        raw['kind'] != RemoteCodingNotificationRelayPairingPayload.kind ||
+        raw['challengeId'] is! String ||
+        !RegExp(
+          r'^[A-Za-z0-9_-]{1,256}$',
+        ).hasMatch(raw['challengeId'] as String) ||
+        raw['challengeDigest'] is! String ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(raw['challengeDigest'] as String)) {
+      throw const FormatException('Invalid notification setup challenge.');
+    }
+    final expiresAt = DateTime.tryParse(raw['expiresAt'] as String? ?? '');
+    if (expiresAt == null ||
+        !isRemoteCodingRelayDelegationExpiryAcceptable(
+          delegationExpiresAt: expiresAt,
+          now: DateTime.now().toUtc(),
+        )) {
+      throw StateError('Notification setup challenge expired.');
+    }
+    final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+    if (relayClient == null) {
+      throw StateError('Notification relay is unavailable.');
+    }
+    final delegation =
+        await RemoteCodingMobileRelayDelegationCoordinator(
+          repository: _repository,
+          relayClient: relayClient,
+          clock: DateTime.now,
+        ).createDelegation(
+          challengeId: raw['challengeId'] as String,
+          challengeDigest: raw['challengeDigest'] as String,
+          targetDeviceId: host.id,
+        );
+    if (_socket != socket || state.host?.id != host.id || !state.isConnected) {
+      throw StateError(
+        'The paired connection changed during notification setup.',
+      );
+    }
+    if (!isRemoteCodingRelayDelegationExpiryAcceptable(
+      delegationExpiresAt: delegation.expiresAt,
+      now: DateTime.now().toUtc(),
+    )) {
+      throw StateError('Notification delegation expired.');
+    }
+    final activated = await _requestRelayCommand(
+      'relayDelegationReady',
+      RemoteCodingRelayDelegationReadyMessage(
+        challengeId: delegation.challengeId,
+        delegationId: delegation.delegationId,
+        expiresAt: delegation.expiresAt,
+      ).toPayload(),
+    );
+    if (_socket != socket ||
+        !state.isConnected ||
+        state.host?.id != host.id ||
+        activated.payload['notificationRelayHandle'] !=
+            registration?.deliveryHandle ||
+        registration == null) {
+      throw StateError('Desktop notification activation was not confirmed.');
+    }
+  }
+
+  Future<RemoteCodingProtocolMessage> _requestRelayCommand(
+    String type,
+    Map<String, dynamic> payload,
+  ) async {
+    final socket = _socket;
+    if (socket == null || !state.isConnected) {
+      throw StateError(
+        'Connect to the desktop before setting up notifications.',
+      );
+    }
+    final id = _uuid.v4();
+    final completer = Completer<RemoteCodingProtocolMessage>();
+    _relayReplies[id] = completer;
+    try {
+      socket.add(
+        RemoteCodingProtocol.encode(type: type, id: id, payload: payload),
+      );
+      final response = await completer.future.timeout(
+        const Duration(seconds: 45),
+      );
+      if (response.type != 'snapshot') {
+        throw StateError('Desktop notification setup failed.');
+      }
+      return response;
+    } finally {
+      _relayReplies.remove(id);
+    }
+  }
+
   Future<void> authorizeNotificationRelayFromQr(String qrData) async {
     try {
       final payload = RemoteCodingNotificationRelayPairingPayload.fromQrData(
         qrData,
       );
       final host = state.host;
+      final socket = _socket;
       if (!state.isConnected || host == null) {
         throw StateError(
           'Connect to the paired remote coding desktop before enabling notifications.',
@@ -297,7 +424,14 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       )) {
         throw StateError('Relay returned an invalid delegation expiry.');
       }
-      await _sendCommand(
+      if (_socket != socket ||
+          state.host?.id != host.id ||
+          !state.isConnected) {
+        throw StateError(
+          'The paired connection changed during notification setup.',
+        );
+      }
+      await _requestRelayCommand(
         'relayDelegationReady',
         RemoteCodingRelayDelegationReadyMessage(
           challengeId: delegation.challengeId,
@@ -308,6 +442,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       state = state.copyWith(clearError: true);
     } catch (error) {
       state = state.copyWith(error: error.toString());
+      rethrow;
     }
   }
 
@@ -584,6 +719,8 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         case 'disconnected':
           await _handleRemoteDisconnect(message.payload);
       }
+      final reply = _relayReplies[message.id];
+      if (reply != null && !reply.isCompleted) reply.complete(message);
     } catch (error) {
       if (!ref.mounted) {
         return;
@@ -768,6 +905,13 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         payload['dashboardStatsByRange'],
       );
       state = state.copyWith(
+        supportsNotificationRelaySetup:
+            (payload['capabilities']
+                as Map<String, dynamic>?)?['notificationRelaySetup'] ==
+            true,
+        notificationRelayHandle: payload['notificationRelayHandle'] as String?,
+        clearNotificationRelayHandle:
+            payload['notificationRelayHandle'] == null,
         status: RemoteCodingConnectionStatus.connected,
         projects: projects,
         threads: threads,
@@ -942,6 +1086,14 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   }
 
   void _clearPendingCommandTimers() {
+    for (final reply in _relayReplies.values) {
+      if (!reply.isCompleted) {
+        reply.completeError(
+          StateError('Desktop disconnected during notification setup.'),
+        );
+      }
+    }
+    _relayReplies.clear();
     for (final timer in _pendingCommandTimers.values) {
       timer.cancel();
     }

@@ -57,6 +57,7 @@ void main() {
         'resolveQuestion',
         'requestSnapshot',
         'relayDelegationReady',
+        'requestNotificationRelay',
       }),
     );
     expect(
