@@ -56,6 +56,9 @@ export function buildFirebaseMessage({ token, data }) {
   // request replaces its notification instead of stacking a second one the
   // person could answer twice.
   const collapseId = data.approvalId ?? data.eventId;
+  if (data.kind === "remote_coding_approval_resolved") {
+    return buildApprovalWithdrawalMessage({ token, data });
+  }
   return {
     token,
     data,
@@ -91,6 +94,41 @@ export function buildFirebaseMessage({ token, data }) {
           ...(data.kind === "remote_coding_approval_requested"
             ? { category: "caverno_approval_push" }
             : {}),
+        },
+      },
+    },
+  };
+}
+
+// Removes a notification rather than showing one, so it must not carry an
+// alert: no `notification` block, `content-available` instead of an alert
+// push type, and normal priority because nothing here is time-critical to the
+// person -- the decision it refers to is already made.
+//
+// The collapse id deliberately does NOT match the request it withdraws. APNs
+// collapse replaces an *undelivered* alert; the notification this exists to
+// remove has already been delivered, and reusing the id would only make two
+// withdrawals for different approvals evict each other.
+function buildApprovalWithdrawalMessage({ token, data }) {
+  return {
+    token,
+    data,
+    // Data-only on both platforms. An `android.notification` block -- even an
+    // empty one -- makes FCM render a blank notification instead of waking the
+    // app to remove one.
+    android: {
+      priority: "high",
+      collapseKey: data.eventId,
+    },
+    apns: {
+      headers: {
+        "apns-push-type": "background",
+        "apns-priority": "5",
+        "apns-collapse-id": data.eventId,
+      },
+      payload: {
+        aps: {
+          "content-available": 1,
         },
       },
     },

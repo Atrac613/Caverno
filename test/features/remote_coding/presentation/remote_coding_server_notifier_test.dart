@@ -109,6 +109,10 @@ class _InteractionOwnershipChatNotifier extends ChatNotifier {
     approvalResolved = false;
   }
 
+  void clearFileApproval() {
+    state = state.copyWith(pendingFileOperation: null);
+  }
+
   /// A kind that only became reachable over the wire in SA-26, and one that
   /// reaches it read-only.
   void setSshCommand({required String? remoteDeviceId}) {
@@ -2365,6 +2369,28 @@ void main() {
       isNot(contains('README.md')),
       reason: 'the file path must not reach a lock screen',
     );
+
+    // Resolving it has to reach the same phone. Everything the phone could use
+    // to notice on its own -- the socket, the snapshot, its own running code --
+    // is gone while it is suspended, so the desktop saying so is the only
+    // signal that exists.
+    relayClient.deliveries.clear();
+    (container.read(chatNotifierProvider.notifier)
+            as _InteractionOwnershipChatNotifier)
+        .clearFileApproval();
+
+    await _waitUntil(() => relayClient.deliveries.isNotEmpty);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(
+      relayClient.deliveries.map((delivery) => delivery.deliveryHandle),
+      ['delivery_handle_granted'],
+      reason: 'the withdrawal follows the request, device for device',
+    );
+    final withdrawal =
+        relayClient.deliveries.single.payload
+            as RemoteCodingApprovalWithdrawalPayload;
+    expect(withdrawal.approvalId, 'approval-1');
   });
 }
 

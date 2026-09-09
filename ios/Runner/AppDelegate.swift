@@ -72,6 +72,39 @@ import FoundationModels
   }
 
 
+  /// Takes down an approval notification the desktop has stopped waiting on.
+  ///
+  /// The whole point is that this runs when nothing else can. A request
+  /// answered on the desktop while the phone is suspended leaves a lock-screen
+  /// notification whose buttons resolve nothing, and the phone has no socket,
+  /// no snapshot and no running Dart to notice — the withdrawal has to arrive
+  /// as a push, and it has to be handled here.
+  ///
+  /// Deliberately does not call `super` for this kind. Nothing in Dart needs
+  /// it, and not waking the Flutter engine avoids the headless-launch crash
+  /// class that a background notification action already cost us once.
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    guard
+      userInfo["kind"] as? String == "remote_coding_approval_resolved",
+      let approvalId = userInfo["approvalId"] as? String,
+      !approvalId.isEmpty
+    else {
+      super.application(
+        application,
+        didReceiveRemoteNotification: userInfo,
+        fetchCompletionHandler: completionHandler
+      )
+      return
+    }
+    NotificationActionPlugin.withdrawDeliveredApproval(approvalId) {
+      completionHandler(.newData)
+    }
+  }
+
   /// The JSON string Dart decodes, whichever kind of notification carried the
   /// press.
   ///
@@ -137,6 +170,16 @@ enum NotificationActionPlugin {
       binaryMessenger: registrar.messenger()
     )
     channel.setMethodCallHandler { call, result in
+      if call.method == "withdrawPushedApproval" {
+        let approvalId = (call.arguments as? [String: Any])?["approvalId"]
+          as? String
+        guard let approvalId, !approvalId.isEmpty else {
+          result(false)
+          return
+        }
+        withdrawDeliveredApproval(approvalId) { result(true) }
+        return
+      }
       if call.method == "withdrawPushedApprovals" {
         let keep = (call.arguments as? [String: Any])?["keepApprovalId"]
           as? String
@@ -189,6 +232,32 @@ enum NotificationActionPlugin {
         center.removeDeliveredNotifications(withIdentifiers: stale)
       }
       DispatchQueue.main.async { result(stale.count) }
+    }
+  }
+
+  /// Removes the delivered notification for exactly [approvalId].
+  ///
+  /// The identifier APNs assigned is not something the sender knows, so the
+  /// delivered list has to be searched by the `approvalId` the payload carries.
+  static func withdrawDeliveredApproval(
+    _ approvalId: String,
+    completion: @escaping () -> Void
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.getDeliveredNotifications { delivered in
+      let matching = delivered.compactMap { notification -> String? in
+        let info = notification.request.content.userInfo
+        guard let delivered = info["approvalId"] as? String,
+          delivered == approvalId
+        else {
+          return nil
+        }
+        return notification.request.identifier
+      }
+      if !matching.isEmpty {
+        center.removeDeliveredNotifications(withIdentifiers: matching)
+      }
+      completion()
     }
   }
 

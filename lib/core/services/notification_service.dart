@@ -371,6 +371,48 @@ class NotificationService {
   /// which a push does not carry, so the removal happens natively. On Android
   /// the relay sets the notification tag to the approval id, which
   /// `getActiveNotifications` reports and `cancel` accepts.
+  /// Takes down the pushed notification for exactly [approvalId].
+  ///
+  /// The named-id counterpart to [withdrawStalePushedApprovals], for when the
+  /// desktop says which request is over rather than which one is still live.
+  /// That distinction matters: "everything but the live one" is only safe when
+  /// the phone has authoritative state, and a phone acting on a withdrawal
+  /// push has none — it has one id and no idea what else is pending.
+  Future<bool> withdrawPushedApproval(String approvalId) async {
+    if (kIsWeb || approvalId.trim().isEmpty) return false;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        const channel = MethodChannel(_sceneActionChannelName);
+        final removed = await channel.invokeMethod<bool>(
+          'withdrawPushedApproval',
+          <String, dynamic>{'approvalId': approvalId},
+        );
+        return removed ?? false;
+      }
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final active = await _plugin.getActiveNotifications();
+        var removed = false;
+        for (final notification in active) {
+          final tag = notification.tag?.trim() ?? '';
+          final id = notification.id;
+          if (tag.isEmpty || id == null) continue;
+          if (notification.channelId != approvalChannelId) continue;
+          if (tag != approvalId) continue;
+          await _plugin.cancel(id: id, tag: tag);
+          removed = true;
+        }
+        return removed;
+      }
+    } on MissingPluginException {
+      // A host binary without the plugin, or a platform that has neither path.
+    } on PlatformException catch (error) {
+      appLog('[Notifications] withdrawing a pushed approval failed: $error');
+    } on Object catch (error) {
+      appLog('[Notifications] withdrawing a pushed approval failed: $error');
+    }
+    return false;
+  }
+
   Future<int> withdrawStalePushedApprovals({String? keepApprovalId}) async {
     if (kIsWeb) return 0;
     try {

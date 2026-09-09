@@ -836,6 +836,90 @@ void main() {
       );
     });
 
+    test('a withdrawal push takes the notification down by id', () async {
+      // The foreground half. iOS answers a suspended phone natively in
+      // `AppDelegate`, before Dart exists; this is the path for an app that
+      // happens to be open, and the only one Android has.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.gateway.foregroundController.add(<String, dynamic>{
+        'kind': 'remote_coding_approval_resolved',
+        'schemaVersion': '1',
+        'eventId': 'event-withdraw-1',
+        'approvalId': 'approval-77',
+        'conversationId': 'conversation-9',
+        'resolvedAt': now.toUtc().toIso8601String(),
+      });
+
+      await _waitUntil(
+        () => fixture
+            .notificationService
+            .withdrawnPushedApprovalIds
+            .isNotEmpty,
+      );
+      expect(fixture.notificationService.withdrawnPushedApprovalIds, [
+        'approval-77',
+      ]);
+    });
+
+    test('a socket blip does not sweep a still-live approval', () async {
+      // The sweep asks "what is the desktop still holding?" and an empty
+      // `pendingApproval` answers that only while there is a socket to have
+      // heard it on. A blip clears the field too, and sweeping then takes down
+      // the notification for a request that is still blocking the desktop.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(approval(), host: host());
+      await _waitUntil(
+        () => fixture.notificationService.staleWithdrawalKeeps.isNotEmpty,
+      );
+      final sweepsBeforeDrop =
+          fixture.notificationService.staleWithdrawalKeeps.length;
+
+      fixture.clientNotifier.dropConnection();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(
+        fixture.notificationService.staleWithdrawalKeeps.length,
+        sweepsBeforeDrop,
+        reason: 'a disconnect says nothing about what the desktop still holds',
+      );
+    });
+
+    test('reconnecting sweeps even when no approval changed', () async {
+      // The original defect. The sweep hung off a change in `pendingApproval`,
+      // and a phone suspended while the desktop resolved the request comes back
+      // to null before and null after -- so nothing ever fired and the pushed
+      // notification stayed on the lock screen offering a settled decision.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.dropConnection();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fixture.notificationService.staleWithdrawalKeeps, isEmpty);
+
+      fixture.clientNotifier.clearApproval();
+      await _waitUntil(
+        () => fixture.notificationService.staleWithdrawalKeeps.isNotEmpty,
+      );
+      expect(
+        fixture.notificationService.staleWithdrawalKeeps.last,
+        isNull,
+        reason: 'a connected snapshot holding nothing makes every push stale',
+      );
+    });
+
     test('nothing is withdrawn when nothing was raised', () async {
       final fixture = await _fixture(now);
       addTearDown(fixture.dispose);
@@ -1063,11 +1147,28 @@ final class _FakeRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
       pendingApproval: approval,
       host: host ?? state.host,
       currentConversationId: currentConversationId,
+      // An approval only ever arrives over a live socket, so a fake that
+      // delivers one while reporting `disconnected` describes a state the app
+      // cannot reach -- and hid that the sweep needs a connection to be
+      // authoritative.
+      status: RemoteCodingConnectionStatus.connected,
     );
   }
 
   void clearApproval() {
-    state = state.copyWith(clearPendingApproval: true);
+    state = state.copyWith(
+      clearPendingApproval: true,
+      status: RemoteCodingConnectionStatus.connected,
+    );
+  }
+
+  /// Drops the socket the way a blip does: the approval goes with it, without
+  /// the desktop having resolved anything.
+  void dropConnection() {
+    state = state.copyWith(
+      clearPendingApproval: true,
+      status: RemoteCodingConnectionStatus.disconnected,
+    );
   }
 
   @override
@@ -1131,6 +1232,14 @@ final class _FakeNotificationService extends NotificationService {
   Future<int> withdrawStalePushedApprovals({String? keepApprovalId}) async {
     staleWithdrawalKeeps.add(keepApprovalId);
     return staleWithdrawalRemovals;
+  }
+
+  final withdrawnPushedApprovalIds = <String>[];
+
+  @override
+  Future<bool> withdrawPushedApproval(String approvalId) async {
+    withdrawnPushedApprovalIds.add(approvalId);
+    return true;
   }
 
   @override

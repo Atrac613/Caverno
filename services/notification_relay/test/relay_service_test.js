@@ -372,6 +372,64 @@ test("delivery rejects an approval kind the relay does not know", async () => {
   assert.equal(fixture.provider.attemptCount, 0);
 });
 
+test("delivery forwards an approval withdrawal", async () => {
+  const fixture = await activeCredentialFixture();
+
+  await fixture.service.deliver(
+    signedContext({
+      method: "POST",
+      path: `/v2/registrations/${fixture.registration.deliveryHandle}/deliveries`,
+      body: withdrawalDeliveryBody(fixture.now),
+      deliveryHandle: fixture.registration.deliveryHandle,
+      keyId: fixture.credential.deliveryKeyId,
+      secret: fixture.credential.deliverySecret,
+      now: fixture.now,
+      nonce: "nonce_withdrawal_ok",
+    }),
+  );
+
+  assert.equal(fixture.provider.attemptCount, 1);
+  const sent = fixture.provider.messages.at(-1).data;
+  assert.equal(sent.kind, "remote_coding_approval_resolved");
+  assert.equal(sent.approvalId, "approval_1234567");
+  // The whole point of the shape: it names an id and nothing else.
+  assert.equal(sent.title, undefined);
+  assert.equal(sent.body, undefined);
+  assert.equal(sent.approvalKind, undefined);
+  assert.equal(sent.hasWarning, undefined);
+});
+
+test("delivery rejects a withdrawal carrying request detail", async () => {
+  // A withdrawal is the narrowest shape on the wire, and stays that way: the
+  // relay re-validates the keys rather than trusting a desktop that starts
+  // attaching what the request was for.
+  const fixture = await activeCredentialFixture();
+
+  for (const [index, overrides] of [
+    { title: "Caverno needs your approval" },
+    { approvalKind: "localCommand" },
+    { schemaVersion: "2" },
+  ].entries()) {
+    await assert.rejects(
+      fixture.service.deliver(
+        signedContext({
+          method: "POST",
+          path: `/v2/registrations/${fixture.registration.deliveryHandle}/deliveries`,
+          body: withdrawalDeliveryBody(fixture.now, overrides),
+          deliveryHandle: fixture.registration.deliveryHandle,
+          keyId: fixture.credential.deliveryKeyId,
+          secret: fixture.credential.deliverySecret,
+          now: fixture.now,
+          nonce: `nonce_withdrawal_bad_${index}`,
+        }),
+      ),
+      (error) =>
+        error instanceof RelayError && error.code === "invalid_request",
+    );
+  }
+  assert.equal(fixture.provider.attemptCount, 0);
+});
+
 test("delivery rejects a notification kind the relay does not know", async () => {
   const fixture = await activeCredentialFixture();
   const body = approvalDeliveryBody(fixture.now, {
@@ -544,6 +602,21 @@ function approvalDeliveryBody(now, overrides = {}) {
       title: "Caverno needs your approval",
       body: "Your Mac is waiting on a shell command. Review it before approving.",
       requestedAt: now.toISOString(),
+      ...overrides,
+    },
+  };
+}
+
+function withdrawalDeliveryBody(now, overrides = {}) {
+  return {
+    schemaVersion: 2,
+    notification: {
+      kind: "remote_coding_approval_resolved",
+      schemaVersion: "1",
+      eventId: "event_987654",
+      approvalId: "approval_1234567",
+      conversationId: "conversation_123",
+      resolvedAt: now.toISOString(),
       ...overrides,
     },
   };

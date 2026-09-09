@@ -498,6 +498,8 @@ function parseDelivery(body) {
       return parseRunTerminalDelivery(data);
     case "remote_coding_approval_requested":
       return parseApprovalDelivery(data);
+    case "remote_coding_approval_resolved":
+      return parseApprovalWithdrawalDelivery(data);
     default:
       throw new RelayError("invalid_request");
   }
@@ -584,6 +586,37 @@ function parseApprovalDelivery(data) {
   return {
     eventId: normalized.eventId,
     occurredAt: requireTimestamp(normalized, "requestedAt"),
+    data: normalized,
+  };
+}
+
+// Takes the request notice back down. Carries no title, no body and no kind
+// flag -- only an approval id the device was already sent -- and the message
+// builder turns it into a content-available push with no alert, so it adds
+// nothing to the wire that the request it withdraws did not already carry.
+function parseApprovalWithdrawalDelivery(data) {
+  requireExactKeys(data, [
+    "kind",
+    "schemaVersion",
+    "eventId",
+    "approvalId",
+    "conversationId",
+    "resolvedAt",
+  ]);
+  if (requireString(data, "schemaVersion", { maxLength: 4 }) !== "1") {
+    throw new RelayError("invalid_request");
+  }
+  const normalized = {
+    kind: "remote_coding_approval_resolved",
+    schemaVersion: "1",
+    eventId: requireIdentifier(data, "eventId"),
+    approvalId: requireIdentifier(data, "approvalId"),
+    conversationId: requireIdentifier(data, "conversationId"),
+    resolvedAt: requireString(data, "resolvedAt", { maxLength: 64 }),
+  };
+  return {
+    eventId: normalized.eventId,
+    occurredAt: requireTimestamp(normalized, "resolvedAt"),
     data: normalized,
   };
 }

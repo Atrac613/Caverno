@@ -46,6 +46,8 @@ RemoteCodingRelayNotification parseRemoteCodingRelayNotification(
       RemoteCodingNotificationPayload.fromFcmData(data),
     RemoteCodingApprovalNotificationPayload.kind =>
       RemoteCodingApprovalNotificationPayload.fromFcmData(data),
+    RemoteCodingApprovalWithdrawalPayload.kind =>
+      RemoteCodingApprovalWithdrawalPayload.fromFcmData(data),
     _ => throw FormatException(
       'Unsupported remote coding notification kind: $kind',
     ),
@@ -352,3 +354,107 @@ final class RemoteCodingApprovalNotificationPayload
   }
 }
 
+
+/// Takes a delivered approval notification back down once the desktop has
+/// stopped waiting on it.
+///
+/// This exists because nothing on the phone can do it. A request answered on
+/// the desktop while the phone is suspended leaves a lock-screen notification
+/// whose buttons resolve nothing, and the phone runs no code to notice: it has
+/// no socket, no snapshot, and no process. Only the desktop knows, and only a
+/// push can reach a suspended device.
+///
+/// Silent by construction — no title, no body, nothing rendered. On the wire it
+/// carries an approval id the phone was already sent plus the fact that the
+/// request is over, so it stays inside the same privacy boundary as the request
+/// it withdraws rather than widening it.
+final class RemoteCodingApprovalWithdrawalPayload
+    implements RemoteCodingRelayNotification {
+  const RemoteCodingApprovalWithdrawalPayload({
+    required this.eventId,
+    required this.approvalId,
+    required this.conversationId,
+    required this.resolvedAt,
+  });
+
+  static const String kind = 'remote_coding_approval_resolved';
+  static const int schemaVersion = 1;
+
+  @override
+  final String eventId;
+
+  /// The approval to take down, matched against what the delivered
+  /// notification carries. Never a thread: two approvals can be on screen at
+  /// once and withdrawing "whatever that thread showed" takes down the wrong
+  /// one.
+  final String approvalId;
+
+  @override
+  final String conversationId;
+
+  final DateTime resolvedAt;
+
+  @override
+  String get notificationKind => kind;
+
+  /// Never displayed. The interface asks every shape what the platform shows,
+  /// and the honest answer for this one is nothing: it is delivered as a
+  /// content-available push with no alert, and neither string reaches the wire.
+  @override
+  String get title => '';
+
+  @override
+  String get body => '';
+
+  @override
+  Map<String, String> toFcmData() => <String, String>{
+    'kind': kind,
+    'schemaVersion': schemaVersion.toString(),
+    'eventId': eventId,
+    'approvalId': approvalId,
+    'conversationId': conversationId,
+    'resolvedAt': resolvedAt.toUtc().toIso8601String(),
+  };
+
+  factory RemoteCodingApprovalWithdrawalPayload.fromFcmData(
+    Map<String, dynamic> data,
+  ) {
+    final payloadKind = _requiredWithdrawalString(data, 'kind');
+    if (payloadKind != kind) {
+      throw FormatException(
+        'Unsupported remote coding notification kind: $payloadKind',
+      );
+    }
+    final version = int.tryParse(_requiredWithdrawalString(data,
+        'schemaVersion'));
+    if (version != schemaVersion) {
+      throw FormatException(
+        'Unsupported remote coding notification version: $version',
+      );
+    }
+    final resolvedAt = DateTime.tryParse(
+      _requiredWithdrawalString(data, 'resolvedAt'),
+    );
+    if (resolvedAt == null) {
+      throw const FormatException(
+        'Remote coding approval resolution time is invalid.',
+      );
+    }
+    return RemoteCodingApprovalWithdrawalPayload(
+      eventId: _requiredWithdrawalString(data, 'eventId'),
+      approvalId: _requiredWithdrawalString(data, 'approvalId'),
+      conversationId: _requiredWithdrawalString(data, 'conversationId'),
+      resolvedAt: resolvedAt.toUtc(),
+    );
+  }
+}
+
+String _requiredWithdrawalString(Map<String, dynamic> data, String key) {
+  final value = data[key]?.toString().trim() ?? '';
+  if (value.isEmpty) {
+    throw FormatException(
+      'Remote coding notification field "$key" is required.',
+    );
+  }
+  return value;
+}

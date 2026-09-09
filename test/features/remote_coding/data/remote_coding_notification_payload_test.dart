@@ -270,6 +270,63 @@ void main() {
       );
     });
   });
+
+  group('RemoteCodingApprovalWithdrawalPayload', () {
+    test('carries an id and nothing about the request', () {
+      final data = RemoteCodingApprovalWithdrawalPayload(
+        eventId: 'event-9',
+        approvalId: 'approval-77',
+        conversationId: 'conversation-7',
+        resolvedAt: DateTime.utc(2026, 9, 9, 14),
+      ).toFcmData();
+
+      // The privacy boundary, pinned. This shape rides the same lock screen as
+      // the request it withdraws, so it must never grow a field describing what
+      // the approval was for -- and it has no title or body at all, because it
+      // is delivered silently and displays nothing.
+      expect(data.keys.toSet(), <String>{
+        'kind',
+        'schemaVersion',
+        'eventId',
+        'approvalId',
+        'conversationId',
+        'resolvedAt',
+      });
+      expect(data['kind'], 'remote_coding_approval_resolved');
+      expect(data['approvalId'], 'approval-77');
+    });
+
+    test('round-trips through the parser', () {
+      final decoded = parseRemoteCodingRelayNotification(<String, dynamic>{
+        'kind': 'remote_coding_approval_resolved',
+        'schemaVersion': '1',
+        'eventId': 'event-9',
+        'approvalId': 'approval-77',
+        'conversationId': 'conversation-7',
+        'resolvedAt': '2026-09-09T14:00:00.000Z',
+      });
+
+      expect(decoded, isA<RemoteCodingApprovalWithdrawalPayload>());
+      final withdrawal = decoded as RemoteCodingApprovalWithdrawalPayload;
+      expect(withdrawal.approvalId, 'approval-77');
+      expect(withdrawal.resolvedAt, DateTime.utc(2026, 9, 9, 14));
+      expect(withdrawal.title, isEmpty);
+      expect(withdrawal.body, isEmpty);
+    });
+
+    test('rejects a payload missing the approval it withdraws', () {
+      expect(
+        () => parseRemoteCodingRelayNotification(<String, dynamic>{
+          'kind': 'remote_coding_approval_resolved',
+          'schemaVersion': '1',
+          'eventId': 'event-9',
+          'conversationId': 'conversation-7',
+          'resolvedAt': '2026-09-09T14:00:00.000Z',
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  });
 }
 
 Map<String, dynamic> _validData({String outcome = 'completed'}) =>

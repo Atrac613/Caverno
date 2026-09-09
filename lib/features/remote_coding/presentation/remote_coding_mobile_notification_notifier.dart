@@ -163,6 +163,7 @@ final class RemoteCodingMobileNotificationNotifier
           next.supportsNotificationRelaySetup) {
         unawaited(enableAfterPairing());
       }
+      _sweepPushedApprovals(next);
     });
     ref.listen<RemoteCodingNotificationPayload?>(
       remoteCodingClientProvider.select(
@@ -187,12 +188,6 @@ final class RemoteCodingMobileNotificationNotifier
         (clientState) => clientState.pendingApproval,
       ),
       (previous, next) {
-        // Every snapshot, including the first after a reconnect, is the moment
-        // the phone learns which approval is actually live. A pushed
-        // notification for any other one was raised while this process did not
-        // exist, so `_liveApprovalNotifications` never recorded it and the
-        // withdrawal below cannot reach it.
-        unawaited(_withdrawStalePushedApprovals(next?.id));
         if (next == null) {
           // Answered on the desktop, or withdrawn. A notification whose
           // buttons resolve nothing is worse than no notification.
@@ -543,6 +538,11 @@ final class RemoteCodingMobileNotificationNotifier
           // existing snapshot path decide between the sheet and a local
           // notification; raising one from the push would race it.
           await _reconnectForApproval(notification);
+        case RemoteCodingApprovalWithdrawalPayload():
+          // The foreground half of the withdrawal. iOS handles the suspended
+          // case natively in `AppDelegate`, before Dart exists; this covers an
+          // app that happens to be open, and is the only path Android has.
+          await _withdrawResolvedApproval(notification.approvalId);
       }
     } on FormatException {
       // Ignore messages outside the frozen Remote Coding notification contract.
@@ -641,6 +641,62 @@ final class RemoteCodingMobileNotificationNotifier
   /// process raised and keyed by conversation. A push that arrived while the
   /// app was not running is in neither record, and on iOS the plugin cannot
   /// even address it.
+  /// Takes down the notification for one approval the desktop has resolved.
+  ///
+  /// Keyed by the id the withdrawal push names rather than by what this process
+  /// remembers raising: the notification being removed was very often raised by
+  /// a process that no longer exists.
+  /// The last (connected, live approval) pair a sweep was run for.
+  ///
+  /// The listener that drives the sweep fires on every field of the client
+  /// state, and each sweep is a platform-channel round trip.
+  (bool, String?)? _lastSweptApprovalState;
+
+  /// Clears pushed approval notifications the desktop is no longer holding.
+  ///
+  /// The backstop behind the withdrawal push, for a silent push iOS chose not
+  /// to deliver. Reaching a phone whose process was gone when the approval
+  /// resolved is the push's job; this catches up whenever the socket comes
+  /// back.
+  ///
+  /// Gated on `isConnected`, which is the whole correctness condition. An
+  /// empty `pendingApproval` means "the desktop is not waiting" only while
+  /// there is a socket to have heard that on: a blip clears it too, and
+  /// sweeping then takes down the notification for a request that is still
+  /// live and still blocking the desktop.
+  ///
+  /// Runs on the connection edge as well as on approval changes. Sweeping only
+  /// when `pendingApproval` *changes* was the original defect: a phone that was
+  /// suspended while the desktop resolved the request comes back to null before
+  /// and null after, so the listener never fired and the notification stayed.
+  void _sweepPushedApprovals(RemoteCodingClientState clientState) {
+    final observed = (clientState.isConnected, clientState.pendingApproval?.id);
+    if (_lastSweptApprovalState == observed) {
+      return;
+    }
+    _lastSweptApprovalState = observed;
+    if (!clientState.isConnected) {
+      return;
+    }
+    unawaited(_withdrawStalePushedApprovals(clientState.pendingApproval?.id));
+  }
+
+  Future<void> _withdrawResolvedApproval(String approvalId) async {
+    try {
+      await _notificationService.withdrawPushedApproval(approvalId);
+      await _withdrawApprovalNotification(approvalId);
+      appLog(
+        '[RemoteCodingNotifications] withdrew the pushed notification for '
+        '$approvalId; the desktop resolved it',
+      );
+    } catch (error) {
+      appLog(
+        '[RemoteCodingNotifications] withdrawing the pushed notification for '
+        '$approvalId failed: $error',
+      );
+    }
+  }
+
   Future<void> _withdrawStalePushedApprovals(String? keepApprovalId) async {
     try {
       final removed = await _notificationService.withdrawStalePushedApprovals(

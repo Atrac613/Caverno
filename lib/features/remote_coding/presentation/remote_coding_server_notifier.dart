@@ -180,6 +180,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           next.pendingAskUserQuestion?.id;
       if (approvalChanged) {
         _broadcastSnapshot('approvalRequested');
+        // Both halves of the change. The phone that was pushed the request may
+        // have been suspended ever since, so the only moment anyone can tell
+        // it the request is over is this one, on the desktop that ended it.
+        unawaited(_withdrawApprovalNotification(previous, next));
         unawaited(_deliverApprovalNotification(next));
       } else if (questionChanged) {
         _broadcastSnapshot('questionRequested');
@@ -1678,6 +1682,82 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   /// Delivery is gated by [_canResolveInteraction] per device, exactly as the
   /// snapshot is. A device that may not answer this kind must not learn that
   /// the approval exists, and would be shown buttons that resolve nothing.
+  /// Tells the paired phones that an approval they were pushed is over.
+  ///
+  /// A phone that received the request notification may have been suspended
+  /// from that moment on: no socket, no snapshot, no running code. Its own
+  /// withdrawal paths all depend on learning the desktop's state, and it never
+  /// does, so the notification sits on the lock screen offering a decision
+  /// that has already been made. The desktop is the only party that knows, and
+  /// a push is the only thing that reaches a suspended device.
+  ///
+  /// Sent to the same devices the request was, by the same authority check, so
+  /// a device that was never told about the approval is not told about its
+  /// resolution either.
+  Future<void> _withdrawApprovalNotification(
+    ChatState? previous,
+    ChatState next,
+  ) async {
+    if (previous == null) {
+      return;
+    }
+    final resolved = pendingApprovalsByPriority(previous).firstOrNull;
+    if (resolved == null) {
+      return;
+    }
+    final summary = describePendingApproval(resolved);
+    if (summary.id.isEmpty) {
+      return;
+    }
+    // Demoted, not resolved: a higher-priority approval arrived on top of a
+    // request the desktop is still blocked on. Withdrawing here would take
+    // down a live notification.
+    final stillPending = pendingApprovalsByPriority(
+      next,
+    ).any((request) => describePendingApproval(request).id == summary.id);
+    if (stillPending) {
+      return;
+    }
+    final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
+    if (relayClient == null) {
+      return;
+    }
+    final entitled = state.settings.pairedDevices
+        .where(
+          (device) => _canResolveInteraction(
+            origin: summary.origin,
+            ownerDeviceId: summary.remoteDeviceId,
+            authenticatedDeviceId: device.id,
+            kind: summary.kind,
+          ),
+        )
+        .toList(growable: false);
+    if (entitled.isEmpty) {
+      return;
+    }
+    try {
+      await RemoteCodingRelayNotificationDeliveryService(
+        repository: _repository,
+        relayClient: relayClient,
+        clock: DateTime.now,
+      ).deliver(
+        notification: RemoteCodingApprovalWithdrawalPayload(
+          eventId: _uuid.v4(),
+          approvalId: summary.id,
+          conversationId: summary.conversationId,
+          resolvedAt: DateTime.now().toUtc(),
+        ),
+        devices: entitled,
+      );
+    } catch (error, stackTrace) {
+      // Best effort, like the request it withdraws. A lingering notification
+      // is a wart; a throw here would be a regression in the turn.
+      appLog(
+        '[RemoteCodingRelay] approval withdrawal failed: $error\n$stackTrace',
+      );
+    }
+  }
+
   Future<void> _deliverApprovalNotification(ChatState chatState) async {
     final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
     if (relayClient == null) {
