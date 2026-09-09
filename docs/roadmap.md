@@ -87,7 +87,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
 | Anabasis | ANA2 | current | Delegate ready tasks through the existing subagent and worktree runners. | Mapping, premise briefs, and contradiction policies landed in `6218b6440`; the parent prompt consumes the queue. Observe a planned coding thread with non-empty candidates before closing the integration evidence gap. Free-form delegation alone does not exercise that queue. |
 | Anabasis | ANA3 | current | Separate produced, verified, and accepted results with explicit ownership and evidence. | PR 1 and PR 2a landed: mechanical/evidence audit plus the acceptance record and parent acceptance gate. Next is PR 2b: give the parent one guarded write path for its semantic judgment; inspect the three file-size budgets before implementation. Stored execution-state separation remains PR 3. |
-| Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Reopened and mostly built 2026-09-09, after a device check showed the local path cannot reach a suspended app at all: iOS holds no background mode that keeps a WebSocket alive, and `beginBackgroundTask` is called only by `ChatNotifier`, so a backgrounded phone receives nothing to raise a notification from. The payload blocker is closed — `RemoteCodingApprovalNotificationPayload` carries an allow-listed kind and a `hasWarning` boolean and no command text, path, or warning prose, with the displayed lines composed from closed sets. The relay validates the new shape independently and was deployed to `caverno-4977f` (revision 3). The desktop sends from the `approvalRequested` site, gated per device by the same `_canResolveInteraction` the snapshot uses. Delivery is verified on hardware: a desktop approval reached a backgrounded iPhone, once the App Check App Attest provider and the APNs auth key were registered — neither of which the app can report usefully. The mobile answer path is built but unverified: a pushed approval reconnects and sends the id, and the desktop re-checks it. What is left is that device check, withdrawal of a notification the person was never running to see resolved, and the matrix. |
+| Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Reopened and mostly built 2026-09-09, after a device check showed the local path cannot reach a suspended app at all: iOS holds no background mode that keeps a WebSocket alive, and `beginBackgroundTask` is called only by `ChatNotifier`, so a backgrounded phone receives nothing to raise a notification from. The payload blocker is closed — `RemoteCodingApprovalNotificationPayload` carries an allow-listed kind and a `hasWarning` boolean and no command text, path, or warning prose, with the displayed lines composed from closed sets. The relay validates the new shape independently and was deployed to `caverno-4977f` (revision 3). The desktop sends from the `approvalRequested` site, gated per device by the same `_canResolveInteraction` the snapshot uses. Verified end to end on hardware 2026-09-09: a desktop approval reaches a backgrounded iPhone and Approve on the lock screen resolves it in 438ms, closing the desktop's dialog. Four things had to be fixed first, each invisible without a device — the App Check App Attest provider and APNs auth key were unregistered, a background notification action cold-launched a Flutter app headless and took SIGSEGV, the press was read from a key only local notifications carry, and the answer checked `isConnected` 25ms before the approval arrived. The file log sink was writing nowhere on iOS, which is why none of it was diagnosable; that is fixed too. What is left is withdrawal of a notification the person was never running to see resolved, and the device matrix. |
 
 ### Ready Candidates
 
@@ -1758,17 +1758,41 @@ deliberately not duplicated there — `_handleResolveApproval` re-checks the id
 against the current pending list and that device's grant and records a refusal,
 so an id the phone cannot verify resolves nothing it should not.
 
+**Answering from the lock screen is verified on hardware** (2026-09-09):
+press to resolution in 438ms, with the desktop's dialog closing and the turn
+continuing. Two defects stood between the build and that run, and both were
+found only on a device:
+
+- **The press never reached Dart.** `AppDelegate` read it from
+  `userInfo["payload"]`, where `flutter_local_notifications` stores it for a
+  *local* notification. A push has no such key — FCM spreads the relay's data
+  fields across `userInfo` itself — so the guard dropped every Approve and
+  Deny. The button appeared only to open the app.
+- **The answer gave up 25ms too early.** `connectSavedHost` returns once the
+  connect is under way, not once it has completed, so checking `isConnected`
+  straight afterwards abandoned the press at +233ms while the approval landed
+  at +258ms. It now waits for the approval itself, which is the stronger
+  condition: one answered elsewhere while the phone slept never arrives and
+  nothing is sent.
+
+Neither was visible from the device console, because the file log sink fell
+back to `$HOME/.caverno/app_logs` — a desktop path. On iOS `HOME` is the
+sandbox root, the first write threw, and the sink latched disabled, so a
+device produced no log at all. Fixing that came first; `xcrun devicectl device
+copy from --domain-type appDataContainer` then pulls the file without Xcode.
+
 What is left:
 
-1. **Answer a pushed approval on a device.** Built, unverified.
-2. **Withdrawal of a stale pushed notification.** A phone that was never
+1. **Withdrawal of a stale pushed notification.** A phone that was never
    running when the approval was answered elsewhere has no `previous` state to
-   withdraw from, so the notification can outlive the request. Its buttons
-   resolve nothing, which the desktop refuses correctly, but the person is
-   shown a decision that no longer exists.
-3. **The device matrix**, per `docs/remote_coding_fcm_release_gate.md`.
+   withdraw from, so the notification can outlive the request. Pressing it
+   resolves nothing — the answer path now waits for an approval that never
+   arrives — but the person is still shown a decision that no longer exists.
+2. **The device matrix**, per `docs/remote_coding_fcm_release_gate.md`:
+   foreground, background, locked and terminated; tap routing, token rotation,
+   permission denial, registration revocation, and relay outage isolation.
 
-RC2 — retiring the notification-relay QR path — is gated on step 3.
+RC2 — retiring the notification-relay QR path — is gated on step 2.
 
 ### WATCH6: Dismiss A Resolved Interaction On The Phone
 
