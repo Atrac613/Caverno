@@ -73,6 +73,9 @@ void main() {
   Future<void> act({
     required String approvalId,
     String actionId = NotificationService.approveActionId,
+    // Long enough for the reconnect path to settle. The local cases resolve
+    // synchronously and are unaffected by a longer wait.
+    Duration settle = const Duration(milliseconds: 400),
   }) async {
     notifications.emit(
       NotificationActionEvent(
@@ -81,7 +84,7 @@ void main() {
         approvalId: approvalId,
       ),
     );
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(settle);
   }
 
   RemoteCodingApproval approval({
@@ -139,10 +142,14 @@ void main() {
   });
 
 
-  test('a pushed approval reconnects before answering', () async {
+  test('a pushed approval waits for the socket to bring it back', () async {
     // The whole point of the push: it arrives when nothing is connected, so
-    // there is no pending approval locally to match the id against.
+    // there is no pending approval locally to match the id against. Measured
+    // on a device, the approval lands about 250ms after `connectSavedHost`
+    // returns — checking straight afterwards gave up 25ms too early, every
+    // time.
     client.setSavedHostDisconnected();
+    client.approvalOnReconnect = approval();
 
     await act(approvalId: 'remote-1');
 
@@ -157,6 +164,7 @@ void main() {
     await act(
       approvalId: 'remote-1',
       actionId: NotificationService.denyActionId,
+      settle: const Duration(milliseconds: 400),
     );
 
     expect(client.connectAttempts, 1);
@@ -165,6 +173,20 @@ void main() {
       isEmpty,
       reason: 'an unsent denial must not look like a delivered one',
     );
+  });
+
+  test('an approval answered elsewhere while asleep is not re-answered',
+      () async {
+    // It never comes back over the socket, so there is nothing to send. The
+    // desktop would refuse it anyway; not sending keeps the refusal out of its
+    // audit trail for a decision the person did make, just late.
+    client.setSavedHostDisconnected();
+    client.approvalOnReconnect = null;
+
+    await act(approvalId: 'remote-1', settle: const Duration(milliseconds: 400));
+
+    expect(client.connectAttempts, 1);
+    expect(client.resolved, isEmpty);
   });
 
   test('no saved host means no reconnect attempt', () async {
@@ -241,12 +263,28 @@ final class _RecordingRemoteCodingClient extends RemoteCodingClientNotifier {
     );
   }
 
+  /// Delivered this long after the connect returns, mirroring the device: the
+  /// method returns while the connect is still under way and the snapshot
+  /// carrying the approval lands a quarter-second later.
+  Duration approvalArrivalDelay = const Duration(milliseconds: 150);
+
+  /// What the desktop still has pending when the socket comes back. Null means
+  /// it was answered elsewhere while the phone slept.
+  RemoteCodingApproval? approvalOnReconnect;
+
   @override
   Future<void> connectSavedHost({bool automatic = false}) async {
     connectAttempts += 1;
-    if (connectSucceeds) {
-      state = state.copyWith(status: RemoteCodingConnectionStatus.connected);
-    }
+    if (!connectSucceeds) return;
+    final arriving = approvalOnReconnect;
+    unawaited(
+      Future<void>.delayed(approvalArrivalDelay, () {
+        state = state.copyWith(
+          status: RemoteCodingConnectionStatus.connected,
+          pendingApproval: arriving,
+        );
+      }),
+    );
   }
 
   @override

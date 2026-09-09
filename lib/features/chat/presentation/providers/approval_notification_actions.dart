@@ -91,6 +91,15 @@ void _apply(Ref ref, NotificationActionEvent action) {
   );
 }
 
+/// How long a pushed answer waits for the socket to bring the approval back.
+///
+/// Measured on a device: the press reached Dart 5ms after the action, the
+/// snapshot carrying the approval arrived 253ms later, and the connection
+/// finished at 450ms. Checking `isConnected` straight after `connectSavedHost`
+/// returned gave up 25ms before the approval landed, every time — the method
+/// returns once the connect is under way, not once it has completed.
+const Duration _pushedApprovalArrivalTimeout = Duration(seconds: 15);
+
 Future<void> _resolveAfterReconnect(
   Ref ref,
   NotificationActionEvent action,
@@ -105,12 +114,16 @@ Future<void> _resolveAfterReconnect(
     );
     return;
   }
-  if (!ref.read(remoteCodingClientProvider).isConnected) {
+  // Wait for the approval itself rather than for the connection. It is the
+  // stronger condition: it proves the desktop still holds this request and
+  // still shows it to this device, so an approval answered elsewhere while
+  // the phone was asleep simply never arrives and nothing is sent.
+  if (!await _awaitPendingApproval(ref, action.approvalId)) {
     // Say so rather than dropping it. The desktop is still blocked, and the
     // person pressed a button that appeared to do something.
     appLog(
-      '[ApprovalNotification] still disconnected; ${action.approvalId} was '
-      'not answered. Open Caverno to resolve it.',
+      '[ApprovalNotification] ${action.approvalId} did not come back over the '
+      'socket; it was not answered. Open Caverno to resolve it.',
     );
     return;
   }
@@ -122,4 +135,24 @@ Future<void> _resolveAfterReconnect(
     approvalId: action.approvalId,
     approved: action.isApprove,
   );
+}
+
+/// Whether [approvalId] became the client's pending approval before the
+/// deadline.
+Future<bool> _awaitPendingApproval(
+  Ref ref,
+  String approvalId, {
+  Duration timeout = _pushedApprovalArrivalTimeout,
+  Duration interval = const Duration(milliseconds: 50),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (true) {
+    if (!ref.mounted) return false;
+    if (ref.read(remoteCodingClientProvider).pendingApproval?.id ==
+        approvalId) {
+      return true;
+    }
+    if (!DateTime.now().isBefore(deadline)) return false;
+    await Future<void>.delayed(interval);
+  }
 }
