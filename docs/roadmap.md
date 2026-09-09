@@ -1781,18 +1781,20 @@ sandbox root, the first write threw, and the sink latched disabled, so a
 device produced no log at all. Fixing that came first; `xcrun devicectl device
 copy from --domain-type appDataContainer` then pulls the file without Xcode.
 
-What is left:
+Stale pushed notifications are withdrawn as of the same day. A push arrives
+when the app is not running, so nothing records it and the conversation-keyed
+withdrawal cannot reach it; the sweep runs on every snapshot instead, which is
+when the phone learns what is actually live. It is split by platform because
+the plugin reaches only one of them — on iOS its `cancel` removes by a
+stringified integer id written into `userInfo`, which a push does not carry.
 
-1. **Withdrawal of a stale pushed notification.** A phone that was never
-   running when the approval was answered elsewhere has no `previous` state to
-   withdraw from, so the notification can outlive the request. Pressing it
-   resolves nothing — the answer path now waits for an approval that never
-   arrives — but the person is still shown a decision that no longer exists.
-2. **The device matrix**, per `docs/remote_coding_fcm_release_gate.md`:
-   foreground, background, locked and terminated; tap routing, token rotation,
-   permission denial, registration revocation, and relay outage isolation.
+What is left: **the device matrix**, per
+`docs/remote_coding_fcm_release_gate.md` — foreground, background, locked and
+terminated; tap routing, token rotation, permission denial, registration
+revocation, and relay outage isolation. The stale-withdrawal sweep is unit
+tested but has not been seen on hardware.
 
-RC2 — retiring the notification-relay QR path — is gated on step 2.
+RC2 — retiring the notification-relay QR path — is gated on that matrix.
 
 ### WATCH6: Dismiss A Resolved Interaction On The Phone
 
