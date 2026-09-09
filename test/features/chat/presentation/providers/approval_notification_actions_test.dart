@@ -138,6 +138,42 @@ void main() {
     expect(client.resolved, isEmpty);
   });
 
+
+  test('a pushed approval reconnects before answering', () async {
+    // The whole point of the push: it arrives when nothing is connected, so
+    // there is no pending approval locally to match the id against.
+    client.setSavedHostDisconnected();
+
+    await act(approvalId: 'remote-1');
+
+    expect(client.connectAttempts, 1);
+    expect(client.resolved, [(id: 'remote-1', approved: true)]);
+  });
+
+  test('a pushed denial that cannot reconnect answers nothing', () async {
+    client.setSavedHostDisconnected();
+    client.connectSucceeds = false;
+
+    await act(
+      approvalId: 'remote-1',
+      actionId: NotificationService.denyActionId,
+    );
+
+    expect(client.connectAttempts, 1);
+    expect(
+      client.resolved,
+      isEmpty,
+      reason: 'an unsent denial must not look like a delivered one',
+    );
+  });
+
+  test('no saved host means no reconnect attempt', () async {
+    await act(approvalId: 'remote-1');
+
+    expect(client.connectAttempts, 0);
+    expect(client.resolved, isEmpty);
+  });
+
   test('an action that is neither approve nor deny is ignored', () async {
     client.setPendingApproval(approval());
 
@@ -172,6 +208,11 @@ final class _RecordingNotificationService extends NotificationService {
 
 final class _RecordingRemoteCodingClient extends RemoteCodingClientNotifier {
   final resolved = <({String id, bool approved})>[];
+  int connectAttempts = 0;
+
+  /// Whether a reconnect succeeds. A push is answered exactly when the socket
+  /// is down, so failing to get it back is the ordinary case, not an edge.
+  bool connectSucceeds = true;
 
   @override
   RemoteCodingClientState build() => const RemoteCodingClientState();
@@ -182,6 +223,30 @@ final class _RecordingRemoteCodingClient extends RemoteCodingClientNotifier {
 
   void clearPendingApproval() {
     state = state.copyWith(clearPendingApproval: true);
+  }
+
+  /// A saved host with the socket down: what a pushed approval lands on.
+  void setSavedHostDisconnected() {
+    state = state.copyWith(
+      host: RemoteCodingHost(
+        id: 'host-1',
+        name: 'Mac',
+        host: '192.168.0.2',
+        port: 8767,
+        createdAt: DateTime.utc(2026, 9, 9),
+        updatedAt: DateTime.utc(2026, 9, 9),
+        certificatePin: 'pin',
+      ),
+      status: RemoteCodingConnectionStatus.disconnected,
+    );
+  }
+
+  @override
+  Future<void> connectSavedHost({bool automatic = false}) async {
+    connectAttempts += 1;
+    if (connectSucceeds) {
+      state = state.copyWith(status: RemoteCodingConnectionStatus.connected);
+    }
   }
 
   @override

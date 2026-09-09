@@ -48,7 +48,7 @@ final class RemoteCodingMobileNotificationState {
   final RemoteCodingMobileNotificationStatus status;
   final String? message;
   final RemoteCodingNotificationPayload? lastForegroundNotification;
-  final RemoteCodingNotificationPayload? pendingNotificationTap;
+  final RemoteCodingRelayNotification? pendingNotificationTap;
 
   bool get isEnabled => status == RemoteCodingMobileNotificationStatus.enabled;
   bool get canRetry =>
@@ -63,7 +63,7 @@ final class RemoteCodingMobileNotificationState {
     RemoteCodingMobileNotificationStatus? status,
     String? message,
     RemoteCodingNotificationPayload? lastForegroundNotification,
-    RemoteCodingNotificationPayload? pendingNotificationTap,
+    RemoteCodingRelayNotification? pendingNotificationTap,
     bool clearMessage = false,
     bool clearPendingNotificationTap = false,
   }) {
@@ -527,8 +527,17 @@ final class RemoteCodingMobileNotificationNotifier
 
   Future<void> _recordForegroundMessage(Map<String, dynamic> data) async {
     try {
-      final notification = RemoteCodingNotificationPayload.fromFcmData(data);
-      await _presentNotificationOnce(notification);
+      final notification = parseRemoteCodingRelayNotification(data);
+      switch (notification) {
+        case RemoteCodingNotificationPayload():
+          await _presentNotificationOnce(notification);
+        case RemoteCodingApprovalNotificationPayload():
+          // Foreground and pushed means the socket is down while the app is
+          // open — the push outran a reconnect. Restore the socket and let the
+          // existing snapshot path decide between the sheet and a local
+          // notification; raising one from the push would race it.
+          await _reconnectForApproval(notification);
+      }
     } on FormatException {
       // Ignore messages outside the frozen Remote Coding notification contract.
     }
@@ -767,12 +776,49 @@ final class RemoteCodingMobileNotificationNotifier
 
   void _recordNotificationTap(Map<String, dynamic> data) {
     try {
-      final notification = RemoteCodingNotificationPayload.fromFcmData(data);
+      final notification = parseRemoteCodingRelayNotification(data);
       if (ref.mounted) {
         state = state.copyWith(pendingNotificationTap: notification);
       }
+      if (notification is RemoteCodingApprovalNotificationPayload) {
+        // The desktop is blocked right now. Reconnecting is what puts the
+        // approval back in reach: the snapshot carries it, the sheet opens,
+        // and Approve/Deny resolve against live state rather than against a
+        // notification the person may have been holding for an hour.
+        unawaited(_reconnectForApproval(notification));
+      }
     } on FormatException {
       // Ignore messages outside the frozen Remote Coding notification contract.
+    }
+  }
+
+  /// Brings the socket back so a pushed approval can be answered.
+  ///
+  /// A push is delivered precisely when the app is not running, so nothing has
+  /// reconnected on its own. Without this the person taps the notification,
+  /// lands in the app, and sees no approval at all.
+  Future<void> _reconnectForApproval(
+    RemoteCodingApprovalNotificationPayload notification,
+  ) async {
+    final client = ref.read(remoteCodingClientProvider);
+    if (client.isConnected) {
+      return;
+    }
+    appLog(
+      '[RemoteCodingNotifications] reconnecting for pushed approval '
+      '${notification.approvalId}',
+    );
+    try {
+      await ref
+          .read(remoteCodingClientProvider.notifier)
+          .connectSavedHost(automatic: true);
+    } catch (error) {
+      // The sheet is unreachable, but the desktop is still blocked and the
+      // person can retry from the app. Never throw out of a notification tap.
+      appLog(
+        '[RemoteCodingNotifications] reconnect for a pushed approval '
+        'failed: $error',
+      );
     }
   }
 

@@ -69,10 +69,57 @@ void _apply(Ref ref, NotificationActionEvent action) {
     );
     return;
   }
+  if (client.host != null && !client.isConnected) {
+    // The push case. A notification that reached a suspended phone is answered
+    // before anything has reconnected, so there is no pending approval here to
+    // match against — the socket that would carry one is down. Connect and
+    // send the id; the desktop re-checks it against its own pending list and
+    // that device's grant, and records a refusal if either has moved on, so
+    // sending an id we cannot verify locally resolves nothing we should not.
+    appLog(
+      '[ApprovalNotification] ${action.approvalId} arrived while '
+      'disconnected; reconnecting to answer it',
+    );
+    unawaited(_resolveAfterReconnect(ref, action));
+    return;
+  }
   // A stale id fails where it can be seen rather than resolving whatever else
   // happens to be pending.
   appLog(
     '[ApprovalNotification] no pending approval owns '
     '${action.approvalId}; the request was already resolved or withdrawn.',
+  );
+}
+
+Future<void> _resolveAfterReconnect(
+  Ref ref,
+  NotificationActionEvent action,
+) async {
+  final notifier = ref.read(remoteCodingClientProvider.notifier);
+  try {
+    await notifier.connectSavedHost(automatic: true);
+  } catch (error) {
+    appLog(
+      '[ApprovalNotification] reconnect to answer ${action.approvalId} '
+      'failed: $error',
+    );
+    return;
+  }
+  if (!ref.read(remoteCodingClientProvider).isConnected) {
+    // Say so rather than dropping it. The desktop is still blocked, and the
+    // person pressed a button that appeared to do something.
+    appLog(
+      '[ApprovalNotification] still disconnected; ${action.approvalId} was '
+      'not answered. Open Caverno to resolve it.',
+    );
+    return;
+  }
+  appLog(
+    '[ApprovalNotification] ${action.approvalId} sent to the desktop after '
+    'reconnecting (approved=${action.isApprove})',
+  );
+  await notifier.resolveApproval(
+    approvalId: action.approvalId,
+    approved: action.isApprove,
   );
 }
