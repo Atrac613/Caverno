@@ -56,16 +56,22 @@ Future<void> main(List<String> args) async {
       projectId: options.projectId,
       platform: 'IOS',
       appId: plan.iosApp!.appId,
-      outputPath: 'ios/Runner/GoogleService-Info.plist',
+      outputPath: iosGoogleServiceInfoPath,
     );
     await cli.downloadSdkConfig(
       projectId: options.projectId,
       platform: 'ANDROID',
       appId: plan.androidApp!.appId,
-      outputPath: 'android/app/google-services.json',
+      outputPath: androidGoogleServicesJsonPath,
+    );
+    copyIosFirebaseConfigToMacos(
+      iosPlist: File(iosGoogleServiceInfoPath),
+      macosPlist: File(macosGoogleServiceInfoPath),
     );
     _verifyConfigurationFiles();
-    stdout.writeln('Firebase mobile application configuration is ready.');
+    stdout.writeln(
+      'Firebase iOS, Android, and macOS application configuration is ready.',
+    );
     stdout.writeln(
       'Next: firebase deploy --project ${options.projectId} '
       '--only functions:notification-relay,firestore,hosting',
@@ -188,12 +194,12 @@ final class _FirebaseCli {
 }
 
 void _verifyConfigurationFiles() {
-  final ios = File('ios/Runner/GoogleService-Info.plist');
-  final android = File('android/app/google-services.json');
-  if (!ios.existsSync() ||
-      !ios.readAsStringSync().contains(remoteCodingFirebaseNamespace) ||
-      !android.existsSync() ||
-      !android.readAsStringSync().contains(remoteCodingFirebaseNamespace)) {
+  final ios = File(iosGoogleServiceInfoPath);
+  final macos = File(macosGoogleServiceInfoPath);
+  final android = File(androidGoogleServicesJsonPath);
+  if (!firebaseConfigMatchesNamespace(ios) ||
+      !firebaseConfigMatchesNamespace(macos) ||
+      !firebaseConfigMatchesNamespace(android)) {
     throw StateError(
       'Downloaded Firebase configuration does not match '
       '$remoteCodingFirebaseNamespace.',

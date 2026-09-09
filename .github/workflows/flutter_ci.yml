@@ -122,8 +122,9 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    # Full suite plus coverage is ~20 minutes on ubuntu-latest; keep headroom.
-    timeout-minutes: 30
+    # Coverage suite is ~25 minutes on ubuntu-latest. 30 minutes cancelled
+    # a main push while sqlite3 crash-child tests were still running.
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
