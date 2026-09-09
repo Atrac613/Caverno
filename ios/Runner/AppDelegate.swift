@@ -54,9 +54,8 @@ import FoundationModels
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
     let actionIdentifier = response.actionIdentifier
-    let payload = response.notification.request.content.userInfo["payload"]
-      as? String
-    if let payload, !payload.isEmpty,
+    let userInfo = response.notification.request.content.userInfo
+    if let payload = Self.approvalPayload(from: userInfo), !payload.isEmpty,
       actionIdentifier != UNNotificationDefaultActionIdentifier,
       actionIdentifier != UNNotificationDismissActionIdentifier
     {
@@ -70,6 +69,44 @@ import FoundationModels
       didReceive: response,
       withCompletionHandler: completionHandler
     )
+  }
+
+
+  /// The JSON string Dart decodes, whichever kind of notification carried the
+  /// press.
+  ///
+  /// A local notification stores it under `userInfo["payload"]`, because that
+  /// is where `flutter_local_notifications` puts it. A push has no such key:
+  /// FCM spreads the relay's data fields across `userInfo` itself, so reading
+  /// only `payload` dropped every Approve and Deny pressed on a pushed
+  /// approval. The button appeared to do nothing but open the app, and the
+  /// person then answered the same request a second time in the sheet.
+  ///
+  /// Rebuilding the local shape here keeps one payload contract on the channel
+  /// rather than teaching the Dart side two.
+  static func approvalPayload(from userInfo: [AnyHashable: Any]) -> String? {
+    if let payload = userInfo["payload"] as? String, !payload.isEmpty {
+      return payload
+    }
+    guard
+      userInfo["kind"] as? String == "remote_coding_approval_requested",
+      let approvalId = userInfo["approvalId"] as? String,
+      !approvalId.isEmpty
+    else {
+      return nil
+    }
+    let rebuilt: [String: String] = [
+      "kind": "approval_required",
+      "conversationId": (userInfo["conversationId"] as? String) ?? "",
+      "approvalId": approvalId,
+    ]
+    guard
+      let data = try? JSONSerialization.data(withJSONObject: rebuilt),
+      let json = String(data: data, encoding: .utf8)
+    else {
+      return nil
+    }
+    return json
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
