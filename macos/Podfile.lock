@@ -165,7 +165,7 @@ PODS:
     - FlutterMacOS
   - screen_retriever_macos (0.0.1):
     - FlutterMacOS
-  - serious_python_darwin (4.5.1):
+  - serious_python_darwin (4.6.0):
     - Flutter
     - FlutterMacOS
   - share_plus (0.0.1):
@@ -356,7 +356,7 @@ SPEC CHECKSUMS:
   PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
   record_macos: 25091280c4e09c8ab21428dde5fd342e065508fd
   screen_retriever_macos: 038d3f7b34a779b06f536842003e41e8ec1fb4b7
-  serious_python_darwin: 57ba2e15ef270b90693c7609d1151cf34558a107
+  serious_python_darwin: 6881d8f0e6578f3d7d17dcf035f2cc074ca29d89
   share_plus: 1fa619de8392a4398bfaf176d441853922614e89
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
   Sparkle: 2d0c930d42d53ee0fdf98bbb342c08eaf18ab5f0
