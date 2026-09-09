@@ -281,7 +281,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     await ref.read(remoteCodingClientProvider.notifier).pairFromQr(raw);
   }
 
-  Future<void> _scanNotificationRelayCode() async {
+  Future<bool> _scanNotificationRelayCode() async {
     final raw = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => QrScannerPage(
@@ -292,21 +292,31 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
       ),
     );
     if (raw == null || raw.trim().isEmpty) {
-      return;
+      return false;
     }
     await ref
         .read(remoteCodingClientProvider.notifier)
         .authorizeNotificationRelayFromQr(raw);
+    return true;
   }
 
   Future<void> _enableCompletionNotifications() async {
-    final enabled = await ref
+    await ref
         .read(remoteCodingMobileNotificationProvider.notifier)
-        .enable();
-    if (!enabled || !mounted) {
-      return;
-    }
-    await _scanNotificationRelayCode();
+        .enable(
+          authorizeDesktop: () async {
+            if (!mounted) return false;
+            final client = ref.read(remoteCodingClientProvider);
+            if (client.supportsNotificationRelaySetup &&
+                client.host?.certificatePin != null) {
+              await ref
+                  .read(remoteCodingClientProvider.notifier)
+                  .authorizeNotificationRelay();
+              return true;
+            }
+            return _scanNotificationRelayCode();
+          },
+        );
   }
 
   Future<void> _send(RemoteCodingClientNotifier notifier) async {
@@ -1457,9 +1467,15 @@ class _RemoteCodingHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (notificationState.isEnabled)
+          if (notificationState.isEnabled ||
+              notificationState.status ==
+                  RemoteCodingMobileNotificationStatus.registered ||
+              notificationState.status ==
+                  RemoteCodingMobileNotificationStatus.error)
             PopupMenuButton<String>(
-              tooltip: 'Completion notifications enabled',
+              tooltip: notificationState.isEnabled
+                  ? 'Completion notifications enabled'
+                  : 'Completion notification settings',
               icon: const Icon(Icons.notifications_active_outlined),
               onSelected: (value) {
                 if (value == 'replace') {
@@ -1468,12 +1484,16 @@ class _RemoteCodingHeader extends StatelessWidget {
                   onDisableNotifications();
                 }
               },
-              itemBuilder: (_) => const [
+              itemBuilder: (_) => [
                 PopupMenuItem(
                   value: 'replace',
-                  child: Text('Authorize another desktop'),
+                  child: Text(
+                    notificationState.isEnabled
+                        ? 'Check notification setup'
+                        : 'Finish notification setup',
+                  ),
                 ),
-                PopupMenuItem(
+                const PopupMenuItem(
                   value: 'disable',
                   child: Text('Disable notifications'),
                 ),

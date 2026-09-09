@@ -32,6 +32,7 @@ enum RemoteCodingMobileNotificationStatus {
   denied,
   disabled,
   enabling,
+  registered,
   enabled,
   error,
 }
@@ -55,6 +56,7 @@ final class RemoteCodingMobileNotificationState {
       status == RemoteCodingMobileNotificationStatus.notDetermined ||
       status == RemoteCodingMobileNotificationStatus.denied ||
       status == RemoteCodingMobileNotificationStatus.disabled ||
+      status == RemoteCodingMobileNotificationStatus.registered ||
       status == RemoteCodingMobileNotificationStatus.error;
 
   RemoteCodingMobileNotificationState copyWith({
@@ -88,6 +90,8 @@ final class RemoteCodingMobileNotificationNotifier
   StreamSubscription<Map<String, dynamic>>? _notificationTapSubscription;
   StreamSubscription<String>? _localNotificationTapSubscription;
   bool _operationInProgress = false;
+  Completer<void>? _operationCompletion;
+  String? _registeredHandle;
 
   /// Whether the Remote Coding page is mounted.
   ///
@@ -143,6 +147,22 @@ final class RemoteCodingMobileNotificationNotifier
     _gateway = ref.read(remoteCodingMobileNotificationGatewayProvider);
     _receiptStore = ref.read(remoteCodingNotificationReceiptStoreProvider);
     _notificationService = ref.read(notificationServiceProvider);
+    ref.listen<RemoteCodingClientState>(remoteCodingClientProvider, (
+      previous,
+      next,
+    ) {
+      if (!_operationInProgress &&
+          (state.status == RemoteCodingMobileNotificationStatus.enabled ||
+              state.status ==
+                  RemoteCodingMobileNotificationStatus.registered)) {
+        _updateRegistrationStatus();
+      }
+      if (previous?.status == RemoteCodingConnectionStatus.pairing &&
+          next.isConnected &&
+          next.supportsNotificationRelaySetup) {
+        unawaited(enableAfterPairing());
+      }
+    });
     ref.listen<RemoteCodingNotificationPayload?>(
       remoteCodingClientProvider.select(
         (clientState) => clientState.lastTerminalNotification,
@@ -222,18 +242,19 @@ final class RemoteCodingMobileNotificationNotifier
       return;
     }
     _operationInProgress = true;
+    _operationCompletion = Completer<void>();
     try {
       final permission = await _gateway.initialize();
       await _listenForMessages();
       if (!_repository.loadMobileRelayNotificationsEnabled()) {
-        state = RemoteCodingMobileNotificationState(
+        state = state.copyWith(
           status: _disabledStatus(permission),
           message: _permissionMessage(permission),
         );
         return;
       }
       if (!_isAuthorized(permission)) {
-        state = RemoteCodingMobileNotificationState(
+        state = state.copyWith(
           status: _disabledStatus(permission),
           message: _permissionMessage(permission),
         );
@@ -241,10 +262,7 @@ final class RemoteCodingMobileNotificationNotifier
       }
       await _ensureRegistration();
       _listenForTokenRefresh();
-      state = state.copyWith(
-        status: RemoteCodingMobileNotificationStatus.enabled,
-        clearMessage: true,
-      );
+      _updateRegistrationStatus();
     } catch (error, stackTrace) {
       appLog(
         '[RemoteCodingNotifications] initialize failed: $error\n$stackTrace',
@@ -255,10 +273,39 @@ final class RemoteCodingMobileNotificationNotifier
       );
     } finally {
       _operationInProgress = false;
+      _operationCompletion?.complete();
     }
   }
 
-  Future<bool> enable() async {
+  Future<bool> enableAfterPairing() async {
+    final hostId = ref.read(remoteCodingClientProvider).host?.id;
+    await _operationCompletion?.future;
+    if (!ref.mounted ||
+        _repository.mobileRelayNotificationsExplicitlyDisabled) {
+      return false;
+    }
+    final client = ref.read(remoteCodingClientProvider);
+    if (!client.isConnected ||
+        client.host?.id != hostId ||
+        client.host?.certificatePin == null ||
+        !client.supportsNotificationRelaySetup) {
+      return false;
+    }
+    return enable(
+      automatic: true,
+      authorizeDesktop: () async {
+        await ref
+            .read(remoteCodingClientProvider.notifier)
+            .authorizeNotificationRelay();
+        return true;
+      },
+    );
+  }
+
+  Future<bool> enable({
+    bool automatic = false,
+    Future<bool> Function()? authorizeDesktop,
+  }) async {
     if (_operationInProgress) {
       return false;
     }
@@ -267,17 +314,25 @@ final class RemoteCodingMobileNotificationNotifier
       await initialize();
       return false;
     }
+    final setupHostId = ref.read(remoteCodingClientProvider).host?.id;
     _operationInProgress = true;
-    state = const RemoteCodingMobileNotificationState(
+    _operationCompletion = Completer<void>();
+    state = state.copyWith(
       status: RemoteCodingMobileNotificationStatus.enabling,
+      clearMessage: true,
     );
     try {
       var permission = await _gateway.initialize();
-      if (!_isAuthorized(permission)) {
+      if (!_isAuthorized(permission) &&
+          (!automatic ||
+              permission == RemoteCodingNotificationPermission.notDetermined)) {
         permission = await _gateway.requestPermission();
       }
       if (!_isAuthorized(permission)) {
-        state = RemoteCodingMobileNotificationState(
+        if (automatic) {
+          await _repository.saveMobileRelayNotificationsEnabled(false);
+        }
+        state = state.copyWith(
           status: _disabledStatus(permission),
           message: _permissionMessage(permission),
         );
@@ -287,20 +342,37 @@ final class RemoteCodingMobileNotificationNotifier
       await _repository.saveMobileRelayNotificationsEnabled(true);
       _listenForTokenRefresh();
       await _listenForMessages();
-      state = state.copyWith(
-        status: RemoteCodingMobileNotificationStatus.enabled,
-        clearMessage: true,
-      );
+      if (authorizeDesktop != null) {
+        if (!ref.mounted ||
+            setupHostId == null ||
+            ref.read(remoteCodingClientProvider).host?.id != setupHostId) {
+          throw StateError(
+            'The paired desktop changed during notification setup.',
+          );
+        }
+        if (!await authorizeDesktop() ||
+            !ref.mounted ||
+            ref.read(remoteCodingClientProvider).host?.id != setupHostId) {
+          throw StateError('Desktop notification setup was not completed.');
+        }
+        await _repository.saveMobileRelayAuthorization(
+          setupHostId,
+          _registeredHandle!,
+        );
+      }
+      _updateRegistrationStatus();
       return true;
     } catch (error, stackTrace) {
+      if (!ref.mounted) return false;
       appLog('[RemoteCodingNotifications] enable failed: $error\n$stackTrace');
-      state = const RemoteCodingMobileNotificationState(
+      state = state.copyWith(
         status: RemoteCodingMobileNotificationStatus.error,
         message: 'Completion notifications could not be enabled.',
       );
       return false;
     } finally {
       _operationInProgress = false;
+      _operationCompletion?.complete();
     }
   }
 
@@ -313,6 +385,7 @@ final class RemoteCodingMobileNotificationNotifier
       return false;
     }
     _operationInProgress = true;
+    _operationCompletion = Completer<void>();
     try {
       await RemoteCodingMobileRelayRegistrationCoordinator(
         repository: _repository,
@@ -348,6 +421,7 @@ final class RemoteCodingMobileNotificationNotifier
       return false;
     } finally {
       _operationInProgress = false;
+      _operationCompletion?.complete();
     }
   }
 
@@ -360,14 +434,38 @@ final class RemoteCodingMobileNotificationNotifier
     await _notificationService.prepareRemoteCodingNotificationChannel();
     final fcmToken = await _gateway.getFcmToken();
     final appCheckToken = await _gateway.getAppCheckToken();
-    await RemoteCodingMobileRelayRegistrationCoordinator(
-      repository: _repository,
-      relayClient: relayClient,
-      clock: DateTime.now,
-    ).ensureRegistered(
-      platform: platform,
-      fcmRegistrationToken: fcmToken,
-      appCheckToken: appCheckToken,
+    final registration =
+        await RemoteCodingMobileRelayRegistrationCoordinator(
+          repository: _repository,
+          relayClient: relayClient,
+          clock: DateTime.now,
+        ).ensureRegistered(
+          platform: platform,
+          fcmRegistrationToken: fcmToken,
+          appCheckToken: appCheckToken,
+        );
+    _registeredHandle = registration.deliveryHandle;
+  }
+
+  void _updateRegistrationStatus() {
+    if (!ref.mounted) return;
+    final client = ref.read(remoteCodingClientProvider);
+    final authorized =
+        client.isConnected && client.supportsNotificationRelaySetup
+        ? _registeredHandle != null &&
+              client.notificationRelayHandle == _registeredHandle
+        : _repository.hasMobileRelayAuthorization(
+            client.host?.id,
+            _registeredHandle,
+          );
+    state = state.copyWith(
+      status: authorized
+          ? RemoteCodingMobileNotificationStatus.enabled
+          : RemoteCodingMobileNotificationStatus.registered,
+      clearMessage: authorized,
+      message: authorized
+          ? null
+          : 'Complete notification setup for the paired desktop.',
     );
   }
 
@@ -709,9 +807,7 @@ final class RemoteCodingMobileNotificationNotifier
         clock: DateTime.now,
       ).rotateToken(token);
       if (ref.mounted) {
-        state = const RemoteCodingMobileNotificationState(
-          status: RemoteCodingMobileNotificationStatus.enabled,
-        );
+        _updateRegistrationStatus();
       }
     } catch (error, stackTrace) {
       appLog(

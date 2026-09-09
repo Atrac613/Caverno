@@ -28,6 +28,170 @@ void main() {
 
   final now = DateTime.now().toUtc();
 
+  RemoteCodingHost pairedHost() => RemoteCodingHost(
+    id: 'paired-phone',
+    name: 'Desktop',
+    host: '192.168.1.2',
+    port: 8443,
+    createdAt: now,
+    updatedAt: now,
+    certificatePin: 'pin',
+  );
+
+  test(
+    'pairing enables notifications once and waits for desktop activation',
+    () async {
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      final activation = Completer<void>();
+      fixture.clientNotifier.activation = activation;
+      fixture.notifier.applyNotificationTapForTest(_terminalData(now));
+      fixture.clientNotifier.completePairing(pairedHost());
+      await _waitUntil(() => fixture.clientNotifier.authorizationCount == 1);
+      expect(fixture.gateway.permissionRequestCount, 1);
+      expect(
+        fixture.container
+            .read(remoteCodingMobileNotificationProvider)
+            .isEnabled,
+        isFalse,
+      );
+      expect(
+        fixture.container
+            .read(remoteCodingMobileNotificationProvider)
+            .pendingNotificationTap
+            ?.eventId,
+        'event_123456',
+      );
+      activation.complete();
+      await fixture.waitForStatus(RemoteCodingMobileNotificationStatus.enabled);
+      fixture.clientNotifier.emitTerminalNotification(
+        RemoteCodingNotificationPayload.fromFcmData(_terminalData(now)),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fixture.notificationService.shownNotifications, isEmpty);
+      expect(fixture.clientNotifier.authorizationCount, 1);
+    },
+  );
+
+  test('desktop setup failure keeps connection and can be retried', () async {
+    final fixture = await _fixture(now);
+    addTearDown(fixture.dispose);
+    await fixture.waitForStatus(
+      RemoteCodingMobileNotificationStatus.notDetermined,
+    );
+    fixture.clientNotifier.failAuthorization = true;
+    fixture.clientNotifier.completePairing(pairedHost());
+    await fixture.waitForStatus(RemoteCodingMobileNotificationStatus.error);
+    expect(
+      fixture.container.read(remoteCodingClientProvider).isConnected,
+      isTrue,
+    );
+    fixture.clientNotifier.failAuthorization = false;
+    expect(await fixture.notifier.enableAfterPairing(), isTrue);
+    expect(fixture.relayClient.registrationCount, 1);
+    expect(fixture.relayClient.rotationCount, 1);
+    expect(
+      fixture.container.read(remoteCodingMobileNotificationProvider).isEnabled,
+      isTrue,
+    );
+  });
+
+  test(
+    'pairing respects explicit disable and does not retry OS denial',
+    () async {
+      final fixture = await _fixture(
+        now,
+        requestedPermission: RemoteCodingNotificationPermission.denied,
+      );
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.clientNotifier.completePairing(pairedHost());
+      await fixture.waitForStatus(RemoteCodingMobileNotificationStatus.denied);
+      expect(fixture.gateway.permissionRequestCount, 1);
+      expect(await fixture.notifier.enableAfterPairing(), isFalse);
+      expect(fixture.gateway.permissionRequestCount, 1);
+      expect(fixture.relayClient.registrationCount, 0);
+      expect(fixture.clientNotifier.authorizationCount, 0);
+    },
+  );
+
+  test('changing desktops during FCM registration aborts delegation', () async {
+    final fixture = await _fixture(now);
+    addTearDown(fixture.dispose);
+    await fixture.waitForStatus(
+      RemoteCodingMobileNotificationStatus.notDetermined,
+    );
+    final tokenBarrier = Completer<void>();
+    fixture.gateway.tokenBarrier = tokenBarrier;
+    fixture.clientNotifier.completePairing(pairedHost());
+    await fixture.waitForStatus(RemoteCodingMobileNotificationStatus.enabling);
+    fixture.clientNotifier.replaceHost(
+      RemoteCodingHost(
+        id: 'other-phone',
+        name: 'Other desktop',
+        host: '192.168.1.3',
+        port: 8443,
+        createdAt: now,
+        updatedAt: now,
+        certificatePin: 'other-pin',
+      ),
+    );
+    tokenBarrier.complete();
+    await fixture.waitForStatus(RemoteCodingMobileNotificationStatus.error);
+    expect(fixture.clientNotifier.authorizationCount, 0);
+    expect(
+      fixture.container.read(remoteCodingClientProvider).isConnected,
+      isTrue,
+    );
+  });
+
+  test(
+    'existing OS denial does not request permission during pairing',
+    () async {
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+      fixture.gateway.initialPermission =
+          RemoteCodingNotificationPermission.denied;
+      fixture.clientNotifier.completePairing(pairedHost());
+      await fixture.waitForStatus(RemoteCodingMobileNotificationStatus.denied);
+      expect(fixture.gateway.permissionRequestCount, 0);
+      expect(fixture.relayClient.registrationCount, 0);
+    },
+  );
+
+  test('explicitly disabled notifications stay disabled on pairing', () async {
+    final fixture = await _fixture(now);
+    addTearDown(fixture.dispose);
+    await fixture.waitForStatus(
+      RemoteCodingMobileNotificationStatus.notDetermined,
+    );
+    await fixture.repository.saveMobileRelayNotificationsEnabled(false);
+    fixture.clientNotifier.completePairing(pairedHost());
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(fixture.gateway.permissionRequestCount, 0);
+    expect(fixture.relayClient.registrationCount, 0);
+  });
+
+  test('legacy desktops do not start automatic notification setup', () async {
+    final fixture = await _fixture(now);
+    addTearDown(fixture.dispose);
+    await fixture.waitForStatus(
+      RemoteCodingMobileNotificationStatus.notDetermined,
+    );
+    fixture.clientNotifier.completePairing(pairedHost(), supported: false);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(fixture.gateway.permissionRequestCount, 0);
+    expect(fixture.clientNotifier.authorizationCount, 0);
+  });
+
   test('relay outage preserves cold-start taps and local fallback', () async {
     final fixture = await _fixture(now);
     addTearDown(fixture.dispose);
@@ -74,7 +238,7 @@ void main() {
       expect(fixture.relayClient.registrationCount, 1);
       expect(
         fixture.container.read(remoteCodingMobileNotificationProvider).status,
-        RemoteCodingMobileNotificationStatus.enabled,
+        RemoteCodingMobileNotificationStatus.registered,
       );
       expect(fixture.repository.loadMobileRelayNotificationsEnabled(), isTrue);
     },
@@ -141,7 +305,7 @@ void main() {
     expect(fixture.relayClient.rotatedFcmToken, 'fcm-token-refreshed');
     expect(
       fixture.container.read(remoteCodingMobileNotificationProvider).status,
-      RemoteCodingMobileNotificationStatus.enabled,
+      RemoteCodingMobileNotificationStatus.registered,
     );
   });
 
@@ -756,6 +920,33 @@ final class _Fixture {
 }
 
 final class _FakeRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
+  int authorizationCount = 0;
+  bool failAuthorization = false;
+  Completer<void>? activation;
+
+  void replaceHost(RemoteCodingHost host) {
+    state = state.copyWith(host: host);
+  }
+
+  void completePairing(RemoteCodingHost host, {bool supported = true}) {
+    state = state.copyWith(
+      status: RemoteCodingConnectionStatus.pairing,
+      host: host,
+    );
+    state = state.copyWith(
+      status: RemoteCodingConnectionStatus.connected,
+      supportsNotificationRelaySetup: supported,
+    );
+  }
+
+  @override
+  Future<void> authorizeNotificationRelay() async {
+    authorizationCount++;
+    if (failAuthorization) throw StateError('Desktop activation failed');
+    await activation?.future;
+    state = state.copyWith(notificationRelayHandle: 'delivery_handle_1');
+  }
+
   final resolvedApprovals = <({String id, bool approved})>[];
 
   @override
@@ -878,18 +1069,23 @@ final class _FakeNotificationGateway
   int permissionRequestCount = 0;
   int tokenDisableCount = 0;
   bool authorized = false;
+  Completer<void>? tokenBarrier;
+  RemoteCodingNotificationPermission? initialPermission;
   Map<String, dynamic>? initialTap;
   @override
   RemoteCodingRelayPlatform get platform => RemoteCodingRelayPlatform.ios;
 
   @override
-  Future<RemoteCodingNotificationPermission> initialize() async => authorized
-      ? RemoteCodingNotificationPermission.authorized
-      : RemoteCodingNotificationPermission.notDetermined;
+  Future<RemoteCodingNotificationPermission> initialize() async =>
+      initialPermission ??
+      (authorized
+          ? RemoteCodingNotificationPermission.authorized
+          : RemoteCodingNotificationPermission.notDetermined);
 
   @override
   Future<RemoteCodingNotificationPermission> requestPermission() async {
     permissionRequestCount += 1;
+    initialPermission = requestedPermission;
     return requestedPermission;
   }
 
@@ -897,7 +1093,10 @@ final class _FakeNotificationGateway
   Future<String> getAppCheckToken() async => 'app-check-token';
 
   @override
-  Future<String> getFcmToken() async => 'fcm-token';
+  Future<String> getFcmToken() async {
+    await tokenBarrier?.future;
+    return 'fcm-token';
+  }
 
   @override
   Future<void> disableFcmToken() async {

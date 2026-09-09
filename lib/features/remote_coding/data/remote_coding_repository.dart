@@ -247,6 +247,32 @@ class RemoteCodingRepository {
     return created;
   }
 
+  static const _mobileRelayAuthorizationKey =
+      'remote_coding_mobile_relay_authorization_v1';
+
+  bool hasMobileRelayAuthorization(String? hostId, String? handle) =>
+      hostId != null &&
+      handle != null &&
+      _prefs.getString(_mobileRelayAuthorizationKey) ==
+          jsonEncode([hostId, handle]);
+
+  Future<void> saveMobileRelayAuthorization(
+    String hostId,
+    String handle,
+  ) async {
+    if (!await _prefs.setString(
+      _mobileRelayAuthorizationKey,
+      jsonEncode([hostId, handle]),
+    )) {
+      throw StateError(
+        'Desktop notification authorization could not be saved.',
+      );
+    }
+  }
+
+  bool get mobileRelayNotificationsExplicitlyDisabled =>
+      _prefs.getBool(_mobileRelayNotificationsEnabledKey) == false;
+
   bool loadMobileRelayNotificationsEnabled() {
     return _prefs.getBool(_mobileRelayNotificationsEnabledKey) ?? false;
   }
