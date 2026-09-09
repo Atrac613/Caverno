@@ -87,7 +87,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
 | Anabasis | ANA2 | current | Delegate ready tasks through the existing subagent and worktree runners. | Mapping, premise briefs, and contradiction policies landed in `6218b6440`; the parent prompt consumes the queue. Observe a planned coding thread with non-empty candidates before closing the integration evidence gap. Free-form delegation alone does not exercise that queue. |
 | Anabasis | ANA3 | current | Separate produced, verified, and accepted results with explicit ownership and evidence. | PR 1 and PR 2a landed: mechanical/evidence audit plus the acceptance record and parent acceptance gate. Next is PR 2b: give the parent one guarded write path for its semantic judgment; inspect the three file-size budgets before implementation. Stored execution-state separation remains PR 3. |
-| Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Reopened and mostly built 2026-09-09, after a device check showed the local path cannot reach a suspended app at all: iOS holds no background mode that keeps a WebSocket alive, and `beginBackgroundTask` is called only by `ChatNotifier`, so a backgrounded phone receives nothing to raise a notification from. The payload blocker is closed — `RemoteCodingApprovalNotificationPayload` carries an allow-listed kind and a `hasWarning` boolean and no command text, path, or warning prose, with the displayed lines composed from closed sets. The relay validates the new shape independently and was deployed to `caverno-4977f` (revision 3). The desktop sends from the `approvalRequested` site, gated per device by the same `_canResolveInteraction` the snapshot uses. What is left is the mobile half: a push-woken app has an empty `pendingApproval`, so Approve/Deny falls through `approval_notification_actions.dart` and a tap does not route to the thread. Then the device matrix. |
+| Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Reopened and mostly built 2026-09-09, after a device check showed the local path cannot reach a suspended app at all: iOS holds no background mode that keeps a WebSocket alive, and `beginBackgroundTask` is called only by `ChatNotifier`, so a backgrounded phone receives nothing to raise a notification from. The payload blocker is closed — `RemoteCodingApprovalNotificationPayload` carries an allow-listed kind and a `hasWarning` boolean and no command text, path, or warning prose, with the displayed lines composed from closed sets. The relay validates the new shape independently and was deployed to `caverno-4977f` (revision 3). The desktop sends from the `approvalRequested` site, gated per device by the same `_canResolveInteraction` the snapshot uses. Delivery is verified on hardware: a desktop approval reached a backgrounded iPhone, once the App Check App Attest provider and the APNs auth key were registered — neither of which the app can report usefully. The mobile answer path is built but unverified: a pushed approval reconnects and sends the id, and the desktop re-checks it. What is left is that device check, withdrawal of a notification the person was never running to see resolved, and the matrix. |
 
 ### Ready Candidates
 
@@ -1743,17 +1743,32 @@ Shipped 2026-09-09:
   same `_canResolveInteraction` the snapshot uses: a device that may not answer
   this kind is not told the approval exists.
 
+**Delivery is verified on hardware** (2026-09-09): a desktop approval reached a
+backgrounded iPhone on the lock screen. Two environment blockers had to be
+cleared first and are worth remembering, because neither produces a useful
+error from the app's side — the App Check App Attest provider was never
+registered in the Firebase console, so registration failed with a 403
+`exchangeAppAttestAttestation` "App attestation failed", and the APNs auth key
+was missing, so no push could have arrived even with a correct payload.
+
+The mobile half is built but not yet exercised on a device: both notification
+shapes are parsed, a pushed approval reconnects so the snapshot puts it back in
+reach, and Approve/Deny sends the id once connected. Local verification is
+deliberately not duplicated there — `_handleResolveApproval` re-checks the id
+against the current pending list and that device's grant and records a refusal,
+so an id the phone cannot verify resolves nothing it should not.
+
 What is left:
 
-1. **The mobile half.** A push-woken app has an empty `pendingApproval`, so
-   Approve/Deny falls through `approval_notification_actions.dart` to "no
-   pending approval owns this id" and resolves nothing, and a tap does not
-   route to the thread because `_recordNotificationTap` parses only the run
-   payload. Needs connect-then-sync-then-resolve, and withdrawal once the
-   approval is answered elsewhere.
-2. **The device matrix**, per `docs/remote_coding_fcm_release_gate.md`.
+1. **Answer a pushed approval on a device.** Built, unverified.
+2. **Withdrawal of a stale pushed notification.** A phone that was never
+   running when the approval was answered elsewhere has no `previous` state to
+   withdraw from, so the notification can outlive the request. Its buttons
+   resolve nothing, which the desktop refuses correctly, but the person is
+   shown a decision that no longer exists.
+3. **The device matrix**, per `docs/remote_coding_fcm_release_gate.md`.
 
-RC2 — retiring the notification-relay QR path — is gated on step 2.
+RC2 — retiring the notification-relay QR path — is gated on step 3.
 
 ### WATCH6: Dismiss A Resolved Interaction On The Phone
 
