@@ -233,3 +233,84 @@ three.
   separation from the server settings has been broken.
 - **A soak failure** — resilience, not authority; it blocks promotion but not
   the SA-26 work.
+
+## WATCH11 on the wrist — 2026-09-06 20:15–20:40
+
+Run because the milestone had only Dart unit tests, a Swift build, and the wire
+contract behind it. The contract proves the two sides agree on a data format; it
+cannot prove a card appears or that an answer lands.
+
+### What it found: attention indicators were unreachable on the wrist
+
+The phone held a Remote Coding approval (`uptime` on `MacBook-Pro-3.local`,
+warned as host-wide filesystem access). The watch showed the transcript with no
+sign of it.
+
+Everything upstream of the screen was correct. The watch's own decoded state,
+read out of the App Group where `WatchSessionClient.publishGlance` writes it:
+
+```json
+{ "needsAttention": true, "status": "waitingApproval", "busyThreadCount": 0 }
+```
+
+So the Dart projection, the 16 KB payload, the transport, and the Swift decode
+all worked. The frame said "waiting for an approval" and the wrist showed
+nothing to reach it.
+
+`TranscriptView` declared four `ToolbarItem`s at `.topBarTrailing`: approval,
+question, and goal — carefully ranked against each other — plus the thread
+picker, which was not part of that ranking. watchOS renders one item per
+placement. The picker appears whenever the phone has more than one thread, so on
+any ordinarily-used watch it took the slot and every attention indicator was
+invisible. This predates WATCH11: it hid local approvals too, and the earlier
+device sessions passed because they ran against a single thread.
+
+Fixed by pinning one attention affordance above the compose bar, ranked the same
+way, where it cannot collide and cannot scroll away. The picker keeps the
+toolbar. `test/features/watch/presentation/watch_transcript_toolbar_test.dart`
+fails if any placement is claimed twice or if a blocked-turn destination goes
+back into the toolbar; both assertions were mutation-tested against the original
+code.
+
+### What then verified
+
+1. The banner renders on the wrist: orange triangle, the command (`uptime`), a
+   chevron.
+2. Opening it shows the kind (`Shell command`) and, above the command,
+   **`MacBook-Pro-3.local`** — the host label WATCH11 exists to provide.
+3. Approve from the wrist closed the phone's sheet and reached the desktop,
+   which ran `local_execute_command` with `command: uptime` and
+   `working_directory: /Users/noguwo/Documents/Workspace/anabasis-probe`, and
+   the turn continued.
+
+### Desktop-origin, 21:19-21:21
+
+The case SA-26 exists for, and the one Part 1's withdrawal test had left
+unverified. "Shell commands" was re-granted to this device on the Mac
+(Settings -> Tools -> Remote Coding Host -> the device's shield icon), and the
+turn was started **at the Mac**, not from the phone -- a phone-started turn
+takes the `origin == remote` branch and never consults `desktopOriginKinds`.
+
+The approval reached the phone and the wrist, the card named
+`MacBook-Pro-3.local`, and Approve from the wrist ran it on the Mac
+(`The command executed successfully.`).
+
+### The negative control, 21:24
+
+"Shell commands" was unticked and another turn started at the Mac. Nothing
+reached the phone or the wrist. The grant is therefore what opens the path, not
+merely something that happened to be set while it worked, and
+`_canResolveInteraction`'s local-origin branch refuses on a real device the way
+its unit tests say it does.
+
+Both halves of SA-26's authority decision are now observed on hardware.
+
+### One more defect the same session found: the compose bar was clipped
+
+`.ignoresSafeArea(edges: .bottom)` on the transcript's root stack extended the
+compose bar past the bottom inset, and the watch's rounded display cut off the
+lower edge of the input capsule -- the only control the screen offers. The
+scroll view sits above the bar and never reached that edge, so the modifier
+bought nothing. Removed, and guarded in
+`test/features/watch/presentation/watch_transcript_layout_test.dart` alongside
+the toolbar check.

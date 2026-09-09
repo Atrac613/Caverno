@@ -281,6 +281,8 @@
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				3F5DC2351297B1A148E5C3F5 /* [CP] Embed Pods Frameworks */,
 				D59360A9D495AC21CA585DB4 /* [CP] Copy Pods Resources */,
+				A9F1B2C34D5E6F708192A3B4 /* Copy Firebase Configuration */,
+				C1D2E3F45A6B7C8091A2B3C4 /* Upload Crashlytics dSYMs */,
 			);
 			buildRules = (
 			);
@@ -533,6 +535,39 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		A9F1B2C34D5E6F708192A3B4 /* Copy Firebase Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Firebase Configuration";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Copy the environment-owned Firebase app configuration into the bundle.\n# Prefer macos/Runner/GoogleService-Info.plist; fall back to the iOS plist\n# because iOS and macOS share com.noguwo.apps.caverno and Firebase cannot\n# register two Apple apps with that bundle ID. Builds without either file\n# must still succeed, with Crashlytics fail-closed.\nset -e\nMACOS_CONFIG=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nIOS_CONFIG=\"${SRCROOT}/../ios/Runner/GoogleService-Info.plist\"\nif [ -f \"${MACOS_CONFIG}\" ]; then\n  CONFIG_SOURCE=\"${MACOS_CONFIG}\"\nelif [ -f \"${IOS_CONFIG}\" ]; then\n  CONFIG_SOURCE=\"${IOS_CONFIG}\"\nelse\n  echo \"warning: GoogleService-Info.plist is absent; Firebase Crashlytics stays disabled in this macOS build.\"\n  exit 0\nfi\ncp \"${CONFIG_SOURCE}\" \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\n";
+		};
+		C1D2E3F45A6B7C8091A2B3C4 /* Upload Crashlytics dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}",
+			);
+			name = "Upload Crashlytics dSYMs";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Upload dSYMs to Firebase Crashlytics for release/profile builds that include\n# GoogleService-Info.plist. Debug builds and checkouts without Firebase\n# configuration skip this so the macOS build still succeeds.\nset -e\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  echo \"Skipping Crashlytics dSYM upload for Debug.\"\n  exit 0\nfi\nCONFIG_PLIST=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ ! -f \"${CONFIG_PLIST}\" ]; then\n  echo \"warning: GoogleService-Info.plist is absent; skipping Crashlytics dSYM upload.\"\n  exit 0\nfi\nRUN_SCRIPT=\"${PODS_ROOT}/FirebaseCrashlytics/run\"\nif [ ! -f \"${RUN_SCRIPT}\" ]; then\n  echo \"warning: FirebaseCrashlytics/run is absent; skipping Crashlytics dSYM upload.\"\n  exit 0\nfi\n\"${RUN_SCRIPT}\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

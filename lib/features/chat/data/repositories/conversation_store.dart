@@ -10,6 +10,10 @@ abstract interface class ConversationStore {
   /// All conversations, most recently updated first.
   Future<List<Conversation>> getAll();
 
+  /// Sidebar/startup cache: identity and routing fields without message
+  /// bodies, checkpoints, or turn diffs. [getAll] stays the full decode.
+  Future<List<Conversation>> listForCache();
+
   Future<Conversation?> getById(String id);
 
   Future<void> save(Conversation conversation);

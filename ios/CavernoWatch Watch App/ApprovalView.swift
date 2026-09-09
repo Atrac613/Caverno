@@ -16,6 +16,19 @@ struct ApprovalView: View {
           .font(.caption2)
           .foregroundStyle(.orange)
 
+        // Which machine is asking. Above the command rather than below it,
+        // because a wrist shows one card and the reader decides from the top:
+        // approving a shell command without knowing where it runs is the
+        // failure WATCH11 exists to avoid.
+        if approval.source == .remote {
+          Label(
+            approval.host.isEmpty ? "Desktop" : approval.host,
+            systemImage: "desktopcomputer"
+          )
+          .font(.caption2)
+          .foregroundStyle(.blue)
+        }
+
         Text(approval.title)
           .font(.headline)
 

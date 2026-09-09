@@ -160,6 +160,52 @@ connect needs credentials, and neither can be answered honestly with a single
 yes/no. They report `isSimpleDecision: false` and the watch says "Continue on
 iPhone".
 
+## A second machine on the wrist
+
+Until WATCH11 the watch had one input: this phone's own `ChatState`. A desktop
+running a Remote Coding turn could block on an approval and the wrist would
+show nothing, because that interaction never touches `ChatState` — it arrives
+over the Remote Coding socket, in `RemoteCodingClientState`.
+
+`WatchSessionNotifier` now watches both. The reading that makes it safe is
+recorded as SA-27 in `docs/security_followup_review_2026-08-24.md`; the short
+version is that the watch is a peripheral of this phone, so showing the phone's
+own remote-coding approval on it adds no principal, and the wrist inherits
+exactly the authority SA-26 gave the phone and no more.
+
+The thing to be careful about is what this is *not*. `WatchApprovalMapper`
+excludes an approval owned by another paired device (`isOwnedByRemoteDevice`),
+and that guard exists for the desktop-as-server case: on a Mac, one paired
+phone's approval must not appear on another's watch. Widening it would have
+been the easy way to make remote coding visible, and it would have undone
+SEC4.5g on the machine where SEC4.5g matters. Remote coding is reached by
+adding a source, never by loosening that gate.
+
+Three details earn their place:
+
+**The card names the machine.** `WatchApproval.host` renders above the command,
+not below it. A wrist shows one card and the reader decides from the top;
+approving a shell command without knowing where it runs is the failure the
+milestone exists to avoid. A remote card also carries `source: remote`
+explicitly rather than letting the host label imply it — SA-24 recorded what
+inferring identity from a display field costs.
+
+**One card, ranked across both sources.** Local and remote candidates compete
+on the same consequence order every compact surface uses
+(`pendingApprovalKindPriority`), so the wrist does not ask about opening a
+serial port while something wants to change a machine. A tie goes to the local
+one: it belongs to the device the watch is paired to and can be finished there
+when the wrist cannot answer it.
+
+**The answer goes back to whoever asked.** `_handleResolveApproval` routes on
+the card's `source`. Sending a desktop's approval to this phone's chat notifier
+would resolve nothing and still report success — a silent failure, and the one
+the notifier test drives directly.
+
+The transcript stays local. Two conversations on one wrist screen is a separate
+design problem and the payload budget cannot carry both, so the frame carries
+the remote *interaction* and this phone's own thread.
+
 ## The goal
 
 A coding thread reached the wrist as bubbles with none of the state that makes

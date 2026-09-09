@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/conversation.dart';
 import '../datasources/app_database.dart';
+import 'conversation_listing_codec.dart';
 import 'conversation_store.dart';
 
 /// F4 drift-backed [ConversationStore]: persists conversations to SQLite,
@@ -14,6 +15,7 @@ class DriftConversationRepository implements ConversationStore {
   DriftConversationRepository(this._db);
 
   final AppDatabase _db;
+  static const _listingCodec = ConversationListingCodec();
 
   @override
   Future<List<Conversation>> getAll() async {
@@ -21,6 +23,42 @@ class DriftConversationRepository implements ConversationStore {
       ..orderBy([(t) => OrderingTerm.desc(t.updatedAtMs)]);
     final rows = await query.get();
     return [for (final row in rows) ?_decode(row)];
+  }
+
+  @override
+  Future<List<Conversation>> listForCache() async {
+    try {
+      final rows = await _db
+          .customSelect(
+            'SELECT '
+            "json_array_length(payload, '\$.messages') AS message_count, "
+            "json_remove(payload, '\$.messages', '\$.checkpoints', "
+            "'\$.turnDiffs') AS listing_json "
+            'FROM conversations '
+            'ORDER BY updated_at_ms DESC',
+            readsFrom: {_db.conversations},
+          )
+          .get();
+      return [
+        for (final row in rows)
+          ?_listingCodec.decode(
+            listingJson: row.read<String>('listing_json'),
+            messageCount: _readSqliteInt(row, 'message_count'),
+          ),
+      ];
+    } catch (error) {
+      appLog(
+        '[DriftConversationRepository] listing query failed; '
+        'stripping payloads in Dart: $error',
+      );
+      final query = _db.select(_db.conversations)
+        ..orderBy([(t) => OrderingTerm.desc(t.updatedAtMs)]);
+      final rows = await query.get();
+      return [
+        for (final row in rows)
+          ?_listingCodec.decodeFromFullPayload(row.payload),
+      ];
+    }
   }
 
   @override
@@ -80,6 +118,16 @@ class DriftConversationRepository implements ConversationStore {
       updatedAtMs: Value(conversation.updatedAt.millisecondsSinceEpoch),
       payload: jsonEncode(conversation.toJson()),
     );
+  }
+
+  int _readSqliteInt(QueryRow row, String column) {
+    final value = row.data[column];
+    return switch (value) {
+      int count => count,
+      BigInt count => count.toInt(),
+      num count => count.toInt(),
+      _ => 0,
+    };
   }
 
   Conversation? _decode(ConversationRow row) {

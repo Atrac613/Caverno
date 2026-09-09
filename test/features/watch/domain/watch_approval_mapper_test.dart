@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/watch/domain/watch_approval_mapper.dart';
+import 'package:caverno/features/watch/domain/watch_snapshot.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -298,6 +301,119 @@ void main() {
       expect(question!.options.map((option) => option.id), ['a', 'b']);
       expect(question.allowOther, isTrue);
       expect(question.allowMultiple, isFalse);
+    });
+  });
+
+  group('Remote Coding as a second source (WATCH11)', () {
+    const mapper = WatchApprovalMapper();
+
+    RemoteCodingApproval remote({
+      String kind = PendingApprovalKinds.localCommand,
+      bool isSimpleDecision = true,
+      String? warningMessage,
+    }) => RemoteCodingApproval(
+      id: 'remote-1',
+      kind: kind,
+      title: 'rm -rf build',
+      subtitle: '/repo',
+      detail: 'Clean the build directory.',
+      isSimpleDecision: isSimpleDecision,
+      warningMessage: warningMessage,
+    );
+
+    test('names the machine that is asking', () {
+      // Approving a shell command without knowing which machine runs it is the
+      // failure this milestone exists to avoid, so the label is load-bearing.
+      final card = mapper.mapRemote(remote(), host: 'MacBook-Pro-3.local');
+
+      expect(card, isNotNull);
+      expect(card!.source, WatchInteractionSource.remote);
+      expect(card.host, 'MacBook-Pro-3.local');
+    });
+
+    test('the wrist inherits the phone authority and no more', () {
+      // The desktop already withholds a kind this device was not granted, so
+      // anything arriving here is answerable in principle. What a watch cannot
+      // do is collect structured input (SA-26).
+      expect(mapper.mapRemote(remote())!.canResolveOnWatch, isTrue);
+      expect(
+        mapper
+            .mapRemote(
+              remote(
+                kind: PendingApprovalKinds.sshConnect,
+                isSimpleDecision: false,
+              ),
+            )!
+            .canResolveOnWatch,
+        isFalse,
+      );
+    });
+
+    test('leads with the warning, as the local mapper does', () {
+      final card = mapper.mapRemote(
+        remote(warningMessage: 'This deletes files.'),
+      );
+
+      expect(card!.detail, 'This deletes files.');
+    });
+
+    test('a higher-consequence remote card outranks a local one', () {
+      // One screen, one decision, ranked by the order every compact surface
+      // uses -- so the wrist does not ask about a serial port while something
+      // wants to change a machine.
+      final local = WatchApproval(
+        id: 'local-1',
+        kind: PendingApprovalKinds.serialOpen,
+        title: 'Open serial port',
+        subtitle: '/dev/tty',
+        detail: '',
+        canResolveOnWatch: true,
+      );
+      final desktop = mapper.mapRemote(remote(), host: 'Desktop')!;
+
+      expect(mapper.preferred(local, desktop), same(desktop));
+    });
+
+    test('a tie goes to the local one', () {
+      // It belongs to the device the watch is paired to, and can be finished
+      // there when the wrist cannot answer it.
+      final local = WatchApproval(
+        id: 'local-1',
+        kind: PendingApprovalKinds.localCommand,
+        title: 'dart analyze',
+        subtitle: '/repo',
+        detail: '',
+        canResolveOnWatch: true,
+      );
+      final desktop = mapper.mapRemote(remote(), host: 'Desktop')!;
+
+      expect(mapper.preferred(local, desktop), same(local));
+    });
+
+    test('either alone is shown', () {
+      final desktop = mapper.mapRemote(remote(), host: 'Desktop')!;
+
+      expect(mapper.preferred(null, desktop), same(desktop));
+      expect(mapper.preferred(desktop, null), same(desktop));
+      expect(mapper.preferred(null, null), isNull);
+    });
+
+    test('an approval with no id is not a card', () {
+      // The wrist routes a resolution by id; one it cannot name is one it
+      // cannot answer.
+      expect(
+        mapper.mapRemote(
+          const RemoteCodingApproval(
+            id: '',
+            kind: PendingApprovalKinds.localCommand,
+            title: 'x',
+            subtitle: '',
+            detail: '',
+            isSimpleDecision: true,
+          ),
+        ),
+        isNull,
+      );
     });
   });
 }

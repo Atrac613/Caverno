@@ -18,6 +18,7 @@ import '../../chat/presentation/providers/conversations_notifier.dart'
         conversationsNotifierProvider,
         defaultConversationTitle;
 import '../../chat/presentation/providers/pending_approval_resolution.dart';
+import '../../remote_coding/presentation/remote_coding_client_notifier.dart';
 import '../domain/watch_approval_mapper.dart';
 import '../domain/watch_command.dart';
 import '../domain/watch_snapshot.dart';
@@ -94,6 +95,19 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       unawaited(_pushSnapshot(next));
     });
     ref.listen<ConversationsState>(conversationsNotifierProvider, (_, _) {
+      unawaited(_pushSnapshot(ref.read(chatNotifierProvider)));
+    });
+    // The second source (WATCH11). A desktop's approval reaches this phone
+    // through Remote Coding, never through `ChatState`, so the wrist cannot see
+    // one without watching here too.
+    ref.listen<RemoteCodingClientState>(remoteCodingClientProvider, (
+      previous,
+      next,
+    ) {
+      if (previous?.pendingApproval?.id == next.pendingApproval?.id &&
+          previous?.pendingQuestion?.id == next.pendingQuestion?.id) {
+        return;
+      }
       unawaited(_pushSnapshot(ref.read(chatNotifierProvider)));
     });
 
@@ -202,8 +216,8 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     _sequence += 1;
     final conversations = ref.read(conversationsNotifierProvider);
     final current = conversations.currentConversation;
-    final approval = _approvals.map(chatState);
-    final question = _approvals.mapQuestion(chatState);
+    final approval = _currentApproval(chatState);
+    final question = _currentQuestion(chatState);
     final goal = _goalFor(current);
     final startedAt = _turnStartedAt;
 
@@ -239,6 +253,74 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
           conversations.conversations.length > watchSnapshotMaxConversations,
       error: chatState.error,
     );
+  }
+
+  /// Answers a question raised by a desktop, over the Remote Coding socket.
+  ///
+  /// The option ids come back from the wire model the card was built from, so
+  /// a selection made on the wrist means the same thing the desktop asked.
+  Future<void> _resolveRemoteQuestion(
+    WatchCommand command,
+    String questionId,
+    WatchQuestion shown,
+  ) async {
+    final cancelled = command.payload['cancelled'] == true;
+    final known = shown.options.map((option) => option.id).toSet();
+    final selected =
+        (command.payload['selectedOptionIds'] as List<dynamic>? ??
+                const <dynamic>[])
+            .whereType<String>()
+            .map((id) => id.trim())
+            .where(known.contains)
+            .toList(growable: false);
+    await ref
+        .read(remoteCodingClientProvider.notifier)
+        .resolveQuestion(
+          questionId: questionId,
+          selectedOptionIds: selected,
+          otherText: (command.payload['otherText'] as String?)?.trim() ?? '',
+          cancelled: cancelled,
+        );
+    await _succeed(command);
+    await _pushSnapshot(ref.read(chatNotifierProvider));
+  }
+
+  /// The one approval the wrist should show, across both sources.
+  ///
+  /// Derived in one place so the card the watch renders and the request a
+  /// resolution is checked against cannot disagree — which is what would let a
+  /// tap answer something other than what was on screen.
+  WatchApproval? _currentApproval(ChatState chatState) {
+    final remote = ref.read(remoteCodingClientProvider);
+    return _approvals.preferred(
+      _approvals.map(chatState),
+      _approvals.mapRemote(
+        remote.pendingApproval,
+        host: _remoteHostName(remote),
+      ),
+    );
+  }
+
+  WatchQuestion? _currentQuestion(ChatState chatState) {
+    final remote = ref.read(remoteCodingClientProvider);
+    return _approvals.preferredQuestion(
+      _approvals.mapQuestion(chatState),
+      _approvals.mapRemoteQuestion(
+        remote.pendingQuestion,
+        host: _remoteHostName(remote),
+      ),
+    );
+  }
+
+  /// What to call the desktop on a wrist card.
+  ///
+  /// Its configured name, falling back to the address it is reached at. Never
+  /// empty for a remote card: the label is the point.
+  String _remoteHostName(RemoteCodingClientState remote) {
+    final name = remote.host?.name.trim() ?? '';
+    if (name.isNotEmpty) return name;
+    final address = remote.host?.host.trim() ?? '';
+    return address.isNotEmpty ? address : 'Desktop';
   }
 
   /// Drops the untitled-conversation sentinel.
@@ -586,7 +668,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   Future<void> _handleResolveApproval(WatchCommand command) async {
     final approvalId = (command.payload['approvalId'] as String?)?.trim() ?? '';
     final approved = command.payload['approved'] == true;
-    final pending = _approvals.map(ref.read(chatNotifierProvider));
+    final pending = _currentApproval(ref.read(chatNotifierProvider));
     if (pending == null || pending.id != approvalId) {
       await _fail(
         command,
@@ -601,6 +683,17 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
         code: 'approval_requires_phone',
         message: 'This approval must be completed on the iPhone.',
       );
+      return;
+    }
+    // Routed by the source the card carried, not by which notifier happens to
+    // have something pending: answering a desktop's approval against this
+    // phone's chat notifier resolves nothing and reports success.
+    if (pending.source == WatchInteractionSource.remote) {
+      await ref
+          .read(remoteCodingClientProvider.notifier)
+          .resolveApproval(approvalId: approvalId, approved: approved);
+      await _succeed(command);
+      await _pushSnapshot(ref.read(chatNotifierProvider));
       return;
     }
     if (!resolveApprovalById(
@@ -622,10 +715,21 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   Future<void> _handleResolveQuestion(WatchCommand command) async {
     final questionId = (command.payload['questionId'] as String?)?.trim() ?? '';
     final chatState = ref.read(chatNotifierProvider);
+    final shown = _currentQuestion(chatState);
+    if (shown == null || shown.id != questionId) {
+      await _fail(
+        command,
+        code: 'question_not_found',
+        message: 'This question is no longer pending.',
+      );
+      return;
+    }
+    if (shown.source == WatchInteractionSource.remote) {
+      await _resolveRemoteQuestion(command, questionId, shown);
+      return;
+    }
     final pending = chatState.pendingAskUserQuestion;
-    if (pending == null ||
-        pending.id != questionId ||
-        _approvals.mapQuestion(chatState) == null) {
+    if (pending == null || pending.id != questionId) {
       await _fail(
         command,
         code: 'question_not_found',

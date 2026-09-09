@@ -362,6 +362,11 @@ void main() {
         state,
       ).map((request) => describePendingApproval(request).kind).toList();
 
+      expect(
+        pendingApprovalKindPriority.toSet(),
+        PendingApprovalKinds.all.toSet(),
+        reason: 'a kind absent from the order is one no surface can rank',
+      );
       expect(ranked, hasLength(PendingApprovalKinds.all.length));
       expect(ranked.toSet(), PendingApprovalKinds.all.toSet());
       expect(

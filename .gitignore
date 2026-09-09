@@ -67,6 +67,7 @@ screenshots/
 # docs/remote_coding_fcm_release_gate.md)
 /android/app/google-services.json
 /ios/Runner/GoogleService-Info.plist
+/macos/Runner/GoogleService-Info.plist
 
 # Firebase CLI deploy cache
 /.firebase/

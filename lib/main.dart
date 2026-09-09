@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Directory, File, Platform, exit;
+import 'dart:ui' show AppExitResponse;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/services/attachment_storage_service.dart';
+import 'core/services/caverno_app_exit_handler.dart';
+import 'core/services/crashlytics_service.dart';
 import 'core/services/login_shell_environment.dart';
 import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
@@ -16,11 +19,13 @@ import 'core/services/window_settings_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/logger.dart';
 import 'core/widgets/quit_confirmation_dialog.dart';
+import 'features/chat/application/persistence/caverno_legacy_hive_boxes.dart';
 import 'features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import 'features/chat/data/datasources/app_database_open.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
+import 'features/chat/domain/entities/conversation.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/onboarding/presentation/pages/onboarding_page.dart';
@@ -43,17 +48,32 @@ Future<void> main(List<String> arguments) async {
   if (CavernoCliInvocation.looksLikeCliInvocation(arguments)) {
     exit(await runCavernoCliProcess(arguments));
   }
+  await installCavernoCrashlytics();
   await EasyLocalization.ensureInitialized();
 
-  // Initialize Hive
-  await Hive.initFlutter();
-  final conversationBox = await Hive.openBox<String>('conversations');
-  final memoryBox = await Hive.openBox<String>('chat_memory');
-  final skillBox = await Hive.openBox<String>('skills');
-
   final prefs = await SharedPreferences.getInstance();
+
+  // Show the native window before Hive/Drift hydrate. Opening hundreds of
+  // conversation payloads used to leave a restored empty window frozen for
+  // several seconds with no first Flutter frame.
+  WindowManagerService? windowService;
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    windowService = WindowManagerService(WindowSettingsService(prefs));
+    await windowService.initialize();
+  }
+
   final settingsRepository = await SettingsRepository.create(prefs);
   final dataRoot = await resolveCavernoDataRoot();
+
+  await Hive.initFlutter();
+  final hiveBoxes = await CavernoLegacyHiveBoxes.open(
+    conversationsMigrated:
+        prefs.getBool(cavernoConversationsMigrationKey) ?? false,
+    chatMemoryMigrated: prefs.getBool(cavernoChatMemoryMigrationKey) ?? false,
+  );
+  final conversationBox = hiveBoxes.conversations;
+  final memoryBox = hiveBoxes.memory;
+  final skillBox = hiveBoxes.skills;
 
   // F4: migrate conversations and chat memory from Hive to drift/SQLite and
   // serve them from drift. Pre-migration failures may retry through Hive, but
@@ -76,13 +96,6 @@ Future<void> main(List<String> arguments) async {
   // from Finder/Dock with launchd's minimal PATH.
   unawaited(LoginShellEnvironment.instance.ensureResolved());
 
-  // Restore window size and position on desktop platforms
-  WindowManagerService? windowService;
-  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-    windowService = WindowManagerService(WindowSettingsService(prefs));
-    await windowService.initialize();
-  }
-
   runApp(
     EasyLocalization(
       supportedLocales: supportedAppLocales,
@@ -98,8 +111,10 @@ Future<void> main(List<String> arguments) async {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           settingsRepositoryProvider.overrideWithValue(settingsRepository),
-          conversationBoxProvider.overrideWithValue(conversationBox),
-          chatMemoryBoxProvider.overrideWithValue(memoryBox),
+          if (conversationBox != null)
+            conversationBoxProvider.overrideWithValue(conversationBox),
+          if (memoryBox != null)
+            chatMemoryBoxProvider.overrideWithValue(memoryBox),
           skillBoxProvider.overrideWithValue(skillBox),
           cavernoRuntimeDataRootProvider.overrideWithValue(dataRoot),
           if (driftStorage != null) ...[
@@ -112,7 +127,12 @@ Future<void> main(List<String> arguments) async {
             appDatabaseProvider.overrideWithValue(driftStorage.database),
           ],
         ],
-        child: MyApp(windowManagerService: windowService),
+        child: MyApp(
+          windowManagerService: windowService,
+          exitHandler: CavernoAppExitHandler(
+            closePersistence: driftStorage?.close,
+          ),
+        ),
       ),
     ),
   );
@@ -125,8 +145,8 @@ Future<void> main(List<String> arguments) async {
 /// failure is rethrown so stale Hive data cannot become mutable again.
 Future<CavernoPersistenceStorage?> _initDriftStorage({
   required SharedPreferences prefs,
-  required Box<String> conversationBox,
-  required Box<String> memoryBox,
+  required Box<String>? conversationBox,
+  required Box<String>? memoryBox,
   required Directory dataRoot,
 }) async {
   try {
@@ -137,10 +157,19 @@ Future<CavernoPersistenceStorage?> _initDriftStorage({
       conversationsMigrated:
           prefs.getBool(cavernoConversationsMigrationKey) ?? false,
       chatMemoryMigrated: prefs.getBool(cavernoChatMemoryMigrationKey) ?? false,
-      readLegacyConversations: () async =>
-          ConversationRepository(conversationBox).getAll(),
-      readLegacyChatMemory: () async => {
-        for (final key in memoryBox.keys) key.toString(): ?memoryBox.get(key),
+      readLegacyConversations: () async {
+        final box = conversationBox;
+        if (box == null) {
+          return const <Conversation>[];
+        }
+        return ConversationRepository(box).getAll();
+      },
+      readLegacyChatMemory: () async {
+        final box = memoryBox;
+        if (box == null) {
+          return const <String, String>{};
+        }
+        return {for (final key in box.keys) key.toString(): ?box.get(key)};
       },
       markConversationsMigrated: () async {
         await prefs.setBool(cavernoConversationsMigrationKey, true);
@@ -181,9 +210,10 @@ Future<void> _deleteExpiredToolResultArtifacts() async {
 }
 
 class MyApp extends ConsumerStatefulWidget {
-  const MyApp({super.key, this.windowManagerService});
+  const MyApp({super.key, this.windowManagerService, this.exitHandler});
 
   final WindowManagerService? windowManagerService;
+  final CavernoAppExitHandler? exitHandler;
 
   @override
   ConsumerState<MyApp> createState() => _MyAppState();
@@ -259,6 +289,11 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         return;
       }
 
+      final exitResponse = await _handleAppExit();
+      if (exitResponse == AppExitResponse.cancel) {
+        return;
+      }
+
       final windowManagerService = widget.windowManagerService;
       if (windowManagerService != null) {
         await windowManagerService.quitApplication();
@@ -269,6 +304,26 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     } finally {
       _quitDialogOpen = false;
     }
+  }
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() => _handleAppExit();
+
+  Future<AppExitResponse> _handleAppExit() async {
+    Future<AppExitResponse> requestExit() {
+      return widget.exitHandler?.handleExitRequest() ??
+          Future<AppExitResponse>.value(AppExitResponse.exit);
+    }
+
+    if (!(Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+      return requestExit();
+    }
+    final scheduler = ref.read(idleMaintenanceSchedulerProvider);
+    return withMaintenancePausedForExit(
+      stopMaintenance: scheduler.stop,
+      startMaintenance: scheduler.start,
+      requestExit: requestExit,
+    );
   }
 
   @override
