@@ -39,6 +39,14 @@ Apple Firebase SDK reads `GoogleService-Info.plist` from the bundle, and a
 missing required resource would break every build made without Firebase
 configuration.
 
+The same optional files also gate Firebase Crashlytics. See
+`docs/firebase_crashlytics.md`. Android applies the Crashlytics Gradle plugin
+only when `google-services.json` exists. iOS and macOS upload dSYMs from each
+Runner target's `Upload Crashlytics dSYMs` phase only after the plist is
+copied, and skip Debug builds. macOS reuses the iOS Apple app (same bundle
+ID) and falls back to `ios/Runner/GoogleService-Info.plist` when the macOS
+copy is absent.
+
 ## Desktop keychain capability
 
 The desktop stores its relay delivery credential through

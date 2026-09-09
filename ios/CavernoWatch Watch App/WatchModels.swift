@@ -25,6 +25,21 @@ enum WatchTurnStatus: String, Decodable, CaseIterable {
   }
 }
 
+/// Which machine an interaction belongs to.
+///
+/// Absent means local, so a phone older than WATCH11 keeps working. Anything
+/// this build does not recognise is treated as local rather than guessed at:
+/// showing a desktop's name that is not there would be worse than showing none.
+enum WatchInteractionSource: String, Decodable {
+  case local
+  case remote
+
+  init(from decoder: Decoder) throws {
+    let raw = try decoder.singleValueContainer().decode(String.self)
+    self = WatchInteractionSource(rawValue: raw) ?? .local
+  }
+}
+
 struct WatchApproval: Decodable, Equatable {
   let id: String
   /// Free-form on purpose; see `WatchApprovalMapper` for why this is not an
@@ -34,6 +49,32 @@ struct WatchApproval: Decodable, Equatable {
   let subtitle: String
   let detail: String
   let canResolveOnWatch: Bool
+  let source: WatchInteractionSource
+  /// The desktop's name, for a remote approval.
+  ///
+  /// Rendered, not decoration: approving a shell command without knowing which
+  /// machine runs it is the failure WATCH11 exists to avoid.
+  let host: String
+
+  private enum CodingKeys: String, CodingKey {
+    case id, kind, title, subtitle, detail, canResolveOnWatch, source, host
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    kind = try container.decodeIfPresent(String.self, forKey: .kind) ?? "unknown"
+    title = try container.decode(String.self, forKey: .title)
+    subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle) ?? ""
+    detail = try container.decodeIfPresent(String.self, forKey: .detail) ?? ""
+    canResolveOnWatch =
+      try container.decodeIfPresent(Bool.self, forKey: .canResolveOnWatch)
+      ?? false
+    source =
+      try container.decodeIfPresent(WatchInteractionSource.self, forKey: .source)
+      ?? .local
+    host = try container.decodeIfPresent(String.self, forKey: .host) ?? ""
+  }
 }
 
 struct WatchQuestionOption: Decodable, Equatable, Identifiable {
@@ -48,9 +89,12 @@ struct WatchQuestion: Decodable, Equatable {
   let allowMultiple: Bool
   let allowOther: Bool
   let optionsTruncated: Bool
+  let source: WatchInteractionSource
+  let host: String
 
   private enum CodingKeys: String, CodingKey {
     case id, question, options, allowMultiple, allowOther, optionsTruncated
+    case source, host
   }
 
   init(from decoder: Decoder) throws {
@@ -66,6 +110,10 @@ struct WatchQuestion: Decodable, Equatable {
     optionsTruncated =
       try container.decodeIfPresent(Bool.self, forKey: .optionsTruncated)
       ?? false
+    source =
+      try container.decodeIfPresent(WatchInteractionSource.self, forKey: .source)
+      ?? .local
+    host = try container.decodeIfPresent(String.self, forKey: .host) ?? ""
   }
 }
 

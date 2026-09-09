@@ -1,4 +1,5 @@
 import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../remote_coding/domain/remote_coding_models.dart';
 import '../../chat/presentation/providers/chat_state.dart';
 import 'watch_snapshot.dart';
 
@@ -81,4 +82,72 @@ class WatchApprovalMapper {
       allowOther: pending.allowOther,
     );
   }
+
+  /// Projects a Remote Coding approval for the wrist.
+  ///
+  /// A second source, not a widening of the first. `isOwnedByRemoteDevice`
+  /// above covers the desktop-as-server case and cannot fire on iOS, where
+  /// `ChatState` never holds a remote-origin approval; loosening it to reach
+  /// Remote Coding would quietly undo SEC4.5g on desktop instead (WATCH11).
+  ///
+  /// The wrist inherits exactly the phone's authority. The desktop already
+  /// withholds a kind this device was not granted, so anything arriving here is
+  /// answerable in principle; `isSimpleDecision` decides whether it is
+  /// answerable *from a watch* (SA-26).
+  WatchApproval? mapRemote(RemoteCodingApproval? approval, {String host = ''}) {
+    if (approval == null || approval.id.isEmpty) return null;
+    return WatchApproval(
+      id: approval.id,
+      kind: approval.kind,
+      title: approval.title,
+      subtitle: approval.subtitle,
+      detail: approval.warningMessage?.trim().isNotEmpty == true
+          ? approval.warningMessage!
+          : approval.detail,
+      canResolveOnWatch: approval.isSimpleDecision,
+      source: WatchInteractionSource.remote,
+      host: host,
+    );
+  }
+
+  WatchQuestion? mapRemoteQuestion(
+    RemoteCodingQuestion? question, {
+    String host = '',
+  }) {
+    if (question == null || question.id.isEmpty) return null;
+    return WatchQuestion(
+      id: question.id,
+      question: question.question,
+      options: question.options
+          .map(
+            (option) => WatchQuestionOption(id: option.id, label: option.label),
+          )
+          .toList(growable: false),
+      source: WatchInteractionSource.remote,
+      host: host,
+    );
+  }
+
+  /// The one approval the wrist should show when both sources have one.
+  ///
+  /// Ranked by consequence across sources, using the same order every compact
+  /// surface uses, so the wrist does not ask about opening a serial port while
+  /// something wants to change a machine. A tie goes to the local one: it
+  /// belongs to the device the watch is paired to, and can be finished there
+  /// when the wrist cannot answer it.
+  WatchApproval? preferred(WatchApproval? local, WatchApproval? remote) {
+    if (local == null) return remote;
+    if (remote == null) return local;
+    return pendingApprovalKindRank(remote.kind) <
+            pendingApprovalKindRank(local.kind)
+        ? remote
+        : local;
+  }
+
+  /// The same rule for questions, which have no kind to rank: a question the
+  /// user is being asked on this phone comes first.
+  WatchQuestion? preferredQuestion(
+    WatchQuestion? local,
+    WatchQuestion? remote,
+  ) => local ?? remote;
 }

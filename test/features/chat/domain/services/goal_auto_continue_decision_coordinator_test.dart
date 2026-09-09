@@ -53,6 +53,7 @@ Conversation _conversation({
   List<ConversationExecutionTaskProgress> executionProgress = const [],
   int mutationGeneration = 1,
   int verificationGeneration = 1,
+  int? completionElicitationMutationGeneration,
 }) {
   return Conversation(
     id: id,
@@ -65,6 +66,8 @@ Conversation _conversation({
     executionProgress: executionProgress,
     mutationGeneration: mutationGeneration,
     verificationGeneration: verificationGeneration,
+    completionElicitationMutationGeneration:
+        completionElicitationMutationGeneration,
     goal: includeGoal ? (goal ?? _goal()) : null,
   );
 }
@@ -900,6 +903,67 @@ void main() {
         GoalCompletionElicitationEligibility.alreadySpentForMutation,
       );
       expect(plan.shouldMarkAwaitingConfirmation, isTrue);
+    });
+
+    test(
+      'reads elicitation spend from the conversation after tracker reset',
+      () {
+        final plan = _coordinator.coordinate(
+          _input(
+            tracker: _tracker(),
+            conversation: _conversation(
+              mutationGeneration: 1,
+              verificationGeneration: 1,
+              completionElicitationMutationGeneration: 1,
+            ),
+            evidence: const ToolResultCompletionEvidence(),
+          ),
+        );
+
+        expect(
+          plan.elicitationEligibility,
+          GoalCompletionElicitationEligibility.alreadySpentForMutation,
+        );
+        expect(plan.shouldMarkAwaitingConfirmation, isTrue);
+      },
+    );
+
+    test(
+      'continues after remaining work is reported without other evidence',
+      () {
+        final plan = _coordinator.coordinate(
+          _input(
+            evidence: const ToolResultCompletionEvidence(
+              hasReportedRemainingWork: true,
+              remainingWorkMessage: 'bump pubspec.yaml to 1.3.21+33',
+            ),
+          ),
+        );
+
+        expect(plan.policyDecision.shouldContinue, isTrue);
+        expect(plan.policyDecision.reason, 'incomplete evidence remains');
+        expect(
+          plan.elicitationEligibility,
+          GoalCompletionElicitationEligibility.notApplicable,
+        );
+        expect(plan.continuationLimits?.allowedToolNames, isNull);
+      },
+    );
+
+    test('continues remaining work after a later successful verification', () {
+      final plan = _coordinator.coordinate(
+        _input(
+          evidence: const ToolResultCompletionEvidence(
+            hasReportedRemainingWork: true,
+            remainingWorkMessage: 'bump pubspec.yaml to 1.3.21+33',
+            hasExecutionVerification: true,
+            hasSuccessfulExecutionVerification: true,
+          ),
+        ),
+      );
+
+      expect(plan.policyDecision.shouldContinue, isTrue);
+      expect(plan.continuationLimits?.allowedToolNames, isNull);
     });
 
     test('does not re-elicitate an awaiting-confirmation goal', () {

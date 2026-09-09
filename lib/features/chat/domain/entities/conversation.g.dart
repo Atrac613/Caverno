@@ -40,6 +40,8 @@ _ConversationCheckpoint _$ConversationCheckpointFromJson(
   mutationGeneration: (json['mutationGeneration'] as num?)?.toInt() ?? 0,
   verificationGeneration:
       (json['verificationGeneration'] as num?)?.toInt() ?? -1,
+  completionElicitationMutationGeneration:
+      (json['completionElicitationMutationGeneration'] as num?)?.toInt(),
   openQuestionProgress: json['openQuestionProgress'] == null
       ? const <ConversationOpenQuestionProgress>[]
       : _openQuestionProgressFromJson(json['openQuestionProgress'] as List?),
@@ -70,6 +72,8 @@ Map<String, dynamic> _$ConversationCheckpointToJson(
   'executionProgress': _executionProgressToJson(instance.executionProgress),
   'mutationGeneration': instance.mutationGeneration,
   'verificationGeneration': instance.verificationGeneration,
+  'completionElicitationMutationGeneration':
+      instance.completionElicitationMutationGeneration,
   'openQuestionProgress': _openQuestionProgressToJson(
     instance.openQuestionProgress,
   ),
@@ -136,6 +140,8 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       mutationGeneration: (json['mutationGeneration'] as num?)?.toInt() ?? 0,
       verificationGeneration:
           (json['verificationGeneration'] as num?)?.toInt() ?? -1,
+      completionElicitationMutationGeneration:
+          (json['completionElicitationMutationGeneration'] as num?)?.toInt(),
       openQuestionProgress: json['openQuestionProgress'] == null
           ? const <ConversationOpenQuestionProgress>[]
           : _openQuestionProgressFromJson(
@@ -183,6 +189,8 @@ Map<String, dynamic> _$ConversationToJson(
   'executionProgress': _executionProgressToJson(instance.executionProgress),
   'mutationGeneration': instance.mutationGeneration,
   'verificationGeneration': instance.verificationGeneration,
+  'completionElicitationMutationGeneration':
+      instance.completionElicitationMutationGeneration,
   'openQuestionProgress': _openQuestionProgressToJson(
     instance.openQuestionProgress,
   ),

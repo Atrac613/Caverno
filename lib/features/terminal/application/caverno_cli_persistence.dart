@@ -110,5 +110,6 @@ Future<CavernoPersistenceStorage> openCavernoCliPersistence({
     markChatMemoryMigrated: () =>
         markMigrationCompleted(cavernoChatMemoryMigrationKey),
     mutationCoordinator: mutationCoordinator,
+    hydrateConversationListingOnly: false,
   );
 }

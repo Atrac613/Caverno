@@ -1,6 +1,6 @@
 # iOS App Privacy Disclosure
 
-Last reconciled: 2026-08-23.
+Last reconciled: 2026-09-07.
 
 This document maps Caverno-owned off-device collection to
 `ios/Runner/PrivacyInfo.xcprivacy` and the matching App Store Connect privacy
@@ -33,6 +33,12 @@ Firebase SDK collection belongs to the SDK's own privacy manifest. Confirm the
 aggregated Xcode privacy report for every release instead of duplicating SDK
 entries in Caverno's application manifest.
 
+Firebase Crashlytics is one such SDK path. iOS, Android, and macOS builds that
+include the environment-owned Firebase app files upload crash logs and device
+diagnostics declared by Crashlytics, not by Caverno's application manifest.
+Debug builds disable that collection. Builds without Firebase configuration
+never initialize Crashlytics. See `docs/firebase_crashlytics.md`.
+
 ## App Store Connect Matrix
 
 | Data type | Linked | Tracking | Purpose | Caverno path |
@@ -50,7 +56,8 @@ entries in Caverno's application manifest.
   advertising, data-broker sharing, or cross-app tracking behavior.
 - Match all six rows in App Store Connect before submitting the next build.
 - Generate the Xcode privacy report from the release archive and review merged
-  third-party SDK declarations, especially Firebase.
+  third-party SDK declarations, especially Firebase Messaging, App Check, and
+  Crashlytics.
 - Re-run the repository manifest regression and `plutil -lint`.
 - Reconcile again when a Caverno-owned endpoint, payload, retention policy,
   analytics SDK, advertising feature, or default provider changes.

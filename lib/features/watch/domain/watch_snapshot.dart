@@ -103,6 +103,26 @@ String truncateForWatch(String value, int limit) {
 /// An unrecognised kind must degrade to "open on iPhone" instead of vanishing,
 /// which a closed enum would make impossible without a coordinated release of
 /// both the Flutter app and the watch target.
+/// Which machine an interaction on the wrist belongs to.
+///
+/// Carried explicitly rather than inferred from [WatchApproval.host] being
+/// non-empty. SA-24 recorded what inferring identity from a display field costs:
+/// the watch filter once decided "is this remote?" by testing an owner id for
+/// emptiness, and a remote interaction that lost its id became answerable. The
+/// wrist now routes a resolution by this field, so it has to say what it means.
+enum WatchInteractionSource {
+  /// Raised by a turn running on this iPhone.
+  local,
+
+  /// Raised by a turn running on a paired desktop, reached over Remote Coding.
+  remote,
+}
+
+WatchInteractionSource watchInteractionSourceFromJson(Object? value) =>
+    (value as String?)?.trim() == 'remote'
+    ? WatchInteractionSource.remote
+    : WatchInteractionSource.local;
+
 class WatchApproval {
   const WatchApproval({
     required this.id,
@@ -111,6 +131,8 @@ class WatchApproval {
     required this.subtitle,
     required this.detail,
     required this.canResolveOnWatch,
+    this.source = WatchInteractionSource.local,
+    this.host = '',
   });
 
   final String id;
@@ -118,6 +140,17 @@ class WatchApproval {
   final String title;
   final String subtitle;
   final String detail;
+
+  /// Where the turn that raised this is running.
+  final WatchInteractionSource source;
+
+  /// The desktop's name, for a remote interaction; empty for a local one.
+  ///
+  /// Load-bearing rather than decoration: approving a shell command without
+  /// knowing which machine runs it is the failure this milestone exists to
+  /// avoid. The wrist shows one card at a time and the two sources look
+  /// identical without it.
+  final String host;
 
   /// Whether Approve/Deny on the watch is sufficient to resolve this request.
   ///
@@ -133,6 +166,8 @@ class WatchApproval {
     subtitle: (json['subtitle'] as String?)?.trim() ?? '',
     detail: (json['detail'] as String?) ?? '',
     canResolveOnWatch: json['canResolveOnWatch'] == true,
+    source: watchInteractionSourceFromJson(json['source']),
+    host: (json['host'] as String?)?.trim() ?? '',
   );
 
   Map<String, dynamic> toJson({
@@ -145,6 +180,11 @@ class WatchApproval {
     'subtitle': truncateForWatch(subtitle, titleLimit),
     'detail': truncateForWatch(detail, detailLimit),
     'canResolveOnWatch': canResolveOnWatch,
+    // Only for a remote card: a local one is the common case and pays nothing.
+    if (source == WatchInteractionSource.remote) ...{
+      'source': 'remote',
+      'host': truncateForWatch(host, titleLimit),
+    },
   };
 }
 
@@ -173,6 +213,8 @@ class WatchQuestion {
     required this.options,
     this.allowMultiple = false,
     this.allowOther = false,
+    this.source = WatchInteractionSource.local,
+    this.host = '',
   });
 
   final String id;
@@ -180,6 +222,8 @@ class WatchQuestion {
   final List<WatchQuestionOption> options;
   final bool allowMultiple;
   final bool allowOther;
+  final WatchInteractionSource source;
+  final String host;
 
   factory WatchQuestion.fromJson(Map<String, dynamic> json) => WatchQuestion(
     id: (json['id'] as String?)?.trim() ?? '',
@@ -190,6 +234,8 @@ class WatchQuestion {
         .toList(growable: false),
     allowMultiple: json['allowMultiple'] == true,
     allowOther: json['allowOther'] == true,
+    source: watchInteractionSourceFromJson(json['source']),
+    host: (json['host'] as String?)?.trim() ?? '',
   );
 
   Map<String, dynamic> toJson({
@@ -204,6 +250,10 @@ class WatchQuestion {
         .toList(growable: false),
     'allowMultiple': allowMultiple,
     'allowOther': allowOther,
+    if (source == WatchInteractionSource.remote) ...{
+      'source': 'remote',
+      'host': truncateForWatch(host, watchSnapshotTitleLimit),
+    },
     // Tells the watch that the option list was cut, so it can offer "more on
     // iPhone" instead of silently presenting a partial choice as complete.
     'optionsTruncated': options.length > watchSnapshotMaxQuestionOptions,
@@ -665,9 +715,7 @@ class WatchSnapshot {
     return [
       for (var i = 0; i < kept.length; i++)
         kept[i].toJson(
-          limit: i == kept.length - 1
-              ? caps.lastMessageText
-              : caps.messageText,
+          limit: i == kept.length - 1 ? caps.lastMessageText : caps.messageText,
         ),
     ];
   }
