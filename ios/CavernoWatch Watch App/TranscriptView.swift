@@ -94,6 +94,10 @@ struct TranscriptView: View {
         }
       }
 
+      if let attention {
+        attentionBanner(attention)
+      }
+
       ComposeBar(
         placeholder: "Message",
         onSend: send,
@@ -101,7 +105,11 @@ struct TranscriptView: View {
       )
       .background(Color.black)
     }
-    .ignoresSafeArea(edges: .bottom)
+    // No `.ignoresSafeArea(edges: .bottom)`. It extended the compose bar past
+    // the bottom inset, where the watch's rounded display clipped the input
+    // capsule's lower edge. The scroll view sits above the bar and never
+    // reached that edge anyway, so ignoring the inset bought nothing and cost
+    // the one control the screen exists to offer.
     .sheet(isPresented: $showsActions) {
       ComposeActionsView(isStreaming: snapshot.status == .streaming)
     }
@@ -110,40 +118,6 @@ struct TranscriptView: View {
     // the system's own colour. The thread name is worth more than its hue.
     .navigationTitle(title)
     .toolbar {
-      if let approval = snapshot.approval {
-        ToolbarItem(placement: .topBarTrailing) {
-          NavigationLink {
-            ApprovalView(approval: approval)
-          } label: {
-            Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundStyle(.orange)
-          }
-          .accessibilityLabel("Approval required")
-        }
-      } else if let question = snapshot.question {
-        ToolbarItem(placement: .topBarTrailing) {
-          NavigationLink {
-            QuestionView(question: question)
-          } label: {
-            Image(systemName: "questionmark.bubble.fill")
-              .foregroundStyle(.orange)
-          }
-          .accessibilityLabel("Question waiting")
-        }
-      } else if let goal = snapshot.goalAwaitingConfirmation {
-        // Ranked below the approval and the question for the same reason they
-        // are ranked against each other: one button, and a turn blocked on a
-        // tool outranks a goal that has merely run out of work.
-        ToolbarItem(placement: .topBarTrailing) {
-          NavigationLink {
-            GoalView(goal: goal)
-          } label: {
-            Image(systemName: "target")
-              .foregroundStyle(.orange)
-          }
-          .accessibilityLabel("Goal awaiting confirmation")
-        }
-      }
       // `conversationsTruncated` alone is enough to open the picker: a frame
       // that overran the payload budget sheds the thread list first, and
       // gating the button on the list itself would take the "More threads on
@@ -169,6 +143,102 @@ struct TranscriptView: View {
           .tint(BubbleStyle.outgoing)
         }
       }
+    }
+  }
+
+  // MARK: - Attention
+
+  /// What the wrist is being asked for, if anything.
+  ///
+  /// These three used to be mutually exclusive `ToolbarItem`s at
+  /// `.topBarTrailing`, ranked against each other. watchOS renders one item per
+  /// placement, and the thread picker declares that same slot — so on any watch
+  /// whose phone has more than one thread, which is the ordinary case, the
+  /// picker won and none of them could be reached. The wrist showed no sign at
+  /// all that a turn was blocked, while the frame it was drawing said
+  /// `waitingApproval`. Ranking the three was never the problem; sharing a slot
+  /// with an unranked fourth item was.
+  ///
+  /// Pinned above the compose bar instead. It cannot collide, it cannot scroll
+  /// away, and a blocked turn is worth more than a corner glyph.
+  private enum Attention {
+    case approval(WatchApproval)
+    case question(WatchQuestion)
+    case goal(WatchGoal)
+  }
+
+  /// A turn blocked on a tool outranks one blocked on a question, and both
+  /// outrank a goal that has merely run out of work.
+  private var attention: Attention? {
+    if let approval = snapshot.approval { return .approval(approval) }
+    if let question = snapshot.question { return .question(question) }
+    if let goal = snapshot.goalAwaitingConfirmation { return .goal(goal) }
+    return nil
+  }
+
+  @ViewBuilder
+  private func attentionBanner(_ attention: Attention) -> some View {
+    NavigationLink {
+      switch attention {
+      case .approval(let approval): ApprovalView(approval: approval)
+      case .question(let question): QuestionView(question: question)
+      case .goal(let goal): GoalView(goal: goal)
+      }
+    } label: {
+      HStack(spacing: 5) {
+        Image(systemName: symbol(for: attention))
+        Text(label(for: attention))
+          .font(.caption2)
+          .lineLimit(1)
+          .truncationMode(.middle)
+        Spacer(minLength: 0)
+        Image(systemName: "chevron.right")
+          .font(.system(size: 9, weight: .semibold))
+          .opacity(0.7)
+      }
+      .foregroundStyle(.orange)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 5)
+      .frame(maxWidth: .infinity)
+      .background(Color.orange.opacity(0.18), in: Capsule())
+    }
+    .buttonStyle(.plain)
+    .padding(.horizontal, 4)
+    .padding(.bottom, 4)
+    .background(Color.black)
+    .accessibilityLabel(accessibilityLabel(for: attention))
+  }
+
+  private func symbol(for attention: Attention) -> String {
+    switch attention {
+    case .approval: return "exclamationmark.triangle.fill"
+    case .question: return "questionmark.bubble.fill"
+    case .goal: return "target"
+    }
+  }
+
+  /// Names the thing being asked about, not the category.
+  ///
+  /// The banner is one line on a small screen, so it carries the command or the
+  /// question itself: "Approval required" tells the reader nothing they cannot
+  /// see from the colour.
+  private func label(for attention: Attention) -> String {
+    switch attention {
+    case .approval(let approval):
+      return approval.title.isEmpty ? "Approval required" : approval.title
+    case .question(let question):
+      return question.question.isEmpty ? "Question waiting" : question.question
+    case .goal(let goal):
+      return goal.objective.isEmpty
+        ? "Goal awaiting confirmation" : goal.objective
+    }
+  }
+
+  private func accessibilityLabel(for attention: Attention) -> String {
+    switch attention {
+    case .approval: return "Approval required"
+    case .question: return "Question waiting"
+    case .goal: return "Goal awaiting confirmation"
     }
   }
 

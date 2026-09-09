@@ -4,6 +4,7 @@ Status: High severity remediation complete; defense-in-depth queue open.
 SA-24 added 2026-09-02 for the Apple Watch resolution channel.
 SA-25 added 2026-09-06 for a desktop's own approval on its owner's phone,
 and superseded the same day by SA-26 after its premise was measured wrong.
+SA-27 added 2026-09-06 for Remote Coding interactions on the Apple Watch.
 
 Reviewed revision: `a3d35fc9e592`.
 
@@ -585,6 +586,67 @@ into an outage.
   credentials and computer-use smoke arming need a gesture a notification or a
   watch cannot represent honestly; `PendingApprovalSummary.isSimpleDecision`
   already says which those are, and it must reach the wire.
+
+## SA-27: Remote Coding Interactions On The Apple Watch
+
+Opened 2026-09-06 with WATCH11. A scope note, like SA-24, rather than a finding.
+
+Decision: **the wrist may show and answer a Remote Coding interaction that
+reached this phone, and nothing more.**
+
+### Why this does not widen the principal set
+
+SEC4.5g scopes a Remote Coding interaction to the paired device that started
+the turn. That device is the iPhone. SA-24 established the watch as a
+peripheral of the phone rather than a principal of its own — it reaches exactly
+the one watch physically paired to that phone, over `WCSession`, with no
+address a third party could hold. Showing the phone's own remote-coding
+approval on the phone's own watch therefore adds no principal.
+
+SA-26 then decided what the phone itself may answer. The wrist inherits that
+and no more: a desktop withholds a kind it has not granted this device, so
+anything arriving on the phone is answerable in principle, and
+`isSimpleDecision` decides whether it is answerable *from a watch*. SSH
+credentials and computer-use smoke arming stay read-only on the wrist however
+the grant is set, because no compact surface can collect them honestly.
+
+### The trap this deliberately avoids
+
+Reaching Remote Coding is a **second source**, not a relaxation of
+`WatchApprovalMapper`'s `isOwnedByRemoteDevice` exclusion. That guard covers
+the desktop-as-server case, where this device is the host and another paired
+device owns the interaction; it cannot fire on iOS, because `ChatState` there
+never holds a remote-origin approval. Loosening it to make remote coding
+visible would have left the desktop showing one paired device's approvals to
+another — undoing SEC4.5g on the machine where it matters. The two paths stay
+separate, and the mapper carries a comment saying so.
+
+### What the implementation had to get right
+
+- **The card names its host.** Approving a shell command without knowing which
+  machine runs it is the failure this milestone exists to avoid, so
+  `WatchApproval.host` is rendered above the command rather than beneath it.
+- **Routing is by an explicit source, not by a display field.** SA-24 recorded
+  the cost of inferring identity from a value's presence; `source` is carried
+  as its own field, and a resolution is sent to the notifier that owns it.
+  Routing a desktop's approval to this phone's chat notifier resolves nothing
+  and reports success, which is a silent failure rather than a loud one.
+- **One card, ranked across sources.** The wrist shows one interaction, so
+  local and remote candidates are ranked by the same consequence order every
+  compact surface uses, with a tie going to the local one — it belongs to the
+  device the watch is paired to, and can be finished there.
+
+### Residual scope
+
+- The transcript stays local-only. Two conversations on one wrist screen is a
+  separate design problem, and the payload budget cannot carry both.
+- The conversation goal is deliberately not sourced from a desktop. Carrying it
+  would mean a goal field on the Remote Coding wire — the same privacy-boundary
+  change that blocks WATCH5 — to power a screen that has never run on iOS and
+  whose decision ("this goal is complete") closes work from the surface with the
+  least context. If unattended goal confirmation ever earns a wrist, it should
+  arrive as an `ask_user_question` over the path this milestone just built,
+  rather than as a second mechanism for "something needs your answer".
 
 ## Roadmap Order
 

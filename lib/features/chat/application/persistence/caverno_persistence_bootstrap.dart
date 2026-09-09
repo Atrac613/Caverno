@@ -47,14 +47,28 @@ final class CavernoPersistenceStorage {
   final CachedDriftConversationRepository conversationRepository;
   final ChatMemoryRepository chatMemoryRepository;
   final CavernoAppDatabaseCloser _closeDatabase;
+  Future<void>? _closing;
   bool _closed = false;
 
+  /// Closes the owned database once.
+  ///
+  /// Success is recorded only after [database] actually closes, so a failed
+  /// attempt stays retryable. Concurrent callers share the in-flight close.
   Future<void> close() async {
     if (_closed) {
       return;
     }
-    _closed = true;
-    await _closeDatabase(database);
+    await (_closing ??= _closeOnce());
+  }
+
+  Future<void> _closeOnce() async {
+    try {
+      await _closeDatabase(database);
+      _closed = true;
+    } catch (_) {
+      _closing = null;
+      rethrow;
+    }
   }
 }
 
@@ -78,6 +92,7 @@ final class CavernoPersistenceBootstrap {
     CavernoAppDatabaseCloser closeDatabase = _closeAppDatabase,
     ChatMemoryMutationCoordinator mutationCoordinator =
         const DirectChatMemoryMutationCoordinator(),
+    bool hydrateConversationListingOnly = true,
   }) async {
     AppDatabase? database;
     var driftIsAuthoritative = conversationsMigrated || chatMemoryMigrated;
@@ -108,7 +123,10 @@ final class CavernoPersistenceBootstrap {
       }
 
       final conversationRepository =
-          await CachedDriftConversationRepository.hydrate(conversationStore);
+          await CachedDriftConversationRepository.hydrate(
+            conversationStore,
+            listingOnly: hydrateConversationListingOnly,
+          );
       final chatMemoryKeyValueStore = await CachedDriftKeyValueStore.hydrate(
         chatMemoryStore,
       );

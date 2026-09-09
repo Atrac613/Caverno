@@ -202,6 +202,8 @@ void main() {
         hasFailedExecutionVerification: true,
         hasAuthoritativeDiagnosticSnapshot: true,
         hasUnexecutedActionClaim: true,
+        hasReportedRemainingWork: true,
+        remainingWorkMessage: 'bump the version',
         diagnosticSignature: 'signature-a',
       );
 
@@ -226,6 +228,8 @@ void main() {
       expect(stored.hasFailedExecutionVerification, isTrue);
       expect(stored.hasAuthoritativeDiagnosticSnapshot, isTrue);
       expect(stored.hasUnexecutedActionClaim, isTrue);
+      expect(stored.hasReportedRemainingWork, isTrue);
+      expect(stored.remainingWorkMessage, 'bump the version');
       expect(stored.diagnosticSignature, 'signature-a');
       expect(
         () => stored.unexecutedToolNames.add('late'),

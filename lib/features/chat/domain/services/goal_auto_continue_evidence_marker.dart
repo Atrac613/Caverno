@@ -36,6 +36,7 @@ abstract final class GoalAutoContinueEvidenceMarker {
       'verificationGeneration': verificationGeneration,
       'hasBlockingEvidence': evidence.hasBlockingEvidence,
       'hasUnexecutedActionClaim': evidence.hasUnexecutedActionClaim,
+      'hasReportedRemainingWork': evidence.hasReportedRemainingWork,
       'safeBoundaryVeto': safeBoundaryVeto,
       'noProgressStreak': noProgressStreak,
       // The stalled-repair contract is handed 0 for its streak unless a

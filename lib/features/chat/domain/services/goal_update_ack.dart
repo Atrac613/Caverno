@@ -244,8 +244,8 @@ class GoalUpdateAckResolver {
   /// Concrete, mechanically-derived reasons a completion cannot be recorded.
   ///
   /// Reads the LL34 completion evidence, not the response text. Order is most
-  /// to least actionable. There are a fixed six evidence sources, so the list
-  /// is naturally bounded — no truncation is needed.
+  /// to least actionable. There are a fixed seven evidence sources, so the
+  /// list is naturally bounded — no truncation is needed.
   List<String> completionGaps(ToolResultCompletionEvidence evidence) {
     final gaps = <String>[];
 
@@ -275,6 +275,14 @@ class GoalUpdateAckResolver {
     }
     if (evidence.hasUnexecutedActionClaim) {
       gaps.add('an action was claimed in prose but never executed');
+    }
+    if (evidence.hasReportedRemainingWork) {
+      final message = evidence.remainingWorkMessage.trim();
+      gaps.add(
+        message.isEmpty
+            ? 'remaining work was reported without completion'
+            : 'remaining work was reported: $message',
+      );
     }
 
     return gaps;

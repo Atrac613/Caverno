@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 const remoteCodingFirebaseNamespace = 'com.noguwo.apps.caverno';
+const iosGoogleServiceInfoPath = 'ios/Runner/GoogleService-Info.plist';
+const macosGoogleServiceInfoPath = 'macos/Runner/GoogleService-Info.plist';
+const androidGoogleServicesJsonPath = 'android/app/google-services.json';
 
 final class RemoteCodingFirebaseApp {
   const RemoteCodingFirebaseApp({
@@ -93,3 +97,25 @@ RemoteCodingFirebaseBootstrapPlan buildRemoteCodingFirebaseBootstrapPlan(
 
 bool isValidFirebaseProjectId(String value) =>
     RegExp(r'^[a-z][a-z0-9-]{4,28}[a-z0-9]$').hasMatch(value);
+
+/// Copies the iOS Firebase plist onto macOS.
+///
+/// iOS and macOS share [remoteCodingFirebaseNamespace], and Firebase cannot
+/// register two Apple apps with that bundle ID, so macOS reuses the iOS app.
+void copyIosFirebaseConfigToMacos({
+  required File iosPlist,
+  required File macosPlist,
+}) {
+  if (!iosPlist.existsSync()) {
+    throw StateError('iOS GoogleService-Info.plist is missing.');
+  }
+  macosPlist.parent.createSync(recursive: true);
+  iosPlist.copySync(macosPlist.path);
+}
+
+bool firebaseConfigMatchesNamespace(
+  File file, {
+  String namespace = remoteCodingFirebaseNamespace,
+}) {
+  return file.existsSync() && file.readAsStringSync().contains(namespace);
+}
