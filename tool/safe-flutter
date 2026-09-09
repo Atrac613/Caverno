@@ -100,6 +100,19 @@ case "${1:-}" in
       --dart-define=CAVERNO_BUILD_COMMIT="$BUILD_COMMIT" \
       --dart-define=CAVERNO_BUILD_DIRTY="$BUILD_DIRTY" \
       --dart-define=CAVERNO_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    # Inject the environment-owned Firebase defines (relay origin). Without
+    # them the Remote Coding relay client resolves to null and push delivery
+    # silently no-ops, so warn on the subcommands that produce a binary a
+    # human will then test on a device.
+    source "$WORKTREE/tool/caverno_dart_defines.sh"
+    case "${1:-}" in
+      run|build) caverno_load_dart_define_args "$WORKTREE" warn ;;
+      *) caverno_load_dart_define_args "$WORKTREE" ;;
+    esac
+    if [[ ${#CAVERNO_DART_DEFINE_ARGS[@]} -gt 0 ]]; then
+      set -- "$@" "${CAVERNO_DART_DEFINE_ARGS[@]}"
+    fi
     ;;
 esac
 

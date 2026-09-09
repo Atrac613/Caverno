@@ -69,6 +69,10 @@ screenshots/
 /ios/Runner/GoogleService-Info.plist
 /macos/Runner/GoogleService-Info.plist
 
+# Firebase build defines consumed by tool/caverno_dart_defines.sh
+# (holds CAVERNO_NOTIFICATION_RELAY_URL; environment-owned like the files above)
+/firebase/dart_defines.json
+
 # Firebase CLI deploy cache
 /.firebase/
 

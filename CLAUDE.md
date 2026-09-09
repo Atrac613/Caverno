@@ -149,6 +149,16 @@ tool/safe-flutter build macos --release
 
 Non-macOS subcommands (`analyze`, `test`, `pub get`, `build apk`, `build ipa`, ...) pass through unchanged, so any worktree can still run lint and tests.
 
+The wrapper is also where compile-time defines are injected: build provenance
+(`CAVERNO_BUILD_*`) and the Remote Coding relay origin
+(`CAVERNO_NOTIFICATION_RELAY_URL`, from the gitignored
+`firebase/dart_defines.json` via `tool/caverno_dart_defines.sh`). **A binary
+built with bare `flutter` sends no push notifications** — the relay client
+resolves to `null` and delivery is skipped with no error anywhere except a
+log line and a warning on the desktop Remote Coding settings page. Use
+`tool/safe-flutter` for anything you intend to test on a device. See
+"Supplying the relay origin" in `docs/remote_coding_fcm_release_gate.md`.
+
 For convenience, optionally add to your shell init:
 
 ```bash

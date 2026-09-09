@@ -484,12 +484,17 @@ release_ios() {
   fi
 
   write_ios_export_options "${export_options}"
+  # Environment-owned Firebase defines (relay origin). Required here: a release
+  # missing them ships with Remote Coding push silently inert.
+  source "${ROOT_DIR}/tool/caverno_dart_defines.sh"
+  caverno_load_dart_define_args "${ROOT_DIR}" require
   run "${FLUTTER_CMD[@]}" build ipa \
     --release \
     --build-name "${BUILD_NAME}" \
     --build-number "${BUILD_NUMBER}" \
     --export-options-plist "${export_options}" \
-    --no-pub
+    --no-pub \
+    ${CAVERNO_DART_DEFINE_ARGS[@]+"${CAVERNO_DART_DEFINE_ARGS[@]}"}
 }
 
 release_macos() {
