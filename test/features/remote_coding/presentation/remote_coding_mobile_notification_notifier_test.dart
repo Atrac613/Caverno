@@ -38,6 +38,67 @@ void main() {
     certificatePin: 'pin',
   );
 
+  for (final failRotation in [false, true]) {
+    for (final reenable in [false, true]) {
+      test('late token refresh cannot overwrite disable or re-enable '
+          '(failure: $failRotation, re-enable: $reenable)', () async {
+        final fixture = await _fixture(now);
+        addTearDown(fixture.dispose);
+        await fixture.waitForStatus(
+          RemoteCodingMobileNotificationStatus.notDetermined,
+        );
+        fixture.clientNotifier.completePairing(pairedHost());
+        await fixture.waitForStatus(
+          RemoteCodingMobileNotificationStatus.enabled,
+        );
+        final barrier = Completer<void>();
+        fixture.relayClient.rotationBarrier = barrier;
+        fixture.relayClient.failDelayedRotation = failRotation;
+        fixture.gateway.tokenRefreshController.add('new-token');
+        await _waitUntil(() => fixture.relayClient.rotationCount == 1);
+        expect(await fixture.notifier.disable(), isTrue);
+        fixture.relayClient.rotationBarrier = null;
+        if (reenable) {
+          expect(await fixture.notifier.enableAfterPairing(), isFalse);
+          expect(
+            await fixture.notifier.enable(
+              authorizeDesktop: () async {
+                await fixture.clientNotifier.authorizeNotificationRelay();
+                return true;
+              },
+            ),
+            isTrue,
+          );
+        }
+        fixture.notifier.applyNotificationTapForTest(_terminalData(now));
+        barrier.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final state = fixture.container.read(
+          remoteCodingMobileNotificationProvider,
+        );
+        expect(
+          state.status,
+          reenable
+              ? RemoteCodingMobileNotificationStatus.enabled
+              : RemoteCodingMobileNotificationStatus.disabled,
+        );
+        expect(state.pendingNotificationTap?.eventId, 'event_123456');
+        expect(
+          fixture.repository.loadMobileRelayNotificationsEnabled(),
+          reenable,
+        );
+        if (!reenable) {
+          fixture.clientNotifier.emitTerminalNotification(
+            RemoteCodingNotificationPayload.fromFcmData(_terminalData(now)),
+          );
+          await _waitUntil(
+            () => fixture.notificationService.shownNotifications.length == 1,
+          );
+        }
+      });
+    }
+  }
+
   test(
     'pairing enables notifications once and waits for desktop activation',
     () async {
@@ -1124,6 +1185,8 @@ final class _FakeRelayClient implements RemoteCodingNotificationRelayClient {
   int registrationCount = 0;
   bool failRegistration = false;
   int rotationCount = 0;
+  Completer<void>? rotationBarrier;
+  bool failDelayedRotation = false;
   int revocationFailuresRemaining = 0;
   String? rotatedFcmToken;
 
@@ -1152,6 +1215,13 @@ final class _FakeRelayClient implements RemoteCodingNotificationRelayClient {
     required RemoteCodingRelayTokenRotationRequest request,
   }) async {
     rotationCount += 1;
+    final barrier = rotationBarrier;
+    if (barrier != null) {
+      await barrier.future;
+      if (failDelayedRotation) {
+        throw StateError('Delayed token rotation failed');
+      }
+    }
     rotatedFcmToken = request.fcmRegistrationToken;
   }
 

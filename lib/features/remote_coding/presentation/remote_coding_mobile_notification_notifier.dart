@@ -92,6 +92,7 @@ final class RemoteCodingMobileNotificationNotifier
   bool _operationInProgress = false;
   Completer<void>? _operationCompletion;
   String? _registeredHandle;
+  int _notificationRevision = 0;
 
   /// Whether the Remote Coding page is mounted.
   ///
@@ -241,6 +242,7 @@ final class RemoteCodingMobileNotificationNotifier
       );
       return;
     }
+    _notificationRevision += 1;
     _operationInProgress = true;
     _operationCompletion = Completer<void>();
     try {
@@ -315,6 +317,7 @@ final class RemoteCodingMobileNotificationNotifier
       return false;
     }
     final setupHostId = ref.read(remoteCodingClientProvider).host?.id;
+    _notificationRevision += 1;
     _operationInProgress = true;
     _operationCompletion = Completer<void>();
     state = state.copyWith(
@@ -384,6 +387,7 @@ final class RemoteCodingMobileNotificationNotifier
     if (relayClient == null) {
       return false;
     }
+    _notificationRevision += 1;
     _operationInProgress = true;
     _operationCompletion = Completer<void>();
     try {
@@ -393,6 +397,7 @@ final class RemoteCodingMobileNotificationNotifier
         clock: DateTime.now,
       ).revokeRegistration();
       await _repository.saveMobileRelayNotificationsEnabled(false);
+      _registeredHandle = null;
       try {
         await _gateway.disableFcmToken();
       } catch (error) {
@@ -796,6 +801,7 @@ final class RemoteCodingMobileNotificationNotifier
     if (!_repository.loadMobileRelayNotificationsEnabled()) {
       return;
     }
+    final revision = _notificationRevision;
     final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
     if (relayClient == null) {
       return;
@@ -806,7 +812,7 @@ final class RemoteCodingMobileNotificationNotifier
         relayClient: relayClient,
         clock: DateTime.now,
       ).rotateToken(token);
-      if (ref.mounted) {
+      if (_canApplyTokenRefresh(revision)) {
         _updateRegistrationStatus();
       }
     } catch (error, stackTrace) {
@@ -814,14 +820,19 @@ final class RemoteCodingMobileNotificationNotifier
         '[RemoteCodingNotifications] FCM token rotation failed: '
         '$error\n$stackTrace',
       );
-      if (ref.mounted) {
-        state = const RemoteCodingMobileNotificationState(
+      if (_canApplyTokenRefresh(revision)) {
+        state = state.copyWith(
           status: RemoteCodingMobileNotificationStatus.error,
           message: 'FCM token refresh needs to be retried.',
         );
       }
     }
   }
+
+  bool _canApplyTokenRefresh(int revision) =>
+      ref.mounted &&
+      revision == _notificationRevision &&
+      _repository.loadMobileRelayNotificationsEnabled();
 }
 
 bool _isAuthorized(RemoteCodingNotificationPermission permission) {
