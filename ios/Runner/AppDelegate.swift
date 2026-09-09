@@ -137,6 +137,12 @@ enum NotificationActionPlugin {
       binaryMessenger: registrar.messenger()
     )
     channel.setMethodCallHandler { call, result in
+      if call.method == "withdrawPushedApprovals" {
+        let keep = (call.arguments as? [String: Any])?["keepApprovalId"]
+          as? String
+        withdrawPushedApprovals(keeping: keep, result: result)
+        return
+      }
       guard call.method == "takePendingActions" else {
         result(FlutterMethodNotImplemented)
         return
@@ -149,6 +155,41 @@ enum NotificationActionPlugin {
       result(drainPending())
     }
     self.channel = channel
+  }
+
+
+  /// Removes delivered approval pushes other than [keep].
+  ///
+  /// `flutter_local_notifications` cannot: its `cancel` removes by a stringified
+  /// integer id it wrote into `userInfo`, and a push has no such key — the
+  /// identifier is APNs'. So an approval answered while the phone was asleep
+  /// left its notification on the lock screen with nothing able to take it
+  /// down, presenting a decision that no longer exists.
+  ///
+  /// Matches on `userInfo["approvalId"]`, which only the relay's approval
+  /// payload carries, so local notifications and run-completion pushes are
+  /// left alone.
+  static func withdrawPushedApprovals(
+    keeping keep: String?,
+    result: @escaping FlutterResult
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.getDeliveredNotifications { delivered in
+      let stale = delivered.compactMap { notification -> String? in
+        let info = notification.request.content.userInfo
+        guard let approvalId = info["approvalId"] as? String,
+          !approvalId.isEmpty,
+          approvalId != keep
+        else {
+          return nil
+        }
+        return notification.request.identifier
+      }
+      if !stale.isEmpty {
+        center.removeDeliveredNotifications(withIdentifiers: stale)
+      }
+      DispatchQueue.main.async { result(stale.count) }
+    }
   }
 
   static func send(actionIdentifier: String, payload: String) {

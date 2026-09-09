@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -351,6 +352,58 @@ class NotificationService {
       }),
       darwinCategoryId: actionable ? approvalCategoryId : null,
     );
+  }
+
+  /// Takes down approval notifications for requests that are no longer live.
+  ///
+  /// [keepApprovalId] is the one approval still pending, or null when none is.
+  ///
+  /// [cancelApprovalRequiredNotification] cannot do this. It withdraws what
+  /// *this process* raised, and a push arrives precisely when the process was
+  /// not running: nothing recorded it, so an approval answered while the phone
+  /// slept left its notification on the lock screen offering a decision that
+  /// no longer exists. Pressing it resolves nothing — the answer path waits
+  /// for an approval that never comes back — but being asked at all is the
+  /// defect.
+  ///
+  /// Split by platform because the plugin can only reach one of them. On iOS
+  /// its `cancel` removes by a stringified integer id it wrote into `userInfo`,
+  /// which a push does not carry, so the removal happens natively. On Android
+  /// the relay sets the notification tag to the approval id, which
+  /// `getActiveNotifications` reports and `cancel` accepts.
+  Future<int> withdrawStalePushedApprovals({String? keepApprovalId}) async {
+    if (kIsWeb) return 0;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        const channel = MethodChannel(_sceneActionChannelName);
+        final removed = await channel.invokeMethod<int>(
+          'withdrawPushedApprovals',
+          <String, dynamic>{'keepApprovalId': keepApprovalId},
+        );
+        return removed ?? 0;
+      }
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final active = await _plugin.getActiveNotifications();
+        var removed = 0;
+        for (final notification in active) {
+          final tag = notification.tag?.trim() ?? '';
+          final id = notification.id;
+          if (tag.isEmpty || id == null) continue;
+          if (notification.channelId != approvalChannelId) continue;
+          if (tag == keepApprovalId) continue;
+          await _plugin.cancel(id: id, tag: tag);
+          removed += 1;
+        }
+        return removed;
+      }
+    } on MissingPluginException {
+      // A host binary without the plugin, or a platform that has neither path.
+    } on PlatformException catch (error) {
+      appLog('[Notifications] withdrawing stale approvals failed: $error');
+    } on Object catch (error) {
+      appLog('[Notifications] withdrawing stale approvals failed: $error');
+    }
+    return 0;
   }
 
   /// Withdraws the approval notification raised for [conversationId].

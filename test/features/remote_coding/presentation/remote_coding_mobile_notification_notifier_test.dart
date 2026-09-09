@@ -799,6 +799,43 @@ void main() {
       ]);
     });
 
+
+    test('every snapshot sweeps pushed approvals the desktop dropped',
+        () async {
+      // A push raised while this process did not exist is in no local record,
+      // so the conversation-keyed withdrawal above cannot reach it. The sweep
+      // runs on each snapshot and is told the one approval that is still live.
+      final fixture = await _fixture(now);
+      addTearDown(fixture.dispose);
+      await fixture.waitForStatus(
+        RemoteCodingMobileNotificationStatus.notDetermined,
+      );
+
+      fixture.clientNotifier.emitPendingApproval(
+        approval(),
+        host: host(),
+        currentConversationId: 'conversation-9',
+      );
+      await _waitUntil(
+        () => fixture.notificationService.staleWithdrawalKeeps.isNotEmpty,
+      );
+      expect(
+        fixture.notificationService.staleWithdrawalKeeps.last,
+        approval().id,
+        reason: 'the live approval must survive its own sweep',
+      );
+
+      fixture.clientNotifier.clearApproval();
+      await _waitUntil(
+        () => fixture.notificationService.staleWithdrawalKeeps.length > 1,
+      );
+      expect(
+        fixture.notificationService.staleWithdrawalKeeps.last,
+        isNull,
+        reason: 'nothing pending means every pushed approval is stale',
+      );
+    });
+
     test('nothing is withdrawn when nothing was raised', () async {
       final fixture = await _fixture(now);
       addTearDown(fixture.dispose);
@@ -1080,9 +1117,20 @@ final class _FakeNotificationService extends NotificationService {
 
   final cancelledApprovalConversationIds = <String>[];
 
+  /// The `keepApprovalId` of every stale-withdrawal sweep, in order. Null means
+  /// the snapshot carried no pending approval at all.
+  final staleWithdrawalKeeps = <String?>[];
+  int staleWithdrawalRemovals = 0;
+
   @override
   Future<void> cancelApprovalRequiredNotification(String conversationId) async {
     cancelledApprovalConversationIds.add(conversationId);
+  }
+
+  @override
+  Future<int> withdrawStalePushedApprovals({String? keepApprovalId}) async {
+    staleWithdrawalKeeps.add(keepApprovalId);
+    return staleWithdrawalRemovals;
   }
 
   @override

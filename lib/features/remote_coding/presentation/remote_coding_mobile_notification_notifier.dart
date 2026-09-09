@@ -187,6 +187,12 @@ final class RemoteCodingMobileNotificationNotifier
         (clientState) => clientState.pendingApproval,
       ),
       (previous, next) {
+        // Every snapshot, including the first after a reconnect, is the moment
+        // the phone learns which approval is actually live. A pushed
+        // notification for any other one was raised while this process did not
+        // exist, so `_liveApprovalNotifications` never recorded it and the
+        // withdrawal below cannot reach it.
+        unawaited(_withdrawStalePushedApprovals(next?.id));
         if (next == null) {
           // Answered on the desktop, or withdrawn. A notification whose
           // buttons resolve nothing is worse than no notification.
@@ -628,6 +634,33 @@ final class RemoteCodingMobileNotificationNotifier
       !ref.read(appLifecycleServiceProvider).isInBackground;
 
   static const int _maxRememberedApprovalIds = 128;
+
+  /// Takes down pushed approval notifications the desktop no longer holds.
+  ///
+  /// Separate from [_withdrawApprovalNotification], which cancels what this
+  /// process raised and keyed by conversation. A push that arrived while the
+  /// app was not running is in neither record, and on iOS the plugin cannot
+  /// even address it.
+  Future<void> _withdrawStalePushedApprovals(String? keepApprovalId) async {
+    try {
+      final removed = await _notificationService.withdrawStalePushedApprovals(
+        keepApprovalId: keepApprovalId,
+      );
+      if (removed > 0) {
+        appLog(
+          '[RemoteCodingNotifications] withdrew $removed pushed approval '
+          'notification(s) the desktop no longer holds',
+        );
+      }
+    } catch (error) {
+      // Best effort: a lingering notification is a wart, not a failure worth
+      // propagating into the session.
+      appLog(
+        '[RemoteCodingNotifications] withdrawing stale pushed approvals '
+        'failed: $error',
+      );
+    }
+  }
 
   Future<void> _withdrawApprovalNotification(String approvalId) async {
     _suppressedApproval = null;
