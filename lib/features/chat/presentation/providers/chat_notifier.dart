@@ -97,6 +97,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/content_tool_continuation_prompt_builder.dart';
+import '../../domain/services/content_tool_failure_result_formatter.dart';
 import '../../domain/services/content_tool_formatters.dart';
 import '../../domain/services/turn_steering_policy.dart';
 import '../../domain/services/turn_steering_prompt_builder.dart';
@@ -202,6 +203,7 @@ import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_failure_classifier.dart';
+import 'running_tools_provider.dart';
 import '../../domain/services/tool_loop_abort_notice.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
@@ -5187,11 +5189,20 @@ class ChatNotifier extends Notifier<ChatState> {
     return messages;
   }
 
+  void _trackTool(int generation, String name, String lifecycleState) => ref
+      .read(runningToolsProvider.notifier)
+      .track(
+        _activeResponseConversationIdForGeneration(generation),
+        name,
+        lifecycleState,
+      );
+
   void _logScheduledToolLifecycleEvent(
     ToolExecutionLifecycleEvent event, {
     required int generation,
     required int loopIndex,
   }) {
+    _trackTool(generation, event.toolCall.name, event.state.name);
     _runtimeEvents.emitRuntimeToolLifecycle(
       generation: generation,
       toolCallId: event.toolCall.id,
@@ -5225,6 +5236,7 @@ class ChatNotifier extends Notifier<ChatState> {
       'started' => CavernoRuntimeToolLifecycleState.started,
       _ => CavernoRuntimeToolLifecycleState.completed,
     };
+    _trackTool(generation, toolCall.name, lifecycleState);
     _runtimeEvents.emitRuntimeToolLifecycle(
       generation: generation,
       toolCallId: toolCall.id,
@@ -7525,7 +7537,7 @@ class ChatNotifier extends Notifier<ChatState> {
         if (ref.mounted) {
           _appendToLastMessageForGeneration(
             interactionGeneration,
-            '\n\n${ContentToolResultFormatter.format(tc.name, failureResult)}',
+            '\n\n${ContentToolFailureResultFormatter.format(tc.name, failureResult)}',
             scanForTools: false,
           );
           appLog('[ContentTool] Appended failure result to message');
@@ -7578,7 +7590,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (ref.mounted) {
         _appendToLastMessageForGeneration(
           interactionGeneration,
-          '\n\n${ContentToolResultFormatter.format(tc.name, failureResult)}',
+          '\n\n${ContentToolFailureResultFormatter.format(tc.name, failureResult)}',
           scanForTools: false,
         );
         appLog('[ContentTool] Appended failure result to message');

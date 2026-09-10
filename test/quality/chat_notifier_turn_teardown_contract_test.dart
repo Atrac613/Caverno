@@ -47,6 +47,10 @@ const Map<String, String> _ownerReleaseContract = {
   'modelEditTelemetry': '()=>_modelEditTelemetry?.retireOwner(owner)',
   'modelSwitchCompaction':
       '()=>_modelSwitchHandoffs.discardPromptCompaction(owner)',
+  // A turn killed mid-tool never receives that tool's `completed` event, so
+  // the running-tool names would outlive the turn and the chat status row
+  // would keep announcing them.
+  'runningTools': '()=>_clearRunningTools(owner)',
 };
 
 const List<String> _terminalizationContract = [

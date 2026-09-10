@@ -946,6 +946,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     return MessageBubble(
                                       key: ValueKey(message.id),
                                       message: message,
+                                      conversationId: conversationsState
+                                          .currentConversationId,
                                       turnDiff: turnDiff,
                                       onOpenTurnDiff: turnDiff == null
                                           ? null

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +9,7 @@ import '../../domain/services/file_reference_extractor.dart';
 import 'code_block_builder.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'markdown_style_helpers.dart';
+import 'tool_call_group.dart';
 import 'math_markdown.dart';
 import '../../../../core/theme/app_tokens.dart';
 
@@ -24,6 +23,7 @@ class ParsedContentView extends StatefulWidget {
     required this.textColor,
     this.isStreaming = false,
     this.showMemoryUpdates = false,
+    this.contentScopeId,
     this.onReviewMemory,
     this.fileReferenceRootPath,
     this.fileReferenceProjectName,
@@ -34,6 +34,10 @@ class ParsedContentView extends StatefulWidget {
   final Color textColor;
   final bool isStreaming;
   final bool showMemoryUpdates;
+
+  /// Stable identity for this content, used to remember which tool groups the
+  /// user opened across the list view destroying and rebuilding the widget.
+  final String? contentScopeId;
   final VoidCallback? onReviewMemory;
   final String? fileReferenceRootPath;
   final String? fileReferenceProjectName;
@@ -111,8 +115,7 @@ class _ParsedContentViewState extends State<ParsedContentView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < result.segments.length; i++)
-          _buildSegment(context, result.segments[i], theme, i),
+        ..._buildBody(context, result, theme),
         // Show streaming thinking block with partial content
         if (widget.isStreaming &&
             result.hasIncompleteTag &&
@@ -250,11 +253,88 @@ class _ParsedContentViewState extends State<ParsedContentView> {
         return _buildThinkingBlock(segment.content, theme, index);
 
       case ContentType.toolCall:
-        return _buildToolCallBlock(segment, theme);
-
       case ContentType.toolResult:
-        return _buildToolResultBlock(segment, theme);
+        // Run detection routes every other tool segment into a ToolCallGroup,
+        // so only memory_update reaches here. The group is kept as a fallback
+        // rather than assuming that stays true.
+        if (segment.toolCall?.name.toLowerCase() == 'memory_update') {
+          return _buildMemoryUpdateBlock(
+            segment.toolCall?.arguments ?? const <String, dynamic>{},
+            theme,
+          );
+        }
+        return ToolCallGroup(
+          stateId: _groupStateId(index),
+          segments: [segment],
+        );
     }
+  }
+
+  /// Renders the segment list, collapsing each run of adjacent tool calls into
+  /// one [ToolCallGroup].
+  ///
+  /// Hidden debug segments are skipped rather than allowed to split a run: an
+  /// invisible memory_update between two calls would otherwise produce two
+  /// groups with nothing between them. Original segment indices are carried
+  /// through because [_collapsedThinkingBlocks] is keyed by them.
+  List<Widget> _buildBody(
+    BuildContext context,
+    ParseResult result,
+    ThemeData theme,
+  ) {
+    final visible = <({int index, ContentSegment segment})>[];
+    for (var i = 0; i < result.segments.length; i++) {
+      final segment = result.segments[i];
+      if (!widget.showMemoryUpdates && _isHiddenDebugSegment(segment)) {
+        continue;
+      }
+      visible.add((index: i, segment: segment));
+    }
+
+    final children = <Widget>[];
+    var cursor = 0;
+    while (cursor < visible.length) {
+      if (!_isGroupableToolSegment(visible[cursor].segment)) {
+        children.add(
+          _buildSegment(
+            context,
+            visible[cursor].segment,
+            theme,
+            visible[cursor].index,
+          ),
+        );
+        cursor++;
+        continue;
+      }
+      final startIndex = visible[cursor].index;
+      final run = <ContentSegment>[];
+      while (cursor < visible.length &&
+          _isGroupableToolSegment(visible[cursor].segment)) {
+        run.add(visible[cursor].segment);
+        cursor++;
+      }
+      children.add(
+        ToolCallGroup(
+          key: ValueKey('tool-group-$startIndex'),
+          stateId: _groupStateId(startIndex),
+          segments: run,
+        ),
+      );
+    }
+    return children;
+  }
+
+  String? _groupStateId(int startIndex) {
+    final scope = widget.contentScopeId;
+    return scope == null ? null : 'tool-group:$scope:$startIndex';
+  }
+
+  bool _isGroupableToolSegment(ContentSegment segment) {
+    if (segment.type != ContentType.toolCall &&
+        segment.type != ContentType.toolResult) {
+      return false;
+    }
+    return segment.toolCall?.name.toLowerCase() != 'memory_update';
   }
 
   bool _isHiddenDebugSegment(ContentSegment segment) {
@@ -372,144 +452,6 @@ class _ParsedContentViewState extends State<ParsedContentView> {
     );
   }
 
-  Widget _buildToolCallBlock(ContentSegment segment, ThemeData theme) {
-    final toolCall = segment.toolCall;
-    final toolName = toolCall?.name ?? 'content.tool_default'.tr();
-    final arguments = toolCall?.arguments ?? const <String, dynamic>{};
-    final argumentText = _formatToolArguments(arguments);
-    if (toolName.toLowerCase() == 'memory_update') {
-      return _buildMemoryUpdateBlock(arguments, theme);
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _getToolIcon(toolName),
-                size: 16,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _getToolDisplayName(toolName),
-                style: TextStyle(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-          if (argumentText.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              argumentText,
-              style: TextStyle(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolResultBlock(ContentSegment segment, ThemeData theme) {
-    final toolResult = segment.toolCall;
-    final toolName = toolResult?.name ?? 'content.tool_default'.tr();
-    if (toolName.toLowerCase() == 'memory_update') {
-      return _buildMemoryUpdateBlock(
-        toolResult?.arguments ?? const <String, dynamic>{},
-        theme,
-      );
-    }
-    final summary =
-        toolResult?.arguments['summary'] as String? ??
-        'content.tool_result_ready'.tr();
-    final details = ((toolResult?.arguments['details'] as List?) ?? const [])
-        .map((item) => item.toString())
-        .where((item) => item.trim().isNotEmpty)
-        .take(3)
-        .toList();
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _getToolDisplayName(toolName),
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  summary,
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
-                    fontSize: 12,
-                  ),
-                ),
-                if (details.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  for (final detail in details)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        '• $detail',
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.62,
-                          ),
-                          fontSize: 11,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMemoryUpdateBlock(
     Map<String, dynamic> arguments,
     ThemeData theme,
@@ -575,25 +517,6 @@ class _ParsedContentViewState extends State<ParsedContentView> {
         ],
       ),
     );
-  }
-
-  String _formatToolArguments(Map<String, dynamic> arguments) {
-    if (arguments.isEmpty) return '';
-    return arguments.entries
-        .map((entry) => '${entry.key}: ${_formatArgumentValue(entry.value)}')
-        .join('\n');
-  }
-
-  String _formatArgumentValue(dynamic value) {
-    if (value == null) return 'null';
-    if (value is String || value is num || value is bool) {
-      return value.toString();
-    }
-    try {
-      return jsonEncode(value);
-    } catch (_) {
-      return value.toString();
-    }
   }
 
   Widget _buildStreamingThinkingBlock(String content, ThemeData theme) {
@@ -691,43 +614,5 @@ class _ParsedContentViewState extends State<ParsedContentView> {
         ],
       ),
     );
-  }
-
-  IconData _getToolIcon(String toolName) {
-    switch (toolName.toLowerCase()) {
-      case 'web_search':
-        return Icons.search;
-      case 'get_current_datetime':
-        return Icons.schedule;
-      case 'memory_update':
-        return Icons.psychology_alt_outlined;
-      case 'calculator':
-        return Icons.calculate;
-      case 'code':
-        return Icons.code;
-      case 'rollback_last_file_change':
-        return Icons.undo_rounded;
-      default:
-        return Icons.build;
-    }
-  }
-
-  String _getToolDisplayName(String toolName) {
-    switch (toolName.toLowerCase()) {
-      case 'web_search':
-        return 'content.tool_web_search'.tr();
-      case 'get_current_datetime':
-        return 'content.tool_datetime'.tr();
-      case 'memory_update':
-        return 'content.tool_memory_update'.tr();
-      case 'calculator':
-        return 'content.tool_calculator'.tr();
-      case 'code':
-        return 'content.tool_code'.tr();
-      case 'rollback_last_file_change':
-        return 'rollback_last_file_change';
-      default:
-        return toolName;
-    }
   }
 }

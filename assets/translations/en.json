@@ -737,6 +737,13 @@
     "tool_calculator": "Calculator",
     "tool_code": "Code Execution",
     "tool_executing": "Executing tool...",
+    "turn_status_thinking": "Thinking…",
+    "turn_status_running_tools": "Running tools…",
+    "turn_status_running_tool": "Running {tool}…",
+    "turn_status_running_tools_count": "Running {count} tools…",
+    "turn_status_responding": "Responding…",
+    "tool_group_summary": "{count} tool calls",
+    "tool_group_failed": "{count} failed",
     "tool_result_ready": "result ready",
     "code_copy": "Copy",
     "code_copied": "Copied!"

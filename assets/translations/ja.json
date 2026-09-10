@@ -737,6 +737,13 @@
     "tool_calculator": "計算",
     "tool_code": "コード実行",
     "tool_executing": "ツール実行中...",
+    "turn_status_thinking": "思考中…",
+    "turn_status_running_tools": "ツールを実行中…",
+    "turn_status_running_tool": "{tool} を実行中…",
+    "turn_status_running_tools_count": "ツール {count} 件を実行中…",
+    "turn_status_responding": "応答中…",
+    "tool_group_summary": "ツール {count} 件",
+    "tool_group_failed": "{count} 件失敗",
     "tool_result_ready": "結果を取得しました",
     "code_copy": "コピー",
     "code_copied": "コピー済み"

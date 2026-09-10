@@ -349,6 +349,24 @@ void main() {
     expect(find.text('builtin_search'), findsNothing);
   });
 
+  testWidgets('replaces the streaming spinner with the turn status row', (
+    tester,
+  ) async {
+    final message = Message(
+      id: 'streaming-status-row-message',
+      content: '<tool_use>{"name":"read_file"}</tool_use>\n',
+      role: MessageRole.assistant,
+      timestamp: DateTime.now().subtract(const Duration(seconds: 30)),
+      isStreaming: true,
+    );
+
+    await _pumpMessageBubble(tester, message: message, settle: false);
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.textContaining('Running tools'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'3\ds \u00b7 ')), findsOneWidget);
+  });
+
   testWidgets('puts the question above the attachment and offers no toggle', (
     tester,
   ) async {

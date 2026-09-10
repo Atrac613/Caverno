@@ -19,6 +19,9 @@ import '../../../settings/presentation/pages/chat_settings_page.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../providers/coding_projects_notifier.dart';
+import '../providers/running_tools_provider.dart';
+import 'assistant_turn_phase.dart';
+import 'assistant_turn_status_row.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'message_image_io.dart';
 import 'message_attachment_io.dart';
@@ -41,6 +44,7 @@ class MessageBubble extends ConsumerStatefulWidget {
     this.onOpenTurnDiff,
     this.onOpenFileWorkspaceViewer,
     this.canRewind = false,
+    this.conversationId,
   });
 
   final Message message;
@@ -50,6 +54,10 @@ class MessageBubble extends ConsumerStatefulWidget {
   final VoidCallback? onOpenTurnDiff;
   final ValueChanged<FileWorkspaceViewerRequest>? onOpenFileWorkspaceViewer;
   final bool canRewind;
+
+  /// Thread this bubble belongs to, used to scope the running-tool lookup so a
+  /// background turn's tools never surface in the visible thread's status row.
+  final String? conversationId;
 
   @override
   ConsumerState<MessageBubble> createState() => _MessageBubbleState();
@@ -310,6 +318,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
                         : message.content,
                     textColor: theme.colorScheme.onSurface,
                     isStreaming: message.isStreaming,
+                    contentScopeId: message.id,
                     showMemoryUpdates: settings.showMemoryUpdates,
                     fileReferenceRootPath: selectedProject?.normalizedRootPath,
                     fileReferenceProjectName: selectedProject?.name,
@@ -342,13 +351,17 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
             ),
           if (message.isStreaming)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              padding: const EdgeInsets.only(top: 6),
+              child: AssistantTurnStatusRow(
+                startedAt: message.timestamp,
+                label: assistantTurnStatusLabel(
+                  content: message.content,
+                  runningToolNames: ref.watch(
+                    runningToolsProvider.select(
+                      (running) =>
+                          running[widget.conversationId] ?? const <String>[],
+                    ),
+                  ),
                 ),
               ),
             ),

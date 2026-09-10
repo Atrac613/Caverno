@@ -70,6 +70,8 @@ const Map<String, int> _lineBudgets = {
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
   'lib/features/chat/domain/services/content_tool_formatters.dart': 2,
+  'lib/features/chat/domain/services/content_tool_failure_result_formatter.dart': 64,
+  'lib/features/chat/domain/services/running_tool_tracker.dart': 31,
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
   'lib/features/chat/domain/services/ask_user_question_option_parser.dart': 99,
   'lib/features/chat/domain/services/ask_user_question_policy.dart': 383,

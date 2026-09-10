@@ -23,6 +23,7 @@ const expectedTurnReleaseObligations = [
   'contextSurgeryObservations',
   'modelEditTelemetry',
   'modelSwitchCompaction',
+  'runningTools',
 ];
 
 void expectExactTurnTeardown(ChatNotifier notifier) {

@@ -227,7 +227,8 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       ..register(
         'modelSwitchCompaction',
         () => _modelSwitchHandoffs.discardPromptCompaction(owner),
-      );
+      )
+      ..register('runningTools', () => _clearRunningTools(owner));
   }
 
   void _routeRuntimeStartFailure(String ownerConversationId, String message) {
@@ -345,6 +346,15 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
   ///
   /// A turn with no scope was never started through `_startRuntimeTurn`, which
   /// happens on the start-failure paths; there is nothing owed.
+  /// A turn killed mid-tool never receives that tool's `completed` event, so
+  /// the name would outlive the turn and the status row would keep announcing
+  /// it. Guarded like every other `ref` use on the teardown path: the notifier
+  /// can be gone by the time a turn is torn down.
+  void _clearRunningTools(ChatTurnOwner owner) {
+    if (!ref.mounted) return;
+    ref.read(runningToolsProvider.notifier).clear(owner.conversationId);
+  }
+
   void _releaseTurnScope(ChatTurnOwner owner) {
     final scope = _turnReleases.remove(owner);
     if (scope == null) return;

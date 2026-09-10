@@ -979,6 +979,11 @@
           "id": "content-tool-failure-formatter",
           "path": "lib/features/chat/domain/services/content_tool_failure_formatter.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/content_tool_failure_formatter.dart"
+        },
+        {
+          "id": "content-tool-failure-result-formatter",
+          "path": "lib/features/chat/domain/services/content_tool_failure_result_formatter.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/content_tool_failure_result_formatter.dart"
         }
       ]
     },
@@ -1249,6 +1254,11 @@
           "id": "turn-tool-catalog-source",
           "path": "lib/features/chat/domain/services/turn_tool_catalog_source.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_catalog_source.dart"
+        },
+        {
+          "id": "running-tool-tracker",
+          "path": "lib/features/chat/domain/services/running_tool_tracker.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/running_tool_tracker.dart"
         }
       ]
     },
