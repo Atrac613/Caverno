@@ -1,0 +1,5 @@
+# Revisions to skip in `git blame` — mechanical, repo-wide reformatting only.
+# Enable once with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: Extend the lint set and sort directives repo-wide
+9b724af6b72babccc49dcff9bfb405f928d2e294
