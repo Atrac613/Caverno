@@ -1,4 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/code_unit_text_scan.dart';
 import 'package:caverno/features/chat/domain/services/tool_terminal_response_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -173,6 +174,73 @@ void main() {
       );
     });
   });
+
+  group('background process completion claim', () {
+    final policy = _policy(scanCodeUnits: true);
+
+    test('reads an English completion claim', () {
+      expect(
+        policy.looksLikeBackgroundProcessCompletionClaim(
+          'The release completed successfully and the build was uploaded.',
+        ),
+        isTrue,
+      );
+    });
+
+    test('reads a CJK completion claim', () {
+      // "The release completed."
+      expect(
+        policy.looksLikeBackgroundProcessCompletionClaim(
+          '\u30ea\u30ea\u30fc\u30b9\u304c\u5b8c\u4e86\u3057\u307e'
+          '\u3057\u305f\u3002',
+        ),
+        isTrue,
+      );
+    });
+
+    test('a CJK answer denying completion is not a completion claim', () {
+      // "The production release is still running. Commit and tag have not run
+      // yet." The word for "completed" is a substring of "has not completed",
+      // so before the CJK negative markers existed this matched as a claim and
+      // cost an extra generation on every poll of a long release.
+      expect(
+        policy.looksLikeBackgroundProcessCompletionClaim(
+          '\u672c\u756a\u30ea\u30ea\u30fc\u30b9\u51e6\u7406\u306f'
+          '\u307e\u3060\u5b9f\u884c\u4e2d\u3067\u3059\u3002'
+          '\u30ea\u30ea\u30fc\u30b9\u51e6\u7406\u304c\u5b8c\u4e86'
+          '\u3057\u3066\u3044\u306a\u3044\u305f\u3081\u3001'
+          '\u30b3\u30df\u30c3\u30c8\u3068\u30bf\u30b0\u4f5c\u6210'
+          '\u306f\u307e\u3060\u5b9f\u884c\u3055\u308c\u3066'
+          '\u3044\u307e\u305b\u3093\u3002',
+        ),
+        isFalse,
+      );
+    });
+
+    test('an unrelated CJK negation does not mask a completion claim', () {
+      // "The release completed. There are no items I have not checked."
+      // The suppressors are the *negated completion words*, not any negation:
+      // "have not checked" must leave this a claim for the monitor to check.
+      expect(
+        policy.looksLikeBackgroundProcessCompletionClaim(
+          '\u30ea\u30ea\u30fc\u30b9\u304c\u5b8c\u4e86\u3057\u307e'
+          '\u3057\u305f\u3002\u307e\u3060\u78ba\u8a8d\u3057\u3066'
+          '\u3044\u306a\u3044\u9805\u76ee\u306f\u3042\u308a\u307e'
+          '\u305b\u3093\u3002',
+        ),
+        isTrue,
+      );
+    });
+
+    test('an English answer denying completion is not a completion claim', () {
+      expect(
+        policy.looksLikeBackgroundProcessCompletionClaim(
+          'The release is still running, so the commit is not done.',
+        ),
+        isFalse,
+      );
+    });
+  });
 }
 
 ToolResultInfo _result(String name, String result) =>
@@ -196,6 +264,7 @@ The architecture is sound. Fix 1 and 2 first; they change what you see.
 
 ToolTerminalResponsePolicy _policy({
   bool Function(String value)? looksLikePendingToolActionResponse,
+  bool scanCodeUnits = false,
 }) {
   return ToolTerminalResponsePolicy(
     looksLikeUnexecutedToolRequest: (_) => false,
@@ -203,7 +272,9 @@ ToolTerminalResponsePolicy _policy({
     looksLikePendingToolActionResponse:
         looksLikePendingToolActionResponse ?? (_) => false,
     looksLikeStructuredToolRequest: (_) => false,
-    containsAnyCodeUnitSequence: (_, _) => false,
+    containsAnyCodeUnitSequence: scanCodeUnits
+        ? CodeUnitTextScan.containsAny
+        : (_, _) => false,
     containsCjkBlockerMarker: (_) => false,
     containsCjkMissingEvidenceMarker: (_) => false,
   );

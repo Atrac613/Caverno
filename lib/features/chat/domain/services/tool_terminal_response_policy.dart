@@ -253,10 +253,32 @@ class ToolTerminalResponsePolicy {
     ])) {
       return false;
     }
+    // The negative markers above are English-only, but the positive markers
+    // below include CJK. A Japanese answer *denying* completion therefore
+    // matched on its own denial: session 9174dbd1 read
+    // "still running / not completed yet" as a completion claim because the
+    // phrase for "completed" is a substring of "has not completed", spending an
+    // extra generation and discarding a correct answer on every poll of a long
+    // release. These are the CJK counterparts: failure words first, then the
+    // in-progress and negation forms.
     if (_containsAnyCodeUnitSequence(candidate, const [
       [0x5931, 0x6557],
       [0x30a8, 0x30e9, 0x30fc],
       [0x7570, 0x5e38, 0x7d42, 0x4e86],
+      [0x672a, 0x5b8c, 0x4e86],
+      [0x672a, 0x5b9f, 0x884c],
+      [0x672a, 0x78ba, 0x8a8d],
+      [0x9032, 0x884c, 0x4e2d],
+      [0x307e, 0x3060, 0x5b9f, 0x884c, 0x4e2d],
+      // Each positive marker below, negated. Deliberately not the bare
+      // negation suffix: suppressing on every "has not <verb>ed" would let a
+      // real completion claim through on any unrelated aside.
+      [0x5b8c, 0x4e86, 0x3057, 0x3066, 0x3044, 0x306a, 0x3044],
+      [0x5b8c, 0x4e86, 0x3057, 0x3066, 0x3044, 0x307e, 0x305b, 0x3093],
+      [0x6210, 0x529f, 0x3057, 0x3066, 0x3044, 0x306a, 0x3044],
+      [0x6210, 0x529f, 0x3057, 0x3066, 0x3044, 0x307e, 0x305b, 0x3093],
+      [0x7d42, 0x4e86, 0x3057, 0x3066, 0x3044, 0x306a, 0x3044],
+      [0x7d42, 0x4e86, 0x3057, 0x3066, 0x3044, 0x307e, 0x305b, 0x3093],
     ])) {
       return false;
     }
