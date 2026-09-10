@@ -142,16 +142,12 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     }
     if (!analysis.appendNotice) return;
 
-    final currentContent = _lastMessageContentForGeneration(
-      interactionGeneration,
-    );
-    if (currentContent == null ||
-        currentContent.contains(analysis.noticeText)) {
-      return;
-    }
-    _replaceLastMessageContentForGeneration(
-      interactionGeneration,
-      '${currentContent.trimRight()}\n\n${analysis.noticeText}',
+    // Log-only: the answer this lands on is already accurate, and the model
+    // reads the same fact off the tool result recorded above. See
+    // HarnessNoticeVisibility.
+    appLog(
+      '[${UnexecutedFinalAnswerToolRequestPolicy.transformId}] '
+      '${analysis.noticeText}',
     );
   }
 

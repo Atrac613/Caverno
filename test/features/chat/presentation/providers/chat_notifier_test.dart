@@ -77,6 +77,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../../support/app_log_capture_test_support.dart';
 import '../../../../support/chat_notifier_turn_teardown_test_support.dart';
 import '../../../../support/chat_turn_owner_test_support.dart';
 import '../../../../support/local_command_approval_stand_in.dart';
@@ -2028,14 +2029,13 @@ void main() {
       addTearDown(threadContainer.dispose);
 
       final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      final appLogs = captureAppLog();
       await chatNotifier.sendMessage('はい');
 
       expect(toolService.executedToolNames, isEmpty);
-      expect(
+      expectUnexecutedToolRequestLogged(
+        appLogs,
         chatNotifier.state.messages.last.content,
-        contains(
-          'I could not execute the additional tool request above in this final-answer step.',
-        ),
       );
     },
   );
@@ -2158,14 +2158,13 @@ void main() {
       addTearDown(threadContainer.dispose);
 
       final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      final appLogs = captureAppLog();
       await chatNotifier.sendMessage('Update the mobile settings UI.');
 
       expect(toolService.executedToolNames, isEmpty);
-      expect(
+      expectUnexecutedToolRequestLogged(
+        appLogs,
         chatNotifier.state.messages.last.content,
-        contains(
-          'I could not execute the additional tool request above in this final-answer step.',
-        ),
       );
     },
   );
@@ -6191,6 +6190,7 @@ void main() {
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
+        final appLogs = captureAppLog();
         await toolNotifier.sendMessage('Find and read the interrupted log');
 
         expect(toolService.executedToolNames.last, 'read_file');
@@ -6202,11 +6202,9 @@ void main() {
           contains('This final answer request cannot call tools'),
         );
         expect(finalPrompt, contains('Do not output JSON command arrays'));
-        expect(
+        expectUnexecutedToolRequestLogged(
+          appLogs,
           toolNotifier.state.messages.last.content,
-          contains(
-            'I could not execute the additional tool request above in this final-answer step.',
-          ),
         );
       } finally {
         toolContainer.dispose();
@@ -6267,14 +6265,13 @@ void main() {
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
+        final appLogs = captureAppLog();
         await toolNotifier.sendMessage('Find and read the interrupted log');
 
         expect(toolService.executedToolNames, ['read_file']);
-        expect(
+        expectUnexecutedToolRequestLogged(
+          appLogs,
           toolNotifier.state.messages.last.content,
-          contains(
-            'I could not execute the additional tool request above in this final-answer step.',
-          ),
         );
       } finally {
         toolContainer.dispose();
@@ -6331,17 +6328,16 @@ void main() {
     try {
       final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
+      final appLogs = captureAppLog();
       await toolNotifier.sendMessage('Find and read the interrupted log');
 
       final finalPrompt = toolDataSource.finalAnswerMessages
           .map((message) => message.content)
           .join('\n');
       expect(finalPrompt, contains('Do not restate an investigation plan'));
-      expect(
+      expectUnexecutedToolRequestLogged(
+        appLogs,
         toolNotifier.state.messages.last.content,
-        contains(
-          'I could not execute the additional tool request above in this final-answer step.',
-        ),
       );
     } finally {
       toolContainer.dispose();

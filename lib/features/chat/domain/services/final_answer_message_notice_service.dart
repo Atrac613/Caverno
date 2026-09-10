@@ -1,6 +1,8 @@
+import '../../../../core/utils/logger.dart';
 import '../entities/message.dart';
 import '../entities/tool_call_info.dart';
 import 'final_answer_claim_detector.dart';
+import 'harness_notice_visibility.dart';
 import 'tool_call_execution_policy.dart';
 import 'unexecuted_final_answer_tool_request_policy.dart';
 
@@ -23,17 +25,24 @@ final class FinalAnswerMessageNoticeService {
 
   static const _claims = FinalAnswerClaimDetector();
   static const _executionPolicy = ToolCallExecutionPolicy();
+  static const _visibility = HarnessNoticeVisibility();
 
   FinalAnswerMessageMutation? appendUnexecutedToolRequest(
     List<Message> messages,
-  ) => _mutate(messages, (content) {
-    const policy = UnexecutedFinalAnswerToolRequestPolicy();
-    if (content.contains(UnexecutedFinalAnswerToolRequestPolicy.notice) ||
-        !policy.looksLikeUnexecutedToolRequest(content)) {
-      return content;
+  ) {
+    if (messages.isEmpty || messages.last.role != MessageRole.assistant) {
+      return null;
     }
-    return _append(content, UnexecutedFinalAnswerToolRequestPolicy.notice);
-  }, transformId: UnexecutedFinalAnswerToolRequestPolicy.transformId);
+    const policy = UnexecutedFinalAnswerToolRequestPolicy();
+    if (!policy.looksLikeUnexecutedToolRequest(messages.last.content)) {
+      return null;
+    }
+    return _logOnly(
+      messages,
+      UnexecutedFinalAnswerToolRequestPolicy.notice,
+      transformId: UnexecutedFinalAnswerToolRequestPolicy.transformId,
+    );
+  }
 
   FinalAnswerMessageMutation? appendUnexecutedFileSideEffect(
     List<Message> messages,
@@ -60,25 +69,41 @@ final class FinalAnswerMessageNoticeService {
     final ranSomething = _claims.hasSuccessfulCommandExecutionResult(
       toolResults,
     );
-    final notice = ranSomething
-        ? FinalAnswerClaimDetector.unexecutedNextStepNotice
-        : FinalAnswerClaimDetector.unexecutedCommandActionNotice;
+    if (ranSomething) {
+      const nextStep = FinalAnswerClaimDetector.unexecutedNextStepNotice;
+      const nextStepTransformId =
+          HarnessNoticeVisibility.unexecutedNextStepTransformId;
+      // Only the asserted shape is a statement the tool results contradict, so
+      // only that one is worth putting in front of the reader -- it replaces
+      // the sentence it corrects. A future-tense next step asserts nothing
+      // false, which leaves the notice as plumbing the log can hold.
+      if (!_assertsCommandExecution(messages)) {
+        return _logOnly(messages, nextStep, transformId: nextStepTransformId);
+      }
+      return _mutate(
+            messages,
+            (content) =>
+                _claims.messageContentWithUnexecutedCommandActionNotice(
+                  content,
+                  notice: nextStep,
+                ),
+            transformId: nextStepTransformId,
+          ) ??
+          FinalAnswerMessageMutation(
+            messages,
+            transformId: nextStepTransformId,
+          );
+    }
+    const transformId = 'unexecuted_command_action_notice';
     return _mutate(
           messages,
           (content) => _claims.messageContentWithUnexecutedCommandActionNotice(
             content,
-            notice: notice,
+            notice: FinalAnswerClaimDetector.unexecutedCommandActionNotice,
           ),
-          transformId: ranSomething
-              ? 'unexecuted_next_step_notice'
-              : 'unexecuted_command_action_notice',
+          transformId: transformId,
         ) ??
-        FinalAnswerMessageMutation(
-          messages,
-          transformId: ranSomething
-              ? 'unexecuted_next_step_notice'
-              : 'unexecuted_command_action_notice',
-        );
+        FinalAnswerMessageMutation(messages, transformId: transformId);
   }
 
   FinalAnswerMessageMutation? appendUnverifiedReadOnlyInspection(
@@ -190,6 +215,29 @@ final class FinalAnswerMessageNoticeService {
     final updated = [...messages];
     updated[updated.length - 1] = messages.last.copyWith(content: content);
     return FinalAnswerMessageMutation(updated, transformId: transformId);
+  }
+
+  bool _assertsCommandExecution(List<Message> messages) {
+    if (messages.isEmpty || messages.last.role != MessageRole.assistant) {
+      return false;
+    }
+    return _claims.looksLikeAssertedCommandExecution(
+      messages.last.content.trim(),
+    );
+  }
+
+  /// Records that [notice] fired without putting it in front of the reader.
+  ///
+  /// The messages come back untouched, so the firing survives as the transform
+  /// ID on the turn exit and as this log line.
+  FinalAnswerMessageMutation _logOnly(
+    List<Message> messages,
+    String notice, {
+    required String transformId,
+  }) {
+    assert(_visibility.isLogOnly(transformId));
+    appLog('[$transformId] $notice');
+    return FinalAnswerMessageMutation(messages, transformId: transformId);
   }
 
   static String _append(String content, String notice) =>

@@ -59,11 +59,11 @@ void registerChatNotifierFinalAnswerRecoveryTests() {
       final notifier = container.read(chatNotifierProvider.notifier);
       await notifier.sendMessage('Update lib/main.dart.');
 
+      // The notice itself goes to the log; what stays observable here is the
+      // transform the turn exit records, asserted below.
       expect(
         notifier.state.messages.last.content,
-        contains(
-          'I could not execute the additional tool request above in this final-answer step.',
-        ),
+        isNot(contains('I could not execute the additional tool request')),
       );
       final conversation = container
           .read(conversationsNotifierProvider)
