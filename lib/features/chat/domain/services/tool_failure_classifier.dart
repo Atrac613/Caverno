@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'anabasis_delegation_admission.dart';
 import 'anabasis_parent_authority_guard.dart';
 import 'material_contract_assumption_guard.dart';
 import 'tool_call_execution_policy.dart';
@@ -73,6 +74,7 @@ class ToolFailureClassifier {
   /// what stops a policy refusal being counted as a broken tool.
   static const policyRefusalCodes = <String>{
     AnabasisParentAuthorityGuard.refusedCode,
+    AnabasisDelegationAdmission.refusedCode,
     MaterialContractAssumptionGuard.blockedCode,
   };
 

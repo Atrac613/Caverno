@@ -56,10 +56,10 @@ const Map<String, int> _lineBudgets = {
   // on one path out of three.
   // -20: the memory-update display tag and named-skill lookup are string
   // work with no notifier state.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8725,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8723,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
-  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 43,
+  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 40,
   'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 76,
   'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 44,
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
@@ -635,7 +635,7 @@ const Map<String, int> _lineBudgets = {
       100,
   'lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart':
       63,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1122,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1068,
   'lib/features/chat/data/datasources/memory_recall_scoring.dart': 20,
   // File-turn checkpoint delegation moved to the rollback facade that already
   // owns that concern, leaving this one to owner-bound tool dispatch.
@@ -903,7 +903,7 @@ const Map<String, int> _libraryLineBudgets = {
   // keeping a chain of its own.
   // The merged task-plan retry extraction reduces the aggregate to 19,712.
   // -5: memory-update tag rendering and named-skill lookup left the library.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19707,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19695,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
@@ -940,7 +940,7 @@ const Map<String, int> _libraryLineBudgets = {
   // -2 matching the primary file: project directory picking left this library
   // for coding_project_picker.dart.
   'lib/features/chat/presentation/pages/chat_page.dart': 8605,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1197,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1143,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };
 

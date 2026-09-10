@@ -3,6 +3,39 @@ import 'package:caverno/features/chat/domain/services/tool_terminal_response_pol
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('saved validation final text never retains printed or suppressed calls', () {
+    final policy = _policy(
+      looksLikePendingToolActionResponse: (value) => value.contains('I will'),
+    );
+    for (final text in [
+      'All tests passed. I will check the CLI.\n<tool_call><function=local_execute_command><parameter=command>python3 count_field.py field sample.jsonl</parameter></function></tool_call>',
+      'I will run another check. <tool_call>{"name":"run_tests"',
+    ]) {
+      expect(
+        policy.savedValidationFinalText(text),
+        'The saved validation command succeeded. No additional tool call was executed.',
+      );
+    }
+    expect(
+      policy.savedValidationFinalText(
+        'I will rewrite the file.',
+        suppressedCalls: true,
+      ),
+      isNot(contains('rewrite')),
+    );
+    expect(
+      policy.savedValidationFinalText('All 14 tests passed.'),
+      'All 14 tests passed.',
+    );
+    expect(
+      policy.savedValidationFinalText(
+        'All 14 tests passed.',
+        suppressedCalls: true,
+      ),
+      'All 14 tests passed.',
+    );
+  });
+
   group('ToolTerminalResponsePolicy hidden evidence delegation', () {
     final policy = _policy();
 

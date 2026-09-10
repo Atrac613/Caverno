@@ -576,6 +576,13 @@ void main() {
             arguments: const {'task_id': 'other'},
           ),
         );
+        final goal = await dispatch(
+          ToolCallInfo(
+            id: 'goal',
+            name: 'update_goal',
+            arguments: const {'completed': true},
+          ),
+        );
         final unavailable = await dispatch(
           ToolCallInfo(
             id: 'unavailable',
@@ -584,12 +591,12 @@ void main() {
           ),
         );
 
-        for (final denial in [nestedSpawn, nestedResult]) {
+        for (final denial in [nestedSpawn, nestedResult, goal]) {
           expect(denial.result, isEmpty);
           expect(denial.isSuccess, isFalse);
           expect(
             denial.errorMessage,
-            'Nested subagents are not allowed. Finish this sub-task directly.',
+            'Subagents cannot delegate or change the parent goal. Return your result.',
           );
         }
         expect(unavailable.toolName, 'write_file');

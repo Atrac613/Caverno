@@ -13,11 +13,13 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
+import 'package:caverno/features/chat/domain/services/successful_read_result_replay_cache.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -117,18 +119,22 @@ class _SubagentScriptedDataSource implements ChatDataSource {
     required this.parentInitialToolCalls,
     required List<ChatCompletionResult> childCompletions,
     this.parentFinalChunks = const ['Parent final answer'],
+    this.failChildAfterTools = false,
     ChatCompletionResult? childToolResultFollowUp,
   }) : _childCompletions = Queue<ChatCompletionResult>.from(childCompletions),
        childToolResultFollowUp =
            childToolResultFollowUp ??
            ChatCompletionResult(content: '', finishReason: 'stop');
 
+  final bool failChildAfterTools;
   final List<ToolCallInfo> parentInitialToolCalls;
   final Queue<ChatCompletionResult> _childCompletions;
   final List<String> parentFinalChunks;
   final ChatCompletionResult childToolResultFollowUp;
 
   final List<List<ToolResultInfo>> parentToolResultBatches = [];
+  final List<List<ToolResultInfo>> childToolResultBatches = [];
+  final List<List<Message>> childRequests = [];
 
   static bool _isChild(List<Message> messages) => messages.any(
     (message) =>
@@ -175,6 +181,7 @@ class _SubagentScriptedDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    if (_isChild(messages)) childRequests.add(messages);
     if (_childCompletions.isEmpty) {
       return ChatCompletionResult(content: '', finishReason: 'stop');
     }
@@ -192,6 +199,10 @@ class _SubagentScriptedDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     if (_isChild(messages)) {
+      childToolResultBatches.add(toolResults);
+      if (failChildAfterTools) {
+        throw StateError('Model unloaded after mutation');
+      }
       return childToolResultFollowUp;
     }
     parentToolResultBatches.add(List<ToolResultInfo>.from(toolResults));
@@ -233,6 +244,8 @@ class _SubagentScriptedDataSource implements ChatDataSource {
 // ---------------------------------------------------------------------------
 
 class _SubagentTestToolService extends McpToolService {
+  _SubagentTestToolService({this.lookupOutcome});
+  final ToolOutcome? lookupOutcome;
   final List<String> executedToolNames = [];
 
   static const lookupFactResult = 'LOOKUP_FACT_RESULT_42';
@@ -312,6 +325,7 @@ class _SubagentTestToolService extends McpToolService {
       return McpToolResult(
         toolName: name,
         result: jsonEncode({'value': lookupFactResult}),
+        outcome: lookupOutcome,
         isSuccess: true,
       );
     }
@@ -426,6 +440,177 @@ ToolCallInfo _spawnSubagentCall({
 );
 
 void main() {
+  for (final background in [false, true]) {
+    for (final failAfterMutation in [false, true]) {
+      test(
+        'child mutation expires parent reads (background=$background, failed=$failAfterMutation)',
+        () async {
+          final dataSource = _SubagentScriptedDataSource(
+            parentInitialToolCalls: [
+              _spawnSubagentCall(
+                description: 'Modify project',
+                prompt: 'Perform the tool operation.',
+                background: background,
+              ),
+            ],
+            childCompletions: [
+              ChatCompletionResult(
+                content: '',
+                finishReason: 'tool_calls',
+                toolCalls: [
+                  ToolCallInfo(
+                    id: 'child-write',
+                    name: 'lookup_fact',
+                    arguments: const {'key': 'answer'},
+                  ),
+                ],
+              ),
+            ],
+            failChildAfterTools: failAfterMutation,
+            childToolResultFollowUp: ChatCompletionResult(
+              content: 'Produced result.',
+              finishReason: 'stop',
+            ),
+          );
+          final container = _buildContainer(
+            dataSource: dataSource,
+            toolService: _SubagentTestToolService(
+              lookupOutcome: const ToolOutcome(
+                fileMutations: [
+                  ToolFileMutation(path: 'count_field.py', changed: true),
+                ],
+              ),
+            ),
+          );
+          try {
+            final conversations = container.read(
+              conversationsNotifierProvider.notifier,
+            );
+            conversations.createNewConversation();
+            final id = container
+                .read(conversationsNotifierProvider)
+                .currentConversation!
+                .id;
+            final before = container
+                .read(conversationsNotifierProvider)
+                .conversationForId(id)!
+                .mutationGeneration;
+            final read = ToolCallInfo(
+              id: 'read',
+              name: 'read_file',
+              arguments: const {'path': 'count_field.py'},
+            );
+            final cache = SuccessfulReadResultReplayCache();
+            cache.record(
+              toolCall: read,
+              result: 'lines = f',
+              isSuccess: true,
+              interactionGeneration: 1,
+              mutationGeneration: before,
+            );
+            await container
+                .read(chatNotifierProvider.notifier)
+                .sendMessage('Delegate the operation.');
+            await _pumpUntil(
+              () =>
+                  container
+                      .read(conversationsNotifierProvider)
+                      .conversationForId(id)!
+                      .mutationGeneration >
+                  before,
+            );
+            final after = container
+                .read(conversationsNotifierProvider)
+                .conversationForId(id)!
+                .mutationGeneration;
+            expect(after, before + 1);
+            expect(
+              cache.lookup(
+                toolCall: read,
+                interactionGeneration: 1,
+                mutationGeneration: after,
+              ),
+              isNull,
+              reason:
+                  'A child-modified file must not replay the pre-delegation content',
+            );
+            if (background) {
+              await _pumpUntil(
+                () => container
+                    .read(subagentTaskNotifierProvider)
+                    .tasksForConversation(id)
+                    .every((task) => !task.isActive),
+              );
+            }
+          } finally {
+            container.dispose();
+          }
+        },
+      );
+    }
+  }
+
+  test(
+    'planned Anabasis refuses completed-task delegation before child runs',
+    () async {
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          ToolCallInfo(
+            id: 'recreate',
+            name: 'spawn_subagent',
+            arguments: {
+              'description': 'Recreate CLI',
+              'prompt': 'Overwrite count_field.py',
+              'workflow_task_id': 'cli',
+            },
+          ),
+        ],
+        childCompletions: [],
+        parentFinalChunks: const ['No ready work.'],
+      );
+      final service = _SubagentTestToolService();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: service,
+      );
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation();
+        final id = container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .id;
+        await conversations.updateCurrentWorkflow(
+          conversationId: id,
+          workflowSpec: ConversationWorkflowSpec(
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'cli',
+                title: 'Build CLI',
+                status: ConversationWorkflowTaskStatus.completed,
+              ),
+            ],
+          ),
+        );
+        await container
+            .read(chatNotifierProvider.notifier)
+            .sendMessage('@anabasis Continue');
+        final result = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .singleWhere((result) => result.name == 'spawn_subagent');
+        expect(
+          jsonDecode(result.result)['code'],
+          'anabasis_delegation_not_ready',
+        );
+        expect(service.executedToolNames, isEmpty);
+        expect(dataSource.childRequests, isEmpty);
+      } finally {
+        container.dispose();
+      }
+    },
+  );
   test(
     'foreground delegation returns observed child command evidence',
     () async {
@@ -621,9 +806,8 @@ void main() {
     },
   );
 
-  test(
-    'a child cannot spawn another subagent (delegation depth stays 1)',
-    () async {
+  for (final blockedTool in ['spawn_subagent', 'update_goal']) {
+    test('a child cannot invoke parent control tool: $blockedTool', () async {
       final dataSource = _SubagentScriptedDataSource(
         parentInitialToolCalls: [
           _spawnSubagentCall(
@@ -638,7 +822,7 @@ void main() {
             toolCalls: [
               ToolCallInfo(
                 id: 'child-nest-1',
-                name: 'spawn_subagent',
+                name: blockedTool,
                 arguments: const {
                   'description': 'nested',
                   'prompt': 'do more work',
@@ -689,6 +873,11 @@ void main() {
           isNot(contains('spawn_subagent')),
         );
 
+        final denial = dataSource.childToolResultBatches
+            .expand((batch) => batch)
+            .singleWhere((result) => result.name == blockedTool);
+        expect(denial.result, contains('parent goal updates are not allowed'));
+
         // The child still completed and the parent produced its final answer.
         final parentToolResultText = dataSource.parentToolResultBatches
             .expand((batch) => batch)
@@ -699,6 +888,6 @@ void main() {
       } finally {
         container.dispose();
       }
-    },
-  );
+    });
+  }
 }

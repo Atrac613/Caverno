@@ -83,6 +83,7 @@ import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/turn_diff.dart';
+import '../../domain/services/anabasis_delegation_admission.dart';
 import '../../domain/services/anabasis_turn_roles.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/assistant_stream_delta.dart';
@@ -169,6 +170,7 @@ import '../../domain/services/skipped_browser_action_repair_prompt.dart';
 import '../../domain/services/skipped_skill_load_text.dart';
 import '../../domain/services/stalled_diagnostic_repair_contract.dart';
 import '../../domain/services/sticky_tool_result_policy.dart';
+import '../../domain/services/subagent_command_observation.dart';
 import '../../domain/services/subagent_execution_service.dart';
 import '../../domain/services/subagent_tool_policy.dart';
 import '../../domain/services/successful_read_result_replay_cache.dart';
@@ -2418,14 +2420,9 @@ class ChatNotifier extends Notifier<ChatState> {
     return _sendMessageNow(queuedMessage);
   }
 
-  /// A fresh streaming assistant message for [generation].
-  ///
-  /// Every assistant message the main loop creates goes through here. It used
-  /// to be three separate literals, and marking one of them as the parent's
-  /// reply marked only the hidden-prompt path — the ordinary send and the
-  /// post-tool continuation kept the plain shape, so `@anabasis` answered with
-  /// no header on the reply a user actually reads. A contract test now pins
-  /// the single constructor.
+  /// Creates every main-loop assistant message, including the parent marker.
+  /// A contract test pins this constructor so alternate send paths cannot
+  /// silently omit the Anabasis header.
   Message _newAssistantMessage(int generation) => Message(
     id: _uuid.v4(),
     content: '',
@@ -5784,13 +5781,12 @@ class ChatNotifier extends Notifier<ChatState> {
             appLog('[Tool] Continuing post-validation evidence tool calls');
             nextToolCalls = evidenceToolCalls;
           } else {
-            appLog(
-              '[Tool] Ignoring follow-up tool calls after saved validation success',
-            );
             currentToolCalls = [];
-            final completionResponse = fallbackResponse.isNotEmpty
-                ? fallbackResponse
-                : 'The saved validation command succeeded for the current saved task, so the current saved task is complete.';
+            final completionResponse = _terminalToolResponsePolicy
+                .savedValidationFinalText(
+                  fallbackResponse,
+                  suppressedCalls: true,
+                );
             _recordHiddenEvidence(turnOwner, completionResponse);
             _appendRecoveredAssistantResponse(
               completionResponse,
@@ -5991,7 +5987,11 @@ class ChatNotifier extends Notifier<ChatState> {
         // End the loop on a text response, but delay rendering it.
         appLog('[Tool] LLM returned final text response (via tool role)');
         currentToolCalls = [];
-        final fallbackResponse = nextResult.content.trim();
+        final fallbackResponse = savedValidationSucceededInLoop
+            ? _terminalToolResponsePolicy.savedValidationFinalText(
+                nextResult.content,
+              )
+            : nextResult.content.trim();
         _recordHiddenEvidence(turnOwner, fallbackResponse);
         final browserActionRepairResult =
             await _requestSkippedBrowserActionRepairAfterSnapshot(
@@ -6289,9 +6289,6 @@ class ChatNotifier extends Notifier<ChatState> {
           }
         }
         if (savedValidationSucceededInLoop && fallbackResponse.isNotEmpty) {
-          appLog(
-            '[Tool] Accepting saved-validation final text without final answer fallback',
-          );
           _appendRecoveredAssistantResponse(
             fallbackResponse,
             interactionGeneration: interactionGeneration,

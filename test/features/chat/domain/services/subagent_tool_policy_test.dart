@@ -35,15 +35,17 @@ void main() {
       expect(SubagentToolPolicy.toolName(const {}), '');
     });
 
-    test('keeps get_subagent_result; only spawn_subagent is stripped', () {
+    test('strips parent control tools from the child catalog', () {
       final filtered = SubagentToolPolicy.filterInheritedToolDefinitions([
         tool('get_subagent_result'),
+        tool('update_goal'),
         tool('spawn_subagent'),
         tool('read_file'),
       ]);
 
       final names = filtered.map(SubagentToolPolicy.toolName).toList();
-      expect(names, contains('get_subagent_result'));
+      expect(names, isNot(contains('get_subagent_result')));
+      expect(names, isNot(contains('update_goal')));
       expect(names, contains('read_file'));
       expect(names, isNot(contains('spawn_subagent')));
     });

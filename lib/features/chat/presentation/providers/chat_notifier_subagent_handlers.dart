@@ -3,6 +3,7 @@
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
+
 extension ChatNotifierSubagentHandlers on ChatNotifier {
   Future<McpToolResult> _handleSpawnSubagent(
     ToolCallInfo toolCall, {
@@ -15,7 +16,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
     final description = trimStringArgument(toolCall.arguments, 'description');
-    final prompt = trimStringArgument(toolCall.arguments, 'prompt');
+    var prompt = trimStringArgument(toolCall.arguments, 'prompt');
     if (prompt.isEmpty) {
       return McpToolResult(
         toolName: toolCall.name,
@@ -24,6 +25,14 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         errorMessage: 'prompt is required',
       );
     }
+    final admission = AnabasisDelegationAdmission.prepare(
+      toolCall,
+      isParent: _anabasisRoles.isParentTurn(interactionGeneration!),
+      conversation: _conversationForId(owner.conversationId),
+      prompt: prompt,
+    );
+    if (admission.refusal != null) return admission.refusal!;
+    prompt = admission.prompt;
     final label = description.isEmpty ? 'Subagent task' : description;
     final background = toolCall.arguments['background'] == true;
 
@@ -50,7 +59,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     }
 
     appLog('[Subagent] Spawning "$label" (task=$taskId)');
-    var observedCommandSuccess = false;
+    final observation = SubagentCommandObservation();
     final task = await _runSubagent(
       owner: owner,
       taskId: taskId,
@@ -60,42 +69,16 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       inheritedTools: inheritedTools,
       interactionGeneration: interactionGeneration,
       isBackground: false,
-      onChildResult: (call, result) {
-        observedCommandSuccess |=
-            result.isSuccess &&
-            _toolCallExecutionPolicy.isCommandExecutionTool(call.name) &&
-            result.outcome?.exitCode == 0;
-      },
+      onChildResult: observation.observe,
     );
 
     if (task.status == SubagentTaskStatus.completed) {
       appLog('[Subagent] Completed "$label" (task=$taskId)');
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({
-          'status': 'completed',
-          'task_id': task.id,
-          'description': task.description,
-          'summary': task.resultSummary,
-        }),
-        // This records a command observation, not acceptance of the task.
-        outcome: observedCommandSuccess ? const ToolOutcome(exitCode: 0) : null,
-        isSuccess: true,
-      );
+      return observation.completed(toolCall.name, task);
     }
 
     appLog('[Subagent] Failed "$label" (task=$taskId): ${task.error}');
-    return McpToolResult(
-      toolName: toolCall.name,
-      result: jsonEncode({
-        'status': 'failed',
-        'task_id': task.id,
-        'description': task.description,
-        'error': task.error ?? 'Subagent failed',
-      }),
-      isSuccess: false,
-      errorMessage: task.error ?? 'Subagent failed',
-    );
+    return SubagentCommandObservation.failed(toolCall.name, task);
   }
 
   Future<McpToolResult> _startBackgroundSubagent({
@@ -230,6 +213,14 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
           childToolCall,
           interactionGeneration: interactionGeneration,
         );
+        if (SubagentCommandObservation.changesWorkspace(
+          childToolCall,
+          result,
+        )) {
+          await ref
+              .read(conversationsNotifierProvider.notifier)
+              .recordMutationGeneration(conversationId: owner.conversationId);
+        }
         onChildResult?.call(childToolCall, result);
         return result;
       },
@@ -255,15 +246,14 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) {
-    if (toolCall.name == SubagentToolPolicy.spawnSubagentToolName ||
-        toolCall.name == 'get_subagent_result') {
+    if (SubagentToolPolicy.blockedTools.contains(toolCall.name)) {
       return Future<McpToolResult>.value(
         McpToolResult(
           toolName: toolCall.name,
           result: '',
           isSuccess: false,
           errorMessage:
-              'Nested subagents are not allowed. Finish this sub-task directly.',
+              'Nested subagents and parent goal updates are not allowed. Return your result.',
         ),
       );
     }

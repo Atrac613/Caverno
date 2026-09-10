@@ -144,8 +144,8 @@ void main() {
     );
 
     expect(snapshot.delegatableTasks, [
-      'Choose the index format (subagent)',
-      'Build the query UI (worktree)',
+      'Choose the index format [workflow_task_id: choose-index] (subagent)',
+      'Build the query UI [workflow_task_id: build-ui] (worktree)',
     ]);
     expect(
       snapshot.toPromptContext(),

@@ -432,7 +432,7 @@ class ExecutionSnapshotProjector {
         conversation,
       ))
         [
-          brief.task.title.trim(),
+          '${brief.task.title.trim()} [workflow_task_id: ${brief.task.id}]',
           '(${brief.runner.name})',
           if (brief.premises.isNotEmpty)
             '— premises: ${brief.premises.join('; ')}',

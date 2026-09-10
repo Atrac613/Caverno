@@ -1,11 +1,5 @@
-/// What the Anabasis parent is told about its own boundary.
-///
-/// **A guard without this is a dead end.** `AnabasisParentAuthorityGuard`
-/// refuses a mutation with a structured result, and a model that has not been
-/// told it cannot edit will read that as a transient failure and try again —
-/// the refusal loop ANA0's ordering constraint exists to prevent. The way out
-/// has to be stated before the door is closed, so the block names delegation
-/// as the route rather than only naming what is forbidden.
+/// Explains parent authority and the structured delegation route before a
+/// refused mutation can be mistaken for a transient tool failure.
 abstract final class AnabasisParentPromptBlock {
   /// Emitted only for a turn the user addressed to the parent.
   static const instruction =
@@ -25,6 +19,9 @@ abstract final class AnabasisParentPromptBlock {
       '- A child reporting success means it produced something, never that the '
       'work is accepted. Verify before you treat it as done, and say what the '
       'evidence was.\n'
+      '- For a saved plan, pass workflow_task_id from Ready to delegate. '
+      'Do not recreate completed work. An empty queue means there is no ready '
+      'task; inspect the plan and report missing or blocked work.\n'
       '- Do not delegate a task whose preconditions are unmet. Ask the user to '
       'settle a material assumption or an open question first; that is work '
       'only they can do.';

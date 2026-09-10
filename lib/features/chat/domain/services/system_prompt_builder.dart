@@ -126,9 +126,7 @@ class SystemPromptBuilder {
       // Only the parent gets the delegation queue. An ordinary turn would read
       // it as a suggestion to spawn children.
       final delegatable = executionSnapshot?.delegatableTasks ?? const [];
-      if (delegatable.isNotEmpty) {
-        buffer.writeln(AnabasisParentPromptBlock.delegatableTasks(delegatable));
-      }
+      buffer.writeln(AnabasisParentPromptBlock.delegatableTasks(delegatable));
     }
     buffer
       ..writeln(SystemPromptConstants.knowledgeCutoffHumilityInstruction)

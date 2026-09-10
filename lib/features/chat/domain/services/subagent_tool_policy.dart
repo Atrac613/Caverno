@@ -4,8 +4,8 @@ import 'tool_result_prompt_builder.dart';
 /// Tool-access policy for delegated subagents.
 ///
 /// A subagent inherits the parent's enabled tools so it can do real work, but
-/// the delegation tool itself ([spawnSubagentToolName]) is stripped so a child
-/// cannot spawn further children. This fixes delegation depth at 1 and prevents
+/// delegation and parent-goal tools are stripped so a child cannot take over
+/// its parent's control state. This fixes delegation depth at 1 and prevents
 /// unbounded fan-out. High-risk tools (file writes, shell, git, ssh, computer
 /// use) stay in the inherited set on purpose — they are escalated to the user's
 /// approval dialog at dispatch time, exactly like the parent loop.
@@ -14,6 +14,12 @@ class SubagentToolPolicy {
 
   /// Tool name that must never be visible to a child subagent.
   static const String spawnSubagentToolName = 'spawn_subagent';
+
+  static const blockedTools = {
+    spawnSubagentToolName,
+    'get_subagent_result',
+    'update_goal',
+  };
 
   /// Returns the parent tool definitions with the delegation tool removed,
   /// de-duplicated by name and curated to the parent loop's tool shaping.
@@ -29,7 +35,7 @@ class SubagentToolPolicy {
     List<Map<String, dynamic>> parentDefinitions,
   ) {
     final filtered = parentDefinitions
-        .where((tool) => toolName(tool) != spawnSubagentToolName)
+        .where((tool) => !blockedTools.contains(toolName(tool)))
         .toList(growable: false);
     final deduped = ToolResultPromptBuilder.dedupeToolsByName(filtered);
     if (!ToolDefinitionSearchService.shouldEnableToolSearch(deduped)) {

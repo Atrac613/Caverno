@@ -5,6 +5,7 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/subagent_task.dart';
 import '../entities/tool_call_info.dart';
 import 'subagent_tool_contract.dart';
+import 'subagent_tool_policy.dart';
 
 // ChatNotifier decomposition collaborator: subagent-tool-handler
 
@@ -30,7 +31,7 @@ final class SubagentToolHandler {
   static const String _identityMismatch =
       'Subagent execution returned a mismatched task identity';
   static const String _nestedDenial =
-      'Nested subagents are not allowed. Finish this sub-task directly.';
+      'Subagents cannot delegate or change the parent goal. Return your result.';
   static const String _expired =
       'Subagent execution was cancelled because its exact owner expired';
   static const String _uncertain =
@@ -231,8 +232,7 @@ final class SubagentToolHandler {
     ToolCallInfo toolCall,
     Set<String> allowlist,
   ) async {
-    if (toolCall.name == spawnSubagentToolName ||
-        toolCall.name == getSubagentResultToolName) {
+    if (SubagentToolPolicy.blockedTools.contains(toolCall.name)) {
       return _failure(toolCall.name, _nestedDenial);
     }
     if (!allowlist.contains(toolCall.name)) {

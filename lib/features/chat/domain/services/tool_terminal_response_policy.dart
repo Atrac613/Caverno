@@ -27,6 +27,25 @@ class ToolTerminalResponsePolicy {
        _containsCjkBlockerMarker = containsCjkBlockerMarker,
        _containsCjkMissingEvidenceMarker = containsCjkMissingEvidenceMarker;
 
+  /// Only call this after the saved validation has succeeded. A printed call
+  /// in a final-only response is not execution evidence or permission to run.
+  String savedValidationFinalText(
+    String content, {
+    bool suppressedCalls = false,
+  }) {
+    if ((suppressedCalls &&
+            (_looksLikePendingToolActionResponse(content) ||
+                _looksLikeUnexecutedToolRequest(content) ||
+                _looksLikePlanOnlyFinalToolAnswer(content))) ||
+        content.trim().isEmpty ||
+        ContentParser.extractCompletedToolCalls(content).isNotEmpty ||
+        ContentParser.hasIncompleteToolCall(content)) {
+      return 'The saved validation command succeeded. '
+          'No additional tool call was executed.';
+    }
+    return content.trim();
+  }
+
   static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   /// File-inspection tools whose successful results can ground a final answer

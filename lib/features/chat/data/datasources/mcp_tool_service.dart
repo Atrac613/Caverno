@@ -15,6 +15,7 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/skill.dart';
+import '../../domain/services/subagent_tool_definitions.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository_api.dart';
@@ -750,65 +751,10 @@ class McpToolService extends McpToolServiceFacadeBase {
     );
   }
 
-  static Map<String, dynamic> get _spawnSubagentTool => {
-    'type': 'function',
-    'function': {
-      'name': 'spawn_subagent',
-      'description':
-          'Delegate a focused, self-contained sub-task to a child agent that '
-          'runs its own tool-calling loop and returns a concise summary. Use '
-          'this to keep the main conversation focused: offload large file or '
-          'code exploration, independent research, or a parallelizable step. '
-          'The child inherits your tools except spawn_subagent itself (no '
-          'nested delegation) and cannot see the main conversation, so the '
-          'prompt must be complete on its own.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'description': {
-            'type': 'string',
-            'description':
-                'Short label for the sub-task, shown in the UI and logs.',
-          },
-          'prompt': {
-            'type': 'string',
-            'description':
-                'Full self-contained instructions for the subagent. Include '
-                'all context it needs; it cannot see the main conversation.',
-          },
-          'background': {
-            'type': 'boolean',
-            'description':
-                'Run asynchronously and return a task id immediately instead '
-                'of waiting for the result. Defaults to false.',
-          },
-        },
-        'required': ['description', 'prompt'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _getSubagentResultTool => {
-    'type': 'function',
-    'function': {
-      'name': 'get_subagent_result',
-      'description':
-          'Retrieve the status and result of a background subagent started '
-          'with spawn_subagent(background: true). Pass the task_id returned '
-          'when the subagent was started. Returns the summary once completed, '
-          'or a running status if it is still working.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'task_id': {
-            'type': 'string',
-            'description': 'The task id returned by spawn_subagent.',
-          },
-        },
-        'required': ['task_id'],
-      },
-    },
-  };
+  static Map<String, dynamic> get _spawnSubagentTool =>
+      SubagentToolDefinitions.spawn;
+  static Map<String, dynamic> get _getSubagentResultTool =>
+      SubagentToolDefinitions.result;
 
   static Map<String, dynamic> get _loadSkillTool => {
     'type': 'function',
