@@ -387,10 +387,25 @@ fi)
 PLIST
 }
 
+# `flutter pub get` prints a line per outdated package -- roughly a hundred of
+# them here. Left outside agent_output_run it landed in the job's raw stdout,
+# where --quiet-output has no reach, and every `process_wait` tail an agent took
+# was dominated by that same dependency list instead of the lane's progress.
+# Session 9174dbd1 replayed it six times over one release.
 run_pub_get() {
-  if [[ "${RUN_PUB_GET}" == "yes" ]]; then
-    run "${FLUTTER_CMD[@]}" pub get
+  if [[ "${RUN_PUB_GET}" != "yes" ]]; then
+    return 0
   fi
+  if [[ "${DRY_RUN}" == "yes" || "${OUTPUT_MODE}" == "raw" ]]; then
+    run "${FLUTTER_CMD[@]}" pub get
+    return 0
+  fi
+  mkdir -p "${RELEASE_LOG_DIR}"
+  agent_output_run \
+    "${RELEASE_LOG_DIR}/pub-get-${BUILD_NAME}-${BUILD_NUMBER}-$(date +%Y%m%d%H%M%S).log" \
+    "flutter pub get" \
+    "${OUTPUT_MODE}" \
+    "${FLUTTER_CMD[@]}" pub get
 }
 
 IOS_RELEASE_LOG=""
