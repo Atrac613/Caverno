@@ -60,15 +60,23 @@ class _FlutterRunLogViewState extends ConsumerState<FlutterRunLogView> {
       key: const ValueKey('flutter-run-log-view'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+        // The command is chrome, not scrollback: it has to read as a header
+        // rather than as the log's first line, so it carries its own fill and
+        // the same bottom rule the dock's tab strip uses.
+        Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            border: Border(bottom: BorderSide(color: theme.dividerColor)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 2, 4, 2),
           child: Row(
             children: [
               Expanded(
                 child: Text(
                   state.command,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    fontFamily: kMonoFontFamily,
+                    color: theme.colorScheme.onSurface,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -79,6 +87,7 @@ class _FlutterRunLogViewState extends ConsumerState<FlutterRunLogView> {
                     .read(flutterRunControllerProvider(widget.projectRoot))
                     .clearLogs(),
                 icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                visualDensity: VisualDensity.compact,
                 tooltip: 'chat.flutter_run_clear_logs'.tr(),
               ),
             ],
