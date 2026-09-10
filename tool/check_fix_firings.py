@@ -95,6 +95,28 @@ SIGNATURES = {
         # route to effect rather than a restriction on the work.
         "match": lambda s: "anabasis_parent_authority_refused" in s,
     },
+    "anabasis_delegation_admission": {
+        "commit": "8102fab4",
+        "what": "planned delegation is bound to an exact ready saved task",
+        # The refusal is the readable half. A parent that names a ready task
+        # delegates with no trace of the gate, so an accepted selection cannot
+        # be told from a conversation that never had a plan; a refusal proves
+        # the queue reached the parent, was consulted, and was answered with
+        # something the plan does not currently offer. Until one appears, the
+        # gate is unproven live -- which is ANA2's standing evidence gap, not
+        # a separate one.
+        "match": lambda s: "anabasis_delegation_not_ready" in s,
+    },
+    "saved_validation_final_text": {
+        "commit": "8102fab4",
+        "what": "a printed tool call after saved validation is replaced, not run",
+        # A final-only response carries no execution authority, so a printed
+        # call in it is an action promise nobody kept. Seeing this line means
+        # a real turn ended that way and the promise was withdrawn instead of
+        # being read as work done.
+        "match": lambda s: "The saved validation command succeeded. "
+        "No additional tool call was executed." in s,
+    },
     "material_assumption_confirmation": {
         "commit": "0e60696e",
         "what": "a material contract assumption stops a mutation and is asked about",
