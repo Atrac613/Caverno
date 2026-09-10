@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -44,6 +45,8 @@ class NotificationService {
 
   static const remoteCodingChannelId = 'remote_coding_completion';
   static const remoteCodingChannelName = 'Remote Coding Completion';
+  static const approvalChannelId = 'approval_required';
+  static const approvalChannelName = 'Approval Required';
 
   /// Category carrying Approve/Deny. Registering it is what makes the buttons
   /// appear on the lock screen and, because iOS forwards notifications and
@@ -51,6 +54,11 @@ class NotificationService {
   /// watchOS code involved. That is the fallback path for when the watch app
   /// itself is not running.
   static const approvalCategoryId = 'caverno_approval';
+
+  /// The pushed variant, whose actions launch the app in the foreground.
+  /// Separate from [approvalCategoryId] because the right answer differs
+  /// by whether the app is running, and only the sender knows that.
+  static const pushApprovalCategoryId = 'caverno_approval_push';
   static const approveActionId = 'caverno_approve';
   static const denyActionId = 'caverno_deny';
 
@@ -97,6 +105,10 @@ class NotificationService {
       requestSoundPermission: false,
       requestBadgePermission: false,
       notificationCategories: [
+        // Raised by a running app. The process is alive, so a background
+        // action reaches a live isolate and the person never leaves the
+        // screen they were on — which is also what lets a paired Apple Watch
+        // resolve one on the wrist.
         DarwinNotificationCategory(
           approvalCategoryId,
           actions: [
@@ -109,6 +121,32 @@ class NotificationService {
           ],
           // The buttons must be reachable without unlocking, or the feature
           // solves nothing that opening the app does not already solve.
+          options: {DarwinNotificationCategoryOption.hiddenPreviewShowTitle},
+        ),
+        // Delivered by push, which happens precisely when the app is not
+        // running. A background action there makes iOS cold-launch the app
+        // headless to service it, and a Flutter app cannot be serviced that
+        // way: the scene fails to create and the process takes SIGSEGV about
+        // 60ms in, so the button silently does nothing. Foreground actions
+        // launch the app properly, which is also what the answer needs — it
+        // has to reconnect to the desktop before it can resolve anything.
+        DarwinNotificationCategory(
+          pushApprovalCategoryId,
+          actions: [
+            DarwinNotificationAction.plain(
+              approveActionId,
+              'Approve',
+              options: {DarwinNotificationActionOption.foreground},
+            ),
+            DarwinNotificationAction.plain(
+              denyActionId,
+              'Deny',
+              options: {
+                DarwinNotificationActionOption.destructive,
+                DarwinNotificationActionOption.foreground,
+              },
+            ),
+          ],
           options: {DarwinNotificationCategoryOption.hiddenPreviewShowTitle},
         ),
       ],
@@ -305,8 +343,8 @@ class NotificationService {
       id: conversationId.hashCode & 0x7fffffff,
       title: title,
       body: body,
-      channelId: 'approval_required',
-      channelName: 'Approval Required',
+      channelId: approvalChannelId,
+      channelName: approvalChannelName,
       payload: jsonEncode({
         'kind': 'approval_required',
         'conversationId': conversationId,
@@ -314,6 +352,100 @@ class NotificationService {
       }),
       darwinCategoryId: actionable ? approvalCategoryId : null,
     );
+  }
+
+  /// Takes down approval notifications for requests that are no longer live.
+  ///
+  /// [keepApprovalId] is the one approval still pending, or null when none is.
+  ///
+  /// [cancelApprovalRequiredNotification] cannot do this. It withdraws what
+  /// *this process* raised, and a push arrives precisely when the process was
+  /// not running: nothing recorded it, so an approval answered while the phone
+  /// slept left its notification on the lock screen offering a decision that
+  /// no longer exists. Pressing it resolves nothing — the answer path waits
+  /// for an approval that never comes back — but being asked at all is the
+  /// defect.
+  ///
+  /// Split by platform because the plugin can only reach one of them. On iOS
+  /// its `cancel` removes by a stringified integer id it wrote into `userInfo`,
+  /// which a push does not carry, so the removal happens natively. On Android
+  /// the relay sets the notification tag to the approval id, which
+  /// `getActiveNotifications` reports and `cancel` accepts.
+  /// Takes down the pushed notification for exactly [approvalId].
+  ///
+  /// The named-id counterpart to [withdrawStalePushedApprovals], for when the
+  /// desktop says which request is over rather than which one is still live.
+  /// That distinction matters: "everything but the live one" is only safe when
+  /// the phone has authoritative state, and a phone acting on a withdrawal
+  /// push has none — it has one id and no idea what else is pending.
+  Future<bool> withdrawPushedApproval(String approvalId) async {
+    if (kIsWeb || approvalId.trim().isEmpty) return false;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        const channel = MethodChannel(_sceneActionChannelName);
+        final removed = await channel.invokeMethod<bool>(
+          'withdrawPushedApproval',
+          <String, dynamic>{'approvalId': approvalId},
+        );
+        return removed ?? false;
+      }
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final active = await _plugin.getActiveNotifications();
+        var removed = false;
+        for (final notification in active) {
+          final tag = notification.tag?.trim() ?? '';
+          final id = notification.id;
+          if (tag.isEmpty || id == null) continue;
+          if (notification.channelId != approvalChannelId) continue;
+          if (tag != approvalId) continue;
+          await _plugin.cancel(id: id, tag: tag);
+          removed = true;
+        }
+        return removed;
+      }
+    } on MissingPluginException {
+      // A host binary without the plugin, or a platform that has neither path.
+    } on PlatformException catch (error) {
+      appLog('[Notifications] withdrawing a pushed approval failed: $error');
+    } on Object catch (error) {
+      appLog('[Notifications] withdrawing a pushed approval failed: $error');
+    }
+    return false;
+  }
+
+  Future<int> withdrawStalePushedApprovals({String? keepApprovalId}) async {
+    if (kIsWeb) return 0;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        const channel = MethodChannel(_sceneActionChannelName);
+        final removed = await channel.invokeMethod<int>(
+          'withdrawPushedApprovals',
+          <String, dynamic>{'keepApprovalId': keepApprovalId},
+        );
+        return removed ?? 0;
+      }
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final active = await _plugin.getActiveNotifications();
+        var removed = 0;
+        for (final notification in active) {
+          final tag = notification.tag?.trim() ?? '';
+          final id = notification.id;
+          if (tag.isEmpty || id == null) continue;
+          if (notification.channelId != approvalChannelId) continue;
+          if (tag == keepApprovalId) continue;
+          await _plugin.cancel(id: id, tag: tag);
+          removed += 1;
+        }
+        return removed;
+      }
+    } on MissingPluginException {
+      // A host binary without the plugin, or a platform that has neither path.
+    } on PlatformException catch (error) {
+      appLog('[Notifications] withdrawing stale approvals failed: $error');
+    } on Object catch (error) {
+      appLog('[Notifications] withdrawing stale approvals failed: $error');
+    }
+    return 0;
   }
 
   /// Withdraws the approval notification raised for [conversationId].
@@ -411,6 +543,19 @@ class NotificationService {
         remoteCodingChannelId,
         remoteCodingChannelName,
         importance: Importance.defaultImportance,
+      ),
+    );
+    // Created here, not left to the first local notification. A push that
+    // arrives while the app is terminated is posted by the system, and Android
+    // drops a notification naming a channel that does not exist yet onto the
+    // manifest default — which is the completion channel, so a blocked turn
+    // would arrive silently under "Remote Coding Completion". High importance
+    // because the desktop is standing still until this is answered.
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        approvalChannelId,
+        approvalChannelName,
+        importance: Importance.high,
       ),
     );
   }

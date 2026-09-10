@@ -6,6 +6,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_providers.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
@@ -181,6 +182,13 @@ void main() {
           _TestConversationsNotifier.new,
         ),
         chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        // Represent a build that carries CAVERNO_NOTIFICATION_RELAY_URL. An
+        // unconfigured build adds the "push is inert" warning to the status
+        // card, which pushes the audit rows out of the 800x600 viewport this
+        // test reads from.
+        remoteCodingNotificationRelayOriginProvider.overrideWithValue(
+          'https://relay.example',
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -308,4 +316,52 @@ void main() {
       isNot(contains(RemoteCodingSecurity.hashToken('mobile-token-2'))),
     );
   });
+
+  testWidgets(
+    'desktop settings name a build that cannot send push notifications',
+    (tester) async {
+      // A build compiled without CAVERNO_NOTIFICATION_RELAY_URL keeps every
+      // other status on this page green while never attempting a delivery.
+      // The warning is the only thing that separates that from an FCM or APNs
+      // fault, so it has to survive refactors of the status card.
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(preferences);
+
+      Future<void> pumpPage(String relayOrigin) async {
+        final container = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(preferences),
+            remoteCodingRepositoryProvider.overrideWithValue(repository),
+            codingProjectsNotifierProvider.overrideWith(
+              _TestCodingProjectsNotifier.new,
+            ),
+            conversationsNotifierProvider.overrideWith(
+              _TestConversationsNotifier.new,
+            ),
+            chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+            remoteCodingNotificationRelayOriginProvider.overrideWithValue(
+              relayOrigin,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(home: RemoteCodingSettingsPage()),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      final warning = find.textContaining('Push notifications are inert');
+
+      await pumpPage('');
+      expect(warning, findsOneWidget);
+
+      await pumpPage('https://relay.example');
+      expect(warning, findsNothing);
+    },
+  );
 }

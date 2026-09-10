@@ -97,4 +97,6 @@ firebase deploy \
 
 After deployment, verify `https://PROJECT_ID.web.app/health` and provide
 `https://PROJECT_ID.web.app` as `CAVERNO_NOTIFICATION_RELAY_URL` at Flutter
-build time.
+build time. Write it to the gitignored `firebase/dart_defines.json` at the
+repository root and build through `tool/safe-flutter`; see "Supplying the relay
+origin" in `docs/remote_coding_fcm_release_gate.md`.

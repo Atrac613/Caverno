@@ -155,8 +155,10 @@ void main() {
     final decoded = RemoteCodingRelayDeliveryRequest.fromJson(request.toJson());
 
     expect(decoded.notification.eventId, 'event-1');
+    // Decoded through the shared interface, so assert it came back as the run
+    // shape rather than only that its common fields survived.
     expect(
-      decoded.notification.outcome,
+      (decoded.notification as RemoteCodingNotificationPayload).outcome,
       RemoteCodingNotificationOutcome.completed,
     );
     expect(

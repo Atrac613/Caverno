@@ -13,6 +13,7 @@ import '../domain/remote_coding_grant_kinds.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_multi_device_evidence.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
+import '../data/remote_coding_notification_relay_providers.dart';
 import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_server_notifier.dart';
@@ -25,6 +26,12 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
     final state = ref.watch(remoteCodingServerProvider);
     final notifier = ref.read(remoteCodingServerProvider.notifier);
     final theme = Theme.of(context);
+    // Surface a build that compiled without CAVERNO_NOTIFICATION_RELAY_URL.
+    // The relay client is the only thing that goes missing, and every other
+    // status on this page stays green, so the desktop otherwise gives no hint
+    // that it will never send a push.
+    final isNotificationRelayConfigured =
+        ref.watch(remoteCodingNotificationRelayClientProvider) != null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Remote Coding Host')),
@@ -58,6 +65,28 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
                   Text(
                     'Paired devices: ${state.settings.pairedDevices.length}',
                   ),
+                  if (!isNotificationRelayConfigured) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.notifications_off_outlined,
+                          size: 18,
+                          color: theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Push notifications are inert: this build has no '
+                            'relay origin. Rebuild through tool/safe-flutter '
+                            'with firebase/dart_defines.json present.',
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (state.error?.isNotEmpty == true) ...[
                     const SizedBox(height: 8),
                     Text(

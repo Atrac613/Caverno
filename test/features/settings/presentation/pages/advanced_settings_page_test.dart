@@ -281,6 +281,11 @@ class _RecordingLogFileCleanupService implements LogFileCleanupService {
   Future<LogDirectoryUsage> usage(LogFileTarget target) async =>
       usageByTarget[target] ?? LogDirectoryUsage.empty;
 
+  /// Never populated: these tests exercise the delete row, and an empty list
+  /// keeps the share row disabled so it cannot steal a tap from one of them.
+  @override
+  Future<List<File>> files(LogFileTarget target) async => const <File>[];
+
   @override
   Future<int> deleteAll(LogFileTarget target) async {
     deleted.add(target);

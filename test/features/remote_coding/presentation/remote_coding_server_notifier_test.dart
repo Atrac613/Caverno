@@ -109,6 +109,10 @@ class _InteractionOwnershipChatNotifier extends ChatNotifier {
     approvalResolved = false;
   }
 
+  void clearFileApproval() {
+    state = state.copyWith(pendingFileOperation: null);
+  }
+
   /// A kind that only became reachable over the wire in SA-26, and one that
   /// reaches it read-only.
   void setSshCommand({required String? remoteDeviceId}) {
@@ -221,6 +225,29 @@ final class _MemorySecureStore implements RemoteCodingSecureStore {
   Future<void> write({required String key, required String value}) async {
     values[key] = value;
   }
+}
+
+/// Records what actually left the machine, per delivery handle.
+final class _RecordingDeliveryRelayClient
+    implements RemoteCodingNotificationRelayClient {
+  final List<({String deliveryHandle, RemoteCodingRelayNotification payload})>
+  deliveries = [];
+
+  @override
+  Future<void> deliver({
+    required String deliveryHandle,
+    required String deliveryKeyId,
+    required String deliverySecret,
+    required RemoteCodingRelayDeliveryRequest request,
+  }) async {
+    deliveries.add((
+      deliveryHandle: deliveryHandle,
+      payload: request.notification,
+    ));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 final class _ProvisioningRelayClient
@@ -2247,6 +2274,124 @@ void main() {
       }
     },
   );
+
+  test('an approval push reaches only the devices granted that kind', () async {
+    // The push has to answer to the same authority the snapshot does. A device
+    // that may not resolve this kind must not learn the approval exists, and
+    // would be shown Approve/Deny that resolve nothing.
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final repository = RemoteCodingRepository(
+      prefs,
+      secureStore: _MemorySecureStore(),
+    );
+
+    RemoteCodingPairedDevice pairedDevice({
+      required String id,
+      required String handle,
+      required Set<String> grantedKinds,
+    }) => RemoteCodingPairedDevice(
+      id: id,
+      name: id,
+      tokenHash: RemoteCodingSecurity.hashToken('token-$id'),
+      createdAt: DateTime(2026, 9, 9, 12),
+      lastSeenAt: DateTime(2026, 9, 9, 12),
+      relayDeliveryHandle: handle,
+      relayDeliveryKeyId: 'key-$id',
+      relayCredentialExpiresAt: DateTime(2027, 9, 9, 12),
+      desktopOriginKinds: grantedKinds,
+    );
+
+    final granted = pairedDevice(
+      id: 'granted',
+      handle: 'delivery_handle_granted',
+      grantedKinds: const {PendingApprovalKinds.file},
+    );
+    final ungranted = pairedDevice(
+      id: 'ungranted',
+      handle: 'delivery_handle_ungranted',
+      grantedKinds: const <String>{},
+    );
+    for (final paired in [granted, ungranted]) {
+      await repository.saveDesktopRelayDeliverySecret(
+        deviceId: paired.id,
+        deliverySecret: 'secret-${paired.id}',
+      );
+    }
+    await repository.saveServerSettings(
+      RemoteCodingServerSettings(pairedDevices: [granted, ungranted]),
+    );
+
+    final relayClient = _RecordingDeliveryRelayClient();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        remoteCodingRepositoryProvider.overrideWithValue(repository),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(
+          _InteractionOwnershipChatNotifier.new,
+        ),
+        remoteCodingNotificationRelayClientProvider.overrideWithValue(
+          relayClient,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(remoteCodingServerProvider);
+    (container.read(chatNotifierProvider.notifier)
+            as _InteractionOwnershipChatNotifier)
+        .setFileApproval(
+          origin: ChatInteractionOrigin.local,
+          remoteDeviceId: null,
+        );
+
+    await _waitUntil(() => relayClient.deliveries.isNotEmpty);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(
+      relayClient.deliveries.map((delivery) => delivery.deliveryHandle),
+      ['delivery_handle_granted'],
+      reason: 'the ungranted device must not be told the approval exists',
+    );
+    final payload =
+        relayClient.deliveries.single.payload
+            as RemoteCodingApprovalNotificationPayload;
+    expect(payload.approvalId, 'approval-1');
+    expect(payload.approvalKind, PendingApprovalKinds.file);
+    expect(
+      payload.toFcmData().values.join(' '),
+      isNot(contains('README.md')),
+      reason: 'the file path must not reach a lock screen',
+    );
+
+    // Resolving it has to reach the same phone. Everything the phone could use
+    // to notice on its own -- the socket, the snapshot, its own running code --
+    // is gone while it is suspended, so the desktop saying so is the only
+    // signal that exists.
+    relayClient.deliveries.clear();
+    (container.read(chatNotifierProvider.notifier)
+            as _InteractionOwnershipChatNotifier)
+        .clearFileApproval();
+
+    await _waitUntil(() => relayClient.deliveries.isNotEmpty);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(
+      relayClient.deliveries.map((delivery) => delivery.deliveryHandle),
+      ['delivery_handle_granted'],
+      reason: 'the withdrawal follows the request, device for device',
+    );
+    final withdrawal =
+        relayClient.deliveries.single.payload
+            as RemoteCodingApprovalWithdrawalPayload;
+    expect(withdrawal.approvalId, 'approval-1');
+  });
 }
 
 /// A repository that holds the first audit write open until the test releases

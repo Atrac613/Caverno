@@ -153,4 +153,38 @@ private-key-material
       contains('resumed'),
     );
   });
+
+  test('a bound directory is where the sink writes', () {
+    // The reason this exists: the sink's own fallback is $HOME/.caverno/app_logs,
+    // a desktop path. On iOS and Android HOME is the sandbox root, the first
+    // write threw, and the sink latched disabled -- so a device produced no log
+    // at all, which is exactly where one is needed.
+    final sink = AppLogFile.instance..bindDirectory(tempDir);
+    addTearDown(() => sink.bindDirectory(Directory.systemTemp));
+
+    sink.write('[ApprovalNotification] action caverno_approve');
+
+    final files = logFiles(tempDir);
+    expect(files, hasLength(1));
+    expect(
+      files.single.readAsStringSync(),
+      contains('[ApprovalNotification] action caverno_approve'),
+    );
+  });
+
+  test('rebinding moves the next line rather than the cached file', () {
+    final second = Directory.systemTemp.createTempSync('caverno_app_log_2_');
+    addTearDown(() {
+      if (second.existsSync()) second.deleteSync(recursive: true);
+    });
+    final sink = AppLogFile.instance..bindDirectory(tempDir);
+    addTearDown(() => sink.bindDirectory(Directory.systemTemp));
+
+    sink.write('first');
+    sink.bindDirectory(second);
+    sink.write('second');
+
+    expect(logFiles(tempDir).single.readAsStringSync(), contains('first'));
+    expect(logFiles(second).single.readAsStringSync(), contains('second'));
+  });
 }

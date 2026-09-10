@@ -193,7 +193,7 @@ export class RelayService {
     await this.#authenticate(context, "delivery", { consumeReplay: false });
     const notification = parseDelivery(context.body);
     requireFreshTimestamp(
-      notification.completedAt,
+      notification.occurredAt,
       now,
       MAX_EVENT_AGE_MS,
       MAX_EVENT_FUTURE_MS,
@@ -465,11 +465,47 @@ function parseDeliveryCredentialRevocation(body) {
   return { requestedAt: requireTimestamp(value, "requestedAt") };
 }
 
+// Mirrors RemoteCodingGrantKinds.all in the app. A kind absent here cannot
+// reach a device, which is the intended failure: the relay re-validates rather
+// than trusting the desktop, so a desktop that learns a new kind before the
+// relay is redeployed is rejected instead of forwarding something the phone
+// cannot render.
+const APPROVAL_KINDS = new Set([
+  "file",
+  "localCommand",
+  "gitCommand",
+  "sshCommand",
+  "sshConnect",
+  "bleConnect",
+  "serialOpen",
+  "browserAction",
+  "computerUse",
+  "participantTool",
+  "assumptionConfirmation",
+  "askUserQuestion",
+]);
+
 function parseDelivery(body) {
   const value = requireObject(body);
   requireExactKeys(value, ["schemaVersion", "notification"]);
   requireSchema(value);
   const data = requireObject(value.notification);
+  // Read the discriminator before the shape check so an unknown kind fails as
+  // an unknown kind, not as a complaint about keys that shape never had.
+  const kind = requireString(data, "kind", { maxLength: 64 });
+  switch (kind) {
+    case "remote_coding_run_terminal":
+      return parseRunTerminalDelivery(data);
+    case "remote_coding_approval_requested":
+      return parseApprovalDelivery(data);
+    case "remote_coding_approval_resolved":
+      return parseApprovalWithdrawalDelivery(data);
+    default:
+      throw new RelayError("invalid_request");
+  }
+}
+
+function parseRunTerminalDelivery(data) {
   requireExactKeys(data, [
     "kind",
     "schemaVersion",
@@ -481,11 +517,7 @@ function parseDelivery(body) {
     "body",
     "completedAt",
   ]);
-  if (
-    requireString(data, "kind", { maxLength: 64 }) !==
-      "remote_coding_run_terminal" ||
-    requireString(data, "schemaVersion", { maxLength: 4 }) !== "1"
-  ) {
+  if (requireString(data, "schemaVersion", { maxLength: 4 }) !== "1") {
     throw new RelayError("invalid_request");
   }
   const outcome = requireString(data, "outcome", { maxLength: 16 });
@@ -505,7 +537,86 @@ function parseDelivery(body) {
   };
   return {
     eventId: normalized.eventId,
-    completedAt: requireTimestamp(normalized, "completedAt"),
+    occurredAt: requireTimestamp(normalized, "completedAt"),
+    data: normalized,
+  };
+}
+
+// The blocked-turn notice. It carries an allow-listed kind and a boolean, and
+// deliberately no command text, path, target, or warning prose: a lock screen
+// is the least private surface the app has, and this is the only path by which
+// Caverno data leaves the desktop. Adding a field here is a privacy-boundary
+// change on both sides.
+function parseApprovalDelivery(data) {
+  requireExactKeys(data, [
+    "kind",
+    "schemaVersion",
+    "eventId",
+    "approvalId",
+    "conversationId",
+    "approvalKind",
+    "hasWarning",
+    "title",
+    "body",
+    "requestedAt",
+  ]);
+  if (requireString(data, "schemaVersion", { maxLength: 4 }) !== "1") {
+    throw new RelayError("invalid_request");
+  }
+  const approvalKind = requireString(data, "approvalKind", { maxLength: 64 });
+  if (!APPROVAL_KINDS.has(approvalKind)) {
+    throw new RelayError("invalid_request");
+  }
+  const hasWarning = requireString(data, "hasWarning", { maxLength: 5 });
+  if (hasWarning !== "true" && hasWarning !== "false") {
+    throw new RelayError("invalid_request");
+  }
+  const normalized = {
+    kind: "remote_coding_approval_requested",
+    schemaVersion: "1",
+    eventId: requireIdentifier(data, "eventId"),
+    approvalId: requireIdentifier(data, "approvalId"),
+    conversationId: requireIdentifier(data, "conversationId"),
+    approvalKind,
+    hasWarning,
+    title: requireString(data, "title", { maxLength: 120 }),
+    body: requireString(data, "body", { maxLength: 240 }),
+    requestedAt: requireString(data, "requestedAt", { maxLength: 64 }),
+  };
+  return {
+    eventId: normalized.eventId,
+    occurredAt: requireTimestamp(normalized, "requestedAt"),
+    data: normalized,
+  };
+}
+
+// Takes the request notice back down. Carries no title, no body and no kind
+// flag -- only an approval id the device was already sent -- and the message
+// builder turns it into a content-available push with no alert, so it adds
+// nothing to the wire that the request it withdraws did not already carry.
+function parseApprovalWithdrawalDelivery(data) {
+  requireExactKeys(data, [
+    "kind",
+    "schemaVersion",
+    "eventId",
+    "approvalId",
+    "conversationId",
+    "resolvedAt",
+  ]);
+  if (requireString(data, "schemaVersion", { maxLength: 4 }) !== "1") {
+    throw new RelayError("invalid_request");
+  }
+  const normalized = {
+    kind: "remote_coding_approval_resolved",
+    schemaVersion: "1",
+    eventId: requireIdentifier(data, "eventId"),
+    approvalId: requireIdentifier(data, "approvalId"),
+    conversationId: requireIdentifier(data, "conversationId"),
+    resolvedAt: requireString(data, "resolvedAt", { maxLength: 64 }),
+  };
+  return {
+    eventId: normalized.eventId,
+    occurredAt: requireTimestamp(normalized, "resolvedAt"),
     data: normalized,
   };
 }

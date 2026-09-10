@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/services/attachment_storage_service.dart';
@@ -17,6 +18,7 @@ import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/app_log_file.dart';
 import 'core/utils/logger.dart';
 import 'core/widgets/quit_confirmation_dialog.dart';
 import 'features/chat/application/persistence/caverno_legacy_hive_boxes.dart';
@@ -43,12 +45,34 @@ import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'features/terminal/application/caverno_cli_arguments.dart';
 import 'features/terminal/presentation/caverno_cli_process.dart';
 
+
+/// Gives the file log sink a writable directory on iOS and Android.
+///
+/// Its own fallback is `$HOME/.caverno/app_logs`, which is a desktop path. On
+/// mobile `HOME` is the sandbox root, the first write throws, and the sink
+/// latches disabled — so a device produced no log at all, which is where one
+/// is needed most: there is no attached `flutter run`, and a profile build
+/// prints nothing. Desktop is left alone so the tooling that reads its path
+/// keeps working.
+Future<void> _bindMobileAppLogDirectory() async {
+  if (!Platform.isIOS && !Platform.isAndroid) return;
+  try {
+    final support = await getApplicationSupportDirectory();
+    AppLogFile.instance.bindDirectory(
+      Directory('${support.path}/app_logs'),
+    );
+  } on Object {
+    // Logging must never be the reason the app fails to start.
+  }
+}
+
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   if (CavernoCliInvocation.looksLikeCliInvocation(arguments)) {
     exit(await runCavernoCliProcess(arguments));
   }
   await EasyLocalization.ensureInitialized();
+  await _bindMobileAppLogDirectory();
 
   final prefs = await SharedPreferences.getInstance();
   WindowManagerService? windowService;

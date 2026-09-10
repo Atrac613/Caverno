@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+#
+# tool/caverno_dart_defines.sh — shared resolver for environment-owned Flutter
+# build defines.
+#
+# Why:
+#   CAVERNO_NOTIFICATION_RELAY_URL is read at compile time by
+#   lib/features/remote_coding/data/remote_coding_notification_relay_providers.dart
+#   via String.fromEnvironment. When it is absent the relay client provider
+#   silently resolves to null, so the desktop sends no push notifications at
+#   all and the mobile app reports "Notification relay is not configured."
+#   A build that forgets the define therefore looks healthy while push is
+#   entirely dead. Every build path routes through this helper so the define
+#   cannot be forgotten in one path and remembered in another.
+#
+#   The value lives in a gitignored file rather than in source because this
+#   repository is public: hardcoding the origin would point every fork's build
+#   at the maintainer's own relay.
+#
+# Usage (source, do not execute):
+#   source "$WORKTREE/tool/caverno_dart_defines.sh"
+#   caverno_load_dart_define_args "$WORKTREE" [warn]
+#   flutter build ... "${CAVERNO_DART_DEFINE_ARGS[@]}"
+#
+# Override the file location with CAVERNO_DART_DEFINES_FILE.
+
+# Populates the CAVERNO_BUILD_DART_DEFINE_ARGS array with the same build
+# provenance defines used by tool/safe-flutter. The values are resolved from
+# the worktree being built rather than from this helper's location.
+caverno_load_build_provenance_define_args() {
+  local worktree="${1:-$PWD}"
+  local build_commit
+  local build_dirty
+
+  build_commit="$(git -C "${worktree}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  if git -C "${worktree}" diff --quiet --ignore-submodules 2>/dev/null \
+     && git -C "${worktree}" diff --cached --quiet --ignore-submodules 2>/dev/null
+  then
+    build_dirty=false
+  else
+    build_dirty=true
+  fi
+
+  CAVERNO_BUILD_DART_DEFINE_ARGS=(
+    "--dart-define=CAVERNO_BUILD_COMMIT=${build_commit}"
+    "--dart-define=CAVERNO_BUILD_DIRTY=${build_dirty}"
+    "--dart-define=CAVERNO_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  )
+}
+
+# Populates the CAVERNO_DART_DEFINE_ARGS array with the
+# --dart-define-from-file argument, or leaves it empty when no defines file is
+# present.
+#
+# The second argument selects what absence means:
+#   (omitted) stay silent  — callers that do not produce a testable binary
+#   warn      one-line stderr notice — local run/build
+#   require   exit 1       — release builds, where shipping inert push is worse
+#                            than failing the build. Override for a deliberate
+#                            push-less release with
+#                            CAVERNO_ALLOW_MISSING_DART_DEFINES=1.
+caverno_load_dart_define_args() {
+  local worktree="${1:-$PWD}"
+  local on_absent="${2:-}"
+  local defines_file="${CAVERNO_DART_DEFINES_FILE:-${worktree}/firebase/dart_defines.json}"
+
+  CAVERNO_DART_DEFINE_ARGS=()
+  if [[ -f "${defines_file}" ]]; then
+    # The App Check debug provider accepts a registered debug token in place of
+    # real device attestation. It belongs on a `flutter run` command line for as
+    # long as one developer needs it, never in the file every build reads: a
+    # release carrying it would ship an attestation bypass.
+    if [[ "${on_absent}" == "require" ]] \
+       && grep -q "CAVERNO_FIREBASE_APP_CHECK_DEBUG" "${defines_file}"; then
+      echo "Error: ${defines_file} sets CAVERNO_FIREBASE_APP_CHECK_DEBUG." >&2
+      echo "       That disables App Check attestation. Remove it before releasing," >&2
+      echo "       and pass it per-run instead:" >&2
+      echo "       tool/safe-flutter run --dart-define=CAVERNO_FIREBASE_APP_CHECK_DEBUG=true" >&2
+      return 1
+    fi
+    CAVERNO_DART_DEFINE_ARGS=(--dart-define-from-file="${defines_file}")
+    return 0
+  fi
+
+  if [[ "${on_absent}" == "require" \
+        && "${CAVERNO_ALLOW_MISSING_DART_DEFINES:-0}" != "1" ]]; then
+    cat >&2 <<EOF
+Error: ${defines_file} not found.
+
+A release built without CAVERNO_NOTIFICATION_RELAY_URL resolves the Remote
+Coding relay client to null: the desktop sends no push notifications and the
+mobile app reports "Notification relay is not configured." Nothing else fails,
+so the defect only surfaces on a device.
+
+Create the file (values are environment-owned and gitignored):
+  mkdir -p "${worktree}/firebase"
+  cat > "${defines_file}" <<'JSON'
+  { "CAVERNO_NOTIFICATION_RELAY_URL": "https://<project>.web.app" }
+JSON
+
+To release deliberately without push:
+  CAVERNO_ALLOW_MISSING_DART_DEFINES=1 \$0 ...
+EOF
+    return 1
+  fi
+
+  if [[ "${on_absent}" == "warn" || "${on_absent}" == "require" ]]; then
+    echo "Warning: ${defines_file} not found; building without CAVERNO_NOTIFICATION_RELAY_URL." >&2
+    echo "         Remote Coding push notifications will be inert in this build." >&2
+    echo "         See docs/remote_coding_fcm_release_gate.md." >&2
+  fi
+  return 0
+}

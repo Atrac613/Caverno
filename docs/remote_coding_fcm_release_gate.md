@@ -144,7 +144,44 @@ Record evidence only after all of the following are true:
 5. Firestore TTL is enabled for replay documents and the deployed `/health`
    endpoint succeeds.
 6. The release build uses the deployed HTTPS origin through
-   `CAVERNO_NOTIFICATION_RELAY_URL`.
+   `CAVERNO_NOTIFICATION_RELAY_URL`. See "Supplying the relay origin" below.
+
+## Supplying the relay origin
+
+`CAVERNO_NOTIFICATION_RELAY_URL` is read at compile time by
+`remote_coding_notification_relay_providers.dart`. A build that omits it
+resolves the relay client to `null`: the desktop attempts no delivery and the
+mobile app reports "Notification relay is not configured." Nothing else fails,
+so the defect only surfaces on a device.
+
+The value is environment-owned, like `google-services.json`. It is not
+hardcoded because this repository is public and a hardcoded origin would point
+every fork's build at the maintainer's relay. Instead, put it in a gitignored
+defines file:
+
+```bash
+mkdir -p firebase
+cat > firebase/dart_defines.json <<'JSON'
+{ "CAVERNO_NOTIFICATION_RELAY_URL": "https://PROJECT_ID.web.app" }
+JSON
+```
+
+`tool/caverno_dart_defines.sh` resolves that file for every build path:
+
+| Path | Behavior when the file is absent |
+| --- | --- |
+| `tool/safe-flutter run` / `build` | warns on stderr, builds without push |
+| `tool/safe-flutter test` and other subcommands | silent |
+| `tool/release_ios_macos.sh`, `tool/build_macos_sparkle_release.sh` | fails the build |
+
+Release builds fail because shipping inert push is worse than a failed build.
+Override with `CAVERNO_ALLOW_MISSING_DART_DEFINES=1` for a deliberate
+push-less release, and relocate the file with `CAVERNO_DART_DEFINES_FILE`.
+
+Build through `tool/safe-flutter`, not bare `flutter`. A bare `flutter run`
+produces a binary that silently sends nothing, and pressing Run in Xcode
+reuses whatever defines the last CLI invocation wrote into
+`Generated.xcconfig`.
 
 ## Physical-device matrix
 

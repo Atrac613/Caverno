@@ -87,6 +87,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
 | Anabasis | ANA2 | current | Delegate ready tasks through the existing subagent and worktree runners. | Mapping, premise briefs, and contradiction policies landed in `6218b6440`; the parent prompt consumes the queue. Observe a planned coding thread with non-empty candidates before closing the integration evidence gap. Free-form delegation alone does not exercise that queue. |
 | Anabasis | ANA3 | current | Separate produced, verified, and accepted results with explicit ownership and evidence. | PR 1 and PR 2a landed: mechanical/evidence audit plus the acceptance record and parent acceptance gate. Next is PR 2b: give the parent one guarded write path for its semantic judgment; inspect the three file-size budgets before implementation. Stored execution-state separation remains PR 3. |
+| Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Reopened and mostly built 2026-09-09, after a device check showed the local path cannot reach a suspended app at all: iOS holds no background mode that keeps a WebSocket alive, and `beginBackgroundTask` is called only by `ChatNotifier`, so a backgrounded phone receives nothing to raise a notification from. The payload blocker is closed — `RemoteCodingApprovalNotificationPayload` carries an allow-listed kind and a `hasWarning` boolean and no command text, path, or warning prose, with the displayed lines composed from closed sets. The relay validates the new shape independently and was deployed to `caverno-4977f` (revision 3). The desktop sends from the `approvalRequested` site, gated per device by the same `_canResolveInteraction` the snapshot uses. Verified end to end on hardware 2026-09-09: a desktop approval reaches a backgrounded iPhone and Approve on the lock screen resolves it in 438ms, closing the desktop's dialog. Four things had to be fixed first, each invisible without a device — the App Check App Attest provider and APNs auth key were unregistered, a background notification action cold-launched a Flutter app headless and took SIGSEGV, the press was read from a key only local notifications carry, and the answer checked `isConnected` 25ms before the approval arrived. The file log sink was writing nowhere on iOS, which is why none of it was diagnosable; that is fixed too. Withdrawal shipped and was verified on hardware 2026-09-10, after the first attempt failed on a device: a sweep driven by a snapshot listener cannot fire in the one scenario it exists for, because a suspended phone sees no snapshot change. The desktop now sends a silent `remote_coding_approval_resolved` push, handled natively on iOS, and the lock-screen notification clears on its own when the desktop resolves the request. What is left is the device matrix. |
 
 ### Ready Candidates
 
@@ -97,6 +98,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Knowledge Currency | KC2 | next | Push measured toolchain and dependency ground truth into the prompt while preserving the datetime anchor that `SystemPromptBuilder` already emits unconditionally. | Content settled by KC1's second measurement 2026-09-03: carry **what changed**, not only which version — a delta block cut stale claims from 76% to 28% over 75 claims, fixing every API it covered and none it did not. The version list stays because it is what fixes class 4. The open question is now coverage, not mechanism: recency window, project imports, or the symbols a draft actually used. Extract a shared LL10 dependency inventory, attest locked versus installed versions as exact/mismatch/unverifiable, omit non-exact versions from authoritative context, cache by project/metadata fingerprints, and keep the block in the dynamic tail. |
 | Platform Vision | COMPAT1 | next | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Start with a diagnostic CLI seeded by LL9 live lifecycle evidence; keep model capability separate from endpoint protocol support. |
 | Routines | ROUTINE3 | next | In-chat `/loop <interval> <prompt>`: repeat a prompt inside the current conversation on an interval, keeping its history, tool-approval cache, workspace lease, and thread identity. Distinct from ROUTINE1's `create_routine`, which persists a catalog entity that runs against its own isolated context. | Reuse `GoalAutoContinueSafeBoundary` for the resend veto and honor the LL38 steering/queue owner-receipt contract; model-paced intervals and push-woken background ticks are follow-ups. Scoped 2026-09-01. |
+| Remote Coding | RC2 | next | Retire the notification-relay QR path now that pairing sets push up over the authenticated socket. | Gated on the WATCH5 device check, not on design: removing the fallback before the push path is proven on hardware takes away the manual re-setup route that the 2026-09-09 diagnosis needed. Delete the desktop bell and its QR dialog (`remote_coding_settings_page.dart`), `state.relayPairingPayload` with the `showQr` argument and its expiry timer, the mobile `_scanNotificationRelayCode`, and `authorizeNotificationRelayFromQr`. Keep `createNotificationRelayPairingPayload` — the WSS `requestNotificationRelay` handler calls the same method with `showQr: false`, so the challenge and delegation machinery is shared, not legacy. Keep `supportsNotificationRelaySetup` and make its false branch an explicit error: version skew between a desktop and a phone is real even when backward compatibility is not a goal, and today that branch is the only thing standing between skew and silence. The bell is also the only per-device "push configured" indicator, so replace it with text in the device subtitle. The mobile bell and status banner stay: `disable()` writes a flag that `enableAfterPairing` refuses to cross, so the bell is the only way back from an explicit disable or an OS denial, and the banner is the only surface that names `unavailable`. Decided 2026-09-09. |
 | Fork | FORK1 | next | Chat conversation fork: branch a new thread from any message, copying history up to that point with parent linkage and drawer grouping. | Add `parentConversationId`/fork-origin fields to `Conversation`, reuse `_createConversation`/`save`, and add a per-message "fork here" affordance. |
 
 ### Blocked — Reopen Only With New Evidence
@@ -136,7 +138,6 @@ promotion gates below still apply. Keep one implementation slice active.
 | Skills | SKILL3 | later | Mine recurring verified workflows into proposed skills during idle windows. | Wait for LL18/OBS1 evidence so proposals are grounded in traces and remain user-reviewed before adoption. |
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
-| Watch | WATCH5 | later | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Unblocked by SA-26: a granted device may resolve a desktop-origin approval, so the buttons are legitimate again. Two of three 2026-09-01 blockers survive — the payload is still undefined, and the simulator permission circularity is reduced rather than removed. The native action delegate now exists (WATCH10). |
 | Watch | WATCH11 | done | Show Remote Coding approvals and questions in the companion, labelled with the host that owns them, resolving what the phone is granted. | Approvals and questions shipped 2026-09-06: a second source on `WatchSessionNotifier`, a host label carried and rendered, one card ranked across both sources with ties to local, and resolution routed by an explicit `source`. The trust reading is SA-27. The goal half was withdrawn the same day rather than built: it has never run on iOS so there is no usage to argue from, it would cost a privacy-boundary change on the Remote Coding wire, and questions now reach the wrist — so an unattended completion check belongs on that path if it earns one at all. |
 | Watch | WATCH13 | done | Give a paired phone desktop-equivalent authority over existing threads, granted per device on a surface that states the whole question. | All three slices plus SA-26's T4 audit shipped 2026-09-06, and both halves of the authority decision are now observed on hardware: a granted desktop-origin approval reaches the phone and the wrist and runs on the Mac, and with the grant withdrawn the same turn reaches neither. SA-26's T1 — device-local authentication before a mutating resolution — is the open follow-up and is tracked as a security item, not a WATCH13 slice. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
@@ -1694,48 +1695,130 @@ Next action:
 
 ### WATCH5: Push-Originated Notification Actions
 
-Status: `later`
+Status: `current`
 
-Scope, as re-cut on 2026-09-06:
-- Carry a blocked turn to the phone over push, actionable for the kinds that
-  device has been granted. SA-26 settled that a granted device may resolve a
-  desktop-origin approval, so Approve/Deny on a push is legitimate again — but
-  only once SA-26's displayed-body binding exists, since a push button
-  resolving text the person never saw is exactly what that binding forbids.
+Reopened 2026-09-09 by a device check, which found the premise this milestone
+had been deferred on was wrong. The local path was believed to cover the
+backgrounded phone, with push mattering only for a terminated app. It does not
+cover either:
 
-One of the three 2026-09-01 blockers is gone:
-- **The `firebase_messaging` limitation is handled.** It does not surface
-  `actionIdentifier` on iOS, so an action has to be read by a native
-  `UNUserNotificationCenter` delegate. WATCH10 wrote exactly that: the app
-  claims the delegate in `AppDelegate` before plugin registration and forwards
-  scene-delivered actions to Dart over `com.caverno/notification_actions`. The
-  plumbing exists and is verified on a device.
+- `ios/Runner/Info.plist` declares `fetch` and `remote-notification`. Neither
+  keeps a WebSocket alive, and no mode that would is available for this use.
+- `beginBackgroundTask` exists (`AppDelegate.swift`, `com.caverno/background_task`)
+  but is called only by `ChatNotifier`, around a turn running *on that device*.
+  The Remote Coding client never calls it.
 
-What still blocks it:
-- **There is still no approval-shaped payload to push.** The only notification
-  the relay sends is `remote_coding_run_terminal`, a run *completion*. A
-  blocked-turn notice is the same contract with a different payload, but
-  adding fields to `RemoteCodingNotificationPayload` is a privacy-boundary
-  change its own contract says needs explicit review.
-- **The simulator circularity is reduced, not removed.** WATCH10 moved the
-  permission latch from the *attempt* to the *answer*, so an attempt consumed
-  while backgrounded is retried rather than lost. But `_ensurePermission` is
-  still reached only from the notification-raising path
-  (`notification_service.dart:447`), so a fresh install that has never raised a
-  local notification still has undetermined permission, and `xcrun simctl push`
-  is still dropped. Raise one local notification in the foreground first, or
-  request permission at startup before testing a push.
+So iOS suspends a backgrounded phone within seconds, the socket is torn down,
+no Dart runs, and the approval never arrives — there is nothing for
+`remote_coding_mobile_notification_notifier.dart` to raise a notification from.
+The person learns nothing until they open the app. Push is not a refinement
+here; it is the only path.
 
-The local path already covers the phone-initiated case this milestone was
-originally meant to serve: an approval raised on the phone carries Approve/Deny
-(WATCH10), and iOS forwards the notification and its actions to a paired watch
-with no watchOS code involved.
+Both 2026-09-01 blockers are now closed:
 
-Next action:
-- Define the blocked-turn payload, or leave it. It is a Remote Coding decision
-  gated by `docs/remote_coding_fcm_release_gate.md`, not a watch one, and
-  SA-26's three slices should ship over the existing socket first — the push
-  only matters once the app is not running.
+- **The payload existed only as a run completion.** Settled by choosing what
+  *not* to send. `RemoteCodingApprovalNotificationPayload` carries an
+  allow-listed `approvalKind` and a `hasWarning` boolean, and no command text,
+  path, target, or warning prose. The displayed title and body are composed by
+  a pure function of the kind, the flag and the host name, so no caller can
+  route request data onto a lock screen. Today's warning strings are static
+  catalogue entries, but forwarding them would make every future edit to those
+  catalogues a privacy decision taken by someone who does not know they are
+  taking one. The command is one tap away in the app.
+- **The simulator permission circularity** is worked around the same way it
+  always could be: raise one local notification in the foreground first, or
+  request permission at startup, before testing a push.
+
+Shipped 2026-09-09:
+
+- The relay validates the new shape independently of the sender — its own
+  `requireExactKeys` and kind allow-list mirroring `RemoteCodingGrantKinds.all`
+  — so a desktop that starts sending command text is rejected rather than
+  forwarded. Deployed to `caverno-4977f`, revision 3.
+- An approval push takes its own Android channel (`approval_required`, created
+  at registration so a terminated-app delivery does not fall to the manifest
+  default), collapses on the approval id rather than the event id, and carries
+  `aps.category = caverno_approval` so the buttons WATCH10 registered appear.
+- The desktop sends from the `approvalRequested` site, gated per device by the
+  same `_canResolveInteraction` the snapshot uses: a device that may not answer
+  this kind is not told the approval exists.
+
+**Delivery is verified on hardware** (2026-09-09): a desktop approval reached a
+backgrounded iPhone on the lock screen. Two environment blockers had to be
+cleared first and are worth remembering, because neither produces a useful
+error from the app's side — the App Check App Attest provider was never
+registered in the Firebase console, so registration failed with a 403
+`exchangeAppAttestAttestation` "App attestation failed", and the APNs auth key
+was missing, so no push could have arrived even with a correct payload.
+
+The mobile half is built but not yet exercised on a device: both notification
+shapes are parsed, a pushed approval reconnects so the snapshot puts it back in
+reach, and Approve/Deny sends the id once connected. Local verification is
+deliberately not duplicated there — `_handleResolveApproval` re-checks the id
+against the current pending list and that device's grant and records a refusal,
+so an id the phone cannot verify resolves nothing it should not.
+
+**Answering from the lock screen is verified on hardware** (2026-09-09):
+press to resolution in 438ms, with the desktop's dialog closing and the turn
+continuing. Two defects stood between the build and that run, and both were
+found only on a device:
+
+- **The press never reached Dart.** `AppDelegate` read it from
+  `userInfo["payload"]`, where `flutter_local_notifications` stores it for a
+  *local* notification. A push has no such key — FCM spreads the relay's data
+  fields across `userInfo` itself — so the guard dropped every Approve and
+  Deny. The button appeared only to open the app.
+- **The answer gave up 25ms too early.** `connectSavedHost` returns once the
+  connect is under way, not once it has completed, so checking `isConnected`
+  straight afterwards abandoned the press at +233ms while the approval landed
+  at +258ms. It now waits for the approval itself, which is the stronger
+  condition: one answered elsewhere while the phone slept never arrives and
+  nothing is sent.
+
+Neither was visible from the device console, because the file log sink fell
+back to `$HOME/.caverno/app_logs` — a desktop path. On iOS `HOME` is the
+sandbox root, the first write threw, and the sink latched disabled, so a
+device produced no log at all. Fixing that came first; `xcrun devicectl device
+copy from --domain-type appDataContainer` then pulls the file without Xcode.
+
+Stale pushed notifications are withdrawn as of the same day, and the first
+attempt at it is worth recording because it could not have worked. A push
+arrives when the app is not running, so nothing records it and the
+conversation-keyed withdrawal cannot reach it; the sweep was therefore hung off
+the `pendingApproval` snapshot listener, "the moment the phone learns what is
+actually live". On a device the notification did not go away. `ref.listen` fires
+on a *change*, and the scenario the notification exists for is exactly the one
+in which nothing changes: the phone is suspended while the desktop resolves the
+request, and comes back to an empty pending approval that was empty before —
+so the listener never fired at all. The same pass found a second defect in it,
+that a socket blip clears `pendingApproval` too, which would have swept away the
+notification for a request still blocking the desktop.
+
+The fix is that the desktop says so. Only it knows the request is over, and only
+a push reaches a suspended phone, so `remote_coding_approval_resolved` is
+delivered to the same devices the request went to, by the same
+`_canResolveInteraction` check. It is silent by construction — no `notification`
+block, `content-available` on APNs, no title or body anywhere on the wire — and
+carries an approval id the device was already sent, so it stays inside the
+privacy boundary of the request rather than widening it. iOS handles it in
+`AppDelegate` before Flutter is involved, which is both what lets it work on a
+suspended phone and what keeps it clear of the headless-launch crash class a
+background notification action already cost us. The snapshot sweep stays as a
+backstop for a silent push iOS declines to deliver, now gated on `isConnected`
+and fired on the connection edge as well as on approval changes.
+
+Verified on hardware 2026-09-10, on relay revision 4: the desktop resolves the
+request and the lock-screen notification clears itself, with the phone never
+having run a line of Dart to notice.
+
+What is left: **the device matrix**, per
+`docs/remote_coding_fcm_release_gate.md` — foreground, background, locked and
+terminated; tap routing, token rotation, permission denial, registration
+revocation, and relay outage isolation. Android has no background message
+handler, so a suspended Android phone still waits for the reconnect backstop;
+only iOS clears while asleep.
+
+RC2 — retiring the notification-relay QR path — is gated on that matrix.
 
 ### WATCH6: Dismiss A Resolved Interaction On The Phone
 
@@ -1846,7 +1929,8 @@ Verification evidence:
 
 Next action:
 - None. WATCH4's signed-build App Group check remains the only open Watch
-  verification item; WATCH5 remains blocked on a push approval contract.
+  verification item. (WATCH5's push approval contract was defined and deployed
+  on 2026-09-09; that milestone is `current`, not blocked.)
 
 ### WATCH9: Goal State On The Wrist
 
@@ -2048,9 +2132,14 @@ file, shell, and git approvals cannot arise on iOS, "the watch's approval path
 therefore serves a desktop-driven turn". The intent is written down; the wiring
 is not there. Fix the wiring, then fix the sentence.
 
-This is not WATCH5. WATCH5 is blocked because no *push* carries an approval.
-This path needs no push: the client holds a live WebSocket while connected and
-the approval arrives on it. The notification is raised locally, and iOS
+This is not WATCH5. WATCH5 was blocked because no *push* carried an approval;
+it no longer is, as of 2026-09-09. This path needs no push: the client holds a
+live WebSocket while connected and the approval arrives on it.
+
+Read "while connected" strictly. The 2026-09-09 device check found that an iOS
+app loses the socket within seconds of being backgrounded, so this path covers
+the foreground and nothing else — which is why WATCH5 was reopened rather than
+left closed by this one. The notification is raised locally, and iOS
 forwards it and its actions to the paired watch with no watchOS code involved
 — the same mechanism WATCH1 already relies on.
 
@@ -2274,8 +2363,10 @@ Added 2026-09-05, withdrawn 2026-09-06 — the goal:
 - Against it, three things and one alternative. The evidence rule that keeps
   WATCH12 `later` applies here too, and harder: the goal screen has never once
   run on iOS, so there is no usage at all to argue from. The cost is a goal
-  field on the Remote Coding wire, which is the same privacy-boundary change
-  that blocks WATCH5. And confirming completion closes a goal that may not be
+  field on the Remote Coding wire, which was then the same privacy-boundary
+  change that blocked WATCH5. (WATCH5 made its own on 2026-09-09, by carrying an
+  allow-listed kind and a boolean rather than any prose; a goal field would not
+  get off that lightly.) And confirming completion closes a goal that may not be
   done, from the surface with the least context — the screen's own comment
   calls that "confirming blind".
 - The alternative costs nothing new: **questions now reach the wrist** (WATCH11,

@@ -34,8 +34,14 @@ final class RemoteCodingTerminalNotificationDeliveryReport {
   };
 }
 
-final class RemoteCodingTerminalNotificationDeliveryService {
-  RemoteCodingTerminalNotificationDeliveryService({
+/// Signs and retries one notification to each eligible paired device.
+///
+/// Indifferent to which notification shape it carries: the transport, the
+/// HMAC signing, the eligibility window and the retry policy are the same
+/// for a run completion and for a blocked-turn notice, and keeping them the
+/// same is why adding the second shape did not reopen any of them.
+final class RemoteCodingRelayNotificationDeliveryService {
+  RemoteCodingRelayNotificationDeliveryService({
     required this.repository,
     required this.relayClient,
     required this.clock,
@@ -53,7 +59,7 @@ final class RemoteCodingTerminalNotificationDeliveryService {
   final RemoteCodingNotificationRetryDelay retryDelay;
 
   Future<RemoteCodingTerminalNotificationDeliveryReport> deliver({
-    required RemoteCodingNotificationPayload notification,
+    required RemoteCodingRelayNotification notification,
     required List<RemoteCodingPairedDevice> devices,
   }) async {
     final now = clock().toUtc();
@@ -81,7 +87,7 @@ final class RemoteCodingTerminalNotificationDeliveryService {
 
   Future<bool> _deliverToDevice({
     required RemoteCodingPairedDevice device,
-    required RemoteCodingNotificationPayload notification,
+    required RemoteCodingRelayNotification notification,
   }) async {
     final deliveryHandle = device.relayDeliveryHandle;
     final deliveryKeyId = device.relayDeliveryKeyId;

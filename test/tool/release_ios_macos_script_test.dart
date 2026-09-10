@@ -37,6 +37,73 @@ void main() {
   });
 
   test(
+    'passes build provenance and environment defines to the iOS build',
+    () async {
+      final fixture = _ReleaseScriptFixture.create();
+      fixture.writeFvmEchoArguments();
+      final definesFile = File('${fixture.root.path}/dart_defines.json')
+        ..writeAsStringSync(
+          '{"CAVERNO_NOTIFICATION_RELAY_URL":"https://relay.example"}',
+        );
+
+      final result = await fixture.runReleaseScript(
+        arguments: [
+          '--only',
+          'ios',
+          '--no-pub-get',
+          '--ios-export-root',
+          '${fixture.root.path}/ios-export',
+        ],
+        environment: {'CAVERNO_DART_DEFINES_FILE': definesFile.path},
+      );
+
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('--dart-define=CAVERNO_BUILD_COMMIT='));
+      expect(result.stdout, contains('--dart-define=CAVERNO_BUILD_DIRTY='));
+      expect(result.stdout, contains('--dart-define=CAVERNO_BUILD_TIME='));
+      expect(
+        result.stdout,
+        contains('--dart-define-from-file=${definesFile.path}'),
+      );
+    },
+  );
+
+  for (final debugDefines in [false, true]) {
+    test(
+      'blocks iOS build when defines are ${debugDefines ? 'unsafe' : 'missing'}',
+      () async {
+        final fixture = _ReleaseScriptFixture.create();
+        fixture.writeFvmEchoArguments();
+        final definesFile = File('${fixture.root.path}/release defines.json');
+        if (debugDefines) {
+          definesFile.writeAsStringSync(
+            '{"CAVERNO_FIREBASE_APP_CHECK_DEBUG":true}',
+          );
+        }
+
+        final result = await fixture.runReleaseScript(
+          arguments: [
+            '--only',
+            'ios',
+            '--no-pub-get',
+            '--ios-export-root',
+            '${fixture.root.path}/ios-export',
+          ],
+          environment: {
+            'CAVERNO_DART_DEFINES_FILE': definesFile.path,
+            'CAVERNO_ALLOW_MISSING_DART_DEFINES': '0',
+          },
+        );
+
+        expect(result.exitCode, 1);
+        expect(result.stdout, contains('iOS: failed'));
+        expect(result.stdout, isNot(contains('FVM_EXECUTED')));
+        expect(result.stdout, isNot(contains('build ipa')));
+      },
+    );
+  }
+
+  test(
     'reports partial failure when iOS export emits failure marker with zero exit',
     () async {
       final fixture = _ReleaseScriptFixture.create();
@@ -230,6 +297,14 @@ for ((i = 1; i <= $#; i++)); do
   fi
 done
 exit 0
+''');
+  }
+
+  void writeFvmEchoArguments() {
+    _writeExecutable('fvm', r'''
+#!/usr/bin/env bash
+echo FVM_EXECUTED
+printf '%s\n' "$@"
 ''');
   }
 

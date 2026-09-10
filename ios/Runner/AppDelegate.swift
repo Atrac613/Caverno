@@ -54,9 +54,8 @@ import FoundationModels
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
     let actionIdentifier = response.actionIdentifier
-    let payload = response.notification.request.content.userInfo["payload"]
-      as? String
-    if let payload, !payload.isEmpty,
+    let userInfo = response.notification.request.content.userInfo
+    if let payload = Self.approvalPayload(from: userInfo), !payload.isEmpty,
       actionIdentifier != UNNotificationDefaultActionIdentifier,
       actionIdentifier != UNNotificationDismissActionIdentifier
     {
@@ -70,6 +69,77 @@ import FoundationModels
       didReceive: response,
       withCompletionHandler: completionHandler
     )
+  }
+
+
+  /// Takes down an approval notification the desktop has stopped waiting on.
+  ///
+  /// The whole point is that this runs when nothing else can. A request
+  /// answered on the desktop while the phone is suspended leaves a lock-screen
+  /// notification whose buttons resolve nothing, and the phone has no socket,
+  /// no snapshot and no running Dart to notice — the withdrawal has to arrive
+  /// as a push, and it has to be handled here.
+  ///
+  /// Deliberately does not call `super` for this kind. Nothing in Dart needs
+  /// it, and not waking the Flutter engine avoids the headless-launch crash
+  /// class that a background notification action already cost us once.
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    guard
+      userInfo["kind"] as? String == "remote_coding_approval_resolved",
+      let approvalId = userInfo["approvalId"] as? String,
+      !approvalId.isEmpty
+    else {
+      super.application(
+        application,
+        didReceiveRemoteNotification: userInfo,
+        fetchCompletionHandler: completionHandler
+      )
+      return
+    }
+    NotificationActionPlugin.withdrawDeliveredApproval(approvalId) {
+      completionHandler(.newData)
+    }
+  }
+
+  /// The JSON string Dart decodes, whichever kind of notification carried the
+  /// press.
+  ///
+  /// A local notification stores it under `userInfo["payload"]`, because that
+  /// is where `flutter_local_notifications` puts it. A push has no such key:
+  /// FCM spreads the relay's data fields across `userInfo` itself, so reading
+  /// only `payload` dropped every Approve and Deny pressed on a pushed
+  /// approval. The button appeared to do nothing but open the app, and the
+  /// person then answered the same request a second time in the sheet.
+  ///
+  /// Rebuilding the local shape here keeps one payload contract on the channel
+  /// rather than teaching the Dart side two.
+  static func approvalPayload(from userInfo: [AnyHashable: Any]) -> String? {
+    if let payload = userInfo["payload"] as? String, !payload.isEmpty {
+      return payload
+    }
+    guard
+      userInfo["kind"] as? String == "remote_coding_approval_requested",
+      let approvalId = userInfo["approvalId"] as? String,
+      !approvalId.isEmpty
+    else {
+      return nil
+    }
+    let rebuilt: [String: String] = [
+      "kind": "approval_required",
+      "conversationId": (userInfo["conversationId"] as? String) ?? "",
+      "approvalId": approvalId,
+    ]
+    guard
+      let data = try? JSONSerialization.data(withJSONObject: rebuilt),
+      let json = String(data: data, encoding: .utf8)
+    else {
+      return nil
+    }
+    return json
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
@@ -100,6 +170,22 @@ enum NotificationActionPlugin {
       binaryMessenger: registrar.messenger()
     )
     channel.setMethodCallHandler { call, result in
+      if call.method == "withdrawPushedApproval" {
+        let approvalId = (call.arguments as? [String: Any])?["approvalId"]
+          as? String
+        guard let approvalId, !approvalId.isEmpty else {
+          result(false)
+          return
+        }
+        withdrawDeliveredApproval(approvalId) { result(true) }
+        return
+      }
+      if call.method == "withdrawPushedApprovals" {
+        let keep = (call.arguments as? [String: Any])?["keepApprovalId"]
+          as? String
+        withdrawPushedApprovals(keeping: keep, result: result)
+        return
+      }
       guard call.method == "takePendingActions" else {
         result(FlutterMethodNotImplemented)
         return
@@ -112,6 +198,67 @@ enum NotificationActionPlugin {
       result(drainPending())
     }
     self.channel = channel
+  }
+
+
+  /// Removes delivered approval pushes other than [keep].
+  ///
+  /// `flutter_local_notifications` cannot: its `cancel` removes by a stringified
+  /// integer id it wrote into `userInfo`, and a push has no such key — the
+  /// identifier is APNs'. So an approval answered while the phone was asleep
+  /// left its notification on the lock screen with nothing able to take it
+  /// down, presenting a decision that no longer exists.
+  ///
+  /// Matches on `userInfo["approvalId"]`, which only the relay's approval
+  /// payload carries, so local notifications and run-completion pushes are
+  /// left alone.
+  static func withdrawPushedApprovals(
+    keeping keep: String?,
+    result: @escaping FlutterResult
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.getDeliveredNotifications { delivered in
+      let stale = delivered.compactMap { notification -> String? in
+        let info = notification.request.content.userInfo
+        guard let approvalId = info["approvalId"] as? String,
+          !approvalId.isEmpty,
+          approvalId != keep
+        else {
+          return nil
+        }
+        return notification.request.identifier
+      }
+      if !stale.isEmpty {
+        center.removeDeliveredNotifications(withIdentifiers: stale)
+      }
+      DispatchQueue.main.async { result(stale.count) }
+    }
+  }
+
+  /// Removes the delivered notification for exactly [approvalId].
+  ///
+  /// The identifier APNs assigned is not something the sender knows, so the
+  /// delivered list has to be searched by the `approvalId` the payload carries.
+  static func withdrawDeliveredApproval(
+    _ approvalId: String,
+    completion: @escaping () -> Void
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.getDeliveredNotifications { delivered in
+      let matching = delivered.compactMap { notification -> String? in
+        let info = notification.request.content.userInfo
+        guard let delivered = info["approvalId"] as? String,
+          delivered == approvalId
+        else {
+          return nil
+        }
+        return notification.request.identifier
+      }
+      if !matching.isEmpty {
+        center.removeDeliveredNotifications(withIdentifiers: matching)
+      }
+      completion()
+    }
   }
 
   static func send(actionIdentifier: String, payload: String) {

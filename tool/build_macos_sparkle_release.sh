@@ -543,6 +543,16 @@ if [[ "${SKIP_BUILD}" != "yes" ]]; then
   if [[ -n "${BUILD_NUMBER}" ]]; then
     build_args+=(--build-number "${BUILD_NUMBER}")
   fi
+  # Environment-owned Firebase defines (relay origin). Required here: the
+  # desktop is the side that sends push, so a release missing them delivers
+  # nothing while every other check stays green.
+  source "${ROOT_DIR}/tool/caverno_dart_defines.sh"
+  caverno_load_build_provenance_define_args "${ROOT_DIR}"
+  caverno_load_dart_define_args "${ROOT_DIR}" require
+  build_args+=("${CAVERNO_BUILD_DART_DEFINE_ARGS[@]}")
+  if [[ ${#CAVERNO_DART_DEFINE_ARGS[@]} -gt 0 ]]; then
+    build_args+=("${CAVERNO_DART_DEFINE_ARGS[@]}")
+  fi
   run "${build_args[@]}"
 fi
 

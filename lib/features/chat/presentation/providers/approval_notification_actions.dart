@@ -69,10 +69,90 @@ void _apply(Ref ref, NotificationActionEvent action) {
     );
     return;
   }
+  if (client.host != null && !client.isConnected) {
+    // The push case. A notification that reached a suspended phone is answered
+    // before anything has reconnected, so there is no pending approval here to
+    // match against — the socket that would carry one is down. Connect and
+    // send the id; the desktop re-checks it against its own pending list and
+    // that device's grant, and records a refusal if either has moved on, so
+    // sending an id we cannot verify locally resolves nothing we should not.
+    appLog(
+      '[ApprovalNotification] ${action.approvalId} arrived while '
+      'disconnected; reconnecting to answer it',
+    );
+    unawaited(_resolveAfterReconnect(ref, action));
+    return;
+  }
   // A stale id fails where it can be seen rather than resolving whatever else
   // happens to be pending.
   appLog(
     '[ApprovalNotification] no pending approval owns '
     '${action.approvalId}; the request was already resolved or withdrawn.',
   );
+}
+
+/// How long a pushed answer waits for the socket to bring the approval back.
+///
+/// Measured on a device: the press reached Dart 5ms after the action, the
+/// snapshot carrying the approval arrived 253ms later, and the connection
+/// finished at 450ms. Checking `isConnected` straight after `connectSavedHost`
+/// returned gave up 25ms before the approval landed, every time — the method
+/// returns once the connect is under way, not once it has completed.
+const Duration _pushedApprovalArrivalTimeout = Duration(seconds: 15);
+
+Future<void> _resolveAfterReconnect(
+  Ref ref,
+  NotificationActionEvent action,
+) async {
+  final notifier = ref.read(remoteCodingClientProvider.notifier);
+  try {
+    await notifier.connectSavedHost(automatic: true);
+  } catch (error) {
+    appLog(
+      '[ApprovalNotification] reconnect to answer ${action.approvalId} '
+      'failed: $error',
+    );
+    return;
+  }
+  // Wait for the approval itself rather than for the connection. It is the
+  // stronger condition: it proves the desktop still holds this request and
+  // still shows it to this device, so an approval answered elsewhere while
+  // the phone was asleep simply never arrives and nothing is sent.
+  if (!await _awaitPendingApproval(ref, action.approvalId)) {
+    // Say so rather than dropping it. The desktop is still blocked, and the
+    // person pressed a button that appeared to do something.
+    appLog(
+      '[ApprovalNotification] ${action.approvalId} did not come back over the '
+      'socket; it was not answered. Open Caverno to resolve it.',
+    );
+    return;
+  }
+  appLog(
+    '[ApprovalNotification] ${action.approvalId} sent to the desktop after '
+    'reconnecting (approved=${action.isApprove})',
+  );
+  await notifier.resolveApproval(
+    approvalId: action.approvalId,
+    approved: action.isApprove,
+  );
+}
+
+/// Whether [approvalId] became the client's pending approval before the
+/// deadline.
+Future<bool> _awaitPendingApproval(
+  Ref ref,
+  String approvalId, {
+  Duration timeout = _pushedApprovalArrivalTimeout,
+  Duration interval = const Duration(milliseconds: 50),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (true) {
+    if (!ref.mounted) return false;
+    if (ref.read(remoteCodingClientProvider).pendingApproval?.id ==
+        approvalId) {
+      return true;
+    }
+    if (!DateTime.now().isBefore(deadline)) return false;
+    await Future<void>.delayed(interval);
+  }
 }

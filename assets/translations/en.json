@@ -1631,7 +1631,10 @@
     "model_routing_log_analysis": "Run log analysis",
     "model_routing_log_analysis_desc": "Turns failure blocks from a running app into issues. Runs while you exercise the app, so a fast model suits it better than a strong one.",
     "composer_shortcuts": "Composer shortcut buttons",
-    "composer_shortcuts_desc": "Suggest next-step buttons above the composer after each answer. Uses one small extra model call per turn."
+    "composer_shortcuts_desc": "Suggest next-step buttons above the composer after each answer. Uses one small extra model call per turn.",
+    "logging_share_files": "Share log files",
+    "logging_share_empty": "Nothing to share yet.",
+    "logging_share_failed": "Could not share the logs: {error}"
   },
   "routines": {
     "title": "Routines",

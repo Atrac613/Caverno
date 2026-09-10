@@ -48,7 +48,7 @@ final class RemoteCodingMobileNotificationState {
   final RemoteCodingMobileNotificationStatus status;
   final String? message;
   final RemoteCodingNotificationPayload? lastForegroundNotification;
-  final RemoteCodingNotificationPayload? pendingNotificationTap;
+  final RemoteCodingRelayNotification? pendingNotificationTap;
 
   bool get isEnabled => status == RemoteCodingMobileNotificationStatus.enabled;
   bool get canRetry =>
@@ -63,7 +63,7 @@ final class RemoteCodingMobileNotificationState {
     RemoteCodingMobileNotificationStatus? status,
     String? message,
     RemoteCodingNotificationPayload? lastForegroundNotification,
-    RemoteCodingNotificationPayload? pendingNotificationTap,
+    RemoteCodingRelayNotification? pendingNotificationTap,
     bool clearMessage = false,
     bool clearPendingNotificationTap = false,
   }) {
@@ -163,6 +163,7 @@ final class RemoteCodingMobileNotificationNotifier
           next.supportsNotificationRelaySetup) {
         unawaited(enableAfterPairing());
       }
+      _sweepPushedApprovals(next);
     });
     ref.listen<RemoteCodingNotificationPayload?>(
       remoteCodingClientProvider.select(
@@ -527,8 +528,22 @@ final class RemoteCodingMobileNotificationNotifier
 
   Future<void> _recordForegroundMessage(Map<String, dynamic> data) async {
     try {
-      final notification = RemoteCodingNotificationPayload.fromFcmData(data);
-      await _presentNotificationOnce(notification);
+      final notification = parseRemoteCodingRelayNotification(data);
+      switch (notification) {
+        case RemoteCodingNotificationPayload():
+          await _presentNotificationOnce(notification);
+        case RemoteCodingApprovalNotificationPayload():
+          // Foreground and pushed means the socket is down while the app is
+          // open — the push outran a reconnect. Restore the socket and let the
+          // existing snapshot path decide between the sheet and a local
+          // notification; raising one from the push would race it.
+          await _reconnectForApproval(notification);
+        case RemoteCodingApprovalWithdrawalPayload():
+          // The foreground half of the withdrawal. iOS handles the suspended
+          // case natively in `AppDelegate`, before Dart exists; this covers an
+          // app that happens to be open, and is the only path Android has.
+          await _withdrawResolvedApproval(notification.approvalId);
+      }
     } on FormatException {
       // Ignore messages outside the frozen Remote Coding notification contract.
     }
@@ -619,6 +634,89 @@ final class RemoteCodingMobileNotificationNotifier
       !ref.read(appLifecycleServiceProvider).isInBackground;
 
   static const int _maxRememberedApprovalIds = 128;
+
+  /// Takes down pushed approval notifications the desktop no longer holds.
+  ///
+  /// Separate from [_withdrawApprovalNotification], which cancels what this
+  /// process raised and keyed by conversation. A push that arrived while the
+  /// app was not running is in neither record, and on iOS the plugin cannot
+  /// even address it.
+  /// Takes down the notification for one approval the desktop has resolved.
+  ///
+  /// Keyed by the id the withdrawal push names rather than by what this process
+  /// remembers raising: the notification being removed was very often raised by
+  /// a process that no longer exists.
+  /// The last (connected, live approval) pair a sweep was run for.
+  ///
+  /// The listener that drives the sweep fires on every field of the client
+  /// state, and each sweep is a platform-channel round trip.
+  (bool, String?)? _lastSweptApprovalState;
+
+  /// Clears pushed approval notifications the desktop is no longer holding.
+  ///
+  /// The backstop behind the withdrawal push, for a silent push iOS chose not
+  /// to deliver. Reaching a phone whose process was gone when the approval
+  /// resolved is the push's job; this catches up whenever the socket comes
+  /// back.
+  ///
+  /// Gated on `isConnected`, which is the whole correctness condition. An
+  /// empty `pendingApproval` means "the desktop is not waiting" only while
+  /// there is a socket to have heard that on: a blip clears it too, and
+  /// sweeping then takes down the notification for a request that is still
+  /// live and still blocking the desktop.
+  ///
+  /// Runs on the connection edge as well as on approval changes. Sweeping only
+  /// when `pendingApproval` *changes* was the original defect: a phone that was
+  /// suspended while the desktop resolved the request comes back to null before
+  /// and null after, so the listener never fired and the notification stayed.
+  void _sweepPushedApprovals(RemoteCodingClientState clientState) {
+    final observed = (clientState.isConnected, clientState.pendingApproval?.id);
+    if (_lastSweptApprovalState == observed) {
+      return;
+    }
+    _lastSweptApprovalState = observed;
+    if (!clientState.isConnected) {
+      return;
+    }
+    unawaited(_withdrawStalePushedApprovals(clientState.pendingApproval?.id));
+  }
+
+  Future<void> _withdrawResolvedApproval(String approvalId) async {
+    try {
+      await _notificationService.withdrawPushedApproval(approvalId);
+      await _withdrawApprovalNotification(approvalId);
+      appLog(
+        '[RemoteCodingNotifications] withdrew the pushed notification for '
+        '$approvalId; the desktop resolved it',
+      );
+    } catch (error) {
+      appLog(
+        '[RemoteCodingNotifications] withdrawing the pushed notification for '
+        '$approvalId failed: $error',
+      );
+    }
+  }
+
+  Future<void> _withdrawStalePushedApprovals(String? keepApprovalId) async {
+    try {
+      final removed = await _notificationService.withdrawStalePushedApprovals(
+        keepApprovalId: keepApprovalId,
+      );
+      if (removed > 0) {
+        appLog(
+          '[RemoteCodingNotifications] withdrew $removed pushed approval '
+          'notification(s) the desktop no longer holds',
+        );
+      }
+    } catch (error) {
+      // Best effort: a lingering notification is a wart, not a failure worth
+      // propagating into the session.
+      appLog(
+        '[RemoteCodingNotifications] withdrawing stale pushed approvals '
+        'failed: $error',
+      );
+    }
+  }
 
   Future<void> _withdrawApprovalNotification(String approvalId) async {
     _suppressedApproval = null;
@@ -767,12 +865,49 @@ final class RemoteCodingMobileNotificationNotifier
 
   void _recordNotificationTap(Map<String, dynamic> data) {
     try {
-      final notification = RemoteCodingNotificationPayload.fromFcmData(data);
+      final notification = parseRemoteCodingRelayNotification(data);
       if (ref.mounted) {
         state = state.copyWith(pendingNotificationTap: notification);
       }
+      if (notification is RemoteCodingApprovalNotificationPayload) {
+        // The desktop is blocked right now. Reconnecting is what puts the
+        // approval back in reach: the snapshot carries it, the sheet opens,
+        // and Approve/Deny resolve against live state rather than against a
+        // notification the person may have been holding for an hour.
+        unawaited(_reconnectForApproval(notification));
+      }
     } on FormatException {
       // Ignore messages outside the frozen Remote Coding notification contract.
+    }
+  }
+
+  /// Brings the socket back so a pushed approval can be answered.
+  ///
+  /// A push is delivered precisely when the app is not running, so nothing has
+  /// reconnected on its own. Without this the person taps the notification,
+  /// lands in the app, and sees no approval at all.
+  Future<void> _reconnectForApproval(
+    RemoteCodingApprovalNotificationPayload notification,
+  ) async {
+    final client = ref.read(remoteCodingClientProvider);
+    if (client.isConnected) {
+      return;
+    }
+    appLog(
+      '[RemoteCodingNotifications] reconnecting for pushed approval '
+      '${notification.approvalId}',
+    );
+    try {
+      await ref
+          .read(remoteCodingClientProvider.notifier)
+          .connectSavedHost(automatic: true);
+    } catch (error) {
+      // The sheet is unreachable, but the desktop is still blocked and the
+      // person can retry from the app. Never throw out of a notification tap.
+      appLog(
+        '[RemoteCodingNotifications] reconnect for a pushed approval '
+        'failed: $error',
+      );
     }
   }
 
