@@ -295,6 +295,34 @@ class ToolCallExecutionPolicy {
     return error.contains('timed out');
   }
 
+  /// Whether [result] is the tool refusing the request, not a command that ran
+  /// and failed.
+  ///
+  /// A malformed argument is rejected before anything is spawned, so there is
+  /// no exit status to judge. Callers that grade command outcomes must skip
+  /// these: a rejection reported as a non-zero exit is indistinguishable from
+  /// a real failure, and in session 9174dbd1 one such rejection marked every
+  /// success claim in the turn unverified for the rest of the session.
+  bool toolResultRejectedBeforeExecution(ToolResultInfo result) {
+    if (!isCommandExecutionTool(result.name)) {
+      return false;
+    }
+    final decoded = tryDecodeMap(result.result);
+    if (decoded == null) {
+      return false;
+    }
+    if (decoded['executed'] == false) {
+      return true;
+    }
+    return _rejectedBeforeExecutionCodes.contains(
+      decoded['code']?.toString().trim().toLowerCase(),
+    );
+  }
+
+  static const Set<String> _rejectedBeforeExecutionCodes = {
+    'command_rejected_before_execution',
+  };
+
   String? toolResultErrorText(ToolResultInfo result) {
     final decoded = tryDecodeMap(result.result);
     return decoded?['error']?.toString();

@@ -77,6 +77,42 @@ void main() {
       );
     });
 
+    test('a command refused before execution is not a failed command', () {
+      final mutation = service.replaceFailedCommandClaim(
+        _assistantMessages('The release completed successfully.'),
+        [
+          _toolResult('git_execute_command', {
+            'command': 'git tag --list | head -20',
+            'executed': false,
+            'code': 'command_rejected_before_execution',
+            'error': 'The operator "|" is not supported.',
+          }),
+        ],
+      );
+
+      expect(mutation, isNull);
+    });
+
+    test('a refusal neither clears nor restates an earlier failure', () {
+      final mutation = service.replaceFailedCommandClaim(
+        _assistantMessages('The release completed successfully.'),
+        [
+          _toolResult('local_execute_command', {
+            'exit_code': 1,
+            'stderr': 'Release failed.',
+          }),
+          _toolResult('git_execute_command', {
+            'executed': false,
+            'code': 'command_rejected_before_execution',
+            'error': 'The operator "|" is not supported.',
+          }),
+        ],
+      );
+
+      expect(mutation, isNotNull);
+      expect(mutation!.messages.last.content, contains('exit code 1'));
+    });
+
     test('does not emit a transform when no visible message changes', () {
       final mutation = service.replaceFailedCommandClaim(
         _assistantMessages('The command still needs to be run.'),

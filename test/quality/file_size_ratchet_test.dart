@@ -60,7 +60,13 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 40,
-  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 76,
+  // +1 for a ToolResultOrigin declaration, on the same grounds as the eight
+  // entries further down: the marker cannot be extracted anywhere, because
+  // being at the producer is the whole point. This one was found by the
+  // instrument rather than by reading code -- the most frequent undeclared
+  // code in the twelve days after it landed. See HEU3 in
+  // docs/text_heuristic_inventory.md.
+  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 77,
   'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 44,
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,

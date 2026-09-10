@@ -13,6 +13,11 @@ void main() {
       expect(ToolResultOrigin.jsonKey, 'result_origin');
       expect(ToolResultOrigin.harness.wireValue, 'harness');
       expect(ToolResultOrigin.refusal.wireValue, 'refusal');
+      expect(ToolResultOrigin.malformed.wireValue, 'malformed');
+      // A value added here and not added to ORIGIN_VALUES in the Python tool
+      // is counted as undeclared, which reads as "a tool ran and failed" --
+      // exactly the confusion this contract exists to remove.
+      expect(ToolResultOrigin.values, hasLength(3));
     });
 
     test('marker spreads into a payload without disturbing its other keys', () {
@@ -23,14 +28,13 @@ void main() {
         'error': 'blocked',
       };
 
-      final decoded =
-          jsonDecode(jsonEncode(payload)) as Map<String, dynamic>;
+      final decoded = jsonDecode(jsonEncode(payload)) as Map<String, dynamic>;
       expect(decoded['code'], 'example_blocked');
       expect(decoded['error'], 'blocked');
       expect(decoded[ToolResultOrigin.jsonKey], 'refusal');
     });
 
-    test('an undeclared payload reads as null, not as either origin', () {
+    test('an undeclared payload reads as null, not as any origin', () {
       // The point of the contract. Absence has to stay distinguishable from
       // both answers, or the reader is guessing again -- see ToolOutcome,
       // where an absent outcome means "unknown" and never "succeeded".
@@ -57,7 +61,7 @@ void main() {
       }
     });
 
-    test('round-trips both declared origins', () {
+    test('round-trips every declared origin', () {
       for (final origin in ToolResultOrigin.values) {
         expect(ToolResultOrigin.fromPayload(origin.marker), origin);
       }

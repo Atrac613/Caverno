@@ -198,7 +198,11 @@ void main() {
       );
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
 
-      expect(decoded['exit_code'], 2);
+      // No exit code: git never ran, and reporting one made the final-answer
+      // notice service treat the refusal as a failed release command.
+      expect(decoded.containsKey('exit_code'), isFalse);
+      expect(decoded['executed'], isFalse);
+      expect(decoded['code'], 'command_rejected_before_execution');
       expect(decoded['error'], contains('one git subcommand'));
       expect(decoded['error'], contains('&&'));
     });
@@ -223,7 +227,8 @@ void main() {
         final decoded = jsonDecode(raw) as Map<String, dynamic>;
         final error = decoded['error'] as String;
 
-        expect(decoded['exit_code'], 2);
+        expect(decoded.containsKey('exit_code'), isFalse);
+        expect(decoded['code'], 'command_rejected_before_execution');
         // The model must learn to filter with git's own arguments rather than
         // blindly retrying the unfiltered command, which is what caused the
         // observed `tag --list` inspection loop.
@@ -875,11 +880,10 @@ void main() {
         projectRoot: project.path,
       );
       final payload = jsonDecode(execution.result) as Map<String, dynamic>;
-      final status = await Process.run(
-        'git',
-        ['status', '--porcelain'],
-        workingDirectory: sibling.path,
-      );
+      final status = await Process.run('git', [
+        'status',
+        '--porcelain',
+      ], workingDirectory: sibling.path);
 
       expect(execution.isSuccess, isFalse);
       expect(payload['code'], 'project_mutation_outside_root');
@@ -966,11 +970,10 @@ void main() {
         projectRoot: project.path,
       );
       final payload = jsonDecode(execution.result) as Map<String, dynamic>;
-      final status = await Process.run(
-        'git',
-        ['status', '--porcelain'],
-        workingDirectory: sibling.path,
-      );
+      final status = await Process.run('git', [
+        'status',
+        '--porcelain',
+      ], workingDirectory: sibling.path);
 
       expect(execution.isSuccess, isFalse);
       expect(payload['code'], 'git_repository_relocation_blocked');

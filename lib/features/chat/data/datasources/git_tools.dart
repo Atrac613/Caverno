@@ -409,7 +409,8 @@ class GitTools {
     final dir = Directory(authorizedWorkingDirectory);
     if (!dir.existsSync()) {
       return _failureExecution({
-        'error': 'Working directory does not exist: $authorizedWorkingDirectory',
+        'error':
+            'Working directory does not exist: $authorizedWorkingDirectory',
       });
     }
 
@@ -418,10 +419,18 @@ class GitTools {
       return _failureExecution({'error': 'Empty git command'});
     }
     if (shellOperator != null) {
+      // No `exit_code`: git is never spawned, so there is no exit status to
+      // report. Session 9174dbd1 shows what inventing one costs — a rejected
+      // `tag --list ... | head -20` reported `exit_code: 2`, the final-answer
+      // notice service read that as a failed command, and the notice it
+      // prepended ("treat the command as failed") stayed in the persisted
+      // assistant message for three more turns of a release that was fine.
       return _failureExecution({
         'command': 'git $normalizedCommand',
         'working_directory': authorizedWorkingDirectory,
-        'exit_code': 2,
+        ...ToolResultOrigin.malformed.marker,
+        'executed': false,
+        'code': 'command_rejected_before_execution',
         'error':
             'git_execute_command accepts one git subcommand per tool call and '
             'runs it without a shell, so the operator "$shellOperator" (pipes, '

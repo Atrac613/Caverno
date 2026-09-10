@@ -41,7 +41,26 @@ enum ToolResultOrigin {
   ///
   /// No tool ran because a permission, scope or safety rule said no. This is
   /// the population "the turn attempted something and was stopped" means.
-  refusal('refusal');
+  refusal('refusal'),
+
+  /// The tool could not accept the call as written.
+  ///
+  /// Nothing about authority: the arguments were the problem, and rewriting
+  /// them is the whole remedy. `git_execute_command` refusing a piped command
+  /// is the canonical case — git is never spawned, the model reissues the
+  /// command with git's own filtering arguments, and the turn continues.
+  ///
+  /// Separate from [refusal] because the two answer different questions. A
+  /// refusal rate says how often the user's rules stopped work; folding
+  /// syntax retries into it inflates that rate with something no rule caused.
+  /// The pipe rejection alone was the most frequent `git_execute_command`
+  /// error in the twelve days to 2026-09-11 (7 of 109 results), so this is not
+  /// a rounding error in either direction.
+  ///
+  /// Separate from "undeclared" because a producer exists and knows. Undeclared
+  /// means a tool ran and failed on its own terms, with nobody to declare
+  /// anything.
+  malformed('malformed');
 
   const ToolResultOrigin(this.wireValue);
 

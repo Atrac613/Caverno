@@ -2513,7 +2513,10 @@ packages:
       final decoded = jsonDecode(result.result) as Map<String, dynamic>;
       expect(result.isSuccess, isFalse);
       expect(result.errorMessage, contains('one git subcommand'));
-      expect(decoded['exit_code'], 2);
+      // The refusal carries no exit code: git never ran. The failure reaches
+      // callers through isSuccess and errorMessage instead.
+      expect(decoded.containsKey('exit_code'), isFalse);
+      expect(decoded['code'], 'command_rejected_before_execution');
     });
 
     test('preserves ordered Computer Use definitions and placement', () {

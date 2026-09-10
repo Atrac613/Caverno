@@ -177,7 +177,10 @@ final class FinalAnswerMessageNoticeService {
             'process_status',
             'process_wait',
           }.contains(name) ||
-          _executionPolicy.toolResultTimedOut(result)) {
+          _executionPolicy.toolResultTimedOut(result) ||
+          // A refused argument never reached a shell, so it neither fails the
+          // turn's claims nor clears an earlier failure.
+          _executionPolicy.toolResultRejectedBeforeExecution(result)) {
         continue;
       }
       final exitCode = _executionPolicy.toolResultExitCode(result).exitCode;

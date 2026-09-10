@@ -2,11 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/chat_turn_owner_required_tool_result.dart';
+import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/data/datasources/project_mutation_path_fence.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart';
 import 'package:caverno/features/chat/domain/services/goal_validation_probe_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release_blocked_result.dart';
@@ -82,6 +85,15 @@ const _producers = <String, ToolResultOrigin>{
   'lib/features/chat/data/datasources/project_read_tool_authorizer.dart':
       ToolResultOrigin.refusal,
   'lib/core/services/browser_session_service.dart': ToolResultOrigin.refusal,
+  // Found the same way, 2026-09-11: the Anabasis parent boundary was the most
+  // frequent undeclared code in the twelve days after the instrument landed
+  // (8 of 15), and it is unambiguously a refusal.
+  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart':
+      ToolResultOrigin.refusal,
+  // Malformed: the arguments were the problem, not the user's rules. Counting
+  // a syntax retry as a refusal is what `malformed` exists to prevent.
+  'lib/features/chat/data/datasources/git_tools.dart':
+      ToolResultOrigin.malformed,
 };
 
 ToolResultOrigin? _originOf(String payload) =>
@@ -226,6 +238,40 @@ void main() {
       expect(_codeOf(result!.result), SavedTaskTargetScopeGuard.blockedCode);
       expect(_originOf(result.result), ToolResultOrigin.refusal);
     });
+
+    test('a mutation by the Anabasis parent is a refusal', () {
+      final result = const AnabasisParentAuthorityGuard().evaluate(
+        ToolCallInfo(
+          id: 'call-1',
+          name: 'write_file',
+          arguments: const {'path': 'index.html', 'content': 'x\n'},
+        ),
+        executingRole: ModelUsageRole.anabasisParent,
+      );
+
+      expect(result, isNotNull);
+      expect(_codeOf(result!.result), AnabasisParentAuthorityGuard.refusedCode);
+      expect(_originOf(result.result), ToolResultOrigin.refusal);
+    });
+
+    test('a git command carrying a shell operator is malformed', () async {
+      // Not a refusal: no rule forbade the command, git simply runs without a
+      // shell. Counting it as one would inflate every "was stopped" rate --
+      // this was the most frequent git error in the measured corpus.
+      final tempDir = await Directory.systemTemp.createTemp('origin_git_');
+      addTearDown(() async {
+        if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+      });
+
+      final payload = await GitTools.execute(
+        command: 'tag --list | head -20',
+        workingDirectory: tempDir.path,
+        projectRoot: tempDir.path,
+      );
+
+      expect(_codeOf(payload), 'command_rejected_before_execution');
+      expect(_originOf(payload), ToolResultOrigin.malformed);
+    });
   });
 
   group('declaration retention', () {
@@ -247,20 +293,21 @@ void main() {
       expect(missing, isEmpty, reason: 'producers without a declaration');
     });
 
-    test('no producer declares both origins', () {
-      // A file emitting both would make the marker ambiguous per site rather
+    test('no producer declares more than one origin', () {
+      // A file emitting two would make the marker ambiguous per site rather
       // than per payload, which is the drift the shared registry is meant to
       // prevent. Split the file instead of widening this test.
       for (final entry in _producers.entries) {
         final source = File(entry.key).readAsStringSync();
-        final other = entry.value == ToolResultOrigin.harness
-            ? ToolResultOrigin.refusal
-            : ToolResultOrigin.harness;
-        expect(
-          source.contains('ToolResultOrigin.${other.name}.marker'),
-          isFalse,
-          reason: '${entry.key} declares both origins',
-        );
+        final others = ToolResultOrigin.values
+            .where((origin) => origin != entry.value)
+            .where(
+              (origin) =>
+                  source.contains('ToolResultOrigin.${origin.name}.marker'),
+            )
+            .map((origin) => origin.name)
+            .toList();
+        expect(others, isEmpty, reason: '${entry.key} also declares $others');
       }
     });
   });

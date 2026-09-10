@@ -49,7 +49,7 @@ RESULT_MARKER = "\nResult:\n"
 # literals because this script is stdlib-only and never runs Dart; the
 # contract test asserts the same three strings on the producer side.
 ORIGIN_KEY = "result_origin"
-ORIGIN_VALUES = ("harness", "refusal")
+ORIGIN_VALUES = ("harness", "refusal", "malformed")
 
 
 def log_dir() -> pathlib.Path:

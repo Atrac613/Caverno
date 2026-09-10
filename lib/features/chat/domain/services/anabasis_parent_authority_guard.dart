@@ -60,6 +60,7 @@ final class AnabasisParentAuthorityGuard {
       toolName: toolCall.name,
       result: jsonEncode({
         'ok': false,
+        ...ToolResultOrigin.refusal.marker,
         'code': refusedCode,
         'effect': effect.name,
         'error':
