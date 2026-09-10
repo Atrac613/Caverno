@@ -19,13 +19,12 @@ import '../../domain/services/qwen38_request_thinking_policy.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
+import 'chat_datasource_client_factory.dart';
 import 'chat_message_payload_formatter.dart';
 import 'chat_request_logger.dart';
 import 'chat_response_telemetry.dart';
 import 'chat_tool_result_message_formatter.dart';
-import 'qwen38_request_policy_client.dart';
 import 'reasoning_tagged_stream_assembler.dart';
-import 'video_content_part_client.dart';
 import 'video_delivery_ledger.dart';
 
 export '../../domain/entities/chat_completion_terminal_metadata.dart';
@@ -66,7 +65,7 @@ class ChatRemoteDataSource
     VideoAttachmentResolver? videoAttachmentResolver,
     this.defaultTopP,
   }) : _videoAttachmentResolver = videoAttachmentResolver,
-       _qwen38RequestPolicy = Qwen38RequestThinkingPolicy(
+       _qwen38RequestPolicy = ChatDataSourceClientFactory.thinkingPolicy(
          reasoningEffort: reasoningEffort,
          enableThinking: enableThinking,
        ),
@@ -83,26 +82,15 @@ class ChatRemoteDataSource
            apiKey: apiKey ?? ApiConstants.defaultApiKey,
          ),
          defaultHeaders: ApiConstants.userAgentHeaders,
-         // Both clients are wrapped: video parts are written into the JSON
-         // body, so a stream path left unwrapped would silently drop the
-         // attachment and answer blind.
-         httpClient: VideoContentPartClient(
-           delegate: Qwen38RequestPolicyClient(
-             delegate: httpClient ?? http.Client(),
-             policy: Qwen38RequestThinkingPolicy(
-               reasoningEffort: reasoningEffort,
-               enableThinking: enableThinking,
-             ),
-           ),
+         httpClient: ChatDataSourceClientFactory.wrap(
+           httpClient ?? http.Client(),
+           reasoningEffort: reasoningEffort,
+           enableThinking: enableThinking,
          ),
-         streamClientFactory: () => VideoContentPartClient(
-           delegate: Qwen38RequestPolicyClient(
-             delegate: streamClientFactory?.call() ?? http.Client(),
-             policy: Qwen38RequestThinkingPolicy(
-               reasoningEffort: reasoningEffort,
-               enableThinking: enableThinking,
-             ),
-           ),
+         streamClientFactory: () => ChatDataSourceClientFactory.wrap(
+           streamClientFactory?.call() ?? http.Client(),
+           reasoningEffort: reasoningEffort,
+           enableThinking: enableThinking,
          ),
        );
 

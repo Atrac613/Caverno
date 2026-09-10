@@ -1,22 +1,9 @@
 import '../../../settings/domain/entities/app_settings.dart';
+import 'model_switch_settings_comparison.dart';
+
+export 'model_switch_settings_comparison.dart';
 
 // ChatNotifier decomposition collaborator: model-switch-settings-policy
-
-final class ModelSwitchSettingsComparison {
-  const ModelSwitchSettingsComparison({
-    required this.previousRouteId,
-    required this.nextRouteId,
-    required this.routeChanged,
-    required this.previousPrimaryModelForPreparation,
-    required this.shouldRebuildDataSource,
-  });
-
-  final String previousRouteId;
-  final String nextRouteId;
-  final bool routeChanged;
-  final String? previousPrimaryModelForPreparation;
-  final bool shouldRebuildDataSource;
-}
 
 final class ModelSwitchSettingsPolicy {
   const ModelSwitchSettingsPolicy();

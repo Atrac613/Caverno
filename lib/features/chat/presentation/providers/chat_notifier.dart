@@ -4613,7 +4613,9 @@ class ChatNotifier extends Notifier<ChatState> {
     required int interactionGeneration,
     void Function()? onBlockingFeedbackPrepared,
   }) async {
-    if (!_looksLikeBackgroundProcessCompletionClaim(candidateResponse)) {
+    if (!_terminalToolResponsePolicy.looksLikeBackgroundProcessCompletionClaim(
+      candidateResponse,
+    )) {
       return null;
     }
     final owner = _turnOwnerForGeneration(interactionGeneration);
@@ -4965,64 +4967,6 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
     return jobIds.toSet().toList(growable: false);
-  }
-
-  bool _looksLikeBackgroundProcessCompletionClaim(String response) {
-    final candidate = response.trim();
-    if (candidate.isEmpty) {
-      return false;
-    }
-    final normalized = candidate.toLowerCase();
-    if (_containsAny(normalized, const [
-      'not complete',
-      'not completed',
-      'not done',
-      'still running',
-      'still in progress',
-      'waiting',
-      'pending',
-      'not yet',
-      'unverified',
-      'failed',
-      'failure',
-      'error',
-      'non-zero',
-      'nonzero',
-      'exit code 1',
-      'exit code 2',
-      'exit code 64',
-      'exit code 65',
-    ])) {
-      return false;
-    }
-    if (CodeUnitTextScan.containsAny(candidate, const [
-      [0x5931, 0x6557],
-      [0x30a8, 0x30e9, 0x30fc],
-      [0x7570, 0x5e38, 0x7d42, 0x4e86],
-    ])) {
-      return false;
-    }
-    return _terminalToolResponsePolicy.hiddenAssistantEvidenceScore(
-              candidate,
-            ) >=
-            2 ||
-        _containsAny(normalized, const [
-          'complete',
-          'completed',
-          'done',
-          'finished',
-          'succeeded',
-          'successful',
-          'passed',
-          'released',
-          'uploaded',
-          'deployed',
-        ]) ||
-        CodeUnitTextScan.containsAny(candidate, const [
-          [0x5b8c, 0x4e86],
-          [0x6210, 0x529f],
-          [0x7d42, 0x4e86],
-        ]);
   }
 
   List<String> _changedFileMutationCallPaths(

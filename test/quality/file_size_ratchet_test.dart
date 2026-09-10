@@ -56,7 +56,7 @@ const Map<String, int> _lineBudgets = {
   // on one path out of three.
   // -20: the memory-update display tag and named-skill lookup are string
   // work with no notifier state.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8723,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8681,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 40,
@@ -70,7 +70,8 @@ const Map<String, int> _lineBudgets = {
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
   'lib/features/chat/domain/services/content_tool_formatters.dart': 2,
-  'lib/features/chat/domain/services/content_tool_failure_result_formatter.dart': 64,
+  'lib/features/chat/domain/services/content_tool_failure_result_formatter.dart':
+      64,
   'lib/features/chat/domain/services/running_tool_tracker.dart': 31,
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
   'lib/features/chat/domain/services/ask_user_question_option_parser.dart': 99,
@@ -94,7 +95,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/git_tool_handler.dart': 315,
   'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart':
       449,
-  'lib/features/chat/domain/services/goal_auto_continue_decision_types.dart': 67,
+  'lib/features/chat/domain/services/goal_auto_continue_decision_types.dart':
+      67,
   // +4 for the assumption-confirmation blocker: one constructor parameter,
   // one field, and the two lines mapping it through. ANA0's kind reached
   // neither this boundary nor the veto behind it, so a goal with
@@ -228,7 +230,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/context_surgery_protected_path_policy.dart':
       20,
   'lib/features/chat/domain/services/model_switch_handoff_registry.dart': 89,
-  'lib/features/chat/domain/services/model_switch_settings_policy.dart': 71,
+  'lib/features/chat/domain/services/model_switch_settings_policy.dart': 59,
+  'lib/features/chat/domain/services/model_switch_settings_comparison.dart': 28,
   'lib/features/chat/domain/services/request_tool_observation_collector.dart':
       116,
   'lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart':
@@ -458,7 +461,7 @@ const Map<String, int> _lineBudgets = {
   // that would only move an import somewhere it does not belong.
   // -2: project directory picking moved to coding_project_picker.dart so the
   // macOS NSOpenPanel path is not inlined on the page.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1855,
+  'lib/features/chat/presentation/pages/chat_page.dart': 1798,
   'lib/features/chat/presentation/widgets/plan/task_precondition_notice.dart':
       57,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
@@ -682,7 +685,8 @@ const Map<String, int> _lineBudgets = {
   // tool-result ones, and the response/tool-result previews into three
   // log sites. One assembler, one formatter method, and two logger
   // methods now own them.
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1129,
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1121,
+  'lib/features/chat/data/datasources/chat_datasource_client_factory.dart': 37,
   // -23: embedded tool-call recovery moved to
   // chat_completion_embedded_tool_call_parser.dart, which owns both the tagged
   // forms and the advertised-name gate that makes recovering an untagged call
@@ -903,7 +907,7 @@ const Map<String, int> _libraryLineBudgets = {
   // keeping a chain of its own.
   // The merged task-plan retry extraction reduces the aggregate to 19,712.
   // -5: memory-update tag rendering and named-skill lookup left the library.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19695,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19662,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
@@ -939,7 +943,7 @@ const Map<String, int> _libraryLineBudgets = {
   // two permissions -- leaving for workflow_task_menu_items.dart.
   // -2 matching the primary file: project directory picking left this library
   // for coding_project_picker.dart.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8605,
+  'lib/features/chat/presentation/pages/chat_page.dart': 8596,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1143,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

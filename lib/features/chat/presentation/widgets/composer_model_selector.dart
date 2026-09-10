@@ -76,8 +76,28 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
           onOpen: () => unawaited(_loadModels(settings)),
           menuChildren: [
             _buildModelSubmenu(theme, settings, selectedModel),
-            _buildEffortSubmenu(theme, settings, effortLabel),
-            _buildThinkingSubmenu(theme, settings),
+            ComposerChoiceSubmenu<ReasoningEffortPreference>(
+              title: Text('message.reasoning_effort_menu_label'.tr()),
+              values: ReasoningEffortPreference.values,
+              selected: settings.reasoningEffort,
+              labelOf: messageInputReasoningEffortLabel,
+              onSelected: (value) => unawaited(
+                ref
+                    .read(settingsNotifierProvider.notifier)
+                    .updateReasoningEffort(value),
+              ),
+            ),
+            ComposerChoiceSubmenu<bool?>(
+              title: const Text('enable_thinking'),
+              values: const <bool?>[null, true, false],
+              selected: settings.enableThinking,
+              labelOf: _thinkingLabel,
+              onSelected: (value) => unawaited(
+                ref
+                    .read(settingsNotifierProvider.notifier)
+                    .updateEnableThinking(value),
+              ),
+            ),
           ],
           builder: (context, controller, _) => InkWell(
             borderRadius: BorderRadius.circular(12),
@@ -150,62 +170,6 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
               ),
             ],
       child: Text('message.model_menu_label'.tr()),
-    );
-  }
-
-  Widget _buildThinkingSubmenu(ThemeData theme, AppSettings settings) {
-    String label(bool? value) => switch (value) {
-      null => 'Auto',
-      true => 'On',
-      false => 'Off',
-    };
-    return SubmenuButton(
-      trailingIcon: buildComposerSubmenuValue(
-        theme,
-        label(settings.enableThinking),
-      ),
-      menuChildren: [
-        for (final value in <bool?>[null, true, false])
-          MenuItemButton(
-            leadingIcon: buildComposerMenuCheckIcon(
-              theme,
-              settings.enableThinking == value,
-            ),
-            onPressed: () => unawaited(
-              ref
-                  .read(settingsNotifierProvider.notifier)
-                  .updateEnableThinking(value),
-            ),
-            child: Text(label(value)),
-          ),
-      ],
-      child: const Text('enable_thinking'),
-    );
-  }
-
-  Widget _buildEffortSubmenu(
-    ThemeData theme,
-    AppSettings settings,
-    String effortLabel,
-  ) {
-    return SubmenuButton(
-      trailingIcon: buildComposerSubmenuValue(theme, effortLabel),
-      menuChildren: [
-        for (final value in ReasoningEffortPreference.values)
-          MenuItemButton(
-            leadingIcon: buildComposerMenuCheckIcon(
-              theme,
-              settings.reasoningEffort == value,
-            ),
-            onPressed: () => unawaited(
-              ref
-                  .read(settingsNotifierProvider.notifier)
-                  .updateReasoningEffort(value),
-            ),
-            child: Text(messageInputReasoningEffortLabel(value)),
-          ),
-      ],
-      child: Text('message.reasoning_effort_menu_label'.tr()),
     );
   }
 
@@ -287,3 +251,10 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     );
   }
 }
+
+/// Tri-state thinking preference: `null` means the model's own default.
+String _thinkingLabel(bool? value) => switch (value) {
+  null => 'Auto',
+  true => 'On',
+  false => 'Off',
+};

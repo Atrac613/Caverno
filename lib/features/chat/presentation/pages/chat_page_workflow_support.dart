@@ -945,3 +945,68 @@ const List<_WorkflowQuickAction> _workflowQuickActions = [
     promptKey: 'chat.workflow_quick_review_prompt',
   ),
 ];
+
+/// Presentation lookups the page reads straight through to
+/// [WorkflowStatusPresentation].
+///
+/// They stay as members so call sites keep reading as page state, but they
+/// carry no page state of their own, so they do not belong in the class body.
+extension _ChatPageWorkflowStatusLabels on _ChatPageState {
+  String _workflowProjectionStatusLabelKey(Conversation currentConversation) =>
+      WorkflowStatusPresentation.workflowProjectionStatusLabelKey(
+        currentConversation,
+      );
+
+  String _planDocumentEditLabelKey(
+    Conversation currentConversation, {
+    required bool isPlanMode,
+  }) => WorkflowStatusPresentation.planDocumentEditLabelKey(
+    currentConversation,
+    isPlanMode: isPlanMode,
+  );
+
+  String _planDocumentHeaderEditTooltipKey(
+    Conversation currentConversation, {
+    required bool isPlanMode,
+  }) => WorkflowStatusPresentation.planDocumentHeaderEditTooltipKey(
+    currentConversation,
+    isPlanMode: isPlanMode,
+  );
+
+  Color _workflowProjectionStatusColor(
+    BuildContext context,
+    Conversation currentConversation,
+  ) => WorkflowStatusPresentation.workflowProjectionStatusColor(
+    context,
+    currentConversation,
+  );
+
+  String _workflowStageLabel(ConversationWorkflowStage stage) =>
+      WorkflowStatusPresentation.workflowStageLabel(stage);
+
+  String _workflowTaskStatusLabel(ConversationWorkflowTaskStatus status) =>
+      WorkflowStatusPresentation.workflowTaskStatusLabel(status);
+
+  String _workflowValidationStatusLabel(
+    ConversationExecutionValidationStatus status,
+  ) => WorkflowStatusPresentation.workflowValidationStatusLabel(status);
+
+  String _workflowTaskEventSummary(
+    BuildContext context,
+    ConversationExecutionTaskEvent event,
+  ) => WorkflowStatusPresentation.workflowTaskEventSummary(context, event);
+
+  String _planDocumentDiffEntryLabel(
+    BuildContext context,
+    ConversationPlanTaskDiffEntry entry,
+  ) => WorkflowStatusPresentation.planDocumentDiffEntryLabel(context, entry);
+
+  Color _workflowTaskStatusColor(
+    BuildContext context,
+    ConversationWorkflowTaskStatus status,
+  ) => WorkflowStatusPresentation.workflowTaskStatusColor(context, status);
+
+  ConversationWorkflowStage? _recommendedWorkflowStage(
+    ConversationWorkflowStage stage,
+  ) => WorkflowStatusPresentation.recommendedWorkflowStage(stage);
+}

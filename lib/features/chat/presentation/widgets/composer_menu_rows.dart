@@ -26,3 +26,43 @@ Widget buildComposerMenuCheckIcon(ThemeData theme, bool checked) {
     color: theme.colorScheme.primary,
   );
 }
+
+/// A composer submenu offering mutually exclusive values for one setting.
+///
+/// The selected value is named on the parent row and checked in the list, so
+/// the current setting is readable without opening the submenu. Every such menu
+/// in the composer is this widget: the reasoning-effort and thinking rows were
+/// two copies of the same twenty lines, and the second one drifted in first.
+class ComposerChoiceSubmenu<T> extends StatelessWidget {
+  const ComposerChoiceSubmenu({
+    required this.title,
+    required this.values,
+    required this.selected,
+    required this.labelOf,
+    required this.onSelected,
+    super.key,
+  });
+
+  final Widget title;
+  final List<T> values;
+  final T selected;
+  final String Function(T value) labelOf;
+  final void Function(T value) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SubmenuButton(
+      trailingIcon: buildComposerSubmenuValue(theme, labelOf(selected)),
+      menuChildren: [
+        for (final value in values)
+          MenuItemButton(
+            leadingIcon: buildComposerMenuCheckIcon(theme, value == selected),
+            onPressed: () => onSelected(value),
+            child: Text(labelOf(value)),
+          ),
+      ],
+      child: title,
+    );
+  }
+}
