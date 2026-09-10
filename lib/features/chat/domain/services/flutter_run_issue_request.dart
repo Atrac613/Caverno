@@ -31,7 +31,11 @@ class FlutterRunIssueRequest {
             'False only when the excerpt contains no actual failure at all',
       },
     },
-    'required': ['title', 'cause', 'severity'],
+    // Strict structured output requires every property to be listed here, so
+    // the two optional-in-spirit fields are carried by their own empty value:
+    // location may come back as '', and isFailure defaults to true for a block
+    // the toolchain already framed as a failure.
+    'required': ['title', 'cause', 'severity', 'location', 'isFailure'],
   };
 
   static String prompt(FlutterRunLogCandidate candidate) {
