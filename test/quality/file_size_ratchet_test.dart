@@ -660,6 +660,11 @@ const Map<String, int> _lineBudgets = {
   // public recovery API, which moved next to the registry internals it settles.
   'lib/features/chat/data/datasources/background_process_tools.dart': 415,
   'lib/features/chat/data/datasources/background_process_carry_over.dart': 141,
+  // Carried-job retention is one policy read by two pools -- the tools registry
+  // and the monitor service -- so it lives beside them rather than twice inside
+  // them.
+  'lib/features/chat/data/datasources/carried_background_job_retention.dart':
+      36,
   // The snapshot is a value, not behaviour, and three callers read it without
   // touching polling.
   'lib/features/chat/data/datasources/background_process_monitor_service.dart':

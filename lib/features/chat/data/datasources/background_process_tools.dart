@@ -9,6 +9,7 @@ import '../../../../core/utils/logger.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import 'background_process_tools_legacy_api.dart';
 import 'background_process_types.dart';
+import 'carried_background_job_retention.dart';
 import 'first_party_tool_execution_result.dart';
 import 'local_shell_tools.dart';
 
@@ -49,8 +50,8 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   final Map<String, _ResolvedBackgroundProcessRecovery> _resolvedRecoveries =
       {};
 
-  /// Still-running jobs whose starting turn has ended, by conversation.
-  /// See [BackgroundProcessCarryOver] for why they survive it.
+  /// Jobs whose starting turn has ended, by conversation. See
+  /// [BackgroundProcessCarryOver] for why they survive it.
   final Map<String, Map<String, _CarriedBackgroundProcessJob>> _carriedJobs =
       {};
   final Random _random = Random.secure();
@@ -331,15 +332,14 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   bool isOwnerRetired(ChatTurnOwner owner) =>
       _disposed || _retiredOwners.contains(owner);
 
-  /// Retires [owner]. A retired turn stays retired, but its still-running jobs
-  /// are carried for the conversation rather than killed; see
-  /// [BackgroundProcessCarryOver].
+  /// Retires [owner]. A retired turn stays retired, but its jobs are carried
+  /// for the conversation rather than killed; see [BackgroundProcessCarryOver].
   Future<void> clearOwner({required ChatTurnOwner owner}) {
     _retiredOwners.add(owner);
     final state = _ownerStates[owner];
     if (state == null) return Future<void>.value();
     state.markRetired();
-    _carryRunningJobs(owner, state);
+    _carryJobs(owner, state);
     return state.retirement ??= _retireState(owner, state);
   }
 
@@ -350,7 +350,7 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   Future<void> clearConversation({required String conversationId}) =>
       _terminateCarriedJobs(conversationId: conversationId);
 
-  /// Job IDs still running from an earlier turn of the owner's conversation.
+  /// Job IDs carried from an earlier turn of the owner's conversation.
   ///
   /// Reporting, not adoption: these are what the next reference would adopt.
   List<String> carriedJobIds({required ChatTurnOwner owner}) {

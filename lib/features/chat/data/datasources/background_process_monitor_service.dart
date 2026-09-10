@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../../domain/entities/chat_turn_owner.dart';
 import 'background_process_monitor_snapshot.dart';
 import 'background_process_tools.dart';
+import 'carried_background_job_retention.dart';
 
 export 'background_process_monitor_snapshot.dart';
 
@@ -44,11 +45,12 @@ class BackgroundProcessMonitorService {
   final Set<ChatTurnOwner> _pollingOwners = {};
   final Set<ChatTurnOwner> _retiredOwners = {};
 
-  /// Snapshots of jobs still running when their owner retired, by conversation.
+  /// Snapshots of jobs carried past their owner's retirement, by conversation.
   ///
-  /// The mirror of `BackgroundProcessTools._carriedJobs`: the process survives
-  /// the turn, so the record of it has to as well, or `process_list` reports an
-  /// empty registry for a job that is very much alive.
+  /// The mirror of `BackgroundProcessTools._carriedJobs`: the job outlives the
+  /// turn, so the record of it has to as well, or `process_list` reports an
+  /// empty registry for a job that is very much alive, or that just finished.
+  /// [CarriedBackgroundJobRetention] holds how much of the latter is kept.
   final Map<String, Map<String, BackgroundProcessMonitorSnapshot>>
   _carriedSnapshots = {};
   bool _disposed = false;
@@ -215,22 +217,18 @@ class BackgroundProcessMonitorService {
     final snapshots = _snapshotsByOwner.remove(owner);
     _timersByOwner.remove(owner)?.cancel();
     _pollingOwners.remove(owner);
-    if (_disposed || snapshots == null) {
+    if (_disposed || snapshots == null || snapshots.isEmpty) {
       return;
     }
-    final running = {
-      for (final entry in snapshots.entries)
-        if (entry.value.isRunning) entry.key: entry.value,
-    };
-    if (running.isEmpty) {
-      return;
-    }
-    _carriedSnapshots
-        .putIfAbsent(
-          owner.conversationId,
-          () => <String, BackgroundProcessMonitorSnapshot>{},
-        )
-        .addAll(running);
+    final pool = _carriedSnapshots.putIfAbsent(
+      owner.conversationId,
+      () => <String, BackgroundProcessMonitorSnapshot>{},
+    )..addAll(snapshots);
+    CarriedBackgroundJobRetention.trim(
+      pool,
+      isRunning: (snapshot) => snapshot.isRunning,
+      startedAt: (snapshot) => snapshot.startedAt,
+    );
   }
 
   /// Drops the carried snapshots for a conversation that has ended.

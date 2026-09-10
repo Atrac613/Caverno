@@ -627,7 +627,7 @@ void main() {
       expect(monitor.byJobId(successor, 'job-a'), isNotNull);
     });
 
-    test('a finished job is not carried into the next turn', () async {
+    test('a job that finished in the last turn stays listable', () async {
       final owner = _owner('conversation-a', 1);
       final successor = _owner('conversation-a', 2);
       monitor.registerProcessStartResult(
@@ -643,7 +643,38 @@ void main() {
 
       monitor.clearOwner(owner);
 
-      expect(monitor.listJobs(successor), isEmpty);
+      final carried = monitor.listJobs(successor).single;
+      expect(carried.jobId, 'job-a');
+      expect(carried.exitCode, 0);
+      expect(monitor.activeSnapshots(successor), isEmpty);
+    });
+
+    test('only the most recent finished jobs are carried', () async {
+      final owner = _owner('conversation-a', 1);
+      final successor = _owner('conversation-a', 2);
+      for (var index = 0; index < 12; index++) {
+        monitor.registerProcessStartResult(
+          owner: owner,
+          result: _payload(
+            jobId: 'job-$index',
+            status: 'exited',
+            command: 'quick command $index',
+            startedAt: '2026-07-29T00:00:${index.toString().padLeft(2, '0')}Z',
+            exitCode: 0,
+          ),
+          arguments: {'working_directory': tempDir.path},
+        );
+      }
+
+      monitor.clearOwner(owner);
+
+      final carried = monitor
+          .listJobs(successor)
+          .map((snapshot) => snapshot.jobId)
+          .toList();
+      expect(carried, hasLength(8));
+      expect(carried, contains('job-11'));
+      expect(carried, isNot(contains('job-3')));
     });
 
     test('another conversation never inherits a carried job', () async {

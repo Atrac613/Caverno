@@ -453,6 +453,74 @@ void main() {
       await tools.cancel(owner: successor, jobId: jobId);
     });
 
+    test('a later turn can still read a job that finished in the last '
+        'one', () async {
+      final started =
+          jsonDecode(
+                await tools.start(
+                  owner: owner,
+                  command: 'echo release-done',
+                  workingDirectory: tempDir.path,
+                ),
+              )
+              as Map<String, dynamic>;
+      final jobId = started['job_id'] as String;
+      await tools.wait(owner: owner, jobId: jobId, waitMs: 15000);
+      final successor = ChatTurnOwner(
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration + 1,
+      );
+
+      await tools.clearOwner(owner: owner);
+
+      final adopted =
+          jsonDecode(await tools.status(owner: successor, jobId: jobId))
+              as Map<String, dynamic>;
+
+      expect(adopted['ok'], isTrue);
+      expect(adopted['status'], 'exited');
+      expect(adopted['exit_code'], 0);
+      expect(adopted['stdout_tail'], contains('release-done'));
+    });
+
+    test('a carried finished job does not fence its command', () async {
+      // Carrying skips _retireState, so the finished job never registers a
+      // recovery lease -- and the next turn can run the command again.
+      final first =
+          jsonDecode(
+                await tools.start(
+                  owner: owner,
+                  command: 'echo verify',
+                  workingDirectory: tempDir.path,
+                ),
+              )
+              as Map<String, dynamic>;
+      await tools.wait(
+        owner: owner,
+        jobId: first['job_id'] as String,
+        waitMs: 15000,
+      );
+      final successor = ChatTurnOwner(
+        conversationId: owner.conversationId,
+        interactionGeneration: owner.interactionGeneration + 1,
+      );
+
+      await tools.clearOwner(owner: owner);
+      final second =
+          jsonDecode(
+                await tools.start(
+                  owner: successor,
+                  command: 'echo verify',
+                  workingDirectory: tempDir.path,
+                ),
+              )
+              as Map<String, dynamic>;
+
+      expect(second['ok'], isTrue);
+      expect(second['job_id'], isNot(first['job_id']));
+      expect(second['duplicate_existing'], isNull);
+    });
+
     test('another conversation cannot adopt a carried job', () async {
       final started = await _startLongRunningJob(tools, owner, tempDir);
       final jobId = started['job_id'] as String;
@@ -514,7 +582,6 @@ void main() {
       final probe = await Process.run('/bin/kill', ['-0', '${started['pid']}']);
       expect(probe.exitCode, isNot(0));
     });
-
   });
 }
 

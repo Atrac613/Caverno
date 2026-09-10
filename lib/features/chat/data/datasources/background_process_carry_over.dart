@@ -1,6 +1,6 @@
 part of 'background_process_tools.dart';
 
-/// A running job and the turn that started it, held between owners.
+/// A carried job and the turn that started it, held between owners.
 final class _CarriedBackgroundProcessJob {
   const _CarriedBackgroundProcessJob({required this.owner, required this.job});
 
@@ -8,42 +8,42 @@ final class _CarriedBackgroundProcessJob {
   final _BackgroundProcessJob job;
 }
 
-/// Keeps a running process alive across the turn boundary.
+/// Keeps a background process, and its outcome, reachable across the turn
+/// boundary.
 ///
-/// A turn is not the lifetime of a background process. A release, a build, or
-/// a test run routinely outlives the turn that launched it, and session
-/// a00b77ce shows the cost of pretending otherwise: an approved production
-/// release was terminated 57 seconds in because the turn watching it failed on
-/// a rate limit, and the next turn could only report that no job existed.
-///
-/// Retirement therefore carries running jobs instead of killing them, and the
-/// next live owner of the *same conversation* adopts one on first reference.
-/// Adoption is per-conversation, never global: it must not hand one thread a
-/// job another thread started.
+/// A turn is not the lifetime of a background process: session a00b77ce
+/// terminated an approved production release 57 seconds in because the turn
+/// watching it hit a rate limit, and the next turn could only report that no
+/// job existed. Nor is a turn the lifetime of the process's *result* -- see
+/// [CarriedBackgroundJobRetention] for the half that cost session 9174dbd1.
+/// Retirement therefore carries jobs instead of killing them, and the next
+/// live owner of the *same conversation* adopts one on first reference, never
+/// another conversation's: it must not hand one thread a job another started.
 extension BackgroundProcessCarryOver on BackgroundProcessTools {
-  /// Moves the owner's still-running jobs out of retirement's reach.
-  ///
-  /// Called before `_retireState`, which terminates whatever is left in the
-  /// state. Exited jobs stay behind so their streams are disposed normally;
-  /// only live processes are worth carrying.
-  void _carryRunningJobs(ChatTurnOwner owner, _OwnerProcessState state) {
-    if (_disposed) return;
+  /// Moves the owner's jobs -- running, and the most recent finished -- out of
+  /// retirement's reach, before `_retireState` terminates what is left behind.
+  void _carryJobs(ChatTurnOwner owner, _OwnerProcessState state) {
+    if (_disposed || state.jobs.isEmpty) return;
+    final pool = _carriedJobs.putIfAbsent(
+      owner.conversationId,
+      () => <String, _CarriedBackgroundProcessJob>{},
+    );
     for (final job in state.jobs.values.toList(growable: false)) {
-      if (!job.isRunning) continue;
       state.jobs.remove(job.id);
-      _carriedJobs.putIfAbsent(
-        owner.conversationId,
-        () => <String, _CarriedBackgroundProcessJob>{},
-      )[job.id] = _CarriedBackgroundProcessJob(
-        owner: owner,
-        job: job,
-      );
+      pool[job.id] = _CarriedBackgroundProcessJob(owner: owner, job: job);
       appLog(
         '[BackgroundProcess] Carried ${job.id} (pid ${job.process.pid}) past '
-        'generation ${owner.interactionGeneration}; still running: '
+        'generation ${owner.interactionGeneration}; '
+        '${job.isRunning ? 'still running' : 'exited ${job.exitCode}'}: '
         '${job.command}',
       );
     }
+    CarriedBackgroundJobRetention.trim(
+      pool,
+      isRunning: (entry) => entry.job.isRunning,
+      startedAt: (entry) => entry.job.startedAt,
+      onEvicted: (entry) => unawaited(entry.job.dispose()),
+    );
   }
 
   _BackgroundProcessJob? _adoptCarriedJob(ChatTurnOwner owner, String jobId) {
@@ -116,7 +116,7 @@ extension BackgroundProcessCarryOver on BackgroundProcessTools {
       if (carried == null) continue;
       for (final entry in carried.values) {
         appLog(
-          '[BackgroundProcess] Terminating carried ${entry.job.id} '
+          '[BackgroundProcess] Releasing carried ${entry.job.id} '
           '(pid ${entry.job.process.pid}): ${entry.job.command}',
         );
         final state = _ownerStates.putIfAbsent(
