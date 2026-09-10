@@ -88,7 +88,7 @@ void main() {
         'original',
       );
       expect(catalog.toolNames, {'read_file'});
-      expect(() => module.handlers.clear(), throwsUnsupportedError);
+      expect(module.handlers.clear, throwsUnsupportedError);
       expect(() => catalog.toolNames.add('write_file'), throwsUnsupportedError);
     });
 

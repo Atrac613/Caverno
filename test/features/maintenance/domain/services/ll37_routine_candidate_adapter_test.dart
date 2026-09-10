@@ -92,7 +92,7 @@ void main() {
     final json = Map<String, dynamic>.from(
       jsonDecode(jsonEncode(_routine().toJson())) as Map,
     );
-    final runs = (json['runs'] as List<dynamic>);
+    final runs = json['runs'] as List<dynamic>;
     final run = Map<String, dynamic>.from(runs.single as Map)
       ..remove('objective')
       ..remove('objectiveAcceptanceCriteria')

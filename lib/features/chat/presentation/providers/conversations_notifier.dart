@@ -6,22 +6,21 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/services/attachment_storage_service.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
+import '../../data/repositories/conversation_listing_codec.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/conversation_repository_api.dart';
-import '../../data/repositories/conversation_listing_codec.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
-import 'conversation_semantic_index_sync.dart';
-import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_participant.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
-import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_attachment_paths.dart';
 import '../../domain/services/conversation_checkpoint_recorder.dart';
+import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_default_title.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_goal_progress_inference.dart';
@@ -30,6 +29,7 @@ import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import 'conversation_semantic_index_sync.dart';
 import 'conversations_state.dart';
 import 'mcp_tool_provider.dart';
 
@@ -51,7 +51,7 @@ typedef ConversationAttachmentCleanup =
 final conversationAttachmentCleanupProvider =
     Provider<ConversationAttachmentCleanup>(
       (ref) =>
-          (paths) => AttachmentStorageService.deleteOwnedAttachments(paths),
+          AttachmentStorageService.deleteOwnedAttachments,
     );
 
 /// Default title for new conversations (used as a sentinel for auto-title).

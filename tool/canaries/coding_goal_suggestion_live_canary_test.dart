@@ -1,11 +1,10 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const _japaneseMarkdownWeatherRequest =
     '\u6771\u4eac\u306e\u660e\u65e5\u306e\u5929\u6c17\u3092\u8abf\u3079\u3066\u30de\u30fc\u30af\u30c0\u30a6\u30f3\u5f62\u5f0f\u3067\u4fdd\u5b58\u3092';

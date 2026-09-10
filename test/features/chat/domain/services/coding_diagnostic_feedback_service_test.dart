@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/language_diagnostics_bridge.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('CodingDiagnosticFeedbackService', () {

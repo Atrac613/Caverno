@@ -541,6 +541,6 @@ Map<String, Object?> _deepCopy(Map<String, Object?> value) =>
     (jsonDecode(jsonEncode(value)) as Map).cast<String, Object?>();
 
 Map<String, Object?> _runCase(Map<String, Object?> run, String id) =>
-    ((run['cases'] as List).cast<Map>())
+    (run['cases'] as List).cast<Map>()
         .map((item) => item.cast<String, Object?>())
         .singleWhere((item) => item['caseId'] == id);

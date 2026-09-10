@@ -183,15 +183,15 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
   final List<List<String>> toolResultToolNames = [];
   final List<List<Message>> streamedRequestMessages = <List<Message>>[];
 
-  var initialRequests = 0;
-  var toolResultRequests = 0;
-  var streamedRequests = 0;
-  var completionRequests = 0;
+  int initialRequests = 0;
+  int toolResultRequests = 0;
+  int streamedRequests = 0;
+  int completionRequests = 0;
 
   /// Ambient compatibility reads stay poisoned: an owner-scoped turn must not
   /// consult shared completion state.
-  var finishReasonReads = 0;
-  var usageReads = 0;
+  int finishReasonReads = 0;
+  int usageReads = 0;
   TokenUsage _compatibilityUsage = TokenUsage.zero;
 
   @override

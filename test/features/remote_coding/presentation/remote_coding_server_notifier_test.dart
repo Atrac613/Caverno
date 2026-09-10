@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -21,11 +20,12 @@ import 'package:caverno/features/remote_coding/data/remote_coding_repository.dar
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_websocket_connector.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_resource_policy.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_session_policy.dart';
-import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

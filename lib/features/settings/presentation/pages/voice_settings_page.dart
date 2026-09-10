@@ -149,7 +149,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
             subtitle: Text('settings.auto_read_desc'.tr()),
             value: settings.autoReadEnabled,
             onChanged: settings.ttsEnabled
-                ? (value) => notifier.updateAutoReadEnabled(value)
+                ? notifier.updateAutoReadEnabled
                 : null,
           ),
           const SizedBox(height: 8),
@@ -164,7 +164,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
                   divisions: 20,
                   label: '${(settings.speechRate * 2).toStringAsFixed(1)}x',
                   onChanged: settings.ttsEnabled
-                      ? (value) => notifier.updateSpeechRate(value)
+                      ? notifier.updateSpeechRate
                       : null,
                 ),
               ),
@@ -179,7 +179,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
             title: Text('settings.voice_mode_auto_stop'.tr()),
             subtitle: Text('settings.voice_mode_auto_stop_desc'.tr()),
             value: settings.voiceModeAutoStop,
-            onChanged: (value) => notifier.updateVoiceModeAutoStop(value),
+            onChanged: notifier.updateVoiceModeAutoStop,
           ),
           const SizedBox(height: 16),
           TextFormField(

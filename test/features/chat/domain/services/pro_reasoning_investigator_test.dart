@@ -1,11 +1,10 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/pro_reasoning_investigator.dart';
 import 'package:caverno/features/chat/domain/services/pro_reasoning_models.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const investigator = ProReasoningInvestigator();

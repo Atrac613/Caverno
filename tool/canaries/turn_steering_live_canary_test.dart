@@ -27,12 +27,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
@@ -58,6 +52,11 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mocktail/mocktail.dart';
 
 const String _alphaPath = 'lib/alpha_note.txt';
 const String _betaPath = 'lib/beta_note.txt';

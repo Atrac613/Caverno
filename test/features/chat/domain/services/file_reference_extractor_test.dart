@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/file_reference_extractor.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FileReferenceExtractor', () {

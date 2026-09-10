@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/skill_markdown_parser.dart';
 import 'package:caverno/features/chat/domain/services/skill_prompt_index_builder.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('parses frontmatter and keeps full markdown body', () {

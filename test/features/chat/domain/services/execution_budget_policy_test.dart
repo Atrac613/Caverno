@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/execution_budget_policy.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = ExecutionBudgetPolicy(maxTotalExtension: 6);

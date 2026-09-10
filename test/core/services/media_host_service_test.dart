@@ -1,9 +1,8 @@
 import 'dart:io';
 
+import 'package:caverno/core/services/media_host_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/core/services/media_host_service.dart';
 
 /// The endpoint is on this machine, so every test binds loopback.
 final Uri _localEndpoint = Uri.parse('http://127.0.0.1:1234/v1');

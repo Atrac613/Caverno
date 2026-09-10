@@ -1,8 +1,7 @@
+import 'package:caverno/features/chat/presentation/widgets/message_video_poster.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
-
-import 'package:caverno/features/chat/presentation/widgets/message_video_poster.dart';
 
 /// Stands in for the platform player, which has no implementation under
 /// `flutter_test`.

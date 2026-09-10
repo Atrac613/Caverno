@@ -1,12 +1,11 @@
 import 'dart:io';
 
+import 'package:caverno/features/chat/data/datasources/app_database.dart';
+import 'package:caverno/features/chat/data/datasources/rag2_drift_schema.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
-
-import 'package:caverno/features/chat/data/datasources/app_database.dart';
-import 'package:caverno/features/chat/data/datasources/rag2_drift_schema.dart';
 
 void main() {
   late Directory tempDir;

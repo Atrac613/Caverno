@@ -1,10 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/services/tool_execution_scheduler.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(

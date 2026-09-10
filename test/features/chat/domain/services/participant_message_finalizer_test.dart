@@ -1,10 +1,9 @@
-import 'package:test/test.dart';
-
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/participant_message_finalizer.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
+import 'package:test/test.dart';
 
 void main() {
   const finalizer = ParticipantMessageFinalizer();
@@ -302,7 +301,7 @@ void main() {
         );
         expect(result.shouldUpdateVisibleState, isTrue);
         expect(result.visibleIsLoading, isFalse);
-        expect(() => result.messagesToSave.clear(), throwsUnsupportedError);
+        expect(result.messagesToSave.clear, throwsUnsupportedError);
       },
     );
 

@@ -8,10 +8,11 @@ import 'package:drift/native.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'rag2_drift_generation_store.dart';
-export 'rag2_drift_generation_store.dart';
 import 'rag2_explicit_source_roots_replay.dart';
 import 'rag2_persistence_reopen_replay.dart';
 import 'rag2_storage_replay.dart';
+
+export 'rag2_drift_generation_store.dart';
 
 const rag2DriftAdditiveReportSchema =
     'caverno_rag2_drift_additive_schema_report';

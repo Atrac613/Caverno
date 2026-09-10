@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_tokens.dart';
-import '../../../../core/types/app_theme_preference.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/widgets/settings_encryption_passphrase_dialog.dart';
 import '../providers/onboarding_notifier.dart';
@@ -105,8 +104,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       ),
       OnboardingStep.theme => OnboardingThemeStep(
         selected: settings.themePreference,
-        onSelect: (AppThemePreference preference) =>
-            settingsNotifier.updateThemePreference(preference),
+        onSelect: settingsNotifier.updateThemePreference,
       ),
       OnboardingStep.connect => const OnboardingConnectStep(),
       OnboardingStep.model => const OnboardingModelStep(),

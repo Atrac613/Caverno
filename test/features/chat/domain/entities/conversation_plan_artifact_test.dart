@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('recordRevision prepends new revisions and keeps history bounded', () {

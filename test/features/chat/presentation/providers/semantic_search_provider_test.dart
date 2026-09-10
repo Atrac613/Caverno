@@ -1,16 +1,15 @@
-import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository_api.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/presentation/providers/semantic_search_provider.dart';
-import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Minimal repository so the search service's lexical fallback can resolve
 /// without a Hive box.

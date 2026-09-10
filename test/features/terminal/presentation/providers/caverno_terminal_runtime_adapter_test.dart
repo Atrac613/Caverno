@@ -2,10 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
@@ -24,6 +20,9 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 import 'package:caverno/features/terminal/application/caverno_cli_arguments.dart';
 import 'package:caverno/features/terminal/application/caverno_cli_contract.dart';
 import 'package:caverno/features/terminal/presentation/providers/caverno_terminal_runtime_adapter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late ProviderContainer container;

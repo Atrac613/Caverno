@@ -591,7 +591,7 @@ void main() {
       final clearedA = coordinator.clearOwner(_ownerA);
 
       expect(clearedA.cleanupReceipts.single.sessionToken, sessionA.token);
-      expect(() => clearedA.cleanupReceipts.clear(), throwsUnsupportedError);
+      expect(clearedA.cleanupReceipts.clear, throwsUnsupportedError);
       expect(coordinator.activeSession(_ownerA), isNull);
       expect(coordinator.activeSession(_ownerB), same(sessionB));
       expect(

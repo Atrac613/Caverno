@@ -1,10 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/features/chat/data/datasources/parallel_slot_executor.dart';
 import 'package:caverno/features/chat/presentation/providers/parallel_slot_substrate_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test(

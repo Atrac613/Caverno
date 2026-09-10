@@ -54,7 +54,7 @@ void main() {
 
     test('host start maps a missing keychain entitlement to a supportable error', () {
       const exception =
-          "PlatformException(Unexpected security result code, Code: -34018, "
+          'PlatformException(Unexpected security result code, Code: -34018, '
           "Message: A required entitlement isn't present., -34018, null)";
       final message = RemoteCodingErrorPolicy.describeHostStartFailure(
         exception,
@@ -63,7 +63,7 @@ void main() {
       expect(message, contains('-34018'));
       expect(
         RemoteCodingErrorPolicy.describeHostStartFailure(
-          "PlatformException(Unexpected security result code, "
+          'PlatformException(Unexpected security result code, '
           "A required entitlement isn't present.)",
         ),
         isNot(contains('keychain-access-groups')),

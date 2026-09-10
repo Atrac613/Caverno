@@ -1,18 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/utils/logger.dart';
-import '../../application/runtime/caverno_execution_lease.dart';
-import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
-import 'coding_projects_notifier.dart';
-import 'turn_coding_project_resolver.dart';
+import '../../application/runtime/caverno_execution_lease.dart';
 import 'chat_notifier.dart';
+import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'mcp_tool_provider.dart';
+import 'turn_coding_project_resolver.dart';
 
 final cavernoRuntimeSurfaceProvider = Provider<CavernoRuntimeSurface>(
   (ref) => CavernoRuntimeSurface.flutterGui,

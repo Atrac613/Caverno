@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
@@ -17,6 +15,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_projecti
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'plan_mode_execution_progress.dart';
 import 'plan_mode_heartbeat.dart';

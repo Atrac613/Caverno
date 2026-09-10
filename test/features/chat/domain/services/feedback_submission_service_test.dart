@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/domain/services/feedback_submission_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FeedbackSubmissionService', () {

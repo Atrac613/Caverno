@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const commands = <SlashCommandDefinition>[

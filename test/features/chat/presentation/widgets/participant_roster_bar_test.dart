@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/participant_roster_bar.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();

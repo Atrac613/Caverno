@@ -2,12 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
@@ -16,11 +10,11 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
-import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
@@ -31,6 +25,11 @@ import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.d
 import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mocktail/mocktail.dart';
 
 // ---------------------------------------------------------------------------
 // Test doubles (mirrors of the helpers in chat_notifier_test.dart, trimmed to
@@ -361,7 +360,7 @@ ProviderContainer _buildContainer({
   when(() => conversationBox.delete(any())).thenAnswer((invocation) async {
     conversationStorage.remove(invocation.positionalArguments[0]);
   });
-  when(() => conversationBox.clear()).thenAnswer((_) async {
+  when(conversationBox.clear).thenAnswer((_) async {
     final deleted = conversationStorage.length;
     conversationStorage.clear();
     return deleted;

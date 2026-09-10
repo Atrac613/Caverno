@@ -28,7 +28,7 @@ class _CapturingNotifier extends PersonalEvalCasesNotifier {
   String? capturedPrompt;
   String? capturedRepoRef;
   PersonalEvalVerificationResult? capturedResult;
-  var recordCount = 0;
+  int recordCount = 0;
 
   @override
   Future<List<PersonalEvalCase>> build() =>

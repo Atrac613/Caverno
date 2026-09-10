@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/html_preview_static_server.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory root;

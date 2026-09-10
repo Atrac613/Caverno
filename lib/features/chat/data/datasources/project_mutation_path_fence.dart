@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:path/path.dart' as p;
 
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/dart_project_tooling.dart';

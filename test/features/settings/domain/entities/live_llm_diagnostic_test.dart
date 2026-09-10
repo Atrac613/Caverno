@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('serializes effective-context trials in physical units', () {

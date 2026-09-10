@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:caverno/core/services/browser_session_service.dart';
 import 'package:caverno/core/services/browser_pinned_http_client.dart';
+import 'package:caverno/core/services/browser_session_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

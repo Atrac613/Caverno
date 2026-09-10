@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/conversation_search_tool.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 Conversation _conversation(
   String id, {

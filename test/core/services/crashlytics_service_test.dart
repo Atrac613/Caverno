@@ -1,9 +1,8 @@
 import 'dart:ui';
 
+import 'package:caverno/core/services/crashlytics_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/core/services/crashlytics_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

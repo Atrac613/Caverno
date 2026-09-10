@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/services/google_chat_delivery_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -10,6 +8,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/routines/data/routine_execution_service.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const _routinePrompt =
     'Run a LAN scan and save the detected device IP list to '

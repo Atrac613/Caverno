@@ -111,7 +111,7 @@ class _SshConnectApprovalSheetState extends State<SshConnectApprovalSheet> {
         minChildSize: 0.4,
         maxChildSize: 0.9,
         builder: (_, scrollController) {
-          return Container(
+          return DecoratedBox(
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
               borderRadius: const BorderRadius.vertical(
@@ -245,7 +245,7 @@ class _SshConnectApprovalSheetState extends State<SshConnectApprovalSheet> {
 
   Widget _rememberToggle(ThemeData theme) {
     final isKey = _authChoice == _AuthChoice.privateKey;
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),

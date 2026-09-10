@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/pending_action_length_recovery_policy.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = PendingActionLengthRecoveryPolicy();

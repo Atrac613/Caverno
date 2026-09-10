@@ -20,7 +20,7 @@ class _TestTranslationLoader extends AssetLoader {
 
 final class _SheetHarness {
   WorkflowTaskEditorSubmission? submission;
-  var completed = false;
+  bool completed = false;
 }
 
 const _existingTask = ConversationWorkflowTask(

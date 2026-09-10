@@ -31,12 +31,12 @@ class _CoordinatorConversationsNotifier extends ConversationsNotifier {
   final Conversation conversation;
   final bool refreshResult;
   final void Function()? onRefresh;
-  var enterPlanningCount = 0;
-  var exitPlanningCount = 0;
-  var planArtifactWriteCount = 0;
-  var workflowWriteCount = 0;
-  var refreshCount = 0;
-  var lastClearPlanArtifact = false;
+  int enterPlanningCount = 0;
+  int exitPlanningCount = 0;
+  int planArtifactWriteCount = 0;
+  int workflowWriteCount = 0;
+  int refreshCount = 0;
+  bool lastClearPlanArtifact = false;
   ConversationPlanArtifact? lastPlanArtifact;
   ConversationWorkflowStage? lastWorkflowStage;
   ConversationWorkflowSpec? lastWorkflowSpec;
@@ -127,7 +127,7 @@ class _CoordinatorConversationsNotifier extends ConversationsNotifier {
 }
 
 class _MountedState {
-  var value = true;
+  bool value = true;
 }
 
 class _CoordinatorHarness {
@@ -150,7 +150,7 @@ class _CoordinatorHarness {
   final _CoordinatorConversationsNotifier notifier;
   final _MountedState mountedState;
   late final PlanReviewActionCoordinator coordinator;
-  var dismissCount = 0;
+  int dismissCount = 0;
 
   Conversation get conversation =>
       container.read(conversationsNotifierProvider).currentConversation!;

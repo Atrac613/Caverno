@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/presentation/widgets/local_llm_health_section.dart';
 import 'package:caverno/features/settings/domain/entities/local_llm_health.dart';
 import 'package:caverno/features/settings/presentation/providers/local_llm_health_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/local_model_lifecycle_provider.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Reads the shipped translation files directly, so the strings under test are
 /// the ones the app renders rather than a fixture that can drift from them.

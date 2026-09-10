@@ -1,6 +1,6 @@
+import '../domain/remote_coding_models.dart';
 import 'remote_coding_protocol.dart';
 import 'remote_coding_terminal_notification_delivery.dart';
-import '../domain/remote_coding_models.dart';
 
 class RemoteCodingDiagnostics {
   const RemoteCodingDiagnostics._();

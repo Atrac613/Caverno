@@ -1097,7 +1097,7 @@ class ConversationPlanExecutionGuardrails {
         continue;
       }
       final normalizedResult = toolResult.result.toLowerCase();
-      if (normalizedResult.contains("no module named pytest") ||
+      if (normalizedResult.contains('no module named pytest') ||
           normalizedResult.contains("no module named 'pytest'") ||
           normalizedResult.contains('pytest: command not found') ||
           normalizedResult.contains('/pytest: not found')) {

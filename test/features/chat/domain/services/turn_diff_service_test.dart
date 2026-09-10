@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/chat/domain/services/turn_diff_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('TurnDiffService', () {

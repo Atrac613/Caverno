@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/terminal/presentation/caverno_cli_redactor.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('redacts configured and structured secret values', () {

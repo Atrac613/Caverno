@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_runtime_feedback_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   ModelCapabilityProfile profileWithMetadata(Map<String, String> metadata) {

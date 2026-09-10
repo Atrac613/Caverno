@@ -1,11 +1,10 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/features/chat/data/repositories/coding_project_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/terminal/application/caverno_cli_coding_project_repository.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late SharedPreferences preferences;

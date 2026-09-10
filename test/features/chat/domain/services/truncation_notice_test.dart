@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('TruncationNotice.withMaxTokenNotice', () {

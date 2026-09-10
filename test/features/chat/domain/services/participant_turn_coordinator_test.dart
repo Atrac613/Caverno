@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/participant_turn_coordinator.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const coordinator = ParticipantTurnCoordinator();

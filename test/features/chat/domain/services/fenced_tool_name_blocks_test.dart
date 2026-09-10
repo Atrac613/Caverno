@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/fenced_tool_name_blocks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FencedToolNameBlocks', () {

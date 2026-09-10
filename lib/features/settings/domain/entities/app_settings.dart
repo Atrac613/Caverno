@@ -1,7 +1,7 @@
 // ignore_for_file: invalid_annotation_target
 
-import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/app_theme_preference.dart';

@@ -1,10 +1,8 @@
 import 'dart:collection';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/google_chat_delivery_service.dart';
+import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -16,6 +14,7 @@ import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/domain/services/routine_computer_use_action_allowlist.dart';
 import 'package:caverno/features/routines/domain/services/routine_tool_policy.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Routine buildRoutine({

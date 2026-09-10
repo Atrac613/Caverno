@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/git_changed_paths_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('GitChangedPathsService.parsePorcelain', () {

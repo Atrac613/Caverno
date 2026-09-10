@@ -5,10 +5,10 @@ import '../services/conversation_plan_hash.dart';
 import 'conversation_compaction_artifact.dart';
 import 'conversation_goal.dart';
 import 'conversation_participant.dart';
-import 'message.dart';
 import 'conversation_plan_artifact.dart';
-import 'turn_diff.dart';
 import 'conversation_workflow.dart';
+import 'message.dart';
+import 'turn_diff.dart';
 
 part 'conversation.freezed.dart';
 part 'conversation.g.dart';

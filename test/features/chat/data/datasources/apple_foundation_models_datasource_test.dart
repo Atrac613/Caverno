@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/apple_foundation_models_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AppleFoundationModelsAvailability', () {
@@ -47,9 +46,7 @@ void main() {
   group('MethodChannelAppleFoundationModelsClient', () {
     const channel = MethodChannel('test/apple_foundation_models');
 
-    setUp(() {
-      TestWidgetsFlutterBinding.ensureInitialized();
-    });
+    setUp(TestWidgetsFlutterBinding.ensureInitialized);
 
     tearDown(() {
       debugDefaultTargetPlatformOverride = null;

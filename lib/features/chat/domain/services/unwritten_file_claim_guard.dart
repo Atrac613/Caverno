@@ -48,7 +48,7 @@ class UnwrittenFileClaimGuard {
     caseSensitive: false,
   );
   static final RegExp _futureOrNegativeEnglishMutation = RegExp(
-    r"\b(?:will|would|should|could|can|may|might|to|not|never|"
+    r'\b(?:will|would|should|could|can|may|might|to|not|never|'
     r"didn['’]?t|wasn['’]?t|weren['’]?t|haven['’]?t|"
     r"hasn['’]?t)\s+(?:be\s+)?(?:create(?:d)?|add(?:ed)?|"
     r'update(?:d)?|write|written)\b',

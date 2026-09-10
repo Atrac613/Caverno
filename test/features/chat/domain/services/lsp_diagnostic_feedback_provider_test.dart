@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('LspDiagnosticFeedbackProvider', () {
@@ -182,7 +181,7 @@ class _UnavailableLspDiagnosticClient implements LspDiagnosticClient {
 }
 
 class _CountingLspDiagnosticClient implements LspDiagnosticClient {
-  var collectCount = 0;
+  int collectCount = 0;
 
   @override
   String get providerName => 'python_language_server';

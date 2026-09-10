@@ -50,7 +50,7 @@ class FlutterRunIssueList extends ConsumerWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, index) {
         if (index == issues.length) {
-          return _BudgetNotice(onResume: () => collector.analyseNow());
+          return _BudgetNotice(onResume: collector.analyseNow);
         }
         return _IssueRow(
           issue: issues[index],

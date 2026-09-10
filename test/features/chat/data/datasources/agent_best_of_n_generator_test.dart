@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/agent_best_of_n_generator.dart';
 import 'package:caverno/features/chat/data/datasources/best_of_n_runner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('runs an attempt and reports git-changed paths and a summary', () async {

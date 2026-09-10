@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/composer_shortcut_suggestion_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 Conversation _conversation({List<Message> messages = const []}) {
   final now = DateTime(2026, 8, 17);

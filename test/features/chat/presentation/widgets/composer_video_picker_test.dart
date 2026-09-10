@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
 import 'package:caverno/features/chat/presentation/widgets/composer_video_picker.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 VideoAttachmentDraft _draft({int? sizeBytes, int? durationMs}) =>
     VideoAttachmentDraft(

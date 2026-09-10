@@ -1,9 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_migration_service.dart';
 import 'package:caverno/features/chat/data/repositories/drift_conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 Conversation _conversation(String id) {
   final now = DateTime.fromMillisecondsSinceEpoch(0);

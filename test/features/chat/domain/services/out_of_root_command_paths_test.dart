@@ -15,7 +15,7 @@ void main() {
     // LocalShellTools.projectReadDenial returned null and no path was checked.
     const command =
         "python3 - <<'PY'\n"
-        "from pathlib import Path\n"
+        'from pathlib import Path\n'
         "p=Path('/Users/dev/.caverno/session_logs/chat/abc.jsonl')\n"
         'PY';
 

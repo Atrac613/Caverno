@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/plan_mode_heartbeat.dart';
 import '../../integration_test/test_support/plan_mode_post_scenario_settle.dart';

@@ -10,7 +10,7 @@ import 'dart_project_tooling.dart';
 class HtmlPreviewStaticServer {
   HtmlPreviewStaticServer({
     Future<HttpServer> Function(InternetAddress address, int port)? bind,
-  }) : _bind = bind ?? ((address, port) => HttpServer.bind(address, port));
+  }) : _bind = bind ?? (HttpServer.bind);
 
   final Future<HttpServer> Function(InternetAddress address, int port) _bind;
 

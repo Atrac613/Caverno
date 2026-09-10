@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/mesh_secondary_completion_runner.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Identifies which endpoint a call landed on, plus the model requested.
 class _Call {

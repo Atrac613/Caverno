@@ -73,13 +73,13 @@ Future<RagRetrievalReport> runRagVectorBaseline(
   final hybridResults = <Map<String, Object?>>[];
   for (var index = 0; index < fixture.cases.length; index++) {
     final lexicalIds =
-        ((lexicalResults[index]['hits'] as List<Object?>)
-                .cast<Map<String, Object?>>())
+        (lexicalResults[index]['hits'] as List<Object?>)
+                .cast<Map<String, Object?>>()
             .map((item) => item['objectId']! as String)
             .toList();
     final vectorIds =
-        ((vectorResults[index]['hits'] as List<Object?>)
-                .cast<Map<String, Object?>>())
+        (vectorResults[index]['hits'] as List<Object?>)
+                .cast<Map<String, Object?>>()
             .map((item) => item['objectId']! as String)
             .toList();
     final fused = fuseRagRanks(lexicalIds, vectorIds, limit: fixture.metricK);

@@ -1,24 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
 import 'package:caverno/features/chat/presentation/providers/composer_shortcuts_notifier.dart';
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command.dart';
-import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Seeds the shortcut bar without running a completion, and records what the
 /// composer clears.

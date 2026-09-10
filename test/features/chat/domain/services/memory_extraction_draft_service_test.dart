@@ -1,11 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('systemPrompt rejects one-off validation markers', () {

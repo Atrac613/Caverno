@@ -79,7 +79,7 @@ void main() {
             'japanese_query',
       );
       for (final result in japaneseResults) {
-        final hits = (result['hits'] as List<Object?>);
+        final hits = result['hits'] as List<Object?>;
         if (hits.isEmpty) {
           expect(result['missReason'], 'tokenization');
         } else if (result['missReason'] != null) {
@@ -142,7 +142,7 @@ void main() {
     );
 
     expect((runJson['metadata'] as Map)['warmState'], 'warm');
-    final lexical = ((runJson['arms'] as List).cast<Map>()).singleWhere(
+    final lexical = (runJson['arms'] as List).cast<Map>().singleWhere(
       (arm) => arm['id'] == 'L',
     );
     expect(lexical['results'], hasLength(20));
@@ -196,7 +196,7 @@ void main() {
     final database = sqlite3.openInMemory();
     addTearDown(database.close);
     database.execute(
-      "CREATE VIRTUAL TABLE knowledge USING fts5("
+      'CREATE VIRTUAL TABLE knowledge USING fts5('
       "object_id UNINDEXED, chunk_id UNINDEXED, content, tokenize='unicode61')",
     );
     database.execute('INSERT INTO knowledge VALUES (?, ?, ?)', [

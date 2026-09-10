@@ -8,12 +8,12 @@ import 'package:drift/drift.dart';
 import 'rag2_drift_additive_schema_replay.dart';
 import 'rag2_drift_dao_generation_store.dart';
 import 'rag2_explicit_source_roots_replay.dart';
+import 'rag2_hosted_retrieval_eval.dart';
 import 'rag2_knowledge_object_replay.dart';
 import 'rag2_lexical_policy_bakeoff.dart';
 import 'rag2_storage_replay.dart';
 import 'rag3_candidate_run_producer.dart';
 import 'rag3_offline_hybrid_eval.dart';
-import 'rag2_hosted_retrieval_eval.dart';
 
 const rag3PromotionRunId = 'rag3-promotion-run-v1';
 const rag3PromotionProjectId = 'rag3-promotion-eval-project';

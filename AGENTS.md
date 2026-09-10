@@ -157,6 +157,17 @@ The tool calling implementation in `ChatNotifier._sendWithTools()` /
 - Tracks user profile (persona, preferences, constraints) with TTL and confidence scores
 - Falls back to rule-based extraction if LLM extraction fails
 
+### Lint Policy
+
+`analysis_options.yaml` extends `package:flutter_lints` with rules chosen by
+measuring the whole repository first. `docs/lint_policy.md` records what was
+adopted, what was rejected and why (including three rules whose auto-fix
+changed behaviour or broke the build), and the rules for running `dart fix`.
+- Never run bare `dart fix --apply`; always `dart fix --apply --code=<rule>`.
+- `tool/fixtures/**` is excluded from analysis: those corpora are content-hashed
+  by the rag2 extraction eval tests.
+- Read `docs/lint_policy.md` before enabling or disabling a rule.
+
 ### LLM Session Logs
 
 Caverno records Chat, Coding, and Routines LLM request/response exchanges as

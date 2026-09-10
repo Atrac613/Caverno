@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation_compaction_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_compaction_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   String repeatedText(int length) => List.filled(length, 'x').join();

@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ProjectScopedToolArgumentResolver', () {

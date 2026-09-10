@@ -1,8 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('defaults to unknown so a missed entry point stays visible', () {

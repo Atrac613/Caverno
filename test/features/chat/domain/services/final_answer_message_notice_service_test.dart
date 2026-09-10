@@ -1,11 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_message_notice_service.dart';
 import 'package:caverno/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const service = FinalAnswerMessageNoticeService();

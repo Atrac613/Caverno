@@ -1,5 +1,3 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/datasources/embeddings_client.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_chunker.dart';
@@ -7,6 +5,7 @@ import 'package:caverno/features/chat/data/repositories/drift_embedding_store.da
 import 'package:caverno/features/chat/data/repositories/semantic_indexing_service.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 Conversation _conversation(
   String id, {

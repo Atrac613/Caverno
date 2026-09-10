@@ -1,16 +1,15 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_mutation_coordinator.dart';
+import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/key_value_store.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// In-memory [KeyValueStore] for repository logic tests.
 class _MapKeyValueStore implements KeyValueStore {
   final Map<String, String> data = <String, String>{};
-  var refreshCount = 0;
+  int refreshCount = 0;
 
   @override
   bool get isReady => true;
@@ -31,7 +30,7 @@ class _MapKeyValueStore implements KeyValueStore {
 }
 
 class _CountingMutationCoordinator implements ChatMemoryMutationCoordinator {
-  var runCount = 0;
+  int runCount = 0;
 
   @override
   Future<T> run<T>(Future<T> Function() mutation) {

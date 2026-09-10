@@ -3,9 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'dart_tool_process.dart';
-
 import '../../integration_test/test_support/macos_computer_use_m52_product_release_rollout.dart';
+import 'dart_tool_process.dart';
 
 void main() {
   group('macOS Computer Use M52 product release rollout', () {

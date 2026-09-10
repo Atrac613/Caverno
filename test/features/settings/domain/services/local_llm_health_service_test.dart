@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/local_llm_health.dart';
 import 'package:caverno/features/settings/domain/entities/local_model_lifecycle.dart';
 import 'package:caverno/features/settings/domain/services/local_llm_health_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const service = LocalLlmHealthService();

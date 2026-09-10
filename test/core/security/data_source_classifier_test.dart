@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/core/services/browser_tool_policy.dart';
 import 'package:caverno/core/security/data_source_classifier.dart';
+import 'package:caverno/core/services/browser_tool_policy.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const classifier = DataSourceClassifier();

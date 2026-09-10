@@ -1413,7 +1413,7 @@ final class _ApprovalPort implements LocalCommandApprovalPort {
 }
 
 final class _MutableArgument {
-  var value = 0;
+  int value = 0;
 }
 
 typedef _InferenceCall = ({

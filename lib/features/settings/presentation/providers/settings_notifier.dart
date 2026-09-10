@@ -12,10 +12,10 @@ import '../../data/settings_file_service.dart';
 import '../../data/settings_qr_service.dart';
 import '../../data/settings_repository.dart';
 import '../../domain/entities/app_settings.dart';
-import '../../domain/services/llm_sampler_runtime_feedback_service.dart';
-import '../../domain/services/model_benchmark_history.dart';
-import '../../domain/services/local_command_permission_service.dart';
 import '../../domain/services/executable_settings_quarantine_service.dart';
+import '../../domain/services/llm_sampler_runtime_feedback_service.dart';
+import '../../domain/services/local_command_permission_service.dart';
+import '../../domain/services/model_benchmark_history.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences must be overridden in main');

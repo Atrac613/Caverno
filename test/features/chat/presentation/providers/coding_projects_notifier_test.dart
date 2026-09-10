@@ -12,7 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _FakeSecurityScopedBookmarkService extends SecurityScopedBookmarkService {
   final Map<String, String?> createdBookmarks = {};
   final Map<String, SecurityScopedBookmarkAccessResult> accessResults = {};
-  var createCalls = 0;
+  int createCalls = 0;
 
   @override
   Future<String?> createBookmark(String path) async {

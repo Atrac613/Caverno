@@ -83,7 +83,7 @@ class _CodingTerminalPanelState extends ConsumerState<CodingTerminalPanel> {
     return ListenableBuilder(
       listenable: service,
       builder: (context, _) {
-        return Container(
+        return DecoratedBox(
           decoration: BoxDecoration(
             color: _terminalTheme(theme).background,
             border: Border(

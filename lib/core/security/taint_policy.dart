@@ -1,5 +1,6 @@
-import 'data_source_classifier.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
+import 'data_source_classifier.dart';
 
 /// SEC2 (Taint-Aware Tool Execution), slice 1: a pure policy that decides how to
 /// treat a proposed tool call when untrusted (or lower-trust) evidence

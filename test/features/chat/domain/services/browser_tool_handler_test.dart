@@ -1077,7 +1077,7 @@ void main() {
     });
 
     test('rejects same-owner transport from another tool call', () async {
-      fixtureFor(String toolCallId) {
+      _Fixture fixtureFor(String toolCallId) {
         final fixture = _fixture();
         fixture.execution.results[ownerA] = BrowserExecutionResult(
           operation: _operation(ownerA, 'browser_open', toolCallId: toolCallId),
@@ -1555,5 +1555,5 @@ String _event(String name, ChatTurnOwner owner) {
 }
 
 final class _MutableValue {
-  var value = 0;
+  int value = 0;
 }

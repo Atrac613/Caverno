@@ -2,12 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:caverno/features/chat/presentation/widgets/chat_media_drop_target.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/presentation/widgets/chat_media_drop_target.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();

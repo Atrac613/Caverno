@@ -1,7 +1,6 @@
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
 import '../../integration_test/test_support/plan_mode_planning_decisions.dart';
 import '../../integration_test/test_support/plan_mode_scenario_spec.dart';

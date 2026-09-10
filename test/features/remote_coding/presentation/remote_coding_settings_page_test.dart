@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -9,6 +8,7 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_providers.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';

@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime.dart';
-import 'package:caverno/features/chat/application/runtime/turn_runtime_goal_continuation_ports_factory.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime_conversation_goal_adapter.dart';
+import 'package:caverno/features/chat/application/runtime/turn_runtime_goal_continuation_ports_factory.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';

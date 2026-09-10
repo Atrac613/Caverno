@@ -1,5 +1,5 @@
-import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
 import 'package:caverno/features/personal_eval/domain/services/live_personal_eval_case_runner.dart';
 import 'package:caverno/features/personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import 'package:caverno/features/personal_eval/domain/services/personal_eval_verification_runner.dart';

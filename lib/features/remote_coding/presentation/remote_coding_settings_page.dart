@@ -2,19 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_tokens.dart';
-import '../domain/remote_coding_audit.dart';
-import '../domain/remote_coding_debug_pairing_policy.dart';
-import '../domain/remote_coding_grant_kinds.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_multi_device_evidence.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
 import '../data/remote_coding_notification_relay_providers.dart';
 import '../data/remote_coding_support_packet.dart';
+import '../domain/remote_coding_audit.dart';
+import '../domain/remote_coding_debug_pairing_policy.dart';
+import '../domain/remote_coding_grant_kinds.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_server_notifier.dart';
 

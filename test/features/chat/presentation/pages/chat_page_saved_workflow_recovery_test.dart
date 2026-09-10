@@ -10,21 +10,21 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
-import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launch_options.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launch_options.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -216,7 +216,7 @@ class _ScriptedWorkflowChatNotifier extends ChatNotifier {
   final Map<ChatTurnOwner, List<ToolResultInfo>> _toolResultsByOwner = {};
   final Map<ChatTurnOwner, String> _hiddenAssistantResponsesByOwner = {};
   var _interactionGeneration = 0;
-  var hiddenAssistantResponseReadCount = 0;
+  int hiddenAssistantResponseReadCount = 0;
 
   bool get hasPendingTurns =>
       _visibleTurns.isNotEmpty || _hiddenTurns.isNotEmpty;

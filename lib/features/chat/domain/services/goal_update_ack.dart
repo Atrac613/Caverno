@@ -1,7 +1,7 @@
+import '../../../../core/types/goal_completion_policy.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
-import '../../../../core/types/goal_completion_policy.dart';
 import 'tool_result_prompt_builder.dart';
 
 /// What the model asked the harness to do with the goal.

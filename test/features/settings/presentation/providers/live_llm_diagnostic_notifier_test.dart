@@ -1,23 +1,22 @@
 import 'dart:convert';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
-import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/data/live_llm_benchmark_artifact_file_service.dart';
 import 'package:caverno/features/settings/data/live_llm_diagnostic_history_repository.dart';
+import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
 import 'package:caverno/features/settings/presentation/providers/live_llm_diagnostic_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test('run persists a model capability profile from the report', () async {

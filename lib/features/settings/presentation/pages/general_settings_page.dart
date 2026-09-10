@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/security/llm_endpoint_transport_policy.dart';
@@ -227,7 +227,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             ),
           )
         else
-          Container(
+          DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
@@ -856,7 +856,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   /// itself to the page that owns it.
   Widget _buildModelRoutingLink(String selectedModel) {
     final theme = Theme.of(context);
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(
           alpha: 0.35,
@@ -1096,7 +1096,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             title: Text('settings.demo_mode'.tr()),
             subtitle: Text('settings.demo_mode_desc'.tr()),
             value: settings.demoMode,
-            onChanged: (value) => notifier.updateDemoMode(value),
+            onChanged: notifier.updateDemoMode,
           ),
           const Divider(),
           const SizedBox(height: 8),
@@ -1224,9 +1224,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                           max: 2.0,
                           divisions: 20,
                           label: settings.temperature.toStringAsFixed(1),
-                          onChanged: (value) {
-                            notifier.updateTemperature(value);
-                          },
+                          onChanged: notifier.updateTemperature,
                         ),
                       ),
                       SizedBox(

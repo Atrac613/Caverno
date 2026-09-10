@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/watch/domain/watch_approval_mapper.dart';
 import 'package:caverno/features/watch/domain/watch_snapshot.dart';

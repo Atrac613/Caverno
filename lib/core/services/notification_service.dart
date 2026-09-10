@@ -2,13 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-import '../utils/logger.dart';
-
 import '../../features/remote_coding/data/remote_coding_notification_payload.dart';
+import '../utils/logger.dart';
 
 /// Wrapper around [FlutterLocalNotificationsPlugin] for showing local
 /// notifications (e.g. when an LLM response completes in the background).
@@ -167,7 +166,7 @@ class NotificationService {
         // platform boundary a lost button press was lost on.
         appLog(
           '[Notifications] response actionId=${response.actionId} '
-          'hasPayload=${(response.payload?.trim().isNotEmpty) ?? false}',
+          'hasPayload=${response.payload?.trim().isNotEmpty ?? false}',
         );
         final payload = response.payload?.trim();
         if (payload == null || payload.isEmpty) return;

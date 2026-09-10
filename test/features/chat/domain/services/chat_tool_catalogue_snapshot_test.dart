@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/domain/services/chat_tool_catalogue_snapshot.dart';
 import 'package:caverno/features/chat/data/datasources/chat_tool_catalogue_snapshot_store.dart';
+import 'package:caverno/features/chat/domain/services/chat_tool_catalogue_snapshot.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

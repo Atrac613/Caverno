@@ -44,7 +44,7 @@ void main() {
         isBusy: false,
         auditEntries: List<Map<String, dynamic>>.generate(
           6,
-          (index) => _auditEntry(index),
+          _auditEntry,
         ),
         lastExportPath: '/tmp/computer-use-diagnostics.json',
       ),

@@ -240,7 +240,7 @@ void main() {
         throwsUnsupportedError,
       );
       expect(
-        () => stored.unresolvedErrorDiagnostics.clear(),
+        stored.unresolvedErrorDiagnostics.clear,
         throwsUnsupportedError,
       );
       expect(

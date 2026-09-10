@@ -404,7 +404,7 @@ final class ComputerUseActionPolicy {
         ]);
       case 'computer_type_text':
         details.addAll([
-          'Text length: ${('${args['text'] ?? ''}').length} characters',
+          'Text length: ${'${args['text'] ?? ''}'.length} characters',
           'Text preview: ${summarizeText(args['text'], maxLength: 160)}',
         ]);
       case 'computer_switch_space':

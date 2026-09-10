@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/uninspected_commit_guard.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const guard = UninspectedCommitGuard();

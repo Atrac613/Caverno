@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/model_capability_physical_metrics.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('stores each measured capability with an explicit unit key', () {

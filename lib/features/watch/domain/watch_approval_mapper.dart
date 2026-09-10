@@ -1,6 +1,6 @@
 import '../../chat/domain/services/pending_approval_summary.dart';
-import '../../remote_coding/domain/remote_coding_models.dart';
 import '../../chat/presentation/providers/chat_state.dart';
+import '../../remote_coding/domain/remote_coding_models.dart';
 import 'watch_snapshot.dart';
 
 /// Picks the one pending approval the watch should show, and projects it onto

@@ -1,11 +1,10 @@
 import 'dart:async';
 
+import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
-import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 
 import 'plan_mode_post_scenario_settle.dart';
 import 'plan_mode_scenario_config.dart';

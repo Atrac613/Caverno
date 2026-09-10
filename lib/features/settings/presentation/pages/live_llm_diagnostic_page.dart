@@ -6,17 +6,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
+import '../../domain/services/live_llm_diagnostic_difficulty_ladder.dart';
 import '../../domain/services/live_llm_diagnostic_scoring.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
-import '../../domain/services/live_llm_diagnostic_difficulty_ladder.dart';
 import '../../domain/services/model_benchmark_saturation_watchdog.dart';
 import '../../domain/services/model_capability_comparison.dart';
 import '../../domain/services/model_capability_physical_metrics.dart';
 import '../providers/live_llm_diagnostic_notifier.dart';
 import '../providers/settings_notifier.dart';
-import '../../../../core/theme/app_tokens.dart';
 
 /// Gap between stacked cards in this page's lists.
 ///

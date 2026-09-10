@@ -99,7 +99,7 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
                 opacity: widget.enabled && _isImageDragActive ? 1 : 0,
                 duration: const Duration(milliseconds: 140),
                 curve: Curves.easeOut,
-                child: Container(
+                child: ColoredBox(
                   color: theme.colorScheme.primary.withValues(alpha: 0.14),
                   child: Center(
                     child: Container(
@@ -237,7 +237,7 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
       return true;
     }
     final path = _dropItemPathForImageHandling(item).toLowerCase();
-    return _videoDropExtensions.any((extension) => path.endsWith(extension));
+    return _videoDropExtensions.any(path.endsWith);
   }
 
   String _videoMimeTypeForDropItem(DropItem item) {
@@ -265,7 +265,7 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
     }
 
     final path = _dropItemPathForImageHandling(item).toLowerCase();
-    return _imageDropExtensions.any((extension) => path.endsWith(extension));
+    return _imageDropExtensions.any(path.endsWith);
   }
 
   Future<Uint8List> _readDropItemBytes(DropItem item) async {

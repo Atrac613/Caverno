@@ -6,10 +6,10 @@ import '../../domain/services/python_staging_lease_registry.dart';
 import 'python_script_runtime_contract.dart';
 import 'python_script_runtime_ports.dart';
 
+export '../../domain/services/python_staging_lease_registry.dart';
 export 'python_execution_authority.dart';
 export 'python_input_staging_runtime_adapter.dart';
 export 'python_script_runtime_contract.dart';
-export '../../domain/services/python_staging_lease_registry.dart';
 
 /// Summary of one owner or runtime-wide Python staging retirement.
 final class PythonStagingRuntimeRetirementResult {

@@ -2,12 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:test/test.dart';
-
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('BackgroundProcessTools', () {

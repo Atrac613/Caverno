@@ -830,7 +830,7 @@ void main() {
           {'marker': 'CODING_GOAL_CAPTURED'},
         ],
       });
-      expect(() => input.toolResults.clear(), throwsUnsupportedError);
+      expect(input.toolResults.clear, throwsUnsupportedError);
       expect(
         () => input.toolResults.single.arguments['command'] = 'mutate',
         throwsUnsupportedError,

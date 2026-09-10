@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
@@ -884,7 +883,7 @@ void main() {
 
       expect(execution.isSuccess, isFalse);
       expect(payload['code'], 'project_mutation_outside_root');
-      expect((status.stdout as String), contains('?? secret.txt'));
+      expect(status.stdout as String, contains('?? secret.txt'));
     });
 
     test('rejects home-relative and traversal working directories', () async {
@@ -975,7 +974,7 @@ void main() {
 
       expect(execution.isSuccess, isFalse);
       expect(payload['code'], 'git_repository_relocation_blocked');
-      expect((status.stdout as String), contains('?? secret.txt'));
+      expect(status.stdout as String, contains('?? secret.txt'));
     });
 
     test('rejects --git-dir relocation', () async {

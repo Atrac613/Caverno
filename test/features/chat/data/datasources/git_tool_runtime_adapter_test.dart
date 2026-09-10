@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/data/datasources/git_tool_runtime_adapter.dart';
 import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
+import 'package:caverno/features/chat/data/datasources/git_tool_runtime_adapter.dart';
 import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';

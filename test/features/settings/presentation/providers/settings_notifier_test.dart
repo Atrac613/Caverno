@@ -1,15 +1,14 @@
 import 'dart:convert';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/core/constants/api_constants.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test(

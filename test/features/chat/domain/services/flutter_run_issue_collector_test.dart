@@ -1,5 +1,3 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_session.dart';
@@ -7,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/flutter_run_issue_analyser.dart';
 import 'package:caverno/features/chat/domain/services/flutter_run_issue_collector.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const _overflow = '''
 ══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════

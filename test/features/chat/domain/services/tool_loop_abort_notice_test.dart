@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop_abort_notice.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ToolResultInfo _edit(String path, {bool succeeded = true}) => ToolResultInfo(

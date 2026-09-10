@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/model_capability_comparison.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('orders higher-is-better and lower-is-better axes independently', () {

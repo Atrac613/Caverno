@@ -4,14 +4,13 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'dart_tool_process.dart';
-
 import '../../integration_test/test_support/macos_computer_use_canary_history.dart';
 import '../../integration_test/test_support/macos_computer_use_manual_tcc_report.dart';
 import '../../integration_test/test_support/macos_computer_use_readiness_artifact_index.dart';
 import '../../integration_test/test_support/macos_computer_use_release_packaging.dart';
 import '../../integration_test/test_support/macos_computer_use_release_readiness.dart';
 import '../../integration_test/test_support/macos_computer_use_release_signing_preflight.dart';
+import 'dart_tool_process.dart';
 
 const _manualTccNextAction = MacosComputerUseMvpGuidance.manualTccNextAction;
 const _desktopActionNextAction =

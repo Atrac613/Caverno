@@ -1,9 +1,9 @@
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/tool_approval_auto_review_service.dart';
 import 'package:caverno/features/chat/domain/services/turn_tool_approval_coordinator.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 final class _OwnerPort implements ToolApprovalOwnerPort {

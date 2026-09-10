@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/goal_completion_elicitation_prompt.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('names the tool and offers all three answers', () {

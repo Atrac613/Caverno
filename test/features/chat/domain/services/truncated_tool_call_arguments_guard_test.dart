@@ -1,10 +1,9 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/truncated_tool_call_arguments_guard.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const _guard = TruncatedToolCallArgumentsGuard();
 

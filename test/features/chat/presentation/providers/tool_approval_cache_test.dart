@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/presentation/providers/tool_approval_cache.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final ownerA = ChatTurnOwner(

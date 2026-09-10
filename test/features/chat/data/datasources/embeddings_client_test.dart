@@ -1,11 +1,10 @@
 import 'dart:convert';
 
+import 'package:caverno/features/chat/data/datasources/embeddings_client.dart';
+import 'package:caverno/features/chat/data/datasources/embeddings_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:caverno/features/chat/data/datasources/embeddings_client.dart';
-import 'package:caverno/features/chat/data/datasources/embeddings_math.dart';
 
 void main() {
   group('EmbeddingsMath.cosineSimilarity', () {

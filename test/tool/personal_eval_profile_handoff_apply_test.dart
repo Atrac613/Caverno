@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/personal_eval_profile_handoff_apply.dart';
 

@@ -6,14 +6,12 @@ import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
 import 'package:caverno/features/settings/presentation/widgets/computer_use_debug_permission_checklist.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  setUp(() {
-    MacosComputerUseAuditLog.instance.clear();
-  });
+  setUp(MacosComputerUseAuditLog.instance.clear);
 
   testWidgets('shows helper boundary while using helper IPC backend', (
     tester,

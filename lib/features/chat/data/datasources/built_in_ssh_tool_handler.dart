@@ -111,12 +111,12 @@ final class BuiltInSshToolHandler {
     'function': {
       'name': 'ssh_connect',
       'description':
-          "Open an interactive SSH session to a remote host. The user will "
-          "see a dialog to confirm the details and choose password or "
-          "private-key authentication (pre-filled when saved for this host, "
-          "so passwordless key setups need no password). Keeps the session "
-          "alive for later ssh_execute_command calls until ssh_disconnect. "
-          "Use this when the user asks to connect to a server via SSH.",
+          'Open an interactive SSH session to a remote host. The user will '
+          'see a dialog to confirm the details and choose password or '
+          'private-key authentication (pre-filled when saved for this host, '
+          'so passwordless key setups need no password). Keeps the session '
+          'alive for later ssh_execute_command calls until ssh_disconnect. '
+          'Use this when the user asks to connect to a server via SSH.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -147,10 +147,10 @@ final class BuiltInSshToolHandler {
     'function': {
       'name': 'ssh_execute_command',
       'description':
-          "Execute a shell command on the currently active SSH session. "
-          "Requires ssh_connect to have succeeded first. Each command is "
-          "shown to the user in a confirmation dialog and must be approved "
-          "before it runs. Returns stdout, stderr, and the exit code.",
+          'Execute a shell command on the currently active SSH session. '
+          'Requires ssh_connect to have succeeded first. Each command is '
+          'shown to the user in a confirmation dialog and must be approved '
+          'before it runs. Returns stdout, stderr, and the exit code.',
       'parameters': {
         'type': 'object',
         'properties': {

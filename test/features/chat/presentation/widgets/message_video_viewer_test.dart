@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/presentation/widgets/message_video_io.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_video_playback.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_video_viewer.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();

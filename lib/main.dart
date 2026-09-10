@@ -4,8 +4,8 @@ import 'dart:ui' show AppExitResponse;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,29 +21,29 @@ import 'core/theme/app_theme.dart';
 import 'core/utils/app_log_file.dart';
 import 'core/utils/logger.dart';
 import 'core/widgets/quit_confirmation_dialog.dart';
+import 'features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import 'features/chat/application/persistence/caverno_legacy_hive_boxes.dart';
 import 'features/chat/application/persistence/caverno_persistence_bootstrap.dart';
-import 'features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import 'features/chat/data/datasources/app_database_open.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
-import 'features/chat/domain/entities/conversation.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
-import 'features/onboarding/presentation/pages/onboarding_page.dart';
-import 'features/remote_coding/presentation/remote_coding_notification_navigation_shell.dart';
+import 'features/chat/domain/entities/conversation.dart';
+import 'features/chat/presentation/providers/approval_notification_actions.dart';
 import 'features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'features/chat/presentation/providers/semantic_search_provider.dart';
 import 'features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
+import 'features/onboarding/presentation/pages/onboarding_page.dart';
+import 'features/remote_coding/presentation/remote_coding_notification_navigation_shell.dart';
+import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
-import 'features/chat/presentation/providers/approval_notification_actions.dart';
-import 'features/watch/presentation/watch_session_notifier.dart';
 import 'features/settings/presentation/widgets/settings_modal.dart';
-import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'features/terminal/application/caverno_cli_arguments.dart';
 import 'features/terminal/presentation/caverno_cli_process.dart';
+import 'features/watch/presentation/watch_session_notifier.dart';
 
 
 /// Gives the file log sink a writable directory on iOS and Android.

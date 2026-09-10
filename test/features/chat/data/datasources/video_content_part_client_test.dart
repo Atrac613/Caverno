@@ -1,10 +1,9 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-
 import 'package:caverno/features/chat/data/datasources/video_content_part_client.dart';
 import 'package:caverno/features/chat/domain/entities/video_attachment_part.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 
 /// Captures the request the interceptor hands down, exactly as it hands it.
 class _CapturingClient extends http.BaseClient {

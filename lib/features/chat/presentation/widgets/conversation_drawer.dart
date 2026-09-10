@@ -7,9 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
-import '../../data/repositories/conversation_repository.dart';
-import '../../data/repositories/conversation_repository_api.dart';
-import '../../data/repositories/semantic_search_service.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/domain/services/routine_schedule_service.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
@@ -17,13 +14,16 @@ import '../../../routines/presentation/widgets/routine_editor_launcher.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/widgets/settings_modal.dart';
-import 'conversation_search_delegate.dart';
+import '../../data/repositories/conversation_repository.dart';
+import '../../data/repositories/conversation_repository_api.dart';
+import '../../data/repositories/semantic_search_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';
 import '../providers/semantic_search_provider.dart';
+import 'conversation_search_delegate.dart';
 
 const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';

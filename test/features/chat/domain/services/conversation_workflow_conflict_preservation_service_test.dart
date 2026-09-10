@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -10,6 +8,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_document
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_conflict_preservation_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const service = ConversationWorkflowConflictPreservationService();

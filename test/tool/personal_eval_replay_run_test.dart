@@ -454,7 +454,7 @@ File _writeSessionLog({
   required List<Map<String, Object?>> entries,
 }) {
   final file = File('${directory.path}/$fileName');
-  file.writeAsStringSync(entries.map((entry) => jsonEncode(entry)).join('\n'));
+  file.writeAsStringSync(entries.map(jsonEncode).join('\n'));
   return file;
 }
 

@@ -47,7 +47,7 @@ class MediaHostService {
     Random? random,
     DateTime Function()? clock,
   }) : _policy = policy ?? const MediaHostListenPolicy(),
-       _bind = bind ?? ((address, port) => HttpServer.bind(address, port)),
+       _bind = bind ?? (HttpServer.bind),
        _random = random ?? Random.secure(),
        _clock = clock ?? DateTime.now;
 

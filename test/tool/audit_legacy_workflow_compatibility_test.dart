@@ -1,9 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:sqlite3/sqlite3.dart';
-import 'package:test/test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -12,6 +9,8 @@ import 'package:caverno/features/chat/domain/services/conversation_legacy_workfl
 import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_conflict_preservation_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
+import 'package:sqlite3/sqlite3.dart';
+import 'package:test/test.dart';
 
 import '../../tool/audit_legacy_workflow_compatibility.dart' as audit;
 

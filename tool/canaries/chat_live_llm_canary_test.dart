@@ -2,11 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
@@ -19,10 +14,10 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
-import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
-import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
@@ -35,11 +30,15 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
-import 'package:caverno/features/settings/domain/entities/app_settings.dart';
-import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/features/maintenance/domain/services/idle_maintenance_scheduler.dart';
 import 'package:caverno/features/maintenance/domain/services/maintenance_pipeline.dart';
 import 'package:caverno/features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../live_llm_benchmark_app_tool_profile.dart';
 import '../live_llm_benchmark_mcp_config.dart';

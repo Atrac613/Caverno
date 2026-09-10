@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_recovery_prompt_builder.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const builder = DuplicateRecoveryPromptBuilder();

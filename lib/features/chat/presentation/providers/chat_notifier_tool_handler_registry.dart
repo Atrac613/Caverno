@@ -268,9 +268,8 @@ final class _OwnerToolHandlerModule implements ChatToolHandlerModule {
     );
     final runtime = SaveSkillToolRuntimeAdapter(
       captureSnapshot: store.captureSnapshot,
-      requestFreshManualApproval: (request) =>
-          _requestSaveSkillApproval(request),
-      acknowledgeOwner: (identity) => _acknowledgeSaveSkillOwner(identity),
+      requestFreshManualApproval: _requestSaveSkillApproval,
+      acknowledgeOwner: _acknowledgeSaveSkillOwner,
       write: store.write,
       compensate: store.compensate,
       recordSuccess: store.recordSuccess,

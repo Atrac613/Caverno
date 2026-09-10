@@ -1,12 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
@@ -17,6 +11,11 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();

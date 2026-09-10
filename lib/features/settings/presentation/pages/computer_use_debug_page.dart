@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
@@ -716,7 +716,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         return;
       }
       final stepSnapshot = steps
-          .map((step) => Map<String, dynamic>.from(step))
+          .map(Map<String, dynamic>.from)
           .toList(growable: false);
       setState(() {
         _manualSmokeSteps = stepSnapshot;
@@ -1659,7 +1659,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
 
     final parsedWindows = windows
         .whereType<Map>()
-        .map((window) => Map<String, dynamic>.from(window))
+        .map(Map<String, dynamic>.from)
         .where((window) => _windowId(window) != null)
         .toList();
     _windows = parsedWindows;

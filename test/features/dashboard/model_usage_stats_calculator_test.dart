@@ -1,9 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/dashboard/domain/entities/dashboard_stats.dart';
 import 'package:caverno/features/dashboard/domain/services/model_usage_stats_calculator.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   ModelUsageDailyRow row({

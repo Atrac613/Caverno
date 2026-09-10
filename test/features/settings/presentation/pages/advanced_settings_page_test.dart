@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/core/services/macos_update_service.dart';
+import 'package:caverno/features/settings/data/log_file_cleanup_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/debug_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/live_llm_diagnostic_page.dart';
-import 'package:caverno/features/settings/data/log_file_cleanup_service.dart';
 import 'package:caverno/features/settings/presentation/pages/logging_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';

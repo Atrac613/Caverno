@@ -258,7 +258,7 @@ File _writeSessionLog(List<Map<String, Object?>> entries) {
   });
   final logFile = File('${directory.path}/session.jsonl');
   logFile.writeAsStringSync(
-    entries.map((entry) => jsonEncode(entry)).join('\n'),
+    entries.map(jsonEncode).join('\n'),
   );
   return logFile;
 }

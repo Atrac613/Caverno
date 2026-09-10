@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/repositories/skill_repository.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('in-memory repository supports a non-persistent frontend', () async {

@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/ask_user_question_option_parser.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const _parser = AskUserQuestionOptionParser();
 

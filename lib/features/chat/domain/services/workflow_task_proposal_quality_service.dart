@@ -1,7 +1,7 @@
 import 'package:uuid/uuid.dart';
 
-import '../entities/conversation_workflow.dart';
 import '../../presentation/providers/chat_state.dart';
+import '../entities/conversation_workflow.dart';
 
 typedef WorkflowTaskProposalIdGenerator = String Function();
 
@@ -908,7 +908,7 @@ class WorkflowTaskProposalQualityService {
       'health_check.py',
       'health_checker.py',
     };
-    return knownSingleTaskFiles.where((path) => context.contains(path)).toSet();
+    return knownSingleTaskFiles.where(context.contains).toSet();
   }
 
   String _workflowSpecText(ConversationWorkflowSpec workflowSpec) {
@@ -986,7 +986,7 @@ class WorkflowTaskProposalQualityService {
       'main.py',
       'ping_cli.py',
     };
-    return knownFirstSliceFiles.where((path) => context.contains(path)).toSet();
+    return knownFirstSliceFiles.where(context.contains).toSet();
   }
 
   bool _workflowAllowsSingleReadmeTask(

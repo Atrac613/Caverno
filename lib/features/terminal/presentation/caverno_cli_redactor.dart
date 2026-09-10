@@ -46,7 +46,7 @@ final class CavernoCliRedactor {
     return switch (value) {
       String string => redact(string),
       List<Object?> values =>
-        values.map((item) => redactJson(item)).toList(growable: false),
+        values.map(redactJson).toList(growable: false),
       Map<Object?, Object?> values => <String, Object?>{
         for (final entry in values.entries)
           entry.key.toString(): redactJson(

@@ -13,9 +13,9 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dar
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
-import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launch_options.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launch_options.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:test/test.dart';
 
@@ -170,7 +170,7 @@ class _ValidationChatNotifier extends ChatNotifier {
   final Map<ChatTurnOwner, List<ToolResultInfo>> _toolResultsByOwner = {};
   final Map<ChatTurnOwner, String> _hiddenAssistantResponsesByOwner = {};
   var _interactionGeneration = 0;
-  var toolResultReadCount = 0;
+  int toolResultReadCount = 0;
 
   bool get hasPendingTurns =>
       _visibleTurns.isNotEmpty || _hiddenTurns.isNotEmpty;

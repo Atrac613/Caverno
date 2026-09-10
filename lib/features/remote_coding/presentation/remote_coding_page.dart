@@ -2,23 +2,23 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_tokens.dart';
+import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/presentation/pages/approval_dialog_presenter.dart';
+import '../../chat/presentation/widgets/approval/approval_dialog_route.dart';
 import '../../chat/presentation/widgets/message_bubble.dart';
 import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_support_packet.dart';
-import '../../chat/presentation/pages/approval_dialog_presenter.dart';
-import '../../chat/presentation/widgets/approval/approval_dialog_route.dart';
 import '../domain/remote_coding_debug_pairing_policy.dart';
 import '../domain/remote_coding_models.dart';
-import '../../chat/domain/services/pending_approval_summary.dart';
 import 'remote_coding_client_notifier.dart';
 import 'remote_coding_mobile_notification_notifier.dart';
 import 'remote_coding_platform.dart';
-import '../../../core/theme/app_tokens.dart';
 
 class RemoteCodingPage extends ConsumerStatefulWidget {
   const RemoteCodingPage({super.key});
@@ -353,7 +353,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         final detail = approval.detail.length > 3000
             ? '${approval.detail.substring(0, 3000)}\n...'
             : approval.detail;
-        return Container(
+        return DecoratedBox(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -538,7 +538,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
             final hasAnswer =
                 selectedIds.isNotEmpty ||
                 otherController.text.trim().isNotEmpty;
-            return Container(
+            return DecoratedBox(
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
                 borderRadius: const BorderRadius.vertical(

@@ -2,10 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_diagnostic_bridge.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_process_transport.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('LspJsonRpcProcessTransport', () {
@@ -60,8 +59,8 @@ void main() {
         ]);
         expect(sentMessages.first['params'], containsPair('processId', 123));
         expect(
-          ((sentMessages[2]['params'] as Map<String, dynamic>)['textDocument']
-              as Map<String, dynamic>),
+          (sentMessages[2]['params'] as Map<String, dynamic>)['textDocument']
+              as Map<String, dynamic>,
           containsPair('languageId', 'typescript'),
         );
         expect(
@@ -71,8 +70,8 @@ void main() {
           containsPair('text', 'const app = false;\n'),
         );
         expect(
-          ((sentMessages[4]['params'] as Map<String, dynamic>)['textDocument']
-              as Map<String, dynamic>),
+          (sentMessages[4]['params'] as Map<String, dynamic>)['textDocument']
+              as Map<String, dynamic>,
           containsPair('uri', 'file:///project/src/app.ts'),
         );
         final definitionParams =
@@ -157,7 +156,7 @@ List<Map<String, dynamic>> _decodeWrittenMessages(List<List<int>> writes) {
   final buffer = LspJsonRpcMessageBuffer();
   return writes
       .expand(buffer.addBytes)
-      .map((message) => Map<String, dynamic>.from(message))
+      .map(Map<String, dynamic>.from)
       .toList(growable: false);
 }
 
@@ -178,8 +177,8 @@ class _FakeLspJsonRpcByteTransport implements LspJsonRpcByteTransport {
       StreamController<List<int>>.broadcast();
   final Completer<int> _exitCode = Completer<int>();
   final List<List<int>> writes = [];
-  var closeCount = 0;
-  var killCount = 0;
+  int closeCount = 0;
+  int killCount = 0;
 
   @override
   int get pid => 1234;

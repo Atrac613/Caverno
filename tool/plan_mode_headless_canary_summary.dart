@@ -9,7 +9,7 @@ Map<String, Object?> buildPlanModeHeadlessCanarySummary({
 }) {
   final scenarios = (suiteReport['scenarios'] as List<dynamic>? ?? const [])
       .whereType<Map>()
-      .map((item) => Map<String, dynamic>.from(item))
+      .map(Map<String, dynamic>.from)
       .toList(growable: false);
   if (scenarios.length != 1) {
     throw StateError(
@@ -99,7 +99,7 @@ Future<void> main(List<String> arguments) async {
     );
     final scenarios = (suiteReport['scenarios'] as List<dynamic>? ?? const [])
         .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
+        .map(Map<String, dynamic>.from)
         .toList(growable: false);
     if (scenarios.length != 1) {
       throw StateError(

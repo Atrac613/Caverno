@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_migration_service.dart';
 import 'package:caverno/features/chat/data/repositories/drift_chat_memory_store.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late AppDatabase db;

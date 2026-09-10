@@ -503,43 +503,43 @@ void main() {
       containsPair('issueCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('codingContinuationRecoveryRequestCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('pendingActionLengthDeferralCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('pendingActionLengthRecoveryRequestCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('pendingActionLengthRecoveryToolCallCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('successfulReadResultReplayCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('turnFinalizationRecoveryRequestCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('processStartCount', 2),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('processWaitCount', 2),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('backgroundProcessCompletedCount', 1),
     );
     expect(
-      (json['signals'] as Map<String, dynamic>),
+      json['signals'] as Map<String, dynamic>,
       containsPair('backgroundProcessStatusUnverifiedCount', 1),
     );
     expect(

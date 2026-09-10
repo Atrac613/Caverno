@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:caverno/core/services/voicevox_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:caverno/core/services/voicevox_service.dart';
 
 void main() {
   group('VoicevoxService', () {
@@ -166,7 +165,7 @@ void main() {
           baseUrl: 'http://localhost:50021',
           client: client,
         );
-        expect(() => service.getSpeakers(), throwsException);
+        expect(service.getSpeakers, throwsException);
       });
     });
 

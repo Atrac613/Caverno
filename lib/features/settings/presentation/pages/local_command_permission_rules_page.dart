@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/app_settings.dart';
 import '../providers/settings_notifier.dart';
-import '../../../../core/theme/app_tokens.dart';
 
 class LocalCommandPermissionRulesPage extends ConsumerWidget {
   const LocalCommandPermissionRulesPage({super.key});

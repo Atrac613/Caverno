@@ -1670,5 +1670,5 @@ final class _FakeApprovalPort implements LocalCommandApprovalPort {
 }
 
 final class _MutableArgument {
-  var value = 0;
+  int value = 0;
 }

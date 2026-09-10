@@ -2106,8 +2106,8 @@ class _FinalAnswerRecoveryChatDataSource
   final List<int?> recoveryMaxTokens = [];
   final List<List<Message>> pendingActionRecoveryRequestMessages = [];
   final List<List<Map<String, dynamic>>> pendingActionRecoveryToolBatches = [];
-  var finalAnswerStreamCount = 0;
-  var toolResultCompletionCount = 0;
+  int finalAnswerStreamCount = 0;
+  int toolResultCompletionCount = 0;
   String? _lastFinishReason;
 
   @override
@@ -2160,7 +2160,7 @@ class _FinalAnswerRecoveryChatDataSource
     int? maxTokens,
   }) {
     initialToolBatches.add(
-      tools.map((tool) => Map<String, dynamic>.from(tool)).toList(),
+      tools.map(Map<String, dynamic>.from).toList(),
     );
     _lastFinishReason = 'tool_calls';
     return StreamWithToolsResult(
@@ -2225,7 +2225,7 @@ class _FinalAnswerRecoveryChatDataSource
       pendingActionRecoveryRequestMessages.add(List<Message>.from(messages));
       pendingActionRecoveryToolBatches.add(
         (tools ?? const <Map<String, dynamic>>[])
-            .map((tool) => Map<String, dynamic>.from(tool))
+            .map(Map<String, dynamic>.from)
             .toList(),
       );
       _lastFinishReason = pendingActionRecoveryResult!.finishReason;
@@ -2309,7 +2309,7 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
   }) {
     initialRequestMessages.add(List<Message>.from(messages));
     initialToolDefinitions.add(
-      tools.map((tool) => Map<String, dynamic>.from(tool)).toList(),
+      tools.map(Map<String, dynamic>.from).toList(),
     );
     final requestNumber = initialRequestMessages.length;
     final toolCalls = _toolCallBatches.isEmpty
@@ -2378,7 +2378,7 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
     toolResultToolDefinitions.add(
       (tools ?? const <Map<String, dynamic>>[])
-          .map((tool) => Map<String, dynamic>.from(tool))
+          .map(Map<String, dynamic>.from)
           .toList(growable: false),
     );
     return ChatCompletionResult(

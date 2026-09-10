@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/planning_executor_profile.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 AppSettings _settings({
   String planningModel = '',

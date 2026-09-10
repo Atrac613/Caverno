@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../security/sensitive_data_redactor.dart';
 import '../security/sensitive_file_permissions.dart';
 import '../utils/logger.dart';

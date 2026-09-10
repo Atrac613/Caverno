@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/security/data_source_classifier.dart';
 import 'package:caverno/core/security/taint_policy.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = TaintPolicy();

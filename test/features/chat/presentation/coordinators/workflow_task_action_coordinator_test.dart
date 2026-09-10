@@ -160,7 +160,7 @@ final class _Harness {
   final ProviderContainer container;
   final _TaskActionConversationsNotifier notifier;
   late final WorkflowTaskActionCoordinator coordinator;
-  var dismissCount = 0;
+  int dismissCount = 0;
 
   Conversation get conversation =>
       container.read(conversationsNotifierProvider).currentConversation!;

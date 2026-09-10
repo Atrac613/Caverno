@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/active_response_registry.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('chatStateReportsConversationBusy', () {

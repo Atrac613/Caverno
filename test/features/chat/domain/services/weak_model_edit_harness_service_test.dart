@@ -1,9 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_service.dart';
 import 'package:caverno/features/chat/domain/services/weak_model_edit_harness_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('injects edit_file guidance for weak coding profiles', () {

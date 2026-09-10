@@ -60,5 +60,5 @@ void main() {
 }
 
 final class _MutableValue {
-  var value = 0;
+  int value = 0;
 }

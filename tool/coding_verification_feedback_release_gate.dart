@@ -117,7 +117,7 @@ buildCodingVerificationFeedbackReleaseGateFromSummaryJson({
   final dartTestFeedback = _asObject(signals['dartTestFeedback']);
   final tests = _asList(summary['tests'])
       .whereType<Map>()
-      .map((test) => Map<String, dynamic>.from(test))
+      .map(Map<String, dynamic>.from)
       .toList(growable: false);
   final coverage = _VerificationFeedbackCoverage.fromTests(tests);
   final feedbackFiles = _stringList(dartTestFeedback['files']).toSet();

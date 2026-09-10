@@ -79,7 +79,7 @@ Future<void> main(List<String> args) async {
       client.listen(
         connectedUpstream.add,
         onError: (_) => closePair(),
-        onDone: () => connectedUpstream.close(),
+        onDone: connectedUpstream.close,
         cancelOnError: true,
       );
       connectedUpstream.listen(

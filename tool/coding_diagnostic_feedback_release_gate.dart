@@ -116,7 +116,7 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
   final dartAnalyzeFeedback = _asObject(signals['dartAnalyzeFeedback']);
   final tests = _asList(summary['tests'])
       .whereType<Map>()
-      .map((test) => Map<String, dynamic>.from(test))
+      .map(Map<String, dynamic>.from)
       .toList(growable: false);
   final coverage = _DiagnosticFeedbackCoverage.fromTests(tests);
   final feedbackFiles = _stringList(dartAnalyzeFeedback['files']).toSet();

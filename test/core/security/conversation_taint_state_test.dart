@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/security/conversation_taint_state.dart';
 import 'package:caverno/core/security/data_source_classifier.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ConversationTaintState', () {

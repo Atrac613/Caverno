@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/kv_cache_warmup_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('KvCacheWarmupService', () {

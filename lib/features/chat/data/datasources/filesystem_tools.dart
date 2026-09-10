@@ -4,16 +4,16 @@ import 'dart:io';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-export 'filesystem_text_snapshot.dart';
-
 import 'bounded_text_file_classifier.dart';
 import 'filesystem_diff_builder.dart';
 import 'filesystem_mutation_operations.dart';
-import 'filesystem_pdf_reader.dart';
 import 'filesystem_overview_format.dart';
 import 'filesystem_path_resolver.dart';
+import 'filesystem_pdf_reader.dart';
 import 'filesystem_text_snapshot.dart';
 import 'first_party_tool_execution_result.dart';
+
+export 'filesystem_text_snapshot.dart';
 
 class _LineRangeSelection {
   const _LineRangeSelection({

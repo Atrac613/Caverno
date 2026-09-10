@@ -104,7 +104,7 @@ final class ProReasoningInvestigator {
           }
           return allowedToolNames.contains(name);
         })
-        .map((definition) => Map<String, dynamic>.from(definition))
+        .map(Map<String, dynamic>.from)
         .toList(growable: false);
   }
 

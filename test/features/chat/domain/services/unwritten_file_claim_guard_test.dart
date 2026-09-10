@@ -1,10 +1,9 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/unwritten_file_claim_guard.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const guard = UnwrittenFileClaimGuard();

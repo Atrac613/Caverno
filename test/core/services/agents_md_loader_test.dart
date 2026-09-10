@@ -1,8 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/services/agents_md_loader.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AgentsMdLoader', () {

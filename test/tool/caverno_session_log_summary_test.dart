@@ -385,7 +385,7 @@ void main() {
 
 File _writeSessionLog(List<Map<String, Object?>> entries) {
   return _writeRawSessionLog(
-    entries.map((entry) => jsonEncode(entry)).toList(growable: false),
+    entries.map(jsonEncode).toList(growable: false),
   );
 }
 

@@ -10,8 +10,8 @@ import 'package:caverno/features/settings/presentation/pages/computer_use_settin
 import 'package:caverno/features/settings/presentation/pages/settings_page.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _TestTranslationLoader extends AssetLoader {
@@ -33,9 +33,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
 
-  setUp(() {
-    MacosComputerUseAuditLog.instance.clear();
-  });
+  setUp(MacosComputerUseAuditLog.instance.clear);
 
   testWidgets('keeps Computer Use behind the advanced settings menu', (
     tester,

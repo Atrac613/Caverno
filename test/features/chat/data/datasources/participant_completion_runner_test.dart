@@ -1,5 +1,3 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mesh_secondary_completion_runner.dart';
@@ -9,6 +7,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 LlmEndpoint _endpoint(String baseUrl) =>
     LlmEndpoint(id: baseUrl, baseUrl: baseUrl).normalizedForPersistence();

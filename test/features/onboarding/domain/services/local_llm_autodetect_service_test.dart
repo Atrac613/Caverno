@@ -1,11 +1,10 @@
 import 'dart:convert';
 
+import 'package:caverno/core/services/lan_endpoint_discovery.dart';
+import 'package:caverno/features/onboarding/domain/services/local_llm_autodetect_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:caverno/core/services/lan_endpoint_discovery.dart';
-import 'package:caverno/features/onboarding/domain/services/local_llm_autodetect_service.dart';
 
 String _modelsBody(List<String> ids) => jsonEncode({
   'object': 'list',

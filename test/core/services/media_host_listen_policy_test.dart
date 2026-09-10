@@ -1,8 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/services/media_host_listen_policy.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 NetworkInterface _interface(String name, List<String> addresses) =>
     _FakeInterface(

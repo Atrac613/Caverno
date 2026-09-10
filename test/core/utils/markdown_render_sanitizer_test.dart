@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/utils/markdown_render_sanitizer.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('escapes malformed leading reference labels', () {

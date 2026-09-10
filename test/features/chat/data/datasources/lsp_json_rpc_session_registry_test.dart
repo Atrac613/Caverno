@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_diagnostic_bridge.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_process_transport.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_session_registry.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_server_command_resolver.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('LspJsonRpcSessionRegistry', () {
@@ -407,7 +406,7 @@ List<Map<String, dynamic>> _decodeWrittenMessages(List<List<int>> writes) {
   final buffer = LspJsonRpcMessageBuffer();
   return writes
       .expand(buffer.addBytes)
-      .map((message) => Map<String, dynamic>.from(message))
+      .map(Map<String, dynamic>.from)
       .toList(growable: false);
 }
 

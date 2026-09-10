@@ -680,7 +680,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
         ]);
       case 'computer_type_text':
         details.addAll([
-          'Text length: ${('${args['text'] ?? ''}').length} characters',
+          'Text length: ${'${args['text'] ?? ''}'.length} characters',
           'Text preview: ${ComputerUseActionPresentation.summarizeText(args['text'], maxLength: 160)}',
         ]);
       case 'computer_switch_space':

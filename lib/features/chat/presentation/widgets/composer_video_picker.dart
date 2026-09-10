@@ -101,7 +101,7 @@ class ComposerVideoPicker {
   Future<ComposerVideoChoice> fromDroppedFile(
     MessageInputVideoAttachment attachment,
   ) async {
-    return await _persisted(
+    return _persisted(
       validate(
         VideoAttachmentDraft(
           path: attachment.filePath,

@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/presentation/providers/flutter_run_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/html_preview_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';
 import 'package:caverno/features/chat/presentation/widgets/html_preview_control_section.dart';
 import 'package:caverno/features/chat/presentation/widgets/project_run_control_section.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

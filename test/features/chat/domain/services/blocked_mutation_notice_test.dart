@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/blocked_mutation_notice.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 ToolResultInfo _blockedEdit(
   String path, {

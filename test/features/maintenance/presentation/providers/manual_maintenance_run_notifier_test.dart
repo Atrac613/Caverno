@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:caverno/features/maintenance/domain/services/maintenance_pipeline.dart';
-import 'package:caverno/features/maintenance/presentation/providers/manual_maintenance_run_notifier.dart';
 import 'package:caverno/features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
+import 'package:caverno/features/maintenance/presentation/providers/manual_maintenance_run_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../security/egress_destination_policy.dart';
 import '../utils/logger.dart';

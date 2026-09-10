@@ -10,20 +10,20 @@ import 'notification_service.dart';
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   final service = NotificationService();
   unawaited(service.init());
-  ref.onDispose(() => service.dispose());
+  ref.onDispose(service.dispose);
   return service;
 });
 
 /// App lifecycle observer provider.
 final appLifecycleServiceProvider = Provider<AppLifecycleService>((ref) {
   final service = AppLifecycleService();
-  ref.onDispose(() => service.dispose());
+  ref.onDispose(service.dispose);
   return service;
 });
 
 /// iOS background task provider.
 final backgroundTaskServiceProvider = Provider<BackgroundTaskService>((ref) {
   final service = BackgroundTaskService();
-  ref.onDispose(() => service.dispose());
+  ref.onDispose(service.dispose);
   return service;
 });

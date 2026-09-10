@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/response_metadata_registry.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 ChatTurnOwner _owner(String conversationId, int generation) => ChatTurnOwner(
   conversationId: conversationId,

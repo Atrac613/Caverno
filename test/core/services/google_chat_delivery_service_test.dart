@@ -1,10 +1,9 @@
 import 'dart:convert';
 
+import 'package:caverno/core/services/google_chat_delivery_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:caverno/core/services/google_chat_delivery_service.dart';
 
 void main() {
   group('GoogleChatDeliveryService', () {

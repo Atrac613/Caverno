@@ -1,21 +1,20 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-
-import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
+import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/embeddings_client.dart';
 import '../../../chat/data/datasources/embeddings_math.dart';
-import '../../../chat/data/datasources/chat_remote_datasource.dart';
+import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
-import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';

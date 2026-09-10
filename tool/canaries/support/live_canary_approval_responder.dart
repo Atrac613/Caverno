@@ -1,7 +1,6 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Plays the human at the local-command approval prompt for a live canary.
 ///

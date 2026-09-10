@@ -5,10 +5,6 @@ import 'dart:io';
 import 'package:dart_ping/dart_ping.dart';
 import 'package:multicast_dns/multicast_dns.dart';
 
-export 'network_dns_tools.dart' show NetworkReverseLookup;
-export 'network_tool_dependencies.dart'
-    show NetworkAddressLookup, NetworkProcessRunner;
-
 import 'network_address_utils.dart';
 import 'network_dns_tools.dart';
 import 'network_http_tools.dart';
@@ -16,6 +12,10 @@ import 'network_neighbor_tools.dart';
 import 'network_route_tools.dart';
 import 'network_socket_tools.dart';
 import 'network_tool_dependencies.dart';
+
+export 'network_dns_tools.dart' show NetworkReverseLookup;
+export 'network_tool_dependencies.dart'
+    show NetworkAddressLookup, NetworkProcessRunner;
 
 typedef NetworkPingRunner =
     Future<String> Function({

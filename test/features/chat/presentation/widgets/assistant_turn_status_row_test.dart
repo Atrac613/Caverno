@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/presentation/widgets/assistant_turn_phase.dart';
+import 'package:caverno/features/chat/presentation/widgets/assistant_turn_status_row.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/presentation/widgets/assistant_turn_phase.dart';
-import 'package:caverno/features/chat/presentation/widgets/assistant_turn_status_row.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();

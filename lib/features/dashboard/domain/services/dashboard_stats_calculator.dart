@@ -147,7 +147,7 @@ class DashboardStatsCalculator {
           }
           final rank = _upperBound(positiveCounts, count);
           final bucket =
-              ((rank * 4 + positiveCounts.length - 1) ~/ positiveCounts.length);
+              (rank * 4 + positiveCounts.length - 1) ~/ positiveCounts.length;
           return bucket.clamp(1, 4);
         })
         .toList(growable: false);

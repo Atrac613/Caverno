@@ -1,6 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/file_mutation_runtime_contract.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
@@ -11,6 +8,8 @@ import 'package:caverno/features/chat/domain/entities/ssh_auth_credential.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mocktail/mocktail.dart';
 
 extension StreamedChatCompletionTestExtension on Stream<String> {
   StreamedChatCompletion asCompletion([String? finishReason = 'stop']) =>

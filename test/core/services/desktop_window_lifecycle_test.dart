@@ -115,7 +115,7 @@ void main() {
     expect(mainSource, contains('showAfterFirstFrame()'));
     expect(mainSource, contains('_startOnce()'));
     expect(windowManagerSource, contains('void showAfterFirstFrame()'));
-    expect(windowManagerSource, contains("com.caverno/launch_window"));
+    expect(windowManagerSource, contains('com.caverno/launch_window'));
     expect(windowManagerSource, contains('allowShow'));
     expect(mainSource, contains('CavernoLegacyHiveBoxes.open'));
     expect(

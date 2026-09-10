@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_xpc_timing_report.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'dart_tool_process.dart';
-
-import 'package:caverno/core/services/macos_computer_use_xpc_timing_report.dart';
 
 void main() {
   test('classifies a preferred XPC response before timeout as ready', () {

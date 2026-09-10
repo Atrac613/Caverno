@@ -1,5 +1,3 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
@@ -8,6 +6,7 @@ import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('keeps temporal and memory context behind a stable prompt prefix', () {

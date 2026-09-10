@@ -1,10 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_calibration_service.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
 import 'package:caverno/features/settings/domain/services/model_capability_profile_builder.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('builds a profile from a successful OpenAI-compatible diagnostic', () {

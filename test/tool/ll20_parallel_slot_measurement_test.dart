@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/llama_cpp_slot_transport.dart';
 import 'package:caverno/features/chat/data/datasources/parallel_slot_executor.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/ll20_parallel_slot_measurement.dart';
 

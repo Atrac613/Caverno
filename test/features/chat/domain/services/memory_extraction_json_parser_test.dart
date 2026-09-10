@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/memory_extraction_json_parser.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('parses valid memory extraction JSON without repair', () {

@@ -5,12 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../widgets/settings_actions_menu.dart';
 import 'advanced_settings_page.dart';
+import 'chat_settings_page.dart';
 import 'computer_use_settings_page.dart';
 import 'general_settings_page.dart';
-import 'chat_settings_page.dart';
 import 'slash_command_settings_page.dart';
-import 'voice_settings_page.dart';
 import 'tools_settings_page.dart';
+import 'voice_settings_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});

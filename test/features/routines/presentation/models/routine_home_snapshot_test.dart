@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/models/routine_home_snapshot.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Routine buildRoutine({

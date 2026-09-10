@@ -1,7 +1,7 @@
+import 'package:caverno/features/maintenance/domain/entities/ll37_objective_vote_identity.dart';
 import 'package:caverno/features/maintenance/domain/services/ll37_objective_verdict_projection_builder.dart';
 import 'package:caverno/features/maintenance/domain/services/ll37_objective_verification_panel.dart';
 import 'package:caverno/features/maintenance/domain/services/ll37_verifier_fidelity_profile.dart';
-import 'package:caverno/features/maintenance/domain/entities/ll37_objective_vote_identity.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 

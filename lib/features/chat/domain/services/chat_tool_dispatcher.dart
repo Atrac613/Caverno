@@ -1,6 +1,7 @@
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 

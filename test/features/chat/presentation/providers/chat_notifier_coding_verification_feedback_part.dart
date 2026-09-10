@@ -33,9 +33,9 @@ void registerChatNotifierCodingVerificationFeedbackTests() {
         'path': 'test/canary_test.dart',
         'content':
             "import 'dart:io';\n\n"
-            "void main() {\n"
+            'void main() {\n'
             "  File('canary_side_effect.txt').writeAsStringSync('executed');\n"
-            "}\n",
+            '}\n',
       },
     );
     final toolDataSource = _QueuedToolLoopChatDataSource(

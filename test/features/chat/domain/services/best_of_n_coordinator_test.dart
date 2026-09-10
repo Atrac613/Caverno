@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Scripted runner: [greenAt] is the candidate index that verifies green (null
 /// = none). Optional hooks make a candidate throw on generate/verify or fail to
@@ -140,7 +139,7 @@ void main() {
     expect(json['schemaName'], 'caverno_best_of_n_report');
     expect(json['foundGreen'], isTrue);
     expect(json['winnerIndex'], 0);
-    expect((json['attempts'] as List), hasLength(1));
+    expect(json['attempts'] as List, hasLength(1));
 
     final markdown = report.toMarkdown();
     expect(markdown, contains('Best-of-N Verification Run'));

@@ -1,11 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_listing_codec.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const codec = ConversationListingCodec();

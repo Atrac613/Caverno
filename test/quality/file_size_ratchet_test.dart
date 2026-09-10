@@ -480,7 +480,9 @@ const Map<String, int> _lineBudgets = {
       15,
   'lib/features/chat/presentation/coordinators/chat_dropped_attachments_take.dart':
       74,
-  'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 287,
+  // +1 blank line, not code: directives_ordering separates the `package:`
+  // imports from the relative ones. See docs/lint_policy.md.
+  'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 288,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
   // a stream, a timeout and a drain.

@@ -8,8 +8,8 @@ import 'serial_connection_tool_contract.dart';
 import 'tool_approval_auto_review_service.dart';
 import 'turn_tool_approval_coordinator.dart';
 
-export 'serial_connection_tool_contract.dart';
 export 'serial_connection_port.dart';
+export 'serial_connection_tool_contract.dart';
 
 // ChatNotifier decomposition collaborator: serial-connection-tool-handler
 

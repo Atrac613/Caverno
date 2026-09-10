@@ -141,7 +141,7 @@ packages:
 
     expect(decoded['ok'], isTrue);
     expect((decoded['package'] as Map<String, dynamic>)['name'], 'alpha');
-    expect((decoded['matches'] as List<dynamic>), isNotEmpty);
+    expect(decoded['matches'] as List<dynamic>, isNotEmpty);
   });
 
   test('resolves a Node package from package-lock and node_modules', () async {

@@ -80,9 +80,7 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
 
   @override
   ComposerShortcutsState build() {
-    ref.listen<ChatState>(chatNotifierProvider, (previous, next) {
-      _onChatStateChanged(previous, next);
-    });
+    ref.listen<ChatState>(chatNotifierProvider, _onChatStateChanged);
     return const ComposerShortcutsState();
   }
 

@@ -1,7 +1,7 @@
+import '../../../../core/types/workspace_mode.dart';
 import '../entities/personal_eval_case.dart';
 import 'personal_eval_replay_orchestrator.dart';
 import 'personal_eval_verification_runner.dart';
-import '../../../../core/types/workspace_mode.dart';
 
 /// Result of driving a candidate model through one recorded case: where the
 /// replay session log was written, its contents (for summary parsing), the

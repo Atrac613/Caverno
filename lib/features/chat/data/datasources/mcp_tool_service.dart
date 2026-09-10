@@ -2,29 +2,25 @@
 
 import 'dart:convert';
 
-export 'mcp_tool_service_facades.dart';
-export 'local_command_tool_runtime_adapter.dart';
-
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/browser_session_service.dart';
-import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
-import '../../../../core/services/serial_port_service.dart';
-import '../../../../core/services/wifi_service.dart';
 import '../../../../core/services/script_runtime/script_runtime.dart';
+import '../../../../core/services/serial_port_service.dart';
+import '../../../../core/services/ssh_service.dart';
+import '../../../../core/services/wifi_service.dart';
 import '../../../../core/utils/logger.dart';
-import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/entities/conversation.dart';
-import '../../domain/entities/skill.dart';
-import 'memory_recall_scoring.dart';
-import '../../domain/services/tool_definition_search_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../domain/entities/conversation.dart';
+import '../../domain/entities/mcp_tool_entity.dart';
+import '../../domain/entities/skill.dart';
+import '../../domain/services/tool_definition_search_service.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository_api.dart';
 import '../repositories/skill_repository.dart';
-import 'background_process_tools.dart';
 import 'background_process_monitor_service.dart';
+import 'background_process_tools.dart';
 import 'built_in_ble_tool_handler.dart';
 import 'built_in_browser_tool_handler.dart';
 import 'built_in_computer_use_tool_handler.dart';
@@ -46,12 +42,16 @@ import 'installed_dependency_grounding_service.dart';
 import 'local_shell_tools.dart';
 import 'mcp_client.dart';
 import 'mcp_goal_routine_tool_definitions.dart';
-import 'mcp_tool_service_facades.dart';
-import 'mcp_tool_search_catalog.dart';
 import 'mcp_tool_result_normalizer.dart';
+import 'mcp_tool_search_catalog.dart';
+import 'mcp_tool_service_facades.dart';
+import 'memory_recall_scoring.dart';
 import 'os_log_tools.dart';
 import 'python_script_tools.dart';
 import 'remote_mcp_connection_manager.dart';
+
+export 'local_command_tool_runtime_adapter.dart';
+export 'mcp_tool_service_facades.dart';
 
 /// Manages built-in and remote MCP tool discovery and execution.
 part 'mcp_tool_service_builtin_tool_definitions.dart';

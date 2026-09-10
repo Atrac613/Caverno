@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/proposal_option_extraction.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('PlanningDecisionPromotion', () {

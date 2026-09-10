@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/browser_session_service.dart';
+import '../../../remote_coding/presentation/remote_coding_settings_page.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/built_in_tool_info.dart';
 import '../providers/settings_notifier.dart';
-import '../../../remote_coding/presentation/remote_coding_settings_page.dart';
 import 'built_in_tools_settings_page.dart';
 import 'external_settings_page.dart';
 import 'local_command_permission_rules_page.dart';

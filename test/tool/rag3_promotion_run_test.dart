@@ -147,7 +147,7 @@ void main() {
     expect(vector['rankedChunkIds'], ['docs/alpha.md#1', 'docs/beta.md#1']);
     expect((vector['fingerprint'] as Map)['dimension'], 2);
     expect(cases.last['submitted'], isFalse);
-    expect((cases.last['lexicalRankedChunkIds'] as List), isEmpty);
+    expect(cases.last['lexicalRankedChunkIds'] as List, isEmpty);
   });
 }
 

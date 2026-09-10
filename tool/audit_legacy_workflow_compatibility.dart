@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:sqlite3/sqlite3.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_legacy_workflow_compatibility_service.dart';
@@ -11,6 +9,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dar
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_conflict_preservation_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_workflow_provenance_merge_service.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 const String auditSchemaName = 'caverno_legacy_workflow_compatibility_audit';
 const int auditSchemaVersion = 5;
@@ -298,10 +297,10 @@ final class _ProvenanceMergeCandidateAccumulator {
   static final DateTime _deterministicDerivedAt =
       DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 
-  var evaluatedSnapshotCount = 0;
-  var mergeableSnapshotCount = 0;
-  var blockedSnapshotCount = 0;
-  var projectionFailureSnapshotCount = 0;
+  int evaluatedSnapshotCount = 0;
+  int mergeableSnapshotCount = 0;
+  int blockedSnapshotCount = 0;
+  int projectionFailureSnapshotCount = 0;
   final blockerSnapshotCounts = {
     for (final blocker in ConversationWorkflowProvenanceMergeBlocker.values)
       blocker.name: 0,
@@ -387,8 +386,8 @@ final class _PlanProgressConflictAccumulator {
   static final DateTime _deterministicDerivedAt =
       DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 
-  var evaluatedRecordCount = 0;
-  var fullyConstrainedCandidateCount = 0;
+  int evaluatedRecordCount = 0;
+  int fullyConstrainedCandidateCount = 0;
   final projectionOutcomeRecordCounts = {
     for (final value in _ConflictPlanProjectionOutcome.values) value.name: 0,
   };
@@ -593,14 +592,14 @@ final class _PlanProgressConflictAccumulator {
 }
 
 final class _ConflictPreservationRehearsalAccumulator {
-  var evaluatedRecordCount = 0;
-  var envelopeCreatedRecordCount = 0;
-  var readyRecordCount = 0;
-  var selectedStagePresentRecordCount = 0;
-  var allExecutionProgressPreservedRecordCount = 0;
-  var meaningfulOrphanProgressRecordCount = 0;
-  var onlyStageAuthorityBlockedRecordCount = 0;
-  var inputMutationDetectedRecordCount = 0;
+  int evaluatedRecordCount = 0;
+  int envelopeCreatedRecordCount = 0;
+  int readyRecordCount = 0;
+  int selectedStagePresentRecordCount = 0;
+  int allExecutionProgressPreservedRecordCount = 0;
+  int meaningfulOrphanProgressRecordCount = 0;
+  int onlyStageAuthorityBlockedRecordCount = 0;
+  int inputMutationDetectedRecordCount = 0;
   final blockerRecordCounts = {
     for (final blocker
         in ConversationWorkflowConflictPreservationBlocker.values)
@@ -756,7 +755,7 @@ bool _hasWorkflowContext(
 }
 
 final class _ProvenanceShapeAccumulator {
-  var snapshotCount = 0;
+  int snapshotCount = 0;
   final sourceKindSnapshotCounts = {
     for (final kind in ConversationContractSourceKind.values) kind.name: 0,
   };

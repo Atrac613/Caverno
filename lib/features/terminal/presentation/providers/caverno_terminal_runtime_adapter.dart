@@ -1,10 +1,10 @@
 import 'dart:io';
 
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
-import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../../chat/domain/entities/conversation.dart';
 import '../../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';

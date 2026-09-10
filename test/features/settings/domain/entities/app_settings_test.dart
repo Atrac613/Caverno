@@ -1,12 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
-
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('thinking preference round trips and old settings stay automatic', () {

@@ -1,4 +1,3 @@
-import 'anabasis_speaker_header.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show File, Platform;
@@ -12,24 +11,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/tts_service.dart';
 import '../../../../core/services/voice_providers.dart';
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/utils/attachment_format.dart';
 import '../../../settings/domain/entities/app_settings.dart';
-import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/pages/chat_settings_page.dart';
+import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/running_tools_provider.dart';
+import 'anabasis_speaker_header.dart';
 import 'assistant_turn_phase.dart';
 import 'assistant_turn_status_row.dart';
 import 'file_workspace_viewer_sheet.dart';
-import 'message_image_io.dart';
 import 'message_attachment_io.dart';
+import 'message_image_io.dart';
 import 'message_image_viewer.dart';
 import 'message_video_poster.dart';
 import 'message_video_viewer.dart';
 import 'parsed_content_view.dart';
-import '../../../../core/theme/app_tokens.dart';
 
 const double _messageImagePreviewWidth = 200;
 const double _messageImagePreviewHeight = 140;

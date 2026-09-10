@@ -1,6 +1,7 @@
-import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+
+import '../providers/chat_state.dart';
 
 /// Where the user left a thread.
 ///

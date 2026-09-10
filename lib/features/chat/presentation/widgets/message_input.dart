@@ -19,28 +19,28 @@ import '../../../../core/utils/logger.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
+import '../../domain/entities/video_attachment_draft.dart';
+import '../../domain/services/conversation_goal_auto_continue_policy.dart';
+import '../mentions/mention_target.dart';
+import '../slash_commands/slash_command.dart';
 import 'composer_attachment_button.dart';
 import 'composer_control_chip.dart';
-import 'composer_model_selector.dart';
-import 'composer_shortcut_bar.dart';
 import 'composer_dropped_attachment_intake.dart';
 import 'composer_file_chip.dart';
 import 'composer_file_intake.dart';
-import 'composer_file_prepare_gate.dart';
 import 'composer_file_picker.dart';
+import 'composer_file_prepare_gate.dart';
 import 'composer_file_submission.dart';
 import 'composer_macos_paste_hint.dart';
+import 'composer_model_selector.dart';
+import 'composer_shortcut_bar.dart';
 import 'composer_video_picker.dart';
-import '../../domain/entities/video_attachment_draft.dart';
 import 'conversation_goal_status_presentation.dart';
-import '../../domain/services/conversation_goal_auto_continue_policy.dart';
-import '../slash_commands/slash_command.dart';
 import 'message_input_control_labels.dart';
-import 'message_input_send_handler.dart';
-import 'message_input_slash_suggestion_list.dart';
 import 'message_input_mention_suggestion_list.dart';
 import 'message_input_mention_suggestion_state.dart';
-import '../mentions/mention_target.dart';
+import 'message_input_send_handler.dart';
+import 'message_input_slash_suggestion_list.dart';
 import 'message_input_slash_suggestion_state.dart';
 import 'pro_reasoning_mode_button.dart';
 import 'voice_mode_overlay.dart';
@@ -1736,11 +1736,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                           },
                                         ),
                                     padding: EdgeInsets.zero,
-                                    onSelected: (value) {
-                                      settingsNotifier.updateCodingApprovalMode(
-                                        value,
-                                      );
-                                    },
+                                    onSelected: settingsNotifier.updateCodingApprovalMode,
                                     itemBuilder: (context) => ToolApprovalMode
                                         .values
                                         .map(
@@ -1918,11 +1914,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                           },
                                         ),
                                     padding: EdgeInsets.zero,
-                                    onSelected: (value) {
-                                      settingsNotifier.updateChatApprovalMode(
-                                        value,
-                                      );
-                                    },
+                                    onSelected: settingsNotifier.updateChatApprovalMode,
                                     itemBuilder: (context) => ToolApprovalMode
                                         .values
                                         .map(

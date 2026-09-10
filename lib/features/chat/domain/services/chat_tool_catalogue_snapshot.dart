@@ -19,7 +19,7 @@ final class ChatToolCatalogueSnapshotService {
     final build = _validatedBuild(buildProvenance);
     final redactedDefinitions = toolDefinitions
         .map((definition) => _redactJson(definition, secrets))
-        .map((definition) => _canonicalizeJson(definition))
+        .map(_canonicalizeJson)
         .map((definition) => Map<String, Object?>.from(definition as Map))
         .toList(growable: false);
 

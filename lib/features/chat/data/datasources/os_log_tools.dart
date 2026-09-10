@@ -563,7 +563,7 @@ class OsLogTools {
         .where((keyword) => lowerLine.contains(keyword.toLowerCase()))
         .toList(growable: false);
     final severityHints = _errorHints
-        .where((keyword) => lowerLine.contains(keyword))
+        .where(lowerLine.contains)
         .toList(growable: false);
     final timestamp = _extractLeadingTimestamp(line);
 

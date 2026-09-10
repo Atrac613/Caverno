@@ -2242,7 +2242,7 @@ Map<String, dynamic> _xpcProductionGate(List<Map<String, dynamic>> steps) {
       .where((step) => step['id'] != 'unregister_xpc_launch_agent')
       .map((step) => step['result'])
       .whereType<Map>()
-      .map((result) => Map<String, dynamic>.from(result))
+      .map(Map<String, dynamic>.from)
       .toList();
   final nextParityCommands = <String>{
     for (final result in results)

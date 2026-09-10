@@ -1,11 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/routines/data/routine_execution_service.dart';
 import 'package:caverno/features/routines/domain/services/routine_tool_policy.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('RoutineToolPolicy', () {

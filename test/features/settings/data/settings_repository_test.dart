@@ -1,9 +1,9 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:caverno/features/settings/data/settings_credential_store.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

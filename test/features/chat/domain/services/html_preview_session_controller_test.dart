@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/html_preview_session.dart';
 import 'package:caverno/features/chat/domain/services/html_preview_session_controller.dart';
 import 'package:caverno/features/chat/domain/services/html_preview_static_server.dart';
 import 'package:caverno/features/chat/domain/services/html_project_detector.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('opens a detected html entry in the built-in browser', () async {
@@ -151,7 +150,7 @@ void main() {
       panel: panel,
       isPanelOpen: () => panel.open,
       isPlatformSupported: () => true,
-      createServer: () => _FakeServer(),
+      createServer: _FakeServer.new,
       detector: _FixedDetector(
         const HtmlProjectEntry(
           absolutePath: '/work/sea/index.html',

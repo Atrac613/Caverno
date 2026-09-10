@@ -3,10 +3,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'dart_tool_process.dart';
-
 import '../../integration_test/test_support/macos_computer_use_canary_history.dart';
 import '../../integration_test/test_support/macos_computer_use_manual_tcc_report.dart';
+import 'dart_tool_process.dart';
 
 void main() {
   group('Computer Use canary history', () {

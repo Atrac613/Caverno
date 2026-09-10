@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/entities/skill_catalog_entry.dart';
 import 'package:caverno/features/chat/presentation/providers/skill_catalog_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/settings/presentation/pages/skill_catalog_sheet.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const conflictEntry = SkillCatalogEntry(

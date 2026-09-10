@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/content_tool_result_formatter.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ContentToolResultFormatter.format', () {

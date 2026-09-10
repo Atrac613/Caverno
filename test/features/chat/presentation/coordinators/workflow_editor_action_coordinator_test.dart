@@ -19,8 +19,8 @@ class _WorkflowEditorConversationsNotifier extends ConversationsNotifier {
   final List<String> operations = [];
   ConversationWorkflowStage? lastWorkflowStage;
   ConversationWorkflowSpec? lastWorkflowSpec;
-  var lastClearWorkflowSpec = false;
-  var lastClearPlanArtifact = false;
+  bool lastClearWorkflowSpec = false;
+  bool lastClearPlanArtifact = false;
 
   @override
   ConversationsState build() => ConversationsState(
@@ -74,7 +74,7 @@ class _CoordinatorHarness {
   final ProviderContainer container;
   final _WorkflowEditorConversationsNotifier notifier;
   late final WorkflowEditorActionCoordinator coordinator;
-  var dismissCount = 0;
+  int dismissCount = 0;
 
   void dispose() => container.dispose();
 }

@@ -2,9 +2,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/built_in_tool_info.dart';
 import '../providers/settings_notifier.dart';
-import '../../../../core/theme/app_tokens.dart';
 
 class BuiltInToolsSettingsPage extends ConsumerWidget {
   const BuiltInToolsSettingsPage({super.key});

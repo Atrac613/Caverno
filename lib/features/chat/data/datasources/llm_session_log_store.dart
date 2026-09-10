@@ -337,7 +337,7 @@ class LlmSessionLogStore {
   }) {
     if (!isFlutterTest) return true;
     if (hasExplicitRoot) return true;
-    return (directoryOverride?.trim().isNotEmpty) ?? false;
+    return directoryOverride?.trim().isNotEmpty ?? false;
   }
 
   static bool isEnabled({

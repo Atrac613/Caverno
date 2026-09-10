@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_calibration_service.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const service = LlmSamplerCalibrationService();

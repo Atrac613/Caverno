@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import '../../data/datasources/chat_datasource.dart';
 import '../entities/flutter_run_issue.dart';
-import 'flutter_run_issue_request.dart';
 import '../entities/message.dart';
+import 'flutter_run_issue_request.dart';
 
 /// Sends one candidate block to the model and reads back a judgement.
 ///

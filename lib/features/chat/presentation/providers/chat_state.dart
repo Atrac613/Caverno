@@ -1,6 +1,3 @@
-export '../../domain/services/ask_user_question_policy.dart'
-    show AskUserQuestionAnswer, AskUserQuestionOption, AskUserQuestionSelection;
-
 import 'dart:async';
 
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -9,14 +6,13 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/workflow_proposal_draft.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
-
+import 'pending_ask_user_question.dart';
+import 'pending_tool_approvals.dart';
 import 'queued_chat_message.dart';
 
-// Re-exported so every existing chat_state.dart import still sees the queue
-// entry that used to live here; the freezed part file needs the import above.
-export 'pending_tool_approvals.dart';
-import 'pending_tool_approvals.dart';
-export 'queued_chat_message.dart';
+export '../../domain/entities/workflow_proposal_draft.dart';
+export '../../domain/services/ask_user_question_policy.dart'
+    show AskUserQuestionAnswer, AskUserQuestionOption, AskUserQuestionSelection;
 // The model-initiated question holder moved out when this file reached its
 // ratchet ceiling; re-exported so every existing importer still sees it.
 export 'pending_ask_user_question.dart';
@@ -25,9 +21,10 @@ export 'pending_ask_user_question.dart';
 // ThreadScopedChatState; re-exported for the callers that already import
 // chat_state.dart.
 export 'pending_tool_approval_projection.dart';
-import 'pending_ask_user_question.dart';
-
-export '../../domain/entities/workflow_proposal_draft.dart';
+// Re-exported so every existing chat_state.dart import still sees the queue
+// entry that used to live here; the freezed part file needs the import above.
+export 'pending_tool_approvals.dart';
+export 'queued_chat_message.dart';
 
 part 'chat_state.freezed.dart';
 

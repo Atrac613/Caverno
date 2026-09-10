@@ -1,11 +1,10 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/task_precondition_parsing.dart';
 import 'package:caverno/features/chat/domain/services/conversation_planning_prompt_service.dart';
 import 'package:caverno/features/chat/domain/services/planning_executor_profile.dart';
+import 'package:caverno/features/chat/domain/services/task_precondition_parsing.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('workflow proposal prompt includes execution and open question state', () {

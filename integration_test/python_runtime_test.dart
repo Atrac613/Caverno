@@ -27,7 +27,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   final runtime = PythonScriptRuntime();
-  tearDownAll(() => runtime.dispose());
+  tearDownAll(runtime.dispose);
 
   testWidgets(
     'embedded interpreter runs and captures stdout',

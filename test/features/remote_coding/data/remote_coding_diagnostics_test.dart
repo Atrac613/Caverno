@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_diagnostics.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_support_packet.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:flutter_test/flutter_test.dart';

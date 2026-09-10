@@ -1,5 +1,5 @@
-import 'package:caverno/features/settings/data/model_remote_datasource.dart';
 import 'package:caverno/core/constants/api_constants.dart';
+import 'package:caverno/features/settings/data/model_remote_datasource.dart';
 import 'package:caverno/features/settings/domain/entities/local_model_lifecycle.dart';
 import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';

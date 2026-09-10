@@ -1,17 +1,16 @@
 import 'dart:convert';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
-import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
-import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
 import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const classifier = ToolFailureClassifier();

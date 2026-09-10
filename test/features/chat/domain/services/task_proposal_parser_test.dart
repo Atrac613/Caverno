@@ -1,10 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/task_proposal_parser.dart';
 import 'package:caverno/features/chat/domain/services/workflow_task_proposal_quality_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late int taskIdIndex;

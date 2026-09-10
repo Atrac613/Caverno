@@ -2,14 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno_content_protocol/caverno_content_protocol.dart';
-import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
@@ -19,9 +11,6 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
-
-import '../../../../support/chat_turn_harness.dart';
-import '../../../../support/local_command_approval_stand_in.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_session_registry.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -37,23 +26,33 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
-import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_message_notice_service.dart';
+import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
+import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
-import '../../../../support/chat_turn_owner_test_support.dart';
-import 'package:caverno/features/chat/presentation/providers/thread_scoped_message_queue.dart';
-import 'package:caverno/features/chat/presentation/providers/thread_scoped_chat_state.dart';
-import 'package:caverno/features/chat/presentation/providers/turn_thread_scope.dart';
-import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/thread_scoped_chat_state.dart';
+import 'package:caverno/features/chat/presentation/providers/thread_scoped_message_queue.dart';
+import 'package:caverno/features/chat/presentation/providers/turn_thread_scope.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mocktail/mocktail.dart';
+
+import '../../../../support/chat_turn_harness.dart';
+import '../../../../support/chat_turn_owner_test_support.dart';
+import '../../../../support/local_command_approval_stand_in.dart';
 
 const String _projectARoot = '/tmp/caverno-test/project-a';
 const String _projectBRoot = '/tmp/caverno-test/project-b';
@@ -985,7 +984,7 @@ final class _SingleReadCallDataSource implements ChatDataSource {
   }) async => ChatCompletionResult(content: 'done', finishReason: 'stop');
 
   @override
-  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _ProtectedPathRetryDataSource implements ChatDataSource {
@@ -1521,8 +1520,8 @@ final class _GatedRefreshRuntimeRepositoryPort
   final Completer<void> flushStarted = Completer<void>();
   final Completer<void> releaseFlush = Completer<void>();
   final List<CavernoRuntimeTerminalEvent> terminalEvents = [];
-  var gateNextRefresh = false;
-  var rejectNextRefresh = false;
+  bool gateNextRefresh = false;
+  bool rejectNextRefresh = false;
   var _gateNextFlush = false;
 
   @override
@@ -5788,7 +5787,7 @@ void main() {
 
       // Teardown surface: with both turns finished, every turn-local store is
       // released.
-      await _waitUntil(() => notifier.turnStateIsClearedForTest());
+      await _waitUntil(notifier.turnStateIsClearedForTest);
       expect(
         notifier.turnStateIsClearedForTest(),
         isTrue,
@@ -5912,7 +5911,7 @@ void main() {
 
       // Teardown: the stale turn released its state rather than leaving it for
       // the replacement to inherit.
-      await _waitUntil(() => notifier.turnStateIsClearedForTest());
+      await _waitUntil(notifier.turnStateIsClearedForTest);
       expect(
         notifier.turnStateIsClearedForTest(),
         isTrue,
@@ -7816,7 +7815,7 @@ void main() {
       expect(
         container.read(chatNotifierProvider).workflowProposalDraft,
         isNull,
-        reason: "the other thread never asked for a plan",
+        reason: 'the other thread never asked for a plan',
       );
       expect(
         container.read(chatNotifierProvider).isGeneratingWorkflowProposal,

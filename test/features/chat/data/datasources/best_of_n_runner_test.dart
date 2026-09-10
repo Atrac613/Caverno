@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/best_of_n_runner.dart';
 import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
@@ -9,6 +7,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 CodingVerificationSnapshot _snapshot(
   ConversationExecutionValidationStatus status, {

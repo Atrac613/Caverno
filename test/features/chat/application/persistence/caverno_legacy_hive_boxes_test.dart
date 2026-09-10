@@ -1,8 +1,7 @@
+import 'package:caverno/features/chat/application/persistence/caverno_legacy_hive_boxes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:caverno/features/chat/application/persistence/caverno_legacy_hive_boxes.dart';
 
 class _MockBox extends Mock implements Box<String> {}
 

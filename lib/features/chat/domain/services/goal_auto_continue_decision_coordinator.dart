@@ -5,11 +5,11 @@ import '../entities/conversation_goal.dart';
 import '../entities/conversation_workflow.dart';
 import 'conversation_goal_auto_continue_policy.dart';
 import 'execution_snapshot_projector.dart';
+import 'goal_auto_continue_decision_types.dart';
 import 'goal_auto_continue_tracker_registry.dart';
 import 'short_prompt_contract_builder.dart';
 import 'stalled_diagnostic_repair_contract.dart';
 import 'tool_result_prompt_builder.dart';
-import 'goal_auto_continue_decision_types.dart';
 
 export 'goal_auto_continue_decision_types.dart';
 

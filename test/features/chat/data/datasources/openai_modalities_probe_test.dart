@@ -1,10 +1,9 @@
 import 'dart:convert';
 
+import 'package:caverno/features/chat/data/datasources/openai_modalities_probe.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:caverno/features/chat/data/datasources/openai_modalities_probe.dart';
 
 Future<EndpointModalitySupport> probe(
   http.Response Function(http.Request request) respond, {

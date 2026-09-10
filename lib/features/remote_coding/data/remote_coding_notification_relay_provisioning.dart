@@ -1,7 +1,7 @@
+import '../domain/remote_coding_models.dart';
 import 'remote_coding_notification_relay_client.dart';
 import 'remote_coding_notification_relay_contract.dart';
 import 'remote_coding_repository.dart';
-import '../domain/remote_coding_models.dart';
 
 final class RemoteCodingMobileRelayDelegationCoordinator {
   const RemoteCodingMobileRelayDelegationCoordinator({

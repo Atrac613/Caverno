@@ -942,7 +942,7 @@ class MacosComputerUseService {
     if (windows is List) {
       redacted['windows'] = windows
           .whereType<Map>()
-          .map((window) => Map<String, dynamic>.from(window))
+          .map(Map<String, dynamic>.from)
           .toList(growable: false);
     }
     return redacted;
@@ -954,7 +954,7 @@ class MacosComputerUseService {
     if (displays is List) {
       redacted['displays'] = displays
           .whereType<Map>()
-          .map((display) => Map<String, dynamic>.from(display))
+          .map(Map<String, dynamic>.from)
           .toList(growable: false);
     }
     return redacted;
@@ -986,7 +986,7 @@ class MacosComputerUseService {
     }
     final normalized = elements
         .whereType<Map>()
-        .map((element) => _normalizedGroundingCandidate(element))
+        .map(_normalizedGroundingCandidate)
         .nonNulls
         .toList(growable: false);
     final preferred = normalized
@@ -1043,7 +1043,7 @@ class MacosComputerUseService {
     final subrole = _stringValue(candidate['subrole']).toLowerCase();
     final roleText = '$role $subrole';
     return _groundingPreferredRoleTokens.any(
-      (token) => roleText.contains(token),
+      roleText.contains,
     );
   }
 

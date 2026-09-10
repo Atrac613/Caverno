@@ -33,7 +33,7 @@ class FileOperationApprovalSheet extends StatelessWidget {
         : pending.preview;
     final isDiffPreview =
         preview.startsWith('--- ') && preview.contains('\n+++ ');
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),

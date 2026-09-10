@@ -1,12 +1,11 @@
 import 'dart:convert';
 
+import 'package:caverno/core/services/lan_endpoint_discovery.dart';
+import 'package:caverno/features/settings/presentation/providers/mesh_endpoint_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:caverno/core/services/lan_endpoint_discovery.dart';
-import 'package:caverno/features/settings/presentation/providers/mesh_endpoint_provider.dart';
 
 String _modelsBody(List<String> ids) => jsonEncode({
   'data': [

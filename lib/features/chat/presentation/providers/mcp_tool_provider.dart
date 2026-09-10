@@ -6,24 +6,24 @@ import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
+import '../../../../core/services/script_runtime/script_runtime_provider.dart';
 import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
-import '../../../../core/services/script_runtime/script_runtime_provider.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
 import '../../data/datasources/background_process_tools.dart';
 import '../../data/datasources/file_rollback_checkpoint_store.dart';
+import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/mcp_client.dart';
 import '../../data/datasources/mcp_stdio_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
-import '../../data/repositories/semantic_search_service.dart';
-import 'semantic_search_provider.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_repository.dart';
+import '../../data/repositories/semantic_search_service.dart';
 import '../../data/repositories/skill_repository.dart';
-import '../../data/datasources/filesystem_tools.dart';
+import 'semantic_search_provider.dart';
 
 /// Provides the configured MCP clients.
 ///

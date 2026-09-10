@@ -1,13 +1,13 @@
 import '../../../../core/constants/system_prompt_constants.dart';
-import '../entities/model_usage_role.dart';
-import 'anabasis_parent_prompt_block.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
-import 'weak_model_edit_harness_service.dart';
+import '../entities/model_usage_role.dart';
+import 'anabasis_parent_prompt_block.dart';
 import 'execution_snapshot_projector.dart';
+import 'weak_model_edit_harness_service.dart';
 
 class SystemPromptBuilder {
   SystemPromptBuilder._();

@@ -375,7 +375,7 @@ void main() {
       final clearedAll = registry.clearAll();
       expect(clearedAll.cleanupClaims, hasLength(1));
       expect(clearedAll.cleanupClaims.single.lease.attempt, attemptB);
-      expect(() => clearedAll.cleanupClaims.clear(), throwsUnsupportedError);
+      expect(clearedAll.cleanupClaims.clear, throwsUnsupportedError);
     });
   });
 

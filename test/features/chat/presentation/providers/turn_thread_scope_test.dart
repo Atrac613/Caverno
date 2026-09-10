@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/presentation/providers/turn_thread_scope.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('TurnThread preserves and restores exact nested owners', () async {

@@ -2,25 +2,24 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:easy_localization/easy_localization.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/flutter_run_process_runner.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
-import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
-import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
-import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/flutter_run_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_issue_list.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_log_view.dart';
 import 'package:caverno/features/chat/presentation/widgets/terminal/coding_terminal_dock.dart';
+import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();

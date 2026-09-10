@@ -1,9 +1,8 @@
 import 'dart:io' show Platform;
 
+import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/core/services/app_lifecycle_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

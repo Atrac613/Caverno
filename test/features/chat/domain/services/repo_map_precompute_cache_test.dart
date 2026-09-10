@@ -1,9 +1,8 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/repo_map_precompute_cache.dart';
 import 'package:caverno/features/chat/domain/services/repo_map_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory tempDir;

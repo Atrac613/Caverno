@@ -1,16 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/html_preview_session_controller.dart';
 import 'package:caverno/features/chat/domain/services/html_preview_static_server.dart';
 import 'package:caverno/features/chat/domain/services/html_project_detector.dart';
 import 'package:caverno/features/chat/presentation/providers/html_preview_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/html_preview_control_section.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();

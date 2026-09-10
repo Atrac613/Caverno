@@ -121,7 +121,7 @@ class _ThemePreview extends StatelessWidget {
               child: _Lines(color: scheme.onSurfaceVariant, count: 4),
             ),
             Expanded(
-              child: Container(
+              child: ColoredBox(
                 color: scheme.surfaceContainerLowest,
                 child: _Lines(color: scheme.primary, count: 5),
               ),

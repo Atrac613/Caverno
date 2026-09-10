@@ -411,9 +411,9 @@ void main() {
       expect(_definitionNames(observation), ['read_file']);
       expect(observation.mcpNames, {'remote_search'});
       expect(
-        (((observation.definitions.single['function'] as Map)['parameters']
+        ((observation.definitions.single['function'] as Map)['parameters']
                 as Map)['required']
-            as List),
+            as List,
         ['query'],
       );
       expect(

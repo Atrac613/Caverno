@@ -1,9 +1,8 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/skill_catalog_data_source.dart';
 import 'package:caverno/features/chat/domain/services/skill_markdown_parser.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

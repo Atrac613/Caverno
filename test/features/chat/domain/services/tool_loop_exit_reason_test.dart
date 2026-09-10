@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/tool_loop_exit_reason.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const classifier = ToolLoopExitClassifier();

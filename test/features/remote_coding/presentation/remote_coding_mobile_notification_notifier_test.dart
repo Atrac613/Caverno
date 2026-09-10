@@ -1,21 +1,21 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
+import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_mobile_notification_gateway.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_notification_receipt_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_client.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_contract.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_providers.dart';
-import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
-import 'package:caverno/features/remote_coding/data/remote_coding_notification_receipt_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
-import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

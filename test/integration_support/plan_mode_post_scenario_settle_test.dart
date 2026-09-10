@@ -1,9 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/plan_mode_post_scenario_settle.dart';
 

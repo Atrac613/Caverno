@@ -1,10 +1,9 @@
 import 'dart:math';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/data/datasources/llama_cpp_slot_discovery.dart';
 import 'package:caverno/features/chat/data/datasources/llama_cpp_slot_transport.dart';
 import 'package:caverno/features/chat/data/datasources/parallel_slot_executor.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Records concurrency and slot usage so tests can assert isolation
 /// deterministically: each runner overlaps with the others via a short delay.

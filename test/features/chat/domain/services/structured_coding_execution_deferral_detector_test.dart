@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/structured_coding_execution_deferral_detector.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const detector = StructuredCodingExecutionDeferralDetector();

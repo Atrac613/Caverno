@@ -55,9 +55,9 @@ class _PlanReviewConversationsNotifier extends ConversationsNotifier {
   _PlanReviewConversationsNotifier(this.conversation);
 
   final Conversation conversation;
-  var enterPlanningCount = 0;
-  var exitPlanningCount = 0;
-  var planArtifactWriteCount = 0;
+  int enterPlanningCount = 0;
+  int exitPlanningCount = 0;
+  int planArtifactWriteCount = 0;
 
   @override
   ConversationsState build() => ConversationsState(
@@ -110,7 +110,7 @@ class _PlanReviewConversationsNotifier extends ConversationsNotifier {
 }
 
 class _PlanReviewChatNotifier extends ChatNotifier {
-  var dismissPlanProposalCount = 0;
+  int dismissPlanProposalCount = 0;
 
   @override
   ChatState build() => ChatState.initial();

@@ -213,7 +213,7 @@ class BrowserMediationProxy {
     required BrowserPinnedHttpClient httpClient,
     Future<HttpServer> Function(InternetAddress address, int port)? bind,
   }) : _httpClient = httpClient,
-       _bind = bind ?? ((address, port) => HttpServer.bind(address, port));
+       _bind = bind ?? (HttpServer.bind);
 
   final BrowserPinnedHttpClient _httpClient;
   final Future<HttpServer> Function(InternetAddress address, int port) _bind;

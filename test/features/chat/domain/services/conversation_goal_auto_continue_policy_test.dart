@@ -1,9 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
-import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = ConversationGoalAutoContinuePolicy();

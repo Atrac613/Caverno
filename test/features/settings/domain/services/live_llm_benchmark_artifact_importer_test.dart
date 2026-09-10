@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_benchmark_artifact_importer.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('imports a focused ladder run without manufacturing a zero score', () {

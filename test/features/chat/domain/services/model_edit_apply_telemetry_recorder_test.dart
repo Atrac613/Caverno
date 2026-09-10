@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:test/test.dart';
-
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart';
@@ -10,6 +8,7 @@ import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_runtime_feedback_service.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('ModelEditApplyTelemetryBaseline', () {

@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 LlmEndpoint _endpoint(
   String baseUrl, {

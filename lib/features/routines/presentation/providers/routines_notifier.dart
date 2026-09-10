@@ -7,8 +7,8 @@ import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/services/notification_providers.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/routine_execution_service.dart';
-import '../../data/routine_retry_until_green_service.dart';
 import '../../data/routine_repository.dart';
+import '../../data/routine_retry_until_green_service.dart';
 import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_completion_action_service.dart';
 import '../../domain/services/routine_schedule_service.dart';
@@ -730,7 +730,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
         previous.scheduleMode != routine.scheduleMode ||
         previous.timeOfDayMinutes != routine.timeOfDayMinutes ||
         previous.nextRunAt == null ||
-        !(previous.nextRunAt!.isAfter(now));
+        !previous.nextRunAt!.isAfter(now);
 
     final nextRunAt = !routine.enabled
         ? null

@@ -7,12 +7,12 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
-import 'plan_mode_tool_loop_convergence.dart';
 import 'plan_mode_todo_post_validation.dart';
+import 'plan_mode_tool_loop_convergence.dart';
 
 const _liveExactPreservationLine =
     'EXACT_PRESERVATION_VALUE: https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';

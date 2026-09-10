@@ -1,9 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_message_persistence_coordinator.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('TurnMessagePersistenceCoordinator', () {

@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_session.dart';
 import 'package:caverno/features/chat/domain/services/flutter_run_log_segmenter.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Shapes copied from real `flutter run` output. The segmenter is judged
 /// against the toolchain's actual framing, not against a tidied-up idea of it.

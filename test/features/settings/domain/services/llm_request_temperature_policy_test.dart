@@ -1,9 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/llm_request_temperature_policy.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   AppSettings settingsWithTemperature(double temperature) {

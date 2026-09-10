@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/context_surgery_observation_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('observes tagged prompt blocks and coarse prompt sections', () {

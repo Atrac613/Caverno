@@ -13,7 +13,6 @@ import 'package:caverno/core/services/ssh_service.dart';
 import 'package:caverno/core/services/wifi_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
-import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_ble_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_browser_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/built_in_computer_use_tool_handler.dart';
@@ -23,6 +22,7 @@ import 'package:caverno/features/chat/data/datasources/built_in_ssh_tool_handler
 import 'package:caverno/features/chat/data/datasources/built_in_wifi_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:caverno/features/chat/data/datasources/first_party_tool_execution_result.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -1835,7 +1835,7 @@ void main() {
           (item) => (item['name']! as String) == toolName,
           orElse: () => throw StateError('Missing tool: $toolName'),
         );
-        return (tool['description']! as String);
+        return tool['description']! as String;
       }
 
       expect(

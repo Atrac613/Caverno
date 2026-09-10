@@ -10,7 +10,7 @@ final class ComputerUseDebugDiagnosticsViewModel {
     required Iterable<Map<String, dynamic>> auditEntries,
     this.lastExportPath,
   }) : auditEntries = List<Map<String, dynamic>>.unmodifiable(
-         auditEntries.map((entry) => Map<String, dynamic>.unmodifiable(entry)),
+         auditEntries.map(Map<String, dynamic>.unmodifiable),
        );
 
   final bool isBusy;

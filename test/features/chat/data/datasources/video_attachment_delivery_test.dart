@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/core/services/media_host_listen_policy.dart';
 import 'package:caverno/core/services/media_host_service.dart';
 import 'package:caverno/features/chat/data/datasources/video_attachment_delivery.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/video_delivery.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 final Uri _localEndpoint = Uri.parse('http://127.0.0.1:1234/v1');
 final Uri _cloudEndpoint = Uri.parse('https://api.example.com/v1');

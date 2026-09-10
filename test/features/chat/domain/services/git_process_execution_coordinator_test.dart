@@ -363,8 +363,8 @@ void main() {
       expect(work.preventedStartCount, 1);
       expect(work.cancellationRequests, isEmpty);
       expect(work.reconciliationRequired, isEmpty);
-      expect(() => work.cancellationRequests.clear(), throwsUnsupportedError);
-      expect(() => work.reconciliationRequired.clear(), throwsUnsupportedError);
+      expect(work.cancellationRequests.clear, throwsUnsupportedError);
+      expect(work.reconciliationRequired.clear, throwsUnsupportedError);
       expect(
         coordinator.start(identity, token),
         GitProcessStartDisposition.ownerRetired,
@@ -914,5 +914,5 @@ GitProcessReconciliationReceipt _recordReconciliation(
 }
 
 final class _MutableValue {
-  var value = 0;
+  int value = 0;
 }

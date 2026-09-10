@@ -118,7 +118,7 @@ void main() {
     final release = Completer<void>();
     final command =
         "(trap '' TERM; sleep 2; printf survived > '${marker.path}'; "
-        "while :; do sleep 1; done) & child=\$!; "
+        'while :; do sleep 1; done) & child=\$!; '
         "printf '%s' \"\$child\" > '${childPidFile.path}'; wait";
     final tools = BackgroundProcessTools(
       processStarter: (executable, arguments, directory) async {

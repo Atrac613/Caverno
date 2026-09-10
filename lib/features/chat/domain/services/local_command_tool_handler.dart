@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../../data/datasources/local_shell_tools.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
+import '../../data/datasources/local_shell_tools.dart';
 import '../entities/mcp_tool_entity.dart';
 import 'local_command_tool_contract.dart';
 import 'local_command_working_directory.dart';

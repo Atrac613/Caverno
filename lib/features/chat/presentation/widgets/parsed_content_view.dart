@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/utils/markdown_render_sanitizer.dart';
 import '../../domain/services/file_reference_extractor.dart';
 import 'code_block_builder.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'markdown_style_helpers.dart';
-import 'tool_call_group.dart';
 import 'math_markdown.dart';
-import '../../../../core/theme/app_tokens.dart';
+import 'tool_call_group.dart';
 
 /// Renders parsed content segments.
 /// `<think>` tags are shown in muted gray and tool tags as compact status cards.

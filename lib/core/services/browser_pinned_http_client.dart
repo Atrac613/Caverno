@@ -56,7 +56,7 @@ class BrowserPinnedHttpClient {
     DateTime Function()? clock,
   }) : _clientFactory = clientFactory ?? _defaultHttpClientFactory,
        _addressLookup =
-           addressLookup ?? ((host) => InternetAddress.lookup(host)),
+           addressLookup ?? (InternetAddress.lookup),
        _socketConnector = socketConnector ?? _defaultPinnedSocketConnector,
        _destinationPolicy = destinationPolicy,
        _cookies = _BrowserCookieJar(clock ?? DateTime.now) {

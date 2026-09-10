@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/retry_until_green_coordinator.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Runner that verifies green on the Nth verify call across all rounds.
 class _CountingRunner implements BestOfNRunner {
@@ -129,7 +128,7 @@ void main() {
     expect(json['schemaName'], 'caverno_retry_until_green_report');
     expect(json['foundGreen'], isTrue);
     expect(json['winningRound'], 0);
-    expect((json['rounds'] as List), isNotEmpty);
+    expect(json['rounds'] as List, isNotEmpty);
 
     final markdown = report.toMarkdown();
     expect(markdown, contains('Overnight Retry-Until-Green Run'));

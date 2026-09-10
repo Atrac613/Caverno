@@ -1,10 +1,9 @@
 import 'dart:convert';
 
+import 'package:caverno/features/chat/data/datasources/llama_cpp_slot_transport.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:caverno/features/chat/data/datasources/llama_cpp_slot_transport.dart';
 
 void main() {
   group('LlamaCppTimings', () {
@@ -90,7 +89,7 @@ void main() {
         expect(sentBody['reasoning_effort'], 'high');
         expect(sentBody['seed'], 41);
         expect(sentBody['stream'], isFalse);
-        expect((sentBody['tools'] as List), hasLength(1));
+        expect(sentBody['tools'] as List, hasLength(1));
 
         // Response extension fields round-trip back.
         expect(result.content, 'ok');

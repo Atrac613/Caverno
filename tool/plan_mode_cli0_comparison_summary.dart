@@ -21,7 +21,7 @@ Map<String, Object?> buildPlanModeCli0ComparisonSummary({
   final macosScenarios =
       (macosSuiteReport['scenarios'] as List<dynamic>? ?? const [])
           .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
+          .map(Map<String, dynamic>.from)
           .toList(growable: false);
   if (macosScenarios.length != 1) {
     throw StateError(
@@ -329,7 +329,7 @@ Future<void> main(List<String> arguments) async {
     final scenarios =
         (macosSuiteReport['scenarios'] as List<dynamic>? ?? const [])
             .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
+            .map(Map<String, dynamic>.from)
             .toList(growable: false);
     if (scenarios.length != 1) {
       throw StateError(

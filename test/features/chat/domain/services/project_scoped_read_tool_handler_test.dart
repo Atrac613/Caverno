@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/data/datasources/project_read_tool_authorizer.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
-import 'package:caverno/features/chat/data/datasources/project_read_tool_authorizer.dart';
 import 'package:caverno/features/chat/domain/services/project_scoped_read_tool_handler.dart';
-import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
 
 const _tools = {
   'list_directory',

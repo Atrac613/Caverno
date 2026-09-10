@@ -1,18 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/notification_providers.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/utils/logger.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
 import '../../chat/presentation/providers/pending_approval_resolution.dart';
-import '../../../core/utils/logger.dart';
 import '../data/remote_coding_mobile_notification_gateway.dart';
+import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_receipt_store.dart';
 import '../data/remote_coding_notification_relay_mobile_registration.dart';
-import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_relay_providers.dart';
 import '../data/remote_coding_repository.dart';
 import '../domain/remote_coding_models.dart';
@@ -497,7 +497,7 @@ final class RemoteCodingMobileNotificationNotifier
       (data) => unawaited(_recordForegroundMessage(data)),
     );
     _notificationTapSubscription ??= _gateway.onNotificationTap.listen(
-      (data) => _recordNotificationTap(data),
+      _recordNotificationTap,
     );
     final initialTap = await _gateway.getInitialNotificationTap();
     if (initialTap != null) {

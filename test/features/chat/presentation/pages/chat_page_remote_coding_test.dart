@@ -2,12 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/presentation/widgets/approval/git_command_approval_sheet.dart';
-
 import 'package:caverno/core/services/security_scoped_bookmark_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
@@ -15,13 +13,14 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/widgets/approval/git_command_approval_sheet.dart';
 import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
-import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
+import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
-import 'package:caverno/features/remote_coding/presentation/remote_coding_page.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_page.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -132,7 +131,7 @@ class _FakeDirectoryPickerBookmarkService
   _FakeDirectoryPickerBookmarkService(this.directoryPath);
 
   final String directoryPath;
-  var pickCalls = 0;
+  int pickCalls = 0;
 
   @override
   Future<DirectoryPickResult> pickDirectory({String? initialDirectory}) async {

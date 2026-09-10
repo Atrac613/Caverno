@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:caverno/features/chat/domain/services/subagent_tool_policy.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Map<String, dynamic> tool(String name) => {
