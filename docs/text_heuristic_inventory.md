@@ -1,6 +1,6 @@
 # Text Heuristic Inventory and Removal Plan
 
-**Status:** HEU1 and HEU2 landed. HEU3's prerequisite instrument landed 2026-09-02 (`ToolResultOrigin`); HEU3 itself stays blocked until that declaration has accumulated in real sessions. HEU4 is measured but held.
+**Status:** HEU1 and HEU2 landed. HEU3's prerequisite instrument landed 2026-09-02 (`ToolResultOrigin`); HEU3 itself stays blocked until that declaration has accumulated in real sessions -- re-measured 2026-09-11 and still far short, see below. HEU4 is measured but held. HEU5 has its first measured misfire and cost, 2026-09-11.
 
 Caverno decides a great deal by pattern-matching prose. Every such decision is
 bound to the languages whose vocabulary someone happened to enumerate — today
@@ -404,6 +404,41 @@ reading the roadmap:
   `browser_peer_verification_unavailable` were the same shape to every reader
   downstream. Only the second is a refusal.
 
+**Accumulation re-measured 2026-09-11 -- still far short.** Nine days after the
+instrument landed, `tool/analyze_tool_results.py --since-days 12` over
+`~/.caverno/session_logs` reports 28 sessions with tool traffic and 581 tool
+results, of which **32 never reached a tool**: 17 declared (16 refusal, 1
+harness) and 15 undeclared. The 22-to-3 collapse this milestone is waiting to
+re-decide was measured over 715 `turn_exit` records. Thirty-two is not a
+re-measurement, and acting on it would repeat the error the instrument was
+built to stop. Two findings from reading it properly:
+
+- **One real undeclared producer, and it was the most frequent.**
+  `anabasis_parent_authority_refused` accounted for 8 of the 15 and is
+  unambiguously a refusal; declared 2026-09-11. Of the rest,
+  `browser_not_ready` (4) is a genuine tool error with no producer to declare
+  anything, and `browser_peer_verification_unavailable` (3) is **not** an
+  undeclared producer at all -- every occurrence came from build `f20ce943`,
+  built 2026-09-01, i.e. before the instrument. Checking `build.commit` rather
+  than inferring from behaviour is what separated the two cases; see
+  `caverno-session-log-build-provenance`.
+- **The two-value enum was too coarse, found by a live defect.** Session
+  9174dbd1 had `git_execute_command` report `exit_code: 2` for a piped command
+  it refused *before spawning git*, and `FinalAnswerMessageNoticeService` read
+  that as a failed release command. That rejection is neither harness feedback
+  nor a policy refusal -- no rule forbade anything, the arguments were simply
+  not acceptable -- and folding syntax retries into the refusal population is
+  the same class of inflation the instrument exists to prevent. It is not
+  marginal either: at 7 of 109 `git_execute_command` results it was the most
+  frequent git error in the measured window. `ToolResultOrigin.malformed` was
+  added 2026-09-11 and both producers registered in
+  `test/quality/tool_result_origin_declaration_test.dart`.
+
+Note for anyone comparing measurements across this date: the pipe rejection no
+longer emits `exit_code: 2`, so `git_execute_command.exit_code=2` drops to
+roughly zero. That is a payload change, **not** the model issuing fewer bad
+commands.
+
 **Next action.** Let the declaration accumulate, then re-measure. Per the
 removal method above, the corpus that decided the 22-to-3 collapse predates
 this change, so today's logs carry no `result_origin` at all — check
@@ -423,6 +458,31 @@ Same shape as HEU1 at smaller radius.
 be shown directly. **Blocked**: the surrounding regeneration behaviour is under
 measurement and must not be changed on current evidence. See
 `caverno-tool-role-answer-discarded`.
+
+**First measured misfire and cost, 2026-09-11 (session 9174dbd1).** The block
+above understates this one. `looksLikeBackgroundProcessCompletionClaim` carries
+CJK *positive* markers (完了 / 成功 / 終了) but CJK *negative* markers only for
+failure (失敗 / エラー / 異常終了); its "still running / not yet / pending"
+family is English-only. A Japanese answer therefore matched on its own denial,
+because the word for "completed" is a substring of "has not completed". An
+answer reading "the production release is still running ... commit and tag have
+not run yet" was graded a completion claim, discarded, and regenerated at 24.8k
+prompt tokens -- once per poll of a ten-minute release. An English answer saying
+the same thing costs nothing.
+
+This is the shape the inventory's opening paragraph predicts: a decision bound
+to whichever vocabulary someone enumerated, failing silently outside it. Two
+things worth carrying into the milestone proper:
+
+- The fix added the *negated* completion words (完了していない / 完了していません
+  and the 成功 / 終了 equivalents), deliberately **not** the bare negation
+  suffixes. Suppressing on every "has not <verb>ed" would let a real completion
+  claim through on any unrelated aside -- "the release completed; there are no
+  items I have not checked" -- which trades a cost bug for a safety hole.
+- The guard was firing on an answer that *correctly denied* completion, and the
+  turn still ended well, because the regeneration kept monitoring until the job
+  exited. A misfire with a good outcome is still a misfire; it just means the
+  cost, not the correctness, is what the evidence supports changing.
 
 ### HEU6: Proposal, goal-suggestion and memory-extraction parsing — `later`
 
