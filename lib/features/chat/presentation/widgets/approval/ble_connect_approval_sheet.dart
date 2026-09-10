@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../providers/chat_state.dart';
 import 'approval_dialog_route.dart';
 
@@ -120,7 +121,7 @@ class BleConnectApprovalSheet extends StatelessWidget {
                     Text(
                       pending.deviceId,
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: kMonoFontFamily,
                         fontSize: 12,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

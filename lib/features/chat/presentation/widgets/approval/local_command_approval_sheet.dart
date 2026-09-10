@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../../../settings/domain/entities/app_settings.dart';
 import '../../providers/chat_state.dart';
 import '../tool_perimeter_summary.dart';
@@ -88,7 +89,7 @@ class LocalCommandApprovalSheet extends StatelessWidget {
                             pending.workingDirectory,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
-                              fontFamily: 'monospace',
+                              fontFamily: kMonoFontFamily,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -217,7 +218,7 @@ class LocalCommandApprovalSheet extends StatelessWidget {
                           child: SelectableText(
                             pending.command,
                             style: TextStyle(
-                              fontFamily: 'monospace',
+                              fontFamily: kMonoFontFamily,
                               fontSize: 14,
                               height: 1.5,
                               color: theme.colorScheme.onSurface,

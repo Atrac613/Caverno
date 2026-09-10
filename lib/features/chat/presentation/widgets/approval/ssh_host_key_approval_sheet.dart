@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/services/ssh_host_key.dart';
+import '../../../../../core/theme/app_tokens.dart';
 
 class SshHostKeyApprovalSheet extends StatelessWidget {
   const SshHostKeyApprovalSheet({required this.decision, super.key});
@@ -80,7 +81,7 @@ class SshHostKeyApprovalSheet extends StatelessWidget {
               Text(
                 '${presented.host}:${presented.port}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -154,7 +155,7 @@ class _FingerprintBlock extends StatelessWidget {
         SelectableText(
           identity.fingerprint,
           style: theme.textTheme.bodySmall?.copyWith(
-            fontFamily: 'monospace',
+            fontFamily: kMonoFontFamily,
           ),
         ),
       ],

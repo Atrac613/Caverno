@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/flutter_run_issue.dart';
 import '../providers/flutter_run_provider.dart';
 
@@ -121,7 +122,7 @@ class _IssueRow extends StatelessWidget {
             child: SelectableText(
               issue.evidence,
               style: theme.textTheme.bodySmall?.copyWith(
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
                 height: 1.35,
               ),
             ),

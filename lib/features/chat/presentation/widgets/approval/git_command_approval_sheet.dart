@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../../data/datasources/git_tools.dart';
 import '../../providers/chat_state.dart';
 import '../tool_perimeter_summary.dart';
@@ -83,7 +84,7 @@ class GitCommandApprovalSheet extends StatelessWidget {
                           pending.workingDirectory,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
-                            fontFamily: 'monospace',
+                            fontFamily: kMonoFontFamily,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -144,7 +145,7 @@ class GitCommandApprovalSheet extends StatelessWidget {
                     Text(
                       '\$',
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: kMonoFontFamily,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: theme.colorScheme.primary,
@@ -155,7 +156,7 @@ class GitCommandApprovalSheet extends StatelessWidget {
                       child: SelectableText(
                         _formatGitCommandForDisplay(pending.command),
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: kMonoFontFamily,
                           fontSize: 14,
                           height: 1.5,
                           color: theme.colorScheme.onSurface,

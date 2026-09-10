@@ -461,7 +461,10 @@ const Map<String, int> _lineBudgets = {
   // that would only move an import somewhere it does not belong.
   // -2: project directory picking moved to coding_project_picker.dart so the
   // macOS NSOpenPanel path is not inlined on the page.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1798,
+  // +1 for the design-token import: three parts of this library rendered code
+  // in the generic 'monospace' alias, which resolves to no family on macOS and
+  // silently falls back to the proportional system face.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1799,
   'lib/features/chat/presentation/widgets/plan/task_precondition_notice.dart':
       57,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
@@ -943,7 +946,9 @@ const Map<String, int> _libraryLineBudgets = {
   // two permissions -- leaving for workflow_task_menu_items.dart.
   // -2 matching the primary file: project directory picking left this library
   // for coding_project_picker.dart.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8596,
+  // +1 matching the primary file: the design-token import that gives three of
+  // these parts a real monospace face.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8597,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1143,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };

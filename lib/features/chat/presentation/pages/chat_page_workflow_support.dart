@@ -816,7 +816,7 @@ class _AskUserQuestionSheetState extends State<_AskUserQuestionSheet> {
                   child: Text(
                     option.preview.trim(),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      fontFamily: 'monospace',
+                      fontFamily: kMonoFontFamily,
                       color: theme.colorScheme.onSurface,
                     ),
                   ),

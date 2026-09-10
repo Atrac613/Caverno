@@ -366,7 +366,7 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
             child: Text(
               text,
               style: monospace
-                  ? theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace')
+                  ? theme.textTheme.bodySmall?.copyWith(fontFamily: kMonoFontFamily)
                   : theme.textTheme.bodyMedium,
             ),
           ),

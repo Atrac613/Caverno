@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../providers/chat_state.dart';
 import 'approval_dialog_route.dart';
 
@@ -111,7 +112,7 @@ class SerialOpenApprovalSheet extends StatelessWidget {
                     Text(
                       pending.portName,
                       style: const TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: kMonoFontFamily,
                         fontSize: 13,
                       ),
                     ),

@@ -13,6 +13,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/coding_terminal_service.dart';
 import '../../../../core/services/security_scoped_bookmark_service.dart';
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';

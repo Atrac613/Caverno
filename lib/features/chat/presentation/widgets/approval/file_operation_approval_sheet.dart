@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../providers/chat_state.dart';
 import '../tool_perimeter_summary.dart';
 import 'approval_dialog_route.dart';
@@ -89,7 +90,7 @@ class FileOperationApprovalSheet extends StatelessWidget {
                           pending.path,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
-                            fontFamily: 'monospace',
+                            fontFamily: kMonoFontFamily,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -160,7 +161,7 @@ class FileOperationApprovalSheet extends StatelessWidget {
                       child: SelectableText(
                         preview,
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: kMonoFontFamily,
                           fontSize: 13,
                           height: 1.5,
                           color: theme.colorScheme.onSurface,

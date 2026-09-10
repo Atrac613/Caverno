@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../providers/chat_state.dart';
 import 'approval_dialog_route.dart';
 
@@ -153,7 +154,7 @@ Widget _participantToolApprovalRow(
         child: Text(
           text,
           style: monospace
-              ? theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace')
+              ? theme.textTheme.bodySmall?.copyWith(fontFamily: kMonoFontFamily)
               : theme.textTheme.bodyMedium,
         ),
       ),

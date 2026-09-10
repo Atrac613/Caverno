@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/flutter_run_session.dart';
 import '../providers/flutter_run_provider.dart';
 
@@ -115,7 +116,7 @@ class _LogLine extends StatelessWidget {
     return SelectableText(
       line.text,
       style: theme.textTheme.bodySmall?.copyWith(
-        fontFamily: 'monospace',
+        fontFamily: kMonoFontFamily,
         color: color,
         height: 1.35,
       ),

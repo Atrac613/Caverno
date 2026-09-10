@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../providers/chat_state.dart';
 import '../tool_perimeter_summary.dart';
 import 'approval_dialog_route.dart';
@@ -129,7 +130,7 @@ class _ComputerUseActionApprovalSheetState
                             pending.toolName,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
-                              fontFamily: 'monospace',
+                              fontFamily: kMonoFontFamily,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -277,7 +278,7 @@ class _ComputerUseActionApprovalSheetState
                                                   .colorScheme
                                                   .onSecondaryContainer
                                                   .withValues(alpha: 0.86),
-                                              fontFamily: 'monospace',
+                                              fontFamily: kMonoFontFamily,
                                             ),
                                       ),
                                     ),
@@ -314,7 +315,7 @@ class _ComputerUseActionApprovalSheetState
                                       child: SelectableText(
                                         pending.exactTextPreview!,
                                         style: TextStyle(
-                                          fontFamily: 'monospace',
+                                          fontFamily: kMonoFontFamily,
                                           fontSize: 12,
                                           height: 1.35,
                                           color: theme.colorScheme.onSurface,
@@ -483,7 +484,7 @@ class _ComputerUseActionApprovalSheetState
                                                         .colorScheme
                                                         .onPrimaryContainer
                                                         .withValues(alpha: 0.8),
-                                                    fontFamily: 'monospace',
+                                                    fontFamily: kMonoFontFamily,
                                                   ),
                                             ),
                                           ),
@@ -518,7 +519,7 @@ class _ComputerUseActionApprovalSheetState
                               SelectableText(
                                 pending.summary,
                                 style: TextStyle(
-                                  fontFamily: 'monospace',
+                                  fontFamily: kMonoFontFamily,
                                   fontSize: 14,
                                   height: 1.5,
                                   color: theme.colorScheme.onSurface,
@@ -546,7 +547,7 @@ class _ComputerUseActionApprovalSheetState
                                           child: SelectableText(
                                             detail,
                                             style: TextStyle(
-                                              fontFamily: 'monospace',
+                                              fontFamily: kMonoFontFamily,
                                               fontSize: 12,
                                               height: 1.4,
                                               color: theme

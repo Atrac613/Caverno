@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_tokens.dart';
 import '../providers/session_log_details_provider.dart';
 
 class SessionLogDetailsEntry {
@@ -182,7 +183,7 @@ class _SessionLogPathRow extends StatelessWidget {
                 maxLines: 3,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                 ),
               ),
             ],

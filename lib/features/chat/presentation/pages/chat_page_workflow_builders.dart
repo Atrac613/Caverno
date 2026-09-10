@@ -1263,7 +1263,7 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
         Text(
           value,
           style: monospace
-              ? theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace')
+              ? theme.textTheme.bodySmall?.copyWith(fontFamily: kMonoFontFamily)
               : theme.textTheme.bodySmall,
         ),
       ],

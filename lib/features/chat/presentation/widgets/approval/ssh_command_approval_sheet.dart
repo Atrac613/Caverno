@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_tokens.dart';
 import '../../providers/chat_state.dart';
 import '../tool_perimeter_summary.dart';
 import 'approval_dialog_route.dart';
@@ -82,7 +83,7 @@ class SshCommandApprovalSheet extends StatelessWidget {
                           '${pending.username}@${pending.host}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
-                            fontFamily: 'monospace',
+                            fontFamily: kMonoFontFamily,
                           ),
                         ),
                       ],
@@ -141,7 +142,7 @@ class SshCommandApprovalSheet extends StatelessWidget {
                     Text(
                       '\$',
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: kMonoFontFamily,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: theme.colorScheme.primary,
@@ -152,7 +153,7 @@ class SshCommandApprovalSheet extends StatelessWidget {
                       child: SelectableText(
                         pending.command,
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: kMonoFontFamily,
                           fontSize: 14,
                           height: 1.5,
                           color: theme.colorScheme.onSurface,
