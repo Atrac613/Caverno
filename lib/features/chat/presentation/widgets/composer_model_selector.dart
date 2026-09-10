@@ -88,10 +88,10 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
               ),
             ),
             ComposerChoiceSubmenu<bool?>(
-              title: const Text('enable_thinking'),
+              title: Text('message.thinking_menu_label'.tr()),
               values: const <bool?>[null, true, false],
               selected: settings.enableThinking,
-              labelOf: _thinkingLabel,
+              labelOf: messageInputEnableThinkingLabel,
               onSelected: (value) => unawaited(
                 ref
                     .read(settingsNotifierProvider.notifier)
@@ -251,10 +251,3 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     );
   }
 }
-
-/// Tri-state thinking preference: `null` means the model's own default.
-String _thinkingLabel(bool? value) => switch (value) {
-  null => 'Auto',
-  true => 'On',
-  false => 'Off',
-};

@@ -20,6 +20,13 @@ String messageInputReasoningEffortLabel(ReasoningEffortPreference value) =>
       ReasoningEffortPreference.high => 'settings.reasoning_effort_high'.tr(),
     };
 
+/// Tri-state thinking preference, where `null` leaves the choice to the model.
+String messageInputEnableThinkingLabel(bool? value) => switch (value) {
+  null => 'settings.enable_thinking_automatic'.tr(),
+  true => 'settings.enable_thinking_on'.tr(),
+  false => 'settings.enable_thinking_off'.tr(),
+};
+
 String messageInputCodingApprovalLabel(ToolApprovalMode mode) => switch (mode) {
   ToolApprovalMode.defaultPermissions =>
     'settings.coding_approval_default'.tr(),

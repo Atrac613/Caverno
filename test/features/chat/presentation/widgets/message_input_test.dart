@@ -133,7 +133,17 @@ Future<SharedPreferences> _pumpMessageInput(
                     builder: (context, loading, child) {
                       return MessageInput(
                         onSend:
-                            onSend ?? (_, _, _, _, _, {video, modelContent, attachmentPath}) {},
+                            onSend ??
+                            (
+                              _,
+                              _,
+                              _,
+                              _,
+                              _, {
+                              video,
+                              modelContent,
+                              attachmentPath,
+                            }) {},
                         onCancel: onCancel,
                         isLoading: loading,
                         assistantMode: AssistantMode.general,
@@ -556,10 +566,20 @@ void main() {
         tester,
         isLoading: isLoading,
         onCancel: () {},
-        onSend: (message, imageBase64, _, _, _, {video, modelContent, attachmentPath}) {
-          sentMessage = message;
-          sentImageBase64 = imageBase64;
-        },
+        onSend:
+            (
+              message,
+              imageBase64,
+              _,
+              _,
+              _, {
+              video,
+              modelContent,
+              attachmentPath,
+            }) {
+              sentMessage = message;
+              sentImageBase64 = imageBase64;
+            },
         droppedImageAttachment: MessageInputImageAttachment(
           id: 2,
           bytes: imageBytes,
@@ -607,7 +627,16 @@ void main() {
         isLoading: isLoading,
         onCancel: () {},
         onSend:
-            (message, imageBase64, imageMimeType, _, _, {video, modelContent, attachmentPath}) {
+            (
+              message,
+              imageBase64,
+              imageMimeType,
+              _,
+              _, {
+              video,
+              modelContent,
+              attachmentPath,
+            }) {
               sentMessage = message;
               sentImageBase64 = imageBase64;
               sentImageMimeType = imageMimeType;
@@ -1050,7 +1079,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('composer-model-chip')));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(SubmenuButton, 'enable_thinking'));
+    await tester.tap(find.widgetWithText(SubmenuButton, 'Thinking'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(MenuItemButton, 'Off'));
     await tester.pumpAndSettle();
