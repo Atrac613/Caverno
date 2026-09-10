@@ -23,6 +23,10 @@
 #
 # Cleanup if multiple worktrees have already polluted LaunchServices:
 #   tool/macos_dev_preflight.sh
+#
+# A bypassed macOS build runs that cleanup itself once flutter exits, so the
+# stale bundle never outlives the session. Opt out with:
+#   CAVERNO_SKIP_MACOS_CLEANUP=1
 
 set -euo pipefail
 
@@ -103,13 +107,72 @@ case "${1:-}" in
     ;;
 esac
 
+# A bypassed macOS build leaves a second Caverno.app claiming
+# com.noguwo.apps.caverno in a worktree that is not the canonical one.
+# LaunchServices routes launchd / XPC to whichever copy it indexed last, so
+# the Computer Use helper starts reporting helper_bundle_path_mismatch and TCC
+# grants drift. Unregister it on the way out rather than leaving the breakage
+# for a later session to discover.
+macos_cleanup_target=""
+if $wants_macos \
+   && [[ "${FLUTTER_ALLOW_MACOS_HERE:-0}" == "1" ]] \
+   && [[ ! -f "$WORKTREE/.macos-canonical" ]] \
+   && [[ "${CAVERNO_SKIP_MACOS_CLEANUP:-0}" != "1" ]]
+then
+  # macos_dev_preflight.sh preserves --main-worktree and removes every other
+  # Caverno*.app it finds. Its default is this script's own parent, which here
+  # is the throwaway worktree -- passing that would delete the canonical
+  # bundle and keep the stale one. Find the real canonical worktree, and skip
+  # the cleanup rather than guess when no worktree claims the sentinel.
+  while IFS= read -r line; do
+    [[ "$line" == "worktree "* ]] || continue
+    candidate="${line#worktree }"
+    if [[ -f "$candidate/.macos-canonical" ]]; then
+      macos_cleanup_target="$candidate"
+      break
+    fi
+  done < <(git -C "$WORKTREE" worktree list --porcelain 2>/dev/null || true)
+
+  if [[ -z "$macos_cleanup_target" ]]; then
+    cat <<'EOF' >&2
+safe-flutter: no worktree carries .macos-canonical, so the post-run
+  LaunchServices cleanup is skipped -- it cannot tell which Caverno.app to
+  keep. Designate one with `touch .macos-canonical`, or clean up afterwards:
+    tool/macos_dev_preflight.sh --main-worktree <canonical-worktree>
+EOF
+  fi
+fi
+
 # Delegate to the real flutter. Prefer fvm when the worktree pins a
 # Flutter SDK version, so the wrapper matches whatever the project
 # expects.
 if command -v fvm >/dev/null 2>&1 \
    && { [[ -f "$WORKTREE/.fvmrc" ]] || [[ -d "$WORKTREE/.fvm" ]]; }
 then
-  exec fvm flutter "$@"
+  flutter_cmd=(fvm flutter)
 else
-  exec flutter "$@"
+  flutter_cmd=(flutter)
 fi
+
+if [[ -z "$macos_cleanup_target" ]]; then
+  exec "${flutter_cmd[@]}" "$@"
+fi
+
+# Deliberately not exec'd: this shell has to outlive flutter to run the
+# cleanup, including when the run ends in a non-zero exit or a Ctrl-C.
+cleanup_bypassed_macos_build() {
+  local status=$?
+  trap - EXIT
+  echo >&2
+  echo "safe-flutter: bypassed macOS build finished; restoring LaunchServices" >&2
+  echo "  to $macos_cleanup_target. Set CAVERNO_SKIP_MACOS_CLEANUP=1 to skip." >&2
+  "$WORKTREE/tool/macos_dev_preflight.sh" \
+    --main-worktree "$macos_cleanup_target" \
+    --skip-clean \
+    --skip-kill \
+    || echo "safe-flutter: cleanup failed; run tool/macos_dev_preflight.sh by hand." >&2
+  exit "$status"
+}
+trap cleanup_bypassed_macos_build EXIT
+
+"${flutter_cmd[@]}" "$@"

@@ -31,6 +31,7 @@ MAIN_WORKTREE="$(cd "$SCRIPT_DIR/.." && pwd)"
 DRY_RUN=false
 SKIP_CLEAN=false
 SKIP_FINDER=false
+SKIP_KILL=false
 USE_COLOR=true
 
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
@@ -60,6 +61,9 @@ Options:
                          Implies a detect-only run with no state changes.
   --skip-clean           Do not run `flutter clean` in the main worktree.
   --skip-finder-restart  Do not `killall Finder`.
+  --skip-kill            Do not kill running Caverno processes. For
+                         unattended cleanup, where another worktree's
+                         app may legitimately be running.
   --no-color             Disable colored output.
   -h, --help             Show this help and exit.
 
@@ -91,6 +95,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-finder-restart)
       SKIP_FINDER=true
+      shift
+      ;;
+    --skip-kill)
+      SKIP_KILL=true
       shift
       ;;
     --no-color)
@@ -176,6 +184,11 @@ print_header() {
 
 kill_running_caverno() {
   step "1/5  Running Caverno processes"
+
+  if $SKIP_KILL; then
+    info "(skipped via --skip-kill)"
+    return
+  fi
 
   # Collect PIDs of the Caverno main app or helper executables. Filter out
   # this preflight script and unrelated processes (e.g., Claude.app).
