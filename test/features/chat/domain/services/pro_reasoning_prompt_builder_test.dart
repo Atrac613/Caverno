@@ -5,6 +5,42 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const builder = ProReasoningPromptBuilder();
 
+  group('frame prompt', () {
+    test('dates the frame so a same-day launch cannot read as unfamiliar', () {
+      final prompt = builder.buildFramePrompt(
+        'What do you think of the AX1000 released today?',
+        now: DateTime(2026, 9, 11, 22, 50),
+      );
+
+      expect(prompt, contains('Current date: 2026-09-11 (Fri)'));
+      expect(prompt, contains('Your training knowledge may predate it'));
+      expect(
+        prompt,
+        contains('Absence from your training data is not evidence'),
+      );
+      expect(
+        prompt,
+        contains('release, event, or person you cannot place with confidence'),
+      );
+      expect(
+        prompt,
+        contains('What do you think of the AX1000 released today?'),
+      );
+    });
+
+    test('still bounds investigation to questions that need it', () {
+      final prompt = builder.buildFramePrompt(
+        'Explain quicksort.',
+        now: DateTime(2026, 9, 11),
+      );
+
+      expect(
+        prompt,
+        contains('for questions answerable from stable, general knowledge.'),
+      );
+    });
+  });
+
   group('frame parsing', () {
     test('extracts a fenced JSON object and bounds list fields', () {
       final frame = builder.parseFrame('''

@@ -388,6 +388,14 @@ Dart symbols:
       prompt,
       contains('Your training knowledge may predate the current date above.'),
     );
+    // "above" has to point at something. The instruction used to sit at the
+    // head while the date was emitted hundreds of lines lower.
+    expect(
+      prompt.indexOf('Your training knowledge may predate the current date'),
+      greaterThan(
+        prompt.indexOf('Current local date and time (source of truth)'),
+      ),
+    );
     expect(
       prompt,
       contains('Mention your knowledge cutoff only when it is genuinely'),

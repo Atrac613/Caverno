@@ -129,7 +129,6 @@ class SystemPromptBuilder {
       buffer.writeln(AnabasisParentPromptBlock.delegatableTasks(delegatable));
     }
     buffer
-      ..writeln(SystemPromptConstants.knowledgeCutoffHumilityInstruction)
       ..writeln(SystemPromptConstants.researchHonestyInstruction)
       ..writeln(SystemPromptConstants.coreAssistantPrompt)
       ..writeln(SystemPromptConstants.priorityInstruction)
@@ -867,7 +866,11 @@ class SystemPromptBuilder {
       ..writeln(
         'Resolve relative date/time references (today, yesterday, tomorrow, '
         'this week, recently, now, latest, current) against this source of truth.',
-      );
+      )
+      // Date-dependent, so it belongs with the date rather than in the stable
+      // head. The head copy said "the current date above" while the date was
+      // emitted hundreds of lines below it, leaving the reference dangling.
+      ..writeln(SystemPromptConstants.knowledgeCutoffHumilityInstruction);
     // In voice mode, dates should be spoken naturally; skip YYYY-MM-DD instruction.
     if (!isVoiceMode) {
       buffer.writeln(

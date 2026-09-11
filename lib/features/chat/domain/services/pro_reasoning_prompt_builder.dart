@@ -5,6 +5,16 @@ import 'pro_reasoning_models.dart';
 final class ProReasoningPromptBuilder {
   const ProReasoningPromptBuilder();
 
+  static const List<String> _weekdays = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+
   static const _claimGroundingRules = '''
 When grounded evidence is present, audit every concrete factual claim,
 especially numbers, software versions, and minimum or recommended requirements.
@@ -17,8 +27,18 @@ recommendation to a mandatory condition. When sources conflict or omit a value,
 report that uncertainty instead of choosing or inventing a precise value.
 ''';
 
-  String buildFramePrompt(String question) =>
-      '''
+  /// Frames one run and decides whether the investigation stage runs at all.
+  ///
+  /// [now] is not decoration. The framing model owns the
+  /// `requires_investigation` switch, and without a date it cannot tell that
+  /// "the X released today" postdates its own training — it reads as an
+  /// unfamiliar name and the run answers from memory. Session e6368a62 asked
+  /// about a same-day product launch and framed it as a no-evidence question.
+  String buildFramePrompt(String question, {DateTime? now}) {
+    final today = now ?? DateTime.now();
+    final date = _formatDate(today);
+    final weekday = _weekdays[today.weekday - 1];
+    return '''
 You are framing one expensive, high-quality reasoning run. Decompose the user
 question without answering it. Return one JSON object and no prose:
 {
@@ -28,14 +48,24 @@ question without answering it. Return one JSON object and no prose:
   "requires_investigation": true
 }
 
-Use at most five items in each list. Set requires_investigation only when fresh
-facts, linked sources, or local file evidence would materially improve the
-answer.
+Use at most five items in each list.
+
+Current date: $date ($weekday). Your training knowledge may predate it, so
+memory alone cannot tell you whether a recent release, event, price, or version
+exists. Absence from your training data is not evidence that something does not
+exist.
+
+Set requires_investigation when fresh facts, linked sources, or local file
+evidence would materially improve the answer. That includes any question that
+depends on the current state of the world, and any question naming a product,
+release, event, or person you cannot place with confidence. Leave it false only
+for questions answerable from stable, general knowledge.
 
 User question:
 $question
 '''
-          .trim();
+        .trim();
+  }
 
   ProReasoningFrame parseFrame(String raw, String question) {
     final decoded = _decodeObject(raw);
@@ -314,4 +344,11 @@ $contradictions
     final String text => int.tryParse(text.trim()),
     _ => null,
   };
+
+  static String _formatDate(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
 }
