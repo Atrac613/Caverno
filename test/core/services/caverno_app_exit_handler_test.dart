@@ -119,6 +119,60 @@ void main() {
     },
   );
 
+  test('a close that never finishes still allows exit', () async {
+    final neverCompletes = Completer<void>();
+    addTearDown(neverCompletes.complete);
+    final handler = CavernoAppExitHandler(
+      closePersistence: () => neverCompletes.future,
+      closeTimeout: const Duration(milliseconds: 20),
+    );
+
+    expect(await handler.handleExitRequest(), AppExitResponse.exit);
+    // The database never closed, so nothing may claim it did -- but the app
+    // must still be allowed to quit.
+    expect(handler.isClosed, isFalse);
+    expect(handler.hasApprovedExit, isTrue);
+  });
+
+  test('a timed-out close is not retried by later exit requests', () async {
+    final neverCompletes = Completer<void>();
+    addTearDown(neverCompletes.complete);
+    var closeCount = 0;
+    final handler = CavernoAppExitHandler(
+      closePersistence: () {
+        closeCount += 1;
+        return neverCompletes.future;
+      },
+      closeTimeout: const Duration(milliseconds: 20),
+    );
+
+    expect(await handler.handleExitRequest(), AppExitResponse.exit);
+    expect(await handler.handleExitRequest(), AppExitResponse.exit);
+    expect(closeCount, 1);
+  });
+
+  test('a timed-out close leaves maintenance stopped', () async {
+    final neverCompletes = Completer<void>();
+    addTearDown(neverCompletes.complete);
+    final events = <String>[];
+    final handler = CavernoAppExitHandler(
+      closePersistence: () {
+        events.add('close');
+        return neverCompletes.future;
+      },
+      closeTimeout: const Duration(milliseconds: 20),
+    );
+
+    final response = await withMaintenancePausedForExit(
+      stopMaintenance: () => events.add('stop'),
+      startMaintenance: () => events.add('start'),
+      requestExit: handler.handleExitRequest,
+    );
+
+    expect(response, AppExitResponse.exit);
+    expect(events, ['stop', 'close']);
+  });
+
   test('cancelled exit restarts paused maintenance', () async {
     final events = <String>[];
     final handler = CavernoAppExitHandler(

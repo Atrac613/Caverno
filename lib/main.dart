@@ -414,18 +414,29 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         return;
       }
 
+      appLog('[Quit] confirmed; closing persistence');
       final exitResponse = await _handleAppExit();
       if (exitResponse == AppExitResponse.cancel) {
-        return;
+        // `didRequestAppExit` refuses an OS-initiated exit when persistence
+        // cannot close, so a *running* app is never left with a closed
+        // database. Here the user asked to quit, so the app is going away
+        // either way and returning early would be indistinguishable from a
+        // dead menu item -- which is exactly how this failure was reported.
+        appLog('[Quit] persistence close refused the exit; quitting anyway');
       }
 
       final windowManagerService = widget.windowManagerService;
       if (windowManagerService != null) {
+        appLog('[Quit] terminating');
         await windowManagerService.quitApplication();
         return;
       }
 
       await SystemNavigator.pop();
+    } catch (error, stackTrace) {
+      appLog('[Quit] quit flow failed: $error');
+      appLog('[Quit] $stackTrace');
+      rethrow;
     } finally {
       _quitDialogOpen = false;
     }

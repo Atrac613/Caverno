@@ -80,6 +80,14 @@ void main() {
     expect(exitHandlerSource, contains('sqlite3_finalize'));
     expect(exitHandlerSource, contains('NSApp.terminate'));
     expect(exitHandlerSource, contains('AppExitResponse.cancel'));
+    // A close that never answers must not be able to veto an exit: the engine
+    // is still waiting on System.requestAppExit, so NSApp.terminate is dropped
+    // and the quit silently does nothing.
+    expect(exitHandlerSource, contains('closeTimeout'));
+    expect(exitHandlerSource, contains('on TimeoutException'));
+    // A user who confirmed the quit dialog must not be returned to a running
+    // app because persistence refused to close.
+    expect(mainSource, contains('quitting anyway'));
     expect(
       appDelegateSource,
       isNot(contains('func applicationShouldTerminate(_')),
