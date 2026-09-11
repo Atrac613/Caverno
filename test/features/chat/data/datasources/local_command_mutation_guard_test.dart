@@ -6,6 +6,53 @@ import 'package:test/test.dart';
 
 void main() {
   group('LocalCommandMutationGuard.writePathCandidates', () {
+    test('reads an escaping path out of a flag that carries one', () {
+      // A flag is not an operand, but `--write=<path>` carries one in a single
+      // token beginning with `-`, which this scan used to skip whole. That is
+      // how `flutter analyze --write=../../x` reached the shell unseen: the
+      // option truncates and rewrites whatever it names.
+      expect(
+        LocalCommandMutationGuard.writePathCandidates(
+          'flutter analyze --write=../../../../tmp/pwned.txt',
+        ),
+        ['../../../../tmp/pwned.txt'],
+      );
+      expect(
+        LocalCommandMutationGuard.writePathCandidates(
+          'flutter analyze --write=/tmp/pwned.txt',
+        ),
+        ['/tmp/pwned.txt'],
+      );
+      expect(
+        LocalCommandMutationGuard.writePathCandidates(
+          'dart analyze --dart-sdk=~/evil',
+        ),
+        ['~/evil'],
+      );
+    });
+
+    test('keeps ordinary flags out of the candidate list', () {
+      // Looking past `=` would be useless if every flag value became a
+      // candidate. `_isEscapingPath` still decides, so an in-project or
+      // non-path value contributes nothing and no approval is invented.
+      expect(
+        LocalCommandMutationGuard.writePathCandidates(
+          'flutter analyze --write=build/report.txt --no-pub',
+        ),
+        isEmpty,
+      );
+      expect(
+        LocalCommandMutationGuard.writePathCandidates(
+          'flutter test --reporter=expanded --concurrency=4',
+        ),
+        isEmpty,
+      );
+      expect(
+        LocalCommandMutationGuard.writePathCandidates('dart analyze --='),
+        isEmpty,
+      );
+    });
+
     test('collects escaping operands and skips the executable', () {
       expect(
         LocalCommandMutationGuard.writePathCandidates(

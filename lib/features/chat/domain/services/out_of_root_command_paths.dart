@@ -104,6 +104,20 @@ final class OutOfRootCommandPaths {
     for (final match in _pathToken.allMatches(masked)) {
       consider(match.group(0)!);
     }
+
+    // Finally the same text with its quote characters removed. A quote can sit
+    // anywhere in a word, and the two passes above between them miss a path
+    // that is split by one: in `--write=/'Users/x/y'` the raw pass stops at the
+    // quote and the quoted pass sees `Users/x/y`, which is not absolute, so an
+    // absolute path reached the shell unreported. The shell would reassemble
+    // it, and so does this. Like the raw pass this can only add a token, never
+    // remove one, so nothing already found can be hidden by it.
+    if (masked.contains("'") || masked.contains('"')) {
+      final dequoted = masked.replaceAll("'", '').replaceAll('"', '');
+      for (final match in _pathToken.allMatches(dequoted)) {
+        consider(match.group(0)!);
+      }
+    }
     return List<String>.unmodifiable(outside);
   }
 

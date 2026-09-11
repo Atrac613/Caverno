@@ -9,6 +9,38 @@ void main() {
   List<String> scan(String command, {String projectRoot = root}) =>
       scanner.scan(command: command, projectRoot: projectRoot);
 
+  test('reassembles an absolute path that a quote splits', () {
+    // The shell joins `/` to the quoted remainder and opens
+    // /Users/dev/secrets/key, but neither existing pass saw it: the raw token
+    // pass stops at the quote, and the quoted pass is handed `Users/dev/...`,
+    // which is not absolute. An absolute path reached the shell unreported.
+    expect(scan("cat /'Users/dev/secrets/key'"), ['/Users/dev/secrets/key']);
+    expect(scan('cat /"Users/dev/secrets/key"'), ['/Users/dev/secrets/key']);
+    expect(scan("flutter analyze --write=/'Users/dev/secrets/key'"), [
+      '/Users/dev/secrets/key',
+    ]);
+    // Split anywhere in the token, not only after the leading slash. The raw
+    // pass already reports the two fragments either side of the quote; what
+    // matters here is that the location the shell actually opens is named too.
+    expect(
+      scan("cat /Users/'dev'/secrets/key"),
+      contains('/Users/dev/secrets/key'),
+    );
+  });
+
+  test('the dequoted pass invents nothing', () {
+    // Removing quotes may only add a token, never turn silence into an
+    // out-of-root claim: inventing a token invents an approval. The apostrophe
+    // pair here spans an unquoted region, which is the shape that once made
+    // the quoted pass erase a real command.
+    expect(scan('echo "it\'s fine" && echo "that\'s all"'), isEmpty);
+    expect(scan("cat '$root/lib/main.dart'"), isEmpty);
+    expect(scan('echo "no path here"'), isEmpty);
+    // Dequoting does not defeat the word-internal lookbehind: `config/value`
+    // is not a path token, so the dequoted pass adds nothing of its own.
+    expect(scan('echo "config/value"'), isEmpty);
+  });
+
   test('finds the path the shell fence never inspected', () {
     // The exact shape from session db878d3a: a heredoc is neither an
     // internally-executable command nor free of shell syntax, so

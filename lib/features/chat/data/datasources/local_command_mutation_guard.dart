@@ -93,6 +93,17 @@ abstract final class LocalCommandMutationGuard {
         continue;
       }
       if (token.startsWith('-')) {
+        // A flag is not an operand, but it can carry one. `--write=../../x`
+        // is a single token starting with `-`, and skipping it whole hid the
+        // path from this fence entirely: `flutter analyze --write=<path>`
+        // truncates and rewrites whatever it names, and `--dart-sdk=<path>`
+        // makes flutter_tools spawn `<path>/bin/dart`. Look past the first
+        // `=`; `_isEscapingPath` still decides, so an ordinary `--foo=bar`
+        // contributes nothing.
+        final separator = token.indexOf('=');
+        if (separator > 0 && separator < token.length - 1) {
+          consider(token.substring(separator + 1));
+        }
         continue;
       }
       consider(token);
