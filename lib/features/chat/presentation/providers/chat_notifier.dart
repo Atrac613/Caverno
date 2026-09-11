@@ -72,7 +72,6 @@ import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
-import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_participant.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
@@ -232,6 +231,7 @@ import 'model_edit_apply_telemetry_runtime_adapter.dart';
 import 'participant_turn_control_registry.dart';
 import 'pending_approval_resolution.dart';
 import 'primary_turn_route_runtime.dart';
+import 'prompt_token_budget_coordinator.dart';
 import 'python_script_approval_cache_runtime_adapter.dart';
 import 'repo_map_precompute_cache_provider.dart';
 import 'response_metadata_registry.dart';
@@ -1881,8 +1881,12 @@ class ChatNotifier extends Notifier<ChatState> {
     if (modelSwitchHandoffMessage != null) {
       promptMessages.add(modelSwitchHandoffMessage);
     }
-    final compactionArtifact = _resolvePromptCompactionArtifact(
-      currentConversation: currentConversation,
+    final promptBudget = _promptTokenBudget.budgetFor(
+      _settings,
+      ownerSnapshot.owner.conversationId,
+    );
+    final compactionArtifact = promptBudget.resolveArtifact(
+      conversation: currentConversation,
       messages: messages,
       forceCompaction: shouldForceCompaction,
     );
@@ -1915,36 +1919,14 @@ class ChatNotifier extends Notifier<ChatState> {
     if (steeringDirective != null) {
       result.add(steeringDirective);
     }
+    // Recorded before the pressure update overwrites it, so the pair handed to
+    // the next turn describes this exact request.
+    _promptTokenBudget.recordEstimate(ownerSnapshot.owner, result);
     _updateContextTokenPressureState(
-      pressure: ConversationCompactionService.assessTokenPressure(
-        messages: result,
-      ),
+      pressure: promptBudget.assess(result),
       compactionActive: compactionArtifact?.hasContent ?? false,
     );
     return result;
-  }
-
-  ConversationCompactionArtifact? _resolvePromptCompactionArtifact({
-    required Conversation? currentConversation,
-    required List<Message> messages,
-    bool forceCompaction = false,
-  }) {
-    final freshArtifact = ConversationCompactionService.buildArtifact(
-      messages: messages,
-      planDocument: currentConversation?.displayPlanDocument(
-        isPlanning: currentConversation.isPlanningSession,
-      ),
-      now: currentConversation?.effectiveCompactionArtifact.updatedAt,
-      force: forceCompaction,
-    );
-    if (freshArtifact != null) {
-      return freshArtifact;
-    }
-    final persistedArtifact = currentConversation?.compactionArtifact;
-    if (persistedArtifact?.hasContent ?? false) {
-      return persistedArtifact;
-    }
-    return null;
   }
 
   void _updateContextTokenPressureState({
@@ -1973,9 +1955,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _refreshContextTokenPressureFromState() {
     _updateContextTokenPressureState(
-      pressure: ConversationCompactionService.assessTokenPressure(
-        messages: state.messages,
-      ),
+      pressure: _promptTokenBudget
+          .budgetFor(_settings, conversationId)
+          .assess(state.messages),
       compactionActive: state.promptCompactionActive,
     );
   }
@@ -1989,6 +1971,8 @@ class ChatNotifier extends Notifier<ChatState> {
   /// the review sheet instead of looking idle.
   final _threadStates = <String, ThreadScopedChatState>{};
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
+
+  final _promptTokenBudget = PromptTokenBudgetCoordinator();
   final _pendingToolApprovals = PendingToolApprovalRegistry();
 
   /// Local-command approvals awaiting an answer on any thread.
@@ -3772,6 +3756,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final owner = _turnOwnerForGeneration(interactionGeneration);
       if (owner != null) {
         _responseMetadata.captureResult(owner, result);
+        _promptTokenBudget.recordMeasurement(owner, result);
       }
       return result;
     }
@@ -3924,6 +3909,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (!_isCurrentInteractionGeneration(generation)) return;
       if (!ref.mounted) return;
       if (!_responseMetadata.captureResult(turnOwner, result)) return;
+      _promptTokenBudget.recordMeasurement(turnOwner, result);
       await _persistActiveResponseCheckpoint(generation);
       appLog(
         '[Tool] LLM response - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
@@ -8567,6 +8553,7 @@ class ChatNotifier extends Notifier<ChatState> {
         '[ChatNotifier] Recovered content-tool continuation with non-streaming completion',
       );
       if (!_responseMetadata.captureResult(turnOwner, result)) return;
+      _promptTokenBudget.recordMeasurement(turnOwner, result);
       _replaceLastMessageContentForGeneration(
         interactionGeneration,
         result.content,

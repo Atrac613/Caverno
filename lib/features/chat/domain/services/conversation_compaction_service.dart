@@ -4,6 +4,49 @@ import 'conversation_tool_result_pruner.dart';
 
 enum ConversationTokenPressureLevel { normal, warning, critical }
 
+/// An endpoint-reported prompt size paired with the estimate made for that
+/// same request.
+///
+/// [estimatePromptTokens] walks conversation messages only, so it cannot see
+/// the tool catalog, the serialized tool schemas, or the tokenizer's real
+/// handling of the text. Measured over recorded sessions, that blind spot is
+/// worth roughly 7.4k tokens on a tool-bearing request -- more than the entire
+/// default budget -- which made the gauge read "under budget" on a fifth of
+/// all requests whose real prompt had already passed it. Pairing what was
+/// charged with what was estimated recovers the difference without guessing at
+/// a tokenizer.
+class PromptTokenCalibration {
+  const PromptTokenCalibration({
+    required this.measuredPromptTokens,
+    required this.estimatedPromptTokens,
+  });
+
+  static const PromptTokenCalibration empty = PromptTokenCalibration(
+    measuredPromptTokens: 0,
+    estimatedPromptTokens: 0,
+  );
+
+  /// Prompt tokens the endpoint reported for the request.
+  final int measuredPromptTokens;
+
+  /// What [estimatePromptTokens] returned for that request's messages.
+  final int estimatedPromptTokens;
+
+  bool get hasMeasurement =>
+      measuredPromptTokens > 0 && estimatedPromptTokens > 0;
+
+  /// Tokens the estimator never counted.
+  ///
+  /// Clamped at zero: the correction only ever adds what was missed. An
+  /// estimator that over-counts is already erring toward compacting early,
+  /// which costs a summary, while erring late costs a rejected request.
+  int get uncountedTokens {
+    if (!hasMeasurement) return 0;
+    final difference = measuredPromptTokens - estimatedPromptTokens;
+    return difference > 0 ? difference : 0;
+  }
+}
+
 class ConversationTokenPressure {
   const ConversationTokenPressure({
     required this.estimatedPromptTokens,
@@ -28,6 +71,15 @@ class ConversationCompactionService {
   static const int recentMessagesToKeep = 8;
   static const int retainedTailTokenBudget = 1000;
   static const int maxEstimatedPromptTokens = 6000;
+
+  /// Held back from a known context window for the parts of a request that
+  /// arrive after the budget is computed, such as a steering directive
+  /// appended at send time or a tool catalog larger than the last measured one.
+  static const int contextSafetyMarginTokens = 1024;
+
+  /// Floor for a resolved budget, so a model whose window barely exceeds its
+  /// own response allowance still compacts rather than dividing into nothing.
+  static const int minimumPromptTokenBudget = 2000;
   static const int maxSummaryBullets = 12;
   static const int maxPlanBullets = 4;
   static const int maxBulletLength = 180;
@@ -58,11 +110,18 @@ class ConversationCompactionService {
     String? planDocument,
     DateTime? now,
     bool force = false,
+    int? promptTokenBudget,
+    PromptTokenCalibration calibration = PromptTokenCalibration.empty,
   }) {
     final normalizedMessages = messages
         .where((message) => !message.isStreaming)
         .toList(growable: false);
-    if (!force && !_needsCompaction(normalizedMessages)) {
+    if (!force &&
+        !_needsCompaction(
+          normalizedMessages,
+          promptTokenBudget: promptTokenBudget,
+          calibration: calibration,
+        )) {
       return null;
     }
 
@@ -101,39 +160,79 @@ class ConversationCompactionService {
     );
   }
 
-  static bool shouldCompact(List<Message> messages) {
-    final normalizedMessages = messages
-        .where((message) => !message.isStreaming)
-        .toList(growable: false);
-    return _needsCompaction(normalizedMessages);
-  }
-
-  static ConversationTokenPressure assessTokenPressure({
-    required List<Message> messages,
-    int promptTokenBudget = maxEstimatedPromptTokens,
+  static bool shouldCompact(
+    List<Message> messages, {
+    int? promptTokenBudget,
+    PromptTokenCalibration calibration = PromptTokenCalibration.empty,
   }) {
     final normalizedMessages = messages
         .where((message) => !message.isStreaming)
         .toList(growable: false);
-    final budget = promptTokenBudget <= 0
-        ? maxEstimatedPromptTokens
-        : promptTokenBudget;
-    final estimatedTokens = estimatePromptTokens(normalizedMessages);
+    return _needsCompaction(
+      normalizedMessages,
+      promptTokenBudget: promptTokenBudget,
+      calibration: calibration,
+    );
+  }
+
+  static ConversationTokenPressure assessTokenPressure({
+    required List<Message> messages,
+    int? promptTokenBudget,
+    PromptTokenCalibration calibration = PromptTokenCalibration.empty,
+  }) {
+    final normalizedMessages = messages
+        .where((message) => !message.isStreaming)
+        .toList(growable: false);
+    final budget = _resolveBudget(promptTokenBudget);
+    final projectedTokens = projectPromptTokens(
+      messages: normalizedMessages,
+      calibration: calibration,
+    );
     final warningThreshold = (budget * tokenWarningRatio).round();
-    final level = estimatedTokens >= budget
+    final level = projectedTokens >= budget
         ? ConversationTokenPressureLevel.critical
-        : estimatedTokens >= warningThreshold
+        : projectedTokens >= warningThreshold
         ? ConversationTokenPressureLevel.warning
         : ConversationTokenPressureLevel.normal;
 
     return ConversationTokenPressure(
-      estimatedPromptTokens: estimatedTokens,
+      estimatedPromptTokens: projectedTokens,
       promptTokenBudget: budget,
       warningThresholdTokens: warningThreshold,
       level: level,
-      shouldAutoCompact: _needsCompaction(normalizedMessages),
+      shouldAutoCompact: _needsCompaction(
+        normalizedMessages,
+        promptTokenBudget: promptTokenBudget,
+        calibration: calibration,
+      ),
     );
   }
+
+  /// Prompt budget for a model whose usable window is known.
+  ///
+  /// Returns [maxEstimatedPromptTokens] when the window is unknown, which
+  /// keeps the message-count rule in [_needsCompaction] as the deciding
+  /// fallback.
+  static int resolvePromptTokenBudget({
+    required int usableContextTokens,
+    required int maxResponseTokens,
+  }) {
+    if (usableContextTokens <= 0) {
+      return maxEstimatedPromptTokens;
+    }
+    final responseReserve = maxResponseTokens > 0 ? maxResponseTokens : 0;
+    final reserved =
+        usableContextTokens - responseReserve - contextSafetyMarginTokens;
+    return reserved < minimumPromptTokenBudget
+        ? minimumPromptTokenBudget
+        : reserved;
+  }
+
+  /// The estimate plus whatever the last measurement proved it fails to count.
+  static int projectPromptTokens({
+    required List<Message> messages,
+    PromptTokenCalibration calibration = PromptTokenCalibration.empty,
+  }) => estimatePromptTokens(messages) + calibration.uncountedTokens;
 
   static bool isContextLengthError(String error) {
     return _contextLengthErrorPattern.hasMatch(error);
@@ -217,13 +316,38 @@ class ConversationCompactionService {
     return textTokens + imageTokens;
   }
 
-  static bool _needsCompaction(List<Message> messages) {
+  static int _resolveBudget(int? promptTokenBudget) =>
+      promptTokenBudget == null || promptTokenBudget <= 0
+      ? maxEstimatedPromptTokens
+      : promptTokenBudget;
+
+  static bool _needsCompaction(
+    List<Message> messages, {
+    int? promptTokenBudget,
+    PromptTokenCalibration calibration = PromptTokenCalibration.empty,
+  }) {
     if (messages.length <= recentMessagesToKeep) {
       return false;
     }
-    final estimatedTokens = estimatePromptTokens(messages);
-    return estimatedTokens > maxEstimatedPromptTokens ||
-        messages.length > minMessagesBeforeCompaction;
+    final budget = _resolveBudget(promptTokenBudget);
+    final projectedTokens = projectPromptTokens(
+      messages: messages,
+      calibration: calibration,
+    );
+    if (projectedTokens > budget) {
+      return true;
+    }
+    // The message count is a fallback ceiling, not a policy: it decides only
+    // while the real prompt size is unknown. Once the window is known and a
+    // measurement has landed, the token projection describes the same limit
+    // far more accurately, and enforcing a count on top of it would discard
+    // context the model can still hold.
+    if (promptTokenBudget != null &&
+        promptTokenBudget > 0 &&
+        calibration.hasMeasurement) {
+      return false;
+    }
+    return messages.length > minMessagesBeforeCompaction;
   }
 
   static String _buildSummary(List<Message> messages, {String? planDocument}) {
