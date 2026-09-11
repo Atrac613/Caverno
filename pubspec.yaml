@@ -53,7 +53,7 @@ dependencies:
   easy_localization: ^3.0.7
 
   # State management
-  flutter_riverpod: ^3.4.2
+  flutter_riverpod: ^3.4.3
 
   # OpenAI-compatible API client
   openai_dart: ^8.1.0
@@ -155,7 +155,7 @@ dependencies:
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
   serious_python: ^4.6.0
-  drift: ^2.34.3
+  drift: ^2.34.4
   sqlite3_flutter_libs: ^0.6.0+eol
   # Embedded terminal for the coding workspace bottom panel (desktop only:
   # macOS/Windows/Linux). xterm renders the screen buffer, flutter_pty spawns
