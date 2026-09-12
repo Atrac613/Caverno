@@ -185,6 +185,15 @@ extension ChatNotifierPromptContext on ChatNotifier {
         (conversation.isPlanningSession && !bypassPlanMode)) {
       return;
     }
+    // A parent turn claims nothing: this mark is an ordinary coding turn saying
+    // "I am working on this", and the parent is forbidden from working on it.
+    // Claiming it anyway took the task out of `pending` -- the status
+    // TaskDelegationBriefBuilder requires -- so the parent read an empty queue
+    // in the turn that asked it to delegate, and the claimed task could never
+    // return to `pending` with nothing executing it.
+    if (_anabasisRoles.isParentTurn(interactionGeneration)) {
+      return;
+    }
     final task = ConversationPlanExecutionCoordinator.executionFocusTask(
       conversation,
     );

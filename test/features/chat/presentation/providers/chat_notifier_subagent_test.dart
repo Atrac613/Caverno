@@ -7,6 +7,7 @@ import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -135,6 +136,7 @@ class _SubagentScriptedDataSource implements ChatDataSource {
   final List<List<ToolResultInfo>> parentToolResultBatches = [];
   final List<List<ToolResultInfo>> childToolResultBatches = [];
   final List<List<Message>> childRequests = [];
+  final List<List<Message>> parentRequests = [];
 
   static bool _isChild(List<Message> messages) => messages.any(
     (message) =>
@@ -150,6 +152,7 @@ class _SubagentScriptedDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    parentRequests.add(messages);
     return StreamWithToolsResult(
       stream: const Stream<String>.empty(),
       completion: Future<ChatCompletionResult>.value(
@@ -606,6 +609,85 @@ void main() {
         );
         expect(service.executedToolNames, isEmpty);
         expect(dataSource.childRequests, isEmpty);
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+  test(
+    'planned Anabasis leaves the ready task pending for its own delegation queue',
+    () async {
+      // The parent's turn used to claim the next pending task for itself before
+      // its prompt was built, and `pending` is the status the delegation queue
+      // requires -- so a plan with one ready task showed the parent an empty
+      // queue in the very turn that asked it to delegate, and refused the id it
+      // read from the plan body instead.
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          ToolCallInfo(
+            id: 'delegate',
+            name: 'spawn_subagent',
+            arguments: {
+              'description': 'Build CLI',
+              'prompt': 'Implement the CLI.',
+              'workflow_task_id': 'cli',
+            },
+          ),
+        ],
+        childCompletions: [],
+        parentFinalChunks: const ['Delegated the ready task.'],
+      );
+      final service = _SubagentTestToolService();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: service,
+      );
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-1',
+        );
+        final id = container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .id;
+        await conversations.updateCurrentWorkflow(
+          conversationId: id,
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: const ConversationWorkflowSpec(
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'cli',
+                title: 'Build CLI',
+                status: ConversationWorkflowTaskStatus.pending,
+              ),
+            ],
+          ),
+        );
+        await container
+            .read(chatNotifierProvider.notifier)
+            .sendMessage('@anabasis Continue');
+        final openingPrompt = dataSource.parentRequests.first
+            .firstWhere((message) => message.role == MessageRole.system)
+            .content;
+        expect(
+          openingPrompt,
+          contains('[workflow_task_id: cli]'),
+          reason:
+              'The turn-opening prompt must still offer the task the queue held '
+              'before the turn started',
+        );
+        final results = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .where((result) => result.name == 'spawn_subagent');
+        expect(
+          results.map((result) => result.result),
+          everyElement(isNot(contains('anabasis_delegation_not_ready'))),
+        );
+        expect(dataSource.childRequests, isNotEmpty);
       } finally {
         container.dispose();
       }
