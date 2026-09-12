@@ -3918,6 +3918,25 @@ That earlier reading — "the elicitation turn cancels the delegation turn, so n
 child finishes" — was half right and is superseded. The child did finish; what
 did not finish was the *task*, and the parent was judging the task.
 
+Two follow-ups the confirmation run then forced, both about a turn ending where
+the model still had a move:
+
+- A policy refusal that carries a `required_action` no longer ends the turn
+  (`25a2fc6dc`). Measured across this canary's corpus: five aborts in four runs,
+  on `spawn_subagent` (the admission gate), `ask_user_question` (the authority
+  guard refusing a tool the parent's own prompt names), and
+  `local_execute_command` (a compound shell expression the harness asked it to
+  split). The refusal still stands and is still counted; the loop's iteration cap
+  bounds a model that ignores it, and an approval denial still aborts because
+  there the answer came from the user.
+- `get_subagent_result` answers an unknown id with the ids that exist
+  (`f59c47e9a`). The parent passed a *workflow* task id to a tool whose parameter
+  is `task_id`, twice, and the second failure ended the turn as if the tool were
+  unreachable. The old result said only `not_found`, which names nothing to
+  correct. Note the shape: the delegated-results block could not have helped
+  there, because the child was spawned inside that same turn and the block is
+  built before it.
+
 **PR 3's own question, written down before it is built: stored or derived?** The
 row says "distinct stored states, one writer each", and the second half argues
 against the first. Three facts already exist, each with an owner:
