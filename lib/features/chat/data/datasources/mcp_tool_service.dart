@@ -63,6 +63,7 @@ class McpToolService extends McpToolServiceFacadeBase {
     ConversationSearchTool.toolName,
     'recall_memory',
     ...{'ask_user_question', 'spawn_subagent', 'get_subagent_result'},
+    'accept_task',
     ...{'load_skill', 'save_skill'},
     'create_routine',
     'update_goal',
@@ -279,6 +280,7 @@ class McpToolService extends McpToolServiceFacadeBase {
     _addIfEnabled(toolDefinitions, _mcpToolAskUserQuestionTool);
     _addIfEnabled(toolDefinitions, _spawnSubagentTool);
     _addIfEnabled(toolDefinitions, _getSubagentResultTool);
+    _addIfEnabled(toolDefinitions, _acceptTaskTool);
 
     // Built-in memory tools (always available).
     if (conversationRepository != null) {
@@ -755,6 +757,8 @@ class McpToolService extends McpToolServiceFacadeBase {
       SubagentToolDefinitions.spawn;
   static Map<String, dynamic> get _getSubagentResultTool =>
       SubagentToolDefinitions.result;
+  static Map<String, dynamic> get _acceptTaskTool =>
+      SubagentToolDefinitions.acceptTask;
 
   static Map<String, dynamic> get _loadSkillTool => {
     'type': 'function',

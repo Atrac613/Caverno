@@ -43,6 +43,42 @@ abstract final class SubagentToolDefinitions {
     },
   };
 
+  /// The parent's route to recording a judgement it has already made.
+  ///
+  /// Deliberately not a way to *decide* acceptance. The derivable levels are
+  /// checked before this writes anything, so a confident rationale cannot stand
+  /// in for a test that did not pass or files nobody can see.
+  static Map<String, dynamic> get acceptTask => {
+    'type': 'function',
+    'function': {
+      'name': 'accept_task',
+      'description':
+          'Record that you accept a delegated saved task as satisfying the '
+          'goal, with your reason. Only for Anabasis, and only after you have '
+          'verified the result: a child reporting success means it produced '
+          'something, never that the work is accepted. Refused while the '
+          'mechanical or evidence level is still outstanding, so verify first '
+          'and say what the evidence was.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'workflow_task_id': {
+            'type': 'string',
+            'description':
+                'The saved task you are accepting, as delegated to a child.',
+          },
+          'rationale': {
+            'type': 'string',
+            'description':
+                'Why this satisfies the goal, in your own words. Recorded as '
+                'written and never parsed.',
+          },
+        },
+        'required': ['workflow_task_id', 'rationale'],
+      },
+    },
+  };
+
   static Map<String, dynamic> get result => {
     'type': 'function',
     'function': {

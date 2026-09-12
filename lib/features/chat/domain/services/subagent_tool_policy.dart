@@ -19,6 +19,10 @@ class SubagentToolPolicy {
     spawnSubagentToolName,
     'get_subagent_result',
     'update_goal',
+    // A child saying "done" means produced, never accepted. Leaving the
+    // acceptance tool in the inherited set would let the producer grade its own
+    // work, which is the one thing ANA3's ownership rule exists to stop.
+    'accept_task',
   };
 
   /// Returns the parent tool definitions with the delegation tool removed,

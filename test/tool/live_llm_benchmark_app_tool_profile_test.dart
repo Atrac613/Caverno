@@ -10,7 +10,11 @@ import '../../tool/live_llm_benchmark_app_tool_profile.dart';
 
 /// macOS host-app catalog size from LL39. Computer Use and Browser drop out
 /// on platforms where those services are unavailable (Linux CI has neither).
-const _macosAppProfileDefinitionCount = 117;
+///
+/// 117 -> 118: ANA3 PR 2b's accept_task. Reserved and offered like the other
+/// two Anabasis tools, so it counts in the host catalog even though only an
+/// addressed parent may call it.
+const _macosAppProfileDefinitionCount = 118;
 const _macosAppProfileInitialCount = 37;
 
 void main() {
@@ -27,7 +31,11 @@ void main() {
         definitions,
       );
 
-      expect(definitions, hasLength(45));
+      // 45 -> 46: ANA3 PR 2b's accept_task is reserved and offered like the
+      // other two Anabasis tools, so it counts in the headless catalog too.
+      // The initial selection is unchanged -- accept_task is not a
+      // search-class tool, so it does not displace one.
+      expect(definitions, hasLength(46));
       expect(initial.toolDefinitions, hasLength(22));
     });
 

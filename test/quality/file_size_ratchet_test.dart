@@ -59,7 +59,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 8681,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
-  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 40,
+  // +1, to 41: the parent is told to record its judgement, which is the
+  // whole point of giving it a tool to record one with.
+  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 41,
   // +1 for a ToolResultOrigin declaration, on the same grounds as the eight
   // entries further down: the marker cannot be extracted anywhere, because
   // being at the producer is the whole point. This one was found by the
@@ -647,7 +649,9 @@ const Map<String, int> _lineBudgets = {
       100,
   'lib/features/chat/presentation/slash_commands/worktree_agent_command_args.dart':
       63,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1068,
+  // +4, to 1,072, and it is a raise: accept_task has to be reserved and
+  // offered like the other two Anabasis tools.
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1072,
   'lib/features/chat/data/datasources/memory_recall_scoring.dart': 20,
   // File-turn checkpoint delegation moved to the rollback facade that already
   // owns that concern, leaving this one to owner-bound tool dispatch.
@@ -945,7 +949,13 @@ const Map<String, int> _libraryLineBudgets = {
   // keeping a chain of its own.
   // The merged task-plan retry extraction reduces the aggregate to 19,712.
   // -5: memory-update tag rendering and named-skill lookup left the library.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19662,
+  // +129, to 19,791, and it is a raise: ANA3 PR 2b's acceptance handler.
+  // It refuses on five distinct grounds rather than one, because each
+  // names a different thing the parent has to go and do -- a child that
+  // graded itself, an unknown task, a missing reason, nothing delegated to
+  // accept on, and a derivable level still outstanding. Collapsing them
+  // into one refusal would save lines and tell the parent nothing.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19791,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
@@ -984,7 +994,9 @@ const Map<String, int> _libraryLineBudgets = {
   // +1 matching the primary file: the design-token import that gives three of
   // these parts a real monospace face.
   'lib/features/chat/presentation/pages/chat_page.dart': 8597,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1143,
+  // +4, to 1,147, matching the primary file: the accept_task reservation and
+  // offer are four lines in the primary, not a new part.
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1147,
   // P3b's detached-owner target uses the shared exact-conversation resolver.
 };
 

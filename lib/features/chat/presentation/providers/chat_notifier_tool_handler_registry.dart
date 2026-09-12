@@ -510,6 +510,10 @@ final class _ConversationToolHandlerModule implements ChatToolHandlerModule {
       toolCall,
       interactionGeneration: interactionGeneration,
     ),
+    'accept_task': (toolCall) => _notifier._handleAcceptTask(
+      toolCall,
+      interactionGeneration: interactionGeneration,
+    ),
     'update_goal': (toolCall) => _notifier.handleUpdateGoal(
       toolCall,
       interactionGeneration: interactionGeneration,

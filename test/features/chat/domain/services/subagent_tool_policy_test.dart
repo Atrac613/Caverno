@@ -83,5 +83,20 @@ void main() {
         reason: 'tool-search stays available so the subagent can widen its set',
       );
     });
+
+    test('removes accept_task so a producer cannot grade its own work', () {
+      final filtered = SubagentToolPolicy.filterInheritedToolDefinitions([
+        tool('read_file'),
+        tool('accept_task'),
+      ]);
+
+      // A child saying "done" means produced, never accepted. Leaving this in
+      // the inherited set is the one thing ANA3's ownership rule exists to
+      // stop, and the dispatch-time check in _handleAcceptTask is the second
+      // line for a model that rediscovers the name through tool search.
+      final names = filtered.map(SubagentToolPolicy.toolName).toList();
+      expect(names, isNot(contains('accept_task')));
+      expect(names, contains('read_file'));
+    });
   });
 }

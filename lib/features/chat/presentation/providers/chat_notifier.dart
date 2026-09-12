@@ -174,6 +174,8 @@ import '../../domain/services/subagent_execution_service.dart';
 import '../../domain/services/subagent_tool_policy.dart';
 import '../../domain/services/successful_read_result_replay_cache.dart';
 import '../../domain/services/system_prompt_builder.dart';
+import '../../domain/services/task_acceptance_audit.dart';
+import '../../domain/services/task_delegation_brief_builder.dart';
 import '../../domain/services/task_proposal_parser.dart';
 import '../../domain/services/task_proposal_quality_gate_fallback.dart';
 import '../../domain/services/temporal_context_builder.dart';

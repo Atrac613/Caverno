@@ -68,7 +68,7 @@ class TaskDelegationBriefBuilder {
         if (_isDelegatable(conversation, task))
           TaskDelegationBrief(
             task: task,
-            premises: _premisesFor(spec, task),
+            premises: premisesFor(spec, task),
             runner: runnerFor(task),
           ),
     ];
@@ -113,7 +113,12 @@ class TaskDelegationBriefBuilder {
   /// the task, so a task that reaches here has none outstanding. Handing a
   /// child an assumption it cannot check, without saying it was confirmed by
   /// the user, is how a premise turns back into a guess one level down.
-  List<String> _premisesFor(
+  /// The confirmed assumptions [task] stands on, in the plan's own words.
+  ///
+  /// Public because acceptance needs the same answer delegation does: ANA3
+  /// records the premises in force when an acceptance was written, and deriving
+  /// them a second way is how the two would come to disagree.
+  List<String> premisesFor(
     ConversationWorkflowSpec spec,
     ConversationWorkflowTask task,
   ) {

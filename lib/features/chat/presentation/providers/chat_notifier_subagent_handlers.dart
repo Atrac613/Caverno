@@ -355,4 +355,130 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       isSuccess: task.status != SubagentTaskStatus.failed,
     );
   }
+
+  /// Records the parent's acceptance of a delegated saved task.
+  ///
+  /// Refuses rather than judges. `mayParentAccept` decides, on evidence the
+  /// runners already recorded, and a refusal names what is still outstanding so
+  /// the parent can go and verify it. The rationale is stored as written.
+  Future<McpToolResult> _handleAcceptTask(
+    ToolCallInfo toolCall, {
+    int? interactionGeneration,
+  }) async {
+    final owner = interactionGeneration == null
+        ? null
+        : _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
+    }
+    McpToolResult refuse(String code, Map<String, Object?> detail) =>
+        McpToolResult(
+          toolName: toolCall.name,
+          isSuccess: false,
+          result: jsonEncode({
+            'ok': false,
+            'code': code,
+            'result_origin': 'refusal',
+            ...detail,
+          }),
+        );
+
+    // A producer must not grade its own work. The child catalog already omits
+    // this tool; this is the same rule at dispatch, for a model that
+    // rediscovers the name through tool search.
+    if (!_anabasisRoles.isParentTurn(interactionGeneration!)) {
+      return refuse('acceptance_not_parent', {
+        'required_action':
+            'Only Anabasis accepts a result. Report what you produced and let '
+            'the parent judge it.',
+      });
+    }
+
+    final taskId = trimStringArgument(toolCall.arguments, 'workflow_task_id');
+    final rationale = trimStringArgument(toolCall.arguments, 'rationale');
+    final conversation = _conversationForId(owner.conversationId);
+    final spec = conversation?.effectiveWorkflowSpec;
+    final task = spec?.tasks
+        .where((candidate) => candidate.id == taskId)
+        .firstOrNull;
+    if (conversation == null || spec == null || task == null) {
+      return refuse('acceptance_unknown_task', {
+        'known_task_ids': spec == null
+            ? const <String>[]
+            : spec.tasks.map((candidate) => candidate.id).toList(),
+        'required_action':
+            'Pass an exact workflow_task_id from the saved plan.',
+      });
+    }
+    if (rationale.isEmpty) {
+      return refuse('acceptance_rationale_missing', {
+        'required_action':
+            'Say why this satisfies the goal. An acceptance without a reason '
+            'records nothing the next turn can act on.',
+      });
+    }
+
+    // Audited against the child that was admitted for this task, which is why
+    // the delegation gate records the binding: without it there is no way to
+    // tell which result is the one being accepted.
+    final children = ref
+        .read(subagentTaskNotifierProvider)
+        .tasksForConversation(owner.conversationId)
+        .where((candidate) => candidate.workflowTaskId == taskId)
+        .toList(growable: false);
+    if (children.isEmpty) {
+      return refuse('acceptance_no_delegated_result', {
+        'required_action':
+            'Delegate this task and verify the result before accepting it. '
+            'There is nothing recorded to accept on.',
+      });
+    }
+
+    const audit = TaskAcceptanceAudit();
+    final verdict = audit.auditSubagentResult(children.last);
+    if (!audit.mayParentAccept(verdict)) {
+      return refuse('acceptance_levels_outstanding', {
+        'outstanding': verdict.outstanding
+            .map((level) => level.name)
+            .toList(growable: false),
+        'required_action':
+            'Verify what is outstanding before accepting. A rationale cannot '
+            'stand in for a check that did not run.',
+      });
+    }
+
+    final premises = const TaskDelegationBriefBuilder().premisesFor(spec, task);
+    final progress = conversation.executionProgressForTask(task.id);
+    final evidence = <String>[
+      if (progress?.lastValidationCommand.trim().isNotEmpty ?? false)
+        progress!.lastValidationCommand.trim(),
+      if (children.last.resultSummary.trim().isNotEmpty)
+        'child summary recorded',
+    ];
+    final wrote = await ref
+        .read(conversationsNotifierProvider.notifier)
+        .recordTaskAcceptance(
+          taskId: task.id,
+          rationale: rationale,
+          evidence: evidence,
+          premises: premises,
+          conversationId: owner.conversationId,
+        );
+    if (!wrote) {
+      return refuse('acceptance_write_failed', {
+        'required_action': 'The conversation could not be updated; retry once.',
+      });
+    }
+    appLog('[Anabasis] Accepted saved task $taskId');
+    return McpToolResult(
+      toolName: toolCall.name,
+      isSuccess: true,
+      result: jsonEncode({
+        'ok': true,
+        'accepted_task_id': task.id,
+        'evidence': evidence,
+        'premises': premises,
+      }),
+    );
+  }
 }
