@@ -3761,6 +3761,30 @@ gate for a model's pacing. The follow-up asks for the outcome and never names
 the tool, because a probe that spells out the mechanism measures its own
 wording.
 
+Measured 2026-09-12 on `c08d92eb7`: the canary passes on delegation — two ready
+tasks offered, one delegated, its contract reaching a child — and the parent
+**never attempts** an acceptance. Not refused; never tried, with the tool in the
+catalog and the follow-up asking in as many words to verify the result and record
+the judgement. So PR 2b's handler remains unexercised live, and the cause is the
+model's pacing rather than a gate. `update_goal` has the same shape and a known
+remedy: the local model does not volunteer it either and calls it when asked, so
+one restricted elicitation turn is the cheap thing to try before concluding
+anything about the tool.
+
+The same run settled an open question. Two earlier runs had the queue non-empty
+immediately before the turn and empty in the prompt that turn built, which looked
+like staleness. Measured on the way out: `candidates=1 projected=1` — the builder
+and the projector agree, and the 2 → 1 drop is the delegated task correctly
+leaving the queue. The earlier discrepancy was a single-candidate queue being
+consumed mid-turn, not a projection defect.
+
+Getting a non-empty queue at all needed one more canary fix, and it was the
+canary's bug rather than the product's: it answered
+`unresolvedOpenQuestionProgress`, which is derived from recorded progress
+entries, and a freshly approved plan has none — so it reported "Answered 0 open
+question(s)" on a plan whose first task waited on exactly one question. It
+answers `effectiveWorkflowSpec.openQuestions` now.
+
 One scoped limit, recorded at the line that would have to change: the handler
 audits subagent results only. ANA2 PR 2's worktree mapping is not dispatched
 yet, so no `WorktreeAgentTask` exists to audit; `auditWorktreeResult` is already
