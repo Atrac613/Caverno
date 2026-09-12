@@ -144,6 +144,23 @@ void main() {
     expect(scenario.followUpPrompt, isNot(contains('spawn_subagent')));
   });
 
+  test('every capture tolerates finding nothing', () {
+    final runner = File(
+      'tool/run_anabasis_delegation_live_canary.sh',
+    ).readAsStringSync();
+
+    // Under `set -e`, assigning from a grep or sed that matched nothing aborts
+    // the script. That killed the inconclusive branch once and reported a run
+    // with no ready task as a failure -- the exact confusion the three-way
+    // verdict exists to prevent.
+    for (final capture in ['QUEUE_SIZE="\$(', 'REFUSALS="\$(']) {
+      final start = runner.indexOf(capture);
+      expect(start, isNonNegative, reason: capture);
+      final line = runner.substring(start, runner.indexOf('\n', start));
+      expect(line, contains('|| true'), reason: capture);
+    }
+  });
+
   test('the shared live runner stamps build provenance into session logs', () {
     final runner = File('tool/run_plan_mode_live_test.sh').readAsStringSync();
 

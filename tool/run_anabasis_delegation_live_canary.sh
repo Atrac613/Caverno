@@ -51,7 +51,7 @@ set -e
 # plan the model wrote -- an independent task opens it, a pure chain does not --
 # so an empty queue is inconclusive about the parent and must not be reported as
 # a regression. Only a queue that was offered and not taken is a failure.
-QUEUE_SIZE="$(sed -n 's/.*\[Scenario\] Delegation queue offers \([0-9]\{1,\}\) ready task.*/\1/p' "${RUN_LOG}" | tail -1)"
+QUEUE_SIZE="$(sed -n 's/.*\[Scenario\] Delegation queue offers \([0-9]\{1,\}\) ready task.*/\1/p' "${RUN_LOG}" | tail -1 || true)"
 QUEUE_SIZE="${QUEUE_SIZE:-0}"
 
 echo
@@ -80,7 +80,11 @@ echo "  Acceptance recorded: ${ACCEPTED}"
 # a model's pacing. Surfacing the refusal codes is what makes a run that stopped
 # short diagnosable instead of merely short.
 if [[ "${ACCEPTED}" == "0" ]]; then
-  REFUSALS="$(grep -rhoE '"code":"acceptance_[a-z_]+"' "${SESSION_LOG_ROOT}" 2>/dev/null | sort -u | tr '\n' ' ')"
+  # `|| true` is load-bearing: a grep that matches nothing exits 1, and under
+  # `set -e` an assignment from it aborts the script -- which killed the
+  # inconclusive branch below and reported a run with no ready task as a
+  # failure, the exact confusion the three-way verdict exists to prevent.
+  REFUSALS="$(grep -rhoE '"code":"acceptance_[a-z_]+"' "${SESSION_LOG_ROOT}" 2>/dev/null | sort -u | tr '\n' ' ' || true)"
   if [[ -n "${REFUSALS}" ]]; then
     echo "  Acceptance refused with: ${REFUSALS}"
   else
