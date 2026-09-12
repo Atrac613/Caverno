@@ -161,6 +161,25 @@ void main() {
     }
   });
 
+  test('the elicitation turn is separate, and is not leading', () {
+    final scenario = buildLivePlanModeScenarios().singleWhere(
+      (candidate) => candidate.name == 'live_anabasis_delegation_admission',
+    );
+
+    // Separate from the first turn on purpose: the first measures whether the
+    // model volunteers the judgement, this one whether it makes it when told.
+    // Collapsing them destroys the distinction, which for update_goal was the
+    // whole finding -- never volunteered, reliable when instructed.
+    expect(scenario.extraFollowUpPrompts, hasLength(1));
+    final elicitation = scenario.extraFollowUpPrompts.single;
+    expect(elicitation, startsWith('@anabasis'));
+    expect(elicitation, isNot(contains('accept_task')));
+    // Reporting that the work is not acceptable has to be as available as
+    // accepting it, or the probe is leading and a false acceptance is the
+    // expensive direction.
+    expect(elicitation, contains('\u3057\u306a\u3044'));
+  });
+
   test('the shared live runner stamps build provenance into session logs', () {
     final runner = File('tool/run_plan_mode_live_test.sh').readAsStringSync();
 

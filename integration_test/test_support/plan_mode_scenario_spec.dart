@@ -31,6 +31,19 @@ const _liveAnabasisDelegationFollowUpPrompt =
     '\u78ba\u304b\u3081\u305f\u3089\u3001\u305d\u306e\u5224\u65ad'
     '\u3092\u8a18\u9332\u3057\u3066\u304f\u3060\u3055\u3044\u3002';
 
+/// Asks directly for the judgement the first turn did not volunteer.
+///
+/// Worded after `GoalCompletionElicitationPrompt`: reporting that the work is
+/// *not* acceptable has to be as available as accepting, or the probe is
+/// leading and a false acceptance is the expensive direction.
+const _liveAnabasisAcceptanceFollowUpPrompt =
+    '@anabasis \u5b50\u306e\u7d50\u679c\u3092\u8a55\u4fa1\u3057\u3001'
+    '\u53d7\u7406\u3059\u308b\u304b\u3057\u306a\u3044\u304b\u3092'
+    '\u4eca\u6c7a\u3081\u3066\u304f\u3060\u3055\u3044\u3002'
+    '\u6839\u62e0\u304c\u8db3\u308a\u306a\u3044\u5834\u5408\u306f'
+    '\u4f55\u304c\u8db3\u308a\u306a\u3044\u304b\u3092\u8ff0\u3079'
+    '\u3066\u304f\u3060\u3055\u3044\u3002';
+
 const _liveTodoExactShortPrompt =
     'todo_app.md \u3092\u53C2\u8003\u306B\u3057\u3066MVP\u3092\u5B9F\u88C5\u3002'
     '\u8A00\u8A9E\u306Fdart\u3068\u3059\u308B\u3002';
@@ -344,6 +357,7 @@ class PlanModeScenarioSpec {
     this.cancelExecutionBeforeFollowUp = false,
     this.startExecutionAfterApproval = true,
     this.resolveOpenQuestionsBeforeFollowUp = false,
+    this.extraFollowUpPrompts = const <String>[],
     this.followUpSettleTimeout = const Duration(minutes: 3),
   });
 
@@ -394,6 +408,16 @@ class PlanModeScenarioSpec {
   /// to observe delegation has to supply the answer the design says only a
   /// user can give.
   final bool resolveOpenQuestionsBeforeFollowUp;
+
+  /// Further turns sent after [followUpPrompt] settles, in order.
+  ///
+  /// Separate turns rather than a longer first prompt, because what they
+  /// measure is different: the first asks whether the model does the thing
+  /// unprompted, and a later one asks whether it does it when told. The
+  /// distinction is the whole finding for `update_goal` -- never volunteered,
+  /// called reliably when the instruction said to -- so collapsing them would
+  /// destroy the measurement.
+  final List<String> extraFollowUpPrompts;
 
   /// How long to let the follow-up turn run before giving up on it.
   final Duration followUpSettleTimeout;
@@ -1866,6 +1890,9 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       startExecutionAfterApproval: false,
       resolveOpenQuestionsBeforeFollowUp: true,
       followUpPrompt: _liveAnabasisDelegationFollowUpPrompt,
+      extraFollowUpPrompts: const <String>[
+        _liveAnabasisAcceptanceFollowUpPrompt,
+      ],
       followUpSettleTimeout: const Duration(minutes: 10),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 1,

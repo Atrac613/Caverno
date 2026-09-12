@@ -127,6 +127,23 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
     timeout: scenario.followUpSettleTimeout,
   );
   appLog('[Scenario] Follow-up turn settled=$settled');
+
+  for (var index = 0; index < scenario.extraFollowUpPrompts.length; index++) {
+    final extra = scenario.extraFollowUpPrompts[index].trim();
+    if (extra.isEmpty) continue;
+    appLog('[Scenario] Sending extra follow-up turn ${index + 1}');
+    unawaited(notifier.sendMessage(extra, languageCode: scenario.languageCode));
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await pumpPlanModeUntilIdle(tester);
+    final extraSettled = await _waitUntilNotLoading(
+      tester: tester,
+      container: container,
+      timeout: scenario.followUpSettleTimeout,
+    );
+    appLog(
+      '[Scenario] Extra follow-up turn ${index + 1} settled=$extraSettled',
+    );
+  }
   // Measured again on the way out. The queue has twice been non-empty here and
   // empty in the very prompt the turn then built, with both conversation copies
   // agreeing beforehand. If it is empty now too, something inside the turn
