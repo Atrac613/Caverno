@@ -3918,6 +3918,26 @@ That earlier reading — "the elicitation turn cancels the delegation turn, so n
 child finishes" — was half right and is superseded. The child did finish; what
 did not finish was the *task*, and the parent was judging the task.
 
+**PR 3's own question, written down before it is built: stored or derived?** The
+row says "distinct stored states, one writer each", and the second half argues
+against the first. Three facts already exist, each with an owner:
+`ConversationWorkflowTaskStatus` (`pending` / `inProgress` / `completed` /
+`blocked`) is the mechanical lifecycle, `ConversationExecutionValidationStatus`
+carries verification, and `ConversationTaskAcceptance` carries the acceptance and
+has exactly one writer — `recordTaskAcceptance` — which was PR 2a's whole point.
+Adding `accepted` to the task-status enum would hand every existing status writer
+the ability to set it, which is the `validationStatus` shape the design opens by
+warning about: three writers, one judging prose, a fourth added and reverted.
+
+So the recommendation is **distinct but derived**: a projection over (status,
+validationStatus, taskAcceptances) that reads `produced` / `verified` /
+`accepted`, with the enum left alone. The stored states stay one-writer because
+they stay where their writer already is. What PR 3 then owes is the projection,
+the UI and prompt surfaces that currently say `completed` where they mean
+`produced`, and a test that a task with a passing command and no acceptance never
+reads as accepted. Recorded rather than done, because it is a design decision and
+the milestone's gap was evidence, not this.
+
 The extraction note above also resolved itself the other way: the write path
 landed without touching `conversations_notifier.dart`, and the extraction this
 work actually needed was the guard's exempt-tool list, moved to
