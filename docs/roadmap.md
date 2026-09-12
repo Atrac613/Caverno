@@ -3836,6 +3836,40 @@ kind.
   naming here because five extractions were needed for the work before it and
   each was found by hitting the ceiling rather than by looking first.
 
+**PR 2b shipped and was unreachable, 2026-09-12.** Three canary runs reported
+"the parent never attempted an acceptance", and none of the three was about the
+model.
+
+- `accept_task` never joined `BuiltInToolRegistry.tools`. It was reserved and
+  offered in the *catalog* while absent from the **initial tool-search
+  selection**, which is the list a turn actually receives — `spawn_subagent` and
+  `get_subagent_result` were both in it. So the parent's prompt named a third
+  tool, told it to record its judgement with that tool, and its list did not
+  contain the name. Skipping the registry is also what kept it out of the F6
+  guard, which asserts every registry tool is either initial-loaded or
+  deliberately deferred: a tool in neither set is not checked at all
+  (`e8ac0843b`, initial 22 → 23).
+- With the tool in the list, the parent called it — and was refused in 0 ms by
+  `AnabasisParentAuthorityGuard`, whose named exception was `{'spawn_subagent'}`
+  and which refuses `unknown` effects by design. A child is refused as
+  `acceptance_not_parent`; between the two guards the tool had no caller at all,
+  which is why PR 2b's five refusal grounds were never reached. Probing the rest
+  found `update_goal` and `ask_user_question` refused the same way, both also
+  named in the parent's own instructions (`81aea8858`). `create_routine` stays
+  refused: it schedules real runs and nothing in the instructions asks for it.
+- The canary itself was wrong twice, which is the reusable finding. The
+  elicitation prompt was sent while the delegation turn was still streaming, so
+  `ChatNotifier` queued it and it never became a turn — one `Initial tools:`
+  line in the whole run — and the verdict read that as the model declining.
+  Later the call *was* attempted and refused by a code the capture did not look
+  for. It now counts delivery and attempts, and "never asked", "attempted and
+  recorded none" and "never attempted" read differently (`d2cb2a625`).
+
+The extraction note above also resolved itself the other way: the write path
+landed without touching `conversations_notifier.dart`, and the extraction this
+work actually needed was the guard's exempt-tool list, moved to
+`anabasis_parent_authority_tools.dart` when it stopped being one name.
+
 ### ANA4: Anabasis Workspace
 
 Status: `later`
