@@ -128,7 +128,9 @@ class _SubagentScriptedDataSource implements ChatDataSource {
            ChatCompletionResult(content: '', finishReason: 'stop');
 
   final bool failChildAfterTools;
-  final List<ToolCallInfo> parentInitialToolCalls;
+  /// Reassignable so a test can drive a *second* parent turn with different
+  /// calls: the cross-turn reads are the ones that broke.
+  List<ToolCallInfo> parentInitialToolCalls;
   final Queue<ChatCompletionResult> _childCompletions;
   final List<String> parentFinalChunks;
   final ChatCompletionResult childToolResultFollowUp;
@@ -783,6 +785,74 @@ void main() {
               .map((entry) => entry.taskId),
           contains('cli'),
         );
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+  test(
+    'a child delegated in an earlier turn is still readable',
+    () async {
+      // Measured live: the parent was asked to judge the child's result, called
+      // get_subagent_result, was told not_found because the lookup matched the
+      // turn owner, and re-delegated the task instead of judging it. The
+      // acceptance audit next to it is conversation-scoped, so the two reads
+      // disagreed about which children exist.
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          ToolCallInfo(
+            id: 'delegate',
+            name: 'spawn_subagent',
+            arguments: const {
+              'description': 'Scaffold the CLI',
+              'prompt': 'Create the scaffold and report what you made.',
+            },
+          ),
+        ],
+        childCompletions: [
+          ChatCompletionResult(
+            content: 'Created pubspec.yaml and bin/todo.dart.',
+            finishReason: 'stop',
+          ),
+        ],
+        parentFinalChunks: const ['Delegated.'],
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SubagentTestToolService(),
+      );
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage('Delegate the scaffold.');
+        final delegated = jsonDecode(
+          dataSource.parentToolResultBatches
+              .expand((batch) => batch)
+              .singleWhere((result) => result.name == 'spawn_subagent')
+              .result,
+        );
+        final childTaskId = (delegated as Map)['task_id'] as String;
+
+        dataSource.parentToolResultBatches.clear();
+        dataSource.parentInitialToolCalls = [
+          ToolCallInfo(
+            id: 'read-back',
+            name: 'get_subagent_result',
+            arguments: {'task_id': childTaskId},
+          ),
+        ];
+        await notifier.sendMessage('What did the child report?');
+
+        final readBack = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .singleWhere((result) => result.name == 'get_subagent_result');
+        expect(
+          readBack.result,
+          isNot(contains('not_found')),
+          reason:
+              'A result the parent is asked to judge in a later turn has to '
+              'outlive the turn that produced it.',
+        );
+        expect(readBack.result, contains('Created pubspec.yaml'));
       } finally {
         container.dispose();
       }

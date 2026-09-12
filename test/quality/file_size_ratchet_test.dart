@@ -977,7 +977,12 @@ const Map<String, int> _libraryLineBudgets = {
   // notifier, and only the background path was writing to it, so the parent's
   // ordinary delegation route could only ever be refused as
   // acceptance_no_delegated_result.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19816,
+  // +8, to 19,824: get_subagent_result reads by conversation rather than by turn
+  // owner, matching the acceptance audit beside it. The two reads disagreed
+  // about which children exist, and the parent lost the evidence it was asked to
+  // judge -- it was told not_found and re-delegated the task. The lookup is four
+  // lines and the reason is the rest.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19824,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

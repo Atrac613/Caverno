@@ -330,9 +330,17 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         errorMessage: 'task_id is required',
       );
     }
+    // Conversation-scoped, like the acceptance audit two methods down, and for
+    // the same reason. `byId` matches the turn owner, so a child spawned in an
+    // earlier turn read back as not_found -- measured: the parent asked for the
+    // result it was told to judge, was told there was none, and re-delegated
+    // the task instead. A delegated result has to outlive the turn that asked
+    // for it; the conversation boundary is the one that matters.
     final task = ref
-        .read(subagentTaskNotifierProvider.notifier)
-        .byId(owner, taskId);
+        .read(subagentTaskNotifierProvider)
+        .tasksForConversation(owner.conversationId)
+        .where((candidate) => candidate.id == taskId)
+        .lastOrNull;
     if (task == null) {
       return McpToolResult(
         toolName: toolCall.name,
