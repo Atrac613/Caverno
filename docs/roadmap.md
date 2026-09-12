@@ -3359,6 +3359,32 @@ parent run closes this by measurement rather than by reading a transcript.
 There is still no Anabasis canary among the repository's live canary scripts;
 every piece of this track's live evidence has come from hand-driven sessions.
 
+The canary built for this gap found a defect rather than the missing evidence,
+2026-09-12, run 8 of `tool/run_anabasis_delegation_live_canary.sh` on build
+`ecdf8a224`. Inside one parent turn the queue held one ready task by both
+readings — `TaskDelegationBriefBuilder().candidates()` and the
+`ExecutionSnapshotProjector` summary carrying `[workflow_task_id: 9f2a3f30…]`
+that was rendered into the parent's own system prompt. The parent then called
+`spawn_subagent` with exactly that id, three times, and
+`AnabasisDelegationAdmission` refused all three with `ready_task_ids: []`. No
+task lifecycle event separates the two moments and the task stayed `pending`,
+so the queue is non-empty at prompt-build time and empty at tool-dispatch time
+in the same turn. Unconfirmed lead: the prompt path resolves its conversation
+through `_turnOwnerSnapshotForGeneration`, the admission path through
+`_turnOwnerForGeneration`, and `prepare` maps a null conversation to an empty
+candidate list — which is exactly the observed refusal. Until that is settled,
+`anabasis_delegation_admitted` may be unobservable in the product rather than
+merely unobserved, and ANA2's gap is a defect to fix, not evidence to gather.
+
+Getting there took four other fixes, none of them the model's: the scenario
+judged its log expectations before the follow-up turn ran; saved plans are
+chains, so nothing is delegatable while the first task runs and a cancelled
+task stays `inProgress`; approval started that first task inside the same call
+that saved the plan; and every task was held by unanswered open questions,
+which is what the parent prompt tells the model to expect. The queue's window
+is therefore narrower than "a plan exists" — approved, unstarted, and answered
+— which is the real reason only 2 of 12 parent sessions ever rendered one.
+
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed
   at 1) and `WorktreeAgentTask` (isolated branch work with verification and
