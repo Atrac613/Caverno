@@ -735,15 +735,23 @@ const Map<String, int> _lineBudgets = {
   // exactly 1,775 of 1,775, and leaving the freed space here would let the next
   // progress writer land back in it. ANA3 PR 2b should raise the part's budget
   // below, or introduce a real collaborator for the overridden pair.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1674,
+  // +5, to 1,679, and it is a raise: the rewind has to put back
+  // taskAcceptances along with everything else it restores, or an acceptance
+  // outlives the evidence it rested on.
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1679,
   // The progress writers' own ceiling, raised deliberately and with a reason
   // when a writer is added -- which is the point of giving them a file with a
   // budget of their own.
+  // +74, to 202: ANA3 PR 2b's acceptance writer. This is the raise the split
+  // was for -- the writer landed here rather than back in the 1,679-line file,
+  // and it is the only writer of Conversation.taskAcceptances.
   'lib/features/chat/presentation/providers/conversations_notifier_progress_writers.dart':
-      128,
+      202,
   'lib/features/chat/presentation/providers/conversations_state.dart': 82,
   'lib/features/chat/domain/services/conversation_attachment_paths.dart': 46,
-  'lib/features/chat/domain/services/conversation_checkpoint_recorder.dart': 50,
+  // +2, to 52, and it is a raise: the snapshot has to carry taskAcceptances
+  // for the rewind to put them back, which is what the field was added for.
+  'lib/features/chat/domain/services/conversation_checkpoint_recorder.dart': 52,
   'lib/features/chat/domain/services/conversation_default_title.dart': 46,
   'lib/features/chat/domain/services/enabled_skill_named_in_text.dart': 21,
   'lib/features/chat/domain/services/memory_update_tool_use.dart': 23,

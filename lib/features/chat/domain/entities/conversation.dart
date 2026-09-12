@@ -289,6 +289,20 @@ abstract class Conversation with _$Conversation {
     )
     @Default(<ConversationOpenQuestionProgress>[])
     List<ConversationOpenQuestionProgress> openQuestionProgress,
+
+    /// The parent's recorded semantic acceptances, one per accepted task.
+    ///
+    /// Lives here and not only on [ConversationCheckpoint]: the checkpoint is
+    /// built by copying from the conversation, so a field that exists only on
+    /// the snapshot can never be populated. ANA3 PR 2a declared it on the
+    /// checkpoint alone, which left it dead -- nothing wrote it, nothing read
+    /// it, and nothing could.
+    @JsonKey(
+      fromJson: _taskAcceptancesFromJson,
+      toJson: _taskAcceptancesToJson,
+    )
+    @Default(<ConversationTaskAcceptance>[])
+    List<ConversationTaskAcceptance> taskAcceptances,
     @JsonKey(fromJson: _goalFromJson, toJson: _goalToJson)
     ConversationGoal? goal,
     @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)

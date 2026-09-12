@@ -125,4 +125,78 @@ extension ConversationsNotifierProgressWriters on ConversationsNotifier {
     );
     await _persistUpdatedConversation(updatedConversation);
   }
+
+  /// Records the parent's semantic acceptance of a saved task.
+  ///
+  /// **The only writer of [Conversation.taskAcceptances], by design.** §10 asks
+  /// for one writer per state, and this state exists precisely because
+  /// `ConversationExecutionValidationStatus` has three -- one of which judges
+  /// prose -- and a fourth was added and reverted. Nothing else may write here.
+  ///
+  /// Judges nothing. Whether the parent *may* accept is
+  /// `TaskAcceptanceAudit.mayParentAccept`, decided before this is called; an
+  /// acceptance that reached this method has already cleared the derivable
+  /// levels. The rationale is recorded as the parent's words, never read.
+  ///
+  /// [premises] is what makes the acceptance revisitable: ANA2's contradiction
+  /// policy can only bar a result whose premise has lapsed if the premises in
+  /// force at acceptance time were written down.
+  Future<bool> recordTaskAcceptance({
+    required String taskId,
+    String rationale = '',
+    List<String> evidence = const <String>[],
+    List<String> premises = const <String>[],
+    String? conversationId,
+  }) async {
+    final conversation = conversationId == null
+        ? state.currentConversation
+        : state.conversations
+              .where((candidate) => candidate.id == conversationId)
+              .firstOrNull;
+    if (conversation == null) {
+      return false;
+    }
+    final normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.isEmpty) {
+      return false;
+    }
+
+    final entry = ConversationTaskAcceptance(
+      taskId: normalizedTaskId,
+      acceptedAt: DateTime.now(),
+      rationale: rationale.trim(),
+      evidence: evidence
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false),
+      premises: premises
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false),
+    );
+
+    // Replaced rather than appended: a task accepted twice has one acceptance,
+    // the current one. Keeping both would leave two answers to "was this
+    // accepted, and on what", which is the ambiguity the single-writer rule
+    // exists to prevent.
+    final acceptances = [...conversation.taskAcceptances];
+    final index = acceptances.indexWhere(
+      (candidate) => candidate.taskId == normalizedTaskId,
+    );
+    if (index >= 0) {
+      acceptances[index] = entry;
+    } else {
+      acceptances.add(entry);
+    }
+
+    await _persistUpdatedConversation(
+      conversation.copyWith(
+        taskAcceptances: List<ConversationTaskAcceptance>.unmodifiable(
+          acceptances,
+        ),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    return true;
+  }
 }

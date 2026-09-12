@@ -727,6 +727,11 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       openQuestionProgress:
           checkpoint?.openQuestionProgress ??
           const <ConversationOpenQuestionProgress>[],
+      // Rewound with everything else it rests on. An acceptance that survived
+      // while the task's progress and evidence were reset would claim the
+      // parent accepted work on evidence the conversation no longer has.
+      taskAcceptances:
+          checkpoint?.taskAcceptances ?? const <ConversationTaskAcceptance>[],
       goal: checkpoint?.goal,
       planArtifact: planArtifact,
       compactionArtifact: _buildCompactionArtifact(

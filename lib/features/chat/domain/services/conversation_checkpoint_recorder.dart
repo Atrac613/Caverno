@@ -30,6 +30,8 @@ abstract final class ConversationCheckpointRecorder {
       completionElicitationMutationGeneration:
           conversation.completionElicitationMutationGeneration,
       openQuestionProgress: conversation.openQuestionProgress,
+      // The checkpoint has held this field since PR 2a with nothing to put in.
+      taskAcceptances: conversation.taskAcceptances,
       goal: conversation.goal,
       planArtifact: conversation.planArtifact,
       compactionArtifact: conversation.compactionArtifact,
