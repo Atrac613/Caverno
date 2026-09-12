@@ -15,7 +15,11 @@ import '../../tool/live_llm_benchmark_app_tool_profile.dart';
 /// two Anabasis tools, so it counts in the host catalog even though only an
 /// addressed parent may call it.
 const _macosAppProfileDefinitionCount = 118;
-const _macosAppProfileInitialCount = 37;
+/// 37 -> 38: accept_task joined the built-in registry, which is what puts a
+/// tool in the initial selection. It was offered in the catalog and absent from
+/// this set for five days, so an addressed parent could not call the tool its
+/// own prompt told it to use without a tool_search round trip it never made.
+const _macosAppProfileInitialCount = 38;
 
 void main() {
   group('live benchmark app tool profile', () {
@@ -33,10 +37,14 @@ void main() {
 
       // 45 -> 46: ANA3 PR 2b's accept_task is reserved and offered like the
       // other two Anabasis tools, so it counts in the headless catalog too.
-      // The initial selection is unchanged -- accept_task is not a
-      // search-class tool, so it does not displace one.
+      // 22 -> 23: and it now loads initially, which the note here originally
+      // got backwards. "Not a search-class tool, so it does not displace one"
+      // explained why nothing else had to leave; it was read as a reason the
+      // initial selection needed no change at all, and the consequence -- the
+      // parent being told to record its judgement with a tool absent from its
+      // list -- went unnoticed until a live canary showed it never attempted.
       expect(definitions, hasLength(46));
-      expect(initial.toolDefinitions, hasLength(22));
+      expect(initial.toolDefinitions, hasLength(23));
     });
 
     test(

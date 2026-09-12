@@ -1170,6 +1170,7 @@
     "tool_ask_user_question": "Ask the user a choice question before continuing",
     "tool_spawn_subagent": "集中したサブタスクを子サブエージェントに委譲",
     "tool_get_subagent_result": "バックグラウンドサブエージェントの結果を取得",
+    "tool_accept_task": "委譲したタスクの受理を、判断の根拠とともに記録",
     "tool_load_skill": "Load full instructions for a saved user skill",
     "tool_save_skill": "現在のワークフローを再利用可能なスキルとして保存（承認が必要）",
     "tool_create_routine": "チャットから定期実行ルーティンを作成（承認が必要）",

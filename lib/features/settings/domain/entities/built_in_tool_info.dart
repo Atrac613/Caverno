@@ -135,6 +135,16 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_get_subagent_result',
       category: categoryTasks,
     ),
+    // The third Anabasis tool, and it was missing here rather than deferred on
+    // purpose. Skipping the registry put it outside the F6 guard's reach, so it
+    // was offered in the catalog and left out of the initial selection -- while
+    // the parent prompt told the model to record its judgement with a tool name
+    // its list did not contain.
+    BuiltInToolInfo(
+      name: 'accept_task',
+      descriptionKey: 'settings.tool_accept_task',
+      category: categoryTasks,
+    ),
     // Skills
     BuiltInToolInfo(
       name: 'load_skill',
