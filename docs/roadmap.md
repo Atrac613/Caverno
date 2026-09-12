@@ -3675,7 +3675,7 @@ PR split:
 |---|---|---|
 | 1 | The two derivable acceptance levels, as a verdict nobody writes | done |
 | 2a | Where an acceptance lives, and what has to hold before one may be written | done |
-| 2b | The parent's route to writing one | next |
+| 2b | The parent's route to writing one | done |
 | 3 | `produced` / `verified` / `accepted` as distinct stored states, one writer each | |
 
 Verification evidence:
@@ -3721,10 +3721,39 @@ Verification evidence:
   nothing, which leaves nothing to judge.
 
 Next action:
-- PR 2b: the parent's route to writing one. The judgement itself already
-  happens — the observed session had the parent read a child's result and write
-  the final answer from it — so what is missing is recording it where the next
-  turn can see it.
+- PR 3 is what remains: `produced` / `verified` / `accepted` as distinct stored
+  states, one writer each.
+
+PR 2b landed 2026-09-12, and two of its three obstacles were not the ones the
+roadmap had recorded.
+
+The file-size ceiling was real and was cleared first: the progress writers moved
+to `conversations_notifier_progress_writers.dart`, taking the notifier from
+1,775 of 1,775 to 1,674, and the acceptance writer landed there rather than back
+in it. Only the two writers nothing subclasses could move, because a part file
+cannot hold part of a class — its members are an extension, and an extension
+member is unreachable through `super`, which two test doubles rely on.
+
+The obstacle nobody had measured was that **the acceptance record had no home**.
+PR 2a is recorded above as putting `ConversationTaskAcceptance` "on the
+conversation"; it was on `ConversationCheckpoint` and only there, with no
+writer, no reader and no test — and structurally unwritable, since the
+checkpoint is built by copying fields off `Conversation`. It now lives on the
+conversation, is carried into the checkpoint, and is restored by the rewind
+along with everything it rests on; leaving it out of the rewind would let an
+acceptance outlive the evidence it was judged on.
+
+The third was the delegation binding. `TaskAcceptanceAudit` takes a
+`SubagentTask`, and a `SubagentTask` had no way to say which planned task it was
+for — the admission gate wrote the contract into the child's prompt and kept the
+binding nowhere else, and prompt text cannot be audited. `prepare()` now reports
+the id it admitted and both spawn paths carry it onto the task.
+
+`accept_task` is the route itself: parent-only, stripped from the inherited
+catalog and checked again at dispatch, refusing on five distinct grounds so each
+names a different thing the parent has to go and do. `anabasis_acceptance_refused`
+and `anabasis_acceptance_recorded` are registered firing signatures, so the path
+can be measured the way ANA2's was rather than argued.
 - Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
   called `read_file` on what the child had written, judged it, and answered.
   That is level 2 evidence gathered by the parent through a tool its authority

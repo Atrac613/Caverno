@@ -135,6 +135,23 @@ SIGNATURES = {
         "match": lambda s: "The saved validation command succeeded. "
         "No additional tool call was executed." in s,
     },
+    "anabasis_acceptance_refused": {
+        "commit": "161e784d4",
+        "what": "the parent is refused an acceptance and told what is outstanding",
+        # The readable half of the acceptance gate, and the one that proves the
+        # parent tried. Five codes share this prefix on purpose; matching the
+        # shared key rather than one of them means any of the five counts.
+        "match": lambda s: '"code":"acceptance_' in s
+        or '"code": "acceptance_' in s,
+    },
+    "anabasis_acceptance_recorded": {
+        "commit": "161e784d4",
+        "what": "the parent records a semantic acceptance of a delegated task",
+        # ANA3 PR 2b's whole point: the judgement stops being something the
+        # next turn has to redo from the same files. The success payload names
+        # the task, so this is the durable trace.
+        "match": lambda s: '"accepted_task_id"' in s,
+    },
     "material_assumption_confirmation": {
         "commit": "0e60696e",
         "what": "a material contract assumption stops a mutation and is asked about",
