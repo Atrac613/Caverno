@@ -1893,7 +1893,12 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       extraFollowUpPrompts: const <String>[
         _liveAnabasisAcceptanceFollowUpPrompt,
       ],
-      followUpSettleTimeout: const Duration(minutes: 10),
+      // 10 -> 15. Every run so far has had both turns cut off mid-work rather
+      // than ending: the parent reads the child back, inspects, and is still
+      // going when the wait expires, so what the run measures is the budget
+      // rather than the judgement. The overall run timeout counts this once per
+      // delivered turn, so the ceiling moves with it.
+      followUpSettleTimeout: const Duration(minutes: 15),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 1,
       ),
