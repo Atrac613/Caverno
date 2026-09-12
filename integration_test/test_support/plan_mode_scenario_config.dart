@@ -190,9 +190,18 @@ Duration resolvePlanModeOverallRunTimeout(
           // the run below the time its own phases are allowed to take. It cost
           // a canary that had already delegated: the overall timeout fired at
           // 500s while the child was running its first command.
+          // Every delivered follow-up turn gets its own settle allowance, not
+          // one between them. The same omission for the first follow-up cost a
+          // canary that had already delegated; counting one while the scenario
+          // sends two cost the acceptance turn, which reached the model and then
+          // died on this budget mid-answer.
           (scenario.followUpPrompt == null
               ? Duration.zero
-              : scenario.followUpSettleTimeout) +
+              : scenario.followUpSettleTimeout *
+                    (1 +
+                        scenario.extraFollowUpPrompts
+                            .where((prompt) => prompt.trim().isNotEmpty)
+                            .length)) +
           const Duration(minutes: 5);
 }
 

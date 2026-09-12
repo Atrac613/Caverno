@@ -166,6 +166,24 @@ void main() {
       );
     });
 
+    test('the run budget counts every follow-up turn it will send', () {
+      final scenario = buildLivePlanModeScenarios().singleWhere(
+        (candidate) => candidate.name == 'live_anabasis_delegation_admission',
+      );
+
+      // The acceptance turn reached the model and then died on this budget
+      // mid-answer, because one settle allowance was counted for two turns.
+      expect(scenario.extraFollowUpPrompts, isNotEmpty);
+      expect(
+        resolvePlanModeOverallRunTimeout(scenario, environment: const {}),
+        greaterThanOrEqualTo(
+          scenario.planningProposalTimeout +
+              scenario.executionCompletionTimeout +
+              scenario.followUpSettleTimeout * 2,
+        ),
+      );
+    });
+
     test('live smoke scenarios wait for harness task completion logs', () {
       final scenarios = {
         for (final scenario in buildLivePlanModeScenarios())
