@@ -181,17 +181,18 @@ SIGNATURES = {
         # on every log that never aborted at all.
         "match": lambda s: "was refused by policy (" in s,
     },
-    "parent_records_its_own_judgement": {
-        "commit": "81aea8858",
-        "what": "the parent runs a bookkeeping tool the authority guard used to refuse",
-        # Distinct from anabasis_acceptance_recorded on purpose: that one fires
-        # only when an acceptance is written, and this fires when the parent gets
-        # as far as the handler at all. The two guards between them left
-        # accept_task with no caller, so "attempted" and "recorded" were
-        # indistinguishable in the corpus -- both simply absent.
-        "match": lambda s: '"name":"accept_task"' in s
-        or '\\"name\\":\\"accept_task\\"' in s,
-    },
+    # "parent_records_its_own_judgement" was registered here on 2026-09-12 and
+    # withdrawn the same day, twice wrong. It matched '"name":"accept_task"',
+    # which this tool never sees: it serializes each record with json.dumps, so
+    # every key reads '"name": "accept_task"' with a space -- the row could not
+    # fire at all. (The acceptance_refused row above carries both spellings, so
+    # the lesson was already in this file and I did not read it.) Fixing the
+    # spacing would have made it worse: the tool *catalog* carries that same
+    # key, so it would fire on any log that merely offers accept_task. And the
+    # question it asked is already answered: an attempt is recorded
+    # (anabasis_acceptance_recorded), refused by the handler
+    # (anabasis_acceptance_refused), or refused before it
+    # (anabasis_parent_boundary) -- three rows that partition it.
     "material_assumption_confirmation": {
         "commit": "0e60696e",
         "what": "a material contract assumption stops a mutation and is asked about",
