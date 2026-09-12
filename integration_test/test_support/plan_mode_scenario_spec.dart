@@ -340,6 +340,8 @@ class PlanModeScenarioSpec {
     this.postValidator,
     this.followUpPrompt,
     this.cancelExecutionBeforeFollowUp = false,
+    this.startExecutionAfterApproval = true,
+    this.resolveOpenQuestionsBeforeFollowUp = false,
     this.followUpSettleTimeout = const Duration(minutes: 3),
   });
 
@@ -371,6 +373,25 @@ class PlanModeScenarioSpec {
   /// the saved tasks pending, so the window above stays open deterministically
   /// instead of racing the runner.
   final bool cancelExecutionBeforeFollowUp;
+
+  /// Whether approving the plan also starts working it.
+  ///
+  /// The delegation queue is only non-empty while the first task is still
+  /// `pending`, and starting execution ends that immediately: the running task
+  /// is no longer pending and every later task waits on it. A scenario that
+  /// observes the queue therefore has to be handed an approved, unworked plan.
+  final bool startExecutionAfterApproval;
+
+  /// Answer the plan's open questions before the follow-up turn, as a user
+  /// would.
+  ///
+  /// A freshly approved plan's tasks wait on its open questions, and the
+  /// parent is told in as many words not to delegate a task whose
+  /// preconditions are unmet and to ask the user to settle them first. So an
+  /// unanswered plan has an empty queue by design, and a scenario that wants
+  /// to observe delegation has to supply the answer the design says only a
+  /// user can give.
+  final bool resolveOpenQuestionsBeforeFollowUp;
 
   /// How long to let the follow-up turn run before giving up on it.
   final Duration followUpSettleTimeout;
@@ -1840,7 +1861,8 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       // The plan must stay unworked, so nothing waits for execution and the
       // approved run is stopped before the parent is addressed.
       waitForExecutionCompletion: false,
-      cancelExecutionBeforeFollowUp: true,
+      startExecutionAfterApproval: false,
+      resolveOpenQuestionsBeforeFollowUp: true,
       followUpPrompt: _liveAnabasisDelegationFollowUpPrompt,
       followUpSettleTimeout: const Duration(minutes: 6),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(

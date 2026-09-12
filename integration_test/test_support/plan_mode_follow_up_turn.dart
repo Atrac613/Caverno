@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:caverno/core/utils/logger.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/task_delegation_brief_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -16,22 +17,31 @@ class PlanModeFollowUpTurnResult {
     required this.requested,
     required this.executionCancelled,
     required this.settled,
+    required this.readyTasksOffered,
   });
 
   const PlanModeFollowUpTurnResult.skipped()
     : requested = false,
       executionCancelled = false,
-      settled = false;
+      settled = false,
+      readyTasksOffered = 0;
 
   final bool requested;
   final bool executionCancelled;
   final bool settled;
 
-  Map<String, bool> toJson() {
-    return <String, bool>{
+  /// How many tasks the delegation queue offered when the turn was sent.
+  ///
+  /// Recorded because zero explains a parent that did not delegate without
+  /// implicating the model: it was shown nothing to choose from.
+  final int readyTasksOffered;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
       'requested': requested,
       'executionCancelled': executionCancelled,
       'settled': settled,
+      'readyTasksOffered': readyTasksOffered,
     };
   }
 }
@@ -56,19 +66,6 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
   final notifier = container.read(chatNotifierProvider.notifier);
   var cancelled = false;
   if (scenario.cancelExecutionBeforeFollowUp) {
-    // Wait for the queue itself rather than for a moment that ought to have
-    // one. A saved plan is typically a chain -- each task waits on the one
-    // before it -- so while the first task is running nothing is delegatable:
-    // the running task is not `pending`, and every other task is waiting on
-    // it. Cancelling at approval produces an empty queue every time on such a
-    // plan, which is a correct queue and the wrong one to observe. The first
-    // completion is what opens the window, so that is what this waits for.
-    final queued = await _waitForNonEmptyDelegationQueue(
-      tester: tester,
-      container: container,
-      timeout: scenario.followUpSettleTimeout,
-    );
-    appLog('[Scenario] Delegation queue reached $queued ready task(s)');
     appLog('[Scenario] Cancelling execution before the follow-up turn');
     notifier.cancelStreaming();
     cancelled = await _waitUntilNotLoading(
@@ -78,6 +75,24 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
     );
     appLog('[Scenario] Execution cancellation settled=$cancelled');
   }
+
+  if (scenario.resolveOpenQuestionsBeforeFollowUp) {
+    final answered = await _resolveOpenQuestions(container);
+    appLog('[Scenario] Answered $answered open question(s) before the turn');
+    await pumpPlanModeUntilIdle(tester);
+  }
+
+  // Read the queue the parent will be shown, rather than assuming the plan
+  // left one behind. Anything else can be satisfied while the parent still
+  // sees nothing, which is the failure this check exists to make loud: an
+  // empty queue is a real state, and a follow-up sent into one measures the
+  // scenario's setup instead of the parent.
+  final queued = await _waitForNonEmptyDelegationQueue(
+    tester: tester,
+    container: container,
+    timeout: const Duration(seconds: 30),
+  );
+  appLog('[Scenario] Delegation queue offers $queued ready task(s)');
 
   appLog('[Scenario] Sending follow-up turn');
   unawaited(notifier.sendMessage(prompt, languageCode: scenario.languageCode));
@@ -94,6 +109,7 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
     requested: true,
     executionCancelled: cancelled,
     settled: settled,
+    readyTasksOffered: queued,
   );
 }
 
@@ -153,4 +169,33 @@ Future<int> _waitForNonEmptyDelegationQueue({
     }
   }
   return observed;
+}
+
+/// Answers every unresolved open question on the current plan.
+///
+/// Stands in for the user, and only for the user: this records an answer where
+/// the design says a human has to, and changes nothing about how the parent
+/// then reads the queue.
+Future<int> _resolveOpenQuestions(ProviderContainer container) async {
+  final conversationsNotifier = container.read(
+    conversationsNotifierProvider.notifier,
+  );
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  if (conversation == null) {
+    return 0;
+  }
+  final pending = conversation.unresolvedOpenQuestionProgress
+      .map((entry) => entry.question)
+      .where((question) => question.trim().isNotEmpty)
+      .toList(growable: false);
+  for (final question in pending) {
+    await conversationsNotifier.updateCurrentOpenQuestionProgress(
+      question: question,
+      status: ConversationOpenQuestionStatus.resolved,
+      note: 'Answered by the live test harness so the plan can be worked.',
+    );
+  }
+  return pending.length;
 }

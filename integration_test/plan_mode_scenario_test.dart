@@ -331,6 +331,7 @@ Future<_ScenarioRunResult> _runScenario({
       budgets: budgets,
       taskExecutionLimit: scenario.harnessTaskExecutionLimit,
       languageCode: scenario.languageCode,
+      startExecution: scenario.startExecutionAfterApproval,
     );
   } else if (approvalFallbackDecision.shouldFailMissingUi) {
     throw StateError(approvalFallbackDecision.missingUiFailureMessage!);

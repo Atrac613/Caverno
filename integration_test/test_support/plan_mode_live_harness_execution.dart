@@ -57,6 +57,7 @@ approvePlanAndStartPlanModeHarnessExecution(
   required PlanModeTimeoutBudgets budgets,
   int? taskExecutionLimit,
   String languageCode = 'en',
+  bool startExecution = true,
 }) async {
   final conversationsNotifier = container.read(
     conversationsNotifierProvider.notifier,
@@ -158,6 +159,17 @@ approvePlanAndStartPlanModeHarnessExecution(
     hasPendingApprovals: false,
     isLoading: true,
   );
+
+  if (!startExecution) {
+    // Stop here on purpose, at the only moment a saved plan has a delegatable
+    // task. The line below moves the first task to `inProgress`, and a saved
+    // plan is a chain: once that happens the first task is no longer
+    // `pending` and every other task is waiting on it, so nothing is
+    // delegatable until it completes. A scenario that needs to observe the
+    // queue has to be handed the plan before this, not after.
+    appLog('[Workflow] Harness approved the plan without starting execution');
+    return PlanModeHarnessExecutionHandle(Future<void>.value());
+  }
 
   await conversationsNotifier.updateCurrentExecutionTaskProgress(
     taskId: nextTask.id,

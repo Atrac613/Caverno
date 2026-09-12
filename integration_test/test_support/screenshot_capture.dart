@@ -25,9 +25,9 @@ Future<Uint8List> captureIntegrationScreenshot({
       _platformScreenshotTimeout,
     );
     await tester.pump();
-    final bytes = await binding.takeScreenshot(name).timeout(
-      _platformScreenshotTimeout,
-    );
+    final bytes = await binding
+        .takeScreenshot(name)
+        .timeout(_platformScreenshotTimeout);
     return Uint8List.fromList(bytes);
   } on MissingPluginException {
     return _captureWithRepaintBoundary(

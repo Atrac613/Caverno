@@ -13,7 +13,10 @@ void main() {
     // A scenario that waits for execution, or does not stop it, observes the
     // queue after its tasks are worked -- which is always empty.
     expect(scenario.waitForExecutionCompletion, isFalse);
-    expect(scenario.cancelExecutionBeforeFollowUp, isTrue);
+    // Starting execution closes the only window in which a chained plan has a
+    // delegatable task, so the plan must reach the parent approved and
+    // unworked.
+    expect(scenario.startExecutionAfterApproval, isFalse);
     expect(scenario.followUpPrompt, isNotNull);
     expect(scenario.followUpPrompt, startsWith('@anabasis'));
     expect(scenario.savedWorkflowExpectation?.minTaskCount, isNotNull);
