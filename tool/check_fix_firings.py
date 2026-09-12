@@ -22,6 +22,31 @@ let a fixture pass for usage; omitting the canaries -- which is what this tool
 did until 2026-09-12 -- reports a path as unobserved after a canary has just
 proved it, which is how ANA2's closed evidence gap kept reading as open.
 
+Reading a "not yet observed" row, after the 2026-09-13 audit of every one of
+them. Three separate things wear that label, and only the first is a problem:
+
+1. **The row cannot fire.** Both instances found were the row's own fault, not
+   the code's: one matched a JSON key without the space `json.dumps` puts there,
+   and three qualified against a commit that only exists on an unmerged branch,
+   so no main-built log could ever count (two of those three had in fact been
+   firing in real sessions for twelve days). Check the literal against a real log
+   and the commit with `git merge-base --is-ancestor`.
+2. **The trigger has never occurred.** `noop_write_notice` is the clean example:
+   312 writes are logged across the corpus and not one reports
+   `"changed": false`, so the condition, not the notice, is what is missing. Look
+   for the *trigger* in the corpus before suspecting the path.
+3. **The condition has not co-occurred in one turn.** `saved_validation_final_text`
+   needs a printed call in a final-only response after a saved validation
+   succeeded; both populations exist in the corpus, and its notifier call site is
+   covered by a notifier test, so the wiring is exercised and the ordering simply
+   has not happened.
+
+The case that motivated the audit was none of these: ANA3's `accept_task` was
+unreachable behind six stacked blocks while its unit tests passed, and what gave
+it away was a *canary* that constructed the condition on purpose. When a row with
+plenty of eligible logs stays dark and the trigger does appear in the corpus, that
+is when to build one.
+
 Usage:
     python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
                                       [--canary-dir DIR] [--no-canaries]
