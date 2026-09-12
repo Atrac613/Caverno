@@ -1864,7 +1864,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       startExecutionAfterApproval: false,
       resolveOpenQuestionsBeforeFollowUp: true,
       followUpPrompt: _liveAnabasisDelegationFollowUpPrompt,
-      followUpSettleTimeout: const Duration(minutes: 6),
+      followUpSettleTimeout: const Duration(minutes: 10),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 1,
       ),

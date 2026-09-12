@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
 import 'package:caverno/features/chat/domain/services/task_delegation_brief_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -93,6 +94,18 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
     timeout: const Duration(seconds: 30),
   );
   appLog('[Scenario] Delegation queue offers $queued ready task(s)');
+  // The parent is not shown candidates(); it is shown the projection of them.
+  // Logging both is the only way to tell "the model declined" from "the model
+  // was shown an empty list while a task was in fact ready".
+  final projected = const ExecutionSnapshotProjector()
+      .project(
+        container.read(conversationsNotifierProvider).currentConversation,
+      )
+      .delegatableTasks;
+  appLog(
+    '[Scenario] Projected queue carries ${projected.length} summary(ies): '
+    '${projected.join(' | ')}',
+  );
 
   appLog('[Scenario] Sending follow-up turn');
   unawaited(notifier.sendMessage(prompt, languageCode: scenario.languageCode));
