@@ -95,17 +95,25 @@ SIGNATURES = {
         # route to effect rather than a restriction on the work.
         "match": lambda s: "anabasis_parent_authority_refused" in s,
     },
-    "anabasis_delegation_admission": {
+    "anabasis_delegation_refused": {
         "commit": "8102fab4",
-        "what": "planned delegation is bound to an exact ready saved task",
-        # The refusal is the readable half. A parent that names a ready task
-        # delegates with no trace of the gate, so an accepted selection cannot
-        # be told from a conversation that never had a plan; a refusal proves
-        # the queue reached the parent, was consulted, and was answered with
-        # something the plan does not currently offer. Until one appears, the
-        # gate is unproven live -- which is ANA2's standing evidence gap, not
-        # a separate one.
+        "what": "planned delegation names a task the plan does not offer",
+        # The refusal half of the admission gate: it proves the queue reached
+        # the parent, was consulted, and was answered with something the plan
+        # does not currently offer. It does not prove planned work was ever
+        # delegated -- anabasis_delegation_admitted below carries that.
         "match": lambda s: "anabasis_delegation_not_ready" in s,
+    },
+    "anabasis_delegation_admitted": {
+        "commit": "8102fab4",
+        "what": "a ready saved task is selected and its contract reaches the child",
+        # The accepted half, and the one ANA2's standing evidence gap is
+        # actually about: a planned parent selecting planned work and handing
+        # a child its saved scope. It leaves a trace because the admitted
+        # prompt does not stay in the parent -- AnabasisDelegationAdmission
+        # appends the contract to the child's prompt, and child requests are
+        # logged under usageRole "subagent" like any other request.
+        "match": lambda s: "Saved task contract (authoritative scope)" in s,
     },
     "saved_validation_final_text": {
         "commit": "8102fab4",

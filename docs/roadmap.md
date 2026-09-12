@@ -3324,6 +3324,41 @@ fallback. A notifier regression covers all three truncated attempts. This run
 invoked Anabasis only after both saved tasks completed and made no child calls,
 so it does not close the planned delegation observation.
 
+Corpus measurement 2026-09-11, over 191 session logs: the admission gate has
+never been exercised, which is not the same as failing. Twelve sessions carry
+the Anabasis parent prompt; two rendered a non-empty ready queue
+(`bc715399`, five subagent candidates; `727c85d3`, two worktree candidates),
+and both predate the gate. No log carries the `workflow_task_id` instruction
+line, so no parent turn has run on a build that could consult the queue by id,
+and neither the refusal nor the acceptance has appeared. The two live queues
+show bare titles because `[workflow_task_id: ...]` was added with the gate in
+`8102fab48`, and show no premises because those tasks had none — neither is a
+projection defect.
+
+Where the queue was empty is also accounted for, and it bounds when a live run
+can be attempted. Both parent sessions predating the ANA1 precondition fix
+(`012ee320b`) had an empty queue, which is that defect's known symptom; both
+sessions from the day it landed had a non-empty one; and the three since —
+`808fa8f17`, `1021760fa`, `ea1356558` — were empty because their saved tasks
+had already completed, which the delegation-harness record corroborates. So the
+queue is non-empty only between a plan being saved and its tasks being worked,
+and a run that addresses the parent after the work is done observes nothing.
+Note also that the `if (delegatable.isNotEmpty)` guard around the header is
+gone on current main: a parent turn now always renders the header, so an empty
+queue is readable as the header with no lines rather than as silence.
+
+The same pass found the registered firing signature could not close this gap.
+It matched only `anabasis_delegation_not_ready`, on the reasoning that an
+accepted selection leaves no trace; it does. `AnabasisDelegationAdmission`
+appends the saved contract to the *child's* prompt, and child requests are
+logged under `usageRole: subagent` like any other request, so the accepted
+half is as greppable as the refusal. `tool/check_fix_firings.py` now carries
+both — `anabasis_delegation_refused` and `anabasis_delegation_admitted` —
+each verified against the string the production path emits, so one planned
+parent run closes this by measurement rather than by reading a transcript.
+There is still no Anabasis canary among the repository's live canary scripts;
+every piece of this track's live evidence has come from hand-driven sessions.
+
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed
   at 1) and `WorktreeAgentTask` (isolated branch work with verification and
@@ -3645,14 +3680,17 @@ Next action:
   halves both present in one real turn, with nowhere to write the result down.
   PR 2a built the verdict; the gap PR 2b closes is that the next turn starts
   over from the same files.
-- **PR 2b needs three extractions before it can write a line**, measured
-  2026-09-04: `conversations_notifier.dart` is at 1,791 of 1,791,
-  `chat_notifier.dart` at 8,778 of 8,778, and the notifier library at 19,731 of
-  19,731. The tool definition, its handler and the write path land in those
-  three. Worth naming here because five extractions were needed for the work
-  before it and each was found by hitting the ceiling rather than by looking
-  first — and `conversations_notifier.dart` is the one this session never
-  touched, so its seams are unknown.
+- **PR 2b needs an extraction before it can write a line**, and which one has
+  narrowed. Measured 2026-09-04 all three ceilings were at zero slack:
+  `conversations_notifier.dart` 1,791 of 1,791, `chat_notifier.dart` 8,778 of
+  8,778, the notifier library 19,731 of 19,731. Re-measured 2026-09-11 after
+  `aa6c53651`: `chat_notifier.dart` is at 8,668 of 8,681 and the library at
+  19,645 of 19,662, so those two now carry 13 and 17 lines. The binding one is
+  `conversations_notifier.dart`, still at exactly 1,775 of 1,775 — and it is
+  the one no session has touched, so its seams remain unknown. The tool
+  definition, its handler and the write path do not fit in 13 lines. Worth
+  naming here because five extractions were needed for the work before it and
+  each was found by hitting the ceiling rather than by looking first.
 
 ### ANA4: Anabasis Workspace
 
