@@ -74,6 +74,43 @@ void main() {
       expect(message, isNot(contains('failed twice')));
     });
 
+    // Measured in the wild: the parent was told "was blocked by approval ...
+    // Approve it manually", then "Reason: null", for a delegation the admission
+    // gate had refused. There is no prompt to approve, and the refusal's
+    // required_action -- the one line naming what to do instead -- was the thing
+    // the null overwrote.
+    test('a policy refusal is not reported as an approval prompt', () {
+      final message = notice.build(
+        toolName: 'spawn_subagent',
+        errorMessage: null,
+        isApprovalDenial: true,
+        isExternalMcpResult: false,
+        executedToolResults: const [],
+        policyRefusalCode: 'anabasis_delegation_not_ready',
+        policyRefusalAction: 'Choose an exact ready workflow_task_id.',
+      );
+
+      expect(message, contains('refused by policy'));
+      expect(message, contains('anabasis_delegation_not_ready'));
+      expect(message, contains('Choose an exact ready workflow_task_id.'));
+      expect(message, isNot(contains('Approve it manually')));
+      expect(message, isNot(contains('Reason: null')));
+      expect(message, isNot(contains('failed twice')));
+    });
+
+    test('omits the reason line when there is no reason to give', () {
+      final message = notice.build(
+        toolName: 'local_execute_command',
+        errorMessage: null,
+        isApprovalDenial: true,
+        isExternalMcpResult: false,
+        executedToolResults: const [],
+      );
+
+      expect(message, contains('blocked by approval'));
+      expect(message, isNot(contains('Reason:')));
+    });
+
     // An abort can follow several successful edits. Reporting only the
     // failure leaves the user with mutated files they were never told about.
     test('reports the files the turn already changed', () {

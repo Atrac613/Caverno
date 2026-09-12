@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/anabasis_delegation_admission.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
 import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
@@ -351,6 +352,44 @@ void main() {
         ToolResultDisposition.approvalDenied,
         reason:
             'The codes are additive; refusals without one still rely on it.',
+      );
+    });
+  });
+
+  group('policyRefusal', () {
+    // The loop is right to treat a policy refusal like a denied approval --
+    // both are final -- and the reader needs them told apart, which is what
+    // this accessor exists for.
+    test('returns the refusal code and what it asked for', () {
+      final refusal = classifier.policyRefusal(
+        _failure({
+          'ok': false,
+          'code': AnabasisDelegationAdmission.refusedCode,
+          'ready_task_ids': <String>[],
+          'required_action': 'Choose an exact ready workflow_task_id.',
+        }, toolName: 'spawn_subagent'),
+      );
+
+      expect(refusal?.code, AnabasisDelegationAdmission.refusedCode);
+      expect(refusal?.requiredAction, 'Choose an exact ready workflow_task_id.');
+    });
+
+    test('declines an ordinary failure and a success', () {
+      expect(
+        classifier.policyRefusal(_failure({'exit_code': 1, 'stderr': 'boom'})),
+        isNull,
+      );
+      expect(
+        classifier.policyRefusal(
+          McpToolResult(
+            toolName: 'spawn_subagent',
+            result: jsonEncode({
+              'code': AnabasisDelegationAdmission.refusedCode,
+            }),
+            isSuccess: true,
+          ),
+        ),
+        isNull,
       );
     });
   });

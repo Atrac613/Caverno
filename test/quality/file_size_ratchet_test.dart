@@ -964,7 +964,11 @@ const Map<String, int> _libraryLineBudgets = {
   // the parent read had already lost its only ready task. The comment carries
   // the four runs it took to find that, which is what a reader needs to not
   // re-derive the interaction between the claim and the delegation builder.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19806,
+  // +4, to 19,810: the abort notice is handed the refusal's own code and
+  // required_action. The loop is the only place that has the result at the
+  // moment it decides to abort, so the lookup cannot move; what did move out is
+  // the decoding, which lives with the other refusal reading in the classifier.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19810,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

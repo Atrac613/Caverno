@@ -564,6 +564,8 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolFailureCounts[toolFailureKey] = failureCount;
         if (failureCount >= 2) {
           final isDenial = disposition == ToolResultDisposition.approvalDenied;
+          // Final like a denied approval to the loop; not one to the reader.
+          final policyRefusal = _toolFailureClassifier.policyRefusal(result);
           appLog(
             '[Tool] Same tool (${toolCall.name}) '
             '${isDenial ? 'was denied' : 'failed'} '
@@ -581,6 +583,8 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
               isApprovalDenial: isDenial,
               isExternalMcpResult: result.isExternalMcpResult,
               executedToolResults: executedToolResults,
+              policyRefusalCode: policyRefusal?.code,
+              policyRefusalAction: policyRefusal?.requiredAction,
             ),
           );
           _turnEnd.setHint(owner, ToolLoopExitReason.toolFailureAbort);

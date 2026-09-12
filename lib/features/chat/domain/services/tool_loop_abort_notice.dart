@@ -45,16 +45,33 @@ final class ToolLoopAbortNotice {
     required bool isApprovalDenial,
     required bool isExternalMcpResult,
     required List<ToolResultInfo> executedToolResults,
+    String? policyRefusalCode,
+    String? policyRefusalAction,
   }) {
     final buffer = StringBuffer('\n');
-    if (isApprovalDenial) {
-      buffer
-        ..writeln(
-          'The command ($toolName) was blocked by approval and will keep '
-          'being blocked if re-issued unchanged. Approve it manually or take '
-          'a different approach.',
-        )
-        ..writeln('Reason: $errorMessage');
+    if (policyRefusalCode != null && policyRefusalCode.isNotEmpty) {
+      // Not an approval: there is no prompt anyone can answer, so telling the
+      // reader to approve it manually sends them looking for a dialog that
+      // does not exist. The refusal's own `required_action` is the only
+      // actionable line it had, and `Reason: $errorMessage` printed `null` over
+      // it for every refusal that reached here.
+      buffer.writeln(
+        'The call ($toolName) was refused by policy ($policyRefusalCode), and '
+        'the same call will be refused again. This is not an approval prompt '
+        'and not a broken tool.',
+      );
+      if (policyRefusalAction != null && policyRefusalAction.isNotEmpty) {
+        buffer.writeln('Required: $policyRefusalAction');
+      }
+    } else if (isApprovalDenial) {
+      buffer.writeln(
+        'The command ($toolName) was blocked by approval and will keep '
+        'being blocked if re-issued unchanged. Approve it manually or take '
+        'a different approach.',
+      );
+      if (errorMessage != null && errorMessage.trim().isNotEmpty) {
+        buffer.writeln('Reason: $errorMessage');
+      }
     } else {
       buffer
         ..writeln(

@@ -103,6 +103,31 @@ class ToolFailureClassifier {
     return haystack.contains('denied') || haystack.contains('auto-review');
   }
 
+  /// The policy refusal [result] carries, if it carries one.
+  ///
+  /// Separate from [isApprovalDenial], which deliberately answers yes for both:
+  /// a policy refusal and a denied approval are both final, so the loop treats
+  /// them alike. What they are *not* alike in is what to tell the reader. The
+  /// abort notice used to say "Approve it manually" for a refusal nothing can
+  /// approve, and printed `Reason: null` over the one actionable thing the
+  /// refusal had said, because these refusals carry `required_action` rather
+  /// than an `errorMessage`.
+  ({String code, String requiredAction})? policyRefusal(McpToolResult result) {
+    if (result.isSuccess) return null;
+    final payload = result.result.trim();
+    if (!payload.startsWith('{')) return null;
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) return null;
+      final code = decoded['code'];
+      if (code is! String || !policyRefusalCodes.contains(code)) return null;
+      final action = decoded['required_action'];
+      return (code: code, requiredAction: action is String ? action.trim() : '');
+    } on FormatException {
+      return null;
+    }
+  }
+
   bool _carriesPolicyRefusalCode(McpToolResult result) {
     final payload = result.result.trim();
     if (!payload.startsWith('{')) return false;
