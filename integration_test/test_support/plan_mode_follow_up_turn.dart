@@ -209,9 +209,16 @@ Future<int> _resolveOpenQuestions(ProviderContainer container) async {
   if (conversation == null) {
     return 0;
   }
-  final pending = conversation.unresolvedOpenQuestionProgress
-      .map((entry) => entry.question)
-      .where((question) => question.trim().isNotEmpty)
+  // The plan's own questions, not the recorded-unresolved ones. A freshly
+  // approved plan has no progress entries at all, so
+  // `unresolvedOpenQuestionProgress` is empty while readiness still treats
+  // every spec question with no recorded answer as unmet -- which is why an
+  // earlier version of this logged "Answered 0 open question(s)" and then found
+  // an empty queue, on a plan whose first task waited on exactly one question.
+  final pending = conversation.effectiveWorkflowSpec.openQuestions
+      .map((question) => question.trim())
+      .where((question) => question.isNotEmpty)
+      .toSet()
       .toList(growable: false);
   for (final question in pending) {
     await conversationsNotifier.updateCurrentOpenQuestionProgress(
