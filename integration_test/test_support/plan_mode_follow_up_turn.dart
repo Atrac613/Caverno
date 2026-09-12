@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:caverno/core/utils/logger.dart';
+import 'package:caverno/features/chat/domain/services/task_delegation_brief_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -54,9 +56,19 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
   final notifier = container.read(chatNotifierProvider.notifier);
   var cancelled = false;
   if (scenario.cancelExecutionBeforeFollowUp) {
-    // Approval starts execution, and a task that finishes leaves the queue
-    // empty -- a correct queue, and the wrong one to observe. Cancelling
-    // leaves the saved tasks pending so the follow-up sees them.
+    // Wait for the queue itself rather than for a moment that ought to have
+    // one. A saved plan is typically a chain -- each task waits on the one
+    // before it -- so while the first task is running nothing is delegatable:
+    // the running task is not `pending`, and every other task is waiting on
+    // it. Cancelling at approval produces an empty queue every time on such a
+    // plan, which is a correct queue and the wrong one to observe. The first
+    // completion is what opens the window, so that is what this waits for.
+    final queued = await _waitForNonEmptyDelegationQueue(
+      tester: tester,
+      container: container,
+      timeout: scenario.followUpSettleTimeout,
+    );
+    appLog('[Scenario] Delegation queue reached $queued ready task(s)');
     appLog('[Scenario] Cancelling execution before the follow-up turn');
     notifier.cancelStreaming();
     cancelled = await _waitUntilNotLoading(
@@ -111,4 +123,34 @@ Future<bool> _waitUntilNotLoading({
     }
   }
   return false;
+}
+
+/// Polls the real delegation queue until it offers something, and reports how
+/// many it ended on.
+///
+/// Deliberately reads `TaskDelegationBriefBuilder` rather than task statuses:
+/// the queue is what the parent is shown, so a scenario that waits on anything
+/// else can be satisfied while the parent still sees nothing.
+Future<int> _waitForNonEmptyDelegationQueue({
+  required WidgetTester tester,
+  required ProviderContainer container,
+  required Duration timeout,
+}) async {
+  const builder = TaskDelegationBriefBuilder();
+  final deadline = DateTime.now().add(timeout);
+  var observed = 0;
+  while (DateTime.now().isBefore(deadline)) {
+    await pumpPlanModeUntilIdle(tester);
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      continue;
+    }
+    observed = builder.candidates(conversation).length;
+    if (observed > 0) {
+      return observed;
+    }
+  }
+  return observed;
 }

@@ -441,6 +441,19 @@ Future<_ScenarioRunResult> _runScenario({
   if (!config.usesLiveLlm) {
     await pumpPlanModeUntilIdle(tester);
   }
+  // Ahead of the expectation gate below, which judges every expectation the
+  // scenario declares: a follow-up turn's output has to exist by the time that
+  // gate runs, or the gate waits out its whole timeout for a line no turn has
+  // had the chance to emit yet.
+  final followUpResult = await runPlanModeFollowUpTurn(
+    tester: tester,
+    container: container,
+    scenario: scenario,
+  );
+  if (followUpResult.requested) {
+    appLog('[Scenario] Follow-up turn result: ${followUpResult.toJson()}');
+  }
+
   late final PlanModePostScenarioSettleResult postScenarioSettle;
   try {
     final logExpectationsReady = await waitForPlanModeLogExpectationLowerBounds(
@@ -516,17 +529,6 @@ Future<_ScenarioRunResult> _runScenario({
       scenario.uiExpectations,
       PlanModeUiPhase.finalResult,
     );
-  }
-
-  // Before the log expectations, so a scenario can assert on what the
-  // follow-up turn emits rather than only on the planning half.
-  final followUpResult = await runPlanModeFollowUpTurn(
-    tester: tester,
-    container: container,
-    scenario: scenario,
-  );
-  if (followUpResult.requested) {
-    appLog('[Scenario] Follow-up turn result: ${followUpResult.toJson()}');
   }
 
   assertPlanModeLogExpectations(logs, scenario.logExpectations);
