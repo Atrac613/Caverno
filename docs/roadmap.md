@@ -3898,12 +3898,25 @@ ANA3 lesson is the one the validation-status precedent already taught: when a
 path has never run in the wild, "the model does not do X" is a claim about the
 wiring until each layer has been proven to carry X.
 
-What is still unobserved live is an acceptance, and the reason is no longer any of
-these: the elicitation turn is delivered by cancelling the
-delegation turn, so the child never finishes, and a parent with no finished result
-to judge is right not to accept one. Handing it a completed child means either
-waiting past the settle budget or constructing the state, which is a scenario
-decision rather than a defect.
+**The acceptance was observed live, 2026-09-12, session `ad2dbe83`.** One run of
+`live_anabasis_acceptance` fired three signatures together —
+`anabasis_delegation_admitted`, `delegated_results_named`, and
+`anabasis_acceptance_recorded`, the last of which had never fired on any build —
+and wrote `accepted_task_id: 918158bd-…` with `evidence: ["child summary
+recorded"]`. The parent delegated a ready saved task, read the child back by the
+id the new block named, judged it, and recorded the judgement, in the elicitation
+turn. ANA3 PR 2b is exercised end to end in a real session.
+
+The scenario is the reason it took a seventh run, and the finding is worth as much
+as the firing: six runs on the delegation scenario measured a parent that was
+right to keep working, because the task it had delegated was an implementation a
+child does not finish in one call. A judgement cannot be observed on work that is
+not done. `live_anabasis_acceptance` is the same scenario with a reading goal, and
+the acceptance arrived on the first run of it.
+
+That earlier reading — "the elicitation turn cancels the delegation turn, so no
+child finishes" — was half right and is superseded. The child did finish; what
+did not finish was the *task*, and the parent was judging the task.
 
 The extraction note above also resolved itself the other way: the write path
 landed without touching `conversations_notifier.dart`, and the extraction this
