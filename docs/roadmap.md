@@ -3753,7 +3753,20 @@ the id it admitted and both spawn paths carry it onto the task.
 catalog and checked again at dispatch, refusing on five distinct grounds so each
 names a different thing the parent has to go and do. `anabasis_acceptance_refused`
 and `anabasis_acceptance_recorded` are registered firing signatures, so the path
-can be measured the way ANA2's was rather than argued.
+can be measured the way ANA2's was rather than argued, and the delegation canary
+now asks the parent to record its judgement as well as delegate. Acceptance is
+reported there rather than gated: delegation is the one thing a run can demand,
+and failing on a longer chain the canary does not control would retire a working
+gate for a model's pacing. The follow-up asks for the outcome and never names
+the tool, because a probe that spells out the mechanism measures its own
+wording.
+
+One scoped limit, recorded at the line that would have to change: the handler
+audits subagent results only. ANA2 PR 2's worktree mapping is not dispatched
+yet, so no `WorktreeAgentTask` exists to audit; `auditWorktreeResult` is already
+written, and when worktree delegation is wired, a worktree child would otherwise
+refuse as `acceptance_no_delegated_result` despite being the more evidenced
+kind.
 - Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
   called `read_file` on what the child had written, judged it, and answered.
   That is level 2 evidence gathered by the parent through a tool its authority

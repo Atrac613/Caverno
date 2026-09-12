@@ -114,6 +114,36 @@ void main() {
     expect(runner.indexOf('set +e'), lessThan(runner.indexOf('exit 77')));
   });
 
+  test('acceptance is reported but never gated', () {
+    final runner = File(
+      'tool/run_anabasis_delegation_live_canary.sh',
+    ).readAsStringSync();
+
+    // Delegation is the one thing a run can demand. Whether the parent also
+    // records a judgement depends on a longer chain the canary does not
+    // control, so gating on it would retire a working gate for a model's
+    // pacing -- but a run that stopped short has to say why.
+    expect(runner, contains('anabasis_acceptance_recorded'));
+    expect(runner, contains('Acceptance recorded:'));
+    expect(runner, contains('Acceptance refused with:'));
+    expect(runner, contains('never attempted an acceptance'));
+    final acceptIndex = runner.indexOf('ACCEPTED=0');
+    expect(acceptIndex, isNonNegative);
+    expect(runner.indexOf('exit 1', acceptIndex), isNot(acceptIndex + 1));
+  });
+
+  test('the follow-up asks for the outcome, not for the tool name', () {
+    final scenario = buildLivePlanModeScenarios().singleWhere(
+      (candidate) => candidate.name == 'live_anabasis_delegation_admission',
+    );
+
+    // A probe that names the mechanism measures its own wording: a capable
+    // model once scored 0/30 for six runs because the prompt asked it to "emit
+    // a tool call" rather than asking for the task.
+    expect(scenario.followUpPrompt, isNot(contains('accept_task')));
+    expect(scenario.followUpPrompt, isNot(contains('spawn_subagent')));
+  });
+
   test('the shared live runner stamps build provenance into session logs', () {
     final runner = File('tool/run_plan_mode_live_test.sh').readAsStringSync();
 

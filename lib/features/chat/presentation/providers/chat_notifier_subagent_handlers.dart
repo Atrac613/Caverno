@@ -434,6 +434,12 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       });
     }
 
+    // Subagent results only, and deliberately so for now: ANA2 PR 2's worktree
+    // mapping is not dispatched yet, so no WorktreeAgentTask exists to audit.
+    // `auditWorktreeResult` is the other half and is already written -- when
+    // worktree delegation is wired, this is the line that has to choose between
+    // them, or a worktree child's result refuses as
+    // `acceptance_no_delegated_result` despite being the more evidenced kind.
     const audit = TaskAcceptanceAudit();
     final verdict = audit.auditSubagentResult(children.last);
     if (!audit.mayParentAccept(verdict)) {

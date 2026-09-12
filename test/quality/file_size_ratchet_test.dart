@@ -955,7 +955,10 @@ const Map<String, int> _libraryLineBudgets = {
   // graded itself, an unknown task, a missing reason, nothing delegated to
   // accept on, and a derivable level still outstanding. Collapsing them
   // into one refusal would save lines and tell the parent nothing.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19791,
+  // +6, to 19,797: the comment naming the worktree half of acceptance, left
+  // at the line that would have to choose between the two audits. Cheaper
+  // than rediscovering it when worktree delegation is wired.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19797,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

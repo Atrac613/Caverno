@@ -64,9 +64,29 @@ if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_delegation_a
   ADMITTED=1
 fi
 
+ACCEPTED=0
+if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_acceptance_recorded'; then
+  ACCEPTED=1
+fi
+
 echo
 echo "  Ready tasks offered to the parent: ${QUEUE_SIZE}"
 echo "  Delegation admitted: ${ADMITTED}"
+echo "  Acceptance recorded: ${ACCEPTED}"
+
+# Reported, not gated. Delegation is the one thing this run can demand: whether
+# the parent also gets as far as recording a judgement depends on a longer chain
+# the canary does not control, and failing on it would retire a working gate for
+# a model's pacing. Surfacing the refusal codes is what makes a run that stopped
+# short diagnosable instead of merely short.
+if [[ "${ACCEPTED}" == "0" ]]; then
+  REFUSALS="$(grep -rhoE '"code":"acceptance_[a-z_]+"' "${SESSION_LOG_ROOT}" 2>/dev/null | sort -u | tr '\n' ' ')"
+  if [[ -n "${REFUSALS}" ]]; then
+    echo "  Acceptance refused with: ${REFUSALS}"
+  else
+    echo "  The parent never attempted an acceptance."
+  fi
+fi
 
 if [[ "${ADMITTED}" == "1" ]]; then
   echo
