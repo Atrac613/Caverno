@@ -75,6 +75,12 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       onChildResult: observation.observe,
     );
 
+    // The acceptance audit reads this notifier to find the child it must judge,
+    // and only the background path was registering. So a foreground delegation
+    // -- the parent's ordinary route -- could only ever be refused as
+    // acceptance_no_delegated_result.
+    ref.read(subagentTaskNotifierProvider.notifier).register(owner, task);
+
     if (task.status == SubagentTaskStatus.completed) {
       appLog('[Subagent] Completed "$label" (task=$taskId)');
       return observation.completed(toolCall.name, task);

@@ -971,7 +971,13 @@ const Map<String, int> _libraryLineBudgets = {
   // required_action. The loop is the only place that has the result at the
   // moment it decides to abort, so the lookup cannot move; what did move out is
   // the decoding, which lives with the other refusal reading in the classifier.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19810,
+  // +6, to 19,816: a foreground child is registered in the subagent notifier.
+  // One line of code; the rest is the reason, and it is the third block that
+  // stood between ANA3's write path and a real turn -- the audit reads that
+  // notifier, and only the background path was writing to it, so the parent's
+  // ordinary delegation route could only ever be refused as
+  // acceptance_no_delegated_result.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19816,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

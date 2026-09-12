@@ -694,6 +694,101 @@ void main() {
     },
   );
   test(
+    'the parent records an acceptance of the child it delegated to',
+    () async {
+      // ANA3 PR 2b's write path had no test above the notifier, and shipped
+      // unreachable: the authority guard refused accept_task before the handler
+      // in every real turn. A test that drives the real dispatch chain is what
+      // would have caught that, because the guard sits in the chain and the
+      // handler's own five grounds sit after it.
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          ToolCallInfo(
+            id: 'delegate',
+            name: 'spawn_subagent',
+            arguments: const {
+              'description': 'Scaffold the CLI',
+              'prompt': 'Create the scaffold and report what you made.',
+              'workflow_task_id': 'cli',
+            },
+          ),
+          ToolCallInfo(
+            id: 'accept',
+            name: 'accept_task',
+            arguments: const {
+              'workflow_task_id': 'cli',
+              'rationale':
+                  'The child reported the scaffold and the analyzer was clean.',
+            },
+          ),
+        ],
+        childCompletions: [
+          ChatCompletionResult(
+            content: 'Created pubspec.yaml and bin/todo.dart; analyze clean.',
+            finishReason: 'stop',
+          ),
+        ],
+        parentFinalChunks: const ['Accepted the scaffold.'],
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SubagentTestToolService(),
+      );
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-1',
+        );
+        final id = container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .id;
+        await conversations.updateCurrentWorkflow(
+          conversationId: id,
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: const ConversationWorkflowSpec(
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'cli',
+                title: 'Scaffold the CLI',
+                status: ConversationWorkflowTaskStatus.pending,
+              ),
+            ],
+          ),
+        );
+        await container
+            .read(chatNotifierProvider.notifier)
+            .sendMessage('@anabasis Delegate the scaffold and judge it.');
+
+        final acceptance = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .singleWhere((result) => result.name == 'accept_task');
+        expect(
+          acceptance.result,
+          isNot(contains('anabasis_parent_authority_refused')),
+          reason:
+              'The parent is the only role allowed to accept, so the authority '
+              'guard refusing it leaves the tool with no caller at all.',
+        );
+        expect(jsonDecode(acceptance.result), containsPair('ok', true));
+        expect(acceptance.result, contains('accepted_task_id'));
+        expect(
+          container
+              .read(conversationsNotifierProvider)
+              .conversationForId(id)!
+              .taskAcceptances
+              .map((entry) => entry.taskId),
+          contains('cli'),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+  test(
     'foreground delegation returns observed child command evidence',
     () async {
       final dataSource = _SubagentScriptedDataSource(
@@ -944,10 +1039,16 @@ void main() {
         );
 
         // The nested spawn_subagent was rejected before reaching the handler:
-        // no nested background task was registered and executeTool never saw it.
+        // only the top-level child is registered, and executeTool never saw it.
+        // Emptiness used to stand in for that, until foreground children started
+        // being registered so the acceptance audit could find them -- a proxy
+        // that could not tell "no nested child" from "no child at all".
+        final registered = container
+            .read(subagentTaskNotifierProvider)
+            .tasksFor(turnOwner);
         expect(
-          container.read(subagentTaskNotifierProvider).tasksFor(turnOwner),
-          isEmpty,
+          registered.map((task) => task.parentToolUseId),
+          ['parent-spawn-1'],
           reason: 'a nested subagent must not be created',
         );
         expect(
