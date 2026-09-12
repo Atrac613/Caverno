@@ -127,6 +127,12 @@ void main() {
     expect(runner, contains('Acceptance recorded:'));
     expect(runner, contains('Acceptance refused with:'));
     expect(runner, contains('never attempted an acceptance'));
+    // "Never attempted" is a claim about the model, and a run only earns it if
+    // the question reached the model. The elicitation prompt is queued rather
+    // than sent while the delegation turn still streams, so the two cases have
+    // to read differently.
+    expect(runner, contains('never asked'));
+    expect(runner, contains('Extra follow-up turns delivered='));
     final acceptIndex = runner.indexOf('ACCEPTED=0');
     expect(acceptIndex, isNonNegative);
     expect(runner.indexOf('exit 1', acceptIndex), isNot(acceptIndex + 1));
@@ -153,7 +159,11 @@ void main() {
     // the script. That killed the inconclusive branch once and reported a run
     // with no ready task as a failure -- the exact confusion the three-way
     // verdict exists to prevent.
-    for (final capture in ['QUEUE_SIZE="\$(', 'REFUSALS="\$(']) {
+    for (final capture in [
+      'QUEUE_SIZE="\$(',
+      'REFUSALS="\$(',
+      'DELIVERED="\$(',
+    ]) {
       final start = runner.indexOf(capture);
       expect(start, isNonNegative, reason: capture);
       final line = runner.substring(start, runner.indexOf('\n', start));

@@ -128,9 +128,51 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
   );
   appLog('[Scenario] Follow-up turn settled=$settled');
 
+  // An extra prompt sent while the previous turn is still streaming is only
+  // queued behind it -- `[ChatNotifier] Queued user message while a response is
+  // in flight` -- so it never becomes a turn of its own, and the run then dies
+  // on the overall budget with the question unasked. Two runs read as "the
+  // parent never attempted an acceptance" that way, which is a claim about the
+  // model that neither run was entitled to make. Delivery is counted so the
+  // runner can tell "asked and declined" from "never asked".
+  final wanted = scenario.extraFollowUpPrompts
+      .where((prompt) => prompt.trim().isNotEmpty)
+      .length;
+  var delivered = 0;
+  var previousSettled = settled;
   for (var index = 0; index < scenario.extraFollowUpPrompts.length; index++) {
     final extra = scenario.extraFollowUpPrompts[index].trim();
     if (extra.isEmpty) continue;
+    if (!previousSettled) {
+      // The post-scenario settle cancels this same stream seconds later, so
+      // cancelling it here to ask the question costs the run nothing it was
+      // keeping. It is also the only way the question gets asked at all when a
+      // delegated child runs longer than the settle budget -- which is every
+      // run so far. A parent that answers "not enough evidence yet" is a
+      // refusal, and a refusal is a measurement; an unasked question is not.
+      appLog(
+        '[Scenario] Cancelling the in-flight turn to deliver extra follow-up '
+        '${index + 1}',
+      );
+      notifier.cancelStreaming();
+      previousSettled = await _waitUntilNotLoading(
+        tester: tester,
+        container: container,
+        timeout: const Duration(seconds: 30),
+      );
+      appLog(
+        '[Scenario] Cancellation before extra follow-up ${index + 1} '
+        'settled=$previousSettled',
+      );
+      if (!previousSettled) {
+        appLog(
+          '[Scenario] Extra follow-up turn ${index + 1} not delivered: the '
+          'previous turn is still in flight, so this prompt would only queue '
+          'behind it',
+        );
+        break;
+      }
+    }
     appLog('[Scenario] Sending extra follow-up turn ${index + 1}');
     unawaited(notifier.sendMessage(extra, languageCode: scenario.languageCode));
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -140,10 +182,13 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
       container: container,
       timeout: scenario.followUpSettleTimeout,
     );
+    delivered++;
+    previousSettled = extraSettled;
     appLog(
       '[Scenario] Extra follow-up turn ${index + 1} settled=$extraSettled',
     );
   }
+  appLog('[Scenario] Extra follow-up turns delivered=$delivered/$wanted');
   // Measured again on the way out. The queue has twice been non-empty here and
   // empty in the very prompt the turn then built, with both conversation copies
   // agreeing beforehand. If it is empty now too, something inside the turn

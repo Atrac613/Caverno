@@ -85,8 +85,19 @@ if [[ "${ACCEPTED}" == "0" ]]; then
   # inconclusive branch below and reported a run with no ready task as a
   # failure, the exact confusion the three-way verdict exists to prevent.
   REFUSALS="$(grep -rhoE '"code":"acceptance_[a-z_]+"' "${SESSION_LOG_ROOT}" 2>/dev/null | sort -u | tr '\n' ' ' || true)"
+  # Whether the question was even asked. The elicitation prompt is queued
+  # rather than sent when the delegation turn is still streaming, so two runs
+  # reported "never attempted" for a turn the model never received -- a claim
+  # about the model that neither run had earned.
+  DELIVERED="$(sed -n 's/.*\[Scenario\] Extra follow-up turns delivered=\([0-9]\{1,\}\)\/\([0-9]\{1,\}\).*/\1 \2/p' "${RUN_LOG}" | tail -1 || true)"
+  DELIVERED_COUNT="${DELIVERED%% *}"
+  WANTED_COUNT="${DELIVERED##* }"
   if [[ -n "${REFUSALS}" ]]; then
     echo "  Acceptance refused with: ${REFUSALS}"
+  elif [[ -n "${WANTED_COUNT}" && "${WANTED_COUNT}" != "0" && "${DELIVERED_COUNT}" == "0" ]]; then
+    echo "  The parent was never asked: the acceptance turn was not delivered"
+    echo "    (${DELIVERED_COUNT}/${WANTED_COUNT}); the delegation turn was still"
+    echo "    in flight, so this run says nothing about acceptance."
   else
     echo "  The parent never attempted an acceptance."
   fi
