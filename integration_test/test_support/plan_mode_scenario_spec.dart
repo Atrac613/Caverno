@@ -16,6 +16,19 @@ import 'plan_mode_tool_loop_convergence.dart';
 
 const _liveExactPreservationLine =
     'EXACT_PRESERVATION_VALUE: https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';
+
+/// Addressed to the parent, and deliberately says nothing about how to pick.
+///
+/// `@anabasis` has to lead: `AnabasisAddress` treats it as an address only in
+/// first position. The instruction names the outcome -- delegate one ready
+/// task -- rather than the mechanism, because a probe that spells out the
+/// mechanism measures its own wording.
+const _liveAnabasisDelegationFollowUpPrompt =
+    '@anabasis \u4fdd\u5b58\u6e08\u307f\u30d7\u30e9\u30f3\u306e'
+    '\u3046\u3061\u3001\u3044\u307e\u7740\u624b\u3067\u304d\u308b'
+    '\u30bf\u30b9\u30af\u3092 1 \u3064\u9078\u3093\u3067\u5b50\u306b'
+    '\u4efb\u305b\u3066\u304f\u3060\u3055\u3044\u3002';
+
 const _liveTodoExactShortPrompt =
     'todo_app.md \u3092\u53C2\u8003\u306B\u3057\u3066MVP\u3092\u5B9F\u88C5\u3002'
     '\u8A00\u8A9E\u306Fdart\u3068\u3059\u308B\u3002';
@@ -325,6 +338,9 @@ class PlanModeScenarioSpec {
     this.temperature,
     this.maxTokens,
     this.postValidator,
+    this.followUpPrompt,
+    this.cancelExecutionBeforeFollowUp = false,
+    this.followUpSettleTimeout = const Duration(minutes: 3),
   });
 
   final String name;
@@ -340,6 +356,24 @@ class PlanModeScenarioSpec {
   final List<PlanModeArtifactExpectation> artifactExpectations;
   final PlanModeArtifactExpectationMode artifactExpectationMode;
   final List<PlanModeLogExpectation> logExpectations;
+
+  /// A second turn sent into the same conversation once the plan is saved.
+  ///
+  /// The delegation queue is only non-empty between a plan being saved and its
+  /// tasks being worked, so a scenario that observes the queue has to ask
+  /// about it inside that window rather than after execution settles.
+  final String? followUpPrompt;
+
+  /// Stop the approved run before [followUpPrompt] is sent.
+  ///
+  /// Approval starts execution, and a completed task leaves the queue empty —
+  /// which is a correct queue, and the wrong one to observe. Cancelling leaves
+  /// the saved tasks pending, so the window above stays open deterministically
+  /// instead of racing the runner.
+  final bool cancelExecutionBeforeFollowUp;
+
+  /// How long to let the follow-up turn run before giving up on it.
+  final Duration followUpSettleTimeout;
   final PlanModeSavedWorkflowExpectation? savedWorkflowExpectation;
   final List<PlanModeScenarioToolOverrideSpec> toolOverrides;
   final List<String> tags;
@@ -1777,6 +1811,53 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
+      ],
+    ),
+    // Holds the delegation queue open on purpose. Every other live scenario
+    // runs its plan to completion, and a completed plan has an empty ready
+    // queue -- correct, and the wrong state to observe ANA2's gate in.
+    PlanModeScenarioSpec(
+      name: 'live_anabasis_delegation_admission',
+      userPrompt: _liveTodoExactShortPrompt,
+      projectName: 'tmp-live-anabasis-delegation',
+      tags: const <String>['live', 'canary', 'production_path', 'anabasis'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      seedFiles: const <PlanModeScenarioSeedFile>[
+        PlanModeScenarioSeedFile(
+          sourcePath: 'docs/coding_mvp_fixtures/todo_app.md',
+          destinationPath: 'todo_app.md',
+        ),
+      ],
+      languageCode: 'ja',
+      temperature: 0.2,
+      maxTokens: 8192,
+      planningProposalTimeout: const Duration(minutes: 3),
+      // The plan must stay unworked, so nothing waits for execution and the
+      // approved run is stopped before the parent is addressed.
+      waitForExecutionCompletion: false,
+      cancelExecutionBeforeFollowUp: true,
+      followUpPrompt: _liveAnabasisDelegationFollowUpPrompt,
+      followUpSettleTimeout: const Duration(minutes: 6),
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 1,
+      ),
+      // The system prompt is not assertable here: the request logger truncates
+      // message content at 200 characters, so "Ready to delegate" and the
+      // saved task contract never reach these logs. Those two live in the
+      // session log, and tool/run_anabasis_delegation_live_canary.sh reads
+      // them there with check_fix_firings.py. What this asserts is the half
+      // appLog can carry -- that a child was actually dispatched.
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(pattern: '[Subagent] Spawning', minCount: 1),
       ],
     ),
     PlanModeScenarioSpec(

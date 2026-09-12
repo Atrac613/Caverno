@@ -68,6 +68,16 @@ if [[ "${LOG_TOOL_SCHEMAS}" == "1" || "${LOG_TOOL_SCHEMAS}" == "true" || "${LOG_
   DART_DEFINES+=("--dart-define=CAVERNO_LLM_LOG_TOOL_SCHEMAS=true")
 fi
 
+# Without these the session logs a canary writes carry no build commit, and any
+# tool that qualifies a finding by git ancestry -- check_fix_firings.py among
+# them -- has to report the run as an unknown build rather than as evidence.
+# The same helper backs tool/safe-flutter, so a canary log and an app log
+# record provenance the same way.
+# shellcheck source=tool/caverno_dart_defines.sh
+source "${ROOT_DIR}/tool/caverno_dart_defines.sh"
+caverno_load_build_provenance_define_args "${ROOT_DIR}"
+DART_DEFINES+=("${CAVERNO_BUILD_DART_DEFINE_ARGS[@]}")
+
 export CAVERNO_PLAN_MODE_LIVE_LLM=1
 export CAVERNO_LLM_BASE_URL="${BASE_URL}"
 export CAVERNO_LLM_API_KEY="${API_KEY}"

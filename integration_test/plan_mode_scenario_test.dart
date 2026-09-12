@@ -36,6 +36,7 @@ import 'test_support/plan_mode_approval_ui.dart';
 import 'test_support/plan_mode_artifact_expectations.dart';
 import 'test_support/plan_mode_execution_progress.dart';
 import 'test_support/plan_mode_expectations.dart';
+import 'test_support/plan_mode_follow_up_turn.dart';
 import 'test_support/plan_mode_heartbeat.dart';
 import 'test_support/plan_mode_live_harness_execution.dart';
 import 'test_support/plan_mode_live_harness_fallback.dart';
@@ -515,6 +516,17 @@ Future<_ScenarioRunResult> _runScenario({
       scenario.uiExpectations,
       PlanModeUiPhase.finalResult,
     );
+  }
+
+  // Before the log expectations, so a scenario can assert on what the
+  // follow-up turn emits rather than only on the planning half.
+  final followUpResult = await runPlanModeFollowUpTurn(
+    tester: tester,
+    container: container,
+    scenario: scenario,
+  );
+  if (followUpResult.requested) {
+    appLog('[Scenario] Follow-up turn result: ${followUpResult.toJson()}');
   }
 
   assertPlanModeLogExpectations(logs, scenario.logExpectations);
