@@ -3359,31 +3359,46 @@ parent run closes this by measurement rather than by reading a transcript.
 There is still no Anabasis canary among the repository's live canary scripts;
 every piece of this track's live evidence has come from hand-driven sessions.
 
-The canary built for this gap found a defect rather than the missing evidence,
-2026-09-12, run 8 of `tool/run_anabasis_delegation_live_canary.sh` on build
-`ecdf8a224`. Inside one parent turn the queue held one ready task by both
-readings — `TaskDelegationBriefBuilder().candidates()` and the
-`ExecutionSnapshotProjector` summary carrying `[workflow_task_id: 9f2a3f30…]`
-that was rendered into the parent's own system prompt. The parent then called
-`spawn_subagent` with exactly that id, three times, and
-`AnabasisDelegationAdmission` refused all three with `ready_task_ids: []`. No
-task lifecycle event separates the two moments and the task stayed `pending`,
-so the queue is non-empty at prompt-build time and empty at tool-dispatch time
-in the same turn. Unconfirmed lead: the prompt path resolves its conversation
-through `_turnOwnerSnapshotForGeneration`, the admission path through
-`_turnOwnerForGeneration`, and `prepare` maps a null conversation to an empty
-candidate list — which is exactly the observed refusal. Until that is settled,
-`anabasis_delegation_admitted` may be unobservable in the product rather than
-merely unobserved, and ANA2's gap is a defect to fix, not evidence to gather.
+**The standing evidence gap is closed, 2026-09-12.** Run 9 of
+`tool/run_anabasis_delegation_live_canary.sh` (`qwen3.8-27b-vision`) fired
+`anabasis_delegation_admitted`: the parent was offered two ready tasks,
+selected one, and its saved contract reached a child that began running a real
+command. `anabasis_delegation_not_ready` did not appear at all. This is the
+live planned-parent queue observation the milestone had been waiting for across
+four notes.
 
-Getting there took four other fixes, none of them the model's: the scenario
+Run 8 first looked like a defect, and recording why it was not is the more
+useful half. It measured one ready candidate, rendered its
+`[workflow_task_id: …]` into the parent's prompt, and then had all three of the
+parent's `spawn_subagent` calls — each carrying exactly that id — refused with
+`ready_task_ids: []`. Two explanations were proposed and both were measured
+false: the prompt and admission paths do **not** resolve different owners
+(`_turnOwnerForGeneration` is `_turnOwnerSnapshotForGeneration(…)?.owner`), and
+`currentConversation` does **not** diverge from the saved `conversations` entry
+(`current: inList=true candidates=2 projected=2`, `saved: candidates=2
+projected=2`). Per-request tracing showed run 8's queue was already empty in
+the *turn-opening* request rather than flipping mid-turn, so the model had read
+the id from the plan body. That discrepancy between the pre-send measurement
+and the turn-open prompt is unexplained and is not a confirmed defect; the path
+works. A refusal alone does not establish one.
+
+The canary's verdict is three-way for a reason found the same day: whether the
+queue is non-empty depends on the plan the model writes — an independent first
+task opens it, a pure chain does not — and it was open in three of five runs
+that got that far. So an empty queue exits 77 as inconclusive rather than
+failing, and only a queue that was offered and not taken is a regression.
+
+Getting there took five other fixes, none of them the model's: the scenario
 judged its log expectations before the follow-up turn ran; saved plans are
 chains, so nothing is delegatable while the first task runs and a cancelled
 task stays `inProgress`; approval started that first task inside the same call
 that saved the plan; and every task was held by unanswered open questions,
-which is what the parent prompt tells the model to expect. The queue's window
-is therefore narrower than "a plan exists" — approved, unstarted, and answered
-— which is the real reason only 2 of 12 parent sessions ever rendered one.
+which is what the parent prompt tells the model to expect. The fifth was the
+run budget: `resolvePlanModeOverallRunTimeout` never counted the follow-up
+turn, so a run that had already delegated was killed at 500s while its child
+was running. The queue's window is therefore narrower than "a plan exists" —
+approved, unstarted, and answered — which is the real reason only 2 of 12
+parent sessions ever rendered one.
 
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed

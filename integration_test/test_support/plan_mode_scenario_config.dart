@@ -186,6 +186,13 @@ Duration resolvePlanModeOverallRunTimeout(
       ) ??
       scenario.planningProposalTimeout +
           scenario.executionCompletionTimeout +
+          // A follow-up turn runs inside this budget, so leaving it out caps
+          // the run below the time its own phases are allowed to take. It cost
+          // a canary that had already delegated: the overall timeout fired at
+          // 500s while the child was running its first command.
+          (scenario.followUpPrompt == null
+              ? Duration.zero
+              : scenario.followUpSettleTimeout) +
           const Duration(minutes: 5);
 }
 

@@ -1868,18 +1868,23 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 1,
       ),
-      // The system prompt is not assertable here: the request logger truncates
-      // message content at 200 characters, so "Ready to delegate" and the
-      // saved task contract never reach these logs. Those two live in the
-      // session log, and tool/run_anabasis_delegation_live_canary.sh reads
-      // them there with check_fix_firings.py. What this asserts is the half
-      // appLog can carry -- that a child was actually dispatched.
+      // Deliberately does not assert that a child was spawned. Whether the
+      // ready queue is non-empty depends on the plan the model happens to
+      // write -- an independent task opens it, a pure chain does not -- and it
+      // was observed open in three of five runs that got this far. Asserting
+      // delegation here would fail the canary for a plan shape, which says
+      // nothing about the parent. The runner decides instead, on the queue
+      // size the scenario records, so "no queue to choose from" stays separate
+      // from "a queue was offered and nothing was delegated".
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
-        PlanModeLogExpectation(pattern: '[Subagent] Spawning', minCount: 1),
+        PlanModeLogExpectation(
+          pattern: '[Scenario] Delegation queue offers',
+          minCount: 1,
+        ),
       ],
     ),
     PlanModeScenarioSpec(

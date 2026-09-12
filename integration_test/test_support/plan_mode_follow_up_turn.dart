@@ -94,17 +94,27 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
     timeout: const Duration(seconds: 30),
   );
   appLog('[Scenario] Delegation queue offers $queued ready task(s)');
-  // The parent is not shown candidates(); it is shown the projection of them.
-  // Logging both is the only way to tell "the model declined" from "the model
-  // was shown an empty list while a task was in fact ready".
-  final projected = const ExecutionSnapshotProjector()
-      .project(
-        container.read(conversationsNotifierProvider).currentConversation,
-      )
-      .delegatableTasks;
+  // Two copies of the same conversation, and the difference is the point.
+  // This helper reads `currentConversation`; the production prompt and the
+  // admission gate both resolve the owner's id against the saved
+  // `conversations` list. If those disagree, the parent is shown a queue built
+  // from a copy nobody else is reading.
+  final conversationsState = container.read(conversationsNotifierProvider);
+  final current = conversationsState.currentConversation;
+  final saved = conversationsState.conversations
+      .where((candidate) => candidate.id == current?.id)
+      .firstOrNull;
+  const projector = ExecutionSnapshotProjector();
+  const builder = TaskDelegationBriefBuilder();
   appLog(
-    '[Scenario] Projected queue carries ${projected.length} summary(ies): '
-    '${projected.join(' | ')}',
+    '[Scenario] current: inList=${saved != null} '
+    'candidates=${current == null ? -1 : builder.candidates(current).length} '
+    'projected=${projector.project(current).delegatableTasks.length}',
+  );
+  appLog(
+    '[Scenario] saved:   '
+    'candidates=${saved == null ? -1 : builder.candidates(saved).length} '
+    'projected=${projector.project(saved).delegatableTasks.length}',
   );
 
   appLog('[Scenario] Sending follow-up turn');

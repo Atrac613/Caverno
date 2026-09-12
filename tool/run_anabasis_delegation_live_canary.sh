@@ -33,30 +33,62 @@ echo "  Session logs: ${SESSION_LOG_ROOT}"
 
 cd "${ROOT_DIR}"
 
+RUN_LOG="${RUN_DIR}/scenario_run.log"
+# The scenario is allowed to fail here. Its failure is one input to the verdict
+# below, not the verdict: a run whose plan offered nothing to delegate fails the
+# scenario and still says nothing about the parent. Without this, pipefail would
+# abort before the case this script exists to tell apart.
+set +e
 CAVERNO_SESSION_LOG_DIR="${SESSION_LOG_ROOT}" \
 CAVERNO_PLAN_MODE_REPORT_ROOT="${PLAN_REPORT_ROOT}" \
 CAVERNO_PLAN_MODE_SCENARIOS=live_anabasis_delegation_admission \
 CAVERNO_PLAN_MODE_DEVICE=headless \
-"${ROOT_DIR}/tool/run_plan_mode_live_test.sh"
+"${ROOT_DIR}/tool/run_plan_mode_live_test.sh" 2>&1 | tee "${RUN_LOG}"
+SCENARIO_STATUS="${PIPESTATUS[0]}"
+set -e
 
-# The canary's own question, and the one the scenario cannot answer: was the
-# child bound to a ready saved task, or merely spawned? A spawn proves
-# delegation happened; only the admitted contract proves planned work was
-# selected from the queue.
+# Three outcomes, not two. Whether the ready queue is non-empty depends on the
+# plan the model wrote -- an independent task opens it, a pure chain does not --
+# so an empty queue is inconclusive about the parent and must not be reported as
+# a regression. Only a queue that was offered and not taken is a failure.
+QUEUE_SIZE="$(sed -n 's/.*\[Scenario\] Delegation queue offers \([0-9]\{1,\}\) ready task.*/\1/p' "${RUN_LOG}" | tail -1)"
+QUEUE_SIZE="${QUEUE_SIZE:-0}"
+
 echo
 echo "Checking the delegation admission signatures against this run's logs"
 FIRINGS_OUTPUT="$(python3 "${ROOT_DIR}/tool/check_fix_firings.py" --dir "${SESSION_LOG_ROOT}")"
 echo "${FIRINGS_OUTPUT}"
 
-if ! printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_delegation_admitted'; then
-  echo >&2
-  echo "Anabasis delegation canary failed: the parent never delegated a ready saved task." >&2
-  echo "  A spawned child alone does not close ANA2's evidence gap." >&2
-  echo "  Session logs: ${SESSION_LOG_ROOT}" >&2
-  exit 1
+ADMITTED=0
+if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_delegation_admitted'; then
+  ADMITTED=1
 fi
 
 echo
-echo "Anabasis delegation Live canary passed."
-echo "  Report directory: ${RUN_DIR}"
-echo "  Session logs: ${SESSION_LOG_ROOT}"
+echo "  Ready tasks offered to the parent: ${QUEUE_SIZE}"
+echo "  Delegation admitted: ${ADMITTED}"
+
+if [[ "${ADMITTED}" == "1" ]]; then
+  echo
+  echo "Anabasis delegation Live canary passed."
+  echo "  Report directory: ${RUN_DIR}"
+  echo "  Session logs: ${SESSION_LOG_ROOT}"
+  exit 0
+fi
+
+if [[ "${QUEUE_SIZE}" == "0" ]]; then
+  echo >&2
+  echo "Anabasis delegation canary inconclusive: the saved plan offered no ready task." >&2
+  echo "  The parent was shown nothing to delegate, so this run says nothing about it." >&2
+  echo "  Re-run; a plan with an independent first task opens the queue." >&2
+  echo "  Session logs: ${SESSION_LOG_ROOT}" >&2
+  exit 77
+fi
+
+echo >&2
+echo "Anabasis delegation canary FAILED: ${QUEUE_SIZE} ready task(s) were offered" >&2
+echo "  and the parent delegated none of them through the admission gate." >&2
+echo "  A spawned child alone does not close ANA2's evidence gap." >&2
+echo "  Scenario status: ${SCENARIO_STATUS}" >&2
+echo "  Session logs: ${SESSION_LOG_ROOT}" >&2
+exit 1

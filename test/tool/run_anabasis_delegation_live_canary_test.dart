@@ -20,9 +20,17 @@ void main() {
     expect(scenario.followUpPrompt, isNotNull);
     expect(scenario.followUpPrompt, startsWith('@anabasis'));
     expect(scenario.savedWorkflowExpectation?.minTaskCount, isNotNull);
+    // The queue size must be recorded, because the runner's verdict reads it.
     expect(
       scenario.logExpectations.map((expectation) => expectation.pattern),
-      contains('[Subagent] Spawning'),
+      contains('[Scenario] Delegation queue offers'),
+    );
+    // And delegation must NOT be asserted here: whether the queue is non-empty
+    // depends on the plan the model wrote, so failing the scenario on it would
+    // blame the parent for a plan shape.
+    expect(
+      scenario.logExpectations.map((expectation) => expectation.pattern),
+      isNot(contains('[Subagent] Spawning')),
     );
   });
 
@@ -36,6 +44,16 @@ void main() {
       expect(scenario.followUpPrompt, isNull, reason: scenario.name);
       expect(
         scenario.cancelExecutionBeforeFollowUp,
+        isFalse,
+        reason: scenario.name,
+      );
+      expect(
+        scenario.startExecutionAfterApproval,
+        isTrue,
+        reason: scenario.name,
+      );
+      expect(
+        scenario.resolveOpenQuestionsBeforeFollowUp,
         isFalse,
         reason: scenario.name,
       );
@@ -63,29 +81,37 @@ void main() {
     ).readAsStringSync();
 
     // Pointing check_fix_firings.py at the default corpus would let an
-    // unrelated historical log decide this run, so the --dir must carry the
-    // run's own log root.
+    // unrelated historical log decide this run, so --dir must carry the run's
+    // own log root.
     expect(
       runner,
       contains('check_fix_firings.py" --dir "\${SESSION_LOG_ROOT}'),
     );
     expect(runner, contains(r'^\[FIRED\] anabasis_delegation_admitted'));
-    expect(runner, contains('exit 1'));
   });
 
-  test('a spawned child alone does not pass the canary', () {
+  test('an empty queue is inconclusive, not a failure', () {
     final runner = File(
       'tool/run_anabasis_delegation_live_canary.sh',
     ).readAsStringSync();
 
-    // The scenario asserts "[Subagent] Spawning"; that proves delegation
-    // happened, not that planned work was selected from the ready queue. Only
-    // the admitted signature closes ANA2's gap, so the script must fail when
-    // it is absent even though the scenario itself passed.
-    final gateIndex = runner.indexOf('anabasis_delegation_admitted');
-    final exitIndex = runner.indexOf('exit 1');
-    expect(gateIndex, isNonNegative);
-    expect(exitIndex, greaterThan(gateIndex));
+    // Only a queue that was offered and not taken may exit 1. Reporting an
+    // empty one as a regression blames the parent for a plan shape.
+    expect(runner, contains('exit 77'));
+    expect(runner, contains('inconclusive'));
+    expect(runner.indexOf('exit 77'), lessThan(runner.lastIndexOf('exit 1')));
+  });
+
+  test('the scenario may fail without skipping the verdict', () {
+    final runner = File(
+      'tool/run_anabasis_delegation_live_canary.sh',
+    ).readAsStringSync();
+
+    // pipefail would abort on the scenario's own failure, which is exactly the
+    // run the three-way verdict exists to classify.
+    expect(runner, contains('set +e'));
+    expect(runner, contains(r'PIPESTATUS[0]'));
+    expect(runner.indexOf('set +e'), lessThan(runner.indexOf('exit 77')));
   });
 
   test('the shared live runner stamps build provenance into session logs', () {
