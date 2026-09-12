@@ -3,7 +3,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_tools.dart';
 import 'package:caverno/features/chat/domain/services/material_assumption_confirmation_gate.dart';
 import 'package:caverno/features/chat/domain/services/turn_tool_policy_chain.dart';
 import 'package:test/test.dart';
@@ -157,7 +157,7 @@ void main() {
       await chain.evaluate(
         ToolCallInfo(
           id: 'call-spawn',
-          name: AnabasisParentAuthorityGuard.delegationTools.first,
+          name: AnabasisParentAuthorityTools.delegation.first,
           arguments: const {'prompt': 'Implement the store'},
         ),
         workspaceMode: WorkspaceMode.coding,

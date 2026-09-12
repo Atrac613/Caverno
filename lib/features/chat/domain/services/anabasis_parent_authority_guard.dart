@@ -5,6 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/model_usage_role.dart';
 import '../entities/tool_call_info.dart';
+import 'anabasis_parent_authority_tools.dart';
 
 /// Keeps the Anabasis parent to inspection, verification and delegation.
 ///
@@ -31,14 +32,6 @@ final class AnabasisParentAuthorityGuard {
 
   static const refusedCode = 'anabasis_parent_authority_refused';
 
-  /// Tools that *are* the parent's route to effect.
-  ///
-  /// A named exception because `spawn_subagent` does not classify cleanly under
-  /// `ToolCommandEffect`. Adding a `delegation` effect is the tidy-up, and per
-  /// the track rule it is justified only once the classifier is shown unable to
-  /// express it — not before.
-  static const delegationTools = <String>{'spawn_subagent'};
-
   static const _classifier = ToolCapabilityClassifier();
 
   McpToolResult? evaluate(
@@ -46,7 +39,7 @@ final class AnabasisParentAuthorityGuard {
     required ModelUsageRole executingRole,
   }) {
     if (executingRole != ModelUsageRole.anabasisParent) return null;
-    if (delegationTools.contains(toolCall.name)) return null;
+    if (AnabasisParentAuthorityTools.all.contains(toolCall.name)) return null;
 
     final effect = _classifier
         .classify(toolCall.name, arguments: toolCall.arguments)

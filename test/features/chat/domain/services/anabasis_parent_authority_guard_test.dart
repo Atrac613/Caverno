@@ -91,6 +91,42 @@ void main() {
             'dispatch, so delegation is not equivalent to mutating.',
       );
     });
+
+    // A live run had accept_task refused here in 0 ms, before the handler's own
+    // grounds could be reached, and with advice -- "delegate this to a child"
+    // -- that no child can act on: accept_task refuses a non-parent. The tool
+    // had no caller at all. update_goal and ask_user_question were refused the
+    // same way, and the parent's prompt tells it to do all three.
+    test('the parent may record, own the goal, and ask the user', () {
+      for (final call in [
+        _call('accept_task', {
+          'workflow_task_id': 'task-1',
+          'rationale': 'The child ran the saved validation command green.',
+        }),
+        _call('update_goal', {'status': 'in_progress'}),
+        _call('ask_user_question', {'question': 'Which id format?'}),
+      ]) {
+        expect(
+          _guard.evaluate(call, executingRole: ModelUsageRole.anabasisParent),
+          isNull,
+          reason:
+              '${call.name}: the parent cannot delegate its own bookkeeping, '
+              'and this guard refusing it leaves the instruction impossible.',
+        );
+      }
+    });
+
+    // The keep-it-closed default is the right answer for a tool with no claim
+    // in the parent's instructions, so the exemption stays a named list.
+    test('an unrelated unclassified tool is still refused', () {
+      expect(
+        _guard.evaluate(
+          _call('create_routine', {'prompt': 'nightly release'}),
+          executingRole: ModelUsageRole.anabasisParent,
+        ),
+        isNotNull,
+      );
+    });
   });
 
   group('the parent may not change the workspace', () {

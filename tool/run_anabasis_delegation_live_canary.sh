@@ -92,8 +92,18 @@ if [[ "${ACCEPTED}" == "0" ]]; then
   DELIVERED="$(sed -n 's/.*\[Scenario\] Extra follow-up turns delivered=\([0-9]\{1,\}\)\/\([0-9]\{1,\}\).*/\1 \2/p' "${RUN_LOG}" | tail -1 || true)"
   DELIVERED_COUNT="${DELIVERED%% *}"
   WANTED_COUNT="${DELIVERED##* }"
+  # Attempts, from the app log. A refusal that fires before the handler carries
+  # none of the acceptance_* codes above -- the parent authority guard refused
+  # accept_task in 0 ms once -- so a run that reported "never attempted" had in
+  # fact attempted and been refused by something this capture could not see.
+  ATTEMPTS="$(grep -c '\[Tool\] Executing tool: accept_task' "${RUN_LOG}" 2>/dev/null || true)"
+  ATTEMPTS="${ATTEMPTS:-0}"
   if [[ -n "${REFUSALS}" ]]; then
     echo "  Acceptance refused with: ${REFUSALS}"
+  elif [[ "${ATTEMPTS}" != "0" ]]; then
+    echo "  Acceptance attempted ${ATTEMPTS} time(s) and recorded none:"
+    echo "    something refused it before the acceptance handler. Read the"
+    echo "    refusal codes in the session log."
   elif [[ -n "${WANTED_COUNT}" && "${WANTED_COUNT}" != "0" && "${DELIVERED_COUNT}" == "0" ]]; then
     echo "  The parent was never asked: the acceptance turn was not delivered"
     echo "    (${DELIVERED_COUNT}/${WANTED_COUNT}); the delegation turn was still"

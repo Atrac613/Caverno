@@ -132,6 +132,10 @@ void main() {
     // than sent while the delegation turn still streams, so the two cases have
     // to read differently.
     expect(runner, contains('never asked'));
+    // And "refused by something the acceptance codes cannot name" is a third
+    // case: the parent authority guard refused accept_task before the handler,
+    // so neither an acceptance_* code nor a recorded acceptance existed.
+    expect(runner, contains('Acceptance attempted'));
     expect(runner, contains('Extra follow-up turns delivered='));
     final acceptIndex = runner.indexOf('ACCEPTED=0');
     expect(acceptIndex, isNonNegative);
@@ -163,6 +167,7 @@ void main() {
       'QUEUE_SIZE="\$(',
       'REFUSALS="\$(',
       'DELIVERED="\$(',
+      'ATTEMPTS="\$(',
     ]) {
       final start = runner.indexOf(capture);
       expect(start, isNonNegative, reason: capture);

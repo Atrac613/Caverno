@@ -68,7 +68,10 @@ const Map<String, int> _lineBudgets = {
   // instrument rather than by reading code -- the most frequent undeclared
   // code in the twelve days after it landed. See HEU3 in
   // docs/text_heuristic_inventory.md.
-  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 77,
+  // 77 -> 70: the exempt-tool list left for its own file when it stopped being
+  // one name. What stayed is the decision; what moved is the policy it reads.
+  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 70,
+  'lib/features/chat/domain/services/anabasis_parent_authority_tools.dart': 36,
   'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 44,
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
