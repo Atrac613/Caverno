@@ -44,6 +44,21 @@ const _liveAnabasisAcceptanceFollowUpPrompt =
     '\u4f55\u304c\u8db3\u308a\u306a\u3044\u304b\u3092\u8ff0\u3079'
     '\u3066\u304f\u3060\u3055\u3044\u3002';
 
+/// An inspection-shaped goal, so the plan's ready task is one a child finishes
+/// in a single call.
+///
+/// The delegation scenario's goal is an implementation, and six live runs ended
+/// the same way: the parent read the child back, judged the work unfinished --
+/// correctly -- and kept pushing until the turn's budget ran out. A judgement
+/// cannot be observed on work that is not done, and the fix is the task, not a
+/// longer wait. "Write no code" is in the prompt because the model otherwise
+/// plans an implementation from a reading task.
+const _liveAnabasisInspectionShortPrompt =
+    'todo_app.md \u3092\u8aad\u3093\u3067\u3001\u5b9f\u88c5\u524d\u306b'
+    '\u78ba\u8a8d\u3059\u3079\u304d\u4ed5\u69d8\u306e\u66d6\u6627\u70b9'
+    '\u3092\u6d17\u3044\u51fa\u3057\u3066\u3002\u30b3\u30fc\u30c9\u306f'
+    '\u66f8\u304b\u306a\u3044\u3002';
+
 const _liveTodoExactShortPrompt =
     'todo_app.md \u3092\u53C2\u8003\u306B\u3057\u3066MVP\u3092\u5B9F\u88C5\u3002'
     '\u8A00\u8A9E\u306Fdart\u3068\u3059\u308B\u3002';
@@ -1854,6 +1869,53 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           pattern: '[LLM] ========== createChatCompletion ==========',
           minCount: 1,
         ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+      ],
+    ),
+    // The delegation scenario's sibling, and the difference is the work. That
+    // one delegates an implementation, which a child does not finish in one
+    // call, so the parent is right to keep pushing and a judgement never
+    // arrives. This one delegates reading, which finishes -- so what the run
+    // measures is whether the parent records the judgement, not whether the
+    // work was done in time.
+    PlanModeScenarioSpec(
+      name: 'live_anabasis_acceptance',
+      userPrompt: _liveAnabasisInspectionShortPrompt,
+      projectName: 'tmp-live-anabasis-acceptance',
+      tags: const <String>['live', 'canary', 'production_path', 'anabasis'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      seedFiles: const <PlanModeScenarioSeedFile>[
+        PlanModeScenarioSeedFile(
+          sourcePath: 'docs/coding_mvp_fixtures/todo_app.md',
+          destinationPath: 'todo_app.md',
+        ),
+      ],
+      languageCode: 'ja',
+      temperature: 0.2,
+      maxTokens: 8192,
+      planningProposalTimeout: const Duration(minutes: 3),
+      waitForExecutionCompletion: false,
+      startExecutionAfterApproval: false,
+      resolveOpenQuestionsBeforeFollowUp: true,
+      followUpPrompt: _liveAnabasisDelegationFollowUpPrompt,
+      extraFollowUpPrompts: const <String>[
+        _liveAnabasisAcceptanceFollowUpPrompt,
+      ],
+      // Shorter than its sibling's because the work is: a reading task that
+      // needs fifteen minutes is not the thing this scenario is measuring.
+      followUpSettleTimeout: const Duration(minutes: 8),
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 1,
+      ),
+      logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,

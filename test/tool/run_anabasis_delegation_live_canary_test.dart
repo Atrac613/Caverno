@@ -35,8 +35,14 @@ void main() {
   });
 
   test('a follow-up prompt is opt-in, so other scenarios are unchanged', () {
+    // The two Anabasis scenarios are the ones that address the parent; every
+    // other live scenario must stay a plain plan-mode run.
+    const addressesParent = <String>{
+      'live_anabasis_delegation_admission',
+      'live_anabasis_acceptance',
+    };
     final others = buildLivePlanModeScenarios().where(
-      (candidate) => candidate.name != 'live_anabasis_delegation_admission',
+      (candidate) => !addressesParent.contains(candidate.name),
     );
 
     expect(others, isNotEmpty);
@@ -64,12 +70,16 @@ void main() {
       'tool/run_anabasis_delegation_live_canary.sh',
     ).readAsStringSync();
 
+    // The default is still the queue-holding scenario; the acceptance sibling
+    // opts in through CAVERNO_ANABASIS_SCENARIO, so a bare run measures what it
+    // always did.
     expect(
       runner,
       contains(
-        'CAVERNO_PLAN_MODE_SCENARIOS=live_anabasis_delegation_admission',
+        'SCENARIO="\${CAVERNO_ANABASIS_SCENARIO:-live_anabasis_delegation_admission}"',
       ),
     );
+    expect(runner, contains('CAVERNO_PLAN_MODE_SCENARIOS="\${SCENARIO}"'));
     expect(runner, contains('CAVERNO_PLAN_MODE_DEVICE=headless'));
     expect(runner, contains('CAVERNO_SESSION_LOG_DIR'));
     expect(runner, contains('tool/run_plan_mode_live_test.sh'));

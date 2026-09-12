@@ -17,6 +17,9 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the Anabasis delegation canary.}"
 : "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the Anabasis delegation canary.}"
 
+# The acceptance sibling runs the same way on a smaller task; see
+# buildLivePlanModeScenarios for why the work has to differ.
+SCENARIO="${CAVERNO_ANABASIS_SCENARIO:-live_anabasis_delegation_admission}"
 REPORT_ROOT="${CAVERNO_ANABASIS_DELEGATION_REPORT_ROOT:-${CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}}"
 RUN_DIR="${REPORT_ROOT}/anabasis_delegation_live_canary_$(date +%s)"
 SESSION_LOG_ROOT="${RUN_DIR}/session_logs"
@@ -25,7 +28,7 @@ PLAN_REPORT_ROOT="${RUN_DIR}/plan_mode"
 mkdir -p "${SESSION_LOG_ROOT}" "${PLAN_REPORT_ROOT}"
 
 echo "Running Anabasis delegation Live canary"
-echo "  Scenario: live_anabasis_delegation_admission"
+echo "  Scenario: ${SCENARIO}"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
 echo "  Model: ${CAVERNO_LLM_MODEL}"
 echo "  Report directory: ${RUN_DIR}"
@@ -41,7 +44,7 @@ RUN_LOG="${RUN_DIR}/scenario_run.log"
 set +e
 CAVERNO_SESSION_LOG_DIR="${SESSION_LOG_ROOT}" \
 CAVERNO_PLAN_MODE_REPORT_ROOT="${PLAN_REPORT_ROOT}" \
-CAVERNO_PLAN_MODE_SCENARIOS=live_anabasis_delegation_admission \
+CAVERNO_PLAN_MODE_SCENARIOS="${SCENARIO}" \
 CAVERNO_PLAN_MODE_DEVICE=headless \
 "${ROOT_DIR}/tool/run_plan_mode_live_test.sh" 2>&1 | tee "${RUN_LOG}"
 SCENARIO_STATUS="${PIPESTATUS[0]}"
