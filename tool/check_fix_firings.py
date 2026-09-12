@@ -152,6 +152,15 @@ SIGNATURES = {
         # the task, so this is the durable trace.
         "match": lambda s: '"accepted_task_id"' in s,
     },
+    "delegated_results_named": {
+        "commit": "0c5b6d756",
+        "what": "the parent is told which children are waiting to be judged",
+        # The block the parent had to invent ids in place of. Matching the header
+        # rather than a child id means an empty list counts too: rendering
+        # "- none" is the same fix, and a run where nothing was delegated still
+        # proves the block reached a real parent turn.
+        "match": lambda s: "Delegated results awaiting your judgement" in s,
+    },
     "policy_refusal_not_approval": {
         "commit": "f6bc075eb",
         "what": "an aborting policy refusal is named as one, not as an approval",

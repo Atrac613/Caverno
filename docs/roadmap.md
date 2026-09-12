@@ -3874,8 +3874,32 @@ model.
   for. It now counts delivery and attempts, and "never asked", "attempted and
   recorded none" and "never attempted" read differently (`d2cb2a625`).
 
-What is still unobserved live is an acceptance, and the reason is now the
-scenario rather than the code: the elicitation turn is delivered by cancelling the
+Two more blocks, found by driving the scenario at it rather than by reading code:
+
+- `get_subagent_result` looked the child up through `byId`, which matches the
+  turn owner, so a child spawned in an earlier turn read back as `not_found` --
+  while the acceptance audit two methods away reads by conversation and could see
+  it. The parent asked for the result it was told to judge, was told there was
+  none, and re-delegated the task (`d86d44392`). The regression needs two real
+  turns, which is why no single-turn test could see it.
+- Then it had no way to *name* the child at all. `task_id` comes back from
+  `spawn_subagent` and lives nowhere the parent can see again -- tool results do
+  not persist into the next turn's history, and no prompt block named them; in
+  the corpus the real id appears only under `usageRole: subagent`. So the parent
+  invented plausible ids and re-delegated. `0c5b6d756` gives the parent a
+  `Delegated results awaiting your judgement` block beside the delegation queue:
+  child_id, the saved task it was admitted against, its terminal status, accepted
+  tasks dropped, and `- none` when there is nothing -- silence is what the parent
+  filled with a guess.
+
+Five blocks, and the instrument wrong twice on top. Every one of them, read from
+outside, looked exactly like a model that would not record its judgement. The
+ANA3 lesson is the one the validation-status precedent already taught: when a
+path has never run in the wild, "the model does not do X" is a claim about the
+wiring until each layer has been proven to carry X.
+
+What is still unobserved live is an acceptance, and the reason is no longer any of
+these: the elicitation turn is delivered by cancelling the
 delegation turn, so the child never finishes, and a parent with no finished result
 to judge is right not to accept one. Handing it a completed child means either
 waiting past the settle budget or constructing the state, which is a scenario
