@@ -29,6 +29,15 @@ abstract class SubagentTask with _$SubagentTask {
     @Default(-1) int interactionGeneration,
     @Default(SubagentTaskStatus.pending) SubagentTaskStatus status,
     @Default('') String description,
+
+    /// The saved plan task this child was admitted against, when the parent
+    /// delegated planned work.
+    ///
+    /// Empty for ordinary delegation. Recorded because the admission gate's
+    /// binding otherwise exists only inside the child's prompt text, which
+    /// leaves nothing able to audit a finished child against the task it was
+    /// given -- the thing ANA3 acceptance has to do.
+    @Default('') String workflowTaskId,
     String? parentToolUseId,
     @Default('') String prompt,
     @Default('') String output,

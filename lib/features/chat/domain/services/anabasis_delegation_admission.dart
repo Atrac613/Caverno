@@ -9,18 +9,21 @@ import 'task_delegation_brief_builder.dart';
 abstract final class AnabasisDelegationAdmission {
   static const refusedCode = 'anabasis_delegation_not_ready';
 
-  static ({String prompt, McpToolResult? refusal}) prepare(
+  static ({String prompt, McpToolResult? refusal, String workflowTaskId})
+  prepare(
     ToolCallInfo call, {
     required bool isParent,
     required Conversation? conversation,
     required String prompt,
   }) {
-    if (!isParent) return (prompt: prompt, refusal: null);
+    if (!isParent) {
+      return (prompt: prompt, refusal: null, workflowTaskId: '');
+    }
     final taskId = call.arguments['workflow_task_id'];
     if (conversation != null &&
         conversation.effectiveWorkflowSpec.tasks.isEmpty &&
         taskId == null) {
-      return (prompt: prompt, refusal: null);
+      return (prompt: prompt, refusal: null, workflowTaskId: '');
     }
     final candidates = conversation == null
         ? const <TaskDelegationBrief>[]
@@ -29,6 +32,7 @@ abstract final class AnabasisDelegationAdmission {
     if (matches.length != 1) {
       return (
         prompt: prompt,
+        workflowTaskId: '',
         refusal: McpToolResult(
           toolName: call.name,
           isSuccess: false,
@@ -48,6 +52,7 @@ abstract final class AnabasisDelegationAdmission {
     final brief = matches.single;
     return (
       refusal: null,
+      workflowTaskId: brief.task.id,
       prompt:
           '$prompt\n\nSaved task contract (authoritative scope):\n'
           '${jsonEncode({'workflow_task_id': brief.task.id, 'title': brief.task.title, 'target_files': brief.task.targetFiles, 'validation_command': brief.task.validationCommand, 'confirmed_premises': brief.premises})}\n'

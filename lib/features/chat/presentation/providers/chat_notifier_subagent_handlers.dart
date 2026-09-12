@@ -33,6 +33,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     );
     if (admission.refusal != null) return admission.refusal!;
     prompt = admission.prompt;
+    final workflowTaskId = admission.workflowTaskId;
     final label = description.isEmpty ? 'Subagent task' : description;
     final background = toolCall.arguments['background'] == true;
 
@@ -51,6 +52,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         taskId: taskId,
         label: label,
         prompt: prompt,
+        workflowTaskId: workflowTaskId,
         parentToolUseId: toolCall.id,
         toolName: toolCall.name,
         inheritedTools: inheritedTools,
@@ -65,6 +67,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       taskId: taskId,
       label: label,
       prompt: prompt,
+      workflowTaskId: workflowTaskId,
       parentToolUseId: toolCall.id,
       inheritedTools: inheritedTools,
       interactionGeneration: interactionGeneration,
@@ -88,6 +91,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     required String prompt,
     required String parentToolUseId,
     required String toolName,
+    String workflowTaskId = '',
     required List<Map<String, dynamic>> inheritedTools,
     int? interactionGeneration,
   }) async {
@@ -101,6 +105,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         status: SubagentTaskStatus.running,
         description: label,
         prompt: prompt,
+        workflowTaskId: workflowTaskId,
         parentToolUseId: parentToolUseId,
         isBackground: true,
         startedAt: DateTime.now(),
@@ -115,6 +120,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         taskId: taskId,
         label: label,
         prompt: prompt,
+        workflowTaskId: workflowTaskId,
         parentToolUseId: parentToolUseId,
         inheritedTools: inheritedTools,
         interactionGeneration: interactionGeneration,
@@ -142,6 +148,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     required String label,
     required String prompt,
     required String parentToolUseId,
+    String workflowTaskId = '',
     required List<Map<String, dynamic>> inheritedTools,
     int? interactionGeneration,
   }) async {
@@ -151,6 +158,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       taskId: taskId,
       label: label,
       prompt: prompt,
+      workflowTaskId: workflowTaskId,
       parentToolUseId: parentToolUseId,
       inheritedTools: inheritedTools,
       interactionGeneration: interactionGeneration,
@@ -184,6 +192,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     required String label,
     required String prompt,
     required String parentToolUseId,
+    String workflowTaskId = '',
     required List<Map<String, dynamic>> inheritedTools,
     required bool isBackground,
     void Function(ToolCallInfo, McpToolResult)? onChildResult,
@@ -236,7 +245,12 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         _meshRunner.health.recordSuccess(resolved.endpointId);
       }
     }
-    return task;
+    // Stamped here rather than passed into the runner: the runner is shared
+    // with paths that know nothing about saved plans, and the binding is the
+    // delegation gate's fact, not the runner's.
+    return workflowTaskId.isEmpty
+        ? task
+        : task.copyWith(workflowTaskId: workflowTaskId);
   }
 
   /// Dispatch wrapper for a child subagent: blocks the delegation tools so a

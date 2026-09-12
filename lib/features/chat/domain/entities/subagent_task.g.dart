@@ -16,6 +16,7 @@ _SubagentTask _$SubagentTaskFromJson(Map<String, dynamic> json) =>
           $enumDecodeNullable(_$SubagentTaskStatusEnumMap, json['status']) ??
           SubagentTaskStatus.pending,
       description: json['description'] as String? ?? '',
+      workflowTaskId: json['workflowTaskId'] as String? ?? '',
       parentToolUseId: json['parentToolUseId'] as String?,
       prompt: json['prompt'] as String? ?? '',
       output: json['output'] as String? ?? '',
@@ -38,6 +39,7 @@ Map<String, dynamic> _$SubagentTaskToJson(_SubagentTask instance) =>
       'interactionGeneration': instance.interactionGeneration,
       'status': _$SubagentTaskStatusEnumMap[instance.status]!,
       'description': instance.description,
+      'workflowTaskId': instance.workflowTaskId,
       'parentToolUseId': instance.parentToolUseId,
       'prompt': instance.prompt,
       'output': instance.output,

@@ -129,4 +129,50 @@ void main() {
       isNotNull,
     );
   });
+
+  test('an admitted selection reports which saved task it bound to', () {
+    // The binding has to leave the prompt and become a fact the finished child
+    // carries: auditing a child against the task it was given is what ANA3
+    // acceptance does, and prompt text cannot be audited.
+    final admitted = AnabasisDelegationAdmission.prepare(
+      call('tests'),
+      isParent: true,
+      conversation: plan([done, pending]),
+      prompt: 'Run the suite',
+    );
+    expect(admitted.refusal, isNull);
+    expect(admitted.workflowTaskId, 'tests');
+  });
+
+  test('every path that does not admit reports no binding', () {
+    // A refusal, an unplanned parent and a child all have to say "no saved
+    // task", or an unrelated child would be auditable against one.
+    expect(
+      AnabasisDelegationAdmission.prepare(
+        call('invented'),
+        isParent: true,
+        conversation: plan([done, pending]),
+        prompt: 'Recreate it',
+      ).workflowTaskId,
+      isEmpty,
+    );
+    expect(
+      AnabasisDelegationAdmission.prepare(
+        call(null),
+        isParent: true,
+        conversation: plan([]),
+        prompt: 'Research',
+      ).workflowTaskId,
+      isEmpty,
+    );
+    expect(
+      AnabasisDelegationAdmission.prepare(
+        call('tests'),
+        isParent: false,
+        conversation: plan([done, pending]),
+        prompt: 'Run the suite',
+      ).workflowTaskId,
+      isEmpty,
+    );
+  });
 }
