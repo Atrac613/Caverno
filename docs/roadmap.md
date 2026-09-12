@@ -3857,6 +3857,15 @@ model.
   found `update_goal` and `ask_user_question` refused the same way, both also
   named in the parent's own instructions (`81aea8858`). `create_routine` stays
   refused: it schedules real runs and nothing in the instructions asks for it.
+- With both of those fixed, a notifier-level test found the third block: the
+  acceptance handler locates the child it must audit through
+  `SubagentTaskNotifier`, and only the *background* spawn path ever registered a
+  task there. Foreground is the parent's ordinary route, so a normal delegation
+  left nothing to accept on and refused as `acceptance_no_delegated_result`
+  (`3f67eb9a7`). PR 2b had no test above `recordTaskAcceptance` itself, which is
+  why three stacked blocks could ship green; the new regression walks the real
+  dispatch chain -- parent turn, delegate, accept, assert the record -- and fails
+  on each of the three in turn.
 - The canary itself was wrong twice, which is the reusable finding. The
   elicitation prompt was sent while the delegation turn was still streaming, so
   `ChatNotifier` queued it and it never became a turn — one `Initial tools:`
@@ -3864,6 +3873,13 @@ model.
   Later the call *was* attempted and refused by a code the capture did not look
   for. It now counts delivery and attempts, and "never asked", "attempted and
   recorded none" and "never attempted" read differently (`d2cb2a625`).
+
+What is still unobserved live is an acceptance, and the reason is now the
+scenario rather than the code: the elicitation turn is delivered by cancelling the
+delegation turn, so the child never finishes, and a parent with no finished result
+to judge is right not to accept one. Handing it a completed child means either
+waiting past the settle budget or constructing the state, which is a scenario
+decision rather than a defect.
 
 The extraction note above also resolved itself the other way: the write path
 landed without touching `conversations_notifier.dart`, and the extraction this
