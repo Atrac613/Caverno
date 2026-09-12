@@ -161,6 +161,15 @@ SIGNATURES = {
         # proves the block reached a real parent turn.
         "match": lambda s: "Delegated results awaiting your judgement" in s,
     },
+    "subagent_task_unknown": {
+        "commit": "f59c47e9a",
+        "what": "an unknown child id is answered with the ids that exist",
+        # The turn-survival rule shipped beside this one leaves no string at all
+        # -- its evidence is an abort that does not happen -- so this row is the
+        # closest thing to a witness for both: the refusal it names is one of the
+        # codes that now keeps a turn alive.
+        "match": lambda s: "subagent_task_unknown" in s,
+    },
     "policy_refusal_not_approval": {
         "commit": "f6bc075eb",
         "what": "an aborting policy refusal is named as one, not as an approval",
