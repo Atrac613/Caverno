@@ -113,6 +113,7 @@ import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_planning_prompt_service.dart';
 import '../../domain/services/create_routine_tool_handler.dart';
 import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/delegated_result_digest.dart';
 import '../../domain/services/duplicate_recovery_prompt_builder.dart';
 import '../../domain/services/duplicate_tool_result_recovery.dart';
 import '../../domain/services/enabled_skill_named_in_text.dart';

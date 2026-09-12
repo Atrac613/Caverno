@@ -101,6 +101,16 @@ extension ChatNotifierPromptContext on ChatNotifier {
       workflowSpec: currentConversation?.projectedWorkflowSpec,
       planArtifact: currentConversation?.planArtifact,
       executionSnapshot: executionSnapshot,
+      delegatedResults: currentConversation == null
+          ? const <String>[]
+          : const DelegatedResultDigest().summaries(
+              children: ref
+                  .read(subagentTaskNotifierProvider)
+                  .tasksForConversation(currentConversation.id),
+              acceptedTaskIds: currentConversation.taskAcceptances
+                  .map((acceptance) => acceptance.taskId)
+                  .toSet(),
+            ),
       isVoiceMode: _isVoiceMode,
       agentsMarkdown: _loadAgentsMd(resolvedAssistantMode, projectRoot),
       skillsContext: _buildSkillsPromptContext(toolNames),

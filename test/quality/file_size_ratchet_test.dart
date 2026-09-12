@@ -61,7 +61,12 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
   // whole point of giving it a tool to record one with.
-  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 41,
+  // +14, to 55: the parent is told which children are waiting to be judged. The
+  // block is the counterpart of the delegation queue above it and belongs beside
+  // it -- both answer "what is in front of you right now" for the same role, and
+  // the empty-list rendering is the same decision for the same measured reason.
+  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 55,
+  'lib/features/chat/domain/services/delegated_result_digest.dart': 37,
   // +1 for a ToolResultOrigin declaration, on the same grounds as the eight
   // entries further down: the marker cannot be extracted anywhere, because
   // being at the producer is the whole point. This one was found by the
@@ -982,7 +987,11 @@ const Map<String, int> _libraryLineBudgets = {
   // about which children exist, and the parent lost the evidence it was asked to
   // judge -- it was told not_found and re-delegated the task. The lookup is four
   // lines and the reason is the rest.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19824,
+  // +11, to 19,835: the prompt context hands the digest the children and the
+  // acceptances it needs. The summarising itself left for
+  // delegated_result_digest.dart; what stays is the two provider reads, which
+  // cannot leave a file that is the only one holding `ref`.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19835,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

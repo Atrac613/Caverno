@@ -27,6 +27,20 @@ abstract final class AnabasisParentPromptBlock {
       'settle a material assumption or an open question first; that is work '
       'only they can do.';
 
+  /// Children the parent has delegated and not yet judged.
+  ///
+  /// Rendered even when empty, for the same reason the queue is: the parent
+  /// invented child ids when nothing named them, and an explicit "none" is what
+  /// makes an absence readable rather than a gap to fill.
+  static String delegatedResults(List<String> summaries) {
+    final lines = summaries.isEmpty
+        ? '- none'
+        : summaries.map((summary) => '- $summary').join('\n');
+    return 'Delegated results awaiting your judgement (read one back with '
+        'get_subagent_result using its child_id, then accept_task when the '
+        'evidence holds):\n$lines';
+  }
+
   /// The tasks that could be delegated right now.
   ///
   /// Rendered as work already cleared rather than as a menu to work through:

@@ -967,12 +967,16 @@ Dart symbols:
       ],
     );
 
-    String promptFor(ModelUsageRole role) {
+    String promptFor(
+      ModelUsageRole role, {
+      List<String> delegatedResults = const <String>[],
+    }) {
       return role.runWith(
         () => SystemPromptBuilder.build(
           now: DateTime.utc(2026, 9, 4, 1),
           assistantMode: AssistantMode.coding,
           executionSnapshot: snapshot,
+          delegatedResults: delegatedResults,
         ),
       );
     }
@@ -1006,6 +1010,34 @@ Dart symbols:
       );
     });
 
+    // Measured: asked in a later turn to judge the child's result, the parent
+    // invented plausible ids because nothing named the real one, got nothing
+    // back, and re-delegated work it had already delegated.
+    test('is told which children are waiting to be judged', () {
+      final prompt = promptFor(
+        ModelUsageRole.anabasisParent,
+        delegatedResults: const [
+          'Scaffold the CLI [child_id: child-a] [workflow_task_id: t1] — completed',
+        ],
+      );
+
+      expect(prompt, contains('Delegated results awaiting your judgement'));
+      expect(prompt, contains('[child_id: child-a]'));
+    });
+
+    test('an empty list says so rather than saying nothing', () {
+      final prompt = promptFor(ModelUsageRole.anabasisParent);
+
+      expect(prompt, contains('Delegated results awaiting your judgement'));
+      expect(
+        prompt,
+        contains('- none'),
+        reason:
+            'Silence is what the parent filled with an invented child id; an '
+            'explicit none is readable.',
+      );
+    });
+
     test('an ordinary turn gets neither', () {
       final prompt = promptFor(ModelUsageRole.chat);
 
@@ -1017,6 +1049,7 @@ Dart symbols:
             'A delegation queue in an ordinary turn reads as a suggestion to '
             'spawn children.',
       );
+      expect(prompt, isNot(contains('Delegated results awaiting')));
     });
   });
 }

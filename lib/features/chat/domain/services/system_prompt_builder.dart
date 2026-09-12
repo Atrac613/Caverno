@@ -37,6 +37,7 @@ class SystemPromptBuilder {
     ConversationWorkflowSpec? workflowSpec,
     ConversationPlanArtifact? planArtifact,
     ExecutionSnapshot? executionSnapshot,
+    List<String> delegatedResults = const <String>[],
     bool isVoiceMode = false,
     String? agentsMarkdown,
     String? skillsContext,
@@ -126,7 +127,9 @@ class SystemPromptBuilder {
       // Only the parent gets the delegation queue. An ordinary turn would read
       // it as a suggestion to spawn children.
       final delegatable = executionSnapshot?.delegatableTasks ?? const [];
-      buffer.writeln(AnabasisParentPromptBlock.delegatableTasks(delegatable));
+      buffer
+        ..writeln(AnabasisParentPromptBlock.delegatableTasks(delegatable))
+        ..writeln(AnabasisParentPromptBlock.delegatedResults(delegatedResults));
     }
     buffer
       ..writeln(SystemPromptConstants.researchHonestyInstruction)
