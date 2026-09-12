@@ -127,6 +127,21 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
     timeout: scenario.followUpSettleTimeout,
   );
   appLog('[Scenario] Follow-up turn settled=$settled');
+  // Measured again on the way out. The queue has twice been non-empty here and
+  // empty in the very prompt the turn then built, with both conversation copies
+  // agreeing beforehand. If it is empty now too, something inside the turn
+  // closed it; if it is still open, the prompt is being built from something
+  // else. Either answer names the next place to look.
+  final afterConversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  appLog(
+    '[Scenario] After the turn: '
+    'candidates=${afterConversation == null ? -1 : const TaskDelegationBriefBuilder().candidates(afterConversation).length} '
+    'projected=${const ExecutionSnapshotProjector().project(afterConversation).delegatableTasks.length} '
+    'openQuestionsUnresolved=${afterConversation?.unresolvedOpenQuestionProgress.length ?? -1} '
+    'specQuestions=${afterConversation?.effectiveWorkflowSpec.openQuestions.length ?? -1}',
+  );
 
   return PlanModeFollowUpTurnResult(
     requested: true,
