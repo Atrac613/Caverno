@@ -995,7 +995,13 @@ const Map<String, int> _libraryLineBudgets = {
   // acceptances it needs. The summarising itself left for
   // delegated_result_digest.dart; what stays is the two provider reads, which
   // cannot leave a file that is the only one holding `ref`.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19835,
+  // +17, to 19,852: a policy refusal no longer ends the turn. Five lines of
+  // control flow and twelve of reason, because the line that looks wrong from
+  // outside is the one that lets a refused call be re-issued -- and the reason
+  // it is right (the refusal still stands, the iteration cap still bounds it,
+  // an approval denial still aborts) is exactly what a later edit would have to
+  // re-derive before touching it.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19852,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

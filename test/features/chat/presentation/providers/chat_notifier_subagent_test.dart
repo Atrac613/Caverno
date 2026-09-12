@@ -122,7 +122,12 @@ class _SubagentScriptedDataSource implements ChatDataSource {
     this.parentFinalChunks = const ['Parent final answer'],
     this.failChildAfterTools = false,
     ChatCompletionResult? childToolResultFollowUp,
-  }) : _childCompletions = Queue<ChatCompletionResult>.from(childCompletions),
+    List<ChatCompletionResult> parentToolResultFollowUps =
+        const <ChatCompletionResult>[],
+  }) : _parentToolResultFollowUps = Queue<ChatCompletionResult>.from(
+         parentToolResultFollowUps,
+       ),
+       _childCompletions = Queue<ChatCompletionResult>.from(childCompletions),
        childToolResultFollowUp =
            childToolResultFollowUp ??
            ChatCompletionResult(content: '', finishReason: 'stop');
@@ -132,6 +137,10 @@ class _SubagentScriptedDataSource implements ChatDataSource {
   /// calls: the cross-turn reads are the ones that broke.
   List<ToolCallInfo> parentInitialToolCalls;
   final Queue<ChatCompletionResult> _childCompletions;
+
+  /// What the parent says after each tool batch, so a turn can be driven past
+  /// the first one. Empty means the turn ends after one batch, as before.
+  final Queue<ChatCompletionResult> _parentToolResultFollowUps;
   final List<String> parentFinalChunks;
   final ChatCompletionResult childToolResultFollowUp;
 
@@ -211,7 +220,10 @@ class _SubagentScriptedDataSource implements ChatDataSource {
       return childToolResultFollowUp;
     }
     parentToolResultBatches.add(List<ToolResultInfo>.from(toolResults));
-    return ChatCompletionResult(content: '', finishReason: 'stop');
+    if (_parentToolResultFollowUps.isEmpty) {
+      return ChatCompletionResult(content: '', finishReason: 'stop');
+    }
+    return _parentToolResultFollowUps.removeFirst();
   }
 
   @override
@@ -853,6 +865,80 @@ void main() {
               'outlive the turn that produced it.',
         );
         expect(readBack.result, contains('Created pubspec.yaml'));
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+  test(
+    'a twice-refused parent keeps the turn and delegates instead',
+    () async {
+      // Measured: a parent lost a whole turn to a compound shell expression the
+      // harness asked it to split, and another to a tool its own prompt told it
+      // to use. A policy refusal names a different call to make, so ending the
+      // turn takes away the one move that was left.
+      final write = ToolCallInfo(
+        id: 'write',
+        name: 'write_file',
+        arguments: const {'path': 'bin/todo.dart', 'content': '// ...'},
+      );
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [write],
+        childCompletions: [
+          ChatCompletionResult(
+            content: 'Wrote bin/todo.dart.',
+            finishReason: 'stop',
+          ),
+        ],
+        parentToolResultFollowUps: [
+          // The same refused call again: the second one used to end the turn.
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [write],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'delegate',
+                name: 'spawn_subagent',
+                arguments: const {
+                  'description': 'Write the entry point',
+                  'prompt': 'Create bin/todo.dart and report what you wrote.',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        parentFinalChunks: const ['Delegated the write.'],
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SubagentTestToolService(),
+      );
+      try {
+        await container
+            .read(chatNotifierProvider.notifier)
+            .sendMessage('@anabasis Create the entry point.');
+
+        final results = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .toList();
+        expect(
+          results.where((result) => result.name == 'write_file'),
+          hasLength(2),
+          reason: 'Both writes are still refused; that is the boundary working.',
+        );
+        expect(
+          results.where((result) => result.name == 'spawn_subagent'),
+          hasLength(1),
+          reason:
+              'The refusal names delegation as the next action, and the turn '
+              'has to survive long enough for the parent to take it.',
+        );
+        expect(dataSource.childRequests, isNotEmpty);
       } finally {
         container.dispose();
       }

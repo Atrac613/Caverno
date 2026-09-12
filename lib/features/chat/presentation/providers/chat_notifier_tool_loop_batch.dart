@@ -566,6 +566,23 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           final isDenial = disposition == ToolResultDisposition.approvalDenied;
           // Final like a denied approval to the loop; not one to the reader.
           final policyRefusal = _toolFailureClassifier.policyRefusal(result);
+          if (policyRefusal != null &&
+              policyRefusal.requiredAction.isNotEmpty) {
+            // A policy refusal names a *different* call to make, so ending the
+            // turn takes away the one move that was left. Measured: an Anabasis
+            // parent lost a whole turn to a compound shell expression it was
+            // asked to split, and another to a tool its own prompt told it to
+            // use. The refusal still stands -- the call does not run, and the
+            // loop's own iteration cap bounds a model that ignores the
+            // instruction. An approval denial keeps aborting: there the answer
+            // came from the user, and continuing only asks them again.
+            appLog(
+              '[Tool] ${toolCall.name} refused by policy '
+              '(${policyRefusal.code}) $failureCount times; the refusal names '
+              'a next action, so the turn continues',
+            );
+            continue;
+          }
           appLog(
             '[Tool] Same tool (${toolCall.name}) '
             '${isDenial ? 'was denied' : 'failed'} '
