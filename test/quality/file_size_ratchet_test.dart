@@ -724,7 +724,23 @@ const Map<String, int> _lineBudgets = {
   // its own.
   // -28: collecting the files a conversation owns is per-message string work
   // with no notifier state, and deletion is the only caller.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1775,
+  // -101, measured at 1,674: the two progress writers nothing subclasses --
+  // validation-from-tool-results and open questions -- moved to
+  // conversations_notifier_progress_writers.dart. The task-progress writers
+  // stayed, and the reason is a language constraint worth recording: a part
+  // file cannot hold part of a class, so the part's members are an extension,
+  // and an extension member cannot be reached through `super`. Two test doubles
+  // override those two, and moving them failed with "Superclass has no method
+  // named ...". The ceiling follows the move all the way down: this file sat at
+  // exactly 1,775 of 1,775, and leaving the freed space here would let the next
+  // progress writer land back in it. ANA3 PR 2b should raise the part's budget
+  // below, or introduce a real collaborator for the overridden pair.
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1674,
+  // The progress writers' own ceiling, raised deliberately and with a reason
+  // when a writer is added -- which is the point of giving them a file with a
+  // budget of their own.
+  'lib/features/chat/presentation/providers/conversations_notifier_progress_writers.dart':
+      128,
   'lib/features/chat/presentation/providers/conversations_state.dart': 82,
   'lib/features/chat/domain/services/conversation_attachment_paths.dart': 46,
   'lib/features/chat/domain/services/conversation_checkpoint_recorder.dart': 50,

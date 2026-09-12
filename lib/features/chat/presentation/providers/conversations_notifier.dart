@@ -35,6 +35,8 @@ import 'mcp_tool_provider.dart';
 
 export 'conversations_state.dart';
 
+part 'conversations_notifier_progress_writers.dart';
+
 /// Provider for `ConversationsNotifier`.
 final conversationsNotifierProvider =
     NotifierProvider<ConversationsNotifier, ConversationsState>(
@@ -50,8 +52,7 @@ typedef ConversationAttachmentCleanup =
 
 final conversationAttachmentCleanupProvider =
     Provider<ConversationAttachmentCleanup>(
-      (ref) =>
-          AttachmentStorageService.deleteOwnedAttachments,
+      (ref) => AttachmentStorageService.deleteOwnedAttachments,
     );
 
 /// Default title for new conversations (used as a sentinel for auto-title).
@@ -1387,67 +1388,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     }
   }
 
-  Future<bool> updateCurrentValidationProgressFromToolResults({
-    required ConversationWorkflowTask task,
-    required Iterable<ConversationValidationToolResultInput> toolResults,
-  }) async {
-    final conversation = state.currentConversation;
-    if (conversation == null) {
-      return false;
-    }
-
-    final inference = ConversationValidationToolResultInference.infer(
-      task: task,
-      toolResults: toolResults,
-    );
-    if (inference == null) {
-      return false;
-    }
-
-    final previousProgress = conversation.executionProgressForTask(task.id);
-    final preservesCompletedValidation =
-        previousProgress?.status == ConversationWorkflowTaskStatus.completed &&
-        inference.validationStatus ==
-            ConversationExecutionValidationStatus.passed &&
-        inference.status != ConversationWorkflowTaskStatus.blocked;
-
-    await updateCurrentExecutionTaskProgress(
-      taskId: task.id,
-      status: preservesCompletedValidation
-          ? ConversationWorkflowTaskStatus.completed
-          : inference.status,
-      allowStatusRegression: !preservesCompletedValidation,
-      summary: inference.summary,
-      blockedReason: inference.status == ConversationWorkflowTaskStatus.blocked
-          ? inference.blockedReason ?? ''
-          : '',
-      validationStatus: inference.validationStatus,
-      lastValidationAt: DateTime.now(),
-      lastValidationCommand: inference.validationCommand,
-      lastValidationSummary: inference.validationSummary,
-      eventType: ConversationExecutionTaskEventType.validated,
-      eventSummary: inference.summary,
-    );
-
-    if (!conversation.shouldPreferPlanDocument) {
-      return true;
-    }
-
-    if (inference.status == ConversationWorkflowTaskStatus.completed) {
-      await updateCurrentWorkflow(
-        workflowStage: ConversationWorkflowStage.review,
-        preserveWorkflowProjection: true,
-      );
-      return true;
-    }
-
-    await updateCurrentWorkflow(
-      workflowStage: ConversationWorkflowStage.implement,
-      preserveWorkflowProjection: true,
-    );
-    return true;
-  }
-
   bool _hasLockedTerminalCompletion(
     ConversationExecutionTaskProgress? progress,
   ) {
@@ -1520,47 +1460,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       eventSummary: summary,
       eventTimestamp: createdAt,
     );
-  }
-
-  Future<void> updateCurrentOpenQuestionProgress({
-    required String question,
-    required ConversationOpenQuestionStatus status,
-    String? note,
-  }) async {
-    final conversation = state.currentConversation;
-    if (conversation == null) {
-      return;
-    }
-
-    final normalizedQuestion = question.trim();
-    if (normalizedQuestion.isEmpty) {
-      return;
-    }
-
-    final questionId = Conversation.openQuestionIdFor(normalizedQuestion);
-    final progress = [...conversation.effectiveOpenQuestionProgress];
-    final index = progress.indexWhere(
-      (entry) => entry.questionId == questionId,
-    );
-    final nextEntry = ConversationOpenQuestionProgress(
-      questionId: questionId,
-      question: normalizedQuestion,
-      status: status,
-      note: note?.trim() ?? (index >= 0 ? progress[index].note : ''),
-      updatedAt: DateTime.now(),
-    );
-
-    if (index >= 0) {
-      progress[index] = nextEntry;
-    } else {
-      progress.add(nextEntry);
-    }
-
-    final updatedConversation = conversation.copyWith(
-      openQuestionProgress: progress,
-      updatedAt: DateTime.now(),
-    );
-    await _persistUpdatedConversation(updatedConversation);
   }
 
   Future<void> retainOpenQuestionProgress(Iterable<String> questions) async {
