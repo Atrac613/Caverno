@@ -152,6 +152,28 @@ SIGNATURES = {
         # the task, so this is the durable trace.
         "match": lambda s: '"accepted_task_id"' in s,
     },
+    "policy_refusal_not_approval": {
+        "commit": "f6bc075eb",
+        "what": "an aborting policy refusal is named as one, not as an approval",
+        # The branch that was wrong is the one worth watching. A refusal used to
+        # abort with "was blocked by approval ... Approve it manually" and
+        # "Reason: null", which sent the reader after a dialog that does not
+        # exist and printed null over the refusal's own required_action. Match
+        # the new wording rather than the absence of the old: an absence fires
+        # on every log that never aborted at all.
+        "match": lambda s: "was refused by policy (" in s,
+    },
+    "parent_records_its_own_judgement": {
+        "commit": "81aea8858",
+        "what": "the parent runs a bookkeeping tool the authority guard used to refuse",
+        # Distinct from anabasis_acceptance_recorded on purpose: that one fires
+        # only when an acceptance is written, and this fires when the parent gets
+        # as far as the handler at all. The two guards between them left
+        # accept_task with no caller, so "attempted" and "recorded" were
+        # indistinguishable in the corpus -- both simply absent.
+        "match": lambda s: '"name":"accept_task"' in s
+        or '\\"name\\":\\"accept_task\\"' in s,
+    },
     "material_assumption_confirmation": {
         "commit": "0e60696e",
         "what": "a material contract assumption stops a mutation and is asked about",
