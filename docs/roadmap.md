@@ -59,17 +59,28 @@ not a global commitment to start all candidates.
 
 ### Recommended Next Slice
 
-First close ANA2's repaired queue evidence gap. Main `012ee320b` fixed
-model-written title and assumption-text references that previously compared
-against generated ids. Verify the parser-to-readiness-to-snapshot path before
-building on that queue, then observe a planned parent turn with a non-empty
-queue and the expected premises. A passing offline test does not establish
-that the live parent selects and delegates the candidate.
+ANA2's evidence gap closed 2026-09-12 and the milestone is `done`:
+`anabasis_delegation_admitted` fired live, and
+`tool/run_anabasis_delegation_live_canary.sh` makes the observation repeatable
+from one command.
 
-After that evidence, prioritize ANA3 PR 2b: record the parent's semantic
-acceptance through one guarded writer. Inspect the three ratcheted files
-identified under ANA3 before implementation. Keep stored execution-state
-separation (PR 3) and ANA4 workspace UI as separate slices.
+ANA3 PR 2b is the next slice: record the parent's semantic acceptance through
+one guarded writer. Its blocker has narrowed and been measured rather than
+assumed — `chat_notifier.dart` and the notifier library now carry 13 and 17
+lines, and the one binding ceiling is `conversations_notifier.dart` at 1,775 of
+1,775. Start with the extraction, not the feature.
+
+**Extract the `updateCurrent*` family**, measured 2026-09-12: the file has no
+part files and 57 methods, of which `updateCurrent*` is 7 methods and roughly
+382 lines — enough to free the ceiling, and the right seam for a second reason.
+Those seven are exactly where PR 2b has to write (`…OpenQuestionProgress`,
+`…ExecutionTaskProgress`, `…Workflow`, `…PlanArtifact`), so moving them to one
+collaborator puts §10's "one writer per state" into the file layout instead of
+leaving it as a rule. `validationStatus` already has three writers, one judging
+prose; this is the arrangement that stops a fourth.
+
+Keep stored execution-state separation (PR 3) and ANA4 workspace UI as separate
+slices.
 
 This is an implementation recommendation, not a release sign-off. Security
 promotion gates below still apply. Keep one implementation slice active.
@@ -85,7 +96,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
-| Anabasis | ANA2 | current | Delegate ready tasks through the existing subagent and worktree runners. | Mapping, premise briefs, and contradiction policies landed in `6218b6440`; the parent prompt consumes the queue. Observe a planned coding thread with non-empty candidates before closing the integration evidence gap. Free-form delegation alone does not exercise that queue. |
+| Anabasis | ANA2 | done | Delegate ready tasks through the existing subagent and worktree runners. | All three PRs plus the live observation are complete. `anabasis_delegation_admitted` fired 2026-09-12 on run 9 of `tool/run_anabasis_delegation_live_canary.sh`: the parent was offered two ready tasks, selected one, and its saved contract reached a child running a real command, with no refusal in the run. The canary is the repeatable form of that observation and reports the queue size, so a parent that declines stays distinguishable from a parent shown nothing. |
 | Anabasis | ANA3 | current | Separate produced, verified, and accepted results with explicit ownership and evidence. | PR 1 and PR 2a landed: mechanical/evidence audit plus the acceptance record and parent acceptance gate. Next is PR 2b: give the parent one guarded write path for its semantic judgment; inspect the three file-size budgets before implementation. Stored execution-state separation remains PR 3. |
 | Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Reopened and mostly built 2026-09-09, after a device check showed the local path cannot reach a suspended app at all: iOS holds no background mode that keeps a WebSocket alive, and `beginBackgroundTask` is called only by `ChatNotifier`, so a backgrounded phone receives nothing to raise a notification from. The payload blocker is closed — `RemoteCodingApprovalNotificationPayload` carries an allow-listed kind and a `hasWarning` boolean and no command text, path, or warning prose, with the displayed lines composed from closed sets. The relay validates the new shape independently and was deployed to `caverno-4977f` (revision 3). The desktop sends from the `approvalRequested` site, gated per device by the same `_canResolveInteraction` the snapshot uses. Verified end to end on hardware 2026-09-09: a desktop approval reaches a backgrounded iPhone and Approve on the lock screen resolves it in 438ms, closing the desktop's dialog. Four things had to be fixed first, each invisible without a device — the App Check App Attest provider and APNs auth key were unregistered, a background notification action cold-launched a Flutter app headless and took SIGSEGV, the press was read from a key only local notifications carry, and the answer checked `isConnected` 25ms before the approval arrived. The file log sink was writing nowhere on iOS, which is why none of it was diagnosable; that is fixed too. Withdrawal shipped and was verified on hardware 2026-09-10, after the first attempt failed on a device: a sweep driven by a snapshot listener cannot fire in the one scenario it exists for, because a suspended phone sees no snapshot change. The desktop now sends a silent `remote_coding_approval_resolved` push, handled natively on iOS, and the lock-screen notification clears on its own when the desktop resolves the request. What is left is the device matrix. |
 
@@ -3275,7 +3286,7 @@ serial chain. And not one of them could ever be satisfied.
 
 ### ANA2: Delegate
 
-Status: `current`
+Status: `done`
 
 Integration regression added after `012ee320b`:
 `test/features/chat/domain/services/parsed_plan_delegation_test.dart` feeds

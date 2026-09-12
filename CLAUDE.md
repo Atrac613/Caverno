@@ -91,11 +91,19 @@ tool/sec_verify_logs.sh
 python3 tool/triage_session_logs.py --top 10 [--since-days N]
 
 # Check whether a shipped harness change has actually fired in a real session,
-# rather than only in its unit tests. Reports each registered signature as
-# observed / not yet observed, qualified by git ancestry so a hit from a build
-# that predates the change is flagged as a coincidence. Add a row to
+# rather than only in its unit tests. Qualified by git ancestry, so a hit from a
+# build that predates the change is flagged as a coincidence. Add a row to
 # SIGNATURES when a change ships.
+#
+# Two corpora are scanned and kept apart, because "used" and "reachable" are
+# different claims: ~/.caverno/session_logs (real sessions) reports FIRED, and
+# build/integration_test_reports (live canaries) reports FIRED (canary only).
+# A canary never raises the in-the-wild count. Passing --dir scans only that
+# directory, as a real-session corpus -- which is what the canary runners use to
+# judge one run in isolation.
 python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
+python3 tool/check_fix_firings.py --no-canaries   # real sessions only
+python3 test/python/check_fix_firings_test.py     # its own tests, no Flutter
 ```
 
 ## Agent Output Policy

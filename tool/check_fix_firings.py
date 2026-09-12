@@ -15,10 +15,20 @@ Extend SIGNATURES when a change ships. A row is worth adding when the change
 leaves a distinctive string in the log; changes whose only evidence is absence
 (a notice that stops appearing) do not fit this instrument.
 
+Two corpora are scanned, and kept apart. Real sessions answer "has this fired
+in use"; the live canaries under build/integration_test_reports answer the
+weaker but distinct question "is this path reachable at all". Merging them would
+let a fixture pass for usage; omitting the canaries -- which is what this tool
+did until 2026-09-12 -- reports a path as unobserved after a canary has just
+proved it, which is how ANA2's closed evidence gap kept reading as open.
+
 Usage:
     python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
+                                      [--canary-dir DIR] [--no-canaries]
 
-Honors CAVERNO_SESSION_LOG_DIR; defaults to ~/.caverno/session_logs.
+Honors CAVERNO_SESSION_LOG_DIR; defaults to ~/.caverno/session_logs for real
+sessions and <repo>/build/integration_test_reports for canary runs. Passing
+--dir scans only that directory, as a real-session corpus.
 """
 
 import argparse
@@ -194,12 +204,34 @@ def main():
         ),
     )
     parser.add_argument("--repo", default=os.getcwd())
+    parser.add_argument(
+        "--canary-dir",
+        default=None,
+        help="Live canary report root (default: <repo>/build/integration_test_reports).",
+    )
+    parser.add_argument(
+        "--no-canaries",
+        action="store_true",
+        help="Scan real sessions only.",
+    )
     args = parser.parse_args()
 
-    logs = sorted(
-        glob.glob(os.path.join(args.dir, "**", "*.jsonl"), recursive=True),
-        key=os.path.getmtime,
-    )
+    # An explicit --dir means "scan exactly this", which is what the canary
+    # runners pass to judge one run in isolation.
+    explicit_dir = any(arg.startswith("--dir") for arg in sys.argv[1:])
+    roots = [(args.dir, "wild")]
+    if not args.no_canaries and not explicit_dir:
+        canary_dir = args.canary_dir or os.path.join(
+            args.repo, "build", "integration_test_reports"
+        )
+        if os.path.isdir(canary_dir):
+            roots.append((canary_dir, "canary"))
+
+    logs = []
+    for root, origin in roots:
+        for path in glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True):
+            logs.append((path, origin))
+    logs.sort(key=lambda row: os.path.getmtime(row[0]))
     if not logs:
         print(f"no session logs under {args.dir}", file=sys.stderr)
         return 1
@@ -207,9 +239,10 @@ def main():
     hits = {name: [] for name in SIGNATURES}
     eligible = {name: 0 for name in SIGNATURES}
 
-    for path in logs:
+    for path, origin in logs:
         try:
-            entries = [json.loads(line) for line in open(path) if line.strip()]
+            with open(path, encoding="utf-8") as handle:
+                entries = [json.loads(line) for line in handle if line.strip()]
         except (OSError, ValueError):
             continue
         if not entries:
@@ -224,35 +257,56 @@ def main():
             if could:
                 eligible[name] += 1
             if signature["match"](blob):
-                hits[name].append((os.path.basename(path)[:8], commit, could))
+                hits[name].append(
+                    (os.path.basename(path)[:8], commit, could, origin)
+                )
 
-    print(f"scanned {len(logs)} logs under {args.dir}\n")
+    scanned = ", ".join(
+        f"{sum(1 for _, o in logs if o == origin)} {origin}"
+        for _, origin in roots
+    )
+    print(f"scanned {len(logs)} logs ({scanned})\n")
     unproven = 0
     for name, signature in SIGNATURES.items():
         rows = hits[name]
         confirmed = [row for row in rows if row[2] is True]
+        wild = [row for row in confirmed if row[3] == "wild"]
+        canary = [row for row in confirmed if row[3] == "canary"]
         stale = [row for row in rows if row[2] is False]
         unknown = [row for row in rows if row[2] is None]
-        if not confirmed:
+        if not wild:
             unproven += 1
-        print(
-            f"[{'FIRED' if confirmed else 'not yet observed'}] {name}  "
-            f"({signature['commit']})"
-        )
+        # Three verdicts, because "reachable" and "used" are different claims
+        # and only the first is what a canary can establish.
+        if wild:
+            verdict = "FIRED"
+        elif canary:
+            verdict = "FIRED (canary only)"
+        else:
+            verdict = "not yet observed"
+        print(f"[{verdict}] {name}  ({signature['commit']})")
         print(f"    {signature['what']}")
         print(f"    logs on a build that could produce it: {eligible[name]}")
-        for log, commit, _ in confirmed:
-            print(f"    confirmed: {log} (build {commit})")
-        for log, commit, _ in stale:
+        for log, commit, _, origin in confirmed:
+            print(f"    confirmed: {log} (build {commit}, {origin})")
+        for log, commit, _, _origin in stale:
             print(
                 f"    IGNORED: {log} (build {commit} predates it — the "
                 f"signature is a coincidence, not a confirmation)"
             )
-        for log, commit, _ in unknown:
+        for log, commit, _, _origin in unknown:
             print(f"    UNKNOWN BUILD: {log} (build {commit} not in this repo)")
         print()
 
+    canary_only = sum(
+        1
+        for name in SIGNATURES
+        if not [r for r in hits[name] if r[2] is True and r[3] == "wild"]
+        and [r for r in hits[name] if r[2] is True and r[3] == "canary"]
+    )
     print(f"{len(SIGNATURES) - unproven}/{len(SIGNATURES)} observed in the wild")
+    if canary_only:
+        print(f"{canary_only} more proved reachable by a canary only")
     return 0
 
 
