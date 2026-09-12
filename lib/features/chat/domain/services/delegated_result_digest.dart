@@ -13,6 +13,12 @@ import '../entities/subagent_task.dart';
 ///
 /// An already-accepted task is dropped: the parent has judged it, and listing it
 /// again invites a second acceptance of the same work.
+///
+/// **Each id is labelled with the parameter that consumes it, after the first
+/// version labelled them `child_id` / `workflow_task_id` and the parent passed
+/// the *workflow* id to `get_subagent_result` — whose parameter is `task_id`, a
+/// closer match to the wrong label than to `child_id`.** Naming the tool beside
+/// each id is what stops a line that carries two ids from being a guess.
 class DelegatedResultDigest {
   const DelegatedResultDigest();
 
@@ -27,9 +33,9 @@ class DelegatedResultDigest {
             child.description.trim().isEmpty
                 ? 'Delegated work'
                 : child.description.trim(),
-            '[child_id: ${child.id}]',
+            '— get_subagent_result task_id: ${child.id}',
             if (child.workflowTaskId.trim().isNotEmpty)
-              '[workflow_task_id: ${child.workflowTaskId}]',
+              '— accept_task workflow_task_id: ${child.workflowTaskId}',
             '— ${child.status.name}',
           ].join(' '),
     ];

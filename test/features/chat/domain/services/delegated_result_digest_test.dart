@@ -26,8 +26,14 @@ void main() {
     );
 
     expect(summaries, hasLength(1));
-    expect(summaries.single, contains('[child_id: child-a]'));
-    expect(summaries.single, contains('[workflow_task_id: task-1]'));
+    // Labelled by the parameter that consumes it: the first version said
+    // child_id / workflow_task_id, and the parent passed the workflow id to
+    // get_subagent_result, whose parameter is task_id.
+    expect(summaries.single, contains('get_subagent_result task_id: child-a'));
+    expect(
+      summaries.single,
+      contains('accept_task workflow_task_id: task-1'),
+    );
     expect(summaries.single, contains('completed'));
   });
 
@@ -71,7 +77,7 @@ void main() {
       acceptedTaskIds: const {},
     );
 
-    expect(summaries.single, contains('[child_id: child-a]'));
+    expect(summaries.single, contains('get_subagent_result task_id: child-a'));
     expect(summaries.single, isNot(contains('workflow_task_id')));
   });
 }

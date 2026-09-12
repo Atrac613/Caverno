@@ -66,7 +66,11 @@ const Map<String, int> _lineBudgets = {
   // it -- both answer "what is in front of you right now" for the same role, and
   // the empty-list rendering is the same decision for the same measured reason.
   'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 55,
-  'lib/features/chat/domain/services/delegated_result_digest.dart': 37,
+  // +6, to 43, on its first day: the labels became the parameter names the tools
+  // actually take, after a live parent passed the workflow id to
+  // get_subagent_result. The six lines are why -- a format note that reads as
+  // arbitrary is the one a later edit undoes.
+  'lib/features/chat/domain/services/delegated_result_digest.dart': 43,
   // +1 for a ToolResultOrigin declaration, on the same grounds as the eight
   // entries further down: the marker cannot be extracted anywhere, because
   // being at the producer is the whole point. This one was found by the

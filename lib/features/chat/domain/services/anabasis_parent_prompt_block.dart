@@ -36,9 +36,9 @@ abstract final class AnabasisParentPromptBlock {
     final lines = summaries.isEmpty
         ? '- none'
         : summaries.map((summary) => '- $summary').join('\n');
-    return 'Delegated results awaiting your judgement (read one back with '
-        'get_subagent_result using its child_id, then accept_task when the '
-        'evidence holds):\n$lines';
+    return 'Delegated results awaiting your judgement (each id is labelled '
+        'with the tool and parameter that take it; they are not '
+        'interchangeable):\n$lines';
   }
 
   /// The tasks that could be delegated right now.

@@ -1017,12 +1017,12 @@ Dart symbols:
       final prompt = promptFor(
         ModelUsageRole.anabasisParent,
         delegatedResults: const [
-          'Scaffold the CLI [child_id: child-a] [workflow_task_id: t1] — completed',
+          'Scaffold the CLI — get_subagent_result task_id: child-a — completed',
         ],
       );
 
       expect(prompt, contains('Delegated results awaiting your judgement'));
-      expect(prompt, contains('[child_id: child-a]'));
+      expect(prompt, contains('get_subagent_result task_id: child-a'));
     });
 
     test('an empty list says so rather than saying nothing', () {
