@@ -157,6 +157,11 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
     'candidates=${afterConversation == null ? -1 : const TaskDelegationBriefBuilder().candidates(afterConversation).length} '
     'projected=${const ExecutionSnapshotProjector().project(afterConversation).delegatableTasks.length} '
     'openQuestionsUnresolved=${afterConversation?.unresolvedOpenQuestionProgress.length ?? -1} '
+    // Total entries, not just unresolved. Zero unresolved is ambiguous -- it
+    // reads the same whether every question was answered or no entry exists at
+    // all -- and that ambiguity is what currently hides whether something in
+    // the turn wiped the answers and left readiness unmet.
+    'openQuestionEntries=${afterConversation?.effectiveOpenQuestionProgress.length ?? -1} '
     'specQuestions=${afterConversation?.effectiveWorkflowSpec.openQuestions.length ?? -1}',
   );
 
