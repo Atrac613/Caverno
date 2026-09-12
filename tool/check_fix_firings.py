@@ -75,17 +75,32 @@ SIGNATURES = {
         "match": lambda s: "Inspections already made this turn" in s,
     },
     "mutation_digest_section": {
-        "commit": "99c05391",
+        "commit": "6ffb9e5ef",
+        # Was 99c05391 for twelve days, which is on an unmerged branch: every
+        # main-built log failed the ancestry check, so all three rows read
+        # "logs on a build that could produce it: 0" and could never be proven.
+        # A signature has to qualify against the commit that shipped the string,
+        # not the one that wrote it.
         "what": "digest names the files the turn changed",
         "match": lambda s: "Files this turn changed" in s,
     },
     "unchecked_mutation_notice": {
-        "commit": "99c05391",
+        "commit": "6ffb9e5ef",
+        # Was 99c05391 for twelve days, which is on an unmerged branch: every
+        # main-built log failed the ancestry check, so all three rows read
+        # "logs on a build that could produce it: 0" and could never be proven.
+        # A signature has to qualify against the commit that shipped the string,
+        # not the one that wrote it.
         "what": "digest says an edit has had no command or check since",
         "match": lambda s: "no command or check has run since" in s,
     },
     "noop_write_notice": {
-        "commit": "99c05391",
+        "commit": "6ffb9e5ef",
+        # Was 99c05391 for twelve days, which is on an unmerged branch: every
+        # main-built log failed the ancestry check, so all three rows read
+        # "logs on a build that could produce it: 0" and could never be proven.
+        # A signature has to qualify against the commit that shipped the string,
+        # not the one that wrote it.
         "what": "digest flags a write that changed nothing",
         "match": lambda s: "no-op: the file was already exactly this" in s,
     },
