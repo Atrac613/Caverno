@@ -3390,8 +3390,9 @@ false: the prompt and admission paths do **not** resolve different owners
 projected=2`). Per-request tracing showed run 8's queue was already empty in
 the *turn-opening* request rather than flipping mid-turn, so the model had read
 the id from the plan body. That discrepancy between the pre-send measurement
-and the turn-open prompt is unexplained and is not a confirmed defect; the path
-works. A refusal alone does not establish one.
+and the turn-open prompt was called unexplained here for a day; it was a defect,
+and the paragraph below names it. Being careful not to convict the path on a
+refusal alone was still right: the builder and the gate were both innocent.
 
 The canary's verdict is three-way for a reason found the same day: whether the
 queue is non-empty depends on the plan the model writes — an independent first
@@ -3410,6 +3411,31 @@ turn, so a run that had already delegated was killed at 500s while its child
 was running. The queue's window is therefore narrower than "a plan exists" —
 approved, unstarted, and answered — which is the real reason only 2 of 12
 parent sessions ever rendered one.
+
+**The sixth fix was the parent turn eating its own queue, found 2026-09-12 and
+fixed in `8bcf664bc`.** `_markPendingExecutionTaskStarted` runs in
+`_sendMessage` before the system prompt is built, and it marks the execution
+focus task `inProgress` — which is how an ordinary coding turn says it is
+working on something. `TaskDelegationBriefBuilder` offers only `pending` tasks.
+So opening a parent turn removed the task from the queue that same turn, and a
+chain plan — whose single ready task is always the focus task — showed the
+parent an empty Ready block and then refused the id it had read from the plan
+body. The claimed task was the worse half: the parent may not execute it,
+nothing else was going to, and it could never return to `pending`.
+
+This rewrites two claims above. Delegation is **not** gated on the model
+happening to write an independent first task: the run that closed ANA2's gap
+had two ready tasks and survived the claim with one, which is why it passed
+where four single-candidate runs refused. And the 2-of-12 corpus figure is
+partly this defect rather than only the narrow window. Measured on the fix:
+`anabasis_delegation_live_canary_1789198545` offered **one** ready task, carried
+its `[workflow_task_id: …]` into the turn-opening prompt, fired
+`anabasis_delegation_admitted` on build `8bcf664bc`, and logged no
+`anabasis_delegation_not_ready` at all — a pure chain delegating, which was
+impossible the run before. The regression is a notifier test that asserts the
+turn-opening prompt rather than the refusal, because the prompt is what lost the
+queue; the empty-queue exit 77 stays, since a plan whose tasks have all
+completed still offers nothing.
 
 Scope:
 - Map ready tasks onto `spawn_subagent` (in-conversation children, depth fixed

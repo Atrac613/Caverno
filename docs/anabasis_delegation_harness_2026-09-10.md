@@ -25,6 +25,12 @@ No session-log payload or project fixture is committed here.
   selection appends its saved files, validation command and confirmed premises
   to the child instructions. Ordinary delegation and parents without saved
   tasks retain their existing behavior.
+- A parent turn must not start a task itself. Refusing a `running` selection is
+  correct, but the turn-start execution claim used to put the focus task in that
+  state before the parent's prompt was even built, so the refusal fired on a
+  task nothing was running (fixed 2026-09-12, `8bcf664bc`). Any new turn-start
+  bookkeeping has to ask whether it applies to a parent, which delegates rather
+  than works.
 - Child catalogs and both dispatch adapters refuse parent goal updates, even
   if a model emits a hidden tool or rediscovers it through tool search.
 - Foreground command observations no longer accumulate success with boolean
