@@ -7,6 +7,15 @@ import 'immutable_json_snapshot.dart';
 const String spawnSubagentToolName = 'spawn_subagent';
 const String getSubagentResultToolName = 'get_subagent_result';
 
+/// Refusal code for a `get_subagent_result` id that names no child.
+///
+/// A code rather than a bare failure because the answer is actionable and the
+/// call is not broken: measured live, the parent passed a *workflow* task id --
+/// the plan's -- to a tool whose parameter is `task_id`, twice, and the second
+/// failure ended the whole turn as if the tool were unreachable. Naming the ids
+/// that do exist is what turns that into a correction the model can make.
+const String subagentTaskUnknownCode = 'subagent_task_unknown';
+
 /// Exact identity of one parent subagent-tool invocation.
 final class SubagentToolInvocation {
   SubagentToolInvocation({

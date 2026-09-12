@@ -1001,7 +1001,15 @@ const Map<String, int> _libraryLineBudgets = {
   // it is right (the refusal still stands, the iteration cap still bounds it,
   // an approval denial still aborts) is exactly what a later edit would have to
   // re-derive before touching it.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19852,
+  // +15, to 19,867: an unknown child id answers with the ids that exist. The
+  // payload has to be built where the registry is read, so it cannot move; the
+  // code and its reasoning went to subagent_tool_contract.dart instead.
+  //
+  // Six raises in one day, +70 in total, is a signal in its own right: this
+  // library is where the Anabasis parent's every seam lands. The next Anabasis
+  // slice should start by extracting the subagent handlers, not by paying here
+  // again.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19867,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

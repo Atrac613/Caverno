@@ -20,6 +20,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
+import 'package:caverno/features/chat/domain/services/subagent_tool_contract.dart';
 import 'package:caverno/features/chat/domain/services/successful_read_result_replay_cache.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -859,7 +860,7 @@ void main() {
             .singleWhere((result) => result.name == 'get_subagent_result');
         expect(
           readBack.result,
-          isNot(contains('not_found')),
+          isNot(contains('"status":"not_found"')),
           reason:
               'A result the parent is asked to judge in a later turn has to '
               'outlive the turn that produced it.',
@@ -939,6 +940,76 @@ void main() {
               'has to survive long enough for the parent to take it.',
         );
         expect(dataSource.childRequests, isNotEmpty);
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+  test(
+    'an unknown child id names the ids that exist',
+    () async {
+      // Measured live: the parent passed a workflow task id -- the plan's -- to
+      // a tool whose parameter is task_id, twice, and the second failure ended
+      // the turn as if the tool were broken. The answer is actionable, so the
+      // result has to carry it.
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          ToolCallInfo(
+            id: 'delegate',
+            name: 'spawn_subagent',
+            arguments: const {
+              'description': 'Read the spec',
+              'prompt': 'Read todo_app.md and report the commands.',
+            },
+          ),
+        ],
+        childCompletions: [
+          ChatCompletionResult(
+            content: 'The commands are add, list, done, delete.',
+            finishReason: 'stop',
+          ),
+        ],
+        parentFinalChunks: const ['Delegated.'],
+      );
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: _SubagentTestToolService(),
+      );
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage('Delegate the reading.');
+        final childTaskId =
+            (jsonDecode(
+                      dataSource.parentToolResultBatches
+                          .expand((batch) => batch)
+                          .singleWhere(
+                            (result) => result.name == 'spawn_subagent',
+                          )
+                          .result,
+                    )
+                    as Map)['task_id']
+                as String;
+
+        dataSource.parentToolResultBatches.clear();
+        dataSource.parentInitialToolCalls = [
+          ToolCallInfo(
+            id: 'wrong-id',
+            name: 'get_subagent_result',
+            arguments: const {'task_id': 'a-plan-task-id'},
+          ),
+        ];
+        await notifier.sendMessage('What did the child report?');
+
+        final refusal = jsonDecode(
+          dataSource.parentToolResultBatches
+              .expand((batch) => batch)
+              .singleWhere((result) => result.name == 'get_subagent_result')
+              .result,
+        );
+
+        expect(refusal, containsPair('code', subagentTaskUnknownCode));
+        expect(refusal['known_task_ids'], contains(childTaskId));
+        expect(refusal['required_action'], contains('workflow_task_id'));
       } finally {
         container.dispose();
       }

@@ -5,6 +5,7 @@ import '../entities/tool_call_info.dart';
 import 'anabasis_delegation_admission.dart';
 import 'anabasis_parent_authority_guard.dart';
 import 'material_contract_assumption_guard.dart';
+import 'subagent_tool_contract.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
@@ -76,6 +77,7 @@ class ToolFailureClassifier {
     AnabasisParentAuthorityGuard.refusedCode,
     AnabasisDelegationAdmission.refusedCode,
     MaterialContractAssumptionGuard.blockedCode,
+    subagentTaskUnknownCode,
   };
 
   /// Whether [result] is a refusal rather than a failure.

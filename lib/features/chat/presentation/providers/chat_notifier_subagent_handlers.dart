@@ -344,7 +344,21 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     if (task == null) {
       return McpToolResult(
         toolName: toolCall.name,
-        result: jsonEncode({'status': 'not_found', 'task_id': taskId}),
+        result: jsonEncode({
+          'ok': false,
+          'code': subagentTaskUnknownCode,
+          ...ToolResultOrigin.refusal.marker,
+          'status': 'not_found',
+          'task_id': taskId,
+          'known_task_ids': ref
+              .read(subagentTaskNotifierProvider)
+              .tasksForConversation(owner.conversationId)
+              .map((candidate) => candidate.id)
+              .toList(growable: false),
+          'required_action':
+              'Pass a task_id from known_task_ids. A workflow_task_id names a '
+              'task in the plan, not a child that ran.',
+        }),
         isSuccess: false,
         errorMessage: 'No subagent task with id $taskId',
       );
