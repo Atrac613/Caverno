@@ -46,6 +46,7 @@ class ExecutionSnapshot {
     this.waitingTasks = const <String>[],
     this.delegatableTasks = const <String>[],
     this.taskLifecycleStates = const <String, String>{},
+    this.taskAcceptanceSummaries = const <String, String>{},
     this.sourceCount = 0,
     this.sourcedItemCount = 0,
     this.mutationGeneration = 0,
@@ -109,6 +110,11 @@ class ExecutionSnapshot {
   /// [TaskLifecycleProjection]. Derived, never stored: see that class for why
   /// `accepted` must not become a status the enum can carry.
   final Map<String, String> taskLifecycleStates;
+
+  /// Saved task id -> what its acceptance rested on, for the tasks that have
+  /// one. Travels beside [taskLifecycleStates] because `accepted` is the state
+  /// that owes an explanation and cannot derive one.
+  final Map<String, String> taskAcceptanceSummaries;
   final int sourceCount;
   final int sourcedItemCount;
   final int mutationGeneration;
@@ -334,6 +340,7 @@ class ExecutionSnapshot {
       waitingTasks: waitingTasks,
       delegatableTasks: delegatableTasks,
       taskLifecycleStates: taskLifecycleStates,
+      taskAcceptanceSummaries: taskAcceptanceSummaries,
       sourceCount: sourceCount,
       sourcedItemCount: sourcedItemCount,
       mutationGeneration: mutationGeneration,
@@ -513,6 +520,8 @@ class ExecutionSnapshotProjector {
       taskLifecycleStates: const TaskLifecycleProjection().namesByTaskId(
         conversation,
       ),
+      taskAcceptanceSummaries: const TaskLifecycleProjection()
+          .acceptanceSummariesByTaskId(conversation),
       sourceCount: conversation.effectiveWorkflowSpec.sources.length,
       sourcedItemCount: conversation.effectiveWorkflowSpec.provenance
           .where((item) => item.sourceIds.isNotEmpty)

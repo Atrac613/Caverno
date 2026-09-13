@@ -61,8 +61,7 @@ class TaskLifecycleProjection {
         // proved nothing either, so it stays `produced`. Collapsing "nothing to
         // check" into "checked" is how a green light appears for work nobody
         // verified.
-        return validationStatus ==
-                ConversationExecutionValidationStatus.passed
+        return validationStatus == ConversationExecutionValidationStatus.passed
             ? TaskLifecycleState.verified
             : TaskLifecycleState.produced;
     }
@@ -87,6 +86,41 @@ class TaskLifecycleProjection {
           progress?.validationStatus ??
           ConversationExecutionValidationStatus.unknown,
     );
+  }
+
+  /// Saved task id -> what its acceptance rested on and why, for the tasks that
+  /// have one.
+  ///
+  /// **ANA3's purpose statement, finally readable.** PR 2b's claim is that the
+  /// judgement "stops being something the next turn has to redo from the same
+  /// files" -- and until this existed the next turn saw `[accepted]` and nothing
+  /// else: `rationale`, `evidence` and `premises` were written by
+  /// `recordTaskAcceptance` and read by no production code at all, only by their
+  /// own tests. A state name is not a reason.
+  ///
+  /// Evidence first, because it is the part the parent cannot reconstruct: a
+  /// branch name and a command that passed are facts, where the rationale is one
+  /// turn's prose about them. Premises are omitted -- an acceptance that still
+  /// stands has every premise confirmed, since `acceptance_premise_lapsed` bars
+  /// the rest, so listing them would spend prompt on a constant.
+  Map<String, String> acceptanceSummariesByTaskId(Conversation conversation) {
+    final summaries = <String, String>{};
+    for (final acceptance in conversation.taskAcceptances) {
+      final parts = <String>[
+        if (acceptance.evidence.isNotEmpty) acceptance.evidence.join(', '),
+        if (acceptance.rationale.trim().isNotEmpty)
+          _clip(acceptance.rationale.trim()),
+      ];
+      if (parts.isEmpty) continue;
+      summaries[acceptance.taskId] = parts.join(' -- ');
+    }
+    return Map<String, String>.unmodifiable(summaries);
+  }
+
+  /// Model-written prose, so bounded before it reaches another prompt.
+  static String _clip(String text) {
+    final single = text.replaceAll(RegExp(r'\s+'), ' ');
+    return single.length <= 180 ? single : '${single.substring(0, 177)}...';
   }
 
   /// The wire name, which is what a prompt and a log line read.

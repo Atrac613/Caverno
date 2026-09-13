@@ -195,6 +195,16 @@ SIGNATURES = {
         "match": lambda s: "Record the judgement now by calling accept_task"
         in s,
     },
+    "acceptance_evidence_in_prompt": {
+        "commit": "HEAD",
+        "what": "an accepted task tells the next turn what it was accepted on",
+        # ANA3 PR 2b's claim is that the judgement stops being something the
+        # next turn redoes from the same files, and the prompt said `[accepted]`
+        # and nothing else until this line: rationale and evidence were written
+        # and read by no production code. Needs an acceptance to exist first, so
+        # it trails anabasis_acceptance_recorded by construction.
+        "match": lambda s: "accepted on: " in s,
+    },
     "anabasis_premise_lapsed": {
         "commit": "447779ef3",
         "what": "an acceptance is barred because a premise is no longer confirmed",

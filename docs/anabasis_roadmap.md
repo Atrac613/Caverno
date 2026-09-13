@@ -1569,6 +1569,28 @@ landed without touching `conversations_notifier.dart`, and the extraction this
 work actually needed was the guard's exempt-tool list, moved to
 `anabasis_parent_authority_tools.dart` when it stopped being one name.
 
+**The acceptance detail had no production reader either, same pass.**
+`recordTaskAcceptance` writes `rationale`, `evidence` and `premises`; grepping
+for readers found the UI taking a boolean (`accepted: taskAcceptances.any(...)`)
+and the prompt taking a state name, with the three fields read only by their own
+tests. So ANA3 PR 2b's claim -- the judgement "stops being something the next
+turn has to redo from the same files" -- was unearned: the next turn saw
+`[accepted]` and nothing about what it rested on.
+
+A saved task now carries `accepted on: <evidence> -- <rationale>` in the prompt,
+through `TaskLifecycleProjection.acceptanceSummariesByTaskId` and the execution
+snapshot, beside the lifecycle state it explains. Evidence first, because the
+parts differ in kind: a branch name and a command that passed are facts the next
+turn cannot reconstruct, where the rationale is one turn's prose about them.
+Premises are omitted deliberately -- an acceptance that still stands has every
+premise confirmed, since the bar above refuses the rest, so printing them would
+spend prompt on a constant. The rationale is model-written, so it is collapsed to
+one line and clipped at 180 characters before it reaches another prompt.
+Signature: `acceptance_evidence_in_prompt`.
+
+The UI half is still open and is ANA4's third acceptance criterion: the plan row
+knows an acceptance exists and cannot show what it was made on.
+
 **ANA2's contradiction policy was unreachable, found 2026-09-13 while scoping
 ANA4.** `DelegatedPremiseAudit` — a complete, argued policy with its own tests —
 had **no production caller**, and `mayParentAccept`'s `lapsedPremises` parameter

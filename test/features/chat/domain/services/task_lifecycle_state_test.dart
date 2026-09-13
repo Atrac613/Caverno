@@ -8,10 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 const _projection = TaskLifecycleProjection();
 
 Conversation _conversation({
-  ConversationWorkflowTaskStatus status = ConversationWorkflowTaskStatus.pending,
+  ConversationWorkflowTaskStatus status =
+      ConversationWorkflowTaskStatus.pending,
   ConversationExecutionValidationStatus? validationStatus,
   ConversationWorkflowTaskStatus? progressStatus,
   bool accepted = false,
+  List<String> acceptanceEvidence = const [],
+  String acceptanceRationale =
+      'The saved command passed and the output matches.',
   String validationCommand = 'dart test',
 }) {
   return Conversation(
@@ -47,7 +51,8 @@ Conversation _conversation({
         ConversationTaskAcceptance(
           taskId: 'task-1',
           acceptedAt: DateTime(2026, 9, 13),
-          rationale: 'The saved command passed and the output matches.',
+          rationale: acceptanceRationale,
+          evidence: acceptanceEvidence,
         ),
     ],
   );
@@ -144,5 +149,70 @@ void main() {
     );
 
     expect(_projection.namesByTaskId(conversation), {'task-1': 'verified'});
+  });
+  group('what an acceptance rested on', () {
+    test('evidence comes before the rationale', () {
+      // The parts differ in kind: a branch name and a command that passed are
+      // facts the next turn cannot reconstruct, and the rationale is one turn's
+      // prose about them.
+      final conversation = _conversation(
+        accepted: true,
+        acceptanceEvidence: const [
+          'worktree branch feature/cli-flags',
+          'verified green: dart test',
+        ],
+        acceptanceRationale: 'The flags match the spec.',
+      );
+
+      expect(_projection.acceptanceSummariesByTaskId(conversation), {
+        'task-1':
+            'worktree branch feature/cli-flags, verified green: dart test '
+            '-- The flags match the spec.',
+      });
+    });
+
+    test('a task with no acceptance is absent, not empty', () {
+      expect(
+        _projection.acceptanceSummariesByTaskId(_conversation()),
+        isEmpty,
+        reason:
+            'the prompt reads this by id and prints nothing for a miss; an '
+            'empty string for every unaccepted task would be a line of noise '
+            'per task',
+      );
+    });
+
+    test('an acceptance that recorded nothing carries no line', () {
+      final conversation = _conversation(
+        accepted: true,
+        acceptanceRationale: '   ',
+      );
+
+      expect(_projection.acceptanceSummariesByTaskId(conversation), isEmpty);
+    });
+
+    test('a long rationale is clipped before it reaches another prompt', () {
+      final conversation = _conversation(
+        accepted: true,
+        acceptanceRationale: 'x' * 400,
+      );
+      final summary = _projection.acceptanceSummariesByTaskId(
+        conversation,
+      )['task-1']!;
+
+      expect(summary.length, 180);
+      expect(summary, endsWith('...'));
+    });
+
+    test('newlines in model prose collapse to one line', () {
+      final conversation = _conversation(
+        accepted: true,
+        acceptanceRationale: 'It passed.\n\nAnd the files match.',
+      );
+
+      expect(_projection.acceptanceSummariesByTaskId(conversation), {
+        'task-1': 'It passed. And the files match.',
+      });
+    });
   });
 }

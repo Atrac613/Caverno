@@ -573,6 +573,15 @@ class SystemPromptBuilder {
             if (notes.isNotEmpty) {
               taskParts.add('notes: $notes');
             }
+            // What an acceptance rested on, for the one state that owes an
+            // explanation. `[accepted]` alone tells the next turn the judgement
+            // happened and nothing about what it was made on, which is the work
+            // ANA3 exists to stop it redoing from the same files.
+            final acceptedOn =
+                executionSnapshot?.taskAcceptanceSummaries[task.id] ?? '';
+            if (acceptedOn.isNotEmpty) {
+              taskParts.add('accepted on: $acceptedOn');
+            }
             buffer.writeln(taskParts.join(' | '));
           }
           buffer.writeln(

@@ -712,6 +712,57 @@ Dart symbols:
     expect(promptFor(const {}), contains('[completed] Add task persistence'));
   });
 
+  // ANA3's purpose statement: the judgement stops being something the next turn
+  // has to redo from the same files. Until this line existed the next turn saw
+  // `[accepted]` and nothing else -- the rationale and evidence were written by
+  // recordTaskAcceptance and read by no production code at all.
+  test('an accepted task says what the acceptance rested on', () {
+    String promptFor(Map<String, String> acceptances) =>
+        SystemPromptBuilder.build(
+          now: DateTime.utc(2026, 9, 13, 9),
+          assistantMode: AssistantMode.coding,
+          languageCode: 'en',
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: const ConversationWorkflowSpec(
+            goal: 'Ship the CLI',
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'task-1',
+                title: 'Add task persistence',
+                status: ConversationWorkflowTaskStatus.completed,
+              ),
+            ],
+          ),
+          executionSnapshot: ExecutionSnapshot(
+            contractHash: 'hash',
+            workflowStage: ConversationWorkflowStage.implement,
+            action: ExecutionSnapshotAction.verify,
+            activeTaskId: 'task-1',
+            activeTaskStatus: ConversationWorkflowTaskStatus.completed,
+            validationStatus: ConversationExecutionValidationStatus.unknown,
+            completedTaskCount: 1,
+            remainingTaskCount: 0,
+            unresolvedQuestionCount: 0,
+            requiresValidation: true,
+            latestDiagnostic: null,
+            taskLifecycleStates: const {'task-1': 'accepted'},
+            taskAcceptanceSummaries: acceptances,
+          ),
+        );
+
+    expect(
+      promptFor(const {
+        'task-1': 'worktree branch feature/cli -- The flags match the spec.',
+      }),
+      contains(
+        'accepted on: worktree branch feature/cli -- The flags match the spec.',
+      ),
+    );
+    // A task with no acceptance prints no line at all, rather than an empty
+    // label per task.
+    expect(promptFor(const {}), isNot(contains('accepted on:')));
+  });
+
   test('includes plan mode guidance in plan prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),
