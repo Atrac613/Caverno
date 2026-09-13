@@ -1284,9 +1284,23 @@ parent a summary it would read as evidence, which is the failure the route exist
 to fix. And the registry read is defensive, because a throw inside a tool handler
 ends the turn -- at the end of the work, which is the expensive place to lose one.
 
-**Still unobserved live.** A worktree child needs a git project and a branch, and
-the Anabasis canary's project is a temp directory, so the scenario that proves this
-is its own piece of work.
+**The scenario exists** (`live_anabasis_worktree`, `0bb23a0ec`): one workspace is a
+real git repository on `main`, which no other scenario is, because a repository the
+model can see changes what it does. Six live runs of it each surfaced one defect or
+contradiction, in this order: nothing started the enqueued child; the parent never
+asked for the runner the queue named; the canary reported a successful run as
+FAILED; the parent opened two branches for one task; the audit demanded changed-file
+evidence from a task that declared no files; and the planner was told to write
+compound validation commands that neither runner will execute. All six are fixed
+(`314e2a2be`, `ee75ea92b`, `de09f1d29`, `4d0fe`, `2092bc395`, `84b9da7df`), and the
+last reaches ordinary saved-task execution too.
+
+**Proven live:** the parent choosing the worktree runner, a branch and second
+checkout created, the child running in isolation, the saved verification command
+running, and `verified: true` reaching the parent — the mechanical level passing for
+the first time. **Not yet proven live:** an acceptance *written* on that evidence.
+The last run waited for the child properly and then declined, correctly, because its
+verification had been refused for its shape.
 - Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
   called `read_file` on what the child had written, judged it, and answered.
   That is level 2 evidence gathered by the parent through a tool its authority
