@@ -85,6 +85,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
   'lib/features/chat/domain/services/task_acceptance_audit.dart': 145,
+  'lib/features/chat/domain/services/task_acceptance_decision.dart': 184,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
@@ -1001,15 +1002,12 @@ const Map<String, int> _libraryLineBudgets = {
   // it is right (the refusal still stands, the iteration cap still bounds it,
   // an approval denial still aborts) is exactly what a later edit would have to
   // re-derive before touching it.
-  // +15, to 19,867: an unknown child id answers with the ids that exist. The
-  // payload has to be built where the registry is read, so it cannot move; the
-  // code and its reasoning went to subagent_tool_contract.dart instead.
-  //
-  // Six raises in one day, +70 in total, is a signal in its own right: this
-  // library is where the Anabasis parent's every seam lands. The next Anabasis
-  // slice should start by extracting the subagent handlers, not by paying here
-  // again.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19867,
+  // -88, to 19,779, and it is the answer to the note that used to stand here:
+  // six raises in one day, +70 in total, because this library is where the
+  // Anabasis parent's every seam lands. The acceptance decision left for
+  // task_acceptance_decision.dart, which took two stale imports with it, and the
+  // handler is now input-gathering plus the write that needs `ref`.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19779,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
