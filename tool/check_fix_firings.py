@@ -196,7 +196,7 @@ SIGNATURES = {
         in s,
     },
     "anabasis_premise_lapsed": {
-        "commit": "HEAD",
+        "commit": "447779ef3",
         "what": "an acceptance is barred because a premise is no longer confirmed",
         # ANA2's contradiction policy reaching the moment it decides something.
         # It could not fire before: DelegatedPremiseAudit had no production
