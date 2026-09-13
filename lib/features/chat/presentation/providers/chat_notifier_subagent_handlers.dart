@@ -289,21 +289,15 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     if (task == null || task.notified) {
       return;
     }
-    final isSuccess = task.status == SubagentTaskStatus.completed;
-    final rawBody = isSuccess
-        ? (task.resultSummary.isEmpty ? 'Completed.' : task.resultSummary)
-        : (task.error ?? 'Subagent failed.');
-    final body = rawBody.length > 200
-        ? '${rawBody.substring(0, 200)}...'
-        : rawBody;
+    final notification = SubagentCompletionNotification.forTask(task);
     try {
       await ref
           .read(notificationServiceProvider)
           .showSubagentCompletionNotification(
-            taskId: task.id,
-            description: task.description,
-            isSuccessful: isSuccess,
-            body: body,
+            taskId: notification.taskId,
+            description: notification.description,
+            isSuccessful: notification.isSuccessful,
+            body: notification.body,
           );
     } catch (_) {
       // Notifications are best-effort; never fail the run on a notify error.

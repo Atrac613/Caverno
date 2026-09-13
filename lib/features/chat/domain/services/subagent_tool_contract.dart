@@ -180,6 +180,29 @@ final class SubagentCompletionNotification {
     required this.body,
   });
 
+  /// What a finished child's notification says.
+  ///
+  /// Here rather than in the notifier because none of it needs a turn: a
+  /// completed child speaks for itself when it reported anything, a failed one is
+  /// named by its error, and either is cut to [maxBodyChars] because a
+  /// notification body is a glance, not a transcript.
+  factory SubagentCompletionNotification.forTask(SubagentTask task) {
+    final isSuccessful = task.status == SubagentTaskStatus.completed;
+    final raw = isSuccessful
+        ? (task.resultSummary.isEmpty ? 'Completed.' : task.resultSummary)
+        : (task.error ?? 'Subagent failed.');
+    return SubagentCompletionNotification(
+      taskId: task.id,
+      description: task.description,
+      isSuccessful: isSuccessful,
+      body: raw.length > maxBodyChars
+          ? '${raw.substring(0, maxBodyChars)}...'
+          : raw,
+    );
+  }
+
+  static const int maxBodyChars = 200;
+
   final String taskId;
   final String description;
   final bool isSuccessful;

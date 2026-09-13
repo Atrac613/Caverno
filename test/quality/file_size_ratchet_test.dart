@@ -1003,14 +1003,15 @@ const Map<String, int> _libraryLineBudgets = {
   // it is right (the refusal still stands, the iteration cap still bounds it,
   // an approval denial still aborts) is exactly what a later edit would have to
   // re-derive before touching it.
-  // -125 across two slices, to 19,742, and the answer to the note that used to
+  // -130 across three slices, to 19,737, and the answer to the note that used to
   // stand here: six raises in one day, +70 in total, because this library is
   // where the Anabasis parent's every seam lands. The acceptance decision left
   // for task_acceptance_decision.dart and the get_subagent_result shapes for
   // subagent_result_payloads.dart, taking three stale imports with them. Both
   // handlers are now a registry read plus, for acceptance, the write that needs
-  // `ref` -- which is the part that cannot leave.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19742,
+  // `ref` -- which is the part that cannot leave. The notification body went to
+  // the contract class that already described the notification.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19737,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
