@@ -196,7 +196,7 @@ SIGNATURES = {
         in s,
     },
     "acceptance_evidence_in_prompt": {
-        "commit": "HEAD",
+        "commit": "8f9fd731f",
         "what": "an accepted task tells the next turn what it was accepted on",
         # ANA3 PR 2b's claim is that the judgement stops being something the
         # next turn redoes from the same files, and the prompt said `[accepted]`
