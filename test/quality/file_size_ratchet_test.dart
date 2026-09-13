@@ -103,7 +103,11 @@ const Map<String, int> _lineBudgets = {
   // +16, to 200: a worktree result outranks a subagent one for the same task,
   // and its evidence is named rather than counted -- which branch, which command
   // -- because that line is what the next turn reads instead of redoing the work.
-  'lib/features/chat/domain/services/task_acceptance_decision.dart': 200,
+  // +20, to 220: a branch still in flight is answered as "wait". Four live runs
+  // had the parent accept early, read a list of levels a running child cannot yet
+  // satisfy, and delegate again instead of polling -- the levels were true and
+  // told it the wrong thing to do.
+  'lib/features/chat/domain/services/task_acceptance_decision.dart': 220,
   // +49, to 124: the worktree route's two answers. Enqueued rather than
   // completed, because a branch, a verification and a changed-file list do not
   // exist yet at the moment the parent asks; and refused rather than silently

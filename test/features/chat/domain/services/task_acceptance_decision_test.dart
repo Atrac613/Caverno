@@ -82,12 +82,13 @@ TaskAcceptanceDecision _decide({
 WorktreeAgentTask _worktreeChild({
   String workflowTaskId = 'task-1',
   bool verifiedGreen = true,
+  WorktreeAgentTaskStatus status = WorktreeAgentTaskStatus.completed,
   String verificationCommand = 'dart test',
   int changedFileCount = 2,
   List<String> expectedTargetFiles = const ['lib/file_0.dart'],
 }) => WorktreeAgentTask(
   id: 'worktree-1',
-  status: WorktreeAgentTaskStatus.completed,
+  status: status,
   title: 'Read the spec',
   branchName: 'feature/read-the-spec',
   worktreePath: '/tmp/worktrees/read-the-spec',
@@ -261,5 +262,22 @@ void main() {
         'acceptance_no_delegated_result',
       );
     });
+  });
+
+  test('a branch still in flight is answered as wait, not as outstanding', () {
+    // Four live runs: the parent accepted early, read a list of levels a running
+    // child cannot yet satisfy, and delegated again instead of polling.
+    final decision = _decide(
+      children: const [],
+      worktreeChildren: [
+        _worktreeChild(status: WorktreeAgentTaskStatus.running),
+      ],
+    );
+
+    expect(_code(decision), 'acceptance_child_still_running');
+    final payload =
+        jsonDecode((decision as TaskAcceptanceRefusal).result.result) as Map;
+    expect(payload['task_id'], 'worktree-1');
+    expect(payload['required_action'], contains('Poll get_subagent_result'));
   });
 }

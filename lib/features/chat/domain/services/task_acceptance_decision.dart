@@ -130,6 +130,26 @@ class TaskAcceptanceDecisionService {
       );
     }
 
+    // A branch still in flight is answered as "wait", not as "verify what is
+    // outstanding". Measured across four live runs: the parent accepted early,
+    // read a list of outstanding levels that a running child cannot yet satisfy,
+    // and delegated again instead of polling. The levels were true and told it
+    // the wrong thing to do.
+    final running = worktrees
+        .where((candidate) => !candidate.isTerminal)
+        .lastOrNull;
+    if (running != null) {
+      return TaskAcceptanceRefusal(
+        refuse('acceptance_child_still_running', {
+          'task_id': running.id,
+          'branch_name': running.branchName,
+          'required_action':
+              'The branch is still running. Poll get_subagent_result with that '
+              'task_id until it is done, then judge what it reports.',
+        }),
+      );
+    }
+
     // A worktree result outranks a subagent one for the same task, because it is
     // the only kind that can pass a level: it carries the verification outcome
     // and the changed files, where a subagent child leaves both inapplicable and
