@@ -147,6 +147,13 @@ void main() {
     // case: the parent authority guard refused accept_task before the handler,
     // so neither an acceptance_* code nor a recorded acceptance existed.
     expect(runner, contains('Acceptance attempted'));
+    // Declining and never being asked are different answers, and only one of
+    // them is about the model. The eleventh worktree run had the evidence and
+    // the time and reported in prose, because nothing had asked it for the
+    // bookkeeping call -- which read as "never attempted" and was not.
+    expect(runner, contains('anabasis_acceptance_elicited'));
+    expect(runner, contains('Acceptance elicited:'));
+    expect(runner, contains('asked and declined'));
     // Which route it took, for every run: a subagent acceptance passes no audit
     // level, so "accepted" alone does not say what it rested on.
     expect(runner, contains('Worktree children enqueued'));

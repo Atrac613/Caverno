@@ -83,10 +83,21 @@ if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_acceptance_r
   ACCEPTED=1
 fi
 
+# Whether the harness spent a turn asking. Until this existed, a run that ended
+# without an acceptance could not say whether the parent declined or was never
+# put in a position to answer -- and the eleventh worktree run was exactly that
+# case: it had the evidence, had the time, and reported in prose because nothing
+# had asked it for the bookkeeping call.
+ELICITED=0
+if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_acceptance_elicited'; then
+  ELICITED=1
+fi
+
 echo
 echo "  Ready tasks offered to the parent: ${QUEUE_SIZE}"
 echo "  Delegation admitted: ${ADMITTED}"
 echo "  Worktree children enqueued: ${WORKTREE_ENQUEUED}"
+echo "  Acceptance elicited: ${ELICITED}"
 echo "  Acceptance recorded: ${ACCEPTED}"
 
 # Reported, not gated. Delegation is the one thing this run can demand: whether
@@ -115,6 +126,10 @@ if [[ "${ACCEPTED}" == "0" ]]; then
   ATTEMPTS="${ATTEMPTS:-0}"
   if [[ -n "${REFUSALS}" ]]; then
     echo "  Acceptance refused with: ${REFUSALS}"
+  elif [[ "${ELICITED}" == "1" ]]; then
+    echo "  The parent was asked and declined: a turn restricted to accept_task"
+    echo "    was spent and the tool was not called. That is a judgement about"
+    echo "    the work, not a gap in the harness -- read what it said instead."
   elif [[ "${ATTEMPTS}" != "0" ]]; then
     echo "  Acceptance attempted ${ATTEMPTS} time(s) and recorded none:"
     echo "    something refused it before the acceptance handler. Read the"
@@ -124,7 +139,9 @@ if [[ "${ACCEPTED}" == "0" ]]; then
     echo "    (${DELIVERED_COUNT}/${WANTED_COUNT}); the delegation turn was still"
     echo "    in flight, so this run says nothing about acceptance."
   else
-    echo "  The parent never attempted an acceptance."
+    echo "  The parent never attempted an acceptance, and was never asked:"
+    echo "    no elicitation turn was spent, so nothing here says what it would"
+    echo "    have judged. Check whether any result was judgeable at turn end."
   fi
 fi
 
