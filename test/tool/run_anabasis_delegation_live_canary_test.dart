@@ -180,6 +180,24 @@ void main() {
     expect(withGit, ['live_anabasis_worktree']);
   });
 
+  test('a worktree enqueue counts as delegation', () {
+    final runner = File(
+      'tool/run_anabasis_delegation_live_canary.sh',
+    ).readAsStringSync();
+
+    // The admitted signature matches the saved contract in a *child's request*,
+    // and a worktree child's contract goes into a branch instead. A run that
+    // enqueued one and was reported as "delegated none" is the instrument being
+    // wrong, not the parent -- which is exactly what the first such run said.
+    final enqueueIndex = runner.indexOf('WORKTREE_ENQUEUED=');
+    expect(enqueueIndex, isNonNegative);
+    expect(
+      runner.indexOf('ADMITTED=1', enqueueIndex),
+      isNonNegative,
+      reason: 'The enqueue count has to be able to set ADMITTED.',
+    );
+  });
+
   test('every capture tolerates finding nothing', () {
     final runner = File(
       'tool/run_anabasis_delegation_live_canary.sh',

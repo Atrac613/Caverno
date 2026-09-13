@@ -67,18 +67,23 @@ if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_delegation_a
   ADMITTED=1
 fi
 
+# Which route the parent took. A worktree enqueue is delegation through the same
+# admission gate, but it leaves no child *request* in the session log -- the
+# contract goes into a branch, not into a prompt this process sends -- so the
+# signature above cannot see it. A run that enqueued one and was reported as
+# "delegated none" is the instrument being wrong, not the parent.
+WORKTREE_ENQUEUED="$(grep -c 'Enqueued worktree child' "${RUN_LOG}" 2>/dev/null || true)"
+WORKTREE_ENQUEUED="${WORKTREE_ENQUEUED:-0}"
+if [[ "${WORKTREE_ENQUEUED}" != "0" ]]; then
+  ADMITTED=1
+fi
+
 ACCEPTED=0
 if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_acceptance_recorded'; then
   ACCEPTED=1
 fi
 
 echo
-# Which route the parent actually took. Reported for every run, because the
-# distinction is the whole point of the worktree scenario: a subagent acceptance
-# passes no audit level, so "accepted" alone does not say what it rested on.
-WORKTREE_ENQUEUED="$(grep -c 'Enqueued worktree child' "${RUN_LOG}" 2>/dev/null || true)"
-WORKTREE_ENQUEUED="${WORKTREE_ENQUEUED:-0}"
-
 echo "  Ready tasks offered to the parent: ${QUEUE_SIZE}"
 echo "  Delegation admitted: ${ADMITTED}"
 echo "  Worktree children enqueued: ${WORKTREE_ENQUEUED}"
