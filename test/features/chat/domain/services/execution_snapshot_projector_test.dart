@@ -101,6 +101,71 @@ void main() {
     expect(running.contractHash, pending.contractHash);
   });
 
+  test('an untriaged open question is unresolved, with no row to say so', () {
+    // The only writer of a progress row is the plan review sheet, so a freshly
+    // saved plan has none -- and the old getter walked the rows, reporting zero
+    // unresolved at exactly the moment every question was untouched. That
+    // decided `clarify` and gated goal auto-continue, so both engaged only for
+    // plans a human had already opened.
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: const ConversationWorkflowSpec(
+          openQuestions: ['Which API version is required?'],
+          tasks: [ConversationWorkflowTask(id: 'task-1', title: 'Implement')],
+        ),
+      ),
+    );
+
+    expect(snapshot.unresolvedQuestionCount, 1);
+    expect(snapshot.clarificationQuestions, ['Which API version is required?']);
+    expect(snapshot.action, ExecutionSnapshotAction.clarify);
+  });
+
+  test('an answered question stops counting once someone records that', () {
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: const ConversationWorkflowSpec(
+          openQuestions: ['Which API version is required?'],
+          tasks: [ConversationWorkflowTask(id: 'task-1', title: 'Implement')],
+        ),
+        questions: [
+          ConversationOpenQuestionProgress(
+            questionId: Conversation.openQuestionIdFor(
+              'Which API version is required?',
+            ),
+            question: 'Which API version is required?',
+            status: ConversationOpenQuestionStatus.resolved,
+          ),
+        ],
+      ),
+    );
+
+    expect(snapshot.unresolvedQuestionCount, 0);
+    expect(snapshot.action, isNot(ExecutionSnapshotAction.clarify));
+  });
+
+  test('a deferred question is an answer too', () {
+    final snapshot = projector.project(
+      conversation(
+        workflowSpec: const ConversationWorkflowSpec(
+          openQuestions: ['Which API version is required?'],
+          tasks: [ConversationWorkflowTask(id: 'task-1', title: 'Implement')],
+        ),
+        questions: [
+          ConversationOpenQuestionProgress(
+            questionId: Conversation.openQuestionIdFor(
+              'Which API version is required?',
+            ),
+            question: 'Which API version is required?',
+            status: ConversationOpenQuestionStatus.deferred,
+          ),
+        ],
+      ),
+    );
+
+    expect(snapshot.unresolvedQuestionCount, 0);
+  });
+
   test('projects clarification before autonomous execution', () {
     final snapshot = projector.project(
       conversation(

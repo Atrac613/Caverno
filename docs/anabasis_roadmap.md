@@ -1714,9 +1714,33 @@ Acceptance criteria for the first destination:
 Deliberately last: the parent boundary and the acceptance model should be
 proven before they get a surface.
 
+**First finding, 2026-09-14: the awaiting-you gap is a counting defect before it
+is a UI one.** `Conversation.unresolvedOpenQuestionProgress` walked the progress
+*rows*, and the only writer of a row is
+`updateCurrentOpenQuestionProgress`, called from the plan review sheet's own
+buttons. So a freshly saved plan carrying five open questions has no rows, and
+the getter reported **zero unresolved** at exactly the moment every question was
+untouched. Two protections read that count and therefore engaged only for plans a
+human had already opened:
+
+- `ExecutionSnapshotAction.clarify` -- a fresh plan with open questions projected
+  `execute`, so the prompt asked for work rather than for answers.
+- goal auto-continue, gated on `unresolvedQuestionCount == 0` in
+  `_hasPendingAutoContinueExecutionWorkflow`, which passed.
+
+`Conversation.unresolvedOpenQuestions` now derives from the spec, with a missing
+row meaning unresolved and `resolved` / `deferred` being the only answers --
+which is the rule the review sheet already renders by, enumerating the spec and
+looking the row up per question. It is a **union** with the old row-walk on
+purpose: the spec term is the fix and the row term preserves exactly what was
+counted before. Whether an unsettled row whose question the plan has since
+dropped should still count is a separate question with its own evidence need.
+
+Every test that had exercised a non-zero count built an explicit progress row, so
+nothing covered the live case. Three do now, plus one on the auto-continue gate.
+
 Next action:
-- ANA0-ANA3 are complete. Build the **awaiting-you** section in the existing
-  companion panel: unresolved open questions and pending material-assumption
+- Build the **awaiting-you** section in the existing companion panel: unresolved open questions and pending material-assumption
   confirmations, each with the path that already answers it
   (`_answerOpenQuestion`, the confirmation gate's sheet). That is §15's third
   question, the only one with no persistent surface, and it is what makes the

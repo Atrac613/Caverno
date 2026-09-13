@@ -241,6 +241,37 @@ void main() {
       expect(snapshot.ownerWorktreePath, isNull);
     });
 
+    test('an untriaged open question holds the auto-continue gate', () {
+      // The gate reads `unresolvedQuestionCount == 0`, and until the count was
+      // derived from the spec a plan whose questions nobody had opened reported
+      // zero -- so auto-continue proceeded as if nothing were open, and the
+      // gate engaged only once a human had triaged a question in the sheet.
+      final snapshot = TurnOwnerSnapshot.capture(
+        owner: ChatTurnOwner(
+          conversationId: 'conversation-a',
+          interactionGeneration: 1,
+        ),
+        messages: [_message('user', MessageRole.user)],
+        turnUserMessage: null,
+        projectRoot: '/workspace/alpha',
+        sessionLogContext: const LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'session-a',
+        ),
+        conversation: _executionConversation(
+          id: 'conversation-a',
+          workspaceMode: WorkspaceMode.coding,
+          openQuestions: const ['Which API version is required?'],
+        ),
+        assistantModeOverride: null,
+        configuredAssistantMode: AssistantMode.general,
+        savedTask: null,
+        allowedToolNames: <String>{},
+      );
+
+      expect(snapshot.hasPendingAutoContinueExecutionWorkflow, isFalse);
+    });
+
     test('represents no content, project, attachment, or allowed tools', () {
       final snapshot = TurnOwnerSnapshot.capture(
         owner: ChatTurnOwner(
@@ -1513,6 +1544,7 @@ Conversation _executionConversation({
   required String id,
   WorkspaceMode workspaceMode = WorkspaceMode.chat,
   bool planning = false,
+  List<String> openQuestions = const <String>[],
 }) {
   return _conversation(
     id: id,
@@ -1521,9 +1553,12 @@ Conversation _executionConversation({
         ? ConversationExecutionMode.planning
         : ConversationExecutionMode.normal,
     workflowStage: ConversationWorkflowStage.implement,
-    workflowSpec: const ConversationWorkflowSpec(
+    workflowSpec: ConversationWorkflowSpec(
       goal: 'Ship alpha',
-      tasks: [ConversationWorkflowTask(id: 'task-a', title: 'Implement alpha')],
+      openQuestions: openQuestions,
+      tasks: const [
+        ConversationWorkflowTask(id: 'task-a', title: 'Implement alpha'),
+      ],
     ),
     goal: _goal(autoContinue: true),
   );

@@ -461,9 +461,7 @@ class ExecutionSnapshotProjector {
     // Open questions only. Unioning the assumption questions in here is what
     // let the material-assumption line render three open questions and omit
     // the assumption that was blocking the turn.
-    final clarificationQuestions = conversation.unresolvedOpenQuestionProgress
-        .map((item) => item.question.trim())
-        .where((item) => item.isNotEmpty)
+    final clarificationQuestions = conversation.unresolvedOpenQuestions
         .toSet()
         .toList(growable: false);
     final completedTaskCount = taskViews

@@ -227,10 +227,7 @@ abstract class ConversationCheckpoint with _$ConversationCheckpoint {
     )
     @Default(<ConversationOpenQuestionProgress>[])
     List<ConversationOpenQuestionProgress> openQuestionProgress,
-    @JsonKey(
-      fromJson: _taskAcceptancesFromJson,
-      toJson: _taskAcceptancesToJson,
-    )
+    @JsonKey(fromJson: _taskAcceptancesFromJson, toJson: _taskAcceptancesToJson)
     @Default(<ConversationTaskAcceptance>[])
     List<ConversationTaskAcceptance> taskAcceptances,
     @JsonKey(fromJson: _goalFromJson, toJson: _goalToJson)
@@ -297,10 +294,7 @@ abstract class Conversation with _$Conversation {
     /// the snapshot can never be populated. ANA3 PR 2a declared it on the
     /// checkpoint alone, which left it dead -- nothing wrote it, nothing read
     /// it, and nothing could.
-    @JsonKey(
-      fromJson: _taskAcceptancesFromJson,
-      toJson: _taskAcceptancesToJson,
-    )
+    @JsonKey(fromJson: _taskAcceptancesFromJson, toJson: _taskAcceptancesToJson)
     @Default(<ConversationTaskAcceptance>[])
     List<ConversationTaskAcceptance> taskAcceptances,
     @JsonKey(fromJson: _goalFromJson, toJson: _goalToJson)
@@ -475,6 +469,54 @@ abstract class Conversation with _$Conversation {
                 entry.status == ConversationOpenQuestionStatus.needsUserInput,
           )
           .toList(growable: false);
+
+  /// The plan's open questions that nobody has settled, in the plan's own
+  /// words.
+  ///
+  /// **Derived from the spec, not from the progress rows**, and that is the
+  /// whole point. A progress row is written only when a human triages a
+  /// question in the plan review sheet -- `updateCurrentOpenQuestionProgress`
+  /// is its only writer -- so a freshly saved plan carrying five open questions
+  /// has no rows at all, and a getter that walks the rows reports **zero
+  /// unresolved** at exactly the moment every question is untouched. That fed
+  /// `unresolvedQuestionCount`, which decides `ExecutionSnapshotAction.clarify`
+  /// and gates goal auto-continue, so both protections engaged only for plans a
+  /// human had already looked at.
+  ///
+  /// A missing row means unresolved. `resolved` and `deferred` are answers, and
+  /// an answer is something someone recorded -- which is the same rule the
+  /// review sheet already renders by, enumerating the spec and looking the row
+  /// up per question.
+  /// A union, and deliberately additive: the spec term is the fix, and the row
+  /// term preserves exactly what the old getter counted. Whether an unsettled
+  /// row whose question the plan has since dropped should still count is a
+  /// separate question with its own evidence need -- widening the count and
+  /// narrowing it are two changes, and only one of them has a measured reason.
+  List<String> get unresolvedOpenQuestions {
+    final questions = <String>[];
+    for (final question in effectiveWorkflowSpec.openQuestions) {
+      final trimmed = question.trim();
+      if (trimmed.isEmpty || !_isOpenQuestionUnsettled(trimmed)) continue;
+      if (!questions.contains(trimmed)) questions.add(trimmed);
+    }
+    for (final entry in effectiveOpenQuestionProgress) {
+      final trimmed = entry.question.trim();
+      if (trimmed.isEmpty ||
+          entry.status == ConversationOpenQuestionStatus.resolved ||
+          entry.status == ConversationOpenQuestionStatus.deferred) {
+        continue;
+      }
+      if (!questions.contains(trimmed)) questions.add(trimmed);
+    }
+    return List<String>.unmodifiable(questions);
+  }
+
+  bool _isOpenQuestionUnsettled(String question) {
+    final progress = openQuestionProgressForQuestion(question);
+    if (progress == null) return true;
+    return progress.status == ConversationOpenQuestionStatus.unresolved ||
+        progress.status == ConversationOpenQuestionStatus.needsUserInput;
+  }
 
   static String openQuestionIdFor(String question) {
     final normalized = question.trim().toLowerCase();
