@@ -184,6 +184,17 @@ SIGNATURES = {
         "match": lambda s: '"code":"acceptance_' in s
         or '"code": "acceptance_' in s,
     },
+    "anabasis_acceptance_elicited": {
+        "commit": "32b59e620",
+        "what": "a settled parent turn is asked to record the judgement it has",
+        # The eleventh worktree run had the evidence, had the time, and reported
+        # its judgement in prose. The remedy is the update_goal one: a turn whose
+        # only available action is the bookkeeping call. The prompt is the
+        # durable trace -- a hidden turn's instruction is logged like any other
+        # request, and this phrase appears nowhere else.
+        "match": lambda s: "Record the judgement now by calling accept_task"
+        in s,
+    },
     "anabasis_acceptance_recorded": {
         "commit": "161e784d4",
         "what": "the parent records a semantic acceptance of a delegated task",

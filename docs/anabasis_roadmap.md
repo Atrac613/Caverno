@@ -1194,6 +1194,11 @@ Verification evidence:
   nothing, which leaves nothing to judge.
 
 Next action:
+- Run the worktree canary once more, now that a settled parent turn is asked for
+  the judgement it was reporting in prose, and check
+  `anabasis_acceptance_elicited` and `anabasis_acceptance_recorded` together: the
+  first says the turn was spent, the second says it landed. That is the one
+  observation ANA3 is still holding `current` for.
 - Trace a mutating planned task from the runner choice through parent dispatch
   to the acceptance audit, and specify the missing production adapter and its
   evidence contract. Decide the remaining integration scope before closing the
@@ -1334,6 +1339,37 @@ called and recorded, so the tool is reachable; what is missing is a turn whose o
 available action is to record the judgement, which is what
 `GoalCompletionElicitationPrompt` is for `update_goal`. Building that analogue is the
 next slice, and it is a nudge rather than a defect.
+
+**Built.** `AnabasisAcceptanceElicitation` decides at the end of a settled parent
+turn, and `AnabasisAcceptanceCoordinator` spends one hidden turn restricted to
+`accept_task`. Three rules are pinned by test, and each one is a turn the harness
+must *not* spend:
+
+- Only a result the parent may actually accept is elicited. A turn whose single
+  tool would refuse the call is worse than no turn: it tells the parent to go and
+  verify something, with no tool to verify it with. A running branch and a failed
+  verification are both left to an ordinary turn that can go and get them.
+- Declining sticks. A parent that declines leaves the result exactly as eligible
+  as it was, so an unguarded trigger would ask again at the end of the turn it
+  just spent answering. One elicitation per result, recorded before the dispatch
+  because the turn it starts ends in the same funnel.
+- Declining is offered as loudly as accepting. `accept_task` records acceptance
+  and nothing else — unlike `update_goal`, which can report that work remains —
+  so "do not call the tool, say what is missing" has to be spelled out or the
+  only available action is the accepting one and the probe is leading.
+
+Two blocks turned up in the wiring, both of the ANA3 kind. **Hidden turns could
+never be the parent's**: `markAddressed` was only ever called on the visible send
+path, so a harness-written `@anabasis` turn would have been refused by the one
+tool it offers. Both paths now go through `AnabasisAcceptanceCoordinator.
+markAddressed`. And the role is **released before anything can ask what kind of
+turn it was** — `_completeRuntimeTurn` clears it, and the elicitation is decided
+after that — so the coordinator remembers the last few settled parent generations.
+
+The coordinator lives outside the notifier library because that library sits
+exactly at its aggregate ratchet: 19,885 of 19,885 before this change. The
+registry read it now owns came the other way, which is what paid for the wiring.
+Firing signature: `anabasis_acceptance_elicited`. Unproven live.
 
 **Proven live:** the parent choosing the worktree runner, a branch and second
 checkout created, the child running in isolation, the saved verification command

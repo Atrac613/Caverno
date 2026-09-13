@@ -213,6 +213,7 @@ import '../../domain/services/verification_cadence_policy.dart';
 import '../../domain/services/verification_target_authority.dart';
 import '../../domain/services/workflow_proposal_parser.dart';
 import '../../domain/services/workflow_task_proposal_quality_service.dart';
+import '../coordinators/anabasis_acceptance_coordinator.dart';
 import 'active_response_registry.dart';
 import 'caverno_execution_runtime_provider.dart';
 import 'chat_data_source_provider.dart';
@@ -268,7 +269,6 @@ import 'turn_thread_scope.dart';
 import 'turn_tool_result_ledger.dart';
 import 'worktree_agent_task_launcher.dart';
 import 'worktree_agent_task_orchestrator.dart';
-import 'worktree_agent_task_registry_notifier.dart';
 
 export 'chat_data_source_provider.dart'
     show chatDataSourceFactoryProvider, chatRemoteDataSourceProvider;
@@ -1998,6 +1998,11 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Which turns run as the Anabasis parent. Not a zone; see the class.
   final _anabasisRoles = AnabasisTurnRoles();
+  late final _acceptance = AnabasisAcceptanceCoordinator(
+    chatNotifier: this,
+    ref: ref,
+    roles: _anabasisRoles,
+  );
   // Generations with a classified exit; the terminal funnel fills any gap.
   final Set<int> _classifiedTurnExitGenerations = <int>{};
   // Tool calls whose arguments were truncated; report the specific cause so
@@ -2210,6 +2215,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _isVoiceMode = isVoiceMode;
     _languageCode = languageCode;
     final interactionGeneration = _beginInteractionGeneration();
+    _acceptance.markAddressed(interactionGeneration, instruction);
     final startedRuntime = await _startRuntimeTurn(
       generation: interactionGeneration,
       ownerConversationId: ownerConversationId,
@@ -2478,10 +2484,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _activeInteractionOrigin = queuedMessage.origin;
       _activeRemoteDeviceId = queuedMessage.remoteDeviceId;
       final interactionGeneration = _beginInteractionGeneration();
-      _anabasisRoles.markAddressed(
-        generation: interactionGeneration,
-        content: queuedMessage.content,
-      );
+      _acceptance.markAddressed(interactionGeneration, queuedMessage.content);
       turnOwner = ChatTurnOwner(
         conversationId: effectiveOwner,
         interactionGeneration: interactionGeneration,
@@ -8330,6 +8333,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesForThreadIfIdle(turnThreadId ?? '');
     if (!_isCurrentInteractionGeneration(generation)) return;
+    if (await _acceptance.maybeElicit(turnOwner, _languageCode)) return;
     if (!_isGoalAutoContinueOwnerCurrent(turnOwner)) return;
     await _maybeAutoContinueCurrentGoal(
       owner: turnOwner,

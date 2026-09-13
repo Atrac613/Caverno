@@ -467,21 +467,8 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     );
   }
 
-  /// The worktree registry, or nothing if it cannot be read.
-  ///
-  /// Defensive because of where this is called from: a throw inside a tool
-  /// handler leaves the call unexecuted and ends the turn, and this one runs at
-  /// the end of work expensive enough that losing it is the worse outcome.
-  /// Without a readable registry the audit falls back to subagent children,
-  /// which is exactly the behaviour that preceded worktree delegation.
-  List<WorktreeAgentTask> _worktreeChildrenOrNone() {
-    try {
-      return ref.read(worktreeAgentTaskRegistryNotifierProvider).tasks;
-    } catch (error) {
-      appLog('[Anabasis] Worktree registry unavailable for acceptance: $error');
-      return const <WorktreeAgentTask>[];
-    }
-  }
+  List<WorktreeAgentTask> _worktreeChildrenOrNone() =>
+      _acceptance.worktreeChildrenOrNone();
 
   /// Records the parent's acceptance of a delegated saved task.
   ///
