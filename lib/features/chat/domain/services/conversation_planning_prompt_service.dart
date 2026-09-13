@@ -255,6 +255,9 @@ class ConversationPlanningPromptService {
         'Schema: {"tasks":[{"title":string,"targetFiles":[string],"validationCommand":string,"notes":string,"preconditions":[{"kind":"task"|"assumption"|"question","ref":string}]}]}',
       )
       ..writeln('Rules:')
+      ..writeln(
+        '- targetFiles are the files the task will create or change. A file the task only reads does not belong there: the field decides where the work runs and what its result is audited against, so a read-only path listed there asks for changes nobody was going to make.',
+      )
       ..writeln('- Return the full suggested task list for the current thread.')
       ..writeln(
         compact

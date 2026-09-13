@@ -271,6 +271,15 @@ void main() {
       prompt,
       contains('A validationCommand must be one command.'),
     );
+    // Measured live: a reading task listed the file it read in targetFiles, so
+    // the audit owed changed-file evidence for a file nobody was going to change,
+    // and the acceptance was refused with the verification already green. The
+    // field was never defined for the planner while three consumers read it as
+    // "will change".
+    expect(
+      prompt,
+      contains('targetFiles are the files the task will create or change.'),
+    );
     expect(prompt, contains('are refused rather than run'));
     expect(
       prompt,
