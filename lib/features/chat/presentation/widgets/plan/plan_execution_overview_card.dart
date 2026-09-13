@@ -10,6 +10,49 @@ class PlanExecutionOverview {
     required this.descriptionKey,
   });
 
+  /// Which description the counts call for, in priority order.
+  ///
+  /// Blocked first because a blocker is the fact that stops everything else from
+  /// mattering, then active, then ready. "Complete" requires every task to be
+  /// complete, so a plan with nothing in it reads as empty rather than done.
+  factory PlanExecutionOverview.forCounts({
+    required int totalCount,
+    required int completedCount,
+    required int inProgressCount,
+    required int blockedCount,
+    required int pendingCount,
+  }) {
+    if (blockedCount > 0) {
+      return const PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_blocked_title',
+        descriptionKey: 'chat.plan_document_hydrated_state_blocked_description',
+      );
+    }
+    if (inProgressCount > 0) {
+      return const PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_active_title',
+        descriptionKey: 'chat.plan_document_hydrated_state_active_description',
+      );
+    }
+    if (pendingCount > 0) {
+      return const PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_ready_title',
+        descriptionKey: 'chat.plan_document_hydrated_state_ready_description',
+      );
+    }
+    if (totalCount > 0 && completedCount == totalCount) {
+      return const PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_complete_title',
+        descriptionKey:
+            'chat.plan_document_hydrated_state_complete_description',
+      );
+    }
+    return const PlanExecutionOverview(
+      titleKey: 'chat.plan_document_hydrated_state_empty_title',
+      descriptionKey: 'chat.plan_document_hydrated_state_empty_description',
+    );
+  }
+
   final String titleKey;
   final String descriptionKey;
 }

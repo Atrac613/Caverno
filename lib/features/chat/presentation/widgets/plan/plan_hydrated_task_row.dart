@@ -10,10 +10,15 @@ class PlanHydratedTaskRow extends StatelessWidget {
     super.key,
     required this.task,
     required this.progress,
+    this.accepted = false,
   });
 
   final ConversationWorkflowTask task;
   final ConversationExecutionTaskProgress? progress;
+
+  /// Whether the parent recorded an acceptance for this task. Passed in because
+  /// only the conversation records one, and this row is given a task.
+  final bool accepted;
 
   @override
   Widget build(BuildContext context) {
@@ -30,13 +35,11 @@ class PlanHydratedTaskRow extends StatelessWidget {
     final validationCommand = executionSummary.lastValidationCommand;
     final blockedSince = executionSummary.blockedSince;
     // What the task has actually reached, not the enum's `completed`, which
-    // answers produced / verified / accepted all at once. `accepted` is the one
-    // state this row cannot show: only the conversation records an acceptance,
-    // and the call site that could pass it lives in the chat_page library, which
-    // is at its size ceiling.
+    // answers produced / verified / accepted all at once.
     final lifecycleState = const TaskLifecycleProjection().ofProgress(
       status: progress?.status ?? task.status,
       validationStatus: validationStatus,
+      accepted: accepted,
     );
     final nextStep = _workflowTaskNextStepLabel(
       status: task.status,

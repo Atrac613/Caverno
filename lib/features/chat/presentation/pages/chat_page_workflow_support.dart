@@ -896,6 +896,12 @@ extension _ChatPageWorkflowStatusLabels on _ChatPageState {
   String _workflowTaskStatusLabel(ConversationWorkflowTaskStatus status) =>
       WorkflowStatusPresentation.workflowTaskStatusLabel(status);
 
+  String _taskLifecycleLabel(ConversationWorkflowTask task) =>
+      WorkflowStatusPresentation.taskLifecycleLabelFor(
+        ref.read(conversationsNotifierProvider).currentConversation,
+        task,
+      );
+
   String _workflowValidationStatusLabel(
     ConversationExecutionValidationStatus status,
   ) => WorkflowStatusPresentation.workflowValidationStatusLabel(status);

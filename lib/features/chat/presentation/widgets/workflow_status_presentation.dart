@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
+import '../../domain/services/task_lifecycle_state.dart';
 
 abstract final class WorkflowStatusPresentation {
   static String workflowProjectionStatusLabelKey(
@@ -84,6 +85,34 @@ abstract final class WorkflowStatusPresentation {
         'chat.workflow_task_status_blocked'.tr(),
     };
   }
+
+  /// What a task has actually reached, as distinct from what its status enum can
+  /// say: `completed` answers produced, verified and accepted at once.
+  static String taskLifecycleLabel(TaskLifecycleState state) {
+    return switch (state) {
+      TaskLifecycleState.pending => 'chat.workflow_task_status_pending'.tr(),
+      TaskLifecycleState.inProgress =>
+        'chat.workflow_task_status_in_progress'.tr(),
+      TaskLifecycleState.blocked => 'chat.workflow_task_status_blocked'.tr(),
+      TaskLifecycleState.produced => 'chat.workflow_task_status_produced'.tr(),
+      TaskLifecycleState.verified => 'chat.workflow_task_status_verified'.tr(),
+      TaskLifecycleState.accepted => 'chat.workflow_task_status_accepted'.tr(),
+    };
+  }
+
+  /// The label for a task whose conversation may or may not be to hand.
+  ///
+  /// Acceptance is recorded on the conversation and nowhere else, so without one
+  /// the status enum is the fallback -- the same fallback the prompt uses for an
+  /// id its snapshot does not name.
+  static String taskLifecycleLabelFor(
+    Conversation? conversation,
+    ConversationWorkflowTask task,
+  ) => conversation == null
+      ? workflowTaskStatusLabel(task.status)
+      : taskLifecycleLabel(
+          const TaskLifecycleProjection().of(conversation, task),
+        );
 
   static String workflowValidationStatusLabel(
     ConversationExecutionValidationStatus status,

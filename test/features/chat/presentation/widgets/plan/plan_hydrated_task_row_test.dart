@@ -26,6 +26,7 @@ Future<void> _pumpTaskRow(
   WidgetTester tester, {
   required ConversationWorkflowTask task,
   ConversationExecutionTaskProgress? progress,
+  bool accepted = false,
 }) async {
   await tester.pumpWidget(
     EasyLocalization(
@@ -43,7 +44,11 @@ Future<void> _pumpTaskRow(
             supportedLocales: context.supportedLocales,
             locale: context.locale,
             home: Scaffold(
-              body: PlanHydratedTaskRow(task: task, progress: progress),
+              body: PlanHydratedTaskRow(
+                task: task,
+                progress: progress,
+                accepted: accepted,
+              ),
             ),
           );
         },
@@ -123,6 +128,32 @@ void main() {
         findRichText: true,
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('an accepted task says so, over its verification', (
+    tester,
+  ) async {
+    const task = ConversationWorkflowTask(
+      id: 'task-5',
+      title: 'Read the spec',
+      status: ConversationWorkflowTaskStatus.completed,
+    );
+    const progress = ConversationExecutionTaskProgress(
+      taskId: 'task-5',
+      status: ConversationWorkflowTaskStatus.completed,
+      validationStatus: ConversationExecutionValidationStatus.passed,
+    );
+
+    await _pumpTaskRow(tester, task: task, progress: progress, accepted: true);
+
+    expect(find.text('Accepted'), findsOneWidget);
+    expect(
+      find.text('Verified'),
+      findsNothing,
+      reason:
+          'A judgement outranks the check it rested on; saying both would leave '
+          'the reader to guess which one the panel means.',
     );
   });
 

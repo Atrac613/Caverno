@@ -814,7 +814,7 @@ extension _ChatPagePlanBuilders on _ChatPageState {
     final pendingCount = tasks
         .where((task) => task.status == ConversationWorkflowTaskStatus.pending)
         .length;
-    final overview = _planExecutionOverview(
+    final overview = PlanExecutionOverview.forCounts(
       totalCount: tasks.length,
       completedCount: completedCount,
       inProgressCount: inProgressCount,
@@ -870,6 +870,9 @@ extension _ChatPagePlanBuilders on _ChatPageState {
             PlanHydratedTaskRow(
               task: task,
               progress: currentConversation.executionProgressForTask(task.id),
+              accepted: currentConversation.taskAcceptances.any(
+                (acceptance) => acceptance.taskId == task.id,
+              ),
             ),
             if (task != tasks.last) const SizedBox(height: 8),
           ],
@@ -878,43 +881,6 @@ extension _ChatPagePlanBuilders on _ChatPageState {
     );
   }
 
-  PlanExecutionOverview _planExecutionOverview({
-    required int totalCount,
-    required int completedCount,
-    required int inProgressCount,
-    required int blockedCount,
-    required int pendingCount,
-  }) {
-    if (blockedCount > 0) {
-      return const PlanExecutionOverview(
-        titleKey: 'chat.plan_document_hydrated_state_blocked_title',
-        descriptionKey: 'chat.plan_document_hydrated_state_blocked_description',
-      );
-    }
-    if (inProgressCount > 0) {
-      return const PlanExecutionOverview(
-        titleKey: 'chat.plan_document_hydrated_state_active_title',
-        descriptionKey: 'chat.plan_document_hydrated_state_active_description',
-      );
-    }
-    if (pendingCount > 0) {
-      return const PlanExecutionOverview(
-        titleKey: 'chat.plan_document_hydrated_state_ready_title',
-        descriptionKey: 'chat.plan_document_hydrated_state_ready_description',
-      );
-    }
-    if (totalCount > 0 && completedCount == totalCount) {
-      return const PlanExecutionOverview(
-        titleKey: 'chat.plan_document_hydrated_state_complete_title',
-        descriptionKey:
-            'chat.plan_document_hydrated_state_complete_description',
-      );
-    }
-    return const PlanExecutionOverview(
-      titleKey: 'chat.plan_document_hydrated_state_empty_title',
-      descriptionKey: 'chat.plan_document_hydrated_state_empty_description',
-    );
-  }
 
   Future<void> _answerOpenQuestion(
     BuildContext context, {

@@ -1054,11 +1054,14 @@ const Map<String, int> _libraryLineBudgets = {
   // for coding_project_picker.dart.
   // +1 matching the primary file: the design-token import that gives three of
   // these parts a real monospace face.
-  // -90, to 8,507: the plan execution overview card and its count chip left for
-  // widgets/plan/. Nothing in them needed the page -- every input is a string or
-  // a count -- and this aggregate was at zero slack with two tracks queued
-  // behind it.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8507,
+  // -118, to 8,479: the plan execution overview card, its count chip, and the
+  // choice of which description the counts call for all left for widgets/plan/.
+  // Nothing in them needed the page -- every input is a string or a count -- and
+  // this aggregate was at zero slack with two tracks queued behind it. The first
+  // of those tracks then spent some of it: the panels ask for what a task has
+  // actually reached, which is a conversation read the page is the right place
+  // for.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8479,
   // +4, to 1,147, matching the primary file: the accept_task reservation and
   // offer are four lines in the primary, not a new part.
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1147,

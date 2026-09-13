@@ -438,7 +438,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
               ),
               const SizedBox(height: 2),
               Text(
-                _workflowTaskStatusLabel(task.status),
+                _taskLifecycleLabel(task),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(

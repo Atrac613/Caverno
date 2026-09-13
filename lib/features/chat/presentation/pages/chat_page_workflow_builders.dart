@@ -921,7 +921,7 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                     ),
                     const SizedBox(height: 6),
                     Chip(
-                      label: Text(_workflowTaskStatusLabel(task.status)),
+                      label: Text(_taskLifecycleLabel(task)),
                       visualDensity: VisualDensity.compact,
                       side: BorderSide.none,
                       backgroundColor: _workflowTaskStatusColor(
