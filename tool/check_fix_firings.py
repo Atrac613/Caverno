@@ -185,7 +185,7 @@ SIGNATURES = {
         or '"code": "acceptance_' in s,
     },
     "anabasis_acceptance_elicited": {
-        "commit": "32b59e620",
+        "commit": "271774739",
         "what": "a settled parent turn is asked to record the judgement it has",
         # The eleventh worktree run had the evidence, had the time, and reported
         # its judgement in prose. The remedy is the update_goal one: a turn whose
