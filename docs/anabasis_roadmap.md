@@ -1295,10 +1295,33 @@ compound validation commands that neither runner will execute. All six are fixed
 (`314e2a2be`, `ee75ea92b`, `de09f1d29`, `4d0fe`, `2092bc395`, `84b9da7df`), and the
 last reaches ordinary saved-task execution too.
 
+Runs seven through ten added three more, and the seventh is the one that matters:
+with `targetFiles` defined and the command single, a worktree child **wrote the file
+it declared, its verification passed, and one changed file was recorded** —
+`verified: true, changed_file_count: 1`. Both audit levels satisfiable at once, for
+the first time. The parent then spent the rest of its turn checking the branch with
+`git_execute_command`, which is level 2 gathered by the parent itself, and ran out of
+budget before recording anything; the scenario's turn allowance is 20 minutes now
+(`cb1335576`).
+
+Runs eight through ten were inconclusive, and not from variance. The plan gave its
+first task three `assumption` preconditions whose refs were question-shaped sentences
+the model invented, matching no contract item — so readiness held the task forever:
+nothing for the user to confirm, nothing for them to answer. The harness now confirms
+real assumptions (`ac26d96f3`, the fourth precondition a ready queue needs, after
+approved / unstarted / answered), and the planning prompt now states what a dangling
+ref costs (`…`).
+
+**The durable fix for that is the next slice, and it belongs in the parser, not the
+prompt:** an `assumption` edge whose ref resolves to nothing should become the open
+question it already reads like, so the block survives ANA0 intact and becomes
+answerable. Dropping the edge would let work start on an unconfirmed assumption,
+which is the one thing that machinery exists to prevent.
+
 **Proven live:** the parent choosing the worktree runner, a branch and second
 checkout created, the child running in isolation, the saved verification command
-running, and `verified: true` reaching the parent — the mechanical level passing for
-the first time. **Not yet proven live:** an acceptance *written* on that evidence.
+running, `verified: true` reaching the parent, and a changed file recorded against a
+task that declared one — the mechanical and evidence levels both satisfiable. **Not yet proven live:** an acceptance *written* on that evidence.
 The last run waited for the child properly and then declined, correctly, because its
 verification had been refused for its shape.
 - Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
