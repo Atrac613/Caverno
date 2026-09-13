@@ -280,6 +280,14 @@ void main() {
       prompt,
       contains('targetFiles are the files the task will create or change.'),
     );
+    // Measured live, twice in a row: the plan gave its first task three
+    // assumption preconditions whose refs were question-shaped sentences it had
+    // invented, so nothing resolved them, nothing could confirm them, and the
+    // ready queue stayed empty for the whole run.
+    expect(
+      prompt,
+      contains('A ref that matches nothing in the plan cannot ever be satisfied'),
+    );
     expect(prompt, contains('are refused rather than run'));
     expect(
       prompt,

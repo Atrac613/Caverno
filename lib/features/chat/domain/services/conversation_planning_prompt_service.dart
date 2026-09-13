@@ -304,7 +304,12 @@ class ConversationPlanningPromptService {
         '{"kind":"question","ref":<the open question text>} for a decision '
         'that is not made yet. Use an empty array for a task that can start '
         'immediately, and reference only titles, constraints, and open '
-        'questions that appear in this plan.',
+        'questions that appear in this plan. A ref that matches nothing in the '
+        'plan cannot ever be satisfied: the task stays unready for the rest of '
+        'the run, because there is no item for the user to confirm and no '
+        'question for them to answer. If the plan is assuming something, write '
+        'it as a constraint and reference that text; if it is a decision nobody '
+        'has made, write it as an open question and reference that.',
       )
       ..writeln(
         '- For implementation tasks, validationCommand must verify the target file or module directly. Avoid generic checks such as "module importable" or validation that only appends src to sys.path.',
