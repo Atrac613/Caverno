@@ -10,15 +10,23 @@ class PlanHydratedTaskRow extends StatelessWidget {
     super.key,
     required this.task,
     required this.progress,
-    this.accepted = false,
+    this.acceptance,
   });
 
   final ConversationWorkflowTask task;
   final ConversationExecutionTaskProgress? progress;
 
-  /// Whether the parent recorded an acceptance for this task. Passed in because
-  /// only the conversation records one, and this row is given a task.
-  final bool accepted;
+  /// The acceptance the parent recorded for this task, if it recorded one.
+  ///
+  /// Passed in because only the conversation records one and this row is given
+  /// a task -- and passed whole rather than as a flag, because `accepted` is
+  /// the one state that owes an explanation: the rationale and the evidence it
+  /// rested on were written by `recordTaskAcceptance` and, until this row read
+  /// them, by nothing at all. A chip that says "accepted" and cannot say on
+  /// what is the same shortfall one layer up from the prompt's.
+  final ConversationTaskAcceptance? acceptance;
+
+  bool get accepted => acceptance != null;
 
   @override
   Widget build(BuildContext context) {
@@ -154,6 +162,22 @@ class PlanHydratedTaskRow extends StatelessWidget {
                 ],
               ],
             ),
+          ],
+          if (acceptance case final recorded?) ...[
+            if (recorded.evidence.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _PlanTaskDetail(
+                label: 'chat.plan_document_hydrated_accepted_on'.tr(),
+                value: recorded.evidence.join(', '),
+              ),
+            ],
+            if (recorded.rationale.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _PlanTaskDetail(
+                label: 'chat.plan_document_hydrated_accepted_because'.tr(),
+                value: recorded.rationale.trim(),
+              ),
+            ],
           ],
           if (blockedSince != null) ...[
             const SizedBox(height: 6),

@@ -870,9 +870,9 @@ extension _ChatPagePlanBuilders on _ChatPageState {
             PlanHydratedTaskRow(
               task: task,
               progress: currentConversation.executionProgressForTask(task.id),
-              accepted: currentConversation.taskAcceptances.any(
-                (acceptance) => acceptance.taskId == task.id,
-              ),
+              acceptance: currentConversation.taskAcceptances
+                  .where((item) => item.taskId == task.id)
+                  .lastOrNull,
             ),
             if (task != tasks.last) const SizedBox(height: 8),
           ],
@@ -880,7 +880,6 @@ extension _ChatPagePlanBuilders on _ChatPageState {
       ),
     );
   }
-
 
   Future<void> _answerOpenQuestion(
     BuildContext context, {

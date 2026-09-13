@@ -346,6 +346,8 @@
     "plan_document_hydrated_execution_note": "Current execution note",
     "plan_document_hydrated_last_outcome": "Last outcome",
     "plan_document_hydrated_last_validation": "Last validation command",
+    "plan_document_hydrated_accepted_on": "Accepted on",
+    "plan_document_hydrated_accepted_because": "Accepted because",
     "plan_document_hydrated_blocked_since": "Blocked since",
     "plan_document_hydrated_summary_completed": "{completed} of {total} complete",
     "plan_document_hydrated_state_blocked_title": "Blocked task needs attention",

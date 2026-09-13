@@ -1588,8 +1588,16 @@ spend prompt on a constant. The rationale is model-written, so it is collapsed t
 one line and clipped at 180 characters before it reaches another prompt.
 Signature: `acceptance_evidence_in_prompt`.
 
-The UI half is still open and is ANA4's third acceptance criterion: the plan row
-knows an acceptance exists and cannot show what it was made on.
+The UI half followed in the same pass, which is ANA4's third acceptance criterion
+met ahead of the milestone: `PlanHydratedTaskRow` takes the acceptance whole
+rather than a flag, and renders `Accepted on` / `Accepted because` under the
+chip. An acceptance with no evidence -- a subagent result, which passes no audit
+level and rests on the parent's word alone -- shows only the reason, because an
+empty evidence row reads as evidence that is *missing* rather than evidence that
+was never owed.
+
+So the acceptance detail now has three readers where it had none: the prompt, the
+plan row, and the tests that were the only ones before.
 
 **ANA2's contradiction policy was unreachable, found 2026-09-13 while scoping
 ANA4.** `DelegatedPremiseAudit` — a complete, argued policy with its own tests —

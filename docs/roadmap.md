@@ -99,6 +99,20 @@ the project vision explicitly independent of it. The one acceptance route still
 unobserved is a *subagent* result — it passes no audit level, so it rests on the
 parent's word alone and is a different claim from the one run 12 settled.
 
+Scoping ANA4 on 2026-09-13 found two things already broken rather than unbuilt,
+and both are fixed: ANA2's contradiction policy had no production caller, so
+every acceptance was written without the premise check; and the acceptance detail
+had no production reader, so `[accepted]` told the next turn nothing about what
+it rested on. ANA4's third acceptance criterion — the evidence behind an
+acceptance accessible from the workspace — is met as a result. Two ceilings were
+hit landing it, and one is a standing hazard: the frozen RAG2 development
+declaration replays against the **live working tree** and its five chat source
+roots now sit at exactly 512 of a frozen 512-file cap, so the next file added
+under `lib/features/chat/domain/{entities,services}` or
+`presentation/providers` fails a blocked track's evaluation with a
+RAG-shaped error. Pinning that replay to the commit it was frozen at is the
+repair; it belongs to the RAG track.
+
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
 implementation slice active.

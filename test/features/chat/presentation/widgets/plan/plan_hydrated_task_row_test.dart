@@ -27,6 +27,8 @@ Future<void> _pumpTaskRow(
   required ConversationWorkflowTask task,
   ConversationExecutionTaskProgress? progress,
   bool accepted = false,
+  List<String> acceptanceEvidence = const [],
+  String acceptanceRationale = '',
 }) async {
   await tester.pumpWidget(
     EasyLocalization(
@@ -47,7 +49,14 @@ Future<void> _pumpTaskRow(
               body: PlanHydratedTaskRow(
                 task: task,
                 progress: progress,
-                accepted: accepted,
+                acceptance: accepted
+                    ? ConversationTaskAcceptance(
+                        taskId: task.id,
+                        acceptedAt: DateTime(2026, 9, 13),
+                        evidence: acceptanceEvidence,
+                        rationale: acceptanceRationale,
+                      )
+                    : null,
               ),
             ),
           );
@@ -204,6 +213,97 @@ void main() {
         'Next step: This task is complete. Continue with the next pending task or review the result.',
         findRichText: true,
       ),
+      findsOneWidget,
+    );
+  });
+  testWidgets('an accepted task shows what the acceptance rested on', (
+    tester,
+  ) async {
+    // The chip says `accepted`; until this row read them, the rationale and the
+    // evidence were written by recordTaskAcceptance and read by nothing. A
+    // state that owes an explanation and cannot give one sends the user back to
+    // the conversation history, which is the work ANA4 exists to remove.
+    await _pumpTaskRow(
+      tester,
+      task: const ConversationWorkflowTask(
+        id: 'task-1',
+        title: 'Summarize the spec',
+        status: ConversationWorkflowTaskStatus.completed,
+      ),
+      accepted: true,
+      acceptanceEvidence: const [
+        'worktree branch feature/readme',
+        'verified green: test -s README.md',
+      ],
+      acceptanceRationale: 'The summary covers every section of the spec.',
+    );
+
+    expect(
+      find.text(
+        'Accepted on: worktree branch feature/readme, '
+        'verified green: test -s README.md',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Accepted because: The summary covers every section of the spec.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a task with no acceptance shows no acceptance detail', (
+    tester,
+  ) async {
+    await _pumpTaskRow(
+      tester,
+      task: const ConversationWorkflowTask(
+        id: 'task-1',
+        title: 'Summarize the spec',
+        status: ConversationWorkflowTaskStatus.completed,
+      ),
+    );
+
+    expect(
+      find.textContaining('Accepted on:', findRichText: true),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('Accepted because:', findRichText: true),
+      findsNothing,
+    );
+  });
+
+  testWidgets('an acceptance that recorded no evidence shows only the reason', (
+    tester,
+  ) async {
+    // A subagent result passes no audit level, so its acceptance rests on the
+    // parent's word alone and has nothing to list. An empty "Accepted on" row
+    // would read as evidence that is missing rather than evidence that was
+    // never owed.
+    await _pumpTaskRow(
+      tester,
+      task: const ConversationWorkflowTask(
+        id: 'task-1',
+        title: 'Summarize the spec',
+        status: ConversationWorkflowTaskStatus.completed,
+      ),
+      accepted: true,
+      acceptanceRationale: 'The child read the spec and reported it back.',
+    );
+
+    expect(
+      find.textContaining('Accepted on:', findRichText: true),
+      findsNothing,
+      reason:
+          'an empty row would read as evidence that is missing rather than '
+          'evidence that was never owed',
+    );
+    expect(
+      find.textContaining('Accepted because:', findRichText: true),
       findsOneWidget,
     );
   });
