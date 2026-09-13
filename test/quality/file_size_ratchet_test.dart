@@ -93,7 +93,13 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 44,
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
-  'lib/features/chat/domain/services/task_acceptance_audit.dart': 145,
+  // +10, to 155: a worktree child that named no files owes no changed-file
+  // evidence. The rule was already on the subagent side, and its absence here was
+  // a contradiction by construction -- runnerFor sends a task with only a
+  // validation command to a worktree, where this level could then never be
+  // satisfied. A live run refused an acceptance for evidence it was never going
+  // to have.
+  'lib/features/chat/domain/services/task_acceptance_audit.dart': 155,
   // +16, to 200: a worktree result outranks a subagent one for the same task,
   // and its evidence is named rather than counted -- which branch, which command
   // -- because that line is what the next turn reads instead of redoing the work.
@@ -1053,10 +1059,11 @@ const Map<String, int> _libraryLineBudgets = {
   // drove the scheduler, so a parent that merely enqueued handed itself an id to
   // poll on a child that never began -- delegation with no effect, which the
   // parent's only route to effect cannot be.
-  // +14, to 19,884: the in-flight check before a second enqueue. It reads the
+  // +15, to 19,885: the in-flight check before a second enqueue, and the
+  // target files the launch carries for the audit. It reads the
   // registry the acceptance audit already reads, so the lookup is here rather
   // than in the payload shapes beside it.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19884,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19885,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

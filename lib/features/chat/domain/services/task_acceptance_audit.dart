@@ -80,10 +80,20 @@ class TaskAcceptanceAudit {
     final hasEvidence = task.changedFiles.isNotEmpty;
     if (hasEvidence && !task.changedFileEvidenceTruncated) {
       passed.add(AcceptanceLevel.evidence);
+    } else if (task.expectedTargetFiles.isEmpty && !hasEvidence) {
+      // A task that declared no files to change owes no changed-file evidence:
+      // it changed nothing, as expected. This is the same rule the subagent side
+      // has for an inspecting child, and its absence here was a contradiction by
+      // construction -- `runnerFor` sends a task with only a validation command
+      // to a worktree, and this level could then never be satisfied. Measured
+      // live: a reading task's branch came back `verified: true` with zero
+      // changed files, and the acceptance was refused for evidence it was never
+      // going to have.
+      notApplicable.add(AcceptanceLevel.evidence);
     } else {
       // Truncated evidence is not evidence for this purpose: a partial list
       // cannot show that the artifacts match the claim, only that some of them
-      // might.
+      // might. A task that named files and changed none owes it outright.
       outstanding.add(AcceptanceLevel.evidence);
     }
 

@@ -84,6 +84,7 @@ WorktreeAgentTask _worktreeChild({
   bool verifiedGreen = true,
   String verificationCommand = 'dart test',
   int changedFileCount = 2,
+  List<String> expectedTargetFiles = const ['lib/file_0.dart'],
 }) => WorktreeAgentTask(
   id: 'worktree-1',
   status: WorktreeAgentTaskStatus.completed,
@@ -93,6 +94,7 @@ WorktreeAgentTask _worktreeChild({
   workflowTaskId: workflowTaskId,
   verificationCommand: verificationCommand,
   verifiedGreen: verifiedGreen,
+  expectedTargetFiles: expectedTargetFiles,
   changedFiles: [
     for (var index = 0; index < changedFileCount; index++)
       WorktreeAgentChangedFileEvidence(path: 'lib/file_$index.dart'),
@@ -211,7 +213,30 @@ void main() {
       );
     });
 
-    test('a branch with no changed files owes the evidence level', () {
+    test('a branch that named no files owes nothing for changing none', () {
+      // The reading task's shape, which the live run refused: verified, zero
+      // changed files, and no file it said it would change.
+      final decision =
+          _decide(
+                children: const [],
+                worktreeChildren: [
+                  _worktreeChild(
+                    changedFileCount: 0,
+                    expectedTargetFiles: const <String>[],
+                  ),
+                ],
+              )
+              as TaskAcceptanceContract;
+
+      expect(decision.evidence, contains('verified green: dart test'));
+      expect(
+        decision.evidence,
+        isNot(contains('0 changed file(s) recorded')),
+        reason: 'There is nothing to report where nothing was owed.',
+      );
+    });
+
+    test('a branch missing the files it named owes the evidence level', () {
       final decision = _decide(
         children: const [],
         worktreeChildren: [_worktreeChild(changedFileCount: 0)],

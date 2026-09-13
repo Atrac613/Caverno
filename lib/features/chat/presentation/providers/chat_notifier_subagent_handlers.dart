@@ -160,6 +160,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
               prompt: prompt,
               projectRootPath: projectRoot,
               verificationCommand: task.validationCommand,
+              expectedTargetFiles: task.targetFiles,
               objectiveAcceptanceCriteria:
                   conversation!.effectiveWorkflowSpec.acceptanceCriteria,
               workflowTaskId: workflowTaskId,

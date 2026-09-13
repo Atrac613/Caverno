@@ -56,6 +56,14 @@ abstract class WorktreeAgentTask with _$WorktreeAgentTask {
     @Default('') String checkpointLineageId,
     @Default('') String endpointId,
     @Default('') String verificationCommand,
+
+    /// The files the saved task said it would change.
+    ///
+    /// Carried so the audit can tell "changed nothing, as expected" from
+    /// "changed nothing, and said it would": a task that declares no target
+    /// files owes no changed-file evidence, which is the rule the subagent side
+    /// already had for an inspecting child.
+    @Default(<String>[]) List<String> expectedTargetFiles,
     @Default(<String>[]) List<String> objectiveAcceptanceCriteria,
     required DateTime createdAt,
     required DateTime updatedAt,

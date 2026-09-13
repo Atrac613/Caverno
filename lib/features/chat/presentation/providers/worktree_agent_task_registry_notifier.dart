@@ -94,6 +94,7 @@ class WorktreeAgentTaskRegistryNotifier
     String endpointId = '',
     String verificationCommand = '',
     String workflowTaskId = '',
+    Iterable<String> expectedTargetFiles = const <String>[],
     Iterable<String> objectiveAcceptanceCriteria = const <String>[],
   }) async {
     final normalizedWorktreePath = WorktreeAgentTask.normalizeWorktreePath(
@@ -122,6 +123,10 @@ class WorktreeAgentTaskRegistryNotifier
       endpointId: endpointId.trim(),
       verificationCommand: verificationCommand.trim(),
       workflowTaskId: workflowTaskId.trim(),
+      expectedTargetFiles: expectedTargetFiles
+          .map((path) => path.trim())
+          .where((path) => path.isNotEmpty)
+          .toList(growable: false),
       objectiveAcceptanceCriteria: objectiveAcceptanceCriteria
           .map((criterion) => criterion.trim())
           .where((criterion) => criterion.isNotEmpty)
@@ -148,6 +153,7 @@ class WorktreeAgentTaskRegistryNotifier
       endpointId: plan.endpointId,
       verificationCommand: plan.verificationCommand,
       workflowTaskId: plan.workflowTaskId,
+      expectedTargetFiles: plan.expectedTargetFiles,
       objectiveAcceptanceCriteria: plan.objectiveAcceptanceCriteria,
     );
   }

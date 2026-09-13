@@ -12,6 +12,7 @@ WorktreeAgentTask _worktreeTask({
     WorktreeAgentChangedFileEvidence(path: 'lib/sync/engine.dart'),
   ],
   bool truncated = false,
+  List<String> expectedTargetFiles = const ['lib/sync/engine.dart'],
 }) {
   return WorktreeAgentTask(
     id: 'task-1',
@@ -24,6 +25,7 @@ WorktreeAgentTask _worktreeTask({
     verifiedGreen: verifiedGreen,
     changedFiles: changedFiles,
     changedFileEvidenceTruncated: truncated,
+    expectedTargetFiles: expectedTargetFiles,
   );
 }
 
@@ -64,7 +66,7 @@ void main() {
       expect(verdict.outstanding, isNot(contains(AcceptanceLevel.mechanical)));
     });
 
-    test('a child that changed nothing owes the evidence level', () {
+    test('a child that changed nothing it named owes the evidence level', () {
       final verdict = _audit.auditWorktreeResult(
         _worktreeTask(changedFiles: const []),
       );
@@ -73,9 +75,32 @@ void main() {
         verdict.outstanding,
         contains(AcceptanceLevel.evidence),
         reason:
-            'A worktree child was routed there because the work changes files. '
-            'Green tests over an unchanged tree is the shape of a claim '
-            'without a result.',
+            'The task named a file it would change. Green tests over an '
+            'unchanged tree is the shape of a claim without a result.',
+      );
+    });
+
+    // Measured live: a reading task's branch came back verified with zero
+    // changed files, and the acceptance was refused for evidence it was never
+    // going to have. `runnerFor` sends a task with only a validation command to a
+    // worktree, so this level could never be satisfied there -- a contradiction
+    // by construction, and the rule the subagent side already had.
+    test('a child that named no files owes nothing for changing none', () {
+      final verdict = _audit.auditWorktreeResult(
+        _worktreeTask(
+          changedFiles: const [],
+          expectedTargetFiles: const <String>[],
+        ),
+      );
+
+      expect(verdict.notApplicable, contains(AcceptanceLevel.evidence));
+      expect(verdict.outstanding, isNot(contains(AcceptanceLevel.evidence)));
+      expect(
+        _audit.mayParentAccept(verdict),
+        isTrue,
+        reason:
+            'Its verification passed and it owed no artifacts, so what is left '
+            'is the judgement -- which is the parent\'s to make.',
       );
     });
 
@@ -170,7 +195,7 @@ void main() {
       );
     });
 
-    test('a result with no artifacts cannot be judged past either', () {
+    test('a result missing the artifacts it named cannot be judged past', () {
       expect(
         _audit.mayParentAccept(
           _audit.auditWorktreeResult(_worktreeTask(changedFiles: const [])),

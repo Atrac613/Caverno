@@ -24,6 +24,7 @@ class WorktreeAgentTaskLaunchRequest {
     this.endpointId = '',
     this.verificationCommand = '',
     this.workflowTaskId = '',
+    this.expectedTargetFiles = const <String>[],
     this.objectiveAcceptanceCriteria = const <String>[],
     this.existingBranchNames = const <String>[],
     this.existingWorktreePaths = const <String>[],
@@ -43,6 +44,9 @@ class WorktreeAgentTaskLaunchRequest {
 
   /// The saved plan task this launch is bound to, when a parent delegated it.
   final String workflowTaskId;
+
+  /// The files that task said it would change.
+  final List<String> expectedTargetFiles;
   final List<String> objectiveAcceptanceCriteria;
   final Iterable<String> existingBranchNames;
   final Iterable<String> existingWorktreePaths;
@@ -122,6 +126,7 @@ class WorktreeAgentTaskLauncher {
       endpointId: endpointId,
       verificationCommand: request.verificationCommand,
       workflowTaskId: request.workflowTaskId,
+      expectedTargetFiles: request.expectedTargetFiles,
       objectiveAcceptanceCriteria: request.objectiveAcceptanceCriteria,
       existingBranchNames: [
         ...gitReservations.branchNames,

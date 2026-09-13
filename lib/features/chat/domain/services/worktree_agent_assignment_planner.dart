@@ -13,6 +13,7 @@ class WorktreeAgentAssignmentPlan {
     required this.endpointId,
     required this.verificationCommand,
     this.workflowTaskId = '',
+    this.expectedTargetFiles = const <String>[],
     this.objectiveAcceptanceCriteria = const <String>[],
   });
 
@@ -30,6 +31,9 @@ class WorktreeAgentAssignmentPlan {
   /// The saved plan task this assignment was admitted against, when a parent
   /// delegated it; empty otherwise.
   final String workflowTaskId;
+
+  /// The files that task said it would change.
+  final List<String> expectedTargetFiles;
   final List<String> objectiveAcceptanceCriteria;
 }
 
@@ -52,6 +56,7 @@ class WorktreeAgentAssignmentPlanner {
     String endpointId = '',
     String verificationCommand = '',
     String workflowTaskId = '',
+    List<String> expectedTargetFiles = const <String>[],
     Iterable<String> objectiveAcceptanceCriteria = const <String>[],
     Iterable<String> existingBranchNames = const <String>[],
     Iterable<String> existingWorktreePaths = const <String>[],
@@ -104,6 +109,10 @@ class WorktreeAgentAssignmentPlanner {
       endpointId: endpointId.trim(),
       verificationCommand: verificationCommand.trim(),
       workflowTaskId: workflowTaskId.trim(),
+      expectedTargetFiles: expectedTargetFiles
+          .map((path) => path.trim())
+          .where((path) => path.isNotEmpty)
+          .toList(growable: false),
       objectiveAcceptanceCriteria: objectiveAcceptanceCriteria
           .map((criterion) => criterion.trim())
           .where((criterion) => criterion.isNotEmpty)
