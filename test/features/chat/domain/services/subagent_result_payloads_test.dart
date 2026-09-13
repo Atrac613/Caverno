@@ -168,4 +168,26 @@ void main() {
       expect(_decode(result.result)['error'], 'git locked');
     });
   });
+
+  test('the enqueue answer says the child is running, not merely queued', () {
+    // Nothing but a slash command drives the scheduler, so the parent's route
+    // starts the run itself; an answer that said "queued" would have the parent
+    // poll a child that never begins.
+    final payload = _decode(
+      _payloads
+          .worktreeEnqueued(
+            toolName: 'spawn_subagent',
+            taskId: 'worktree-1',
+            workflowTaskId: 'task-1',
+            branchName: 'feature/scaffold',
+            worktreePath: '/tmp/worktrees/scaffold',
+            verificationCommand: 'dart test',
+          )
+          .result,
+    );
+
+    expect(payload['started'], isTrue);
+    expect(payload['status'], 'enqueued');
+    expect(payload['required_action'], contains('Poll get_subagent_result'));
+  });
 }

@@ -74,10 +74,11 @@ class SubagentResultPayloads {
       'branch_name': branchName,
       'worktree_path': worktreePath,
       'verification_command': verificationCommand,
+      'started': true,
       'required_action':
-          'The child runs on its own branch. Poll get_subagent_result with '
-          'task_id, and accept only once it reports changed files and a green '
-          'verification.',
+          'The child is running on its own branch. Poll get_subagent_result '
+          'with task_id, and accept only once it reports changed files and a '
+          'green verification.',
     }),
   );
 

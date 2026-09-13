@@ -155,6 +155,19 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         '[Subagent] Enqueued worktree child for $workflowTaskId '
         '(task=${launched.task.id} branch=${launched.task.branchName})',
       );
+      // Started here, because nothing else would. Only a slash command with
+      // --run drives the scheduler, so a parent that merely enqueued would hand
+      // itself an id to poll on a child that never starts -- delegation with no
+      // effect, which is the one thing the parent's only route to effect cannot
+      // be. Fire-and-forget, like the slash command: the run outlives this tool
+      // call by design, and the parent polls it.
+      unawaited(
+        ref
+            .read(worktreeAgentTaskOrchestratorProvider)
+            .startAndExecuteReady(
+              WorktreeAgentTaskRunRequest(fallbackProjectRootPath: projectRoot),
+            ),
+      );
       return payloads.worktreeEnqueued(
         toolName: toolCall.name,
         taskId: launched.task.id,

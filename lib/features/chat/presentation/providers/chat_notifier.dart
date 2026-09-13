@@ -267,6 +267,7 @@ import 'turn_stream_binding_registry.dart';
 import 'turn_thread_scope.dart';
 import 'turn_tool_result_ledger.dart';
 import 'worktree_agent_task_launcher.dart';
+import 'worktree_agent_task_orchestrator.dart';
 import 'worktree_agent_task_registry_notifier.dart';
 
 export 'chat_data_source_provider.dart'

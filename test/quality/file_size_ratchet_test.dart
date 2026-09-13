@@ -101,7 +101,7 @@ const Map<String, int> _lineBudgets = {
   // +34, to 158: a worktree child's own state, which carries the two things only
   // it can report. The changed-file *count* rather than the files: this answer is
   // read on every poll and the list belongs to the acceptance that rests on it.
-  'lib/features/chat/domain/services/subagent_result_payloads.dart': 158,
+  'lib/features/chat/domain/services/subagent_result_payloads.dart': 159,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
@@ -1040,7 +1040,11 @@ const Map<String, int> _libraryLineBudgets = {
   // alone because that is all it carries -- it is scoped to a coding project, not
   // a conversation -- so the lookup could not reuse the conversation-scoped one
   // beside it.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19856,
+  // +14, to 19,870: the enqueue starts the run. Only a slash command with --run
+  // drove the scheduler, so a parent that merely enqueued handed itself an id to
+  // poll on a child that never began -- delegation with no effect, which the
+  // parent's only route to effect cannot be.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19870,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
