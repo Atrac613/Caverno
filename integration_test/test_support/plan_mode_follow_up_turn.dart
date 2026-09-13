@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
 import 'package:caverno/features/chat/domain/services/task_delegation_brief_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
@@ -80,6 +81,8 @@ Future<PlanModeFollowUpTurnResult> runPlanModeFollowUpTurn({
   if (scenario.resolveOpenQuestionsBeforeFollowUp) {
     final answered = await _resolveOpenQuestions(container);
     appLog('[Scenario] Answered $answered open question(s) before the turn');
+    final confirmed = await _confirmMaterialAssumptions(container);
+    appLog('[Scenario] Confirmed $confirmed material assumption(s)');
     await pumpPlanModeUntilIdle(tester);
   }
 
@@ -281,6 +284,43 @@ Future<int> _waitForNonEmptyDelegationQueue({
 /// Stands in for the user, and only for the user: this records an answer where
 /// the design says a human has to, and changes nothing about how the parent
 /// then reads the queue.
+/// Confirms the plan's material assumptions, the fourth thing a ready queue needs.
+///
+/// Readiness treats an `assumption` precondition as unmet until the spec's
+/// provenance says the item is confirmed, and only the user can confirm one --
+/// which is correct, and is why two runs in a row offered nothing: the plan's
+/// first task waited on three assumptions the harness had no way to answer while
+/// it happily answered every open question.
+Future<int> _confirmMaterialAssumptions(ProviderContainer container) async {
+  final conversationsNotifier = container.read(
+    conversationsNotifierProvider.notifier,
+  );
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  if (conversation == null) return 0;
+  const provenanceService = ConversationContractProvenanceService();
+  var spec = conversation.effectiveWorkflowSpec;
+  final pending = spec.provenance
+      .where((item) => item.assumption && !item.confirmed)
+      .map((item) => item.itemId)
+      .toList(growable: false);
+  for (final itemId in pending) {
+    spec = provenanceService.confirmMaterialAssumption(
+      workflowSpec: spec,
+      itemId: itemId,
+      locator: 'live test harness',
+    );
+  }
+  if (pending.isEmpty) return 0;
+  await conversationsNotifier.updateCurrentWorkflow(
+    workflowSpec: spec,
+    conversationId: conversation.id,
+    preserveWorkflowProjection: true,
+  );
+  return pending.length;
+}
+
 Future<int> _resolveOpenQuestions(ProviderContainer container) async {
   final conversationsNotifier = container.read(
     conversationsNotifierProvider.notifier,
