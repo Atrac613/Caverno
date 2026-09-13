@@ -87,18 +87,17 @@ it does not rerun historical release, device, or live-model gates.
 
 ### Recommended Next Slice
 
-Clarify the remaining Anabasis runner-to-acceptance integration before promoting
-ANA4. ANA2's ready-queue observation passed on 2026-09-12. ANA3 PR 2b's guarded
-write and PR 3's prompt/panel projection are implemented; the previous
-recommendation to extract a writer and build those paths is superseded.
+ANA3 closed on 2026-09-13: run 12 of the worktree canary wrote an acceptance on
+the worktree route's own evidence — a branch, a green verification command, and
+one changed file — after a turn restricted to `accept_task` asked for it. Two
+prose asks in the same run got prose answers, which reproduces the `update_goal`
+finding on a second tool. ANA0 through ANA3 are now all `done`.
 
-The bounded next investigation is one mutating planned task: trace the runner
-choice through parent dispatch to the acceptance audit, and specify the missing
-worktree adapter and evidence contract. The worktree route is dispatched as of
-2026-09-13 and is unobserved live. See the
-[ANA3 current summary](anabasis_roadmap.md#ana3-accept) for the recorded limit.
-Keep ANA3 `current` until that closure scope is resolved. ANA4 remains `later`,
-with one goal as its completion boundary and the project vision independent.
+That makes **ANA4 the promotion decision**, not another ANA3 slice. Before
+promoting it, settle its completion boundary: one goal carried end to end, with
+the project vision explicitly independent of it. The one acceptance route still
+unobserved is a *subagent* result — it passes no audit level, so it rests on the
+parent's word alone and is a different claim from the one run 12 settled.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
@@ -115,7 +114,6 @@ implementation slice active.
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
-| Anabasis | ANA3 | current | Separate produced, verified, and accepted results with explicit ownership and evidence. | PR 2b and PR 3 are implemented, including the live acceptance write and prompt/panel lifecycle. Resolve the worktree-dispatch and acceptance-evidence limit before milestone closure; see [ANA3](anabasis_roadmap.md#ana3-accept). |
 | Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Push delivery, lock-screen approval, and native withdrawal have hardware evidence dated 2026-09-09/10. Complete the remaining device matrix; see [WATCH5](apple_watch_roadmap.md#watch5-push-originated-notification-actions). |
 
 ### Ready Candidates

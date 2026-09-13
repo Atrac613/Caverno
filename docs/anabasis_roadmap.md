@@ -1115,14 +1115,14 @@ parent prompt, `anabasis_parent_authority_refused` zero times.
 
 ### ANA3: Accept
 
-Status: `current`
+Status: `done`
 
-Current summary (2026-09-13): PR 2b's guarded acceptance write was observed live
-on 2026-09-12; PR 3's derived lifecycle now reaches both prompts and panels
-(`c4cc61380`, `455af1bc8`, `70466c022`). The implementation slices below are
-complete. The worktree route was then dispatched on 2026-09-13, which closes the
-acceptance-evidence limit in code; keep the milestone current pending a live
-observation of it, since the canary's temp-directory project cannot host a branch.
+Current summary (2026-09-13): complete, including the live observation the
+milestone was held open for. PR 2b's guarded acceptance write was observed live
+on 2026-09-12; PR 3's derived lifecycle reaches both prompts and panels
+(`c4cc61380`, `455af1bc8`, `70466c022`); the worktree route was dispatched on
+2026-09-13, and on the same day an acceptance was **written on that route's own
+evidence** — see the acceptance-elicitation run below.
 
 Scope:
 - `produced` / `verified` / `accepted` as distinct states. Both existing status
@@ -1194,11 +1194,7 @@ Verification evidence:
   nothing, which leaves nothing to judge.
 
 Next action:
-- Run the worktree canary once more, now that a settled parent turn is asked for
-  the judgement it was reporting in prose, and check
-  `anabasis_acceptance_elicited` and `anabasis_acceptance_recorded` together: the
-  first says the turn was spent, the second says it landed. That is the one
-  observation ANA3 is still holding `current` for.
+- Done, 2026-09-13: both signatures fired together on run 12. ANA3 is complete.
 - Trace a mutating planned task from the runner choice through parent dispatch
   to the acceptance audit, and specify the missing production adapter and its
   evidence contract. Decide the remaining integration scope before closing the
@@ -1369,13 +1365,47 @@ after that — so the coordinator remembers the last few settled parent generati
 The coordinator lives outside the notifier library because that library sits
 exactly at its aggregate ratchet: 19,885 of 19,885 before this change. The
 registry read it now owns came the other way, which is what paid for the wiring.
-Firing signature: `anabasis_acceptance_elicited`. Unproven live.
+Firing signature: `anabasis_acceptance_elicited`.
+
+**Observed live the same day, run 12 of the worktree canary** (session
+`9aa1d545`, build `b20963312`). The transcript is the finding, because it
+separates the nudge from the model:
+
+```
+[2] user: @anabasis ... 結果を確かめたら、その判断を記録してください。
+[3] assistant: まだ実行中です。少し待ってから再度確認します。
+[4] user: @anabasis 子の結果を評価し、受理するかしないかを今決めてください。
+[5] assistant: まだ実行中です。少し待ってから再度確認します。
+[6] user: @anabasis A delegated result finished and is waiting on your judgement…
+    → [Tool] Executing tool: accept_task
+```
+
+Two prose asks, two prose answers; the turn restricted to `accept_task` got the
+call. That is the `update_goal` finding reproduced on a second tool, and it is
+the reason to prefer a restricted turn over more insistent wording.
+
+What was written is the thing ANA3 existed for — an acceptance resting on
+evidence rather than on a claim:
+
+```
+accepted_task_id: c8e82d38…
+evidence: ["worktree branch feature/ll13-readme-md-d1da46d3",
+           "verified green: test -s README.md",
+           "1 changed file(s) recorded"]
+```
+
+`anabasis_acceptance_elicited`, `anabasis_acceptance_recorded`,
+`delegated_results_named` and `subagent_task_unknown` all fired in the one run.
+**Not yet proven live:** an acceptance on a *subagent* result taken through this
+path — that route passes no audit level, so it rests on the parent's word alone
+and is a different claim.
 
 **Proven live:** the parent choosing the worktree runner, a branch and second
 checkout created, the child running in isolation, the saved verification command
 running, `verified: true` reaching the parent, and a changed file recorded against a
 task that declared one — the mechanical and evidence levels both satisfiable, with
-the parent gathering level 2 itself through git. **Not yet proven live:** an acceptance *written* on that evidence.
+the parent gathering level 2 itself through git. An acceptance *written* on that
+evidence followed on run 12, once a restricted turn asked for it.
 The last run waited for the child properly and then declined, correctly, because its
 verification had been refused for its shape.
 - Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
