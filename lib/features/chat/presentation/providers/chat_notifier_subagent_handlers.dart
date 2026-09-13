@@ -321,67 +321,30 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     if (owner == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
+    const payloads = SubagentResultPayloads();
     final taskId = trimStringArgument(toolCall.arguments, 'task_id');
-    if (taskId.isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'task_id is required',
-      );
-    }
-    // Conversation-scoped, like the acceptance audit two methods down, and for
-    // the same reason. `byId` matches the turn owner, so a child spawned in an
-    // earlier turn read back as not_found -- measured: the parent asked for the
-    // result it was told to judge, was told there was none, and re-delegated
-    // the task instead. A delegated result has to outlive the turn that asked
-    // for it; the conversation boundary is the one that matters.
-    final task = ref
+    if (taskId.isEmpty) return payloads.missingTaskId(toolCall.name);
+    // Conversation-scoped, like the acceptance audit below, and for the same
+    // reason. `byId` matches the turn owner, so a child spawned in an earlier
+    // turn read back as not_found -- measured: the parent asked for the result
+    // it was told to judge, was told there was none, and re-delegated the task
+    // instead. A delegated result has to outlive the turn that asked for it.
+    final children = ref
         .read(subagentTaskNotifierProvider)
-        .tasksForConversation(owner.conversationId)
+        .tasksForConversation(owner.conversationId);
+    final task = children
         .where((candidate) => candidate.id == taskId)
         .lastOrNull;
     if (task == null) {
-      return McpToolResult(
+      return payloads.unknownTask(
         toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': subagentTaskUnknownCode,
-          ...ToolResultOrigin.refusal.marker,
-          'status': 'not_found',
-          'task_id': taskId,
-          'known_task_ids': ref
-              .read(subagentTaskNotifierProvider)
-              .tasksForConversation(owner.conversationId)
-              .map((candidate) => candidate.id)
-              .toList(growable: false),
-          'required_action':
-              'Pass a task_id from known_task_ids. A workflow_task_id names a '
-              'task in the plan, not a child that ran.',
-        }),
-        isSuccess: false,
-        errorMessage: 'No subagent task with id $taskId',
+        taskId: taskId,
+        knownTaskIds: children
+            .map((candidate) => candidate.id)
+            .toList(growable: false),
       );
     }
-
-    final payload = <String, dynamic>{
-      'task_id': task.id,
-      'description': task.description,
-      'status': task.status.name,
-    };
-    if (task.status == SubagentTaskStatus.completed) {
-      payload['summary'] = task.resultSummary;
-    } else if (task.status == SubagentTaskStatus.failed) {
-      payload['error'] = task.error ?? 'Subagent failed';
-    } else if (task.isActive) {
-      payload['note'] = 'Still running. Check again shortly.';
-    }
-
-    return McpToolResult(
-      toolName: toolCall.name,
-      result: jsonEncode(payload),
-      isSuccess: task.status != SubagentTaskStatus.failed,
-    );
+    return payloads.forTask(toolName: toolCall.name, task: task);
   }
 
   /// Records the parent's acceptance of a delegated saved task.

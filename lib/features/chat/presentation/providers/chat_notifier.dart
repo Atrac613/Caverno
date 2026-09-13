@@ -172,7 +172,7 @@ import '../../domain/services/stalled_diagnostic_repair_contract.dart';
 import '../../domain/services/sticky_tool_result_policy.dart';
 import '../../domain/services/subagent_command_observation.dart';
 import '../../domain/services/subagent_execution_service.dart';
-import '../../domain/services/subagent_tool_contract.dart';
+import '../../domain/services/subagent_result_payloads.dart';
 import '../../domain/services/subagent_tool_policy.dart';
 import '../../domain/services/successful_read_result_replay_cache.dart';
 import '../../domain/services/system_prompt_builder.dart';
