@@ -548,8 +548,15 @@ class SystemPromptBuilder {
             index++
           ) {
             final task = normalizedWorkflowSpec.tasks[index];
+            // The lifecycle when it is known, the status enum only as a
+            // fallback: `completed` answers three questions at once -- produced,
+            // verified, accepted -- and a prompt that says it is what lets the
+            // next turn treat unchecked work as judged.
+            final taskState =
+                executionSnapshot?.taskLifecycleStates[task.id] ??
+                _formatWorkflowTaskStatus(task.status);
             final taskParts = <String>[
-              '${index + 1}. [${_formatWorkflowTaskStatus(task.status)}] ${task.title.trim()}',
+              '${index + 1}. [$taskState] ${task.title.trim()}',
             ];
             final targetFiles = task.targetFiles
                 .map((item) => item.trim())

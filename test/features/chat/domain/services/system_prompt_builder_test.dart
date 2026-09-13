@@ -663,6 +663,55 @@ Dart symbols:
     );
   });
 
+  // The prompt used to print the status enum, whose `completed` answers three
+  // questions at once -- produced, verified, accepted -- so a task nobody had
+  // judged read the same as one the parent had.
+  test('a saved task is labelled with what it has actually reached', () {
+    String promptFor(Map<String, String> lifecycles) =>
+        SystemPromptBuilder.build(
+          now: DateTime.utc(2026, 9, 13, 9),
+          assistantMode: AssistantMode.coding,
+          languageCode: 'en',
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: const ConversationWorkflowSpec(
+            goal: 'Ship the CLI',
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'task-1',
+                title: 'Add task persistence',
+                status: ConversationWorkflowTaskStatus.completed,
+                validationCommand: 'flutter test',
+              ),
+            ],
+          ),
+          executionSnapshot: ExecutionSnapshot(
+            contractHash: 'hash',
+            workflowStage: ConversationWorkflowStage.implement,
+            action: ExecutionSnapshotAction.verify,
+            activeTaskId: 'task-1',
+            activeTaskStatus: ConversationWorkflowTaskStatus.completed,
+            validationStatus: ConversationExecutionValidationStatus.unknown,
+            completedTaskCount: 1,
+            remainingTaskCount: 0,
+            unresolvedQuestionCount: 0,
+            requiresValidation: true,
+            latestDiagnostic: null,
+            taskLifecycleStates: lifecycles,
+          ),
+        );
+
+    expect(
+      promptFor(const {'task-1': 'produced'}),
+      contains('[produced] Add task persistence'),
+    );
+    expect(
+      promptFor(const {'task-1': 'produced'}),
+      isNot(contains('[completed] Add task persistence')),
+    );
+    // With no lifecycle for that id the status enum is still the fallback.
+    expect(promptFor(const {}), contains('[completed] Add task persistence'));
+  });
+
   test('includes plan mode guidance in plan prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),

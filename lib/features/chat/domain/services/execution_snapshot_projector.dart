@@ -7,6 +7,7 @@ import 'conversation_plan_execution_coordinator.dart';
 import 'conversation_plan_hash.dart';
 import 'conversation_task_readiness.dart';
 import 'task_delegation_brief_builder.dart';
+import 'task_lifecycle_state.dart';
 import 'verification_cadence_policy.dart';
 
 enum ExecutionSnapshotAction {
@@ -44,6 +45,7 @@ class ExecutionSnapshot {
     this.blockingAssumptions = const <String>[],
     this.waitingTasks = const <String>[],
     this.delegatableTasks = const <String>[],
+    this.taskLifecycleStates = const <String, String>{},
     this.sourceCount = 0,
     this.sourcedItemCount = 0,
     this.mutationGeneration = 0,
@@ -102,6 +104,11 @@ class ExecutionSnapshot {
   /// An ordinary turn has no use for a delegation queue and would read it as a
   /// suggestion to spawn children.
   final List<String> delegatableTasks;
+
+  /// Saved task id -> what it has actually reached, from
+  /// [TaskLifecycleProjection]. Derived, never stored: see that class for why
+  /// `accepted` must not become a status the enum can carry.
+  final Map<String, String> taskLifecycleStates;
   final int sourceCount;
   final int sourcedItemCount;
   final int mutationGeneration;
@@ -326,6 +333,7 @@ class ExecutionSnapshot {
       blockingAssumptions: blockingAssumptions,
       waitingTasks: waitingTasks,
       delegatableTasks: delegatableTasks,
+      taskLifecycleStates: taskLifecycleStates,
       sourceCount: sourceCount,
       sourcedItemCount: sourcedItemCount,
       mutationGeneration: mutationGeneration,
@@ -497,6 +505,9 @@ class ExecutionSnapshotProjector {
       blockingAssumptions: blockingAssumptionClaims,
       waitingTasks: waitingTaskSummaries,
       delegatableTasks: delegatableSummaries,
+      taskLifecycleStates: const TaskLifecycleProjection().namesByTaskId(
+        conversation,
+      ),
       sourceCount: conversation.effectiveWorkflowSpec.sources.length,
       sourcedItemCount: conversation.effectiveWorkflowSpec.provenance
           .where((item) => item.sourceIds.isNotEmpty)
