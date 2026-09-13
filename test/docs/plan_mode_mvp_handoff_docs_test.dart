@@ -320,7 +320,11 @@ void main() {
     });
 
     test('roadmap records productization milestones after PM6', () {
-      final roadmap = File('docs/roadmap.md').readAsStringSync();
+      final roadmap = [
+        File('docs/roadmap.md').readAsStringSync(),
+        File('docs/roadmap_completed_baselines.md').readAsStringSync(),
+        File('docs/plan_mode_roadmap.md').readAsStringSync(),
+      ].join('\n');
 
       expect(roadmap, contains('| Plan Mode | PM7 | done |'));
       expect(roadmap, contains('### PM7: Plan Mode Release Readiness'));

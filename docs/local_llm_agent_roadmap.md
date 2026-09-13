@@ -1,5 +1,11 @@
 # Local LLM Agent Roadmap
 
+Reading order: use the [milestone index](#milestone-index) for this document's
+full coverage, [Active Focus](roadmap.md#active-focus) for cross-track selection,
+and each milestone's notes for evidence. The phase plan records dependency
+order, not current priority. Dated measurements are historical until refreshed;
+keep current status and next-action summaries aligned with the index.
+
 This document plans the next major Caverno arc: making Caverno the strongest
 coding agent specialized for local LLMs, while paying down the structural debt
 that would otherwise block that work.
@@ -4270,7 +4276,7 @@ the compaction entry point ahead of `_buildSummary`.
 
 ### LL31: Turn-Exit Reason and Completion Explainer
 
-Status: `next`
+Status: `done`
 
 Problem:
 - The tool loop has many `break` / `hasTextResponse` exit points but no
@@ -4344,15 +4350,18 @@ corpus as it was, silently outgrown by the corpus.** Both were found by reading
 a distribution that looked wrong rather than by any test failing, and in both
 cases the inflated figure had already been quoted in this document.
 
-Next action: thread a `turnExitReason` local through the `ChatNotifier` loop
-break sites, then add the post-loop explainer + mid-work warning as a single
-finalization step. Once it is emitting, run `tool/triage_session_logs.py` over
-real complex-task sessions to decide whether LL29, LL30, both, or neither is
-warranted.
+Next action: use the existing turn-exit records and corpus corrections above
+when evaluating recovery follow-ups. LL30 is complete; LL29 remains deferred
+until representative evidence justifies promotion. The original instruction
+to add the turn-exit producer is superseded by the shipped implementation.
 
 ### LL33: Turn Provenance (session-log ↔ on-screen conversation)
 
-Status: `done`
+Status: `current`
+
+The correlation and guard-notice baseline is complete. Remaining transform
+coverage below keeps the track current, matching the milestone index; Level 3
+event sourcing remains deferred.
 
 Problem:
 - The LLM session log (`*.jsonl`) records the raw LLM request/response; the
@@ -5964,7 +5973,11 @@ Audit reopening (2026-08-14):
 
 ### SEC2: Taint-Aware Tool Execution
 
-Status: `current`
+Status: `done`
+
+The 2026-08-14 resolution below closes the hard execution gate and its recorded
+regressions, matching the milestone index. Remaining SEC1/SEC4 findings and
+release promotion gates retain their own scope and evidence requirements.
 
 Scope:
 - Track whether a proposed tool call was influenced by untrusted or lower-trust

@@ -77,12 +77,13 @@
 
 ## Roadmap
 
-The active milestone roadmap is maintained in
-[`docs/roadmap.md`](docs/roadmap.md). Plan Mode milestones use `PM<number>` and
-macOS Computer Use keeps the existing `M<number>` series; local-LLM agent work
-(`LL<number>`), foundation refactors (`F<number>`), and the platform vision
-tracks are detailed in
-[`docs/local_llm_agent_roadmap.md`](docs/local_llm_agent_roadmap.md).
+Start with the [roadmap index](docs/roadmap.md) for active work and links to each
+track's scope and evidence. [Completed baselines](docs/roadmap_completed_baselines.md)
+are kept separately from current priorities. Local-LLM, foundation, and platform
+milestones have their full index in the
+[Local LLM Agent Roadmap](docs/local_llm_agent_roadmap.md); the long-term
+[Anabasis Project Vision](docs/anabasis_project_vision.md) remains independent
+of the ANA4 single-goal workspace.
 
 ## Security
 

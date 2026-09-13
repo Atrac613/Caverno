@@ -8,7 +8,11 @@ void main() {
     late String terminalContract;
 
     setUpAll(() {
-      roadmap = File('docs/roadmap.md').readAsStringSync();
+      roadmap = [
+        File('docs/roadmap.md').readAsStringSync(),
+        File('docs/roadmap_completed_baselines.md').readAsStringSync(),
+        File('docs/caverno_cli_roadmap.md').readAsStringSync(),
+      ].join('\n');
       terminalContract = File(
         'docs/caverno_cli_terminal_contract.md',
       ).readAsStringSync();

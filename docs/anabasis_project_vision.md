@@ -19,6 +19,8 @@ conversation. This vision is not part of ANA4's completion criteria.
 - [Roadmap](roadmap.md#anabasis-project-vision) owns milestone status and promotion.
 - [Architecture](ANABASIS_ORCHESTRATOR_ARCHITECTURE.md) owns current execution
   boundaries, state reuse, and the ANA4 surface.
+- [Anabasis roadmap](anabasis_roadmap.md) owns detailed milestone scope and
+  evidence, including the limits that remain after an implementation slice.
 - [Brand story](anabasis_brand_story.md) explains the conceptual motivation.
 
 No ANA5 or later milestone is reserved by this document. The following sections
@@ -166,10 +168,10 @@ were actually available to the deciding model.
 
 ## Recommended Next Product Slice
 
-Finish and verify the ANA3 surfaces against current code before expanding the
-execution experience. Then define ANA4's primary journey using one existing
-repository goal with a real decision, a blocked task, a produced result, and an
-accepted result. Build the smallest workspace that lets the user distinguish
+Review ANA3 closure against the shipped surfaces and the remaining runner and
+acceptance-evidence limit before expanding the execution experience. Then
+define ANA4's primary journey using one existing repository goal with a real
+decision, a blocked task, a produced result, and an accepted result. Build the smallest workspace that lets the user distinguish
 and act on those states, and compare it with the existing Coding experience.
 
 Use the observed friction to select the first later milestone. The leading
