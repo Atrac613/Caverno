@@ -263,6 +263,15 @@ void main() {
     );
     expect(prompt, contains('do not invent absolute paths'));
     expect(prompt, contains('Do not append "echo \$?"'));
+    // Measured live: a plan wrote `test -s todo_app.md && grep -q …`, and both
+    // runners refuse a shell control operator rather than running it -- so the
+    // worktree child came back `verified: false` for a command that never ran.
+    // The prompt had invited compound commands while nothing would execute one.
+    expect(
+      prompt,
+      contains('A validationCommand must be one command.'),
+    );
+    expect(prompt, contains('are refused rather than run'));
     expect(
       prompt,
       contains(

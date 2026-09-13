@@ -313,7 +313,10 @@ class ConversationPlanningPromptService {
         '- Keep validation commands hermetic to the project workspace. Use repo-relative state and output paths, and do not invent absolute paths such as /tmp or /dev/null unless an exact path is required by the saved specification.',
       )
       ..writeln(
-        '- A compound validation command must return non-zero when any required check fails. Do not append "echo \$?" or another successful command that masks the failing exit status.',
+        '- A validationCommand must be one command. Shell control operators — "&&", "||", ";", "|" — are refused rather than run, by both the saved-task runner and a delegated worktree child\'s verification, so a command that chains checks is a command that never runs. Split the checks into separate tasks, or use one command that already covers them, such as a test runner.',
+      )
+      ..writeln(
+        '- Where a command does combine checks, it must return non-zero when any required check fails. Do not append "echo \$?" or another successful command that masks the failing exit status.',
       )
       ..writeln(
         '- A verification task must list every implementation file that its failed validation may need to repair in targetFiles.',
