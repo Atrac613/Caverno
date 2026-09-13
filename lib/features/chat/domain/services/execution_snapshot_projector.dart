@@ -441,15 +441,12 @@ class ExecutionSnapshotProjector {
       ))
         [
           '${brief.task.title.trim()} [workflow_task_id: ${brief.task.id}]',
-          // The runner that will actually run it, not the one the work belongs
-          // in. `runnerFor` states the intent and nothing dispatches on it --
-          // spawn_subagent is the only route to a child -- so a `(worktree)`
-          // label told the parent about a choice it does not have: 84 of these
-          // lines across one day of canary runs, with no tool that could honour
-          // one. Goes back to `brief.runner.name` when worktree delegation is
-          // wired, which is also when the acceptance audit has to choose between
-          // its two halves.
-          '(${TaskDelegationRunner.subagent.name})',
+          // Back to the runner the work belongs in, now that both are reachable:
+          // spawn_subagent takes runner: "worktree", and the acceptance audit
+          // chooses between its two halves on what actually ran. This printed
+          // `(subagent)` for a day, because a label naming a runner the harness
+          // could not dispatch offered the parent a choice it did not have.
+          '(${brief.runner.name})',
           if (brief.premises.isNotEmpty)
             '— premises: ${brief.premises.join('; ')}',
         ].join(' '),
