@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/entities/conversation_workflow.dart';
 import '../../../domain/services/conversation_execution_summary_service.dart';
+import '../../../domain/services/task_lifecycle_state.dart';
 
 class PlanHydratedTaskRow extends StatelessWidget {
   const PlanHydratedTaskRow({
@@ -28,6 +29,15 @@ class PlanHydratedTaskRow extends StatelessWidget {
     final summary = executionSummary.lastOutcome;
     final validationCommand = executionSummary.lastValidationCommand;
     final blockedSince = executionSummary.blockedSince;
+    // What the task has actually reached, not the enum's `completed`, which
+    // answers produced / verified / accepted all at once. `accepted` is the one
+    // state this row cannot show: only the conversation records an acceptance,
+    // and the call site that could pass it lives in the chat_page library, which
+    // is at its size ceiling.
+    final lifecycleState = const TaskLifecycleProjection().ofProgress(
+      status: progress?.status ?? task.status,
+      validationStatus: validationStatus,
+    );
     final nextStep = _workflowTaskNextStepLabel(
       status: task.status,
       validationStatus: validationStatus,
@@ -57,7 +67,7 @@ class PlanHydratedTaskRow extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Chip(
-                label: Text(_workflowTaskStatusLabel(task.status).tr()),
+                label: Text(_taskLifecycleLabel(lifecycleState).tr()),
                 visualDensity: VisualDensity.compact,
                 side: BorderSide.none,
                 backgroundColor: _workflowTaskStatusColor(
@@ -184,16 +194,14 @@ class PlanHydratedTaskRow extends StatelessWidget {
     };
   }
 
-  String _workflowTaskStatusLabel(ConversationWorkflowTaskStatus status) {
-    return switch (status) {
-      ConversationWorkflowTaskStatus.pending =>
-        'chat.workflow_task_status_pending',
-      ConversationWorkflowTaskStatus.inProgress =>
-        'chat.workflow_task_status_in_progress',
-      ConversationWorkflowTaskStatus.completed =>
-        'chat.workflow_task_status_completed',
-      ConversationWorkflowTaskStatus.blocked =>
-        'chat.workflow_task_status_blocked',
+  String _taskLifecycleLabel(TaskLifecycleState state) {
+    return switch (state) {
+      TaskLifecycleState.pending => 'chat.workflow_task_status_pending',
+      TaskLifecycleState.inProgress => 'chat.workflow_task_status_in_progress',
+      TaskLifecycleState.blocked => 'chat.workflow_task_status_blocked',
+      TaskLifecycleState.produced => 'chat.workflow_task_status_produced',
+      TaskLifecycleState.verified => 'chat.workflow_task_status_verified',
+      TaskLifecycleState.accepted => 'chat.workflow_task_status_accepted',
     };
   }
 

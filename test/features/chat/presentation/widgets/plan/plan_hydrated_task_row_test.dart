@@ -126,6 +126,30 @@ void main() {
     );
   });
 
+  testWidgets('a finished task with no passing check reads produced', (
+    tester,
+  ) async {
+    const task = ConversationWorkflowTask(
+      id: 'task-4',
+      title: 'Write the adapter',
+      status: ConversationWorkflowTaskStatus.completed,
+    );
+    const progress = ConversationExecutionTaskProgress(
+      taskId: 'task-4',
+      status: ConversationWorkflowTaskStatus.completed,
+      summary: 'The adapter is written.',
+    );
+
+    await _pumpTaskRow(tester, task: task, progress: progress);
+
+    expect(find.text('Produced'), findsOneWidget);
+    expect(
+      find.text('Verified'),
+      findsNothing,
+      reason: 'Nothing checked it, so nothing may say it was checked.',
+    );
+  });
+
   testWidgets('keeps completed tasks clearly terminal', (tester) async {
     const task = ConversationWorkflowTask(
       id: 'task-3',
@@ -141,7 +165,9 @@ void main() {
 
     await _pumpTaskRow(tester, task: task, progress: progress);
 
-    expect(find.text('Completed'), findsOneWidget);
+    // `Verified`, not `Completed`: the enum's completed answers produced,
+    // verified and accepted at once, and this task's saved command passed.
+    expect(find.text('Verified'), findsOneWidget);
     expect(
       find.text(
         'Next step: This task is complete. Continue with the next pending task or review the result.',

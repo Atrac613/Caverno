@@ -36,6 +36,38 @@ enum TaskLifecycleState {
 class TaskLifecycleProjection {
   const TaskLifecycleProjection();
 
+  /// From the two facts a widget already holds, plus whether an acceptance was
+  /// recorded.
+  ///
+  /// Split out because the plan task row has the task and its progress but no
+  /// conversation, and only the conversation records an acceptance: this lets
+  /// that row stop calling unchecked work `completed` without inventing the one
+  /// fact it cannot see.
+  TaskLifecycleState ofProgress({
+    required ConversationWorkflowTaskStatus status,
+    required ConversationExecutionValidationStatus validationStatus,
+    bool accepted = false,
+  }) {
+    if (accepted) return TaskLifecycleState.accepted;
+    switch (status) {
+      case ConversationWorkflowTaskStatus.pending:
+        return TaskLifecycleState.pending;
+      case ConversationWorkflowTaskStatus.inProgress:
+        return TaskLifecycleState.inProgress;
+      case ConversationWorkflowTaskStatus.blocked:
+        return TaskLifecycleState.blocked;
+      case ConversationWorkflowTaskStatus.completed:
+        // A task with no validation command owes nothing mechanically and has
+        // proved nothing either, so it stays `produced`. Collapsing "nothing to
+        // check" into "checked" is how a green light appears for work nobody
+        // verified.
+        return validationStatus ==
+                ConversationExecutionValidationStatus.passed
+            ? TaskLifecycleState.verified
+            : TaskLifecycleState.produced;
+    }
+  }
+
   TaskLifecycleState of(
     Conversation conversation,
     ConversationWorkflowTask task,
@@ -49,26 +81,12 @@ class TaskLifecycleProjection {
     if (accepted) return TaskLifecycleState.accepted;
 
     final progress = conversation.executionProgressForTask(task.id);
-    final status = progress?.status ?? task.status;
-    switch (status) {
-      case ConversationWorkflowTaskStatus.pending:
-        return TaskLifecycleState.pending;
-      case ConversationWorkflowTaskStatus.inProgress:
-        return TaskLifecycleState.inProgress;
-      case ConversationWorkflowTaskStatus.blocked:
-        return TaskLifecycleState.blocked;
-      case ConversationWorkflowTaskStatus.completed:
-        // A task with no validation command owes nothing mechanically and has
-        // proved nothing either, so it stays `produced`. Collapsing "nothing to
-        // check" into "checked" is how a green light appears for work nobody
-        // verified.
-        final passed =
-            progress?.validationStatus ==
-            ConversationExecutionValidationStatus.passed;
-        return passed
-            ? TaskLifecycleState.verified
-            : TaskLifecycleState.produced;
-    }
+    return ofProgress(
+      status: progress?.status ?? task.status,
+      validationStatus:
+          progress?.validationStatus ??
+          ConversationExecutionValidationStatus.unknown,
+    );
   }
 
   /// The wire name, which is what a prompt and a log line read.
