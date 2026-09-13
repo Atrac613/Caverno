@@ -1318,10 +1318,28 @@ question it already reads like, so the block survives ANA0 intact and becomes
 answerable. Dropping the edge would let work start on an unconfirmed assumption,
 which is the one thing that machinery exists to prevent.
 
+The eleventh run is the clean measurement the other ten were working towards. The
+repair opened the queue — `Answered 6 open question(s)` where the previous runs
+answered three and offered nothing, the three extra being the invented assumptions
+turned into questions — one worktree child ran, and it came back
+`verified: true, changed_file_count: 1`. The parent polled it four times, read the
+files, checked the branch with git, and **both turns settled on their own**: it had
+the evidence, it had the time, and it reported in prose instead of calling
+`accept_task`.
+
+That is the `update_goal` shape exactly, and the precedent names the remedy: the
+local model does not volunteer a bookkeeping call and makes it reliably when a turn
+asks for nothing else. The acceptance scenario already showed `accept_task` being
+called and recorded, so the tool is reachable; what is missing is a turn whose only
+available action is to record the judgement, which is what
+`GoalCompletionElicitationPrompt` is for `update_goal`. Building that analogue is the
+next slice, and it is a nudge rather than a defect.
+
 **Proven live:** the parent choosing the worktree runner, a branch and second
 checkout created, the child running in isolation, the saved verification command
 running, `verified: true` reaching the parent, and a changed file recorded against a
-task that declared one — the mechanical and evidence levels both satisfiable. **Not yet proven live:** an acceptance *written* on that evidence.
+task that declared one — the mechanical and evidence levels both satisfiable, with
+the parent gathering level 2 itself through git. **Not yet proven live:** an acceptance *written* on that evidence.
 The last run waited for the child properly and then declined, correctly, because its
 verification had been refused for its shape.
 - Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
