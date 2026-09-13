@@ -23,6 +23,11 @@ abstract final class AnabasisParentPromptBlock {
       '- For a saved plan, pass workflow_task_id from Ready to delegate. '
       'Do not recreate completed work. An empty queue means there is no ready '
       'task; inspect the plan and report missing or blocked work.\n'
+      '- Pass the runner named beside the task too. A task marked (worktree) '
+      'changes files, and that runner gives it its own branch and checkout and '
+      'returns the changed files and the result of the saved validation '
+      'command — the evidence an acceptance rests on. A subagent returns only '
+      'a summary, so accepting on one is accepting on your own reading.\n'
       '- Do not delegate a task whose preconditions are unmet. Ask the user to '
       'settle a material assumption or an open question first; that is work '
       'only they can do.';

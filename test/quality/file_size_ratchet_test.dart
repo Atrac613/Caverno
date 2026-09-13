@@ -65,7 +65,12 @@ const Map<String, int> _lineBudgets = {
   // block is the counterpart of the delegation queue above it and belongs beside
   // it -- both answer "what is in front of you right now" for the same role, and
   // the empty-list rendering is the same decision for the same measured reason.
-  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 55,
+  // +5, to 60: the runner named beside a task is something to ask for. Measured:
+  // the queue said (worktree), the parent called spawn_subagent without a runner,
+  // and nothing in the block connected the label to the argument -- a name the
+  // model had no reason to act on, which is the shape that cost three turns
+  // earlier the same day.
+  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 60,
   // +6, to 43, on its first day: the labels became the parameter names the tools
   // actually take, after a live parent passed the workflow id to
   // get_subagent_result. The six lines are why -- a format note that reads as

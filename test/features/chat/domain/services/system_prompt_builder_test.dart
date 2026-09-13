@@ -1045,6 +1045,21 @@ Dart symbols:
       );
     });
 
+    // Measured: the queue said (worktree), the parent called spawn_subagent with
+    // no runner, and nothing connected the label to the argument.
+    test('is told the runner beside a task is one to ask for', () {
+      final prompt = promptFor(ModelUsageRole.anabasisParent);
+
+      expect(prompt, contains('Pass the runner named beside the task'));
+      expect(
+        prompt,
+        contains('accepting on your own reading'),
+        reason:
+            'The reason is the instruction: a summary is not evidence, and the '
+            'parent is the one who would otherwise accept on one.',
+      );
+    });
+
     test('is handed the delegation queue with premises and runner', () {
       final prompt = promptFor(ModelUsageRole.anabasisParent);
 
