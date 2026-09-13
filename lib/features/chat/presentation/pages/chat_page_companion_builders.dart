@@ -82,6 +82,15 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
             chatState: chatState,
           ),
         ),
+        AwaitingYouPanelSection(
+          currentConversation: currentConversation,
+          onOpen: () => _openPlanReviewSheet(
+            context,
+            currentConversation: currentConversation,
+            chatState: chatState,
+            isPlanMode: currentConversation.isPlanningSession,
+          ),
+        ),
         const WorktreeAgentTaskPanelSection(),
         const SizedBox(height: 18),
         _buildCompanionSection(
@@ -414,6 +423,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
   ) {
     final theme = Theme.of(context);
     final color = _workflowTaskStatusColor(context, task.status);
+    final icon = WorkflowStatusPresentation.taskStatusIcon(task.status);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +431,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
         SizedBox(
           width: 22,
           height: 22,
-          child: Icon(_companionTaskIcon(task.status), size: 18, color: color),
+          child: Icon(icon, size: 18, color: color),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -1006,15 +1016,6 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       _composerPrefillText = prompt;
       _composerPrefillVersion++;
     });
-  }
-
-  IconData _companionTaskIcon(ConversationWorkflowTaskStatus status) {
-    return switch (status) {
-      ConversationWorkflowTaskStatus.pending => Icons.radio_button_unchecked,
-      ConversationWorkflowTaskStatus.inProgress => Icons.play_circle_outline,
-      ConversationWorkflowTaskStatus.completed => Icons.check_circle,
-      ConversationWorkflowTaskStatus.blocked => Icons.error_outline,
-    };
   }
 
   List<String> _companionSourcePaths(Conversation currentConversation) {

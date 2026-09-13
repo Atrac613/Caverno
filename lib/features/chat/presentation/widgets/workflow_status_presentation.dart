@@ -86,6 +86,20 @@ abstract final class WorkflowStatusPresentation {
     };
   }
 
+  /// The icon the companion panel draws beside a task.
+  ///
+  /// Here rather than in the panel builder because that builder's library sits
+  /// at its aggregate ratchet, and a pure switch on a status is the kind of
+  /// thing that belongs beside the labels for the same statuses anyway.
+  static IconData taskStatusIcon(ConversationWorkflowTaskStatus status) {
+    return switch (status) {
+      ConversationWorkflowTaskStatus.pending => Icons.radio_button_unchecked,
+      ConversationWorkflowTaskStatus.inProgress => Icons.play_circle_outline,
+      ConversationWorkflowTaskStatus.completed => Icons.check_circle,
+      ConversationWorkflowTaskStatus.blocked => Icons.error_outline,
+    };
+  }
+
   /// What a task has actually reached, as distinct from what its status enum can
   /// say: `completed` answers produced, verified and accepted at once.
   static String taskLifecycleLabel(TaskLifecycleState state) {

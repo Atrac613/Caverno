@@ -203,6 +203,7 @@
     "companion_progress": "Progress",
     "companion_progress_empty": "No saved tasks yet.",
     "companion_progress_summary": "{completed} of {total} complete",
+    "companion_awaiting_you": "Waiting on you ({count})",
     "companion_more_items": "+{count} more",
     "companion_environment": "Environment",
     "companion_refresh_environment": "Refresh environment",

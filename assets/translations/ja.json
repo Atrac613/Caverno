@@ -203,6 +203,7 @@
     "companion_progress": "進捗",
     "companion_progress_empty": "保存済みタスクはまだありません。",
     "companion_progress_summary": "{completed}/{total} 完了",
+    "companion_awaiting_you": "あなた待ち ({count})",
     "companion_more_items": "ほか {count} 件",
     "companion_environment": "環境",
     "companion_refresh_environment": "環境を更新",

@@ -4,6 +4,104 @@ import 'package:flutter/material.dart';
 import '../../../domain/entities/conversation.dart';
 import '../../../domain/entities/conversation_workflow.dart';
 
+/// What is waiting on the user, in the panel that is always on screen.
+///
+/// **§15's third question was the only one with no persistent surface.** Open
+/// questions live in the plan review sheet and a material assumption arrives as
+/// an interrupt, so a user who dismissed one had nothing that remembered --
+/// which is the half that makes the workspace somewhere to intervene rather
+/// than only to observe.
+///
+/// Deliberately a summary with one way in, not a second answering surface. The
+/// sheet already owns answering, with a status menu and a note editor per
+/// question; duplicating that here would give the same decision two places to
+/// be made and two places to drift.
+///
+/// It counts through [Conversation.unresolvedOpenQuestions], so an untriaged
+/// question counts -- the count that walked progress rows reported zero until a
+/// human opened the sheet, which is exactly the user this section is for.
+class AwaitingYouPanelSection extends StatelessWidget {
+  const AwaitingYouPanelSection({
+    super.key,
+    required this.currentConversation,
+    required this.onOpen,
+  });
+
+  final Conversation currentConversation;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final questions = currentConversation.unresolvedOpenQuestions;
+    if (questions.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final visible = questions.take(3).toList(growable: false);
+    final remaining = questions.length - visible.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Material(
+        color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.help_outline,
+                      size: 16,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'chat.companion_awaiting_you'.tr(
+                          namedArgs: {'count': '${questions.length}'},
+                        ),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                for (final question in visible) ...[
+                  Text(
+                    question,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  if (question != visible.last) const SizedBox(height: 6),
+                ],
+                if (remaining > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'chat.companion_more_items'.tr(
+                      namedArgs: {'count': '$remaining'},
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class PlanOpenQuestionSection extends StatelessWidget {
   const PlanOpenQuestionSection({
     super.key,

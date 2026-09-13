@@ -1739,12 +1739,31 @@ dropped should still count is a separate question with its own evidence need.
 Every test that had exercised a non-zero count built an explicit progress row, so
 nothing covered the live case. Three do now, plus one on the auto-continue gate.
 
+**Built, 2026-09-14.** `AwaitingYouPanelSection` sits in the companion panel
+above the agents list: a count, the first three questions, and a tap that opens
+the review sheet. Deliberately a **summary with one way in, not a second
+answering surface** -- the sheet already owns the status menu and the note
+editor, and a decision with two places to be made has two places to drift. It
+counts through the fixed `unresolvedOpenQuestions`, so the untriaged question
+that used to read as zero is exactly what it shows.
+
+Pending material-assumption confirmations are deliberately *not* in it yet.
+`pendingAssumptionConfirmation` is live turn state that already forces a sheet
+through `_syncApprovalDialog`, so listing it would duplicate an interrupt rather
+than remember a dismissal. Making it durable is its own slice, and the question
+to answer first is whether a dismissed confirmation survives the turn at all.
+
+Three ceilings were paid on the way, all in the `chat_page` library at 8,479 of
+8,479: the companion task icon moved to `WorkflowStatusPresentation` (a pure
+switch on a status, which belongs beside the labels for the same statuses), and
+the icon call was hoisted to a local. The section itself lives in the
+already-imported `plan_open_question_section.dart`, so mounting it cost no
+import.
+
 Next action:
-- Build the **awaiting-you** section in the existing companion panel: unresolved open questions and pending material-assumption
-  confirmations, each with the path that already answers it
-  (`_answerOpenQuestion`, the confirmation gate's sheet). That is §15's third
-  question, the only one with no persistent surface, and it is what makes the
-  pane somewhere to intervene rather than only observe.
-- Then decide the mode question from use rather than from design: whether the
+- Decide the mode question from use rather than from design: whether the
   filled-in pane still wants its own `WorkspaceMode` and `AssistantMode` (§16),
   or whether reusing `plan` and the companion panel is the whole destination.
+- The pane is gated on `activeProject != null`, so a non-coding goal still has
+  no persistent surface. That gate and `MaterialContractAssumptionGuard`'s
+  `WorkspaceMode.coding` are the same §16 question asked twice.
