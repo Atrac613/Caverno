@@ -6,15 +6,20 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/domain/services/task_acceptance_decision.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _decisions = TaskAcceptanceDecisionService();
 
+const _premise = 'Existing entities have stable UUIDs';
+
 Conversation _conversation({
   String taskId = 'task-1',
   String validationCommand = 'dart test',
   String lastValidationCommand = '',
+  bool withAssumption = false,
+  bool assumptionConfirmed = true,
 }) => Conversation(
   id: 'conversation-1',
   title: 'Plan thread',
@@ -25,12 +30,34 @@ Conversation _conversation({
   projectId: 'project-1',
   workflowStage: ConversationWorkflowStage.implement,
   workflowSpec: ConversationWorkflowSpec(
+    constraints: withAssumption ? const [_premise] : const <String>[],
+    provenance: [
+      if (withAssumption)
+        ConversationContractItemProvenance(
+          itemId: const ConversationContractProvenanceService().itemId(
+            kind: ConversationContractItemKind.constraint,
+            value: _premise,
+          ),
+          kind: ConversationContractItemKind.constraint,
+          assumption: true,
+          material: true,
+          confirmed: assumptionConfirmed,
+        ),
+    ],
     tasks: [
       ConversationWorkflowTask(
         id: taskId,
         title: 'Read the spec',
         validationCommand: validationCommand,
         status: ConversationWorkflowTaskStatus.completed,
+        preconditions: withAssumption
+            ? const [
+                ConversationTaskPrecondition(
+                  kind: ConversationTaskPreconditionKind.assumption,
+                  ref: _premise,
+                ),
+              ]
+            : const <ConversationTaskPrecondition>[],
       ),
     ],
   ),
@@ -150,9 +177,7 @@ void main() {
 
   test('an admitted child with a summary yields the contract to write', () {
     final decision =
-        _decide(
-              conversation: _conversation(lastValidationCommand: 'dart test'),
-            )
+        _decide(conversation: _conversation(lastValidationCommand: 'dart test'))
             as TaskAcceptanceContract;
 
     expect(decision.task.id, 'task-1');
@@ -175,13 +200,13 @@ void main() {
   group('a worktree child is the evidenced kind', () {
     test('its branch and its green verification are named, not counted', () {
       final decision =
-          _decide(
-                children: const [],
-                worktreeChildren: [_worktreeChild()],
-              )
+          _decide(children: const [], worktreeChildren: [_worktreeChild()])
               as TaskAcceptanceContract;
 
-      expect(decision.evidence, contains('worktree branch feature/read-the-spec'));
+      expect(
+        decision.evidence,
+        contains('worktree branch feature/read-the-spec'),
+      );
       expect(decision.evidence, contains('verified green: dart test'));
       expect(decision.evidence, contains('2 changed file(s) recorded'));
     });
@@ -279,5 +304,77 @@ void main() {
         jsonDecode((decision as TaskAcceptanceRefusal).result.result) as Map;
     expect(payload['task_id'], 'worktree-1');
     expect(payload['required_action'], contains('Poll get_subagent_result'));
+  });
+
+  group('a premise the user has withdrawn', () {
+    test('bars the acceptance and names what lapsed', () {
+      final decision = _decide(
+        conversation: _conversation(
+          withAssumption: true,
+          assumptionConfirmed: false,
+        ),
+      );
+
+      expect(
+        _code(decision),
+        'acceptance_premise_lapsed',
+        reason:
+            'ANA2 answers a contradicted premise by invalidating the result, '
+            'not the work: the child keeps what it produced and the promotion '
+            'past `produced` is what fails.',
+      );
+      final payload =
+          jsonDecode((decision as TaskAcceptanceRefusal).result.result) as Map;
+      expect(payload['lapsed_premises'], [_premise]);
+    });
+
+    test('a premise still confirmed does not bar anything', () {
+      expect(
+        _decide(conversation: _conversation(withAssumption: true)),
+        isA<TaskAcceptanceContract>(),
+      );
+    });
+
+    test('it is read from the plan, so no child has to have stored it', () {
+      // `DelegatedPremiseAudit` names its parameter `issuedPremises`, and the
+      // obvious reading -- record what the child was handed -- needs a field on
+      // both child entities threaded through four hops. A task is only
+      // delegated once ready, and readiness confirms every assumption edge, so
+      // the declared set and the issued set are the same set at that moment.
+      final children = [_child()];
+
+      expect(
+        _code(
+          _decide(
+            conversation: _conversation(
+              withAssumption: true,
+              assumptionConfirmed: false,
+            ),
+            children: children,
+          ),
+        ),
+        'acceptance_premise_lapsed',
+      );
+      expect(children.single.workflowTaskId, 'task-1');
+    });
+
+    test('it is decided before the levels, so the bar is not a level', () {
+      // A lapsed premise is missing evidence, but it is not one of the four
+      // levels: reporting it as `acceptance_levels_outstanding` would tell the
+      // parent to go and verify something no verification can settle.
+      expect(
+        _code(
+          _decide(
+            conversation: _conversation(
+              withAssumption: true,
+              assumptionConfirmed: false,
+            ),
+            children: const [],
+            worktreeChildren: [_worktreeChild(verifiedGreen: false)],
+          ),
+        ),
+        'acceptance_premise_lapsed',
+      );
+    });
   });
 }

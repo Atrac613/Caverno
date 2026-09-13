@@ -1569,6 +1569,52 @@ landed without touching `conversations_notifier.dart`, and the extraction this
 work actually needed was the guard's exempt-tool list, moved to
 `anabasis_parent_authority_tools.dart` when it stopped being one name.
 
+**ANA2's contradiction policy was unreachable, found 2026-09-13 while scoping
+ANA4.** `DelegatedPremiseAudit` — a complete, argued policy with its own tests —
+had **no production caller**, and `mayParentAccept`'s `lapsedPremises` parameter
+was passed only by that method's own test. So "a result produced under an
+assumption the user has since declined is barred from acceptance" could not
+happen, and every acceptance written so far was written without the check.
+
+The reason nothing called it is worth recording, because it is not neglect. The
+audit's parameter is named `issuedPremises`, and the obvious supply — record what
+the child was handed at delegation time — needs a field on **both** child
+entities threaded through four hops. That was attempted first and abandoned: it
+is also unnecessary. A task is only delegated once it is *ready*, and readiness
+requires every assumption edge to be confirmed, so at delegation time the
+declared set and the issued set are the same set. A premise the user later
+declines shows up as a declared edge that no longer resolves to a confirmed item
+— readable from the plan, with nothing stored. The track rule caught the second
+design before it shipped: reuse existing state where it already expresses the
+concept.
+
+`ConversationTaskPreconditionRefs.declaredAssumptionPremises` is the sibling of
+`confirmedItemTextFor`, and the two differ by audience: a delegation brief may
+carry only confirmed premises — handing a child an unconfirmed claim is how an
+assumption turns back into a guess one level down — and an acceptance has to see
+the ones that lapsed. The bar sits **before** the level check, because a lapsed
+premise is not one of the four levels: reporting it as
+`acceptance_levels_outstanding` would send the parent to verify something no
+verification can settle. Refusal code `acceptance_premise_lapsed`, signature
+`anabasis_premise_lapsed`.
+
+Two ceilings were hit landing twenty lines, and both are worth knowing about:
+
+- `task_acceptance_decision.dart` was at 220 of 220, so the refusal and result
+  shapes moved to `TaskAcceptancePayloads` to pay for the new ground.
+- The frozen RAG2 development declaration
+  (`tool/fixtures/rag2_explicit_source_roots_development_v1`) replays against the
+  **live working tree**, and its five source roots held 511 files against a
+  frozen cap of 512. Adding two service files broke two tests in a blocked
+  track's evaluation. It now sits at exactly 512, so the next file added under
+  `lib/features/chat/domain/{entities,services}` or
+  `presentation/providers` breaks it again. The underlying defect is that a
+  declaration frozen at 2026-08-26 — with `priorFixtureUse: forbidden` and a
+  `declarationIdentity` hash — reads a corpus that drifts with development;
+  pinning its replay to the commit it was frozen at would keep the measurement
+  and stop it being a tax on unrelated work. Not done here: it changes a frozen
+  artifact's mechanism, which is a decision for the RAG track.
+
 ### ANA4: Anabasis Workspace
 
 Status: `later`

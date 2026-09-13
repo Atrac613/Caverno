@@ -1,11 +1,12 @@
-import 'dart:convert';
-
 import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/subagent_task.dart';
 import '../entities/worktree_agent_task.dart';
+import 'conversation_task_precondition_refs.dart';
+import 'delegated_premise_audit.dart';
 import 'task_acceptance_audit.dart';
+import 'task_acceptance_payloads.dart';
 import 'task_delegation_brief_builder.dart';
 
 /// What an acceptance attempt is allowed to do.
@@ -57,16 +58,7 @@ class TaskAcceptanceDecisionService {
     List<WorktreeAgentTask> worktreeChildren = const <WorktreeAgentTask>[],
   }) {
     McpToolResult refuse(String code, Map<String, Object?> detail) =>
-        McpToolResult(
-          toolName: toolName,
-          isSuccess: false,
-          result: jsonEncode({
-            'ok': false,
-            'code': code,
-            'result_origin': 'refusal',
-            ...detail,
-          }),
-        );
+        const TaskAcceptancePayloads().refusal(toolName, code, detail);
 
     // A producer must not grade its own work. The child catalog already omits
     // this tool; this is the same rule at dispatch, for a model that
@@ -150,6 +142,30 @@ class TaskAcceptanceDecisionService {
       );
     }
 
+    // ANA2's contradiction policy, arriving at the moment it decides something.
+    // The premises are read from the plan rather than from the child: a task is
+    // only delegated once ready, and readiness confirms every assumption edge,
+    // so an edge that no longer resolves to a confirmed item is one the user has
+    // since declined. Barred rather than cancelled -- the work stands, its
+    // promotion past `produced` does not.
+    final lapsed = const DelegatedPremiseAudit().lapsed(
+      conversation,
+      const ConversationTaskPreconditionRefs().declaredAssumptionPremises(
+        spec,
+        task,
+      ),
+    );
+    if (lapsed.isNotEmpty) {
+      return TaskAcceptanceRefusal(
+        refuse('acceptance_premise_lapsed', {
+          'lapsed_premises': lapsed,
+          'required_action':
+              'This result rests on an assumption that is no longer confirmed. '
+              'Ask the user to settle it before accepting the work.',
+        }),
+      );
+    }
+
     // A worktree result outranks a subagent one for the same task, because it is
     // the only kind that can pass a level: it carries the verification outcome
     // and the changed files, where a subagent child leaves both inapplicable and
@@ -195,26 +211,9 @@ class TaskAcceptanceDecisionService {
     );
   }
 
-  McpToolResult writeFailed(String toolName) => McpToolResult(
-    toolName: toolName,
-    isSuccess: false,
-    result: jsonEncode({
-      'ok': false,
-      'code': 'acceptance_write_failed',
-      'result_origin': 'refusal',
-      'required_action': 'The conversation could not be updated; retry once.',
-    }),
-  );
+  McpToolResult writeFailed(String toolName) =>
+      const TaskAcceptancePayloads().writeFailed(toolName);
 
   McpToolResult accepted(String toolName, TaskAcceptanceContract contract) =>
-      McpToolResult(
-        toolName: toolName,
-        isSuccess: true,
-        result: jsonEncode({
-          'ok': true,
-          'accepted_task_id': contract.task.id,
-          'evidence': contract.evidence,
-          'premises': contract.premises,
-        }),
-      );
+      const TaskAcceptancePayloads().accepted(toolName, contract);
 }

@@ -72,4 +72,44 @@ class ConversationTaskPreconditionRefs {
     final text = (provenance.itemValueFor(spec, itemId) ?? ref).trim();
     return text.isEmpty ? null : text;
   }
+
+  /// Every assumption [task] declares an edge to, confirmed or not.
+  ///
+  /// **The input `DelegatedPremiseAudit` was written for and never given**,
+  /// which left ANA2's contradiction policy unreachable: its `lapsed` takes the
+  /// premises a child was issued with, nothing supplied them, and the bar in
+  /// `mayParentAccept` could only ever be handed an empty list.
+  ///
+  /// The obvious supply -- record what the child was handed at delegation time
+  /// -- needs a field on both child entities threaded through four hops. It is
+  /// also unnecessary: a task is only delegated once it is *ready*, and
+  /// readiness requires every assumption edge to be confirmed, so at that
+  /// moment the declared set and the issued set are the same set. A premise the
+  /// user later declines therefore shows up here as a declared edge that no
+  /// longer resolves to a confirmed item -- readable from the plan, with
+  /// nothing stored.
+  ///
+  /// What this does not see: an edge *removed* from the task after its child
+  /// was delegated. That is the right answer rather than a gap -- the plan no
+  /// longer says the task stands on it -- but it is the one case where
+  /// "declared now" and "issued then" genuinely differ.
+  ///
+  /// The sibling of [confirmedItemTextFor] rather than a class of its own,
+  /// because the two answer the same question to different audiences: a brief
+  /// may carry only confirmed premises, and an acceptance has to see the ones
+  /// that lapsed.
+  List<String> declaredAssumptionPremises(
+    ConversationWorkflowSpec spec,
+    ConversationWorkflowTask task,
+  ) {
+    final premises = <String>[];
+    for (final edge in task.preconditions) {
+      if (edge.kind != ConversationTaskPreconditionKind.assumption) continue;
+      final itemId = itemIdFor(spec, edge.ref);
+      if (itemId == null) continue;
+      final text = (provenance.itemValueFor(spec, itemId) ?? '').trim();
+      if (text.isNotEmpty) premises.add(text);
+    }
+    return List<String>.unmodifiable(premises);
+  }
 }

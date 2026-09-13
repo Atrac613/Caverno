@@ -195,6 +195,18 @@ SIGNATURES = {
         "match": lambda s: "Record the judgement now by calling accept_task"
         in s,
     },
+    "anabasis_premise_lapsed": {
+        "commit": "HEAD",
+        "what": "an acceptance is barred because a premise is no longer confirmed",
+        # ANA2's contradiction policy reaching the moment it decides something.
+        # It could not fire before: DelegatedPremiseAudit had no production
+        # caller, and mayParentAccept's lapsedPremises was passed only by its
+        # own test. Expect this one to stay dark for a while -- it needs a user
+        # to decline an assumption a delegated task stood on, which the canaries
+        # do not construct. Read it as case 2 in this file's header (the trigger
+        # has not occurred), not as case 1.
+        "match": lambda s: "acceptance_premise_lapsed" in s,
+    },
     "anabasis_acceptance_recorded": {
         "commit": "161e784d4",
         "what": "the parent records a semantic acceptance of a delegated task",
