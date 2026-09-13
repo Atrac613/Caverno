@@ -100,6 +100,7 @@ const Map<String, int> _lineBudgets = {
   // satisfied. A live run refused an acceptance for evidence it was never going
   // to have.
   'lib/features/chat/domain/services/task_acceptance_audit.dart': 155,
+  'lib/features/chat/domain/services/dangling_precondition_repair.dart': 84,
   // +16, to 200: a worktree result outranks a subagent one for the same task,
   // and its evidence is named rather than counted -- which branch, which command
   // -- because that line is what the next turn reads instead of redoing the work.

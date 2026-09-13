@@ -1,6 +1,7 @@
 import '../entities/conversation_workflow.dart';
 import 'conversation_contract_provenance_service.dart';
 import 'conversation_plan_hash.dart';
+import 'dangling_precondition_repair.dart';
 
 class ConversationPlanProjection {
   const ConversationPlanProjection({
@@ -106,8 +107,11 @@ class ConversationPlanProjectionService {
     _validateDuplicateTaskIds(tasks);
 
     final sourceHash = computeSourceHash(normalizedMarkdown);
-    final workflowSpec = const ConversationContractProvenanceService()
-        .attachApprovedPlanSource(
+    // Repaired here rather than at the save site: this is where the refs and the
+    // provenance they resolve against are both created, and an assumption edge
+    // that names nothing can be recognised only once provenance exists.
+    final workflowSpec = const DanglingPreconditionRepair().repair(
+      const ConversationContractProvenanceService().attachApprovedPlanSource(
           workflowSpec: ConversationWorkflowSpec(
             goal: goal,
             constraints: constraints,
@@ -115,9 +119,10 @@ class ConversationPlanProjectionService {
             openQuestions: openQuestions,
             tasks: tasks,
           ),
-          sourceHash: sourceHash,
-          marks: marks,
-        );
+        sourceHash: sourceHash,
+        marks: marks,
+      ),
+    );
 
     final recognized =
         stage != ConversationWorkflowStage.idle ||
