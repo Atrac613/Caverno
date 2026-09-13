@@ -849,7 +849,7 @@ extension _ChatPagePlanBuilders on _ChatPageState {
             ),
           ),
           const SizedBox(height: 10),
-          _PlanExecutionOverviewCard(
+          PlanExecutionOverviewCard(
             title: overview.titleKey.tr(),
             description: overview.descriptionKey.tr(),
             completedLabel: 'chat.plan_document_hydrated_summary_completed'.tr(
@@ -878,7 +878,7 @@ extension _ChatPagePlanBuilders on _ChatPageState {
     );
   }
 
-  _PlanExecutionOverview _planExecutionOverview({
+  PlanExecutionOverview _planExecutionOverview({
     required int totalCount,
     required int completedCount,
     required int inProgressCount,
@@ -886,31 +886,31 @@ extension _ChatPagePlanBuilders on _ChatPageState {
     required int pendingCount,
   }) {
     if (blockedCount > 0) {
-      return const _PlanExecutionOverview(
+      return const PlanExecutionOverview(
         titleKey: 'chat.plan_document_hydrated_state_blocked_title',
         descriptionKey: 'chat.plan_document_hydrated_state_blocked_description',
       );
     }
     if (inProgressCount > 0) {
-      return const _PlanExecutionOverview(
+      return const PlanExecutionOverview(
         titleKey: 'chat.plan_document_hydrated_state_active_title',
         descriptionKey: 'chat.plan_document_hydrated_state_active_description',
       );
     }
     if (pendingCount > 0) {
-      return const _PlanExecutionOverview(
+      return const PlanExecutionOverview(
         titleKey: 'chat.plan_document_hydrated_state_ready_title',
         descriptionKey: 'chat.plan_document_hydrated_state_ready_description',
       );
     }
     if (totalCount > 0 && completedCount == totalCount) {
-      return const _PlanExecutionOverview(
+      return const PlanExecutionOverview(
         titleKey: 'chat.plan_document_hydrated_state_complete_title',
         descriptionKey:
             'chat.plan_document_hydrated_state_complete_description',
       );
     }
-    return const _PlanExecutionOverview(
+    return const PlanExecutionOverview(
       titleKey: 'chat.plan_document_hydrated_state_empty_title',
       descriptionKey: 'chat.plan_document_hydrated_state_empty_description',
     );

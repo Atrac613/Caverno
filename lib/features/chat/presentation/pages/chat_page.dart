@@ -89,6 +89,7 @@ import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/plan/contract_item_list_section.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
+import '../widgets/plan/plan_execution_overview_card.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
 import '../widgets/plan/plan_markdown_preview.dart';
 import '../widgets/plan/plan_open_question_section.dart';

@@ -486,7 +486,12 @@ const Map<String, int> _lineBudgets = {
   // +1 for the design-token import: three parts of this library rendered code
   // in the generic 'monospace' alias, which resolves to no family on macOS and
   // silently falls back to the proportional system face.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1799,
+  // +1 for the plan-execution overview import, the same shape as the three
+  // widget imports above: the extraction it pays for took 90 lines out of the
+  // library aggregate below, which is the ceiling that was actually blocking
+  // work -- PR 3's remaining UI and every later per-task label had nowhere to
+  // land.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1800,
   'lib/features/chat/presentation/widgets/plan/task_precondition_notice.dart':
       57,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
@@ -1049,7 +1054,11 @@ const Map<String, int> _libraryLineBudgets = {
   // for coding_project_picker.dart.
   // +1 matching the primary file: the design-token import that gives three of
   // these parts a real monospace face.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8597,
+  // -90, to 8,507: the plan execution overview card and its count chip left for
+  // widgets/plan/. Nothing in them needed the page -- every input is a string or
+  // a count -- and this aggregate was at zero slack with two tracks queued
+  // behind it.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8507,
   // +4, to 1,147, matching the primary file: the accept_task reservation and
   // offer are four lines in the primary, not a new part.
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1147,
