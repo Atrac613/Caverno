@@ -93,11 +93,19 @@ one changed file — after a turn restricted to `accept_task` asked for it. Two
 prose asks in the same run got prose answers, which reproduces the `update_goal`
 finding on a second tool. ANA0 through ANA3 are now all `done`.
 
-That makes **ANA4 the promotion decision**, not another ANA3 slice. Before
-promoting it, settle its completion boundary: one goal carried end to end, with
-the project vision explicitly independent of it. The one acceptance route still
-unobserved is a *subagent* result — it passes no audit level, so it rests on the
-parent's word alone and is a different claim from the one run 12 settled.
+**ANA4 is promoted to `next` as of 2026-09-14, on a measurement rather than a
+design.** The coding companion panel is already a persistent side pane carrying
+three of the mock's six left-pane sections — task rows with their lifecycle
+state, the worktree agents list, and progress — so opening with a fourth
+`WorkspaceMode` would re-derive a surface that exists. The first slice is the one
+of §15's four questions with no persistent surface at all: **what is waiting on
+the user.** Open questions live in a modal sheet and a material-assumption
+confirmation arrives as an interrupt, so a user who dismissed one has nowhere
+that remembers. The mode question (§16) is then answered from use.
+
+The one acceptance route still unobserved is a *subagent* result — it passes no
+audit level, so it rests on the parent's word alone and is a different claim from
+the one run 12 settled.
 
 Scoping ANA4 on 2026-09-13 found two things already broken rather than unbuilt,
 and both are fixed: ANA2's contradiction policy had no production caller, so
@@ -180,7 +188,7 @@ implementation slice active.
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
-| Anabasis | ANA4 | later | Dedicated workspace for carrying one goal through completion, with state beside the conversation. | Define the single-goal journey after ANA3 closure and integration scope are settled. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
+| Anabasis | ANA4 | next | Carry one goal through completion, with its state beside the conversation. | Promoted 2026-09-14 on a measurement, not a design: the coding companion panel is already a persistent pane carrying three of the mock's six sections, so the opening slice is **not** a fourth `WorkspaceMode`. Build the awaiting-you section — open questions and pending confirmations, which is the only one of §15's four questions with no persistent surface — then decide the mode question from use. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
 | Memory Continuity | MEM1 | later | Export and restore versioned user-owned memory, including pending review and suppression state. | Freeze the archive/expiry contract, then implement a codec and clean-store restore with rollback and cross-process ownership evidence. See `docs/portable_memory_investigation_2026-09-06.md`; settings export alone is not memory portability. |
 | Memory Continuity | MEM2 | later | Measure fact, preference, and constraint continuity across model changes. | After MEM1, freeze synthetic cases and thresholds; compare at least two model configurations with memory/no-memory controls. Do not equate shared memory with identical personality. |
 | Memory Continuity | MEM3 | later | Preserve memory evidence and correction history. | Add source-message references, assertion origin, and supersession semantics with legacy decoding and archive compatibility. Reuse the existing memory store and approval boundaries. |

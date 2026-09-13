@@ -1647,7 +1647,47 @@ Two ceilings were hit landing twenty lines, and both are worth knowing about:
 
 ### ANA4: Anabasis Workspace
 
-Status: `later`
+Status: `next`
+
+Promotion measured 2026-09-14, against the four questions §15 says the surface
+must answer without rereading the conversation. The finding is that **a
+persistent pane already exists and already carries half of them**: the coding
+companion panel is a side pane with sections, and it renders a progress bar, six
+task rows carrying the *lifecycle* label (so `accepted` reads as itself), and
+`WorktreeAgentTaskPanelSection` -- which is §15's "Agents" list. The page also
+mounts `SubagentTaskBanner` above the conversation.
+
+| §15 question | Persistent today | Behind a tap | Nowhere |
+|---|---|---|---|
+| What is progressing? | progress bar, 6 task rows with lifecycle, worktree agents, subagent banner | the rest of the tasks (capped at 6) | — |
+| What is blocked, and why? | the `blocked` label | the reason and the unmet preconditions (`TaskPreconditionNotice`, plan row) | — |
+| What decision is needed from me? | — | open questions (`PlanOpenQuestionSection`, plan review sheet) | **a list of what is waiting on me** |
+| What has been accepted, on what evidence? | the `accepted` label | evidence and rationale (plan row, 2026-09-13) | — |
+
+So the promotion decision is: **do not open with a fourth `WorkspaceMode`.**
+Three of the mock's six left-pane sections are already in a real persistent pane,
+and building a second one would re-derive them -- the track rule's failure mode,
+one layer up from the types it was written about. The first slice is the row with
+a gap in every column: **nothing persistent says what is waiting on the user.**
+Open questions live in a modal sheet, and a material-assumption confirmation
+arrives as an interrupt, so a user who dismissed one has no surface that
+remembers. §15 calls the workspace "a place to intervene as well as observe", and
+that is the half that is missing.
+
+Two of §16's open questions are touched, and neither blocks the first slice: the
+companion panel is gated on `activeProject != null` and
+`MaterialContractAssumptionGuard` on `WorkspaceMode.coding`, so reusing the pane
+keeps them on the same gate rather than widening one ahead of the other.
+
+**A correction worth keeping, because it nearly shipped as a regression.**
+`WorktreeAgentTaskBanner` has no mount outside its own test, and that reads
+exactly like the dead surfaces this track keeps finding -- it is not one. Commit
+`6c3f86f67` deliberately removed the banner from the top of `ChatPage` and moved
+its content into the companion panel as `WorktreeAgentTaskPanelSection`, from the
+same file. Remounting it was caught by the assertion that records that decision
+(`chat_page_slash_commands_test.dart`: the banner text must *not* appear). An
+unmounted widget in a file whose other widget is mounted is a placement decision,
+not a dead surface -- check `git log -S` on the assertion before calling it one.
 
 Purpose:
 - Reduce the work of reconstructing progress and composing the next instruction,
@@ -1675,6 +1715,12 @@ Deliberately last: the parent boundary and the acceptance model should be
 proven before they get a surface.
 
 Next action:
-- ANA0 and the ANA2 policy/queue baseline are complete. Resolve ANA3's remaining
-  closure and integration scope, then define one representative goal journey
-  with a user decision and visible produced, verified, and accepted states.
+- ANA0-ANA3 are complete. Build the **awaiting-you** section in the existing
+  companion panel: unresolved open questions and pending material-assumption
+  confirmations, each with the path that already answers it
+  (`_answerOpenQuestion`, the confirmation gate's sheet). That is §15's third
+  question, the only one with no persistent surface, and it is what makes the
+  pane somewhere to intervene rather than only observe.
+- Then decide the mode question from use rather than from design: whether the
+  filled-in pane still wants its own `WorkspaceMode` and `AssistantMode` (§16),
+  or whether reusing `plan` and the companion panel is the whole destination.
