@@ -145,7 +145,10 @@ void main() {
 
     expect(snapshot.delegatableTasks, [
       'Choose the index format [workflow_task_id: choose-index] (subagent)',
-      'Build the query UI [workflow_task_id: build-ui] (worktree)',
+      // (subagent) even though the work belongs in a worktree: that is the
+      // runner a delegation can actually reach today, and the queue may not
+      // offer the parent a choice it does not have.
+      'Build the query UI [workflow_task_id: build-ui] (subagent)',
     ]);
     expect(
       snapshot.toPromptContext(),
