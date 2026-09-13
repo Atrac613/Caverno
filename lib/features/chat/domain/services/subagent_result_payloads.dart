@@ -4,6 +4,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/mcp_tool_entity.dart';
 import '../entities/subagent_task.dart';
+import '../entities/worktree_agent_task.dart';
 import 'subagent_tool_contract.dart';
 
 /// What `get_subagent_result` answers with, in every case it can answer.
@@ -77,6 +78,39 @@ class SubagentResultPayloads {
           'The child runs on its own branch. Poll get_subagent_result with '
           'task_id, and accept only once it reports changed files and a green '
           'verification.',
+    }),
+  );
+
+  /// A worktree child's state, with the two things only it can report.
+  ///
+  /// The changed-file count rather than the files: this answer is read on every
+  /// poll, and the list belongs to the acceptance that rests on it. `verified` is
+  /// stated even when false, because "not yet" and "failed" are both answers the
+  /// parent has to be able to act on.
+  McpToolResult forWorktreeTask({
+    required String toolName,
+    required WorktreeAgentTask task,
+  }) => McpToolResult(
+    toolName: toolName,
+    isSuccess: task.status != WorktreeAgentTaskStatus.failed,
+    result: jsonEncode({
+      'runner': 'worktree',
+      'task_id': task.id,
+      'description': task.title,
+      'status': task.status.name,
+      'workflow_task_id': task.workflowTaskId,
+      'branch_name': task.branchName,
+      'verification_command': task.verificationCommand,
+      'verified': task.verifiedGreen,
+      'changed_file_count': task.changedFiles.length,
+      if (task.changedFileEvidenceTruncated) 'changed_files_truncated': true,
+      if (task.resultSummary.trim().isNotEmpty) 'summary': task.resultSummary,
+      if (task.verificationSummary.trim().isNotEmpty)
+        'verification_summary': task.verificationSummary,
+      if (task.error.trim().isNotEmpty) 'error': task.error,
+      if (task.isRecoverable && task.recoveryNote.trim().isNotEmpty)
+        'recovery_note': task.recoveryNote,
+      if (!task.isTerminal) 'note': 'Still running. Check again shortly.',
     }),
   );
 

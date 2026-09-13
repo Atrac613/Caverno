@@ -1,4 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
+import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
 import 'package:caverno/features/chat/domain/services/delegated_result_digest.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -79,5 +80,92 @@ void main() {
 
     expect(summaries.single, contains('get_subagent_result task_id: child-a'));
     expect(summaries.single, isNot(contains('workflow_task_id')));
+  });
+
+  group('worktree children', () {
+    WorktreeAgentTask worktree({
+      String workflowTaskId = 'task-1',
+      WorktreeAgentTaskStatus status = WorktreeAgentTaskStatus.completed,
+      bool verifiedGreen = true,
+    }) => WorktreeAgentTask(
+      id: 'worktree-1',
+      status: status,
+      title: 'Scaffold the CLI',
+      branchName: 'feature/scaffold',
+      worktreePath: '/tmp/worktrees/scaffold',
+      workflowTaskId: workflowTaskId,
+      verificationCommand: 'dart test',
+      verifiedGreen: verifiedGreen,
+      changedFiles: const [
+        WorktreeAgentChangedFileEvidence(path: 'bin/todo.dart'),
+      ],
+      createdAt: DateTime(2026, 9, 13),
+      updatedAt: DateTime(2026, 9, 13),
+    );
+
+    test('are named by branch, and carry both ids the tools take', () {
+      final summaries = _digest.summaries(
+        children: const [],
+        acceptedTaskIds: const {},
+        worktreeChildren: [worktree()],
+      );
+
+      expect(summaries, hasLength(1));
+      expect(summaries.single, contains('(worktree feature/scaffold)'));
+      expect(
+        summaries.single,
+        contains('get_subagent_result task_id: worktree-1'),
+      );
+      expect(
+        summaries.single,
+        contains('accept_task workflow_task_id: task-1'),
+      );
+      expect(summaries.single, contains('verified: true'));
+      expect(summaries.single, contains('1 changed file(s)'));
+    });
+
+    test('come first, because they are the kind an acceptance can rest on', () {
+      final summaries = _digest.summaries(
+        children: [_child(id: 'child-a')],
+        acceptedTaskIds: const {},
+        worktreeChildren: [worktree()],
+      );
+
+      expect(summaries, hasLength(2));
+      expect(summaries.first, contains('worktree feature/scaffold'));
+    });
+
+    test('an unbound branch is not the parent\'s to judge', () {
+      expect(
+        _digest.summaries(
+          children: const [],
+          acceptedTaskIds: const {},
+          worktreeChildren: [worktree(workflowTaskId: '')],
+        ),
+        isEmpty,
+        reason: 'The UI and LL37 enqueue branches with no saved task.',
+      );
+    });
+
+    test('a running branch waits, and an accepted task drops out', () {
+      expect(
+        _digest.summaries(
+          children: const [],
+          acceptedTaskIds: const {},
+          worktreeChildren: [
+            worktree(status: WorktreeAgentTaskStatus.running),
+          ],
+        ),
+        isEmpty,
+      );
+      expect(
+        _digest.summaries(
+          children: const [],
+          acceptedTaskIds: const {'task-1'},
+          worktreeChildren: [worktree()],
+        ),
+        isEmpty,
+      );
+    });
   });
 }

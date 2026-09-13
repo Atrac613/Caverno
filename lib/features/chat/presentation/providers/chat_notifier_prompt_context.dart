@@ -107,6 +107,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
               children: ref
                   .read(subagentTaskNotifierProvider)
                   .tasksForConversation(currentConversation.id),
+              worktreeChildren: _worktreeChildrenOrNone(),
               acceptedTaskIds: currentConversation.taskAcceptances
                   .map((acceptance) => acceptance.taskId)
                   .toSet(),

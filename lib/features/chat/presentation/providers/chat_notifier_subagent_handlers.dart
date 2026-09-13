@@ -415,16 +415,28 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     final task = children
         .where((candidate) => candidate.id == taskId)
         .lastOrNull;
-    if (task == null) {
-      return payloads.unknownTask(
-        toolName: toolCall.name,
-        taskId: taskId,
-        knownTaskIds: children
-            .map((candidate) => candidate.id)
-            .toList(growable: false),
-      );
+    if (task != null) {
+      return payloads.forTask(toolName: toolCall.name, task: task);
     }
-    return payloads.forTask(toolName: toolCall.name, task: task);
+    // Worktree children are looked up by id alone, because that is all they
+    // carry: they are scoped to a coding project rather than a conversation, and
+    // the id is the one the enqueue answer handed the parent.
+    final worktrees = _worktreeChildrenOrNone();
+    final worktree = worktrees
+        .where((candidate) => candidate.id == taskId)
+        .lastOrNull;
+    if (worktree != null) {
+      return payloads.forWorktreeTask(toolName: toolCall.name, task: worktree);
+    }
+    return payloads.unknownTask(
+      toolName: toolCall.name,
+      taskId: taskId,
+      knownTaskIds: [
+        for (final candidate in children) candidate.id,
+        for (final candidate in worktrees)
+          if (candidate.workflowTaskId.trim().isNotEmpty) candidate.id,
+      ],
+    );
   }
 
   /// The worktree registry, or nothing if it cannot be read.

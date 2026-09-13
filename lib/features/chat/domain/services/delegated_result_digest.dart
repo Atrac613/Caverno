@@ -1,4 +1,5 @@
 import '../entities/subagent_task.dart';
+import '../entities/worktree_agent_task.dart';
 
 /// What the parent has delegated and not yet judged, named so it can be read
 /// back.
@@ -25,8 +26,25 @@ class DelegatedResultDigest {
   List<String> summaries({
     required List<SubagentTask> children,
     required Set<String> acceptedTaskIds,
+    List<WorktreeAgentTask> worktreeChildren = const <WorktreeAgentTask>[],
   }) {
     return <String>[
+      // Worktree children first: they are the evidenced kind, so when both ran
+      // for one task the parent should reach for the one an acceptance can rest
+      // on. Only those bound to a saved task appear -- the UI's and LL37's
+      // branches are not the parent's to judge.
+      for (final child in worktreeChildren)
+        if (child.isTerminal &&
+            child.workflowTaskId.trim().isNotEmpty &&
+            !acceptedTaskIds.contains(child.workflowTaskId))
+          [
+            child.title.trim().isEmpty ? 'Delegated work' : child.title.trim(),
+            '(worktree ${child.branchName})',
+            '— get_subagent_result task_id: ${child.id}',
+            '— accept_task workflow_task_id: ${child.workflowTaskId}',
+            '— ${child.status.name}, verified: ${child.verifiedGreen}, '
+                '${child.changedFiles.length} changed file(s)',
+          ].join(' '),
       for (final child in children)
         if (child.isTerminal && !acceptedTaskIds.contains(child.workflowTaskId))
           [

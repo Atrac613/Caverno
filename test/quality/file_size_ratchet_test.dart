@@ -70,7 +70,11 @@ const Map<String, int> _lineBudgets = {
   // actually take, after a live parent passed the workflow id to
   // get_subagent_result. The six lines are why -- a format note that reads as
   // arbitrary is the one a later edit undoes.
-  'lib/features/chat/domain/services/delegated_result_digest.dart': 43,
+  // +18, to 61: worktree children in the queue the parent reads, listed first
+  // because they are the kind an acceptance can rest on. Only those bound to a
+  // saved task appear -- the UI's and LL37's branches are not the parent's to
+  // judge.
+  'lib/features/chat/domain/services/delegated_result_digest.dart': 61,
   // +1 for a ToolResultOrigin declaration, on the same grounds as the eight
   // entries further down: the marker cannot be extracted anywhere, because
   // being at the producer is the whole point. This one was found by the
@@ -94,7 +98,10 @@ const Map<String, int> _lineBudgets = {
   // exist yet at the moment the parent asks; and refused rather than silently
   // downgraded to a subagent, because a summary the parent would read as
   // evidence is the failure this whole route exists to fix.
-  'lib/features/chat/domain/services/subagent_result_payloads.dart': 124,
+  // +34, to 158: a worktree child's own state, which carries the two things only
+  // it can report. The changed-file *count* rather than the files: this answer is
+  // read on every poll and the list belongs to the acceptance that rests on it.
+  'lib/features/chat/domain/services/subagent_result_payloads.dart': 158,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
@@ -1029,7 +1036,11 @@ const Map<String, int> _libraryLineBudgets = {
   // to be -- resolving the turn's project root and calling the launcher are both
   // `ref` -- and the two things that are not, the payload shapes and the audit
   // choice, live in the files that already owned them.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19843,
+  // +13, to 19,856: the worktree read-back. A worktree child is looked up by id
+  // alone because that is all it carries -- it is scoped to a coding project, not
+  // a conversation -- so the lookup could not reuse the conversation-scoped one
+  // beside it.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19856,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

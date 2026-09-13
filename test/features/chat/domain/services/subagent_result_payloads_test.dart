@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
+import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
 import 'package:caverno/features/chat/domain/services/subagent_result_payloads.dart';
 import 'package:caverno/features/chat/domain/services/subagent_tool_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -89,5 +90,82 @@ void main() {
       isFalse,
       reason: 'An unfinished child has nothing to summarize yet.',
     );
+  });
+
+  group('a worktree child reports what only it can', () {
+    WorktreeAgentTask task({
+      WorktreeAgentTaskStatus status = WorktreeAgentTaskStatus.completed,
+      bool verifiedGreen = true,
+      int changedFileCount = 2,
+      String error = '',
+    }) => WorktreeAgentTask(
+      id: 'worktree-1',
+      status: status,
+      title: 'Scaffold the CLI',
+      branchName: 'feature/scaffold',
+      worktreePath: '/tmp/worktrees/scaffold',
+      workflowTaskId: 'task-1',
+      verificationCommand: 'dart test',
+      verifiedGreen: verifiedGreen,
+      error: error,
+      changedFiles: [
+        for (var index = 0; index < changedFileCount; index++)
+          WorktreeAgentChangedFileEvidence(path: 'lib/file_$index.dart'),
+      ],
+      createdAt: DateTime(2026, 9, 13),
+      updatedAt: DateTime(2026, 9, 13),
+    );
+
+    test('the branch, the verification and the count', () {
+      final payload = _decode(
+        _payloads
+            .forWorktreeTask(toolName: 'get_subagent_result', task: task())
+            .result,
+      );
+
+      expect(payload['runner'], 'worktree');
+      expect(payload['branch_name'], 'feature/scaffold');
+      expect(payload['verification_command'], 'dart test');
+      expect(payload['verified'], isTrue);
+      expect(payload['changed_file_count'], 2);
+      expect(payload['workflow_task_id'], 'task-1');
+    });
+
+    test('not verified is an answer, not an omission', () {
+      final payload = _decode(
+        _payloads
+            .forWorktreeTask(
+              toolName: 'get_subagent_result',
+              task: task(verifiedGreen: false),
+            )
+            .result,
+      );
+
+      expect(
+        payload['verified'],
+        isFalse,
+        reason: '"not yet" and "failed" are both things the parent must act on.',
+      );
+    });
+
+    test('a running branch is told to check again and does not fail', () {
+      final result = _payloads.forWorktreeTask(
+        toolName: 'get_subagent_result',
+        task: task(status: WorktreeAgentTaskStatus.running),
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(_decode(result.result)['note'], contains('Still running'));
+    });
+
+    test('a failed branch does not succeed and carries its error', () {
+      final result = _payloads.forWorktreeTask(
+        toolName: 'get_subagent_result',
+        task: task(status: WorktreeAgentTaskStatus.failed, error: 'git locked'),
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(_decode(result.result)['error'], 'git locked');
+    });
   });
 }
