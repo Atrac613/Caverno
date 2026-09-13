@@ -1934,8 +1934,12 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         _liveAnabasisAcceptanceFollowUpPrompt,
       ],
       // The longest of the three, and the work is why: the child runs its own
-      // agent loop in a fresh checkout and then the saved verification command.
-      followUpSettleTimeout: const Duration(minutes: 12),
+      // agent loop in a fresh checkout and then the saved verification command,
+      // and the parent then checks the branch with git before judging it. 12
+      // minutes was not enough for the last of those -- the seventh run had the
+      // evidence in hand (verified, one changed file) and ran out of turn while
+      // inspecting the branch.
+      followUpSettleTimeout: const Duration(minutes: 20),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 1,
       ),
