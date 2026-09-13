@@ -94,8 +94,8 @@ recommendation to extract a writer and build those paths is superseded.
 
 The bounded next investigation is one mutating planned task: trace the runner
 choice through parent dispatch to the acceptance audit, and specify the missing
-worktree adapter and evidence contract. The current handler accepts subagent
-results; the worktree route is not dispatched. See the
+worktree adapter and evidence contract. The worktree route is dispatched as of
+2026-09-13 and is unobserved live. See the
 [ANA3 current summary](anabasis_roadmap.md#ana3-accept) for the recorded limit.
 Keep ANA3 `current` until that closure scope is resolved. ANA4 remains `later`,
 with one goal as its completion boundary and the project vision independent.

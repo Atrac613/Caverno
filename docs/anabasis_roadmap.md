@@ -1120,9 +1120,9 @@ Status: `current`
 Current summary (2026-09-13): PR 2b's guarded acceptance write was observed live
 on 2026-09-12; PR 3's derived lifecycle now reaches both prompts and panels
 (`c4cc61380`, `455af1bc8`, `70466c022`). The implementation slices below are
-complete. Keep the milestone current pending a closure review of the documented
-worktree-dispatch and acceptance-evidence limit; a subagent acceptance does not
-prove the planned worktree route.
+complete. The worktree route was then dispatched on 2026-09-13, which closes the
+acceptance-evidence limit in code; keep the milestone current pending a live
+observation of it, since the canary's temp-directory project cannot host a branch.
 
 Scope:
 - `produced` / `verified` / `accepted` as distinct states. Both existing status
@@ -1261,12 +1261,32 @@ entries, and a freshly approved plan has none — so it reported "Answered 0 ope
 question(s)" on a plan whose first task waited on exactly one question. It
 answers `effectiveWorkflowSpec.openQuestions` now.
 
-One scoped limit, recorded at the line that would have to change: the handler
-audits subagent results only. ANA2 PR 2's worktree mapping is not dispatched
-yet, so no `WorktreeAgentTask` exists to audit; `auditWorktreeResult` is already
-written, and when worktree delegation is wired, a worktree child would otherwise
-refuse as `acceptance_no_delegated_result` despite being the more evidenced
-kind.
+**That limit is closed, 2026-09-13** (`5682c34a6`, `28bbdb3d7`, `3786d610d`).
+`spawn_subagent` takes `runner: "worktree"`, which enqueues a `WorktreeAgentTask`
+through the launcher the UI and LL37 already used, bound to the saved plan task;
+`get_subagent_result` answers for it with the two things only it can report --
+whether the saved verification went green, and how many files changed;
+the delegated-results block lists it first; and the audit prefers a worktree
+result over a subagent one for the same task, because it is the only kind that can
+pass a level. The queue names the real runner again, having printed `(subagent)`
+for a day while the label described a route the harness could not take.
+
+So an acceptance can now rest on more than the parent's word. The one recorded live
+the day before passed zero levels, with `evidence: ["child summary recorded"]`; a
+worktree acceptance names the branch and the command instead, because that line is
+what the next turn reads instead of redoing the work.
+
+Three things the slice decided rather than deferred. The binding travels
+entity -> plan -> registry -> launcher in one commit, since a field with no writer
+is how PR 2a left one dead. The route refuses rather than downgrades when there is
+no saved task or no coding project: falling back to a subagent would hand the
+parent a summary it would read as evidence, which is the failure the route exists
+to fix. And the registry read is defensive, because a throw inside a tool handler
+ends the turn -- at the end of the work, which is the expensive place to lose one.
+
+**Still unobserved live.** A worktree child needs a git project and a branch, and
+the Anabasis canary's project is a temp directory, so the scenario that proves this
+is its own piece of work.
 - Session `7a18cc33` grounds that in a turn nobody set up for it: the parent
   called `read_file` on what the child had written, judged it, and answered.
   That is level 2 evidence gathered by the parent through a tool its authority
