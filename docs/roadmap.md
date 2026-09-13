@@ -3702,7 +3702,7 @@ PR split:
 | 1 | The two derivable acceptance levels, as a verdict nobody writes | done |
 | 2a | Where an acceptance lives, and what has to hold before one may be written | done |
 | 2b | The parent's route to writing one | done |
-| 3 | `produced` / `verified` / `accepted` as distinct states, one writer each | done (derived) |
+| 3 | `produced` / `verified` / `accepted` as distinct states, one writer each | done (derived, prompt + panels) |
 
 Verification evidence:
 - PR 1: `task_acceptance_audit_test.dart`. `TaskAcceptanceAudit` derives levels
@@ -3964,9 +3964,14 @@ mechanically is not the same as having proved something — and an acceptance
 outranks a later status edit, since the judgement was recorded against evidence at
 a point in time.
 
-What PR 3 still owes is the UI: `workflow_status_presentation.dart` and the
-companion builders map the status enum straight to labels and icons, so the panel
-still says completed where the prompt now says produced.
+The UI followed in `455af1bc8`, once the chat_page aggregate had room: both task
+chips ask what the task has actually reached, and the plan row is told whether an
+acceptance exists -- the one state it cannot derive, because only the conversation
+records one. An accepted task says so over its verification, since a judgement
+outranks the check it rested on.
+
+PR 3 is done. What it does *not* do is make an acceptance mean more than the
+parent's word: see ANA2's remaining gap below.
 
 The extraction note above also resolved itself the other way: the write path
 landed without touching `conversations_notifier.dart`, and the extraction this
