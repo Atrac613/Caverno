@@ -40,6 +40,7 @@ void main() {
     const addressesParent = <String>{
       'live_anabasis_delegation_admission',
       'live_anabasis_acceptance',
+      'live_anabasis_worktree',
     };
     final others = buildLivePlanModeScenarios().where(
       (candidate) => !addressesParent.contains(candidate.name),
@@ -146,6 +147,9 @@ void main() {
     // case: the parent authority guard refused accept_task before the handler,
     // so neither an acceptance_* code nor a recorded acceptance existed.
     expect(runner, contains('Acceptance attempted'));
+    // Which route it took, for every run: a subagent acceptance passes no audit
+    // level, so "accepted" alone does not say what it rested on.
+    expect(runner, contains('Worktree children enqueued'));
     expect(runner, contains('Extra follow-up turns delivered='));
     final acceptIndex = runner.indexOf('ACCEPTED=0');
     expect(acceptIndex, isNonNegative);
@@ -164,6 +168,18 @@ void main() {
     expect(scenario.followUpPrompt, isNot(contains('spawn_subagent')));
   });
 
+  test('only the worktree scenario makes its workspace a repository', () {
+    // A repository the model can see changes what it does -- it starts reading
+    // git state and reporting diffs -- so this stays off wherever a branch is not
+    // the point.
+    final scenarios = buildLivePlanModeScenarios();
+    final withGit = scenarios
+        .where((candidate) => candidate.initializeGitRepository)
+        .map((candidate) => candidate.name);
+
+    expect(withGit, ['live_anabasis_worktree']);
+  });
+
   test('every capture tolerates finding nothing', () {
     final runner = File(
       'tool/run_anabasis_delegation_live_canary.sh',
@@ -178,6 +194,7 @@ void main() {
       'REFUSALS="\$(',
       'DELIVERED="\$(',
       'ATTEMPTS="\$(',
+      'WORKTREE_ENQUEUED="\$(',
     ]) {
       final start = runner.indexOf(capture);
       expect(start, isNonNegative, reason: capture);

@@ -46,6 +46,7 @@ import 'test_support/plan_mode_prompt_submission.dart';
 import 'test_support/plan_mode_report_summary.dart';
 import 'test_support/plan_mode_saved_workflow_assertions.dart';
 import 'test_support/plan_mode_scenario_config.dart';
+import 'test_support/plan_mode_scenario_git_repository.dart';
 import 'test_support/plan_mode_scenario_reporting.dart';
 import 'test_support/plan_mode_scenario_seed_files.dart';
 import 'test_support/plan_mode_scenario_spec.dart';
@@ -156,6 +157,9 @@ Future<_ScenarioRunResult> _runScenario({
     scenarioDir: scenarioDir,
     seedFiles: scenario.seedFiles,
   );
+  if (scenario.initializeGitRepository) {
+    await initializePlanModeGitRepository(scenarioDir);
+  }
   final heartbeatWriter = PlanModeLiveHeartbeatWriter(
     scenarioName: scenario.name,
     path: heartbeatPath,

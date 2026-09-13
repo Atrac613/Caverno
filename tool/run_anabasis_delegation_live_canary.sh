@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the Anabasis delegation canary.}"
 : "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the Anabasis delegation canary.}"
 
-# The acceptance sibling runs the same way on a smaller task; see
+# The acceptance and worktree siblings run the same way on different work; see
 # buildLivePlanModeScenarios for why the work has to differ.
 SCENARIO="${CAVERNO_ANABASIS_SCENARIO:-live_anabasis_delegation_admission}"
 REPORT_ROOT="${CAVERNO_ANABASIS_DELEGATION_REPORT_ROOT:-${CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}}"
@@ -73,8 +73,15 @@ if printf '%s\n' "${FIRINGS_OUTPUT}" | grep -q '^\[FIRED\] anabasis_acceptance_r
 fi
 
 echo
+# Which route the parent actually took. Reported for every run, because the
+# distinction is the whole point of the worktree scenario: a subagent acceptance
+# passes no audit level, so "accepted" alone does not say what it rested on.
+WORKTREE_ENQUEUED="$(grep -c 'Enqueued worktree child' "${RUN_LOG}" 2>/dev/null || true)"
+WORKTREE_ENQUEUED="${WORKTREE_ENQUEUED:-0}"
+
 echo "  Ready tasks offered to the parent: ${QUEUE_SIZE}"
 echo "  Delegation admitted: ${ADMITTED}"
+echo "  Worktree children enqueued: ${WORKTREE_ENQUEUED}"
 echo "  Acceptance recorded: ${ACCEPTED}"
 
 # Reported, not gated. Delegation is the one thing this run can demand: whether

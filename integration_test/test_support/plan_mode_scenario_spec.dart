@@ -53,6 +53,17 @@ const _liveAnabasisAcceptanceFollowUpPrompt =
 /// cannot be observed on work that is not done, and the fix is the task, not a
 /// longer wait. "Write no code" is in the prompt because the model otherwise
 /// plans an implementation from a reading task.
+/// A goal whose work changes a file, so the plan's ready task routes to a
+/// worktree rather than a subagent.
+///
+/// Small on purpose, for the same reason the acceptance scenario's goal is: what
+/// is measured is whether the parent takes the evidenced route and judges what
+/// comes back, not whether a child can finish a build.
+const _liveAnabasisWorktreeShortPrompt =
+    'todo_app.md \u306e\u4ed5\u69d8\u3092 README.md \u306b 1 \u679a'
+    '\u3067\u307e\u3068\u3081\u3066\u3002\u5b9f\u88c5\u306f'
+    '\u3057\u306a\u3044\u3002';
+
 const _liveAnabasisInspectionShortPrompt =
     'todo_app.md \u3092\u8aad\u3093\u3067\u3001\u5b9f\u88c5\u524d\u306b'
     '\u78ba\u8a8d\u3059\u3079\u304d\u4ed5\u69d8\u306e\u66d6\u6627\u70b9'
@@ -373,6 +384,7 @@ class PlanModeScenarioSpec {
     this.startExecutionAfterApproval = true,
     this.resolveOpenQuestionsBeforeFollowUp = false,
     this.extraFollowUpPrompts = const <String>[],
+    this.initializeGitRepository = false,
     this.followUpSettleTimeout = const Duration(minutes: 3),
   });
 
@@ -433,6 +445,13 @@ class PlanModeScenarioSpec {
   /// called reliably when the instruction said to -- so collapsing them would
   /// destroy the measurement.
   final List<String> extraFollowUpPrompts;
+
+  /// Whether the workspace is made a git repository on `main` before the run.
+  ///
+  /// Only the worktree scenarios need it -- a worktree child is a branch and a
+  /// second checkout -- and it is off elsewhere because a repository the model
+  /// can see changes what it does.
+  final bool initializeGitRepository;
 
   /// How long to let the follow-up turn run before giving up on it.
   final Duration followUpSettleTimeout;
@@ -1869,6 +1888,58 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           pattern: '[LLM] ========== createChatCompletion ==========',
           minCount: 1,
         ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+      ],
+    ),
+    // The third Anabasis scenario, and the only one whose workspace is a git
+    // repository: a worktree child is a branch and a second checkout, so it
+    // cannot exist without one. The goal changes a file, which is what routes its
+    // ready task to the worktree runner rather than a subagent.
+    //
+    // What this measures that the other two cannot: an acceptance resting on
+    // something other than the parent's word. A subagent child carries no
+    // verification result and no changed files, so both audit levels are
+    // inapplicable and the acceptance is the parent's judgement alone -- the one
+    // observed live on 2026-09-12 passed zero levels.
+    PlanModeScenarioSpec(
+      name: 'live_anabasis_worktree',
+      userPrompt: _liveAnabasisWorktreeShortPrompt,
+      projectName: 'tmp-live-anabasis-worktree',
+      tags: const <String>['live', 'canary', 'production_path', 'anabasis'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      seedFiles: const <PlanModeScenarioSeedFile>[
+        PlanModeScenarioSeedFile(
+          sourcePath: 'docs/coding_mvp_fixtures/todo_app.md',
+          destinationPath: 'todo_app.md',
+        ),
+      ],
+      initializeGitRepository: true,
+      languageCode: 'ja',
+      temperature: 0.2,
+      maxTokens: 8192,
+      planningProposalTimeout: const Duration(minutes: 3),
+      waitForExecutionCompletion: false,
+      startExecutionAfterApproval: false,
+      resolveOpenQuestionsBeforeFollowUp: true,
+      followUpPrompt: _liveAnabasisDelegationFollowUpPrompt,
+      extraFollowUpPrompts: const <String>[
+        _liveAnabasisAcceptanceFollowUpPrompt,
+      ],
+      // The longest of the three, and the work is why: the child runs its own
+      // agent loop in a fresh checkout and then the saved verification command.
+      followUpSettleTimeout: const Duration(minutes: 12),
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 1,
+      ),
+      logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
