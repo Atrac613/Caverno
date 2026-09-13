@@ -48,6 +48,55 @@ class SubagentResultPayloads {
     errorMessage: 'No subagent task with id $taskId',
   );
 
+  /// A worktree child was enqueued: a branch, a checkout, and an id to poll.
+  ///
+  /// Enqueued rather than completed, on purpose. A worktree child is the
+  /// evidenced kind -- it reports changed files and the result of the saved
+  /// validation command -- and none of that exists yet at the moment the parent
+  /// asks for it.
+  McpToolResult worktreeEnqueued({
+    required String toolName,
+    required String taskId,
+    required String workflowTaskId,
+    required String branchName,
+    required String worktreePath,
+    required String verificationCommand,
+  }) => McpToolResult(
+    toolName: toolName,
+    isSuccess: true,
+    result: jsonEncode({
+      'ok': true,
+      'runner': 'worktree',
+      'status': 'enqueued',
+      'task_id': taskId,
+      'workflow_task_id': workflowTaskId,
+      'branch_name': branchName,
+      'worktree_path': worktreePath,
+      'verification_command': verificationCommand,
+      'required_action':
+          'The child runs on its own branch. Poll get_subagent_result with '
+          'task_id, and accept only once it reports changed files and a green '
+          'verification.',
+    }),
+  );
+
+  /// The worktree route was asked for and cannot be taken.
+  McpToolResult worktreeUnavailable({
+    required String toolName,
+    required String reason,
+    required String requiredAction,
+  }) => McpToolResult(
+    toolName: toolName,
+    isSuccess: false,
+    result: jsonEncode({
+      'ok': false,
+      'code': 'worktree_delegation_unavailable',
+      ...ToolResultOrigin.refusal.marker,
+      'reason': reason,
+      'required_action': requiredAction,
+    }),
+  );
+
   /// The child's own state, and only the field its state earns: a summary for a
   /// completed child, an error for a failed one, and a note for one still going.
   McpToolResult forTask({

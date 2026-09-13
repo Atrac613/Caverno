@@ -44,6 +44,17 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
             toolService.getOpenAiToolDefinitions(),
           );
 
+    if (trimStringArgument(toolCall.arguments, 'runner') == 'worktree') {
+      return _delegateToWorktree(
+        toolCall: toolCall,
+        owner: owner,
+        prompt: prompt,
+        label: label,
+        workflowTaskId: workflowTaskId,
+        interactionGeneration: interactionGeneration,
+      );
+    }
+
     final taskId = _uuid.v4();
 
     if (background) {
@@ -88,6 +99,81 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
 
     appLog('[Subagent] Failed "$label" (task=$taskId): ${task.error}');
     return SubagentCommandObservation.failed(toolCall.name, task);
+  }
+
+  /// Hands planned work to a worktree child: its own branch, its own checkout.
+  ///
+  /// The evidenced kind of delegation, and the reason ANA3's acceptance can
+  /// stand on more than the parent's word: a worktree child reports changed
+  /// files and the result of the saved validation command, where a subagent
+  /// child has neither and leaves both audit levels inapplicable.
+  ///
+  /// Requires the plan binding. Without a saved task there is no validation
+  /// command to run and nothing to audit the branch against, so the route is
+  /// refused rather than quietly downgraded -- a silent fall back to a subagent
+  /// would return a summary the parent would read as evidence.
+  Future<McpToolResult> _delegateToWorktree({
+    required ToolCallInfo toolCall,
+    required ChatTurnOwner owner,
+    required String prompt,
+    required String label,
+    required String workflowTaskId,
+    required int interactionGeneration,
+  }) async {
+    const payloads = SubagentResultPayloads();
+    final conversation = _conversationForId(owner.conversationId);
+    final task = conversation?.effectiveWorkflowSpec.tasks
+        .where((candidate) => candidate.id == workflowTaskId)
+        .firstOrNull;
+    final projectRoot = _projectRootForGeneration(interactionGeneration) ?? '';
+    if (task == null || projectRoot.isEmpty) {
+      return payloads.worktreeUnavailable(
+        toolName: toolCall.name,
+        reason: task == null
+            ? 'A worktree child runs against a saved task; none was bound.'
+            : 'A worktree child needs a coding project root; this turn has none.',
+        requiredAction: task == null
+            ? 'Pass a ready workflow_task_id, or delegate to a subagent.'
+            : 'Open the project in coding mode, or delegate to a subagent.',
+      );
+    }
+    try {
+      final launched = await ref
+          .read(worktreeAgentTaskLauncherProvider)
+          .enqueue(
+            WorktreeAgentTaskLaunchRequest(
+              title: label,
+              prompt: prompt,
+              projectRootPath: projectRoot,
+              verificationCommand: task.validationCommand,
+              objectiveAcceptanceCriteria:
+                  conversation!.effectiveWorkflowSpec.acceptanceCriteria,
+              workflowTaskId: workflowTaskId,
+            ),
+          );
+      appLog(
+        '[Subagent] Enqueued worktree child for $workflowTaskId '
+        '(task=${launched.task.id} branch=${launched.task.branchName})',
+      );
+      return payloads.worktreeEnqueued(
+        toolName: toolCall.name,
+        taskId: launched.task.id,
+        workflowTaskId: workflowTaskId,
+        branchName: launched.task.branchName,
+        worktreePath: launched.task.normalizedWorktreePath,
+        verificationCommand: launched.task.verificationCommand,
+      );
+    } catch (error) {
+      // The launcher throws for a reason the parent can act on -- no project
+      // root, unreadable git reservations -- so it is reported rather than
+      // swallowed into a generic failure.
+      return payloads.worktreeUnavailable(
+        toolName: toolCall.name,
+        reason: '$error',
+        requiredAction:
+            'Fix the project or branch state, or delegate to a subagent.',
+      );
+    }
   }
 
   Future<McpToolResult> _startBackgroundSubagent({
@@ -341,6 +427,22 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     return payloads.forTask(toolName: toolCall.name, task: task);
   }
 
+  /// The worktree registry, or nothing if it cannot be read.
+  ///
+  /// Defensive because of where this is called from: a throw inside a tool
+  /// handler leaves the call unexecuted and ends the turn, and this one runs at
+  /// the end of work expensive enough that losing it is the worse outcome.
+  /// Without a readable registry the audit falls back to subagent children,
+  /// which is exactly the behaviour that preceded worktree delegation.
+  List<WorktreeAgentTask> _worktreeChildrenOrNone() {
+    try {
+      return ref.read(worktreeAgentTaskRegistryNotifierProvider).tasks;
+    } catch (error) {
+      appLog('[Anabasis] Worktree registry unavailable for acceptance: $error');
+      return const <WorktreeAgentTask>[];
+    }
+  }
+
   /// Records the parent's acceptance of a delegated saved task.
   ///
   /// Refuses rather than judges. `mayParentAccept` decides, on evidence the
@@ -366,6 +468,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       childrenForConversation: ref
           .read(subagentTaskNotifierProvider)
           .tasksForConversation(owner.conversationId),
+      worktreeChildren: _worktreeChildrenOrNone(),
     );
     switch (decision) {
       case TaskAcceptanceRefusal(:final result):

@@ -4,6 +4,7 @@ import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/subagent_task.dart';
+import '../entities/worktree_agent_task.dart';
 import 'task_acceptance_audit.dart';
 import 'task_delegation_brief_builder.dart';
 
@@ -53,6 +54,7 @@ class TaskAcceptanceDecisionService {
     required String taskId,
     required String rationale,
     required List<SubagentTask> childrenForConversation,
+    List<WorktreeAgentTask> worktreeChildren = const <WorktreeAgentTask>[],
   }) {
     McpToolResult refuse(String code, Map<String, Object?> detail) =>
         McpToolResult(
@@ -110,12 +112,15 @@ class TaskAcceptanceDecisionService {
     }
 
     // Audited against the child that was admitted for this task, which is why
-    // the delegation gate records the binding: without it there is no way to
+    // both delegation routes record the binding: without it there is no way to
     // tell which result is the one being accepted.
     final children = childrenForConversation
         .where((candidate) => candidate.workflowTaskId == trimmedTaskId)
         .toList(growable: false);
-    if (children.isEmpty) {
+    final worktrees = worktreeChildren
+        .where((candidate) => candidate.workflowTaskId == trimmedTaskId)
+        .toList(growable: false);
+    if (children.isEmpty && worktrees.isEmpty) {
       return TaskAcceptanceRefusal(
         refuse('acceptance_no_delegated_result', {
           'required_action':
@@ -125,14 +130,14 @@ class TaskAcceptanceDecisionService {
       );
     }
 
-    // Subagent results only, and deliberately so for now: ANA2 PR 2's worktree
-    // mapping is not dispatched yet, so no WorktreeAgentTask exists to audit.
-    // `auditWorktreeResult` is the other half and is already written -- when
-    // worktree delegation is wired, this is the line that has to choose between
-    // them, or a worktree child's result refuses as
-    // `acceptance_no_delegated_result` despite being the more evidenced kind.
+    // A worktree result outranks a subagent one for the same task, because it is
+    // the only kind that can pass a level: it carries the verification outcome
+    // and the changed files, where a subagent child leaves both inapplicable and
+    // the acceptance rests on the parent's word alone.
     const audit = TaskAcceptanceAudit();
-    final verdict = audit.auditSubagentResult(children.last);
+    final verdict = worktrees.isNotEmpty
+        ? audit.auditWorktreeResult(worktrees.last)
+        : audit.auditSubagentResult(children.last);
     if (!audit.mayParentAccept(verdict)) {
       return TaskAcceptanceRefusal(
         refuse('acceptance_levels_outstanding', {
@@ -147,12 +152,23 @@ class TaskAcceptanceDecisionService {
     }
 
     final progress = conversation.executionProgressForTask(task.id);
+    final worktree = worktrees.isNotEmpty ? worktrees.last : null;
     return TaskAcceptanceContract(
       task: task,
       evidence: <String>[
         if (progress?.lastValidationCommand.trim().isNotEmpty ?? false)
           progress!.lastValidationCommand.trim(),
-        if (children.last.resultSummary.trim().isNotEmpty)
+        // Named rather than counted: an acceptance's evidence line is what the
+        // next turn reads instead of redoing the work, so it says which branch
+        // and which command, not merely that something was recorded.
+        if (worktree != null) ...[
+          'worktree branch ${worktree.branchName}',
+          if (worktree.verifiedGreen &&
+              worktree.verificationCommand.trim().isNotEmpty)
+            'verified green: ${worktree.verificationCommand.trim()}',
+          if (worktree.changedFiles.isNotEmpty)
+            '${worktree.changedFiles.length} changed file(s) recorded',
+        ] else if (children.last.resultSummary.trim().isNotEmpty)
           'child summary recorded',
       ],
       premises: const TaskDelegationBriefBuilder().premisesFor(spec, task),

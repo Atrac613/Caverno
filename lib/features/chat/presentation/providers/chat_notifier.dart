@@ -82,6 +82,7 @@ import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/turn_diff.dart';
+import '../../domain/entities/worktree_agent_task.dart';
 import '../../domain/services/anabasis_delegation_admission.dart';
 import '../../domain/services/anabasis_turn_roles.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
@@ -265,6 +266,8 @@ import 'turn_steering_registry.dart';
 import 'turn_stream_binding_registry.dart';
 import 'turn_thread_scope.dart';
 import 'turn_tool_result_ledger.dart';
+import 'worktree_agent_task_launcher.dart';
+import 'worktree_agent_task_registry_notifier.dart';
 
 export 'chat_data_source_provider.dart'
     show chatDataSourceFactoryProvider, chatRemoteDataSourceProvider;

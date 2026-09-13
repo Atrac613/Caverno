@@ -37,6 +37,18 @@ abstract final class SubagentToolDefinitions {
                 'Run asynchronously and return a task id immediately instead '
                 'of waiting for the result. Defaults to false.',
           },
+          'runner': {
+            'type': 'string',
+            'enum': ['subagent', 'worktree'],
+            'description':
+                'Where the child runs. "subagent" shares this workspace and '
+                'returns a summary. "worktree" runs on its own git branch in an '
+                'isolated checkout and returns changed files and the result of '
+                'the saved validation command, which is the evidence an '
+                'acceptance can rest on; it requires a saved plan task and a '
+                'coding project, and returns a task id to poll. Defaults to '
+                '"subagent".',
+          },
         },
         'required': ['description', 'prompt'],
       },

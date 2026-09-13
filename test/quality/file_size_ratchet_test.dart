@@ -85,8 +85,16 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
   'lib/features/chat/domain/services/task_acceptance_audit.dart': 145,
-  'lib/features/chat/domain/services/task_acceptance_decision.dart': 184,
-  'lib/features/chat/domain/services/subagent_result_payloads.dart': 75,
+  // +16, to 200: a worktree result outranks a subagent one for the same task,
+  // and its evidence is named rather than counted -- which branch, which command
+  // -- because that line is what the next turn reads instead of redoing the work.
+  'lib/features/chat/domain/services/task_acceptance_decision.dart': 200,
+  // +49, to 124: the worktree route's two answers. Enqueued rather than
+  // completed, because a branch, a verification and a changed-file list do not
+  // exist yet at the moment the parent asks; and refused rather than silently
+  // downgraded to a subagent, because a summary the parent would read as
+  // evidence is the failure this whole route exists to fix.
+  'lib/features/chat/domain/services/subagent_result_payloads.dart': 124,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
@@ -1016,7 +1024,12 @@ const Map<String, int> _libraryLineBudgets = {
   // handlers are now a registry read plus, for acceptance, the write that needs
   // `ref` -- which is the part that cannot leave. The notification body went to
   // the contract class that already described the notification.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19737,
+  // +106, to 19,843: the worktree delegation route, which is what the three
+  // slices above were extracted to make room for. It is a handler because it has
+  // to be -- resolving the turn's project root and calling the launcher are both
+  // `ref` -- and the two things that are not, the payload shapes and the audit
+  // choice, live in the files that already owned them.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19843,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

@@ -93,6 +93,7 @@ class WorktreeAgentTaskRegistryNotifier
     String checkpointLineageId = '',
     String endpointId = '',
     String verificationCommand = '',
+    String workflowTaskId = '',
     Iterable<String> objectiveAcceptanceCriteria = const <String>[],
   }) async {
     final normalizedWorktreePath = WorktreeAgentTask.normalizeWorktreePath(
@@ -120,6 +121,7 @@ class WorktreeAgentTaskRegistryNotifier
       checkpointLineageId: checkpointLineageId.trim(),
       endpointId: endpointId.trim(),
       verificationCommand: verificationCommand.trim(),
+      workflowTaskId: workflowTaskId.trim(),
       objectiveAcceptanceCriteria: objectiveAcceptanceCriteria
           .map((criterion) => criterion.trim())
           .where((criterion) => criterion.isNotEmpty)
@@ -145,6 +147,7 @@ class WorktreeAgentTaskRegistryNotifier
       checkpointLineageId: plan.checkpointLineageId,
       endpointId: plan.endpointId,
       verificationCommand: plan.verificationCommand,
+      workflowTaskId: plan.workflowTaskId,
       objectiveAcceptanceCriteria: plan.objectiveAcceptanceCriteria,
     );
   }

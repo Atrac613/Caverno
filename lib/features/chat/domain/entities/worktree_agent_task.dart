@@ -41,6 +41,15 @@ abstract class WorktreeAgentTask with _$WorktreeAgentTask {
     @Default('') String title,
     @Default('') String prompt,
     @Default('') String codingProjectId,
+
+    /// The saved plan task this worktree child was admitted against.
+    ///
+    /// Empty for the two entry points that predate parent delegation -- the UI
+    /// and LL37's approved repairs -- which have no plan task to bind to. The
+    /// acceptance audit needs it for the same reason `SubagentTask` does: without
+    /// the binding there is no way to tell which result is the one being
+    /// accepted.
+    @Default('') String workflowTaskId,
     @Default('main') String baseBranch,
     required String branchName,
     required String worktreePath,

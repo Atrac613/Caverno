@@ -12,6 +12,7 @@ class WorktreeAgentAssignmentPlan {
     required this.checkpointLineageId,
     required this.endpointId,
     required this.verificationCommand,
+    this.workflowTaskId = '',
     this.objectiveAcceptanceCriteria = const <String>[],
   });
 
@@ -25,6 +26,10 @@ class WorktreeAgentAssignmentPlan {
   final String checkpointLineageId;
   final String endpointId;
   final String verificationCommand;
+
+  /// The saved plan task this assignment was admitted against, when a parent
+  /// delegated it; empty otherwise.
+  final String workflowTaskId;
   final List<String> objectiveAcceptanceCriteria;
 }
 
@@ -46,6 +51,7 @@ class WorktreeAgentAssignmentPlanner {
     String checkpointLineageId = '',
     String endpointId = '',
     String verificationCommand = '',
+    String workflowTaskId = '',
     Iterable<String> objectiveAcceptanceCriteria = const <String>[],
     Iterable<String> existingBranchNames = const <String>[],
     Iterable<String> existingWorktreePaths = const <String>[],
@@ -97,6 +103,7 @@ class WorktreeAgentAssignmentPlanner {
       checkpointLineageId: checkpointLineageId.trim(),
       endpointId: endpointId.trim(),
       verificationCommand: verificationCommand.trim(),
+      workflowTaskId: workflowTaskId.trim(),
       objectiveAcceptanceCriteria: objectiveAcceptanceCriteria
           .map((criterion) => criterion.trim())
           .where((criterion) => criterion.isNotEmpty)
