@@ -115,6 +115,35 @@ class SubagentResultPayloads {
     }),
   );
 
+  /// One branch per saved task at a time.
+  ///
+  /// Measured: the parent enqueued two branches for one task in a single turn,
+  /// which spends the budget twice and leaves the audit looking at whichever
+  /// started last -- the one furthest from done. Two children editing the same
+  /// task on different branches is also the contradiction the runner mapping
+  /// exists to avoid.
+  McpToolResult worktreeAlreadyRunning({
+    required String toolName,
+    required String taskId,
+    required String workflowTaskId,
+    required String branchName,
+  }) => McpToolResult(
+    toolName: toolName,
+    isSuccess: false,
+    result: jsonEncode({
+      'ok': false,
+      'code': 'worktree_child_already_running',
+      ...ToolResultOrigin.refusal.marker,
+      'task_id': taskId,
+      'workflow_task_id': workflowTaskId,
+      'branch_name': branchName,
+      'required_action':
+          'This task already has a branch in flight. Poll '
+          'get_subagent_result with that task_id instead of starting a second '
+          'one.',
+    }),
+  );
+
   /// The worktree route was asked for and cannot be taken.
   McpToolResult worktreeUnavailable({
     required String toolName,

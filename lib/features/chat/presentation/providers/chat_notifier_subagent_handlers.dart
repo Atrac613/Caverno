@@ -137,6 +137,20 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
             : 'Open the project in coding mode, or delegate to a subagent.',
       );
     }
+    final inFlight = _worktreeChildrenOrNone()
+        .where(
+          (candidate) =>
+              candidate.workflowTaskId == workflowTaskId && !candidate.isTerminal,
+        )
+        .lastOrNull;
+    if (inFlight != null) {
+      return payloads.worktreeAlreadyRunning(
+        toolName: toolCall.name,
+        taskId: inFlight.id,
+        workflowTaskId: workflowTaskId,
+        branchName: inFlight.branchName,
+      );
+    }
     try {
       final launched = await ref
           .read(worktreeAgentTaskLauncherProvider)

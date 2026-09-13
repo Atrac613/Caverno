@@ -190,4 +190,27 @@ void main() {
     expect(payload['status'], 'enqueued');
     expect(payload['required_action'], contains('Poll get_subagent_result'));
   });
+
+  test('a second branch for one task is refused, with the first one named', () {
+    final payload = _decode(
+      _payloads
+          .worktreeAlreadyRunning(
+            toolName: 'spawn_subagent',
+            taskId: 'worktree-1',
+            workflowTaskId: 'task-1',
+            branchName: 'feature/scaffold',
+          )
+          .result,
+    );
+
+    expect(payload['code'], 'worktree_child_already_running');
+    expect(payload['task_id'], 'worktree-1');
+    expect(
+      payload['required_action'],
+      contains('Poll get_subagent_result'),
+      reason:
+          'The refusal has to name the poll, because the parent did the thing '
+          'this prevents -- started a second branch -- when nothing did.',
+    );
+  });
 }

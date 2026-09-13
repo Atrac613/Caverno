@@ -106,7 +106,11 @@ const Map<String, int> _lineBudgets = {
   // +34, to 158: a worktree child's own state, which carries the two things only
   // it can report. The changed-file *count* rather than the files: this answer is
   // read on every poll and the list belongs to the acceptance that rests on it.
-  'lib/features/chat/domain/services/subagent_result_payloads.dart': 159,
+  // +29, to 188: one branch per saved task at a time. The parent started two
+  // for one task in the only run that got that far, which spends the budget
+  // twice and leaves the audit looking at whichever began last -- the one
+  // furthest from done.
+  'lib/features/chat/domain/services/subagent_result_payloads.dart': 188,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
@@ -1049,7 +1053,10 @@ const Map<String, int> _libraryLineBudgets = {
   // drove the scheduler, so a parent that merely enqueued handed itself an id to
   // poll on a child that never began -- delegation with no effect, which the
   // parent's only route to effect cannot be.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19870,
+  // +14, to 19,884: the in-flight check before a second enqueue. It reads the
+  // registry the acceptance audit already reads, so the lookup is here rather
+  // than in the payload shapes beside it.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19884,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
