@@ -561,11 +561,32 @@ the scheduling policy, not the runner.
 
 ---
 
-## 15. Future Workspace UX
+## 15. ANA4 Workspace UX
 
-A fourth `WorkspaceMode`. State on the left, conversation on the right — chat
-becomes one interface onto a persistent project state rather than the state
-itself.
+A fourth `WorkspaceMode`, with state on the left and conversation on the right.
+ANA4 lets the user entrust one goal through completion. The independent
+[Anabasis Project Vision](anabasis_project_vision.md) owns the long-term
+direction beyond this milestone.
+
+### One goal through completion
+
+The user should spend less effort reconstructing progress and deciding what
+instruction to send next. The workspace exposes the current goal's plan,
+assumptions, open questions, tasks, and evidence, using the owning conversation's
+existing state and projections (§0 and §3).
+
+The surface should answer four questions without requiring the user to reread
+the conversation:
+
+- What is progressing?
+- What is blocked, and why?
+- What decision or confirmation is needed from me?
+- What has been accepted, and on what evidence?
+
+Questions and confirmations need a path to answer them; produced, verified, and
+accepted results retain their distinct meanings. This makes the workspace a
+place to intervene as well as observe. Cross-conversation aggregation and a new
+project-wide state owner are outside this first destination.
 
 ```
 ┌──────────────────────────────────────────┐

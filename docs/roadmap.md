@@ -152,7 +152,7 @@ promotion gates below still apply. Keep one implementation slice active.
 | Watch | WATCH11 | done | Show Remote Coding approvals and questions in the companion, labelled with the host that owns them, resolving what the phone is granted. | Approvals and questions shipped 2026-09-06: a second source on `WatchSessionNotifier`, a host label carried and rendered, one card ranked across both sources with ties to local, and resolution routed by an explicit `source`. The trust reading is SA-27. The goal half was withdrawn the same day rather than built: it has never run on iOS so there is no usage to argue from, it would cost a privacy-boundary change on the Remote Coding wire, and questions now reach the wrist — so an unattended completion check belongs on that path if it earns one at all. |
 | Watch | WATCH13 | done | Give a paired phone desktop-equivalent authority over existing threads, granted per device on a surface that states the whole question. | All three slices plus SA-26's T4 audit shipped 2026-09-06, and both halves of the authority decision are now observed on hardware: a granted desktop-origin approval reaches the phone and the wrist and runs on the Mac, and with the grant withdrawn the same turn reaches neither. SA-26's T1 — device-local authentication before a mutating resolution — is the open follow-up and is tracked as a security item, not a WATCH13 slice. |
 | Watch | WATCH12 | later | Say what a running turn is actually doing: the tool in flight, and whether verification is behind mutation. | Needs a general active-tool field (`activeToolName` is participant-only) and evidence that the glance is under-informative. Do not start on either. |
-| Anabasis | ANA4 | later | Dedicated Anabasis workspace (`WorkspaceMode`), state panel beside the conversation. | Surface work; deliberately last so the boundary is proven before it gets a UI. |
+| Anabasis | ANA4 | later | Dedicated workspace for carrying one goal through completion, with state beside the conversation. | Prove the parent boundary, then expose progress, decisions needed, and acceptance evidence. Broader scope lives in the separate Anabasis Project Vision. |
 
 ### Completed Baselines
 
@@ -3977,17 +3977,46 @@ work actually needed was the guard's exempt-tool list, moved to
 
 Status: `later`
 
+Purpose:
+- Reduce the work of reconstructing progress and composing the next instruction,
+  so the user can concentrate on decisions that need their judgment.
+- Deliver a workspace where the user entrusts **one goal through completion**.
+- The independent [Anabasis Project Vision](anabasis_project_vision.md) defines
+  the longer-term destination.
+
 Scope:
-- A fourth `WorkspaceMode`, with project state beside the conversation rather
-  than only in it.
+- A fourth `WorkspaceMode`, with the current goal's state beside the
+  conversation: plan, assumptions, open questions, tasks, and result evidence.
+- Reuse the owning conversation's existing goal, workflow, progress, and
+  acceptance records. ANA4 does not require a new project-wide state owner.
 - Widening `MaterialContractAssumptionGuard` beyond `WorkspaceMode.coding`,
   which today is where epistemic execution control is scoped by construction.
+
+Acceptance criteria for the first destination:
+- The user can identify what is progressing, what is blocked and why, and what
+  decision they need to make without reconstructing the conversation history.
+- Pending confirmations and questions lead to an actionable response surface.
+- Produced, verified, and accepted results remain distinguishable, with the
+  evidence behind acceptance accessible from the workspace.
 
 Deliberately last: the parent boundary and the acceptance model should be
 proven before they get a surface.
 
 Next action:
 - Blocked on ANA0 through ANA3.
+
+## Anabasis Project Vision
+
+Status: future vision; independent of ANA4 completion.
+
+The long-term destination is continuous project management across multiple
+goals and conversations: preserve intent and decisions, reconcile new evidence,
+and help the user choose and complete the next meaningful goal.
+
+[Anabasis Project Vision](anabasis_project_vision.md) owns this direction and
+the proposed delivery sequence. ANA4 remains the bounded single-goal workspace.
+No ANA5 or later milestone is assigned yet; promote one evidence-backed slice
+at a time after ANA4 experience identifies the next missing capability.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 
