@@ -3702,7 +3702,7 @@ PR split:
 | 1 | The two derivable acceptance levels, as a verdict nobody writes | done |
 | 2a | Where an acceptance lives, and what has to hold before one may be written | done |
 | 2b | The parent's route to writing one | done |
-| 3 | `produced` / `verified` / `accepted` as distinct stored states, one writer each | |
+| 3 | `produced` / `verified` / `accepted` as distinct states, one writer each | done (derived) |
 
 Verification evidence:
 - PR 1: `task_acceptance_audit_test.dart`. `TaskAcceptanceAudit` derives levels
@@ -3954,8 +3954,19 @@ validationStatus, taskAcceptances) that reads `produced` / `verified` /
 they stay where their writer already is. What PR 3 then owes is the projection,
 the UI and prompt surfaces that currently say `completed` where they mean
 `produced`, and a test that a task with a passing command and no acceptance never
-reads as accepted. Recorded rather than done, because it is a design decision and
-the milestone's gap was evidence, not this.
+reads as accepted. **Built that way, `c4cc61380`.** `TaskLifecycleProjection` derives the six states
+from (progress status ?? spec status, validationStatus, taskAcceptances); the
+snapshot carries them by task id so the prompt renders them without reaching for a
+conversation, and the status enum stays the fallback for an id it does not name.
+Two rules are pinned by test: a finished task with no *passing* check stays
+`produced` — including one with no command to run, because owing nothing
+mechanically is not the same as having proved something — and an acceptance
+outranks a later status edit, since the judgement was recorded against evidence at
+a point in time.
+
+What PR 3 still owes is the UI: `workflow_status_presentation.dart` and the
+companion builders map the status enum straight to labels and icons, so the panel
+still says completed where the prompt now says produced.
 
 The extraction note above also resolved itself the other way: the write path
 landed without touching `conversations_notifier.dart`, and the extraction this
