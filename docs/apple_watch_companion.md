@@ -3,6 +3,12 @@
 Caverno ships a watchOS companion so a blocked turn can be answered, watched,
 and driven by voice without taking the phone out.
 
+Current scope (2026-09-14): transcripts, thread switching, and dictated messages
+use the iPhone's local chat. Remote Coding contributes approvals and questions.
+Browsing the paired host's projects/threads and dictating into a remote thread
+are planned in [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads),
+with a compact conversation view that hides tool traffic. They have not shipped.
+
 ## Why a native target
 
 Flutter does not run on watchOS. The companion is a SwiftUI target inside
@@ -126,18 +132,13 @@ approval path actually serves is therefore the kinds mobile does have — BLE,
 SSH, browser, participant. `ask_user_question` is unconditional and is the
 interaction the companion answers most often on a phone-only setup.
 
-A desktop-driven turn now reaches the wrist as a notification, but not in the
-companion app. The Remote Coding server is desktop-only and mobile is
-client-only, so a blocked desktop turn lives in `RemoteCodingClientState` on
-the phone — a provider `WatchSessionNotifier` does not read. WATCH10 closed
-half of that: `RemoteCodingMobileNotificationNotifier` raises the actionable
-approval notification when the client receives one, iOS forwards it and its
-actions to the wrist with no watchOS code, and Approve/Deny routes back by id
-to whichever notifier owns the request. The notification names the host,
-because approving a shell command without knowing which machine runs it is the
-failure that path must not ship, and it is suppressed while the Remote Coding
-page is on screen, since that page raises its own sheet. Showing the same
-interaction inside the companion is WATCH11.
+A desktop-driven approval reaches the wrist through WATCH10's notification
+path and WATCH11's companion card. The phone holds it in
+`RemoteCodingClientState`, which `WatchSessionNotifier` reads alongside local
+chat state. The card names the host, and its answer routes to the remote client
+by source and approval ID. The notification path suppresses a local banner when
+the Remote Coding page is foregrounded and already shows the approval sheet.
+Remote transcript browsing and message sending remain WATCH14 work.
 
 A dialog the watch resolves is dismissed on the phone by `ApprovalDialogPresenter`,
 which pops by route name. That is deliberately a no-op when the dialog is not
@@ -202,9 +203,10 @@ the card's `source`. Sending a desktop's approval to this phone's chat notifier
 would resolve nothing and still report success — a silent failure, and the one
 the notifier test drives directly.
 
-The transcript stays local. Two conversations on one wrist screen is a separate
-design problem and the payload budget cannot carry both, so the frame carries
-the remote *interaction* and this phone's own thread.
+The shipped transcript stays local: the frame carries the remote interaction
+and this phone's own thread. WATCH14 plans explicit local/remote source choice
+and one selected transcript per frame, so the person can read and instruct a
+remote thread within the existing payload budget.
 
 ## The goal
 

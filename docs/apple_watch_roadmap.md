@@ -6,13 +6,21 @@ roadmap; dated investigation notes below preserve the implementation history.
 
 ## Apple Watch Companion Track
 
-The companion exists to answer a blocked turn without taking the phone out.
+The companion lets a person chat and answer a blocked turn from the wrist.
 Flutter does not run on watchOS, so it is a SwiftUI target embedded in
 `Runner.app` talking to the Flutter app over `WCSession`; the design, and the
 reasoning behind treating the watch as a peripheral of this device rather than
 as a paired principal, is in `docs/apple_watch_companion.md`. These milestones
 use `WATCH<number>` and live here rather than in the Local LLM roadmap because
 this is a user-facing surface, not local-LLM execution work.
+
+Current direction (2026-09-14): [WATCH14](#watch14-remote-projects-and-voice-threads)
+is `next`, following the user request to browse the iPhone's paired host and
+dictate instructions into its coding threads. WATCH11 completed remote
+approvals and questions; remote project browsing, transcripts, and message
+sending are still unimplemented. WATCH14 adds those with a small-screen
+presentation that hides tool traffic. WATCH5 remains `current` for its push
+device matrix, and WATCH4 still needs its signed-build glance check.
 
 ### WATCH1: Companion Bridge, Approvals, And Voice
 
@@ -783,7 +791,9 @@ Status: `done`
 Current summary: approvals and questions shipped on 2026-09-06 with source
 selection, host labels, and owner-routed resolution. SA-26 settled inherited
 phone authority. The proposed remote goal surface was withdrawn, as recorded
-below; it is not unfinished WATCH11 scope.
+below; it is not unfinished WATCH11 scope. WATCH14 now owns remote project and
+thread browsing, compact transcripts, and dictated instructions. The local-only
+transcript below describes this completed slice, not the future product limit.
 
 Scope:
 - Give `WatchSessionNotifier` a second input source alongside
@@ -865,12 +875,17 @@ Settled 2026-09-06 by SA-26 — what the wrist may do with a remote card:
 
 Next action:
 - No remaining implementation in this scope. WATCH5 owns the outstanding push
-  device matrix; WATCH12 remains separately gated on evidence of a missing
-  running-state readout.
+  device matrix. Continue the requested remote conversation UI under WATCH14;
+  WATCH12 remains separately gated on evidence of a missing detailed readout.
 
 ### WATCH12: Running Tool And Verification Readout
 
 Status: `later`
+
+Scope clarification (2026-09-14): WATCH14 includes a short working/waiting/error
+status while hiding tool calls and raw results from the conversation. That does
+not promote this detailed tool/verification readout; it remains optional future
+work and must not crowd the default wrist transcript.
 
 Scope:
 - Say what a turn is doing rather than only that it is streaming: the tool or
@@ -1036,3 +1051,149 @@ Next action:
 - SA-26's T1 remains a decision rather than a continuation: device-local
   authentication before a mutating resolution needs a `local_auth` dependency
   and an iOS usage description.
+
+### WATCH14: Remote Projects And Voice Threads
+
+Status: `next`
+
+Goal and user-visible behavior (requested 2026-09-14):
+- Browse the projects and existing threads of the host paired with the iPhone.
+- Open a remote thread, read its recent conversation, and dictate instructions
+  into that same thread using the Watch's existing system input control.
+- Optimize the thread for the small screen. Navigation, conversation, and
+  pending decisions each get an appropriate surface rather than copying the
+  iPhone's entire Remote Coding page.
+
+Current implementation evidence (local main `ae94a5da4`, 2026-09-14):
+- `RemoteCodingClientState` already holds the paired host, `projects`, `threads`,
+  `messages`, selected IDs, and loading state. The iPhone's remote drawer already
+  groups threads by project.
+- `WatchSessionNotifier.buildSnapshot` still takes its thread list from local
+  `ConversationsState` and its transcript from local `ChatState`. Its remote
+  listener reacts only to pending approval/question IDs. WATCH11 contributes
+  those interactions, not remote navigation or conversation updates.
+- Watch `selectConversation`, `sendMessage`, and `cancelStreaming` still target
+  local notifiers. `ComposeBar` already accepts system Dictation through
+  `TextFieldLink`; the missing work is remote routing and response projection.
+- The remote client's `_sendCommand` returns after writing to the socket, and
+  can return without sending when disconnected. The server's `sendMessage`
+  currently uses the desktop's active conversation. Neither is sufficient
+  evidence that a Watch instruction reached the thread displayed when composed.
+
+Small-screen UI contract:
+
+| Surface | Show | Omit or defer |
+|---|---|---|
+| Entry/navigation | An explicit choice between local chats and Remote Coding; the paired host's name and connection state | Pairing credentials or a separate Watch pairing flow |
+| Projects | Project names in a vertical list; tap to browse that project's threads | Full filesystem paths and dashboard statistics |
+| Threads | Thread title, selected state, and a compact activity/waiting indicator where available | Tool history, task trees, token usage, and verification counters |
+| Conversation | One selected thread; user instructions and assistant reply text in bubbles; short working/waiting/error state | Tool-call cards, arguments, raw tool results, reasoning blocks, internal tool markup, and injected harness messages |
+| Long content | Bounded recent history, compact text, and an explicit indication that more content is on iPhone | Full diffs, large code blocks, terminal output, or automatic LLM summarization |
+| Input | A pinned system-input/Dictation control, visible destination context, send feedback, and Stop while that thread is running | A custom recorder or continuous hands-free/barge-in loop |
+| Attention | One reachable approval/question affordance opening the existing decision screen, with host, request, warning, and required choices | Tool activity mixed into the transcript; hiding decision details needed to answer safely |
+
+The visibility rule applies to the Watch projection and speech output. It does
+not remove tool evidence from the desktop/iPhone history or change the model's
+tool execution. Preserve an assistant's useful text when the same message also
+contains a tool call; omit only the tool portion. A tool-only interval still
+shows that work is running. Optional "Read replies" reuses the existing switch
+and speaks visible assistant text, never tool traffic; dictation itself must not
+depend on that switch.
+
+Implementation slices, in order:
+
+1. **Browse the paired host.** Add bounded project/thread projections and Swift
+   models, source selection, and project-to-thread navigation. Reuse the
+   iPhone's authenticated client and host identity. Offer paging or "More" for
+   project/thread lists so the current eight-item Watch cap cannot make an
+   existing remote thread unreachable. Browsing a project must not create a
+   thread: the current remote `selectProject` calls `activateWorkspace` with
+   `createIfMissing: true`, so it is not a read-only list-expansion primitive.
+   Open an existing thread through the remote selection path and wait for the
+   matching snapshot before showing its contents.
+2. **Read a compact remote conversation.** Project the selected remote thread's
+   messages and activity as they change, using the table above and the existing
+   transcript layout. Carry only one transcript per frame. Keep source identity
+   and snapshot ordering, preserve the 16 KB encoded payload limit in Japanese
+   and emoji, and mark any trimmed history. Keep the compose bar and attention
+   affordance inside the safe area, including while the reader scrolls back.
+3. **Dictate into the selected remote thread.** Route selection, send, and Stop
+   by explicit source and destination. Bind commands to the paired host/session,
+   project, and conversation shown on the Watch. Check the target again at the
+   desktop before applying send/Stop; add the necessary protocol fields and
+   capability handling rather than relying on whichever desktop thread happens
+   to be active. Return a correlated desktop acknowledgement or refusal to the
+   Watch. Distinguish queued delivery from accepted input and completed work.
+   On disconnect, reconnect to the same saved host and revalidate the target;
+   a changed host, missing thread, unsupported peer, or uncertain send outcome
+   must not cause a local fallback, a redirect, or an automatic duplicate send.
+4. **Prove the complete wrist flow.** Use a signed iPhone/Watch pair and a real
+   desktop host to browse projects, open an existing thread, dictate a prompt,
+   see the reply, and answer an approval/question while tool traffic stays
+   hidden. Repeat with the phone backgrounded and reconnecting. Record the
+   device/build identities and observed results before marking WATCH14 done.
+
+Affected components and reference patterns:
+- `lib/features/watch/domain/{watch_snapshot,watch_command}.dart` and
+  `lib/features/watch/presentation/watch_session_notifier.dart`: bounded local
+  projection, WATCH3 destination binding, and WATCH8 ordering.
+- `ios/CavernoWatch Watch App/`: `WatchModels`, `WatchSessionClient`,
+  `ThreadPickerView`, `TranscriptView`, `ComposeBar`, and new project navigation.
+- `lib/features/remote_coding/presentation/remote_coding_client_notifier.dart`,
+  `remote_coding_server_notifier.dart`, and the protocol: target validation and
+  correlated command outcomes. Use `remote_coding_page.dart` as the reference
+  for existing project/thread data, not as the Watch layout.
+- `test/features/watch/`, affected Remote Coding tests, and
+  `tool/watch_wire_contract_smoke.*`: projection, routing, and Dart/Swift parity.
+  Regenerate committed outputs if implementation changes a generated entity.
+
+Acceptance criteria:
+- All projects and existing threads exposed by the paired host are reachable
+  from Watch navigation, including lists longer than one payload page. Empty,
+  disconnected, and removed-project/thread states are distinguishable.
+- Selecting a remote thread shows that thread's recent user/assistant exchange,
+  never the iPhone's local conversation. Updates and speech follow only the
+  selected thread; switching sources clears old deltas and playback.
+- A dictated instruction appears once in the intended desktop thread and its
+  reply returns to the Watch. Test a simultaneous desktop/iPhone thread switch
+  and delayed Watch delivery; a mismatch produces a visible refusal. Stop uses
+  the same destination binding. Local chat input continues to use its own path.
+- Tool calls, arguments, results, reasoning, and internal envelopes appear in
+  neither the transcript nor speech. Useful assistant prose survives mixed
+  text/tool messages. Errors and required approvals/questions remain reachable.
+- The layout remains readable with long titles, Japanese text, larger text
+  settings, and VoiceOver on the smallest supported Watch layout. Users can
+  scroll back without incoming text moving them, and reach input/attention
+  controls without toolbar collisions or clipped controls.
+- Frames stay within the encoded budget, late frames cannot restore an old
+  destination, and unsupported phone/desktop versions cannot accept an
+  unbound remote send. Authorization remains the phone's existing authority.
+
+Dependencies and boundaries:
+- Builds on WATCH3/7/8/11/13. WATCH5's push matrix and WATCH4's signed WidgetKit
+  check remain separate open gates. They do not block implementing this UI;
+  completing WATCH14 does not close either gate or the Remote Coding P1 gates.
+- Project/thread creation, Watch-host pairing, remote goal confirmation,
+  detailed tool/verification readouts (WATCH12), and full iPhone feature parity
+  are outside this milestone. The requested flow uses existing remote threads.
+- Keep local chat navigation available. The new source choice supersedes
+  WATCH11's local-only transcript limit without merging both conversations.
+
+Verification for implementation (not yet run for WATCH14):
+
+```bash
+tool/codex_verify.sh --test test/features/watch/ \
+  --test test/features/remote_coding/presentation/remote_coding_client_state_test.dart \
+  --test test/features/remote_coding/presentation/remote_coding_server_notifier_test.dart
+tool/watch_wire_contract_smoke.sh
+```
+
+Add focused regressions for the new destination and transcript contracts, build
+the Watch App and Widget extension with the installed Watch simulator SDK, and
+complete slice 4 on signed hardware. Existing green tests and simulator builds
+verify the shipped companion; they do not establish these new acceptance criteria.
+
+Next action:
+- Implement slice 1: bounded remote project/thread browsing and explicit source
+  selection, with an agreed wire shape for the selected destination. Update the
+  shipped companion documentation as each slice becomes available.
