@@ -82,15 +82,6 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
             chatState: chatState,
           ),
         ),
-        AwaitingYouPanelSection(
-          currentConversation: currentConversation,
-          onOpen: () => _openPlanReviewSheet(
-            context,
-            currentConversation: currentConversation,
-            chatState: chatState,
-            isPlanMode: currentConversation.isPlanningSession,
-          ),
-        ),
         const WorktreeAgentTaskPanelSection(),
         const SizedBox(height: 18),
         _buildCompanionSection(
@@ -158,9 +149,18 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       ]);
     }
 
-    // Both workspaces: a stalled turn is a stalled turn whether or not a
-    // coding project is open, and the local server is the first suspect.
+    // Both workspaces, by the argument the local-server section already makes: a
+    // question waiting on the user is waiting whether a project is open or not.
     sections.addAll([
+      AwaitingYouPanelSection(
+        currentConversation: currentConversation,
+        onOpen: () => _openPlanReviewSheet(
+          context,
+          currentConversation: currentConversation,
+          chatState: chatState,
+          isPlanMode: currentConversation.isPlanningSession,
+        ),
+      ),
       _buildCompanionSection(
         context,
         title: 'chat.companion_local_llm'.tr(),

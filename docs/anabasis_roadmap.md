@@ -1760,10 +1760,51 @@ the icon call was hoisted to a local. The section itself lives in the
 already-imported `plan_open_question_section.dart`, so mounting it cost no
 import.
 
+### The §16 mode question, answered 2026-09-14: no fourth `WorkspaceMode`
+
+Measured rather than designed, and the deciding fact is about **identity scope,
+not about UI**.
+
+Anabasis's parent identity is **per turn**. `@anabasis` marks one interaction
+generation through `AnabasisTurnRoles`, and all three things the parent has hang
+off that generation: its authority (`AnabasisParentAuthorityGuard` refuses
+`accept_task` and the mutating tools for any other turn), its prompt block (the
+delegation queue and the delegated results awaiting judgement), and its billing
+role (`ModelUsageRole.anabasisParent`). A `WorkspaceMode` is **per
+conversation**. A conversation legitimately carries both kinds of turn -- the
+plan is drafted in it, the parent orchestrates in it, and children are delegated
+from it, which is exactly what every live canary run does -- so a mode would
+force a per-conversation answer to a per-turn question, and then the guard would
+have to ignore it. That is the track rule's failure mode at the level of
+identity rather than of types: a second, coarser representation of something
+already represented exactly.
+
+The cost side is real but secondary: 33 files branch on `WorkspaceMode` today,
+including conversation persistence, the drawer, workspace navigation, the
+terminal adapter and personal-eval, and a fourth value touches all of them.
+
+**What the mode was wanted for was a persistent pane, and that exists.** The
+companion panel is already shown for chat-workspace conversations --
+`canShowCompanionPanel` allows `!isCodingWorkspace || activeProject != null` --
+and what kept the goal sections out of a non-coding conversation was a single
+`if (activeProject != null)` block inside one builder, not a missing mode. The
+awaiting-you section moved below it into the both-workspaces list, beside the
+local-server section that already carries the same argument in a comment: a
+question waiting on the user is waiting whether or not a project is open. It sat
+inside the project gate for exactly one commit; a fourth `WorkspaceMode` would
+have made that placement permanent and called it a design.
+
+**`AssistantMode` is a separate question and the answer there is also reuse**,
+for now. A fourth value costs a settings toggle, a composer entry, a
+model-routing row (`planPrimaryModel` has a sibling per mode) and a prompt
+branch -- and the parent's prompt is already assembled per turn from the role,
+not from the mode. Revisit it only if the parent's prompt needs to differ from
+`plan`'s in a way the role block cannot express.
+
 Next action:
-- Decide the mode question from use rather than from design: whether the
-  filled-in pane still wants its own `WorkspaceMode` and `AssistantMode` (§16),
-  or whether reusing `plan` and the companion panel is the whole destination.
-- The pane is gated on `activeProject != null`, so a non-coding goal still has
-  no persistent surface. That gate and `MaterialContractAssumptionGuard`'s
-  `WorkspaceMode.coding` are the same §16 question asked twice.
+- `MaterialContractAssumptionGuard` is still scoped to `WorkspaceMode.coding`,
+  which is now the only §16 gate left standing. Widen it when there is a
+  non-coding goal to widen it for; the pane no longer blocks one.
+- Pending material-assumption confirmations are still absent from the
+  awaiting-you section. The question to answer first is whether a dismissed
+  confirmation survives its turn at all.
