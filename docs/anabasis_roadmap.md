@@ -1760,6 +1760,19 @@ the icon call was hoisted to a local. The section itself lives in the
 already-imported `plan_open_question_section.dart`, so mounting it cost no
 import.
 
+**The two labels that owed an explanation, 2026-09-14.** `blocked` and
+`accepted` each name a state the panel could not account for: the reason and the
+evidence both existed and were both one tap away in the review sheet, so the pane
+answered "what is progressing" and sent the user to a modal for "why" and "on
+what" -- two of the four questions it is supposed to settle. `CompanionTaskRow`
+carries both, beside `PlanHydratedTaskRow` because they are the same concept on
+two surfaces.
+
+The extraction is the point as much as the lines: the row is a pure function of a
+task and its conversation and had no reason to be a method on the page's state.
+It returned **44 lines** to a library that had been met exactly for three
+consecutive changes, and the ratchet is lowered to 8,440 to keep them.
+
 ### The §16 mode question, answered 2026-09-14: no fourth `WorkspaceMode`
 
 Measured rather than designed, and the deciding fact is about **identity scope,

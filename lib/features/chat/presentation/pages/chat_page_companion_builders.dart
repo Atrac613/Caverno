@@ -400,7 +400,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       ),
       const SizedBox(height: 12),
       for (final task in visibleTasks) ...[
-        _buildCompanionTaskRow(context, task),
+        CompanionTaskRow(conversation: currentConversation, task: task),
         if (task != visibleTasks.last) const SizedBox(height: 10),
       ],
       if (remainingTasks > 0) ...[
@@ -415,51 +415,6 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
         ),
       ],
     ];
-  }
-
-  Widget _buildCompanionTaskRow(
-    BuildContext context,
-    ConversationWorkflowTask task,
-  ) {
-    final theme = Theme.of(context);
-    final color = _workflowTaskStatusColor(context, task.status);
-    final icon = WorkflowStatusPresentation.taskStatusIcon(task.status);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: Icon(icon, size: 18, color: color),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                task.title.trim(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _taskLifecycleLabel(task),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildCompanionEnvironment(

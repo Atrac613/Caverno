@@ -1,9 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../../../domain/entities/conversation.dart';
 import '../../../domain/entities/conversation_workflow.dart';
 import '../../../domain/services/conversation_execution_summary_service.dart';
 import '../../../domain/services/task_lifecycle_state.dart';
+import '../workflow_status_presentation.dart';
 
 class PlanHydratedTaskRow extends StatelessWidget {
   const PlanHydratedTaskRow({
@@ -296,6 +298,110 @@ class _PlanTaskDetail extends StatelessWidget {
           TextSpan(text: value),
         ],
       ),
+    );
+  }
+}
+
+/// One saved task in the companion panel, with the two things its label cannot
+/// say.
+///
+/// **`blocked` and `accepted` both name a state that owes an explanation, and
+/// the panel could give neither.** The reason a task is blocked and the evidence
+/// an acceptance rested on both existed and were both one tap away in the plan
+/// review sheet, so the pane answered §15's "what is progressing" and sent the
+/// user back to a modal for "why" and "on what". Those are two of the four
+/// questions the workspace is supposed to settle without rereading anything.
+///
+/// Extracted from the panel builder rather than grown there: that library sits
+/// at its aggregate ratchet, and a row that is a pure function of a task and its
+/// conversation has no reason to be a method on the page's state.
+class CompanionTaskRow extends StatelessWidget {
+  const CompanionTaskRow({
+    super.key,
+    required this.conversation,
+    required this.task,
+  });
+
+  final Conversation conversation;
+  final ConversationWorkflowTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = WorkflowStatusPresentation.workflowTaskStatusColor(
+      context,
+      task.status,
+    );
+    final progress = conversation.executionProgressForTask(task.id);
+    final blockedReason = progress?.normalizedBlockedReason;
+    // Only for a task that has one; the projection returns nothing for the rest,
+    // so an unaccepted task costs no line rather than an empty one.
+    final acceptedOn = const TaskLifecycleProjection()
+        .acceptanceSummariesByTaskId(conversation)[task.id];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 22,
+          height: 22,
+          child: Icon(
+            WorkflowStatusPresentation.taskStatusIcon(task.status),
+            size: 18,
+            color: color,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                task.title.trim(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                WorkflowStatusPresentation.taskLifecycleLabelFor(
+                  conversation,
+                  task,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (blockedReason != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  blockedReason,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+              if (acceptedOn != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  acceptedOn,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

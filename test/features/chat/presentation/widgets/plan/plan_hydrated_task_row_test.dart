@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/widgets/plan/plan_hydrated_task_row.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -306,5 +308,105 @@ void main() {
       find.textContaining('Accepted because:', findRichText: true),
       findsOneWidget,
     );
+  });
+  group('the companion panel row', () {
+    Future<void> pumpCompanionRow(
+      WidgetTester tester,
+      Conversation conversation,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CompanionTaskRow(
+              conversation: conversation,
+              task: conversation.effectiveWorkflowSpec.tasks.single,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Conversation companionConversation({
+      ConversationWorkflowTaskStatus status =
+          ConversationWorkflowTaskStatus.pending,
+      String blockedReason = '',
+      List<String> acceptanceEvidence = const [],
+      String acceptanceRationale = '',
+    }) => Conversation(
+      id: 'conversation-1',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 9, 14),
+      updatedAt: DateTime(2026, 9, 14),
+      workflowSpec: ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Add the CLI flags',
+            status: status,
+          ),
+        ],
+      ),
+      executionProgress: [
+        if (blockedReason.isNotEmpty)
+          ConversationExecutionTaskProgress(
+            taskId: 'task-1',
+            status: status,
+            blockedReason: blockedReason,
+          ),
+      ],
+      taskAcceptances: [
+        if (acceptanceEvidence.isNotEmpty || acceptanceRationale.isNotEmpty)
+          ConversationTaskAcceptance(
+            taskId: 'task-1',
+            acceptedAt: DateTime(2026, 9, 14),
+            evidence: acceptanceEvidence,
+            rationale: acceptanceRationale,
+          ),
+      ],
+    );
+
+    testWidgets('a blocked task says why, where the label cannot', (
+      tester,
+    ) async {
+      await pumpCompanionRow(
+        tester,
+        companionConversation(
+          status: ConversationWorkflowTaskStatus.blocked,
+          blockedReason: 'The validation command was refused for its shape.',
+        ),
+      );
+
+      expect(
+        find.text('The validation command was refused for its shape.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an accepted task says what it was accepted on', (
+      tester,
+    ) async {
+      await pumpCompanionRow(
+        tester,
+        companionConversation(
+          status: ConversationWorkflowTaskStatus.completed,
+          acceptanceEvidence: const ['worktree branch feature/cli'],
+          acceptanceRationale: 'The flags match the spec.',
+        ),
+      );
+
+      expect(
+        find.text('worktree branch feature/cli -- The flags match the spec.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an ordinary task carries neither line', (tester) async {
+      await pumpCompanionRow(tester, companionConversation());
+
+      expect(find.textContaining('--'), findsNothing);
+      expect(find.text('Add the CLI flags'), findsOneWidget);
+    });
   });
 }

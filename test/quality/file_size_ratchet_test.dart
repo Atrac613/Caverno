@@ -1113,7 +1113,12 @@ const Map<String, int> _libraryLineBudgets = {
   // of those tracks then spent some of it: the panels ask for what a task has
   // actually reached, which is a conversation read the page is the right place
   // for.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8479,
+  // -44: the companion task row became CompanionTaskRow. It is a pure
+  // function of a task and its conversation, so it had no reason to be a
+  // method on the page's state -- and the two details it now carries, a
+  // blocked reason and what an acceptance rested on, would not have fit
+  // here at all: this budget was met exactly.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8440,
   // +4, to 1,147, matching the primary file: the accept_task reservation and
   // offer are four lines in the primary, not a new part.
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1147,
