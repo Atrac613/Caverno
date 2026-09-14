@@ -195,6 +195,17 @@ SIGNATURES = {
         "match": lambda s: "Record the judgement now by calling accept_task"
         in s,
     },
+    "clarify_required_next_action": {
+        "commit": "HEAD",
+        "what": "a plan with an unsettled question asks the model for answers",
+        # The counting fix's only real consumer is the prompt. Until the count
+        # was derived from the spec, a plan whose questions nobody had opened
+        # projected `execute` and listed none of them, so this line could not
+        # appear for the case it exists for. `live_open_question_execution` is
+        # the scenario that produces it, because no other live plan left a
+        # question open.
+        "match": lambda s: "Required next action: clarify" in s,
+    },
     "acceptance_evidence_in_prompt": {
         "commit": "8f9fd731f",
         "what": "an accepted task tells the next turn what it was accepted on",

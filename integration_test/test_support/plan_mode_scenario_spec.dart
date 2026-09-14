@@ -74,6 +74,21 @@ const _liveTodoExactShortPrompt =
     'todo_app.md \u3092\u53C2\u8003\u306B\u3057\u3066MVP\u3092\u5B9F\u88C5\u3002'
     '\u8A00\u8A9E\u306Fdart\u3068\u3059\u308B\u3002';
 
+/// A plan that is asked to leave a question open, and then to execute anyway.
+///
+/// The scenario exists because the corpus had no such plan. Every live plan the
+/// model drafted settled everything, so the untriaged-open-question case -- the
+/// one where the count that walked progress rows read zero -- had never once
+/// been produced live, which is the same blind spot the unit tests had: they all
+/// handed the projector a pre-built progress row.
+const _liveOpenQuestionExecutionPrompt =
+    'todo_app.md \u3092\u53C2\u8003\u306B\u3057\u3066MVP\u3092\u5B9F\u88C5'
+    '\u3002\u8A00\u8A9E\u306Fdart\u3068\u3059\u308B\u3002'
+    '\u6C7A\u3081\u304D\u3089\u306A\u3044\u70B9\u306F\u30EF\u30FC\u30AF'
+    '\u30D5\u30ED\u30FC\u3092\u6B62\u3081\u305A\u3001open questions '
+    '\u306B\u6B8B\u3057\u305F\u307E\u307E\u5B9F\u88C5\u3092\u9032\u3081'
+    '\u3066\u304F\u3060\u3055\u3044\u3002';
+
 typedef PlanModeScenarioPostValidator =
     Future<Map<String, Object?>> Function(Directory scenarioDir);
 
@@ -1993,6 +2008,47 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+      ],
+    ),
+    // Holds an open question open across execution, which no other live
+    // scenario does: every plan the model drafted for the others settled
+    // everything, so `Required next action: clarify` had never been produced
+    // live at all.
+    PlanModeScenarioSpec(
+      name: 'live_open_question_execution',
+      userPrompt: _liveOpenQuestionExecutionPrompt,
+      projectName: 'tmp-live-open-question',
+      tags: const <String>['live', 'canary', 'production_path'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      seedFiles: const <PlanModeScenarioSeedFile>[
+        PlanModeScenarioSeedFile(
+          sourcePath: 'docs/coding_mvp_fixtures/todo_app.md',
+          destinationPath: 'todo_app.md',
+        ),
+      ],
+      languageCode: 'ja',
+      temperature: 0.2,
+      maxTokens: 8192,
+      planningProposalTimeout: const Duration(minutes: 3),
+      // One task is enough: what is measured is the prompt a turn is given
+      // while a question is open, not whether the plan finishes.
+      harnessTaskExecutionLimit: 1,
+      executionStallTimeout: const Duration(seconds: 180),
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 1,
+      ),
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern:
+              '[Workflow] Harness stopped after reaching task execution '
+              'limit: 1',
           minCount: 1,
         ),
       ],
