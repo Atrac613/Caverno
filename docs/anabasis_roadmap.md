@@ -1647,7 +1647,7 @@ Two ceilings were hit landing twenty lines, and both are worth knowing about:
 
 ### ANA4: Anabasis Workspace
 
-Status: `next`
+Status: `current`
 
 Promotion measured 2026-09-14, against the four questions §15 says the surface
 must answer without rereading the conversation. The finding is that **a
