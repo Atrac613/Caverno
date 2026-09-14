@@ -1736,6 +1736,25 @@ first statement of it here named the wrong one, so this is the corrected reading
 It is **not** the goal auto-continue loop. That loop never reads this count, and
 saying it did overstated the fix into a safety gate it is not.
 
+**Observed live 2026-09-14** (session `50ce0aa1`, build `49254c6b2`).
+`clarify_required_next_action` fired four times on the first run of
+`live_open_question_execution`, and the prompt carried the questions verbatim:
+
+```
+Required next action: clarify
+Open questions: 状態ファイルの保存先パス… | ID の採番方式（連番 or UUID） |
+                Dart の実行方式（dart run / dart compile exe）
+```
+
+Nothing in that run triaged anything, so the count came from the spec term of the
+union -- the half that did not exist before. Before the fix the same plan would
+have projected `execute` and listed none of the three.
+
+The scenario had to be written for this: every other live plan the model drafted
+settled everything, so a plan carrying an untriaged open question had never been
+produced live at all. That is the same blind spot the unit tests had, where each
+one handed the projector a pre-built progress row.
+
 `Conversation.unresolvedOpenQuestions` now derives from the spec, with a missing
 row meaning unresolved and `resolved` / `deferred` being the only answers --
 which is the rule the review sheet already renders by, enumerating the spec and
