@@ -196,7 +196,7 @@ SIGNATURES = {
         in s,
     },
     "clarify_required_next_action": {
-        "commit": "HEAD",
+        "commit": "040ed08db",
         "what": "a plan with an unsettled question asks the model for answers",
         # The counting fix's only real consumer is the prompt. Until the count
         # was derived from the spec, a plan whose questions nobody had opened
