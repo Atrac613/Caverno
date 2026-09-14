@@ -241,11 +241,14 @@ void main() {
       expect(snapshot.ownerWorktreePath, isNull);
     });
 
-    test('an untriaged open question holds the auto-continue gate', () {
-      // The gate reads `unresolvedQuestionCount == 0`, and until the count was
-      // derived from the spec a plan whose questions nobody had opened reported
-      // zero -- so auto-continue proceeded as if nothing were open, and the
-      // gate engaged only once a human had triaged a question in the sheet.
+    test('an untriaged open question means no pending workflow to push', () {
+      // Read by CodingContinuationRecoveryPolicy, which uses it to decide
+      // whether a structured execution deferral ("I will do it next") gets
+      // recovered into a continuation. With a question open the deferral is
+      // left alone rather than pushed. Until the count was derived from the
+      // spec, a plan whose questions nobody had opened reported zero, so this
+      // read as pending work. It is not the goal auto-continue loop, which
+      // never reads the count.
       final snapshot = TurnOwnerSnapshot.capture(
         owner: ChatTurnOwner(
           conversationId: 'conversation-a',

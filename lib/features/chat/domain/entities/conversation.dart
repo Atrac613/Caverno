@@ -478,10 +478,19 @@ abstract class Conversation with _$Conversation {
   /// question in the plan review sheet -- `updateCurrentOpenQuestionProgress`
   /// is its only writer -- so a freshly saved plan carrying five open questions
   /// has no rows at all, and a getter that walks the rows reports **zero
-  /// unresolved** at exactly the moment every question is untouched. That fed
-  /// `unresolvedQuestionCount`, which decides `ExecutionSnapshotAction.clarify`
-  /// and gates goal auto-continue, so both protections engaged only for plans a
-  /// human had already looked at.
+  /// unresolved** at exactly the moment every question is untouched.
+  ///
+  /// What that actually cost, traced to the consumers rather than assumed: the
+  /// **prompt** carried no clarification questions and projected
+  /// `ExecutionSnapshotAction.execute`, so the model was asked for work rather
+  /// than for answers -- that is the whole of it, because nothing else reads the
+  /// action. The one other consumer of the count is
+  /// `hasPendingAutoContinueExecutionWorkflow`, which
+  /// `CodingContinuationRecoveryPolicy` reads to decide whether a *structured
+  /// execution deferral* ("I will do it next") should be recovered into a
+  /// continuation; with questions open that flag is now false, so a deferral is
+  /// left alone instead of pushed. Neither is the goal auto-continue loop, which
+  /// never reads this count.
   ///
   /// A missing row means unresolved. `resolved` and `deferred` are answers, and
   /// an answer is something someone recorded -- which is the same rule the

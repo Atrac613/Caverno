@@ -1720,13 +1720,21 @@ is a UI one.** `Conversation.unresolvedOpenQuestionProgress` walked the progress
 `updateCurrentOpenQuestionProgress`, called from the plan review sheet's own
 buttons. So a freshly saved plan carrying five open questions has no rows, and
 the getter reported **zero unresolved** at exactly the moment every question was
-untouched. Two protections read that count and therefore engaged only for plans a
-human had already opened:
+untouched. What that cost, traced to the consumers rather than assumed -- and the
+first statement of it here named the wrong one, so this is the corrected reading:
 
-- `ExecutionSnapshotAction.clarify` -- a fresh plan with open questions projected
-  `execute`, so the prompt asked for work rather than for answers.
-- goal auto-continue, gated on `unresolvedQuestionCount == 0` in
-  `_hasPendingAutoContinueExecutionWorkflow`, which passed.
+- **The prompt**, which is the whole of the real effect. A fresh plan with open
+  questions projected `ExecutionSnapshotAction.execute` and carried no
+  clarification questions, so the model was asked for work rather than for
+  answers. Nothing outside the projector and the prompt reads the action.
+- **`CodingContinuationRecoveryPolicy`**, through
+  `hasPendingAutoContinueExecutionWorkflow`. It decides whether a *structured
+  execution deferral* ("I will do it next") is recovered into a continuation;
+  with questions open that flag is now false, so a deferral is left alone rather
+  than pushed.
+
+It is **not** the goal auto-continue loop. That loop never reads this count, and
+saying it did overstated the fix into a safety gate it is not.
 
 `Conversation.unresolvedOpenQuestions` now derives from the spec, with a missing
 row meaning unresolved and `resolved` / `deferred` being the only answers --
