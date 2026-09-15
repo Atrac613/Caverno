@@ -3,11 +3,12 @@
 Caverno ships a watchOS companion so a blocked turn can be answered, watched,
 and driven by voice without taking the phone out.
 
-Current scope (2026-09-14): transcripts, thread switching, and dictated messages
-use the iPhone's local chat. Remote Coding contributes approvals and questions.
-Browsing the paired host's projects/threads and dictating into a remote thread
-are planned in [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads),
-with a compact conversation view that hides tool traffic. They have not shipped.
+Current implementation (2026-09-15): local chats support transcripts and dictated
+messages. Remote Coding supports approvals/questions and, in WATCH14 slice 1,
+paired-host project/thread browsing with confirmed selection. Remote selections
+show a destination placeholder; compact transcripts and remote dictation remain
+planned in [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads).
+Slice 1 has simulator build coverage but still needs signed hardware validation.
 
 ## Why a native target
 
@@ -203,10 +204,24 @@ the card's `source`. Sending a desktop's approval to this phone's chat notifier
 would resolve nothing and still report success — a silent failure, and the one
 the notifier test drives directly.
 
-The shipped transcript stays local: the frame carries the remote interaction
-and this phone's own thread. WATCH14 plans explicit local/remote source choice
-and one selected transcript per frame, so the person can read and instruct a
-remote thread within the existing payload budget.
+The Chats picker now offers explicit local/remote source choice. The optional
+`remoteBrowser` frame field advertises the capability to the Watch and carries
+one eight-item page of projects or threads. Previous/More reaches the complete
+list exposed by the paired host. Browsing does not change the desktop's project
+or create a thread. Selecting an existing thread uses the authenticated remote
+client and waits for a newer snapshot naming the same project and conversation.
+
+Navigation commands carry the opaque host ID and a phone-generated connection
+epoch; selecting a thread also carries project and conversation IDs. Reconnect
+or host identity changes invalidate an old page's commands. A timed-out or
+changed selection is reported instead of showing another conversation.
+
+`transcriptSource` selects one surface per frame. The remote surface currently
+contains a destination placeholder and reachable approval/question cards;
+local messages, streaming speech, and input controls are suppressed there.
+Remote transcript and voice-routing work follow in WATCH14 slices 2 and 3.
+Existing local commands are refused while the remote surface is selected, and
+an explicitly remote send never falls back to local chat.
 
 ## The goal
 

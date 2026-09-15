@@ -57,12 +57,32 @@ final class WatchSessionClient: NSObject, ObservableObject {
 
   @discardableResult
   func cancelStreaming() -> String? {
-    send(.cancelStreaming)
+    send(.cancelStreaming, payload: ["source": snapshot?.transcriptSource ?? "local"])
   }
 
   @discardableResult
   func selectConversation(id: String) -> String? {
-    send(.selectConversation, payload: ["conversationId": id])
+    send(.selectConversation, payload: ["conversationId": id, "source": "local"])
+  }
+
+  @discardableResult
+  func selectLocalSource() -> String? {
+    send(.selectSource, payload: ["source": "local"])
+  }
+
+  @discardableResult
+  func browseRemote(_ browser: WatchRemoteBrowser, projectId: String?, offset: Int = 0) -> String? {
+    var payload = browser.destination
+    payload["projectId"] = projectId
+    payload["offset"] = offset
+    return send(.browseRemote, payload: payload)
+  }
+
+  @discardableResult
+  func selectRemoteConversation(_ browser: WatchRemoteBrowser, id: String) -> String? {
+    var payload = browser.destination
+    payload["conversationId"] = id
+    return send(.selectRemoteConversation, payload: payload)
   }
 
   @discardableResult
@@ -73,6 +93,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
     var payload: [String: Any] = [
       "content": trimmed,
       "isVoiceMode": isVoiceMode,
+      "source": snapshot?.transcriptSource ?? "local",
     ]
     // Stamp the thread this text was composed against. When the phone is
     // unreachable the command falls back to transferUserInfo, which is
@@ -91,7 +112,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
   /// `transferUserInfo` would close whichever goal is current when it lands.
   @discardableResult
   func resolveGoal(completed: Bool) -> String? {
-    var payload: [String: Any] = ["completed": completed]
+    var payload: [String: Any] = ["completed": completed, "source": snapshot?.transcriptSource ?? "local"]
     if let conversationId = snapshot?.conversationId {
       payload["conversationId"] = conversationId
     }
@@ -225,6 +246,10 @@ final class WatchSessionClient: NSObject, ObservableObject {
   private func apply(_ next: WatchSnapshot) {
     guard snapshotCursor.accepts(next) else { return }
     let wasWaiting = snapshot?.needsAttention ?? false
+    if snapshot?.transcriptIdentity != next.transcriptIdentity {
+      streamedText = ""
+      streamingTurnId = nil
+    }
     snapshot = next
     if next.status != .streaming {
       streamingTurnId = nil
@@ -257,6 +282,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
   }
 
   private func apply(_ chunk: WatchStreamChunk) {
+    guard snapshot?.isLocal != false else { return }
     if streamingTurnId != chunk.turnId {
       streamingTurnId = chunk.turnId
       streamedText = ""

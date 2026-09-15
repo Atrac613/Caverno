@@ -25,6 +25,7 @@ enum WatchWireContractSmoke {
 
     try checkSnapshot(document)
     try checkLegacySnapshot(document)
+    try checkRemoteSnapshot(document)
     checkCommands(document)
     checkStatuses(document)
 
@@ -145,6 +146,29 @@ enum WatchWireContractSmoke {
     expect(
       allowedSet.subtracting(sent).isEmpty,
       "the watch never sends: \(allowedSet.subtracting(sent).sorted())")
+  }
+
+  private static func checkRemoteSnapshot(_ document: [String: Any]) throws {
+    let snapshot = try decode(document, "remoteSnapshot")
+    expect(!snapshot.isLocal, "remote transcript source")
+    guard let browser = snapshot.remoteBrowser else { fatalError("remote browser missing") }
+    expect(browser.hostId == "host-1", "remote hostId")
+    expect(browser.hostName == "Desktop", "remote hostName")
+    expect(browser.sessionId == "session-1", "remote sessionId")
+    expect(browser.isConnected, "remote connection")
+    expect(browser.projectId == "project-1", "remote projectId")
+    expect(browser.projectTitle == "Caverno", "remote projectTitle")
+    expect(browser.offset == 8 && browser.total == 10, "remote page position")
+    expect(browser.items.map(\.id) == ["thread-9", "thread-10"], "remote page IDs")
+    expect(browser.items[1].title == "Voice routing", "remote item title")
+    expect(browser.conversationId == "thread-9", "remote conversationId")
+    expect(browser.conversationTitle == "Watch browsing", "remote conversationTitle")
+    expect(browser.selectionStatus == "selected", "remote selection confirmation")
+    expect(browser.destination["hostId"] as? String == "host-1", "command host binding")
+    expect(browser.destination["sessionId"] as? String == "session-1", "command session binding")
+    expect(browser.destination["projectId"] as? String == "project-1", "command project binding")
+    let legacy = try decode(document, "legacySnapshot")
+    expect(legacy.isLocal && legacy.remoteBrowser == nil, "legacy source and capability")
   }
 
   /// Every status the phone can send has to be one the watch names. An

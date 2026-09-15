@@ -22,6 +22,7 @@ import '../../remote_coding/presentation/remote_coding_client_notifier.dart';
 import '../domain/watch_approval_mapper.dart';
 import '../domain/watch_command.dart';
 import '../domain/watch_snapshot.dart';
+import 'watch_remote_navigation.dart';
 
 final watchBridgeServiceProvider = Provider<WatchBridgeService>((ref) {
   final service = MethodChannelWatchBridgeService();
@@ -72,6 +73,8 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   static const WatchApprovalMapper _approvals = WatchApprovalMapper();
 
   late final WatchBridgeService _bridge;
+  late final WatchRemoteNavigation _remoteNavigation;
+  String _lastTranscriptSource = 'local';
   StreamSubscription<WatchCommand>? _commandSubscription;
   bool _available = false;
   int _sequence = 0;
@@ -88,6 +91,22 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   @override
   WatchSessionState build() {
     _bridge = ref.read(watchBridgeServiceProvider);
+    _remoteNavigation = WatchRemoteNavigation(
+      readRemote: () => ref.read(remoteCodingClientProvider),
+      selectConversation: (id) =>
+          ref.read(remoteCodingClientProvider.notifier).selectConversation(id),
+      onChanged: () {
+        if (_lastTranscriptSource != _remoteNavigation.source) {
+          _lastTranscriptSource = _remoteNavigation.source;
+          _streamedPrefix = '';
+          _streamFinalSent = false;
+        }
+        if (ref.mounted) {
+          unawaited(_pushSnapshot(ref.read(chatNotifierProvider)));
+        }
+      },
+    );
+    ref.onDispose(_remoteNavigation.dispose);
 
     ref.listen<ChatState>(chatNotifierProvider, (previous, next) {
       _trackTurnBoundary(previous, next);
@@ -104,10 +123,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       previous,
       next,
     ) {
-      if (previous?.pendingApproval?.id == next.pendingApproval?.id &&
-          previous?.pendingQuestion?.id == next.pendingQuestion?.id) {
-        return;
-      }
+      _remoteNavigation.update(previous, next);
       unawaited(_pushSnapshot(ref.read(chatNotifierProvider)));
     });
 
@@ -169,6 +185,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   /// coalesce.
   Future<void> _pushStreamDelta(ChatState chatState) async {
     if (!await _ensureAvailable()) return;
+    if (_remoteNavigation.source != 'local') return;
     final text = _activeTurnAssistantText(chatState.messages);
     if (text.isEmpty || !text.startsWith(_streamedPrefix)) {
       // The visible answer was replaced rather than extended (a guard rewrote
@@ -218,6 +235,33 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     final current = conversations.currentConversation;
     final approval = _currentApproval(chatState);
     final question = _currentQuestion(chatState);
+    final browser = _remoteNavigation.snapshot();
+    if (_remoteNavigation.source == 'remote') {
+      return WatchSnapshot(
+        sequence: _sequence,
+        generatedAt: DateTime.now().toUtc(),
+        sourceInstanceId: _sourceInstanceId,
+        sourceStartedAtMicros: _sourceStartedAtMicros,
+        transcriptSource: 'remote',
+        remoteBrowser: browser,
+        // Until the compact transcript slice lands, show only a confirmed
+        // destination. Never reuse the phone's local text or input controls.
+        conversationId: browser.selectionStatus == 'selected'
+            ? browser.conversationId
+            : null,
+        conversationTitle: browser.selectionStatus == 'selected'
+            ? browser.conversationTitle
+            : '',
+        workspaceMode: 'coding',
+        approval: approval,
+        question: question,
+        status: approval != null
+            ? WatchTurnStatus.waitingApproval
+            : question != null
+            ? WatchTurnStatus.waitingQuestion
+            : WatchTurnStatus.idle,
+      );
+    }
     final goal = _goalFor(current);
     final startedAt = _turnStartedAt;
 
@@ -252,6 +296,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       conversationsTruncated:
           conversations.conversations.length > watchSnapshotMaxConversations,
       error: chatState.error,
+      remoteBrowser: browser,
     );
   }
 
@@ -516,6 +561,24 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       return;
     }
 
+    // Voice sending and Stop will gain remote destination checks in slice 3.
+    // An older or delayed command must not act on local chat from this screen.
+    if ({
+          WatchCommand.sendMessage,
+          WatchCommand.cancelStreaming,
+          WatchCommand.resolveGoal,
+          WatchCommand.selectConversation,
+        }.contains(command.type) &&
+        (_remoteNavigation.source != 'local' ||
+            (command.payload['source'] ?? 'local') != 'local')) {
+      await _fail(
+        command,
+        code: 'remote_input_unavailable',
+        message: 'Use iPhone to send messages or control this remote thread.',
+      );
+      return;
+    }
+
     switch (command.type) {
       case WatchCommand.sendMessage:
         await _handleSendMessage(command);
@@ -533,6 +596,13 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
         await _handleSelectConversation(command);
       case WatchCommand.resolveGoal:
         await _handleResolveGoal(command);
+      case WatchCommand.selectSource:
+      case WatchCommand.browseRemote:
+      case WatchCommand.selectRemoteConversation:
+        final result = await _remoteNavigation.handle(command);
+        if (!ref.mounted) return;
+        await _bridge.sendCommandResult(result);
+        await _pushSnapshot(ref.read(chatNotifierProvider));
     }
   }
 

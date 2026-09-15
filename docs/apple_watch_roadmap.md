@@ -14,13 +14,12 @@ as a paired principal, is in `docs/apple_watch_companion.md`. These milestones
 use `WATCH<number>` and live here rather than in the Local LLM roadmap because
 this is a user-facing surface, not local-LLM execution work.
 
-Current direction (2026-09-14): [WATCH14](#watch14-remote-projects-and-voice-threads)
-is `next`, following the user request to browse the iPhone's paired host and
-dictate instructions into its coding threads. WATCH11 completed remote
-approvals and questions; remote project browsing, transcripts, and message
-sending are still unimplemented. WATCH14 adds those with a small-screen
-presentation that hides tool traffic. WATCH5 remains `current` for its push
-device matrix, and WATCH4 still needs its signed-build glance check.
+Current direction (2026-09-15): [WATCH14](#watch14-remote-projects-and-voice-threads)
+is `current`. Its first slice adds paired-host project/thread browsing and
+confirmed selection. Compact remote transcripts and dictated instructions are
+the next slices. WATCH11 completed remote approvals and questions. WATCH5 remains
+`current` for its push device matrix, and WATCH4 still needs its signed-build
+glance check.
 
 ### WATCH1: Companion Bridge, Approvals, And Voice
 
@@ -1054,7 +1053,7 @@ Next action:
 
 ### WATCH14: Remote Projects And Voice Threads
 
-Status: `next`
+Status: `current`
 
 Goal and user-visible behavior (requested 2026-09-14):
 - Browse the projects and existing threads of the host paired with the iPhone.
@@ -1064,7 +1063,7 @@ Goal and user-visible behavior (requested 2026-09-14):
   pending decisions each get an appropriate surface rather than copying the
   iPhone's entire Remote Coding page.
 
-Current implementation evidence (local main `ae94a5da4`, 2026-09-14):
+Pre-implementation baseline (local main `ae94a5da4`, 2026-09-14):
 - `RemoteCodingClientState` already holds the paired host, `projects`, `threads`,
   `messages`, selected IDs, and loading state. The iPhone's remote drawer already
   groups threads by project.
@@ -1179,7 +1178,7 @@ Dependencies and boundaries:
 - Keep local chat navigation available. The new source choice supersedes
   WATCH11's local-only transcript limit without merging both conversations.
 
-Verification for implementation (not yet run for WATCH14):
+Verification for subsequent slices (broader Remote Coding suites not run for slice 1):
 
 ```bash
 tool/codex_verify.sh --test test/features/watch/ \
@@ -1194,6 +1193,30 @@ complete slice 4 on signed hardware. Existing green tests and simulator builds
 verify the shipped companion; they do not establish these new acceptance criteria.
 
 Next action:
-- Implement slice 1: bounded remote project/thread browsing and explicit source
-  selection, with an agreed wire shape for the selected destination. Update the
-  shipped companion documentation as each slice becomes available.
+- Implement slice 2: compact remote transcript projection for the confirmed
+  host/project/thread, including live updates, text filtering, and speech
+  isolation. Remote send and Stop remain disabled until slice 3.
+
+Slice 1 implementation (2026-09-15):
+- Added explicit local/remote source selection, eight-item project/thread pages
+  with Previous/More, host connection state, and removed/empty-list states.
+  Project browsing only filters the phone's existing snapshot; it never calls
+  the desktop's thread-creating `selectProject` command.
+- `WatchRemoteNavigation` binds navigation to an opaque host ID and a
+  phone-generated connection epoch, plus project/conversation IDs for thread
+  selection. Disconnect, reconnect, or host identity changes retire the epoch.
+  Selection remains pending until a newer remote snapshot names the requested
+  project and conversation; timeout or changed selection is visible.
+- `WatchSnapshot.remoteBrowser` carries labels and one page, with no paths or
+  credentials. `transcriptSource` keeps the local and remote surfaces distinct.
+  Remote selection currently shows a destination placeholder; local transcript
+  text, speech chunks, voice sends, Stop, and goal commands cannot run through
+  that surface. Existing approvals and questions remain reachable.
+- Native Watch and Widget targets build with the installed watchOS 27 simulator
+  SDK, unsigned Debug. The project still targets watchOS 10.0. Dart/Swift wire
+  smoke passes for the remote page, selection identity, commands, and legacy
+  frames. Signed hardware interaction and visual checks remain unperformed.
+- Slice 1 gate: `tool/codex_verify.sh --no-codegen --test test/features/watch/`.
+  Static analysis and 106 tests in five Watch suites pass, including Japanese
+  and emoji payload budgets and source-switch speech isolation. All new models
+  are plain value classes, so generated entities do not change in this slice.

@@ -20,6 +20,9 @@ class WatchCommand {
   static const String cancelStreaming = 'cancelStreaming';
   static const String requestSnapshot = 'requestSnapshot';
   static const String selectConversation = 'selectConversation';
+  static const String selectSource = 'selectSource';
+  static const String browseRemote = 'browseRemote';
+  static const String selectRemoteConversation = 'selectRemoteConversation';
 
   /// Answers `ConversationGoalStatus.awaitingConfirmation`: the harness has
   /// nothing left to schedule and is asking whether the objective was met.
@@ -35,6 +38,9 @@ class WatchCommand {
     cancelStreaming,
     requestSnapshot,
     selectConversation,
+    selectSource,
+    browseRemote,
+    selectRemoteConversation,
     resolveGoal,
   };
 
@@ -71,8 +77,7 @@ class WatchCommandResult {
     this.message = '',
   });
 
-  const WatchCommandResult.success({String? id})
-    : this(ok: true, id: id);
+  const WatchCommandResult.success({String? id}) : this(ok: true, id: id);
 
   const WatchCommandResult.failure({
     String? id,

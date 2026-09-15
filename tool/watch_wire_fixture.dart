@@ -102,6 +102,28 @@ void main(List<String> args) {
     jsonEncode({
       'snapshot': snapshot.toJson(),
       'legacySnapshot': legacy.toJson(),
+      'remoteSnapshot': WatchSnapshot(
+        sequence: 43,
+        generatedAt: DateTime.utc(2026, 9, 15),
+        transcriptSource: 'remote',
+        remoteBrowser: const WatchRemoteBrowser(
+          hostId: 'host-1',
+          hostName: 'Desktop',
+          sessionId: 'session-1',
+          connectionStatus: 'connected',
+          projectId: 'project-1',
+          projectTitle: 'Caverno',
+          offset: 8,
+          total: 10,
+          items: [
+            WatchRemoteItem(id: 'thread-9', title: 'Watch browsing'),
+            WatchRemoteItem(id: 'thread-10', title: 'Voice routing'),
+          ],
+          conversationId: 'thread-9',
+          conversationTitle: 'Watch browsing',
+          selectionStatus: 'selected',
+        ),
+      ).toJson(),
       // The reverse direction: every command the watch can send has to be one
       // the phone will act on. A watch-only command is answered with
       // `unsupported_command`, which is diagnosable but still a dead button.

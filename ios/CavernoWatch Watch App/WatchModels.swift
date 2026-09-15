@@ -280,6 +280,33 @@ struct WatchGoal: Decodable, Equatable {
   }
 }
 
+struct WatchRemoteItem: Decodable, Equatable, Identifiable {
+  let id: String
+  let title: String
+}
+
+struct WatchRemoteBrowser: Decodable, Equatable {
+  let hostId: String
+  let hostName: String
+  let sessionId: String
+  let connectionStatus: String
+  let projectId: String?
+  let projectTitle: String
+  let items: [WatchRemoteItem]
+  let offset: Int
+  let total: Int
+  let conversationId: String?
+  let conversationTitle: String
+  let selectionStatus: String
+
+  var isConnected: Bool { connectionStatus == "connected" }
+  var destination: [String: Any] {
+    var payload: [String: Any] = ["hostId": hostId, "sessionId": sessionId]
+    if let projectId { payload["projectId"] = projectId }
+    return payload
+  }
+}
+
 struct WatchSnapshot: Decodable, Equatable {
   let sequence: Int
   let generatedAt: String
@@ -304,6 +331,14 @@ struct WatchSnapshot: Decodable, Equatable {
   let conversations: [WatchConversation]
   let conversationsTruncated: Bool
   let error: String?
+  let transcriptSource: String
+  let remoteBrowser: WatchRemoteBrowser?
+
+  var isLocal: Bool { transcriptSource == "local" }
+  var transcriptIdentity: String {
+    let session = isLocal ? "" : remoteBrowser?.sessionId ?? ""
+    return "\(transcriptSource):\(session):\(conversationId ?? "")"
+  }
 
   var needsAttention: Bool {
     status == .waitingApproval || status == .waitingQuestion
@@ -327,6 +362,7 @@ struct WatchSnapshot: Decodable, Equatable {
     case lastAssistantText, messages, messagesTruncated, approval, question
     case elapsedSeconds, queuedCount
     case busyThreadCount, conversations, conversationsTruncated, error
+    case transcriptSource, remoteBrowser
   }
 
   init(from decoder: Decoder) throws {
@@ -378,6 +414,8 @@ struct WatchSnapshot: Decodable, Equatable {
       try container.decodeIfPresent(
         Bool.self, forKey: .conversationsTruncated) ?? false
     error = try container.decodeIfPresent(String.self, forKey: .error)
+    transcriptSource = try container.decodeIfPresent(String.self, forKey: .transcriptSource) ?? "local"
+    remoteBrowser = try container.decodeIfPresent(WatchRemoteBrowser.self, forKey: .remoteBrowser)
   }
 }
 
@@ -453,5 +491,8 @@ enum WatchCommandType: String, CaseIterable {
   case cancelStreaming
   case requestSnapshot
   case selectConversation
+  case selectSource
+  case browseRemote
+  case selectRemoteConversation
   case resolveGoal
 }

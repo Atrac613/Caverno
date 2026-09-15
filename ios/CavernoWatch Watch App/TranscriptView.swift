@@ -38,7 +38,9 @@ struct TranscriptView: View {
                 caption("Earlier on iPhone")
               }
 
-              if rows.isEmpty {
+              if !snapshot.isLocal {
+                remoteState
+              } else if rows.isEmpty {
                 emptyState
               } else {
                 ForEach(rows) { row in
@@ -81,15 +83,15 @@ struct TranscriptView: View {
           .onChange(of: snapshot.sequence) { _, _ in
             scrollToBottomIfFollowing(proxy)
           }
-          .onChange(of: snapshot.conversationId) { _, _ in
+          .onChange(of: snapshot.transcriptIdentity) { _, _ in
             scrollToBottom(proxy)
           }
           .onChange(of: client.streamedText) { _, text in
-            speaker.speakIncremental(text)
+            if snapshot.isLocal { speaker.speakIncremental(text) }
             scrollToBottomIfFollowing(proxy)
           }
           .onChange(of: client.streamCompletionSequence) { _, _ in
-            speaker.finishIncremental(client.streamedText)
+            if snapshot.isLocal { speaker.finishIncremental(client.streamedText) }
           }
         }
       }
@@ -98,12 +100,14 @@ struct TranscriptView: View {
         attentionBanner(attention)
       }
 
-      ComposeBar(
-        placeholder: "Message",
-        onSend: send,
-        onOpenActions: { showsActions = true }
-      )
-      .background(Color.black)
+      if snapshot.isLocal {
+        ComposeBar(
+          placeholder: "Message",
+          onSend: send,
+          onOpenActions: { showsActions = true }
+        )
+        .background(Color.black)
+      }
     }
     // No `.ignoresSafeArea(edges: .bottom)`. It extended the compose bar past
     // the bottom inset, where the watch's rounded display clipped the input
@@ -123,14 +127,10 @@ struct TranscriptView: View {
       // gating the button on the list itself would take the "More threads on
       // iPhone" notice away with it, leaving the wrist with no sign that
       // other threads exist.
-      if snapshot.conversations.count > 1 || snapshot.conversationsTruncated {
+      if snapshot.remoteBrowser != nil || snapshot.conversations.count > 1 || snapshot.conversationsTruncated {
         ToolbarItem(placement: .topBarTrailing) {
           NavigationLink {
-            ThreadPickerView(
-              conversations: snapshot.conversations,
-              currentId: snapshot.conversationId,
-              truncated: snapshot.conversationsTruncated
-            )
+            WatchSourcesView()
           } label: {
             Image(systemName: "bubble.left.and.bubble.right.fill")
               .foregroundStyle(.white)
@@ -141,6 +141,7 @@ struct TranscriptView: View {
           // blue button — the one place on this watch where a destructive
           // action must not look ordinary.
           .tint(BubbleStyle.outgoing)
+          .accessibilityLabel("Chats and remote projects")
         }
       }
     }
@@ -297,6 +298,25 @@ struct TranscriptView: View {
   }
 
   // MARK: - Chrome
+
+  private var remoteState: some View {
+    VStack(spacing: 8) {
+      Text(snapshot.remoteBrowser?.hostName ?? "Remote Coding")
+        .font(.footnote)
+      if snapshot.remoteBrowser?.selectionStatus == "selecting" {
+        ProgressView("Opening thread…")
+      } else if snapshot.remoteBrowser?.selectionStatus == "selected" {
+        Text("Thread selected. Read and reply on iPhone.")
+      } else if snapshot.remoteBrowser?.isConnected == false {
+        Text("Connect to the host on iPhone.")
+      } else {
+        Text("Choose a remote project and thread from Chats.")
+      }
+    }
+    .font(.caption2)
+    .multilineTextAlignment(.center)
+    .frame(maxWidth: .infinity)
+  }
 
   private var title: String {
     let title = PlainText.from(snapshot.conversationTitle)

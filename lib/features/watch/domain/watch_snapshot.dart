@@ -517,7 +517,96 @@ const List<_WatchFrameCaps> _watchFrameCapLadder = [
   ),
 ];
 
-/// One frame of iPhone chat state, projected for the watch.
+/// A page of remote projects or threads. Only labels and opaque IDs cross the
+/// bridge; credentials, paths, and dashboard statistics stay on the phone.
+class WatchRemoteItem {
+  const WatchRemoteItem({required this.id, required this.title});
+  final String id;
+  final String title;
+
+  factory WatchRemoteItem.fromJson(Map<String, dynamic> json) =>
+      WatchRemoteItem(id: json['id'] as String, title: json['title'] as String);
+
+  Map<String, dynamic> toJson(int titleLimit) => {
+    'id': id,
+    'title': truncateForWatch(title, titleLimit),
+  };
+}
+
+const int watchRemotePageSize = 8;
+
+class WatchRemoteBrowser {
+  const WatchRemoteBrowser({
+    required this.hostId,
+    required this.hostName,
+    required this.sessionId,
+    required this.connectionStatus,
+    this.projectId,
+    this.projectTitle = '',
+    this.items = const [],
+    this.offset = 0,
+    this.total = 0,
+    this.conversationId,
+    this.conversationTitle = '',
+    this.selectionStatus = 'none',
+  });
+
+  final String hostId;
+  final String hostName;
+
+  /// A phone-generated epoch, retired whenever the host or connection changes.
+  final String sessionId;
+  final String connectionStatus;
+  final String? projectId;
+  final String projectTitle;
+  final List<WatchRemoteItem> items;
+  final int offset;
+  final int total;
+  final String? conversationId;
+  final String conversationTitle;
+  final String selectionStatus;
+
+  factory WatchRemoteBrowser.fromJson(Map<String, dynamic> json) =>
+      WatchRemoteBrowser(
+        hostId: json['hostId'] as String,
+        hostName: json['hostName'] as String,
+        sessionId: json['sessionId'] as String,
+        connectionStatus: json['connectionStatus'] as String,
+        projectId: json['projectId'] as String?,
+        projectTitle: json['projectTitle'] as String? ?? '',
+        items: (json['items'] as List<dynamic>)
+            .map(
+              (item) => WatchRemoteItem.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+        offset: json['offset'] as int,
+        total: json['total'] as int,
+        conversationId: json['conversationId'] as String?,
+        conversationTitle: json['conversationTitle'] as String? ?? '',
+        selectionStatus: json['selectionStatus'] as String? ?? 'none',
+      );
+
+  Map<String, dynamic> toJson(int titleLimit) => {
+    'hostId': hostId,
+    'hostName': truncateForWatch(hostName, titleLimit),
+    'sessionId': sessionId,
+    'connectionStatus': connectionStatus,
+    if (projectId != null) 'projectId': projectId,
+    'projectTitle': truncateForWatch(projectTitle, titleLimit),
+    // Keep the page reachable on every payload rung; shrink labels, not rows.
+    'items': items
+        .take(watchRemotePageSize)
+        .map((i) => i.toJson(titleLimit))
+        .toList(),
+    'offset': offset,
+    'total': total,
+    if (conversationId != null) 'conversationId': conversationId,
+    'conversationTitle': truncateForWatch(conversationTitle, titleLimit),
+    'selectionStatus': selectionStatus,
+  };
+}
+
+/// One frame of iPhone state, projected for the watch.
 class WatchSnapshot {
   const WatchSnapshot({
     required this.sequence,
@@ -540,6 +629,8 @@ class WatchSnapshot {
     this.conversations = const <WatchConversation>[],
     this.conversationsTruncated = false,
     this.error,
+    this.transcriptSource = 'local',
+    this.remoteBrowser,
   });
 
   /// Monotonic per-source counter. The watch drops any frame whose sequence is
@@ -587,6 +678,8 @@ class WatchSnapshot {
   final List<WatchConversation> conversations;
   final bool conversationsTruncated;
   final String? error;
+  final String transcriptSource;
+  final WatchRemoteBrowser? remoteBrowser;
 
   bool get needsAttention =>
       status == WatchTurnStatus.waitingApproval ||
@@ -632,6 +725,12 @@ class WatchSnapshot {
               .toList(growable: false),
       conversationsTruncated: json['conversationsTruncated'] == true,
       error: json['error'] as String?,
+      transcriptSource: json['transcriptSource'] as String? ?? 'local',
+      remoteBrowser: json['remoteBrowser'] is Map<String, dynamic>
+          ? WatchRemoteBrowser.fromJson(
+              json['remoteBrowser'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 
@@ -668,6 +767,9 @@ class WatchSnapshot {
   Map<String, dynamic> _encodeWith(_WatchFrameCaps caps) => {
     'sequence': sequence,
     'generatedAt': generatedAt.toUtc().toIso8601String(),
+    if (transcriptSource != 'local') 'transcriptSource': transcriptSource,
+    if (remoteBrowser != null)
+      'remoteBrowser': remoteBrowser!.toJson(caps.title),
     if (sourceInstanceId.isNotEmpty) 'sourceInstanceId': sourceInstanceId,
     if (sourceStartedAtMicros > 0)
       'sourceStartedAtMicros': sourceStartedAtMicros,
