@@ -24,8 +24,11 @@ extension ChatNotifierPromptContext on ChatNotifier {
     required Conversation? conversation,
     TurnOwnerSnapshot? ownerSnapshot,
   }) {
-    final now = DateTime.now();
     final currentConversation = conversation;
+    // LL22: pinned per turn, because a per-request minute reading mutated one
+    // line inside an otherwise byte-stable ~20k-token prefix and cost a full
+    // reprefill. See [TurnPromptClock].
+    final now = _turnPromptClock.pinFor(ownerSnapshot?.owner, DateTime.now());
     final activeCodingProject = currentConversation == null
         ? null
         : _codingProjectForTurn(currentConversation);

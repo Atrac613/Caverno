@@ -37,6 +37,7 @@ import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
 import '../../application/runtime/tool_outcome_shadow_observer.dart';
+import '../../application/runtime/turn_prompt_clock.dart';
 import '../../application/runtime/turn_release_scope.dart';
 import '../../application/runtime/turn_runtime.dart';
 import '../../application/runtime/turn_runtime_owner_lease_registry.dart';
@@ -1972,6 +1973,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
   final _uuid = const Uuid();
   final _turnStream = TurnStreamBindingRegistry();
+  final _turnPromptClock = TurnPromptClock();
+
   final _queuedChatMessages = ThreadScopedMessageQueue();
   final _turnSteering = TurnSteeringRegistry();
 

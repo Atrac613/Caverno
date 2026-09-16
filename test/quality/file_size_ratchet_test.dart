@@ -56,7 +56,9 @@ const Map<String, int> _lineBudgets = {
   // on one path out of three.
   // -20: the memory-update display tag and named-skill lookup are string
   // work with no notifier state.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8681,
+  // +2 for the per-turn prompt clock: one import and one field. The logic is
+  // in TurnPromptClock, and the library ceiling below still has room.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8683,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the

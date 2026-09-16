@@ -27,6 +27,50 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
 
 void main() {
+  test('the system prompt stays byte-identical across a tool loop', () async {
+    // The turn's clock is pinned for exactly this reason: a per-request minute
+    // reading changed one line inside an otherwise stable ~20k-token prefix,
+    // and the server then reprefilled the whole prompt. Measured on session
+    // c138c465: 34 of 35 requests whose minute had ticked over reused nothing
+    // and took a median 31.3s, against 9.2s for those that had not.
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_alpha',
+          arguments: const {'path': 'alpha.txt'},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'read_alpha': 'alpha result'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _buildContainer(
+      settings: _ToolEnabledSettingsNotifier.new,
+      toolDataSource: toolDataSource,
+      toolService: toolService,
+      appLifecycleService: appLifecycleService,
+    );
+
+    try {
+      await container.read(chatNotifierProvider.notifier).sendMessage(
+        'Inspect alpha',
+      );
+
+      String systemContent(List<Message> messages) =>
+          messages.firstWhere((message) => message.id == 'system').content;
+
+      expect(
+        systemContent(toolDataSource.toolResultRequestMessages.single),
+        systemContent(toolDataSource.initialRequestMessages.single),
+      );
+    } finally {
+      container.dispose();
+    }
+  });
+
   test('sendMessage keeps tool-loop request prefix stable', () async {
     final toolDataSource = _ToolBatchChatDataSource(
       initialToolCalls: [
