@@ -766,8 +766,64 @@ class ToolResultPromptBuilder {
         '(for example a docs or config edit), describe only what was changed.',
       );
     }
+    final runningJobs = unfinishedBackgroundJobIds(toolResults);
+    if (runningJobs.isNotEmpty) {
+      lines.add(
+        'BACKGROUND JOB STILL RUNNING: ${runningJobs.join(', ')} had not '
+        'finished when this turn ran out of tool iterations, and this final '
+        'answer request cannot call tools, so you cannot wait for it, poll it, '
+        'or observe any progress after the last result below. Report the last '
+        'status those results actually show, name the job id, and say another '
+        'check is needed to learn the outcome. Do not repeat a waiting line, '
+        'do not invent later elapsed times, and do not claim it finished, '
+        'succeeded, or failed.',
+      );
+    }
     return lines;
   }
+
+  /// Background job ids whose latest result still reports them running.
+  ///
+  /// The final answer request carries no tools, so a model handed a running
+  /// job has no way to reach the outcome — and narrates the wait instead.
+  /// Session c138c465's last turn ended on a `process_wait` still reporting
+  /// `status: running`, and the tool-less answer emitted 301 copies of
+  /// "the macOS lane is still running (about N minutes), waiting a little
+  /// longer" with N counted up to 316: five hours of progress it could not
+  /// observe, 6,932 completion tokens, 344 seconds, and no answer for the user.
+  ///
+  /// Latest-wins, like the analyzer staleness rule above: a job that a later
+  /// `process_wait` saw exit is finished, whatever an earlier poll reported.
+  static List<String> unfinishedBackgroundJobIds(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final statusByJobId = <String, String>{};
+    for (final toolResult in toolResults) {
+      if (!_backgroundProcessToolNames.contains(
+        toolResult.name.trim().toLowerCase(),
+      )) {
+        continue;
+      }
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      final jobId = decoded?['job_id']?.toString().trim();
+      final status = decoded?['status']?.toString().trim().toLowerCase();
+      if (jobId == null || jobId.isEmpty || status == null || status.isEmpty) {
+        continue;
+      }
+      statusByJobId[jobId] = status;
+    }
+    return [
+      for (final entry in statusByJobId.entries)
+        if (entry.value == 'running' || entry.value == 'starting') entry.key,
+    ];
+  }
+
+  static const Set<String> _backgroundProcessToolNames = {
+    'process_start',
+    'process_status',
+    'process_tail',
+    'process_wait',
+  };
 
   static ToolResultCompletionEvidence completionEvidence(
     List<ToolResultInfo> toolResults,

@@ -8,6 +8,87 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ToolResultPromptBuilder', () {
+    group('unfinished background jobs', () {
+      ToolResultInfo processResult(
+        String name,
+        Map<String, Object?> payload, {
+        String id = 'call',
+      }) => ToolResultInfo(
+        id: id,
+        name: name,
+        arguments: const {'job_id': 'proc_1789476972434521_1'},
+        result: jsonEncode(payload),
+      );
+
+      test('blocks the tool-less answer from narrating the wait', () {
+        // Session c138c465's last turn: the release script was still running
+        // when the tool loop ran out, and the answer became 301 fabricated
+        // progress lines counting up to "about 316 minutes".
+        final blockers = ToolResultPromptBuilder.completionBlockerInstructions([
+          processResult('process_wait', {
+            'job_id': 'proc_1789476972434521_1',
+            'status': 'running',
+            'ok': true,
+            'elapsed_ms': 978757,
+          }),
+        ]);
+
+        expect(blockers, hasLength(1));
+        expect(blockers.single, contains('BACKGROUND JOB STILL RUNNING'));
+        expect(blockers.single, contains('proc_1789476972434521_1'));
+        expect(blockers.single, contains('cannot call tools'));
+      });
+
+      test('a later poll that saw the job exit clears the blocker', () {
+        final blockers = ToolResultPromptBuilder.completionBlockerInstructions([
+          processResult('process_start', {
+            'job_id': 'job-1',
+            'status': 'running',
+          }, id: 'call-1'),
+          processResult('process_wait', {
+            'job_id': 'job-1',
+            'status': 'exited',
+            'exit_code': 0,
+          }, id: 'call-2'),
+        ]);
+
+        expect(blockers, isEmpty);
+      });
+
+      test('reports each job whose latest status is still running', () {
+        final ids = ToolResultPromptBuilder.unfinishedBackgroundJobIds([
+          processResult('process_wait', {
+            'job_id': 'job-1',
+            'status': 'running',
+          }, id: 'call-1'),
+          processResult('process_status', {
+            'job_id': 'job-2',
+            'status': 'exited',
+            'exit_code': 1,
+          }, id: 'call-2'),
+          processResult('process_status', {
+            'job_id': 'job-3',
+            'status': 'starting',
+          }, id: 'call-3'),
+        ]);
+
+        expect(ids, unorderedEquals(['job-1', 'job-3']));
+      });
+
+      test('ignores a running status from a non-process tool', () {
+        final ids = ToolResultPromptBuilder.unfinishedBackgroundJobIds([
+          ToolResultInfo(
+            id: 'call',
+            name: 'local_execute_command',
+            arguments: const {'command': 'echo hi'},
+            result: jsonEncode({'job_id': 'job-9', 'status': 'running'}),
+          ),
+        ]);
+
+        expect(ids, isEmpty);
+      });
+    });
+
     test('reports which tools the prompt budget shortened', () {
       // Six large files, exactly the a0ca65b7 shape: the per-result share of
       // the total budget cuts every one of them, and the model is then told to
