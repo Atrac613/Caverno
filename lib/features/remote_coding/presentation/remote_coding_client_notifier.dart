@@ -196,6 +196,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   WebSocket? _socket;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
+  Completer<bool>? _connectedSnapshotWaiter;
   final Map<String, Timer> _pendingCommandTimers = <String, Timer>{};
   bool _manualDisconnectRequested = false;
   Completer<RemoteCodingSessionChallenge>? _pendingAuthChallenge;
@@ -208,6 +209,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     _repository = ref.read(remoteCodingRepositoryProvider);
     ref.onDispose(() {
       _cancelReconnectTimer();
+      _completeConnectedSnapshotWaiter(false);
       _clearPendingCommandTimers();
       unawaited(disconnect());
     });
@@ -227,6 +229,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         reconnectAttempt: 0,
         clearNextReconnectAt: true,
       );
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     final token = await _repository.loadMobileHostToken(host.id);
@@ -237,6 +240,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         reconnectAttempt: 0,
         clearNextReconnectAt: true,
       );
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     await _connectAndAuth(
@@ -244,6 +248,48 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       token: token,
       autoReconnectOnFailure: automatic,
     );
+  }
+
+  /// Reconnects immediately and waits for an authenticated desktop snapshot.
+  ///
+  /// `connectSavedHost` returns after the authentication command is written,
+  /// which is too early for a background-woken Watch command to trust the
+  /// desktop destination. This method waits for `_applySnapshot` instead. It
+  /// never replays the command that caused the reconnect.
+  Future<bool> reconnectSavedHostAndWait({
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    if (state.isConnected) return true;
+    _cancelReconnectTimer();
+    final waiter = _connectedSnapshotWaiter ??= Completer<bool>();
+    unawaited(_startSavedHostReconnect());
+    try {
+      return await waiter.future.timeout(
+        timeout,
+        onTimeout: () {
+          _completeConnectedSnapshotWaiter(false);
+          return false;
+        },
+      );
+    } finally {
+      if (identical(_connectedSnapshotWaiter, waiter)) {
+        _connectedSnapshotWaiter = null;
+      }
+    }
+  }
+
+  Future<void> _startSavedHostReconnect() async {
+    try {
+      await connectSavedHost(automatic: true);
+    } catch (error) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          status: RemoteCodingConnectionStatus.error,
+          error: 'Remote coding reconnect failed: $error',
+        );
+      }
+      _completeConnectedSnapshotWaiter(false);
+    }
   }
 
   Future<void> pairFromQr(String qrData) async {
@@ -477,6 +523,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   Future<void> disconnect() async {
     _manualDisconnectRequested = true;
     _cancelReconnectTimer();
+    _completeConnectedSnapshotWaiter(false);
     _clearPendingCommandTimers();
     await _closeSocket();
     if (ref.mounted) {
@@ -644,6 +691,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         status: RemoteCodingConnectionStatus.error,
         error: 'Remote coding mobile client is not available on web.',
       );
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     if (!RemoteCodingNetworkPolicy.isLanHost(host.host)) {
@@ -653,6 +701,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         reconnectAttempt: 0,
         clearNextReconnectAt: true,
       );
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     _clearPendingCommandTimers();
@@ -734,6 +783,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
           clearSnapshotGeneratedAt: true,
           clearNextReconnectAt: true,
         );
+        _completeConnectedSnapshotWaiter(false);
       }
     }
   }
@@ -826,6 +876,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
           error: RemoteCodingConnectionMessages.unauthorizedToken(),
         );
       }
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     if (!ref.mounted) {
@@ -842,6 +893,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         clearPendingApproval: true,
         clearSnapshotGeneratedAt: true,
       );
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     // A declined command, over a socket that is still open. Say so and change
@@ -875,6 +927,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
           error: RemoteCodingConnectionMessages.revokedDevice(),
         );
       }
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     if (!ref.mounted) {
@@ -1019,6 +1072,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         clearError: true,
         clearNextReconnectAt: true,
       );
+      _completeConnectedSnapshotWaiter(true);
     } catch (error) {
       state = state.copyWith(
         status: RemoteCodingConnectionStatus.error,
@@ -1206,6 +1260,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         clearSnapshotGeneratedAt: true,
         clearNextReconnectAt: true,
       );
+      _completeConnectedSnapshotWaiter(false);
       return;
     }
     final delay = _reconnectBackoffDelays[nextAttempt - 1];
@@ -1233,6 +1288,11 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   void _cancelReconnectTimer() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+  }
+
+  void _completeConnectedSnapshotWaiter(bool connected) {
+    final waiter = _connectedSnapshotWaiter;
+    if (waiter != null && !waiter.isCompleted) waiter.complete(connected);
   }
 
   void _trackPendingCommand(String id, String type) {

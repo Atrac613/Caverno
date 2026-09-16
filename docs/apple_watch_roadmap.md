@@ -1199,6 +1199,10 @@ Next action:
   an approval/question. Repeat with the phone backgrounded, reconnecting, and
   with the desktop switching threads before a delayed command arrives. Record
   device/build identities and confirm that tool traffic remains absent.
+  Include a locked/backgrounded iPhone: submit Dictation after the phone-side
+  socket is suspended, confirm that the Watch receives a new connection epoch,
+  and use **Send again** to deliver exactly once. A force-quit phone remains out
+  of scope until the Watch has a direct desktop transport.
 
 Slice 1 implementation (2026-09-15):
 - Added explicit local/remote source selection, eight-item project/thread pages
@@ -1288,3 +1292,20 @@ Slice 3b implementation (2026-09-16):
   watchsimulator27.0. Signed-device Dictation, background delivery, reconnect,
   accessibility, and live-host behavior remain unverified and belong to slice
   4.
+
+Background relay recovery implementation (2026-09-16):
+- A queued or live Watch command that wakes a disconnected iPhone now starts an
+  immediate saved-host reconnect and waits up to 15 seconds for an authenticated
+  snapshot. Missing credentials, revocation, terminal errors, timeout, and
+  exhausted backoff fail closed.
+- Reconnect retires the old Watch connection epoch. The original message or
+  Stop command is never replayed. Only a fresh snapshot that still names the
+  exact host, project, and conversation restores the Watch surface; otherwise
+  the command is visibly refused.
+- The Watch retains a reconnect-refused dictated message bound to that exact
+  destination and exposes **Send again** only after the new snapshot confirms
+  input is safe. The second tap creates a new command under the new epoch.
+- Focused Watch navigation/session and Remote Coding client tests cover
+  successful reconnect with explicit retry, failed reconnect without delivery,
+  and missing credentials. Signed locked-phone delivery remains part of slice
+  4 rather than repository-only evidence.

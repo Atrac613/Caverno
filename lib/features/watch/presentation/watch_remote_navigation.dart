@@ -156,6 +156,38 @@ class WatchRemoteNavigation {
     return WatchCommandResult.success(id: command.id);
   }
 
+  /// Restores only a destination already confirmed by the reconnect snapshot.
+  ///
+  /// This deliberately does not select or switch the desktop conversation.
+  /// A delayed Watch command may wake the phone long after it was composed, so
+  /// changing the desktop to match that stale command would be a redirect. The
+  /// caller can offer an explicit retry only when the fresh snapshot still
+  /// names the exact project and conversation.
+  bool restoreConfirmedDestination({
+    required String projectId,
+    required String conversationId,
+  }) {
+    final remote = readRemote();
+    if (!remote.isConnected ||
+        remote.selectedProjectId != projectId ||
+        remote.currentConversationId != conversationId ||
+        !remote.projects.any((project) => project.id == projectId) ||
+        !remote.threads.any(
+          (thread) =>
+              thread.id == conversationId && thread.projectId == projectId,
+        )) {
+      return false;
+    }
+    source = 'remote';
+    _projectId = projectId;
+    _offset = 0;
+    _conversationId = conversationId;
+    _selectionSequence = remote.snapshotSequence;
+    _selectionStatus = 'selected';
+    onChanged();
+    return true;
+  }
+
   Future<WatchCommandResult> handle(WatchCommand command) async {
     final payload = command.payload;
     if (command.type == WatchCommand.selectSource) {

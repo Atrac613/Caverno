@@ -102,6 +102,21 @@ struct TranscriptView: View {
         attentionBanner(attention)
       }
 
+      if let retry = client.retryableMessagePreview {
+        Button {
+          client.retryRemoteMessage()
+        } label: {
+          VStack(alignment: .leading, spacing: 2) {
+            Label("Send again", systemImage: "arrow.clockwise")
+            Text(retry)
+              .font(.caption2)
+              .lineLimit(2)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityHint("Confirms the reconnected remote destination")
+      }
+
       if snapshot.canCompose {
         ComposeBar(
           placeholder: snapshot.isLocal ? "Message" : "Message remote",

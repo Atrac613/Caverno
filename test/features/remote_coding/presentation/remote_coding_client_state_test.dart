@@ -409,30 +409,28 @@ void main() {
       expect(state.snapshotGeneratedAt, isNull);
     });
 
-    test('accepts an auth challenge without treating it as unsupported', () async {
-      final notifier = container.read(remoteCodingClientProvider.notifier);
+    test(
+      'accepts an auth challenge without treating it as unsupported',
+      () async {
+        final notifier = container.read(remoteCodingClientProvider.notifier);
 
-      await notifier.handleRawMessageForTest(
-        RemoteCodingProtocol.encode(
-          type: 'authChallenge',
-          payload: {
-            'challengeId': 'challenge-1',
-            'nonce': 'nonce-1',
-            'expiresAt': DateTime.utc(
-              2026,
-              8,
-              21,
-              10,
-            ).toIso8601String(),
-          },
-        ),
-      );
+        await notifier.handleRawMessageForTest(
+          RemoteCodingProtocol.encode(
+            type: 'authChallenge',
+            payload: {
+              'challengeId': 'challenge-1',
+              'nonce': 'nonce-1',
+              'expiresAt': DateTime.utc(2026, 8, 21, 10).toIso8601String(),
+            },
+          ),
+        );
 
-      final state = container.read(remoteCodingClientProvider);
-      expect(state.status, isNot(RemoteCodingConnectionStatus.error));
-      expect(state.status, isNot(RemoteCodingConnectionStatus.connected));
-      expect(state.error, isNull);
-    });
+        final state = container.read(remoteCodingClientProvider);
+        expect(state.status, isNot(RemoteCodingConnectionStatus.error));
+        expect(state.status, isNot(RemoteCodingConnectionStatus.connected));
+        expect(state.error, isNull);
+      },
+    );
   });
 
   group('remote host rejection', () {
@@ -517,6 +515,22 @@ void main() {
       expect(state.error, contains('Saved credentials'));
       expect(state.error, contains('fresh device token'));
     });
+
+    test(
+      'snapshot reconnect fails promptly when credentials are missing',
+      () async {
+        repository.token = null;
+        final notifier = container.read(remoteCodingClientProvider.notifier);
+
+        final connected = await notifier.reconnectSavedHostAndWait();
+
+        expect(connected, isFalse);
+        expect(
+          container.read(remoteCodingClientProvider).hasScheduledReconnect,
+          isFalse,
+        );
+      },
+    );
 
     test('unexpected disconnect schedules a bounded reconnect attempt', () {
       final notifier = container.read(remoteCodingClientProvider.notifier);

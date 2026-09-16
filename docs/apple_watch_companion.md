@@ -473,6 +473,16 @@ routinely outruns the background window. Turns are wrapped with the existing
 `BackgroundTaskService`. Beyond that window the completion still arrives as a
 local notification, which iOS forwards to the watch.
 
+A remote command that wakes a phone with a suspended Remote Coding socket now
+starts an immediate saved-host reconnect and waits for an authenticated desktop
+snapshot. The old command is never replayed across that connection boundary. If
+the fresh snapshot still confirms the exact host, project, and conversation, the
+phone publishes a new connection epoch and the Watch offers the dictated text
+as an explicit **Send again** action. A changed destination or failed reconnect
+stays refused. This makes a locked or backgrounded iPhone recoverable without
+weakening the stale-command boundary; force-quit and powered-off phones still
+require a future direct Watch transport.
+
 ## Verifying
 
 ```bash

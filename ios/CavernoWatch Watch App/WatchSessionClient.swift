@@ -12,6 +12,14 @@ import WidgetKit
 /// WatchConnectivity callbacks, which arrive on a background queue.
 @MainActor
 final class WatchSessionClient: NSObject, ObservableObject {
+  private struct PendingRemoteMessage {
+    let content: String
+    let isVoiceMode: Bool
+    let hostId: String
+    let projectId: String
+    let conversationId: String
+  }
+
   /// Key both sides use for the JSON payload.
   private static let payloadKey = "payload"
 
@@ -21,6 +29,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
   @Published private(set) var lastCommandError: String?
   @Published private(set) var lastCommandNotice: String?
   @Published private(set) var lastCommandResult: WatchCommandResult?
+  @Published private var retryableRemoteMessage: PendingRemoteMessage?
   /// Text accumulated from stream chunks for the turn currently in flight.
   @Published private(set) var streamedText = ""
   /// Advances even when a final stream marker carries no new text.
@@ -34,6 +43,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
   /// approval on screen.
   private var snapshotCursor = WatchSnapshotCursor()
   private var streamingTurnId: String?
+  private var pendingRemoteMessages: [String: PendingRemoteMessage] = [:]
 
   private let session: WCSession? = WCSession.isSupported()
     ? WCSession.default : nil
@@ -99,6 +109,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
     guard !trimmed.isEmpty else { return nil }
     streamedText = ""
     var payload: [String: Any]
+    var pendingRemoteMessage: PendingRemoteMessage?
     if let snapshot, !snapshot.isLocal {
       guard let browser = snapshot.remoteBrowser, browser.canInput else {
         return failRemoteDestinationLocally()
@@ -107,6 +118,17 @@ final class WatchSessionClient: NSObject, ObservableObject {
       payload["source"] = "remote"
       payload["content"] = trimmed
       payload["isVoiceMode"] = isVoiceMode
+      if let projectId = browser.projectId,
+        let conversationId = browser.conversationId
+      {
+        pendingRemoteMessage = PendingRemoteMessage(
+          content: trimmed,
+          isVoiceMode: isVoiceMode,
+          hostId: browser.hostId,
+          projectId: projectId,
+          conversationId: conversationId
+        )
+      }
     } else {
       payload = [
         "content": trimmed,
@@ -121,7 +143,30 @@ final class WatchSessionClient: NSObject, ObservableObject {
     if let conversationId = snapshot?.conversationId {
       payload["conversationId"] = conversationId
     }
-    return send(.sendMessage, payload: payload)
+    let commandId = send(.sendMessage, payload: payload)
+    if let commandId, let pendingRemoteMessage {
+      pendingRemoteMessages[commandId] = pendingRemoteMessage
+    }
+    return commandId
+  }
+
+  var retryableMessagePreview: String? {
+    guard let retry = retryableRemoteMessage,
+      let browser = snapshot?.remoteBrowser,
+      browser.canInput,
+      browser.hostId == retry.hostId,
+      browser.projectId == retry.projectId,
+      browser.conversationId == retry.conversationId
+    else { return nil }
+    return retry.content
+  }
+
+  func retryRemoteMessage() {
+    guard let retry = retryableRemoteMessage,
+      retryableMessagePreview != nil
+    else { return }
+    retryableRemoteMessage = nil
+    sendMessage(retry.content, isVoiceMode: retry.isVoiceMode)
   }
 
   private func failRemoteDestinationLocally() -> String {
@@ -265,6 +310,15 @@ final class WatchSessionClient: NSObject, ObservableObject {
       return
     }
     if let result = try? decoder.decode(WatchCommandResult.self, from: data) {
+      if let id = result.id,
+        let pending = pendingRemoteMessages.removeValue(forKey: id)
+      {
+        if result.code == "remote_reconnected" {
+          retryableRemoteMessage = pending
+        } else if result.ok {
+          retryableRemoteMessage = nil
+        }
+      }
       lastCommandResult = result
       lastCommandNotice = result.ok ? result.message : nil
       lastCommandError = result.ok ? nil : result.message

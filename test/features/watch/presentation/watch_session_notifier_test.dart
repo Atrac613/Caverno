@@ -394,6 +394,186 @@ void _registerRemoteCodingTests({
       expect(remote.sentMessages, hasLength(2));
     });
 
+    test(
+      'a background-woken command reconnects but requires explicit retry',
+      () async {
+        final watch = await notifierOf();
+        final remote =
+            containerOf().read(remoteCodingClientProvider.notifier)
+                as _FakeRemoteCodingClient;
+        remote.offerWorkspace();
+        final initial = watch
+            .buildSnapshot(const ChatState(messages: [], isLoading: false))
+            .remoteBrowser!;
+        final selection = watch.handleCommandForTest(
+          WatchCommand(
+            type: WatchCommand.selectRemoteConversation,
+            payload: {
+              'hostId': initial.hostId,
+              'sessionId': initial.sessionId,
+              'projectId': 'project-1',
+              'conversationId': 'remote-thread-1',
+            },
+          ),
+        );
+        remote.offerWorkspace(currentId: 'remote-thread-1', sequence: 2);
+        await selection;
+        final selected = watch
+            .buildSnapshot(const ChatState(messages: [], isLoading: false))
+            .remoteBrowser!;
+
+        remote.disconnectForTest();
+        await Future<void>.delayed(Duration.zero);
+        await watch.handleCommandForTest(
+          WatchCommand(
+            id: 'wake-send',
+            type: WatchCommand.sendMessage,
+            payload: {
+              'source': 'remote',
+              'hostId': selected.hostId,
+              'sessionId': selected.sessionId,
+              'projectId': selected.projectId,
+              'conversationId': selected.conversationId,
+              'content': 'Resume from the wrist',
+            },
+          ),
+        );
+
+        expect(remote.reconnectAttempts, 1);
+        expect(remote.sentMessages, isEmpty);
+        expect(bridgeOf().results.last.id, 'wake-send');
+        expect(bridgeOf().results.last.code, 'remote_reconnected');
+        final refreshed = watch
+            .buildSnapshot(const ChatState(messages: [], isLoading: false))
+            .remoteBrowser!;
+        expect(refreshed.sessionId, isNot(selected.sessionId));
+        expect(refreshed.conversationId, 'remote-thread-1');
+        expect(refreshed.selectionStatus, 'selected');
+        expect(refreshed.supportsInput, isTrue);
+
+        await watch.handleCommandForTest(
+          WatchCommand(
+            id: 'confirmed-retry',
+            type: WatchCommand.sendMessage,
+            payload: {
+              'source': 'remote',
+              'hostId': refreshed.hostId,
+              'sessionId': refreshed.sessionId,
+              'projectId': refreshed.projectId,
+              'conversationId': refreshed.conversationId,
+              'content': 'Resume from the wrist',
+            },
+          ),
+        );
+        expect(remote.sentMessages.single.content, 'Resume from the wrist');
+        expect(bridgeOf().results.last.ok, isTrue);
+      },
+    );
+
+    test('failed wake reconnect never forwards the remote command', () async {
+      final watch = await notifierOf();
+      final remote =
+          containerOf().read(remoteCodingClientProvider.notifier)
+              as _FakeRemoteCodingClient;
+      remote.offerWorkspace();
+      final initial = watch
+          .buildSnapshot(const ChatState(messages: [], isLoading: false))
+          .remoteBrowser!;
+      final selection = watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.selectRemoteConversation,
+          payload: {
+            'hostId': initial.hostId,
+            'sessionId': initial.sessionId,
+            'projectId': 'project-1',
+            'conversationId': 'remote-thread-1',
+          },
+        ),
+      );
+      remote.offerWorkspace(currentId: 'remote-thread-1', sequence: 2);
+      await selection;
+      final selected = watch
+          .buildSnapshot(const ChatState(messages: [], isLoading: false))
+          .remoteBrowser!;
+      remote
+        ..reconnectSucceeds = false
+        ..disconnectForTest();
+      await Future<void>.delayed(Duration.zero);
+
+      await watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.sendMessage,
+          payload: {
+            'source': 'remote',
+            'hostId': selected.hostId,
+            'sessionId': selected.sessionId,
+            'projectId': selected.projectId,
+            'conversationId': selected.conversationId,
+            'content': 'Must remain unsent',
+          },
+        ),
+      );
+
+      expect(remote.reconnectAttempts, 1);
+      expect(remote.sentMessages, isEmpty);
+      expect(bridgeOf().results.last.code, 'remote_reconnect_failed');
+    });
+
+    test('wake reconnect refuses a desktop that changed threads', () async {
+      final watch = await notifierOf();
+      final remote =
+          containerOf().read(remoteCodingClientProvider.notifier)
+              as _FakeRemoteCodingClient;
+      remote.offerWorkspace();
+      final initial = watch
+          .buildSnapshot(const ChatState(messages: [], isLoading: false))
+          .remoteBrowser!;
+      final selection = watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.selectRemoteConversation,
+          payload: {
+            'hostId': initial.hostId,
+            'sessionId': initial.sessionId,
+            'projectId': 'project-1',
+            'conversationId': 'remote-thread-1',
+          },
+        ),
+      );
+      remote.offerWorkspace(currentId: 'remote-thread-1', sequence: 2);
+      await selection;
+      final selected = watch
+          .buildSnapshot(const ChatState(messages: [], isLoading: false))
+          .remoteBrowser!;
+      remote
+        ..reconnectCurrentConversationId = null
+        ..disconnectForTest();
+      await Future<void>.delayed(Duration.zero);
+
+      await watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.sendMessage,
+          payload: {
+            'source': 'remote',
+            'hostId': selected.hostId,
+            'sessionId': selected.sessionId,
+            'projectId': selected.projectId,
+            'conversationId': selected.conversationId,
+            'content': 'Must not redirect',
+          },
+        ),
+      );
+
+      expect(remote.sentMessages, isEmpty);
+      expect(bridgeOf().results.last.code, 'destination_changed');
+      expect(
+        watch
+            .buildSnapshot(const ChatState(messages: [], isLoading: false))
+            .remoteBrowser!
+            .selectionStatus,
+        'none',
+      );
+    });
+
     test('another-device selection clears the remote transcript', () async {
       final watch = await notifierOf();
       final remote =
@@ -1602,6 +1782,9 @@ final class _FakeRemoteCodingClient extends RemoteCodingClientNotifier {
   sentMessages = [];
   final List<({String projectId, String conversationId})>
   cancelledDestinations = [];
+  int reconnectAttempts = 0;
+  bool reconnectSucceeds = true;
+  String? reconnectCurrentConversationId = 'remote-thread-1';
   RemoteCodingBoundCommandResult nextSendResult =
       const RemoteCodingBoundCommandResult(
         outcome: RemoteCodingBoundCommandOutcome.accepted,
@@ -1620,6 +1803,17 @@ final class _FakeRemoteCodingClient extends RemoteCodingClientNotifier {
   @override
   Future<void> selectConversation(String id) async {
     selectedConversations.add(id);
+  }
+
+  @override
+  Future<bool> reconnectSavedHostAndWait({
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    reconnectAttempts += 1;
+    if (!reconnectSucceeds) return false;
+    offerWorkspace(currentId: reconnectCurrentConversationId, sequence: 3);
+    await Future<void>.delayed(Duration.zero);
+    return true;
   }
 
   @override
@@ -1695,10 +1889,19 @@ final class _FakeRemoteCodingClient extends RemoteCodingClientNotifier {
       ],
       selectedProjectId: 'project-1',
       currentConversationId: currentId,
+      clearCurrentConversationId: currentId == null,
       snapshotSequence: sequence,
       messages: messages,
       isLoading: isLoading,
       queuedCount: queuedCount,
+    );
+  }
+
+  void disconnectForTest() {
+    state = state.copyWith(
+      status: RemoteCodingConnectionStatus.disconnected,
+      snapshotSequence: 0,
+      clearNextReconnectAt: true,
     );
   }
 

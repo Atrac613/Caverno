@@ -610,6 +610,9 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     WatchCommand command,
     String content,
   ) async {
+    if (await _recoverRemoteDestinationIfNeeded(command, action: 'message')) {
+      return;
+    }
     final validation = _remoteNavigation.validateSelectedDestination(command);
     if (!validation.ok) {
       await _bridge.sendCommandResult(validation);
@@ -632,6 +635,9 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
   Future<void> _handleCancelStreaming(WatchCommand command) async {
     final commandSource = command.payload['source'] as String? ?? 'local';
     if (commandSource == 'remote' || _remoteNavigation.source == 'remote') {
+      if (await _recoverRemoteDestinationIfNeeded(command, action: 'Stop')) {
+        return;
+      }
       final validation = _remoteNavigation.validateSelectedDestination(command);
       if (!validation.ok) {
         await _bridge.sendCommandResult(validation);
@@ -658,6 +664,70 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     }
     ref.read(chatNotifierProvider.notifier).cancelStreaming();
     await _succeed(command);
+  }
+
+  Future<bool> _recoverRemoteDestinationIfNeeded(
+    WatchCommand command, {
+    required String action,
+  }) async {
+    final remote = ref.read(remoteCodingClientProvider);
+    if (remote.isConnected) return false;
+    if (_remoteNavigation.source != 'remote' ||
+        command.payload['source'] != 'remote') {
+      return false;
+    }
+    final hostId = command.payload['hostId'] as String?;
+    final projectId = command.payload['projectId'] as String?;
+    final conversationId = command.payload['conversationId'] as String?;
+    if (hostId == null || hostId != remote.host?.id) {
+      await _fail(
+        command,
+        code: 'remote_changed',
+        message: 'The paired desktop changed. Open its projects again.',
+      );
+      return true;
+    }
+    if (projectId == null || conversationId == null) {
+      await _fail(
+        command,
+        code: 'destination_changed',
+        message: 'The remote thread changed. Open it again.',
+      );
+      return true;
+    }
+    final reconnected = await ref
+        .read(remoteCodingClientProvider.notifier)
+        .reconnectSavedHostAndWait();
+    if (!ref.mounted) return true;
+    if (!reconnected) {
+      await _fail(
+        command,
+        code: 'remote_reconnect_failed',
+        message: 'The iPhone could not reconnect to the desktop. Try again.',
+      );
+      await _pushSnapshot(ref.read(chatNotifierProvider));
+      return true;
+    }
+    final restored = _remoteNavigation.restoreConfirmedDestination(
+      projectId: projectId,
+      conversationId: conversationId,
+    );
+    await _pushSnapshot(ref.read(chatNotifierProvider));
+    if (restored) {
+      await _fail(
+        command,
+        code: 'remote_reconnected',
+        message: 'Reconnected to the desktop. Confirm and send $action again.',
+      );
+    } else {
+      await _fail(
+        command,
+        code: 'destination_changed',
+        message:
+            'The desktop thread changed while reconnecting. Open it again.',
+      );
+    }
+    return true;
   }
 
   Future<void> _sendBoundCommandResult(
