@@ -1,13 +1,38 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:caverno/core/services/media_host_listen_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 NetworkInterface _interface(String name, List<String> addresses) =>
-    _FakeInterface(
-      name,
-      addresses.map(InternetAddress.new).toList(),
-    );
+    _FakeInterface(name, addresses.map(_FakeInterfaceAddress.new).toList());
+
+class _FakeInterfaceAddress implements InterfaceAddress {
+  _FakeInterfaceAddress(String address) : _delegate = InternetAddress(address);
+
+  final InternetAddress _delegate;
+
+  @override
+  String get address => _delegate.address;
+  @override
+  InternetAddress? get broadcast => null;
+  @override
+  String get host => _delegate.host;
+  @override
+  bool get isLinkLocal => _delegate.isLinkLocal;
+  @override
+  bool get isLoopback => _delegate.isLoopback;
+  @override
+  bool get isMulticast => _delegate.isMulticast;
+  @override
+  int get prefixLength => 24;
+  @override
+  Uint8List get rawAddress => _delegate.rawAddress;
+  @override
+  InternetAddressType get type => _delegate.type;
+  @override
+  Future<InternetAddress> reverse() => _delegate.reverse();
+}
 
 class _FakeInterface implements NetworkInterface {
   _FakeInterface(this.name, this.addresses);
@@ -15,7 +40,7 @@ class _FakeInterface implements NetworkInterface {
   @override
   final String name;
   @override
-  final List<InternetAddress> addresses;
+  final List<InterfaceAddress> addresses;
   @override
   int get index => 0;
 }

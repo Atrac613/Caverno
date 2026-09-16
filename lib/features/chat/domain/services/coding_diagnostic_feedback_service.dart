@@ -434,7 +434,7 @@ class LanguageDiagnosticsBridgeFallbackProvider
             ) ??
             primarySnapshot;
       }
-      return _collectFallback(
+      return await _collectFallback(
         projectRoot: projectRoot,
         changedPaths: changedPaths,
         reason: 'primary_unavailable',

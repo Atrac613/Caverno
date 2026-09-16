@@ -199,7 +199,7 @@ class LocalShellTools {
           ];
 
     try {
-      return _executeWithProcessHandle(
+      return await _executeWithProcessHandle(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
         shellExecutable: shellExecutable,

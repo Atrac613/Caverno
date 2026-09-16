@@ -94,7 +94,7 @@ decision, and remediation map are recorded in
 
 ## Requirements
 
-- Flutter 3.44.8 (managed via [FVM](https://fvm.app/))
+- Flutter 3.47.4 (managed via [FVM](https://fvm.app/))
 - An OpenAI-compatible LLM server (defaults to `http://localhost:1234/v1`)
 - Python 3 on the host to repackage the embedded Python worker (contributors only)
 
@@ -102,7 +102,7 @@ decision, and remediation map are recorded in
 
 ```bash
 # Select the repository Flutter version
-fvm use 3.44.8
+fvm use 3.47.4
 
 # Install dependencies
 fvm flutter pub get

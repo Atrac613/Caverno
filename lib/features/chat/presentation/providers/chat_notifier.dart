@@ -2473,7 +2473,7 @@ class ChatNotifier extends Notifier<ChatState> {
           draftMessages,
         );
         if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
-          return _restoreQueuedMessageForRetry(
+          return await _restoreQueuedMessageForRetry(
             queuedMessage,
             effectiveOwner,
             fromQueue: fromQueue,
@@ -2517,7 +2517,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (startedRuntime == null) {
         _clearActiveResponseForGeneration(interactionGeneration);
         if (!_turnRuntimeOwnerLease.isConversationCurrent(effectiveOwner)) {
-          return _restoreQueuedMessageForRetry(
+          return await _restoreQueuedMessageForRetry(
             queuedMessage,
             effectiveOwner,
             fromQueue: fromQueue,
@@ -2535,7 +2535,7 @@ class ChatNotifier extends Notifier<ChatState> {
           message: 'The queued message owner changed before execution started.',
           exitCode: 130,
         );
-        return _restoreQueuedMessageForRetry(
+        return await _restoreQueuedMessageForRetry(
           queuedMessage,
           effectiveOwner,
           fromQueue: fromQueue,

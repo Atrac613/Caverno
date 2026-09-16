@@ -279,7 +279,7 @@ class ChatMediaDropTargetState extends State<ChatMediaDropTarget> {
         securityScopeStarted = await DesktopDrop.instance
             .startAccessingSecurityScopedResource(bookmark: bookmark);
       }
-      return item.readAsBytes();
+      return await item.readAsBytes();
     } finally {
       if (securityScopeStarted && bookmark != null) {
         await DesktopDrop.instance.stopAccessingSecurityScopedResource(

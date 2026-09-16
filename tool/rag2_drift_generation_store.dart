@@ -383,7 +383,7 @@ Future<Rag2StoredGeneration?> recoverAfterKilledUncommittedDriftWrite({
     projectId: projectId,
   );
   try {
-    return recovered.read(declarationIdentity);
+    return await recovered.read(declarationIdentity);
   } finally {
     recovered.close();
   }

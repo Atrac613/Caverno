@@ -143,13 +143,13 @@ final class BleConnectAttemptCoordinator {
           if (!ownerIsCurrent(owner)) {
             return connectionPredatedAttempt
                 ? const BleConnectAttemptOutcome.ownerExpired()
-                : _rollbackExpiredAttempt(
+                : await _rollbackExpiredAttempt(
                     attempt: attempt,
                     service: service,
                     onRollbackError: onRollbackError,
                   );
           }
-          return _recoverCurrentOwnerThrow(
+          return await _recoverCurrentOwnerThrow(
             attempt: attempt,
             service: service,
             connectionPredatedAttempt: connectionPredatedAttempt,
@@ -160,7 +160,7 @@ final class BleConnectAttemptCoordinator {
         if (!ownerIsCurrent(owner)) {
           return connectionPredatedAttempt
               ? const BleConnectAttemptOutcome.ownerExpired()
-              : _rollbackExpiredAttempt(
+              : await _rollbackExpiredAttempt(
                   attempt: attempt,
                   service: service,
                   onRollbackError: onRollbackError,

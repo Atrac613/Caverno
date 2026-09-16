@@ -112,13 +112,13 @@ class ConversationPlanProjectionService {
     // that names nothing can be recognised only once provenance exists.
     final workflowSpec = const DanglingPreconditionRepair().repair(
       const ConversationContractProvenanceService().attachApprovedPlanSource(
-          workflowSpec: ConversationWorkflowSpec(
-            goal: goal,
-            constraints: constraints,
-            acceptanceCriteria: acceptanceCriteria,
-            openQuestions: openQuestions,
-            tasks: tasks,
-          ),
+        workflowSpec: ConversationWorkflowSpec(
+          goal: goal,
+          constraints: constraints,
+          acceptanceCriteria: acceptanceCriteria,
+          openQuestions: openQuestions,
+          tasks: tasks,
+        ),
         sourceHash: sourceHash,
         marks: marks,
       ),
@@ -670,11 +670,12 @@ class _TaskParseResult {
   const _TaskParseResult({
     required this.tasks,
     this.anchoredTaskIndexes = const <int>{},
-    this.errorMessage,
-  });
+  }) : errorMessage = null;
 
   const _TaskParseResult.error(String message)
-    : this(tasks: const <ConversationWorkflowTask>[], errorMessage: message);
+    : tasks = const <ConversationWorkflowTask>[],
+      anchoredTaskIndexes = const <int>{},
+      errorMessage = message;
 
   final List<ConversationWorkflowTask> tasks;
   final Set<int> anchoredTaskIndexes;

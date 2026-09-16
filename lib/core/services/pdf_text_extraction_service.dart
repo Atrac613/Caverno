@@ -163,7 +163,7 @@ abstract final class PdfTextExtractionService {
       if (length > maxBytes) {
         return const PdfExtractionResult.failure(PdfExtractionError.tooLarge);
       }
-      return extractBytes(
+      return await extractBytes(
         await file.readAsBytes(),
         startPageIndex: startPageIndex,
         maxPages: maxPages,

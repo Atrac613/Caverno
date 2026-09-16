@@ -1230,12 +1230,12 @@ class _CodexFlowResult {
   const _CodexFlowResult({
     required this.success,
     required this.status,
-    this.error = '',
     this.publishTitle = '',
-  });
+  }) : error = '';
 
-  const _CodexFlowResult.failed({required String status, required String error})
-    : this(success: false, status: status, error: error);
+  const _CodexFlowResult.failed({required this.status, required this.error})
+    : success = false,
+      publishTitle = '';
 
   final bool success;
   final String status;
