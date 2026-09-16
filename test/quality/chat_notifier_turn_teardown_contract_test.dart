@@ -29,6 +29,10 @@ const Map<String, String> _ownerReleaseContract = {
   // unanswered work, so teardown hands it back to the queue.
   'turnSteering': '()=>_returnUncarriedTurnSteering(owner)',
   'turnEnd': '()=>_turnEnd.dispose(owner)',
+  // Retired rather than fired. The signal ends the `await for` streams that
+  // _turnStream cannot reach; leaving a completed one behind would abort the
+  // next turn on this thread before it read a chunk.
+  'turnAbortSignal': '()=>_turnAbortSignals.release(owner)',
   // The primary route is immutable for one owner and must not survive turn
   // terminalization or leak its endpoint/model into a later generation.
   'primaryModelRoute': '()=>_releasePrimaryTurnRoute(owner)',

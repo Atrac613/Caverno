@@ -2,6 +2,7 @@ import 'package:openai_dart/openai_dart.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/utils/logger.dart';
+import '../../application/runtime/turn_abort_signals.dart';
 import 'chat_completion_bounds.dart';
 import 'chat_completion_parameter_compat.dart';
 
@@ -83,19 +84,31 @@ final class ChatCompletionRequestFallback {
     }
   }
 
+  /// [abort] ends the request when the turn that issued it is stopped.
+  ///
+  /// Applied here, at the provider event stream, because cancelling *this*
+  /// subscription is what closes the connection. The idle bound above it
+  /// cannot serve the same purpose: it only fires on silence, and a server
+  /// happily streaming tokens into a turn nobody is reading is never silent.
+  /// Session c138c465 measured that gap at 36.7 minutes of discarded
+  /// generation after the user pressed stop.
   Stream<T> stream<T>({
     required String operation,
     required Stream<T> Function(bool includeReasoning) send,
+    Future<void>? abort,
   }) async* {
     var includeReasoning = _reasoningEffort != null;
     var rateLimitAttempt = 0;
     while (true) {
       var emittedEvent = false;
       try {
-        await for (final event in boundedCompletionStream(
+        final bounded = boundedCompletionStream(
           send(includeReasoning),
           operation,
-        )) {
+        );
+        await for (final event in abort == null
+            ? bounded
+            : endOnAbort(bounded, abort)) {
           emittedEvent = true;
           yield event;
         }

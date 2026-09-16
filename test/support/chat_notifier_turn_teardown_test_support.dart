@@ -13,6 +13,7 @@ const expectedTurnReleaseObligations = [
   'contentToolTurns',
   'turnSteering',
   'turnEnd',
+  'turnAbortSignal',
   'primaryModelRoute',
   'goalCompletionEvidence',
   // Moved out of the generation-keyed destructor, which reached them by

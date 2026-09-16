@@ -9,6 +9,7 @@ import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/security/llm_endpoint_transport_policy.dart';
 import '../../../../core/utils/logger.dart';
+import '../../application/runtime/turn_abort_signals.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/model_usage_sink.dart';
@@ -159,7 +160,8 @@ class ChatRemoteDataSource
   Stream<T> _streamWithReasoningFallback<T>({
     required String operation,
     required Stream<T> Function(bool includeReasoning) send,
-  }) => _requestFallback.stream(operation: operation, send: send);
+    Future<void>? abort,
+  }) => _requestFallback.stream(operation: operation, send: send, abort: abort);
 
   @visibleForTesting
   String formatToolLogSummaryForTest(List<Map<String, dynamic>> tools) {
@@ -216,8 +218,9 @@ class ChatRemoteDataSource
     final modelId = model ?? ApiConstants.defaultModel;
     final timer = Stopwatch();
     // Captured here, not at the terminal: the stream body below runs on first
-    // listen, by which point the caller's zone is gone.
+    // listen, by which point the caller's zone is gone. Same for the abort.
     final attribution = _telemetry.captureAttribution();
+    final abort = TurnAbortScope.current;
 
     Stream<String> contentStream() async* {
       timer.start();
@@ -240,6 +243,7 @@ class ChatRemoteDataSource
       try {
         final stream = _streamWithReasoningFallback(
           operation: 'streamChatCompletion',
+          abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
             ChatCompletionCreateRequest(
               model: modelId,
@@ -344,6 +348,7 @@ class ChatRemoteDataSource
     final completer = Completer<ChatCompletionResult>();
     final timer = Stopwatch();
     final attribution = _telemetry.captureAttribution();
+    final abort = TurnAbortScope.current;
 
     // Single-subscription stream that yields content/reasoning in real-time.
     // When the stream ends, the completer resolves with accumulated tool calls.
@@ -359,6 +364,7 @@ class ChatRemoteDataSource
         );
         final stream = _streamWithReasoningFallback(
           operation: 'streamChatCompletionWithTools',
+          abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
             ChatCompletionCreateRequest(
               model: modelId,
@@ -825,6 +831,7 @@ class ChatRemoteDataSource
     final completer = Completer<ChatCompletionResult>();
     final timer = Stopwatch();
     final attribution = _telemetry.captureAttribution();
+    final abort = TurnAbortScope.current;
 
     appLog('[LLM] ===== streamChatCompletionWithToolResults =====');
     appLog('[LLM] model: $modelId, toolResults: ${toolResults.length}');
@@ -847,6 +854,7 @@ class ChatRemoteDataSource
 
         final stream = _streamWithReasoningFallback(
           operation: 'streamChatCompletionWithToolResults',
+          abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
             ChatCompletionCreateRequest(
               model: modelId,

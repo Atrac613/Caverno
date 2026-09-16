@@ -57,8 +57,11 @@ const Map<String, int> _lineBudgets = {
   // -20: the memory-update display tag and named-skill lookup are string
   // work with no notifier state.
   // +2 for the per-turn prompt clock: one import and one field. The logic is
-  // in TurnPromptClock, and the library ceiling below still has room.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8683,
+  // in TurnPromptClock.
+  // +11 for the turn abort signal: an import, a field, a release registration,
+  // and the signal handed to the zone the request sites already run in. The
+  // logic is in TurnAbortSignals.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8694,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
@@ -759,7 +762,16 @@ const Map<String, int> _lineBudgets = {
   // tool-result ones, and the response/tool-result previews into three
   // log sites. One assembler, one formatter method, and two logger
   // methods now own them.
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1121,
+  // +8 to carry a turn's abort signal to the request it issues. The signal has
+  // to be read synchronously, beside the telemetry attribution and for the same
+  // reason -- contentStream() runs on first listen, outside the turn's zone --
+  // so each of the three streaming entry points pays for its own capture and
+  // hands it to the fallback. Wrapping the stream the turn reads instead was
+  // tried and reverted: it moved the first chunk one hop earlier and left a
+  // cancelled turn's raw <tool_call> bubble in the transcript. Nothing was
+  // extractable; the alternative is a stopped turn whose request keeps
+  // generating, measured at 36.7 minutes in session c138c465.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1129,
   'lib/features/chat/data/datasources/chat_datasource_client_factory.dart': 37,
   // -23: embedded tool-call recovery moved to
   // chat_completion_embedded_tool_call_parser.dart, which owns both the tagged
@@ -1070,7 +1082,13 @@ const Map<String, int> _libraryLineBudgets = {
   // target files the launch carries for the audit. It reads the
   // registry the acceptance audit already reads, so the lookup is here rather
   // than in the payload shapes beside it.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19885,
+  // +15 for the turn abort signal, which is how the stop button reaches a
+  // request the `await for` paths hold no subscription for. The logic is in
+  // TurnAbortSignals; what is left across this library is a field, a release
+  // registration, the owner-scoped abort in cancellation, and the zone the
+  // request sites already run in. The pinned prompt clock that shipped before
+  // it needed no aggregate room.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19900,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

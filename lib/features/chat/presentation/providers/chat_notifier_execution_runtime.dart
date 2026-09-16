@@ -194,6 +194,9 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       // still unanswered, so it goes back to the queue the turn took it from.
       ..register('turnSteering', () => _returnUncarriedTurnSteering(owner))
       ..register('turnEnd', () => _turnEnd.dispose(owner))
+      // Retired, not fired: a completed signal left behind would abort the
+      // next turn on this thread before it read a chunk.
+      ..register('turnAbortSignal', () => _turnAbortSignals.release(owner))
       ..register('primaryModelRoute', () => _releasePrimaryTurnRoute(owner))
       ..register(
         'goalCompletionEvidence',

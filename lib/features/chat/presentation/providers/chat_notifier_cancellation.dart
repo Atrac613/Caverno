@@ -15,6 +15,10 @@ extension ChatNotifierCancellation on ChatNotifier {
     final cancelledOwner = _turnOwnerForGeneration(cancelledGeneration);
     _turnStream.cancelAll();
     if (cancelledOwner != null) {
+      // Reaches the request itself, which _turnStream cannot: session
+      // c138c465's generation 10 kept generating for 36.7 minutes after the
+      // user stopped it. Owner-scoped, so another thread's turn survives.
+      _turnAbortSignals.abort(cancelledOwner);
       _dismissPendingAskUserQuestionForConversation(
         cancelledOwner.conversationId,
       );

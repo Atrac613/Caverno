@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:caverno/features/chat/data/datasources/chat_completion_request_fallback.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openai_dart/openai_dart.dart';
@@ -146,6 +148,83 @@ void main() {
       );
       expect(attempts, 1);
       expect(delays, isEmpty);
+    });
+  });
+
+  group('ChatCompletionRequestFallback abort', () {
+    late ChatCompletionRequestFallback fallback;
+
+    setUp(() {
+      fallback = ChatCompletionRequestFallback(
+        null,
+        delay: (_) async {},
+      );
+    });
+
+    test('ends a request the turn stopped, and closes the provider stream', () async {
+      // Session c138c465's generation 10: the user pressed stop at 12:17:11 and
+      // the request went on generating until 12:49:31, because nothing outside
+      // the loop could reach it. The idle bound cannot: this source never goes
+      // quiet enough to trip it.
+      final abort = Completer<void>();
+      final provider = StreamController<String>();
+      var providerCancelled = false;
+      provider.onCancel = () => providerCancelled = true;
+
+      final received = <String>[];
+      final drained = fallback
+          .stream<String>(
+            operation: 'test',
+            send: (_) => provider.stream,
+            abort: abort.future,
+          )
+          .forEach(received.add);
+
+      provider.add('first token');
+      await pumpEventQueue();
+      abort.complete();
+      await drained;
+
+      expect(received, ['first token']);
+      expect(
+        providerCancelled,
+        isTrue,
+        reason: 'the cancel is what closes the HTTP connection',
+      );
+      await provider.close();
+    });
+
+    test('a silent request still ends on abort', () async {
+      final abort = Completer<void>();
+      final provider = StreamController<String>();
+      var providerCancelled = false;
+      provider.onCancel = () => providerCancelled = true;
+
+      final drained = fallback
+          .stream<String>(
+            operation: 'test',
+            send: (_) => provider.stream,
+            abort: abort.future,
+          )
+          .drain<void>();
+
+      await pumpEventQueue();
+      abort.complete();
+      await drained;
+
+      expect(providerCancelled, isTrue);
+      await provider.close();
+    });
+
+    test('without an abort the stream behaves exactly as before', () async {
+      final events = await fallback
+          .stream<String>(
+            operation: 'test',
+            send: (_) => Stream<String>.fromIterable(['a', 'b']),
+          )
+          .toList();
+
+      expect(events, ['a', 'b']);
     });
   });
 }

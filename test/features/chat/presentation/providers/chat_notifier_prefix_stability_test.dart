@@ -5,6 +5,7 @@ import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/application/runtime/turn_abort_signals.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -27,6 +28,56 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
 
 void main() {
+  test('every request in a turn is issued under one abort signal', () async {
+    // The tool-aware paths read their stream with `await for` and register no
+    // subscription, so the stop button can only reach the request through this
+    // zone. Session c138c465's generation 10 was cancelled at 12:17:11 and its
+    // request kept generating until 12:49:31 because nothing carried it.
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_alpha',
+          arguments: const {'path': 'alpha.txt'},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'read_alpha': 'alpha result'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _buildContainer(
+      settings: _ToolEnabledSettingsNotifier.new,
+      toolDataSource: toolDataSource,
+      toolService: toolService,
+      appLifecycleService: appLifecycleService,
+    );
+
+    try {
+      await container.read(chatNotifierProvider.notifier).sendMessage(
+        'Inspect alpha',
+      );
+
+      expect(toolDataSource.abortSignalsSeen, hasLength(greaterThan(1)));
+      expect(
+        toolDataSource.abortSignalsSeen,
+        everyElement(isNotNull),
+        reason:
+            'read where the datasource reads it -- synchronously, while the '
+            'request is built. A response stream is listened to later and runs '
+            'outside this zone.',
+      );
+      expect(
+        toolDataSource.abortSignalsSeen.toSet(),
+        hasLength(1),
+        reason: 'one signal for the turn, so stopping it ends every request',
+      );
+    } finally {
+      container.dispose();
+    }
+  });
+
   test('the system prompt stays byte-identical across a tool loop', () async {
     // The turn's clock is pinned for exactly this reason: a per-request minute
     // reading changed one line inside an otherwise stable ~20k-token prefix,
@@ -416,6 +467,10 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   final List<List<Map<String, dynamic>>> initialToolDefinitionBatches = [];
   final List<List<Map<String, dynamic>>> followUpToolDefinitionBatches = [];
 
+  /// What the real datasource sees when it builds a request: the turn's abort
+  /// signal, read synchronously from the zone.
+  final List<Future<void>?> abortSignalsSeen = [];
+
   @override
   StreamedChatCompletion streamChatCompletion({
     required List<Message> messages,
@@ -454,6 +509,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    abortSignalsSeen.add(TurnAbortScope.current);
     initialRequestMessages.add(List<Message>.from(messages));
     initialToolDefinitionBatches.add(List<Map<String, dynamic>>.from(tools));
     return StreamWithToolsResult(
@@ -509,6 +565,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    abortSignalsSeen.add(TurnAbortScope.current);
     toolResultRequestMessages.add(List<Message>.from(messages));
     followUpToolDefinitionBatches.add(
       List<Map<String, dynamic>>.from(tools ?? const []),

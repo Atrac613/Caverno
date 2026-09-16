@@ -37,6 +37,7 @@ import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
 import '../../application/runtime/tool_outcome_shadow_observer.dart';
+import '../../application/runtime/turn_abort_signals.dart';
 import '../../application/runtime/turn_prompt_clock.dart';
 import '../../application/runtime/turn_release_scope.dart';
 import '../../application/runtime/turn_runtime.dart';
@@ -545,6 +546,7 @@ class ChatNotifier extends Notifier<ChatState> {
     ref.onDispose(() {
       _turnRuntimeOwnerLease.retire();
       _turnStream.cancelAll();
+      _turnAbortSignals.abortAll();
       _cancelAllPendingToolApprovals();
       _failAllRuntimeTurns(
         code: 'notifier_disposed',
@@ -706,7 +708,14 @@ class ChatNotifier extends Notifier<ChatState> {
           _llmSessionLogContextForGeneration(
             generation,
           ).withRequestLabel(requestLabel),
-          body,
+          // Every request a turn issues passes through here, so this is where
+          // its abort signal reaches the datasource.
+          () => TurnAbortScope.runWith(
+            _turnAbortSignals.signalForOrNull(
+              _turnOwnerForGeneration(generation),
+            ),
+            body,
+          ),
         ),
       );
 
@@ -1973,6 +1982,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   final _uuid = const Uuid();
   final _turnStream = TurnStreamBindingRegistry();
+  final _turnAbortSignals = TurnAbortSignals();
   final _turnPromptClock = TurnPromptClock();
 
   final _queuedChatMessages = ThreadScopedMessageQueue();
@@ -8658,6 +8668,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     _beginInteractionGeneration();
     _turnStream.cancelAll();
+    _turnAbortSignals.abortAll();
     _failAllRuntimeTurns(
       code: 'messages_cleared',
       message: 'The conversation was cleared before the turn completed.',
