@@ -22,6 +22,7 @@ import '../../remote_coding/presentation/remote_coding_client_notifier.dart';
 import '../domain/watch_approval_mapper.dart';
 import '../domain/watch_command.dart';
 import '../domain/watch_snapshot.dart';
+import '../domain/watch_transcript_projector.dart';
 import 'watch_remote_navigation.dart';
 
 final watchBridgeServiceProvider = Provider<WatchBridgeService>((ref) {
@@ -71,6 +72,8 @@ class WatchSessionState {
 /// treated as part of this device rather than as a paired remote principal.
 class WatchSessionNotifier extends Notifier<WatchSessionState> {
   static const WatchApprovalMapper _approvals = WatchApprovalMapper();
+  static const WatchTranscriptProjector _transcripts =
+      WatchTranscriptProjector();
 
   late final WatchBridgeService _bridge;
   late final WatchRemoteNavigation _remoteNavigation;
@@ -237,6 +240,15 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     final question = _currentQuestion(chatState);
     final browser = _remoteNavigation.snapshot();
     if (_remoteNavigation.source == 'remote') {
+      final remote = ref.read(remoteCodingClientProvider);
+      final confirmed =
+          browser.selectionStatus == 'selected' &&
+          remote.isConnected &&
+          remote.selectedProjectId == browser.projectId &&
+          remote.currentConversationId == browser.conversationId;
+      final transcript = _transcripts.project(
+        confirmed ? remote.messages : const <Message>[],
+      );
       return WatchSnapshot(
         sequence: _sequence,
         generatedAt: DateTime.now().toUtc(),
@@ -244,26 +256,31 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
         sourceStartedAtMicros: _sourceStartedAtMicros,
         transcriptSource: 'remote',
         remoteBrowser: browser,
-        // Until the compact transcript slice lands, show only a confirmed
-        // destination. Never reuse the phone's local text or input controls.
-        conversationId: browser.selectionStatus == 'selected'
-            ? browser.conversationId
-            : null,
-        conversationTitle: browser.selectionStatus == 'selected'
-            ? browser.conversationTitle
-            : '',
+        conversationId: confirmed ? browser.conversationId : null,
+        conversationTitle: confirmed ? browser.conversationTitle : '',
         workspaceMode: 'coding',
+        lastAssistantText: transcript.lastAssistantText,
+        messages: transcript.messages,
+        messagesTruncated: transcript.messagesTruncated,
         approval: approval,
         question: question,
         status: approval != null
             ? WatchTurnStatus.waitingApproval
             : question != null
             ? WatchTurnStatus.waitingQuestion
+            : confirmed && remote.isLoading
+            ? WatchTurnStatus.streaming
+            : confirmed && remote.error?.isNotEmpty == true
+            ? WatchTurnStatus.error
             : WatchTurnStatus.idle,
+        queuedCount: confirmed ? remote.queuedCount : 0,
+        busyThreadCount: confirmed && remote.isLoading ? 1 : 0,
+        error: confirmed ? remote.error : null,
       );
     }
     final goal = _goalFor(current);
     final startedAt = _turnStartedAt;
+    final transcript = _transcripts.project(chatState.messages);
 
     return WatchSnapshot(
       sequence: _sequence,
@@ -280,11 +297,9 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
         question: question,
         goal: current?.goal,
       ),
-      lastAssistantText: _lastAssistantText(chatState.messages),
-      messages: _transcript(chatState.messages),
-      messagesTruncated:
-          _visibleMessages(chatState.messages).length >
-          watchSnapshotMaxMessages,
+      lastAssistantText: transcript.lastAssistantText,
+      messages: transcript.messages,
+      messagesTruncated: transcript.messagesTruncated,
       approval: approval,
       question: question,
       elapsedSeconds: startedAt == null
@@ -437,78 +452,6 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
     return WatchTurnStatus.idle;
   }
 
-  /// The prose of the most recent assistant message.
-  ///
-  /// Parsed, not raw. `Message.content` still carries `<think>` and
-  /// `<tool_use>` blocks — the phone strips them at render time via
-  /// [ContentParser], and projecting the raw field put a session-memory
-  /// `<tool_use>{...}</tool_use>` envelope on the watch, which the speaker
-  /// would then have read aloud. `ParseResult.text` is documented as a pure
-  /// concatenation of the text segments, which is also what
-  /// [_pushStreamDelta] needs to diff successive frames safely.
-  String _lastAssistantText(List<Message> messages) {
-    for (final message in messages.reversed) {
-      if (message.role != MessageRole.assistant) continue;
-      final content = ContentParser.parse(message.content).text.trim();
-      if (content.isNotEmpty) return content;
-    }
-    return '';
-  }
-
-  /// The tail of the thread as bubbles, oldest first.
-  ///
-  /// Capped at the source rather than only in the wire model so the projection
-  /// never builds a list it is about to discard.
-  List<WatchMessage> _transcript(List<Message> messages) {
-    final visible = _visibleMessages(messages);
-    final kept = visible.length <= watchSnapshotMaxMessages
-        ? visible
-        : visible.sublist(visible.length - watchSnapshotMaxMessages);
-    return kept
-        .map(
-          (message) => WatchMessage(
-            id: message.id,
-            role: message.role == MessageRole.user
-                ? WatchMessageRole.user
-                : WatchMessageRole.assistant,
-            text: _bubbleText(message),
-            timestamp: message.timestamp,
-            isStreaming: message.isStreaming,
-          ),
-        )
-        .toList(growable: false);
-  }
-
-  /// The messages that belong in a transcript a person reads.
-  ///
-  /// Two exclusions, both guards rather than mirrors of the phone's list.
-  /// A system message is not part of the conversation. A synthesized prompt
-  /// carries `MessageRole.user` because that is the only role a model acts on,
-  /// but it is the tool-result envelope, not the person's turn — today those
-  /// are built for the request payload and never reach `ChatState.messages`,
-  /// and if one ever did, the watch would draw a `<tool_use>` blob in the
-  /// user's own voice and read it aloud.
-  ///
-  /// An empty message is dropped unless it is the answer being written, which
-  /// is what tells the watch to show a typing bubble.
-  List<Message> _visibleMessages(List<Message> messages) => messages
-      .where(
-        (message) =>
-            message.role != MessageRole.system &&
-            !message.isSynthesizedPrompt &&
-            (message.isStreaming || _bubbleText(message).isNotEmpty),
-      )
-      .toList(growable: false);
-
-  /// Parsed for the assistant, verbatim for the person.
-  ///
-  /// Assistant content still carries `<think>` and `<tool_use>` blocks; see
-  /// [_lastAssistantText] for why projecting the raw field is wrong. A user
-  /// message has no such envelope and is shown as typed.
-  String _bubbleText(Message message) => message.role == MessageRole.assistant
-      ? ContentParser.parse(message.content).text.trim()
-      : message.content.trim();
-
   Future<void> _pushSnapshot(ChatState chatState) async {
     if (!await _ensureAvailable()) return;
     final snapshot = buildSnapshot(chatState);
@@ -561,11 +504,9 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       return;
     }
 
-    // Voice sending and Stop will gain remote destination checks in slice 3.
-    // An older or delayed command must not act on local chat from this screen.
+    // Goal and local thread controls never cross into Remote Coding. Send and
+    // Stop have their own destination-bound paths below.
     if ({
-          WatchCommand.sendMessage,
-          WatchCommand.cancelStreaming,
           WatchCommand.resolveGoal,
           WatchCommand.selectConversation,
         }.contains(command.type) &&
@@ -587,8 +528,7 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
       case WatchCommand.resolveQuestion:
         await _handleResolveQuestion(command);
       case WatchCommand.cancelStreaming:
-        ref.read(chatNotifierProvider.notifier).cancelStreaming();
-        await _succeed(command);
+        await _handleCancelStreaming(command);
       case WatchCommand.requestSnapshot:
         await _pushSnapshot(ref.read(chatNotifierProvider));
         await _succeed(command);
@@ -613,6 +553,19 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
         command,
         code: 'empty_message',
         message: 'Message content is required.',
+      );
+      return;
+    }
+    final commandSource = command.payload['source'] as String? ?? 'local';
+    if (commandSource == 'remote' || _remoteNavigation.source == 'remote') {
+      await _handleRemoteSendMessage(command, content);
+      return;
+    }
+    if (commandSource != 'local') {
+      await _fail(
+        command,
+        code: 'invalid_source',
+        message: 'The conversation source is invalid.',
       );
       return;
     }
@@ -651,6 +604,101 @@ class WatchSessionNotifier extends Notifier<WatchSessionState> {
           ),
     );
     await _succeed(command);
+  }
+
+  Future<void> _handleRemoteSendMessage(
+    WatchCommand command,
+    String content,
+  ) async {
+    final validation = _remoteNavigation.validateSelectedDestination(command);
+    if (!validation.ok) {
+      await _bridge.sendCommandResult(validation);
+      return;
+    }
+    final result = await ref
+        .read(remoteCodingClientProvider.notifier)
+        .sendMessageToConversation(
+          projectId: command.payload['projectId'] as String,
+          conversationId: command.payload['conversationId'] as String,
+          content: content,
+          languageCode: (command.payload['languageCode'] as String?) ?? 'en',
+          isVoiceMode: command.payload['isVoiceMode'] == true,
+        );
+    if (!ref.mounted) return;
+    await _sendBoundCommandResult(command, result, action: 'Message');
+    await _pushSnapshot(ref.read(chatNotifierProvider));
+  }
+
+  Future<void> _handleCancelStreaming(WatchCommand command) async {
+    final commandSource = command.payload['source'] as String? ?? 'local';
+    if (commandSource == 'remote' || _remoteNavigation.source == 'remote') {
+      final validation = _remoteNavigation.validateSelectedDestination(command);
+      if (!validation.ok) {
+        await _bridge.sendCommandResult(validation);
+        return;
+      }
+      final result = await ref
+          .read(remoteCodingClientProvider.notifier)
+          .cancelConversationStreaming(
+            projectId: command.payload['projectId'] as String,
+            conversationId: command.payload['conversationId'] as String,
+          );
+      if (!ref.mounted) return;
+      await _sendBoundCommandResult(command, result, action: 'Stop');
+      await _pushSnapshot(ref.read(chatNotifierProvider));
+      return;
+    }
+    if (commandSource != 'local') {
+      await _fail(
+        command,
+        code: 'invalid_source',
+        message: 'The conversation source is invalid.',
+      );
+      return;
+    }
+    ref.read(chatNotifierProvider.notifier).cancelStreaming();
+    await _succeed(command);
+  }
+
+  Future<void> _sendBoundCommandResult(
+    WatchCommand command,
+    RemoteCodingBoundCommandResult result, {
+    required String action,
+  }) {
+    return switch (result.outcome) {
+      RemoteCodingBoundCommandOutcome.accepted => _bridge.sendCommandResult(
+        WatchCommandResult.success(
+          id: command.id,
+          code: 'accepted',
+          message: '$action accepted by the desktop.',
+        ),
+      ),
+      RemoteCodingBoundCommandOutcome.queued => _bridge.sendCommandResult(
+        WatchCommandResult.success(
+          id: command.id,
+          code: 'queued',
+          message: '$action queued on the desktop.',
+        ),
+      ),
+      RemoteCodingBoundCommandOutcome.refused => _bridge.sendCommandResult(
+        WatchCommandResult.failure(
+          id: command.id,
+          code: result.code.isEmpty ? 'remote_refused' : result.code,
+          message: result.message.isEmpty
+              ? 'The desktop refused the command.'
+              : result.message,
+        ),
+      ),
+      RemoteCodingBoundCommandOutcome.unknown => _bridge.sendCommandResult(
+        WatchCommandResult.failure(
+          id: command.id,
+          code: result.code.isEmpty ? 'delivery_unknown' : result.code,
+          message: result.message.isEmpty
+              ? 'Delivery is unknown. Check the desktop before retrying.'
+              : '${result.message} Check the desktop before retrying.',
+        ),
+      ),
+    };
   }
 
   /// Answers a goal awaiting confirmation from the wrist.

@@ -107,6 +107,7 @@ void main() {
 
         await notifier.applySnapshotForTest({
           'snapshotSequence': 7,
+          'capabilities': const {'destinationBoundCommands': true},
           'snapshotGeneratedAt': DateTime(
             2026,
             5,
@@ -175,8 +176,23 @@ void main() {
         expect(state.isLoading, isTrue);
         expect(state.queuedCount, 2);
         expect(state.pendingApproval?.id, 'approval-1');
+        expect(state.supportsDestinationBoundCommands, isTrue);
       },
     );
+
+    test('reports a bound command as unknown while disconnected', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      final result = await notifier.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Do not redirect this message',
+      );
+
+      expect(result.outcome, RemoteCodingBoundCommandOutcome.unknown);
+      expect(result.code, 'disconnected');
+      expect(result.acknowledged, isFalse);
+    });
 
     test('restores and clears pending ask_user_question state', () async {
       final notifier = container.read(remoteCodingClientProvider.notifier);

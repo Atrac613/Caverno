@@ -122,6 +122,7 @@ void main(List<String> args) {
           conversationId: 'thread-9',
           conversationTitle: 'Watch browsing',
           selectionStatus: 'selected',
+          supportsInput: true,
         ),
       ).toJson(),
       // The reverse direction: every command the watch can send has to be one

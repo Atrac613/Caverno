@@ -298,11 +298,17 @@ struct WatchRemoteBrowser: Decodable, Equatable {
   let conversationId: String?
   let conversationTitle: String
   let selectionStatus: String
+  let supportsInput: Bool?
 
   var isConnected: Bool { connectionStatus == "connected" }
+  var canInput: Bool {
+    supportsInput == true && isConnected && selectionStatus == "selected"
+      && projectId != nil && conversationId != nil
+  }
   var destination: [String: Any] {
     var payload: [String: Any] = ["hostId": hostId, "sessionId": sessionId]
     if let projectId { payload["projectId"] = projectId }
+    if let conversationId { payload["conversationId"] = conversationId }
     return payload
   }
 }
@@ -335,6 +341,7 @@ struct WatchSnapshot: Decodable, Equatable {
   let remoteBrowser: WatchRemoteBrowser?
 
   var isLocal: Bool { transcriptSource == "local" }
+  var canCompose: Bool { isLocal || remoteBrowser?.canInput == true }
   var transcriptIdentity: String {
     let session = isLocal ? "" : remoteBrowser?.sessionId ?? ""
     return "\(transcriptSource):\(session):\(conversationId ?? "")"

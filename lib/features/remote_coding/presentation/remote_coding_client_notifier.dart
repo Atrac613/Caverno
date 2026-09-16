@@ -29,6 +29,26 @@ final remoteCodingClientProvider =
       RemoteCodingClientNotifier.new,
     );
 
+enum RemoteCodingBoundCommandOutcome { accepted, queued, refused, unknown }
+
+class RemoteCodingBoundCommandResult {
+  const RemoteCodingBoundCommandResult({
+    required this.outcome,
+    required this.requestId,
+    required this.code,
+    required this.message,
+  });
+
+  final RemoteCodingBoundCommandOutcome outcome;
+  final String requestId;
+  final String code;
+  final String message;
+
+  bool get acknowledged =>
+      outcome == RemoteCodingBoundCommandOutcome.accepted ||
+      outcome == RemoteCodingBoundCommandOutcome.queued;
+}
+
 class RemoteCodingClientState {
   const RemoteCodingClientState({
     this.status = RemoteCodingConnectionStatus.disconnected,
@@ -51,6 +71,7 @@ class RemoteCodingClientState {
     this.pendingCommandCount = 0,
     this.lastTerminalNotification,
     this.supportsNotificationRelaySetup = false,
+    this.supportsDestinationBoundCommands = false,
     this.notificationRelayHandle,
   });
 
@@ -75,6 +96,7 @@ class RemoteCodingClientState {
   final RemoteCodingNotificationPayload? lastTerminalNotification;
 
   final bool supportsNotificationRelaySetup;
+  final bool supportsDestinationBoundCommands;
   final String? notificationRelayHandle;
 
   bool get isConnected => status == RemoteCodingConnectionStatus.connected;
@@ -101,6 +123,7 @@ class RemoteCodingClientState {
     int? pendingCommandCount,
     RemoteCodingNotificationPayload? lastTerminalNotification,
     bool? supportsNotificationRelaySetup,
+    bool? supportsDestinationBoundCommands,
     String? notificationRelayHandle,
     bool clearNotificationRelayHandle = false,
     bool clearError = false,
@@ -115,6 +138,9 @@ class RemoteCodingClientState {
     return RemoteCodingClientState(
       supportsNotificationRelaySetup:
           supportsNotificationRelaySetup ?? this.supportsNotificationRelaySetup,
+      supportsDestinationBoundCommands:
+          supportsDestinationBoundCommands ??
+          this.supportsDestinationBoundCommands,
       notificationRelayHandle: clearNotificationRelayHandle
           ? null
           : notificationRelayHandle ?? this.notificationRelayHandle,
@@ -174,6 +200,8 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   bool _manualDisconnectRequested = false;
   Completer<RemoteCodingSessionChallenge>? _pendingAuthChallenge;
   final _relayReplies = <String, Completer<RemoteCodingProtocolMessage>>{};
+  final _boundCommandReplies =
+      <String, Completer<RemoteCodingProtocolMessage>>{};
 
   @override
   RemoteCodingClientState build() {
@@ -546,6 +574,35 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     return _sendCommand('cancelStreaming', const <String, dynamic>{});
   }
 
+  Future<RemoteCodingBoundCommandResult> sendMessageToConversation({
+    required String projectId,
+    required String conversationId,
+    required String content,
+    String languageCode = 'en',
+    bool isVoiceMode = false,
+  }) {
+    return _requestBoundCommand(
+      RemoteCodingProtocol.sendMessageToConversation,
+      {
+        'projectId': projectId,
+        'conversationId': conversationId,
+        'content': content,
+        'languageCode': languageCode,
+        'isVoiceMode': isVoiceMode,
+      },
+    );
+  }
+
+  Future<RemoteCodingBoundCommandResult> cancelConversationStreaming({
+    required String projectId,
+    required String conversationId,
+  }) {
+    return _requestBoundCommand(
+      RemoteCodingProtocol.cancelConversationStreaming,
+      {'projectId': projectId, 'conversationId': conversationId},
+    );
+  }
+
   Future<void> resolveApproval({
     required String approvalId,
     required bool approved,
@@ -714,13 +771,31 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
           await _applySnapshot(message.payload);
         case 'runTerminal':
           _handleRunTerminal(message.payload);
+        case RemoteCodingProtocol.commandResult:
+          break;
         case 'error':
-          await _handleRemoteError(message.payload);
+          if (_boundCommandReplies.containsKey(message.id) &&
+              message.payload['code'] != 'unauthorized' &&
+              !RemoteCodingErrorPolicy.endsTheSession(
+                (message.payload['code'] as String?)?.trim() ?? '',
+              )) {
+            state = state.copyWith(
+              error:
+                  (message.payload['message'] as String?) ??
+                  'Remote coding command was refused.',
+            );
+          } else {
+            await _handleRemoteError(message.payload);
+          }
         case 'disconnected':
           await _handleRemoteDisconnect(message.payload);
       }
       final reply = _relayReplies[message.id];
       if (reply != null && !reply.isCompleted) reply.complete(message);
+      final boundReply = _boundCommandReplies[message.id];
+      if (boundReply != null && !boundReply.isCompleted) {
+        boundReply.complete(message);
+      }
     } catch (error) {
       if (!ref.mounted) {
         return;
@@ -909,6 +984,10 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
             (payload['capabilities']
                 as Map<String, dynamic>?)?['notificationRelaySetup'] ==
             true,
+        supportsDestinationBoundCommands:
+            (payload['capabilities']
+                as Map<String, dynamic>?)?['destinationBoundCommands'] ==
+            true,
         notificationRelayHandle: payload['notificationRelayHandle'] as String?,
         clearNotificationRelayHandle:
             payload['notificationRelayHandle'] == null,
@@ -978,6 +1057,104 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     socket.add(
       RemoteCodingProtocol.encode(type: type, id: id, payload: payload),
     );
+  }
+
+  Future<RemoteCodingBoundCommandResult> _requestBoundCommand(
+    String type,
+    Map<String, dynamic> payload,
+  ) async {
+    final socket = _socket;
+    final host = state.host;
+    final id = _uuid.v4();
+    if (socket == null || host == null || !state.isConnected) {
+      return RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.unknown,
+        requestId: id,
+        code: 'disconnected',
+        message: 'The desktop connection is unavailable.',
+      );
+    }
+    if (!state.supportsDestinationBoundCommands) {
+      return RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.refused,
+        requestId: id,
+        code: 'unsupported_peer',
+        message: 'The desktop does not support destination-bound commands.',
+      );
+    }
+
+    final completer = Completer<RemoteCodingProtocolMessage>();
+    _boundCommandReplies[id] = completer;
+    _trackPendingCommand(id, type);
+    try {
+      socket.add(
+        RemoteCodingProtocol.encode(type: type, id: id, payload: payload),
+      );
+      final response = await completer.future.timeout(_commandTimeout);
+      if (_socket != socket ||
+          state.host?.id != host.id ||
+          !state.isConnected) {
+        return RemoteCodingBoundCommandResult(
+          outcome: RemoteCodingBoundCommandOutcome.unknown,
+          requestId: id,
+          code: 'connection_changed',
+          message: 'The desktop connection changed before acknowledgement.',
+        );
+      }
+      if (response.type == 'error') {
+        return RemoteCodingBoundCommandResult(
+          outcome: RemoteCodingBoundCommandOutcome.refused,
+          requestId: id,
+          code: (response.payload['code'] as String?)?.trim() ?? 'refused',
+          message:
+              (response.payload['message'] as String?)?.trim() ??
+              'The desktop refused the command.',
+        );
+      }
+      if (response.type != RemoteCodingProtocol.commandResult ||
+          response.payload['command'] != type ||
+          response.payload['projectId'] != payload['projectId'] ||
+          response.payload['conversationId'] != payload['conversationId']) {
+        return RemoteCodingBoundCommandResult(
+          outcome: RemoteCodingBoundCommandOutcome.unknown,
+          requestId: id,
+          code: 'invalid_acknowledgement',
+          message: 'The desktop acknowledged a different destination.',
+        );
+      }
+      final outcome = switch (response.payload['outcome']) {
+        'accepted' => RemoteCodingBoundCommandOutcome.accepted,
+        'queued' => RemoteCodingBoundCommandOutcome.queued,
+        _ => RemoteCodingBoundCommandOutcome.unknown,
+      };
+      return RemoteCodingBoundCommandResult(
+        outcome: outcome,
+        requestId: id,
+        code: outcome == RemoteCodingBoundCommandOutcome.unknown
+            ? 'invalid_acknowledgement'
+            : '',
+        message: outcome == RemoteCodingBoundCommandOutcome.unknown
+            ? 'The desktop returned an invalid acknowledgement.'
+            : '',
+      );
+    } on TimeoutException {
+      return RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.unknown,
+        requestId: id,
+        code: 'timeout',
+        message: 'The desktop did not acknowledge the command.',
+      );
+    } catch (_) {
+      return RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.unknown,
+        requestId: id,
+        code: 'connection_lost',
+        message: 'The desktop connection ended before acknowledgement.',
+      );
+    } finally {
+      _boundCommandReplies.remove(id);
+      _clearPendingCommandTimer(id);
+    }
   }
 
   void _handleUnexpectedDisconnect(String message) {
@@ -1094,6 +1271,14 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       }
     }
     _relayReplies.clear();
+    for (final reply in _boundCommandReplies.values) {
+      if (!reply.isCompleted) {
+        reply.completeError(
+          StateError('Desktop disconnected before command acknowledgement.'),
+        );
+      }
+    }
+    _boundCommandReplies.clear();
     for (final timer in _pendingCommandTimers.values) {
       timer.cancel();
     }

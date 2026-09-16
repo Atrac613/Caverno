@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
@@ -78,6 +79,91 @@ class _DashboardConversationsNotifier extends ConversationsNotifier {
 class _TestChatNotifier extends ChatNotifier {
   @override
   ChatState build() => ChatState.initial();
+}
+
+class _BoundCodingProjectsNotifier extends CodingProjectsNotifier {
+  @override
+  CodingProjectsState build() => CodingProjectsState(
+    projects: [
+      CodingProject(
+        id: 'project-1',
+        name: 'Bound project',
+        rootPath: '/tmp/bound-project',
+        createdAt: DateTime.utc(2026, 9, 16),
+        updatedAt: DateTime.utc(2026, 9, 16),
+      ),
+    ],
+    selectedProjectId: 'project-1',
+  );
+}
+
+class _BoundConversationsNotifier extends ConversationsNotifier {
+  @override
+  ConversationsState build() {
+    final createdAt = DateTime.utc(2026, 9, 16);
+    return ConversationsState(
+      conversations: [
+        for (final id in ['thread-1', 'thread-2'])
+          Conversation(
+            id: id,
+            title: id,
+            messages: const [],
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            workspaceMode: WorkspaceMode.coding,
+            projectId: 'project-1',
+          ),
+      ],
+      currentConversationId: 'thread-1',
+      activeWorkspaceMode: WorkspaceMode.coding,
+      activeProjectId: 'project-1',
+    );
+  }
+
+  void selectForTest(String id) {
+    state = state.copyWith(currentConversationId: id);
+  }
+}
+
+class _BoundCommandChatNotifier extends ChatNotifier {
+  final List<String> sentMessages = [];
+  final List<bool> sentVoiceModes = [];
+  int cancelCount = 0;
+
+  @override
+  ChatState build() => ChatState.initial();
+
+  void setLoading(bool value) {
+    state = state.copyWith(isLoading: value);
+  }
+
+  @override
+  Future<ChatTurnOwner?> sendMessage(
+    String content, {
+    String? modelContent,
+    String? attachmentPath,
+    String? imageBase64,
+    String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
+    VideoAttachmentDraft? video,
+    String languageCode = 'en',
+    bool isVoiceMode = false,
+    bool bypassPlanMode = false,
+    ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+    String? remoteDeviceId,
+    bool interrupt = false,
+  }) async {
+    sentMessages.add(content);
+    sentVoiceModes.add(isVoiceMode);
+    return ChatTurnOwner(conversationId: 'thread-1', interactionGeneration: 1);
+  }
+
+  @override
+  void cancelStreaming() {
+    cancelCount += 1;
+    state = state.copyWith(isLoading: false);
+  }
 }
 
 class _InteractionOwnershipChatNotifier extends ChatNotifier {
@@ -481,6 +567,136 @@ _connectAuthenticatedDevice({
 }
 
 void main() {
+  test(
+    'destination-bound commands acknowledge only the displayed coding thread',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: _MemorySecureStore(),
+      );
+      final port = await _unusedPort();
+      final now = DateTime.utc(2026, 9, 16);
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [
+            RemoteCodingPairedDevice(
+              id: 'watch-phone',
+              name: 'Watch phone',
+              tokenHash: RemoteCodingSecurity.hashToken('bound-token'),
+              createdAt: now,
+              lastSeenAt: now,
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            _BoundCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _BoundConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_BoundCommandChatNotifier.new),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(remoteCodingServerProvider);
+      await _waitUntil(
+        () => container.read(remoteCodingServerProvider).isRunning,
+      );
+      await repository.saveMobileHost(
+        RemoteCodingHost(
+          id: 'watch-phone',
+          name: 'Desktop',
+          host: '127.0.0.1',
+          port: port,
+          createdAt: now,
+          updatedAt: now,
+          certificatePin: _certificatePin(container),
+        ),
+        'bound-token',
+      );
+      final client = container.read(remoteCodingClientProvider.notifier);
+      await client.connectSavedHost();
+      await _waitUntil(
+        () => container
+            .read(remoteCodingClientProvider)
+            .supportsDestinationBoundCommands,
+        description: 'destination-bound command capability',
+      );
+      final chat =
+          container.read(chatNotifierProvider.notifier)
+              as _BoundCommandChatNotifier;
+
+      final accepted = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Run focused tests',
+        isVoiceMode: true,
+      );
+      expect(accepted.outcome, RemoteCodingBoundCommandOutcome.accepted);
+      expect(accepted.requestId, isNotEmpty);
+      expect(chat.sentMessages, ['Run focused tests']);
+      expect(chat.sentVoiceModes, [true]);
+
+      final idleCancel = await client.cancelConversationStreaming(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+      );
+      expect(idleCancel.outcome, RemoteCodingBoundCommandOutcome.refused);
+      expect(idleCancel.code, 'not_streaming');
+      expect(chat.cancelCount, 0);
+
+      chat.setLoading(true);
+      final queued = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Then inspect the diff',
+      );
+      expect(queued.outcome, RemoteCodingBoundCommandOutcome.queued);
+      expect(chat.sentMessages, ['Run focused tests', 'Then inspect the diff']);
+
+      final changed = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-2',
+        content: 'Must not be redirected',
+      );
+      expect(changed.outcome, RemoteCodingBoundCommandOutcome.refused);
+      expect(changed.code, 'destination_changed');
+      expect(chat.sentMessages, hasLength(2));
+      expect(container.read(remoteCodingClientProvider).isLoading, isTrue);
+
+      final cancelled = await client.cancelConversationStreaming(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+      );
+      expect(cancelled.outcome, RemoteCodingBoundCommandOutcome.accepted);
+      expect(chat.cancelCount, 1);
+
+      (container.read(conversationsNotifierProvider.notifier)
+              as _BoundConversationsNotifier)
+          .selectForTest('thread-2');
+      chat.setLoading(true);
+      final staleCancel = await client.cancelConversationStreaming(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+      );
+      expect(staleCancel.outcome, RemoteCodingBoundCommandOutcome.refused);
+      expect(staleCancel.code, 'destination_changed');
+      expect(chat.cancelCount, 1);
+
+      await client.disconnect();
+    },
+  );
+
   test(
     'pending interactions require remote origin and the initiating device',
     () async {

@@ -57,7 +57,15 @@ final class WatchSessionClient: NSObject, ObservableObject {
 
   @discardableResult
   func cancelStreaming() -> String? {
-    send(.cancelStreaming, payload: ["source": snapshot?.transcriptSource ?? "local"])
+    guard let snapshot, !snapshot.isLocal else {
+      return send(.cancelStreaming, payload: ["source": "local"])
+    }
+    guard let browser = snapshot.remoteBrowser, browser.canInput else {
+      return failRemoteDestinationLocally()
+    }
+    var payload = browser.destination
+    payload["source"] = "remote"
+    return send(.cancelStreaming, payload: payload)
   }
 
   @discardableResult
@@ -90,11 +98,22 @@ final class WatchSessionClient: NSObject, ObservableObject {
     let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     streamedText = ""
-    var payload: [String: Any] = [
-      "content": trimmed,
-      "isVoiceMode": isVoiceMode,
-      "source": snapshot?.transcriptSource ?? "local",
-    ]
+    var payload: [String: Any]
+    if let snapshot, !snapshot.isLocal {
+      guard let browser = snapshot.remoteBrowser, browser.canInput else {
+        return failRemoteDestinationLocally()
+      }
+      payload = browser.destination
+      payload["source"] = "remote"
+      payload["content"] = trimmed
+      payload["isVoiceMode"] = isVoiceMode
+    } else {
+      payload = [
+        "content": trimmed,
+        "isVoiceMode": isVoiceMode,
+        "source": "local",
+      ]
+    }
     // Stamp the thread this text was composed against. When the phone is
     // unreachable the command falls back to transferUserInfo, which is
     // delivered eventually rather than promptly, and an unstamped message
@@ -103,6 +122,16 @@ final class WatchSessionClient: NSObject, ObservableObject {
       payload["conversationId"] = conversationId
     }
     return send(.sendMessage, payload: payload)
+  }
+
+  private func failRemoteDestinationLocally() -> String {
+    let commandId = UUID().uuidString
+    failLocally(
+      id: commandId,
+      code: "destination_changed",
+      message: "The remote thread changed. Open it again."
+    )
+    return commandId
   }
 
   /// Answers a goal awaiting confirmation.
@@ -237,7 +266,7 @@ final class WatchSessionClient: NSObject, ObservableObject {
     }
     if let result = try? decoder.decode(WatchCommandResult.self, from: data) {
       lastCommandResult = result
-      lastCommandNotice = nil
+      lastCommandNotice = result.ok ? result.message : nil
       lastCommandError = result.ok ? nil : result.message
       return
     }

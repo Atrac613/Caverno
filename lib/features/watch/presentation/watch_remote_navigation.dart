@@ -102,7 +102,58 @@ class WatchRemoteNavigation {
       conversationId: _conversationId,
       conversationTitle: thread == null ? '' : _title(thread.title),
       selectionStatus: _selectionStatus,
+      supportsInput: remote.supportsDestinationBoundCommands,
     );
+  }
+
+  WatchCommandResult validateSelectedDestination(WatchCommand command) {
+    final payload = command.payload;
+    final remote = readRemote();
+    if (source != 'remote' || payload['source'] != 'remote') {
+      return _failure(
+        command,
+        'source_changed',
+        'The displayed conversation source changed. Try again.',
+      );
+    }
+    if (!remote.isConnected) {
+      return _failure(
+        command,
+        'remote_disconnected',
+        'Reconnect to the desktop before sending.',
+      );
+    }
+    if (payload['hostId'] != remote.host?.id ||
+        payload['sessionId'] != _sessionId) {
+      return _failure(
+        command,
+        'remote_changed',
+        'The desktop connection changed. Open the thread again.',
+      );
+    }
+    if (!remote.supportsDestinationBoundCommands) {
+      return _failure(
+        command,
+        'unsupported_peer',
+        'Update the desktop before sending from Apple Watch.',
+      );
+    }
+    final projectId = payload['projectId'] as String?;
+    final conversationId = payload['conversationId'] as String?;
+    if (_selectionStatus != 'selected' ||
+        projectId == null ||
+        conversationId == null ||
+        projectId != _projectId ||
+        conversationId != _conversationId ||
+        remote.selectedProjectId != projectId ||
+        remote.currentConversationId != conversationId) {
+      return _failure(
+        command,
+        'destination_changed',
+        'The selected desktop thread changed. Open it again.',
+      );
+    }
+    return WatchCommandResult.success(id: command.id);
   }
 
   Future<WatchCommandResult> handle(WatchCommand command) async {

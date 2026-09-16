@@ -34,6 +34,7 @@ void main() {
         'projectId': ?projectId,
         'conversationId': ?threadId,
         'offset': offset,
+        'source': 'remote',
       },
     );
   }
@@ -128,6 +129,48 @@ void main() {
     );
     expect(result.code, 'conversation_not_found');
     expect(selections, isEmpty);
+  });
+
+  test('input stays bound to the confirmed connection and thread', () async {
+    final pending = navigation.handle(
+      command(
+        WatchCommand.selectRemoteConversation,
+        projectId: 'p-16',
+        threadId: 't-16',
+      ),
+    );
+    update(
+      remote.copyWith(
+        snapshotSequence: 11,
+        selectedProjectId: 'p-16',
+        currentConversationId: 't-16',
+      ),
+    );
+    expect((await pending).ok, isTrue);
+
+    final bound = command(
+      WatchCommand.sendMessage,
+      projectId: 'p-16',
+      threadId: 't-16',
+    );
+    expect(navigation.validateSelectedDestination(bound).ok, isTrue);
+
+    update(remote.copyWith(snapshotSequence: 12, currentConversationId: 't-0'));
+    expect(
+      navigation.validateSelectedDestination(bound).code,
+      'destination_changed',
+    );
+
+    update(remote.copyWith(status: RemoteCodingConnectionStatus.disconnected));
+    expect(
+      navigation.validateSelectedDestination(bound).code,
+      'remote_disconnected',
+    );
+    update(remote.copyWith(status: RemoteCodingConnectionStatus.connected));
+    expect(
+      navigation.validateSelectedDestination(bound).code,
+      'remote_changed',
+    );
   });
 
   test(
@@ -323,6 +366,7 @@ RemoteCodingClientState _remote({String hostId = 'host-1'}) =>
         certificatePin: 'pin',
       ),
       status: RemoteCodingConnectionStatus.connected,
+      supportsDestinationBoundCommands: true,
       snapshotSequence: 10,
       selectedProjectId: 'p-0',
       projects: List.generate(

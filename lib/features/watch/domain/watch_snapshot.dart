@@ -549,6 +549,7 @@ class WatchRemoteBrowser {
     this.conversationId,
     this.conversationTitle = '',
     this.selectionStatus = 'none',
+    this.supportsInput = false,
   });
 
   final String hostId;
@@ -565,6 +566,7 @@ class WatchRemoteBrowser {
   final String? conversationId;
   final String conversationTitle;
   final String selectionStatus;
+  final bool supportsInput;
 
   factory WatchRemoteBrowser.fromJson(Map<String, dynamic> json) =>
       WatchRemoteBrowser(
@@ -584,6 +586,7 @@ class WatchRemoteBrowser {
         conversationId: json['conversationId'] as String?,
         conversationTitle: json['conversationTitle'] as String? ?? '',
         selectionStatus: json['selectionStatus'] as String? ?? 'none',
+        supportsInput: json['supportsInput'] == true,
       );
 
   Map<String, dynamic> toJson(int titleLimit) => {
@@ -603,6 +606,7 @@ class WatchRemoteBrowser {
     if (conversationId != null) 'conversationId': conversationId,
     'conversationTitle': truncateForWatch(conversationTitle, titleLimit),
     'selectionStatus': selectionStatus,
+    if (supportsInput) 'supportsInput': true,
   };
 }
 

@@ -3,12 +3,15 @@
 Caverno ships a watchOS companion so a blocked turn can be answered, watched,
 and driven by voice without taking the phone out.
 
-Current implementation (2026-09-15): local chats support transcripts and dictated
-messages. Remote Coding supports approvals/questions and, in WATCH14 slice 1,
-paired-host project/thread browsing with confirmed selection. Remote selections
-show a destination placeholder; compact transcripts and remote dictation remain
-planned in [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads).
-Slice 1 has simulator build coverage but still needs signed hardware validation.
+Current implementation (2026-09-16): local chats support transcripts and dictated
+messages. Remote Coding supports approvals/questions, paired-host project/thread
+browsing with confirmed selection, and a compact filtered transcript in WATCH14
+slices 1 and 2. Slice 3 adds acknowledged destination-bound remote Dictation
+and Stop using the existing native system-input control. Signed device proof
+remains planned in
+[WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads).
+The first two slices have simulator build coverage but still need signed hardware
+validation.
 
 ## Why a native target
 
@@ -139,7 +142,9 @@ path and WATCH11's companion card. The phone holds it in
 chat state. The card names the host, and its answer routes to the remote client
 by source and approval ID. The notification path suppresses a local banner when
 the Remote Coding page is foregrounded and already shows the approval sheet.
-Remote transcript browsing and message sending remain WATCH14 work.
+Remote transcript reading is implemented by WATCH14 slice 2. Destination-bound
+Dictation and Stop are implemented by WATCH14 slice 3; signed-device validation
+remains open in slice 4.
 
 A dialog the watch resolves is dismissed on the phone by `ApprovalDialogPresenter`,
 which pops by route name. That is deliberately a no-op when the dialog is not
@@ -216,12 +221,21 @@ epoch; selecting a thread also carries project and conversation IDs. Reconnect
 or host identity changes invalidate an old page's commands. A timed-out or
 changed selection is reported instead of showing another conversation.
 
-`transcriptSource` selects one surface per frame. The remote surface currently
-contains a destination placeholder and reachable approval/question cards;
-local messages, streaming speech, and input controls are suppressed there.
-Remote transcript and voice-routing work follow in WATCH14 slices 2 and 3.
-Existing local commands are refused while the remote surface is selected, and
-an explicitly remote send never falls back to local chat.
+`transcriptSource` selects one surface per frame. A confirmed remote selection
+contains only that client's recent user/assistant messages and reachable
+approval/question cards. It uses the same compact projection as local chat:
+system and synthesized prompts, reasoning, tool calls, raw tool results, and
+tool-only intervals are omitted while assistant prose in mixed messages remains.
+Selection loss or another-device thread changes clear the transcript rather
+than following or substituting local messages. Visible remote replies can use
+the existing opt-in Watch speaker. Input controls are enabled after
+WATCH14 slice 3 binds the phone-to-desktop send and Stop protocol to the
+displayed project and conversation and requires a correlated accepted, queued,
+refused, or unknown result. The native compose and Stop controls appear only
+when the current host connection epoch, project, and conversation have a
+confirmed selection and the desktop advertises support. Existing local commands
+are refused while the remote surface is selected, and an explicitly remote send
+never falls back to local chat.
 
 ## The goal
 

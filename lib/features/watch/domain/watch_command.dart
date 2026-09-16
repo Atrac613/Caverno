@@ -77,7 +77,11 @@ class WatchCommandResult {
     this.message = '',
   });
 
-  const WatchCommandResult.success({String? id}) : this(ok: true, id: id);
+  const WatchCommandResult.success({
+    String? id,
+    String code = '',
+    String message = '',
+  }) : this(ok: true, id: id, code: code, message: message);
 
   const WatchCommandResult.failure({
     String? id,
@@ -93,7 +97,7 @@ class WatchCommandResult {
   Map<String, dynamic> toJson() => {
     'ok': ok,
     if (id != null && id!.isNotEmpty) 'id': id,
-    if (!ok) 'code': code,
-    if (!ok) 'message': message,
+    if (code.isNotEmpty) 'code': code,
+    if (message.isNotEmpty) 'message': message,
   };
 }

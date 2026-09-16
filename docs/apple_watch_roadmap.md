@@ -14,12 +14,12 @@ as a paired principal, is in `docs/apple_watch_companion.md`. These milestones
 use `WATCH<number>` and live here rather than in the Local LLM roadmap because
 this is a user-facing surface, not local-LLM execution work.
 
-Current direction (2026-09-15): [WATCH14](#watch14-remote-projects-and-voice-threads)
-is `current`. Its first slice adds paired-host project/thread browsing and
-confirmed selection. Compact remote transcripts and dictated instructions are
-the next slices. WATCH11 completed remote approvals and questions. WATCH5 remains
-`current` for its push device matrix, and WATCH4 still needs its signed-build
-glance check.
+Current direction (2026-09-16): [WATCH14](#watch14-remote-projects-and-voice-threads)
+is `current`. Its first two slices add paired-host project/thread browsing,
+confirmed selection, and a compact filtered remote transcript. Destination-bound
+dictated instructions are next. WATCH11 completed remote approvals and questions.
+WATCH5 remains `current` for its push device matrix, and WATCH4 still needs its
+signed-build glance check.
 
 ### WATCH1: Companion Bridge, Approvals, And Voice
 
@@ -1193,9 +1193,12 @@ complete slice 4 on signed hardware. Existing green tests and simulator builds
 verify the shipped companion; they do not establish these new acceptance criteria.
 
 Next action:
-- Implement slice 2: compact remote transcript projection for the confirmed
-  host/project/thread, including live updates, text filtering, and speech
-  isolation. Remote send and Stop remain disabled until slice 3.
+- Complete slice 4 on a signed iPhone/Watch pair and a real desktop host:
+  browse a project, open an existing thread, dictate an instruction, observe
+  accepted and queued feedback, read the reply, Stop a running turn, and answer
+  an approval/question. Repeat with the phone backgrounded, reconnecting, and
+  with the desktop switching threads before a delayed command arrives. Record
+  device/build identities and confirm that tool traffic remains absent.
 
 Slice 1 implementation (2026-09-15):
 - Added explicit local/remote source selection, eight-item project/thread pages
@@ -1220,3 +1223,68 @@ Slice 1 implementation (2026-09-15):
   Static analysis and 106 tests in five Watch suites pass, including Japanese
   and emoji payload budgets and source-switch speech isolation. All new models
   are plain value classes, so generated entities do not change in this slice.
+
+Slice 2 implementation (2026-09-16):
+- A confirmed remote selection now projects that client's bounded recent
+  user/assistant exchange into the existing bubble layout. The projector is
+  shared with local Watch transcripts so both sources omit system messages,
+  synthesized prompts, reasoning, tool calls, raw tool results, and tool-only
+  assistant intervals while preserving useful assistant prose from mixed
+  messages. Empty streaming bubbles and the eight-message truncation marker
+  retain the compact working/history behavior.
+- Remote transcript identity remains the confirmed host connection epoch plus
+  project and conversation. A disconnect, removed selection, or another-device
+  thread change clears messages immediately instead of following the new
+  desktop destination. Local messages never substitute for a missing remote
+  transcript.
+- The Watch renders remote loading and queue state without tool activity,
+  offers a compact empty-thread state, and can read visible remote assistant
+  replies through the existing opt-in speaker. The remote compose bar and Stop
+  remain unavailable until slice 3 binds commands end to end.
+- `tool/codex_verify.sh --no-codegen --test test/features/watch/` passed full
+  workspace static analysis and all 111 tests in six Watch suites.
+  `tool/watch_wire_contract_smoke.sh` passed, and the Watch App plus Widget
+  extension built unsigned Debug with watchsimulator27.0. Signed-device speech,
+  layout, and live-host behavior remain unverified.
+
+Slice 3a implementation (2026-09-16):
+- Added capability-gated `sendMessageToConversation` and
+  `cancelConversationStreaming` commands rather than extending the legacy
+  active-thread commands. An older desktop cannot silently ignore destination
+  fields and redirect a Watch instruction because it never advertises or
+  accepts these command names.
+- The desktop validates that the requested coding project and conversation
+  still exist and are still current immediately before applying send or Stop.
+  Missing, removed, changed, and idle destinations return explicit correlated
+  refusals. A matching send returns `accepted` or `queued`; a matching Stop
+  returns `accepted`.
+- The iPhone waits for the response ID and classifies accepted, queued,
+  refused, timeout, connection change, and malformed acknowledgement outcomes.
+  It does not retry an uncertain command. Destination refusals preserve the
+  current remote loading state instead of making an active turn appear idle.
+- Focused client and authenticated WebSocket server suites pass: 20 client
+  tests and 18 server tests. The regression drives accepted, queued, changed
+  destination, accepted Stop, and stale Stop paths through a pinned connection.
+  Watch commands and native controls remain unchanged until slice 3b.
+
+Slice 3b implementation (2026-09-16):
+- `WatchRemoteBrowser` now advertises input support only from a desktop that
+  exposes the slice 3a capability. The Watch shows its native `TextFieldLink`
+  and Stop action only after that host, project, and conversation have a
+  confirmed selection; legacy and unconfirmed destinations remain read-only.
+- Remote send and Stop commands carry source, opaque host ID, the
+  phone-generated connection epoch, project ID, and conversation ID. The
+  iPhone compares every field with `WatchRemoteNavigation` immediately before
+  invoking the destination-bound client API. A restarted phone, reconnect,
+  local/remote source switch, removed thread, or another-device selection
+  change produces a visible refusal and never reaches local chat.
+- The Watch keeps the compose control on screen while the iPhone waits for the
+  correlated desktop result. Accepted and queued outcomes produce notices;
+  refusals show the desktop reason; unknown delivery explicitly tells the user
+  to inspect the desktop before retrying. No uncertain command is retried.
+- Full Watch analysis and 113 tests in six suites pass. The Dart/Swift wire
+  smoke covers input capability plus host/session/project/conversation command
+  binding. The Watch App and Widget extension build unsigned Debug with
+  watchsimulator27.0. Signed-device Dictation, background delivery, reconnect,
+  accessibility, and live-host behavior remain unverified and belong to slice
+  4.

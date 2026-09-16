@@ -94,6 +94,16 @@ void _registerRemoteCodingTests({
         for (final type in [
           WatchCommand.sendMessage,
           WatchCommand.cancelStreaming,
+        ]) {
+          await watch.handleCommandForTest(
+            WatchCommand(
+              type: type,
+              payload: {'content': 'Do not route this locally'},
+            ),
+          );
+          expect(bridgeOf().results.last.code, 'source_changed');
+        }
+        for (final type in [
           WatchCommand.resolveGoal,
           WatchCommand.selectConversation,
         ]) {
@@ -130,7 +140,7 @@ void _registerRemoteCodingTests({
             payload: {'source': 'remote', 'content': 'Delayed remote input'},
           ),
         );
-        expect(bridgeOf().results.last.code, 'remote_input_unavailable');
+        expect(bridgeOf().results.last.code, 'source_changed');
       },
     );
 
@@ -177,6 +187,281 @@ void _registerRemoteCodingTests({
         );
       },
     );
+
+    test(
+      'confirmed remote selection projects only filtered remote messages',
+      () async {
+        final watch = await notifierOf();
+        final remote =
+            containerOf().read(remoteCodingClientProvider.notifier)
+                as _FakeRemoteCodingClient;
+        remote.offerApproval(approval);
+        remote.offerWorkspace();
+        final browser = watch
+            .buildSnapshot(const ChatState(messages: [], isLoading: false))
+            .remoteBrowser!;
+        final selection = watch.handleCommandForTest(
+          WatchCommand(
+            id: 'select-filtered',
+            type: WatchCommand.selectRemoteConversation,
+            payload: {
+              'hostId': browser.hostId,
+              'sessionId': browser.sessionId,
+              'projectId': 'project-1',
+              'conversationId': 'remote-thread-1',
+            },
+          ),
+        );
+        remote.offerWorkspace(
+          currentId: 'remote-thread-1',
+          sequence: 2,
+          isLoading: true,
+          queuedCount: 2,
+          messages: [
+            Message(
+              id: 'remote-user',
+              role: MessageRole.user,
+              content: 'Inspect the project',
+              timestamp: DateTime.utc(2026, 9, 16, 10),
+            ),
+            Message(
+              id: 'remote-tool',
+              role: MessageRole.user,
+              content: '<tool_result>{"files":20}</tool_result>',
+              isSynthesizedPrompt: true,
+              timestamp: DateTime.utc(2026, 9, 16, 10, 0, 1),
+            ),
+            Message(
+              id: 'remote-assistant',
+              role: MessageRole.assistant,
+              content:
+                  '<think>counting</think>Twenty files.'
+                  '<tool_call>{"name":"list_files"}</tool_call>',
+              isStreaming: true,
+              timestamp: DateTime.utc(2026, 9, 16, 10, 0, 2),
+            ),
+          ],
+        );
+        await selection;
+
+        final frame = watch.buildSnapshot(
+          ChatState(
+            messages: [
+              Message(
+                id: 'local-assistant',
+                role: MessageRole.assistant,
+                content: 'Local answer',
+                timestamp: DateTime.utc(2026, 9, 16),
+              ),
+            ],
+            isLoading: false,
+          ),
+        );
+
+        expect(frame.conversationId, 'remote-thread-1');
+        expect(frame.messages.map((message) => message.id), [
+          'remote-user',
+          'remote-assistant',
+        ]);
+        expect(frame.messages.last.text, 'Twenty files.');
+        expect(frame.lastAssistantText, 'Twenty files.');
+        expect(frame.status, WatchTurnStatus.waitingApproval);
+        expect(frame.queuedCount, 2);
+        expect(
+          frame.messages.any((message) => message.text == 'Local answer'),
+          isFalse,
+        );
+      },
+    );
+
+    test('confirmed remote input waits for the desktop result', () async {
+      final watch = await notifierOf();
+      final remote =
+          containerOf().read(remoteCodingClientProvider.notifier)
+              as _FakeRemoteCodingClient;
+      remote.offerWorkspace();
+      final initial = watch
+          .buildSnapshot(const ChatState(messages: [], isLoading: false))
+          .remoteBrowser!;
+      final selection = watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.selectRemoteConversation,
+          payload: {
+            'hostId': initial.hostId,
+            'sessionId': initial.sessionId,
+            'projectId': 'project-1',
+            'conversationId': 'remote-thread-1',
+          },
+        ),
+      );
+      remote.offerWorkspace(currentId: 'remote-thread-1', sequence: 2);
+      await selection;
+      final selected = watch
+          .buildSnapshot(const ChatState(messages: [], isLoading: false))
+          .remoteBrowser!;
+      expect(selected.supportsInput, isTrue);
+
+      remote.nextSendResult = const RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.queued,
+        requestId: 'desktop-send',
+        code: '',
+        message: '',
+      );
+      await watch.handleCommandForTest(
+        WatchCommand(
+          id: 'watch-send',
+          type: WatchCommand.sendMessage,
+          payload: {
+            'source': 'remote',
+            'hostId': selected.hostId,
+            'sessionId': selected.sessionId,
+            'projectId': selected.projectId,
+            'conversationId': selected.conversationId,
+            'content': 'Run the focused tests',
+            'isVoiceMode': true,
+          },
+        ),
+      );
+      expect(remote.sentMessages.single.content, 'Run the focused tests');
+      expect(remote.sentMessages.single.projectId, 'project-1');
+      expect(remote.sentMessages.single.conversationId, 'remote-thread-1');
+      expect(remote.sentMessages.single.isVoiceMode, isTrue);
+      expect(bridgeOf().results.last.id, 'watch-send');
+      expect(bridgeOf().results.last.ok, isTrue);
+      expect(bridgeOf().results.last.code, 'queued');
+
+      await watch.handleCommandForTest(
+        WatchCommand(
+          id: 'watch-stop',
+          type: WatchCommand.cancelStreaming,
+          payload: {
+            'source': 'remote',
+            'hostId': selected.hostId,
+            'sessionId': selected.sessionId,
+            'projectId': selected.projectId,
+            'conversationId': selected.conversationId,
+          },
+        ),
+      );
+      expect(remote.cancelledDestinations, [
+        (projectId: 'project-1', conversationId: 'remote-thread-1'),
+      ]);
+      expect(bridgeOf().results.last.ok, isTrue);
+      expect(bridgeOf().results.last.code, 'accepted');
+
+      remote.nextSendResult = const RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.unknown,
+        requestId: 'desktop-unknown',
+        code: 'timeout',
+        message: 'The desktop did not acknowledge the command.',
+      );
+      await watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.sendMessage,
+          payload: {
+            'source': 'remote',
+            'hostId': selected.hostId,
+            'sessionId': selected.sessionId,
+            'projectId': selected.projectId,
+            'conversationId': selected.conversationId,
+            'content': 'Do not retry automatically',
+          },
+        ),
+      );
+      expect(bridgeOf().results.last.ok, isFalse);
+      expect(bridgeOf().results.last.code, 'timeout');
+      expect(bridgeOf().results.last.message, contains('before retrying'));
+
+      remote.offerWorkspace(
+        currentId: 'remote-thread-2',
+        sequence: 3,
+        includeSecondThread: true,
+      );
+      await watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.sendMessage,
+          payload: {
+            'source': 'remote',
+            'hostId': selected.hostId,
+            'sessionId': selected.sessionId,
+            'projectId': selected.projectId,
+            'conversationId': selected.conversationId,
+            'content': 'Must stay on the old thread',
+          },
+        ),
+      );
+      expect(bridgeOf().results.last.code, 'destination_changed');
+      expect(remote.sentMessages, hasLength(2));
+    });
+
+    test('another-device selection clears the remote transcript', () async {
+      final watch = await notifierOf();
+      final remote =
+          containerOf().read(remoteCodingClientProvider.notifier)
+              as _FakeRemoteCodingClient;
+      remote.offerWorkspace();
+      final browser = watch
+          .buildSnapshot(const ChatState(messages: [], isLoading: false))
+          .remoteBrowser!;
+      final selection = watch.handleCommandForTest(
+        WatchCommand(
+          type: WatchCommand.selectRemoteConversation,
+          payload: {
+            'hostId': browser.hostId,
+            'sessionId': browser.sessionId,
+            'projectId': 'project-1',
+            'conversationId': 'remote-thread-1',
+          },
+        ),
+      );
+      remote.offerWorkspace(
+        currentId: 'remote-thread-1',
+        sequence: 2,
+        isLoading: true,
+        messages: [
+          Message(
+            id: 'remote-answer',
+            role: MessageRole.assistant,
+            content: 'Selected answer',
+            timestamp: DateTime.utc(2026, 9, 16),
+          ),
+        ],
+      );
+      await selection;
+      expect(
+        watch
+            .buildSnapshot(const ChatState(messages: [], isLoading: false))
+            .messages,
+        isNotEmpty,
+      );
+      expect(
+        watch
+            .buildSnapshot(const ChatState(messages: [], isLoading: false))
+            .status,
+        WatchTurnStatus.streaming,
+      );
+
+      remote.offerWorkspace(
+        currentId: 'remote-thread-2',
+        sequence: 3,
+        includeSecondThread: true,
+        messages: [
+          Message(
+            id: 'wrong-answer',
+            role: MessageRole.assistant,
+            content: 'Wrong thread',
+            timestamp: DateTime.utc(2026, 9, 16),
+          ),
+        ],
+      );
+      final changed = watch.buildSnapshot(
+        const ChatState(messages: [], isLoading: false),
+      );
+      expect(changed.remoteBrowser!.selectionStatus, 'changed');
+      expect(changed.conversationId, isNull);
+      expect(changed.messages, isEmpty);
+      expect(changed.lastAssistantText, isEmpty);
+    });
 
     test('a desktop approval reaches the wrist naming its host', () async {
       final watch = await notifierOf();
@@ -1306,14 +1591,86 @@ final class _FakeRemoteCodingClient extends RemoteCodingClientNotifier {
   final List<({String id, bool approved})> resolvedApprovals = [];
   final List<String> resolvedQuestions = [];
   final List<String> selectedConversations = [];
+  final List<
+    ({
+      String projectId,
+      String conversationId,
+      String content,
+      bool isVoiceMode,
+    })
+  >
+  sentMessages = [];
+  final List<({String projectId, String conversationId})>
+  cancelledDestinations = [];
+  RemoteCodingBoundCommandResult nextSendResult =
+      const RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.accepted,
+        requestId: 'desktop-send',
+        code: '',
+        message: '',
+      );
+  RemoteCodingBoundCommandResult nextCancelResult =
+      const RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.accepted,
+        requestId: 'desktop-cancel',
+        code: '',
+        message: '',
+      );
 
   @override
   Future<void> selectConversation(String id) async {
     selectedConversations.add(id);
   }
 
-  void offerWorkspace({String? currentId, int sequence = 1}) {
+  @override
+  Future<RemoteCodingBoundCommandResult> sendMessageToConversation({
+    required String projectId,
+    required String conversationId,
+    required String content,
+    String languageCode = 'en',
+    bool isVoiceMode = false,
+  }) async {
+    sentMessages.add((
+      projectId: projectId,
+      conversationId: conversationId,
+      content: content,
+      isVoiceMode: isVoiceMode,
+    ));
+    return nextSendResult;
+  }
+
+  @override
+  Future<RemoteCodingBoundCommandResult> cancelConversationStreaming({
+    required String projectId,
+    required String conversationId,
+  }) async {
+    cancelledDestinations.add((
+      projectId: projectId,
+      conversationId: conversationId,
+    ));
+    return nextCancelResult;
+  }
+
+  void offerWorkspace({
+    String? currentId,
+    int sequence = 1,
+    List<Message> messages = const [],
+    bool isLoading = false,
+    int queuedCount = 0,
+    bool includeSecondThread = false,
+  }) {
     state = state.copyWith(
+      status: RemoteCodingConnectionStatus.connected,
+      supportsDestinationBoundCommands: true,
+      host: RemoteCodingHost(
+        id: 'host-1',
+        name: 'MacBook-Pro-3.local',
+        host: '192.168.100.5',
+        port: 8767,
+        createdAt: DateTime.utc(2026, 9, 6),
+        updatedAt: DateTime.utc(2026, 9, 6),
+        certificatePin: 'pin',
+      ),
       projects: const [
         RemoteCodingProjectSummary(
           id: 'project-1',
@@ -1328,10 +1685,20 @@ final class _FakeRemoteCodingClient extends RemoteCodingClientNotifier {
           projectId: 'project-1',
           updatedAt: DateTime.utc(2026),
         ),
+        if (includeSecondThread)
+          RemoteCodingThreadSummary(
+            id: 'remote-thread-2',
+            title: 'Another remote thread',
+            projectId: 'project-1',
+            updatedAt: DateTime.utc(2026, 9, 16),
+          ),
       ],
       selectedProjectId: 'project-1',
       currentConversationId: currentId,
       snapshotSequence: sequence,
+      messages: messages,
+      isLoading: isLoading,
+      queuedCount: queuedCount,
     );
   }
 

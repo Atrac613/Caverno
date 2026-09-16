@@ -673,6 +673,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       case 'cancelStreaming':
         ref.read(chatNotifierProvider.notifier).cancelStreaming();
         client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
+      case RemoteCodingProtocol.sendMessageToConversation:
+        _handleBoundSendMessage(client, message);
+      case RemoteCodingProtocol.cancelConversationStreaming:
+        _handleBoundCancelStreaming(client, message);
       case 'resolveApproval':
         _handleResolveApproval(client, message);
       case 'resolveQuestion':
@@ -1099,12 +1103,125 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           .sendMessage(
             content,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
+            isVoiceMode: message.payload['isVoiceMode'] == true,
             bypassPlanMode: true,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
           ),
     );
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
+  }
+
+  void _handleBoundSendMessage(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) {
+    final conversation = _validatedBoundDestination(client, message);
+    if (conversation == null) return;
+    final content = (message.payload['content'] as String?)?.trim() ?? '';
+    if (content.isEmpty) {
+      client.sendError(
+        id: message.id,
+        code: 'empty_message',
+        message: 'Message content is required.',
+      );
+      return;
+    }
+    final chatState = ref.read(chatNotifierProvider);
+    final queued = chatState.isLoading || chatState.queuedMessages.isNotEmpty;
+    unawaited(
+      ref
+          .read(chatNotifierProvider.notifier)
+          .sendMessage(
+            content,
+            languageCode: (message.payload['languageCode'] as String?) ?? 'en',
+            isVoiceMode: message.payload['isVoiceMode'] == true,
+            bypassPlanMode: true,
+            origin: ChatInteractionOrigin.remote,
+            remoteDeviceId: client.deviceId,
+          ),
+    );
+    client.send(
+      type: RemoteCodingProtocol.commandResult,
+      id: message.id,
+      payload: {
+        'command': RemoteCodingProtocol.sendMessageToConversation,
+        'outcome': queued ? 'queued' : 'accepted',
+        'projectId': conversation.normalizedProjectId,
+        'conversationId': conversation.id,
+      },
+    );
+  }
+
+  void _handleBoundCancelStreaming(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) {
+    final conversation = _validatedBoundDestination(client, message);
+    if (conversation == null) return;
+    if (!ref.read(chatNotifierProvider).isLoading) {
+      client.sendError(
+        id: message.id,
+        code: 'not_streaming',
+        message: 'The selected coding thread is not running.',
+      );
+      return;
+    }
+    ref.read(chatNotifierProvider.notifier).cancelStreaming();
+    client.send(
+      type: RemoteCodingProtocol.commandResult,
+      id: message.id,
+      payload: {
+        'command': RemoteCodingProtocol.cancelConversationStreaming,
+        'outcome': 'accepted',
+        'projectId': conversation.normalizedProjectId,
+        'conversationId': conversation.id,
+      },
+    );
+  }
+
+  Conversation? _validatedBoundDestination(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) {
+    final projectId = (message.payload['projectId'] as String?)?.trim() ?? '';
+    final conversationId =
+        (message.payload['conversationId'] as String?)?.trim() ?? '';
+    if (projectId.isEmpty || conversationId.isEmpty) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_destination',
+        message: 'Project and conversation destinations are required.',
+      );
+      return null;
+    }
+    final conversations = ref.read(conversationsNotifierProvider);
+    final conversation = conversations.conversations
+        .where(
+          (item) =>
+              item.id == conversationId &&
+              item.workspaceMode == projectWorkspaceMode &&
+              item.normalizedProjectId == projectId,
+        )
+        .firstOrNull;
+    if (conversation == null || _findProject(projectId) == null) {
+      client.sendError(
+        id: message.id,
+        code: 'destination_not_found',
+        message: 'The requested coding destination no longer exists.',
+      );
+      return null;
+    }
+    if (conversations.activeProjectId != projectId ||
+        conversations.currentConversation?.id != conversationId) {
+      client.sendError(
+        id: message.id,
+        code: 'destination_changed',
+        message: 'The desktop changed threads before applying the command.',
+      );
+      return null;
+    }
+    return conversation;
   }
 
   /// Records what a paired device did with one of this desktop's
@@ -1427,6 +1544,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         'streamCancel': true,
         'mobileApprovals': true,
         'notificationRelaySetup': true,
+        'destinationBoundCommands': true,
       },
       'projects': projectsState.projects.map(_projectToJson).toList(),
       'selectedProjectId': selectedProjectId,

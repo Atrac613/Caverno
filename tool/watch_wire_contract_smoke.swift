@@ -164,9 +164,11 @@ enum WatchWireContractSmoke {
     expect(browser.conversationId == "thread-9", "remote conversationId")
     expect(browser.conversationTitle == "Watch browsing", "remote conversationTitle")
     expect(browser.selectionStatus == "selected", "remote selection confirmation")
+    expect(browser.canInput && snapshot.canCompose, "remote input capability")
     expect(browser.destination["hostId"] as? String == "host-1", "command host binding")
     expect(browser.destination["sessionId"] as? String == "session-1", "command session binding")
     expect(browser.destination["projectId"] as? String == "project-1", "command project binding")
+    expect(browser.destination["conversationId"] as? String == "thread-9", "command conversation binding")
     let legacy = try decode(document, "legacySnapshot")
     expect(legacy.isLocal && legacy.remoteBrowser == nil, "legacy source and capability")
   }

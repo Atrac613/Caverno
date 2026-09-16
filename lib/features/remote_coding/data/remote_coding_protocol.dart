@@ -61,6 +61,11 @@ class RemoteCodingProtocolMessage {
 class RemoteCodingProtocol {
   RemoteCodingProtocol._();
 
+  static const String sendMessageToConversation = 'sendMessageToConversation';
+  static const String cancelConversationStreaming =
+      'cancelConversationStreaming';
+  static const String commandResult = 'commandResult';
+
   static const Set<String> allowedClientCommands = {
     'auth',
     'selectProject',
@@ -68,6 +73,8 @@ class RemoteCodingProtocol {
     'createThread',
     'sendMessage',
     'cancelStreaming',
+    sendMessageToConversation,
+    cancelConversationStreaming,
     'resolveApproval',
     'resolveQuestion',
     'requestSnapshot',
@@ -85,6 +92,7 @@ class RemoteCodingProtocol {
     'questionRequested',
     'questionResolved',
     'runTerminal',
+    commandResult,
     'authChallenge',
     'error',
     'disconnected',

@@ -23,6 +23,7 @@ struct TranscriptView: View {
 
   @State private var showsActions = false
   @State private var isNearBottom = true
+  @State private var remoteSpeechMessageId: String?
 
   /// Identifies the end of the list so a new bubble can be scrolled to.
   private static let bottomAnchor = "transcript-bottom"
@@ -38,10 +39,10 @@ struct TranscriptView: View {
                 caption("Earlier on iPhone")
               }
 
-              if !snapshot.isLocal {
+              if !snapshot.isLocal && snapshot.remoteBrowser?.selectionStatus != "selected" {
                 remoteState
               } else if rows.isEmpty {
-                emptyState
+                if snapshot.isLocal { emptyState } else { remoteEmptyState }
               } else {
                 ForEach(rows) { row in
                   switch row.kind {
@@ -81,6 +82,7 @@ struct TranscriptView: View {
             isNearBottom = bottom <= viewport.size.height + 24
           }
           .onChange(of: snapshot.sequence) { _, _ in
+            speakRemoteReply()
             scrollToBottomIfFollowing(proxy)
           }
           .onChange(of: snapshot.transcriptIdentity) { _, _ in
@@ -100,9 +102,9 @@ struct TranscriptView: View {
         attentionBanner(attention)
       }
 
-      if snapshot.isLocal {
+      if snapshot.canCompose {
         ComposeBar(
-          placeholder: "Message",
+          placeholder: snapshot.isLocal ? "Message" : "Message remote",
           onSend: send,
           onOpenActions: { showsActions = true }
         )
@@ -117,6 +119,7 @@ struct TranscriptView: View {
     .sheet(isPresented: $showsActions) {
       ComposeActionsView(isStreaming: snapshot.status == .streaming)
     }
+    .onAppear { speakRemoteReply() }
     // Messages tints the recipient's name; watchOS has no `.principal`
     // toolbar placement to reproduce that with, and a navigation title takes
     // the system's own colour. The thread name is worth more than its hue.
@@ -318,6 +321,36 @@ struct TranscriptView: View {
     .frame(maxWidth: .infinity)
   }
 
+  private var remoteEmptyState: some View {
+    VStack(spacing: 6) {
+      Image(systemName: "bubble.left.and.bubble.right")
+        .font(.title3)
+        .foregroundStyle(.secondary)
+      Text("No messages in this thread")
+        .font(.headline)
+      Text("Remote input is coming next")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 20)
+    .multilineTextAlignment(.center)
+    .accessibilityElement(children: .combine)
+  }
+
+  private func speakRemoteReply() {
+    guard !snapshot.isLocal,
+      snapshot.remoteBrowser?.selectionStatus == "selected",
+      let message = snapshot.messages.last(where: { $0.role == .assistant })
+    else { return }
+    if remoteSpeechMessageId != message.id {
+      speaker.reset()
+      remoteSpeechMessageId = message.id
+    }
+    speaker.speakIncremental(message.text)
+    if !message.isStreaming { speaker.finishIncremental(message.text) }
+  }
+
   private var title: String {
     let title = PlainText.from(snapshot.conversationTitle)
     if !title.isEmpty { return title }
@@ -380,7 +413,9 @@ struct TranscriptView: View {
 
   private var statusParts: [String] {
     var parts: [String] = []
-    if snapshot.status == .streaming { parts.append(elapsed) }
+    if snapshot.status == .streaming {
+      parts.append(snapshot.isLocal ? elapsed : "Working")
+    }
     // A blocked goal used to read as an idle thread. Naming the blocker is
     // the difference between "this is finished" and "this is stuck".
     if let goal = snapshot.goal, goal.status == .blocked,
