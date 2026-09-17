@@ -269,10 +269,13 @@ void main() {
         _result('local_execute_command', {
           'command': "cat > js/cave.js << 'CAVE_EOF'\n// body\nCAVE_EOF",
         }, result: blocked),
-        _result('local_execute_command', {
-          'command': 'fvm flutter analyze',
-        }, result: '{"command":"fvm flutter analyze","exit_code":0,'
-            '"stdout":"No issues found!","stderr":""}'),
+        _result(
+          'local_execute_command',
+          {'command': 'fvm flutter analyze'},
+          result:
+              '{"command":"fvm flutter analyze","exit_code":0,'
+              '"stdout":"No issues found!","stderr":""}',
+        ),
       ]);
 
       expect(block, isNot(contains('cat > js/cave.js')));
@@ -281,10 +284,13 @@ void main() {
 
     test('keeps a command that ran and failed', () {
       final block = digest.build([
-        _result('local_execute_command', {
-          'command': 'fvm flutter test',
-        }, result: '{"command":"fvm flutter test","exit_code":1,'
-            '"stdout":"Some tests failed.","stderr":""}'),
+        _result(
+          'local_execute_command',
+          {'command': 'fvm flutter test'},
+          result:
+              '{"command":"fvm flutter test","exit_code":1,'
+              '"stdout":"Some tests failed.","stderr":""}',
+        ),
         _result('local_execute_command', {'command': 'fvm flutter analyze'}),
       ]);
 
@@ -308,11 +314,14 @@ void main() {
 
     test('reports a failed read as failed, never as gathered context', () {
       final block = digest.build([
-        _result('read_file', {
-          'path': '/repo/fvm/config.json',
-        }, result: '{"ok":false,"code":"project_read_path_unavailable",'
-            '"error":"The read target does not exist or cannot be opened.",'
-            '"project_root":"/repo"}'),
+        _result(
+          'read_file',
+          {'path': '/repo/fvm/config.json'},
+          result:
+              '{"ok":false,"code":"project_read_path_unavailable",'
+              '"error":"The read target does not exist or cannot be opened.",'
+              '"project_root":"/repo"}',
+        ),
         _result('list_directory', {'path': '/repo'}),
       ]);
 
@@ -324,11 +333,14 @@ void main() {
 
     test('drops a failed read whose recovery is to repeat it', () {
       final block = digest.build([
-        _result('read_file', {
-          'path': '/repo/lib/main.dart',
-        }, result: '{"ok":false,"code":"project_scoped_read_effect_uncertain",'
-            '"error":"The read did not complete.",'
-            '"next_action":"Repeat the read in the current turn."}'),
+        _result(
+          'read_file',
+          {'path': '/repo/lib/main.dart'},
+          result:
+              '{"ok":false,"code":"project_scoped_read_effect_uncertain",'
+              '"error":"The read did not complete.",'
+              '"next_action":"Repeat the read in the current turn."}',
+        ),
         _result('list_directory', {'path': '/repo'}),
         _result('read_file', {'path': '/repo/pubspec.yaml'}),
       ]);
@@ -344,10 +356,13 @@ void main() {
 
     test('treats a read that failed and then succeeded as gathered', () {
       final block = digest.build([
-        _result('read_file', {
-          'path': '/repo/new.dart',
-        }, result: '{"ok":false,"code":"project_read_path_unavailable",'
-            '"error":"The read target does not exist."}'),
+        _result(
+          'read_file',
+          {'path': '/repo/new.dart'},
+          result:
+              '{"ok":false,"code":"project_read_path_unavailable",'
+              '"error":"The read target does not exist."}',
+        ),
         _result('read_file', {'path': '/repo/new.dart'}, result: 'contents'),
         _result('list_directory', {'path': '/repo'}),
       ]);
@@ -364,10 +379,13 @@ void main() {
     test('reports a read that succeeded and then failed as failed', () {
       final block = digest.build([
         _result('read_file', {'path': '/repo/gone.dart'}, result: 'contents'),
-        _result('read_file', {
-          'path': '/repo/gone.dart',
-        }, result: '{"ok":false,"code":"project_read_path_unavailable",'
-            '"error":"The read target does not exist."}'),
+        _result(
+          'read_file',
+          {'path': '/repo/gone.dart'},
+          result:
+              '{"ok":false,"code":"project_read_path_unavailable",'
+              '"error":"The read target does not exist."}',
+        ),
         _result('list_directory', {'path': '/repo'}),
       ]);
 
@@ -383,6 +401,39 @@ void main() {
       ]);
 
       expect(block, contains('searched "fvm" — FAILED (unknown_error)'));
+    });
+
+    test('reports an error-shaped failure, and never as unchanged', () {
+      // `filesystem_tools` reports a read-class failure as `{'error': ...}`
+      // with no `ok` key, which the `ok`-only check let through as gathered
+      // context -- and, being a success, it then qualified for the `unchanged`
+      // comparison between two identical error payloads. Session 75df4c2c was
+      // told its `search_files` calls had "returned the same file" when they
+      // had read nothing at all, while the git output it needed was gone.
+      const failure =
+          '{"error":"Directory does not exist: /repo/pubspec.yaml"}';
+      final block = digest.build([
+        _result('search_files', {'query': 'version:'}, result: failure),
+        _result('search_files', {'query': 'version:'}, result: failure),
+        _result('list_directory', {'path': '/repo'}),
+      ]);
+
+      expect(block, contains('searched "version:" — FAILED (unknown_error)'));
+      expect(block, contains('no content was gathered'));
+      expect(block, isNot(contains('unchanged')));
+      expect(block, isNot(contains('returned the same file')));
+    });
+
+    test('keeps a read whose content merely mentions error', () {
+      final block = digest.build([
+        _result('read_file', {
+          'path': '/repo/notes.md',
+        }, result: 'the "error" key is only discussed here'),
+        _result('list_directory', {'path': '/repo'}),
+      ]);
+
+      expect(block, contains('read /repo/notes.md'));
+      expect(block, isNot(contains('FAILED')));
     });
 
     test('keeps a read whose content merely mentions ok', () {
@@ -435,8 +486,10 @@ void main() {
 
       expect(
         block,
-        contains('ran `fvm flutter test` (last exit 0; already run 2x '
-            'this turn)'),
+        contains(
+          'ran `fvm flutter test` (last exit 0; already run 2x '
+          'this turn)',
+        ),
       );
     });
 
@@ -459,12 +512,24 @@ void main() {
       // 3.47.1 — the third read went out unflagged because the first one had
       // seen a different version.
       final block = digest.build([
-        _result('read_file', {'path': '.fvmrc'},
-            result: 'v0', contentHash: 'hash-old'),
-        _result('read_file', {'path': '.fvmrc'},
-            result: 'v1', contentHash: 'hash-new'),
-        _result('read_file', {'path': '.fvmrc'},
-            result: 'v1', contentHash: 'hash-new'),
+        _result(
+          'read_file',
+          {'path': '.fvmrc'},
+          result: 'v0',
+          contentHash: 'hash-old',
+        ),
+        _result(
+          'read_file',
+          {'path': '.fvmrc'},
+          result: 'v1',
+          contentHash: 'hash-new',
+        ),
+        _result(
+          'read_file',
+          {'path': '.fvmrc'},
+          result: 'v1',
+          contentHash: 'hash-new',
+        ),
         _result('list_directory', {'path': '.'}),
       ]);
 
@@ -473,12 +538,24 @@ void main() {
 
     test('does not flag unchanged when only the older reads matched', () {
       final block = digest.build([
-        _result('read_file', {'path': 'a.dart'},
-            result: 'v0', contentHash: 'hash-old'),
-        _result('read_file', {'path': 'a.dart'},
-            result: 'v0', contentHash: 'hash-old'),
-        _result('read_file', {'path': 'a.dart'},
-            result: 'v1', contentHash: 'hash-new'),
+        _result(
+          'read_file',
+          {'path': 'a.dart'},
+          result: 'v0',
+          contentHash: 'hash-old',
+        ),
+        _result(
+          'read_file',
+          {'path': 'a.dart'},
+          result: 'v0',
+          contentHash: 'hash-old',
+        ),
+        _result(
+          'read_file',
+          {'path': 'a.dart'},
+          result: 'v1',
+          contentHash: 'hash-new',
+        ),
         _result('list_directory', {'path': '.'}),
       ]);
 
@@ -491,11 +568,19 @@ void main() {
 
     test('does not extend an unchanged run through an unhashed read', () {
       final block = digest.build([
-        _result('read_file', {'path': 'a.dart'},
-            result: 'body', contentHash: 'hash-a'),
+        _result(
+          'read_file',
+          {'path': 'a.dart'},
+          result: 'body',
+          contentHash: 'hash-a',
+        ),
         _result('read_file', {'path': 'a.dart'}, result: 'body'),
-        _result('read_file', {'path': 'a.dart'},
-            result: 'body', contentHash: 'hash-a'),
+        _result(
+          'read_file',
+          {'path': 'a.dart'},
+          result: 'body',
+          contentHash: 'hash-a',
+        ),
         _result('list_directory', {'path': '.'}),
       ]);
 
@@ -505,7 +590,6 @@ void main() {
         reason: 'the middle read reported no hash, so it cannot be compared',
       );
     });
-
 
     test('lists the files the turn changed', () {
       final block = digest.build([
@@ -568,7 +652,10 @@ void main() {
         _mutation('edit_file', 'lib/b.dart'),
       ]);
 
-      expect(block, contains('edited lib/b.dart (no command or check has run since)'));
+      expect(
+        block,
+        contains('edited lib/b.dart (no command or check has run since)'),
+      );
       expect(block, contains('- wrote lib/a.dart\n'));
     });
 

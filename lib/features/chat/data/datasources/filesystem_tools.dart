@@ -696,7 +696,16 @@ class FilesystemTools {
     int? maxBytesScanned,
   }) async {
     final directory = Directory(path);
-    if (!directory.existsSync()) {
+    // A path naming a file searches that one file. `rg pattern file` is
+    // ordinary usage, and refusing it cost whole turns: the check saw
+    // `Directory(path).existsSync() == false` and answered "Directory does not
+    // exist" about a file that was plainly there. In session 75df4c2c the model
+    // read that as a bad path and re-verified everything -- three times around
+    // a loop whose real cost was that the wasted call evicted the git output it
+    // still needed. Session a40d48a8 is the same shape from the query side.
+    final singleFile = File(path);
+    final searchesOneFile = !directory.existsSync() && singleFile.existsSync();
+    if (!directory.existsSync() && !searchesOneFile) {
       return jsonEncode({'error': 'Directory does not exist: $path'});
     }
     if (query.trim().isEmpty) {
@@ -705,6 +714,12 @@ class FilesystemTools {
     if (offset < 0) {
       return jsonEncode({'error': 'offset must be greater than or equal to 0'});
     }
+    // Relative paths in a match line stay readable either way: against the
+    // file's own directory a single-file search reports its basename.
+    final scanRoot = searchesOneFile ? singleFile.parent : directory;
+    final reportedPath = searchesOneFile
+        ? singleFile.absolute.path
+        : directory.absolute.path;
 
     final lineClamp = maxLineLength.clamp(
       40,
@@ -728,8 +743,11 @@ class FilesystemTools {
       var scanCeilingHit = false;
       var resultLimitHit = false;
 
-      await for (final entity in ProjectScanExclusions.files(directory)) {
-        final relativePath = _relativePath(entity.path, directory.path);
+      final candidates = searchesOneFile
+          ? Stream<File>.value(singleFile)
+          : ProjectScanExclusions.files(directory);
+      await for (final entity in candidates) {
+        final relativePath = _relativePath(entity.path, scanRoot.path);
         if (fileMatcher != null &&
             !fileMatcher.hasMatch(relativePath) &&
             !fileMatcher.hasMatch(entity.uri.pathSegments.last)) {
@@ -799,7 +817,7 @@ class FilesystemTools {
           ? _regexQueryHint(query)
           : null;
       return jsonEncode({
-        'path': directory.absolute.path,
+        'path': reportedPath,
         'query': query,
         'matches': matches,
         'match_count': matches.length,
@@ -813,7 +831,7 @@ class FilesystemTools {
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
-        path: directory.absolute.path,
+        path: reportedPath,
         operation: 'search_files',
         error: error,
       );

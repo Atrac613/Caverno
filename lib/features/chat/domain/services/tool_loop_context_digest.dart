@@ -430,7 +430,15 @@ class ToolLoopContextDigest {
   /// the model not to repeat a call the runtime just told it to repeat is the
   /// [_wasNeverExecuted] mistake in the other direction.
   static _InspectionStatus _classifyInspection(String result) {
-    if (!result.contains('"ok"')) {
+    // Both failure shapes, for the reason [_MutationStatus] already accepts
+    // both: `filesystem_tools` reports a read-class failure as
+    // `{'error': ...}` with no `ok` key, so the `ok`-only check let every one
+    // of them through as gathered context. Worse than silent: a success is
+    // then eligible for the `unchanged` comparison, which compared two
+    // identical *error payloads* and told the model the last two inspections
+    // "returned the same file". Session 75df4c2c carried exactly that line
+    // about a `search_files` call that had read nothing at all.
+    if (!result.contains('"ok"') && !result.contains('"error"')) {
       return const _InspectionStatus.ok();
     }
     final Object? decoded;
@@ -439,7 +447,13 @@ class ToolLoopContextDigest {
     } on FormatException {
       return const _InspectionStatus.ok();
     }
-    if (decoded is! Map<String, dynamic> || decoded['ok'] != false) {
+    if (decoded is! Map<String, dynamic>) {
+      return const _InspectionStatus.ok();
+    }
+    final error = decoded['error'];
+    final failed =
+        decoded['ok'] == false || (error is String && error.trim().isNotEmpty);
+    if (!failed) {
       return const _InspectionStatus.ok();
     }
     if (decoded.containsKey('next_action')) {

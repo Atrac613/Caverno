@@ -542,6 +542,46 @@ void main() {
     expect(findResult['matches'], ['pubspec.yaml']);
   });
 
+  test('searchFiles searches a path that names one file', () async {
+    // `rg pattern file` is ordinary usage. Refusing it answered "Directory
+    // does not exist" about a file that was plainly there, and session
+    // 75df4c2c read that as a bad path and re-verified everything three times
+    // -- each wasted call evicting the git output the turn still needed.
+    final target = File('${tempDir.path}${Platform.pathSeparator}pubspec.yaml');
+    await target.writeAsString('name: caverno\nversion: 1.3.34+47\n');
+
+    final result =
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: target.path,
+                query: 'version:',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(result['match_count'], 1);
+    expect(result['matches'].single, contains('1.3.34+47'));
+    // Reported against the file itself, and the match line names it rather
+    // than an empty relative path.
+    expect(result['path'], target.absolute.path);
+    expect(result['matches'].single, startsWith('pubspec.yaml:2:'));
+    expect(result.containsKey('error'), isFalse);
+  });
+
+  test(
+    'searchFiles still reports a path that is neither file nor directory',
+    () async {
+      final missing = '${tempDir.path}${Platform.pathSeparator}nope';
+      final result =
+          jsonDecode(
+                await FilesystemTools.searchFiles(path: missing, query: 'x'),
+              )
+              as Map<String, dynamic>;
+
+      expect(result['error'], contains('does not exist'));
+    },
+  );
+
   test('searchFiles names the anchor behind an empty result', () async {
     // `query` is literal, so `^version:` can never match. The same anchored
     // query was reissued six times in session a40d48a8 because nothing said so.
