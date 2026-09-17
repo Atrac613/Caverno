@@ -35,7 +35,9 @@ import '../../../settings/domain/services/local_command_permission_service.dart'
 import '../../../settings/presentation/providers/local_model_lifecycle_provider.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../application/runtime/duplicate_command_answer_policy.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
+import '../../application/runtime/read_only_command_repeat_budget.dart';
 import '../../application/runtime/tool_outcome_shadow_observer.dart';
 import '../../application/runtime/turn_abort_signals.dart';
 import '../../application/runtime/turn_prompt_clock.dart';
@@ -2006,6 +2008,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _pendingToolApprovals.pendingOfType<PendingLocalCommand>();
   final _bleConnectAttempts = BleConnectAttemptCoordinator();
   final _successfulReadResultReplayCache = SuccessfulReadResultReplayCache();
+  final _readOnlyCommandRepeatBudget = ReadOnlyCommandRepeatBudget();
   static const int _maxContentToolContinuations = 5;
   final Set<int> _turnFinalizationRecoveryGenerations = {};
 
@@ -5293,6 +5296,17 @@ class ChatNotifier extends Notifier<ChatState> {
     final toolCatalogCache = TurnToolCatalogCache();
     final toolCatalogSource = TurnToolCatalogSource();
 
+    void deliverRecoveredAnswer(String answer) {
+      currentToolCalls = [];
+      _recordHiddenEvidence(turnOwner, answer);
+      _appendRecoveredAssistantResponse(
+        answer,
+        interactionGeneration: interactionGeneration,
+      );
+      currentAssistantContent = answer;
+      hasTextResponse = true;
+    }
+
     List<Map<String, dynamic>> selectedDefinitionsFor(
       McpToolService mcpToolService,
     ) {
@@ -5391,14 +5405,7 @@ class ChatNotifier extends Notifier<ChatState> {
             );
             const fallbackResponse =
                 'The saved validation command already succeeded for the current saved task, so the current saved task is complete.';
-            currentToolCalls = [];
-            _recordHiddenEvidence(turnOwner, fallbackResponse);
-            _appendRecoveredAssistantResponse(
-              fallbackResponse,
-              interactionGeneration: interactionGeneration,
-            );
-            currentAssistantContent = fallbackResponse;
-            hasTextResponse = true;
+            deliverRecoveredAnswer(fallbackResponse);
             break;
           }
           if (_toolCallExecutionPolicy
@@ -5410,38 +5417,25 @@ class ChatNotifier extends Notifier<ChatState> {
               '[Tool] Duplicate command follow-up already has a successful result',
             );
             final fallbackResponse = currentAssistantContent?.trim() ?? '';
-            final previousOutput = _toolCallExecutionPolicy
-                .previousSuccessfulCommandOutputForDuplicateCalls(
-                  currentToolCalls,
-                  recovered.isNotEmpty ? recovered : executedToolResults,
+            final recoveredAnswer = const DuplicateCommandAnswerPolicy()
+                .resolve(
+                  previousOutput: _toolCallExecutionPolicy
+                      .previousSuccessfulCommandOutputForDuplicateCalls(
+                        currentToolCalls,
+                        recovered.isNotEmpty ? recovered : executedToolResults,
+                      ),
+                  visibleAnswer: fallbackResponse,
+                  mayUsePreviousOutput: _toolCallExecutionPolicy
+                      .shouldUsePreviousOutputForDuplicateCommandCalls(
+                        currentToolCalls,
+                      ),
+                  visibleAnswerLooksPending:
+                      DuplicateCommandAnswerPolicy.looksLikePendingToolAction(
+                        fallbackResponse,
+                      ),
                 );
-            if (_toolCallExecutionPolicy
-                    .shouldUsePreviousOutputForDuplicateCommandCalls(
-                      currentToolCalls,
-                    ) &&
-                previousOutput.isNotEmpty &&
-                (fallbackResponse.isEmpty ||
-                    _looksLikePendingToolActionResponse(fallbackResponse))) {
-              currentToolCalls = [];
-              _recordHiddenEvidence(turnOwner, previousOutput);
-              _appendRecoveredAssistantResponse(
-                previousOutput,
-                interactionGeneration: interactionGeneration,
-              );
-              currentAssistantContent = previousOutput;
-              hasTextResponse = true;
-              break;
-            }
-            if (fallbackResponse.isNotEmpty &&
-                !_looksLikePendingToolActionResponse(fallbackResponse)) {
-              currentToolCalls = [];
-              _recordHiddenEvidence(turnOwner, fallbackResponse);
-              _appendRecoveredAssistantResponse(
-                fallbackResponse,
-                interactionGeneration: interactionGeneration,
-              );
-              currentAssistantContent = fallbackResponse;
-              hasTextResponse = true;
+            if (recoveredAnswer != null) {
+              deliverRecoveredAnswer(recoveredAnswer);
               break;
             }
           }
@@ -5621,6 +5615,15 @@ class ChatNotifier extends Notifier<ChatState> {
           }
         }
         if (batchToolResults.isEmpty) {
+          appLog('[Tool] All requested tool calls discarded, ending the turn');
+          _appendToLastMessageForGeneration(
+            interactionGeneration,
+            const ToolLoopAbortNotice().buildDiscardedDuplicateCallsNotice(
+              toolCalls: currentToolCalls,
+              executedToolResults: executedToolResults,
+            ),
+          );
+          _turnEnd.setHint(turnOwner, ToolLoopExitReason.allCallsDiscarded);
           currentToolCalls = [];
           break;
         }
@@ -5776,14 +5779,7 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog(
             '[Tool] Ignoring read-only follow-up after terminal completion text',
           );
-          currentToolCalls = [];
-          _recordHiddenEvidence(turnOwner, fallbackResponse);
-          _appendRecoveredAssistantResponse(
-            fallbackResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = fallbackResponse;
-          hasTextResponse = true;
+          deliverRecoveredAnswer(fallbackResponse);
           break;
         }
         if (_shouldAcceptConstrainedSkillResponseBeforeFollowUpTools(
@@ -7130,10 +7126,6 @@ class ChatNotifier extends Notifier<ChatState> {
         isReadOnlyInspectionToolCall:
             _toolCallExecutionPolicy.isReadOnlyInspectionToolCall,
       );
-
-  bool _looksLikePendingToolActionResponse(String response) => RegExp(
-    r"\b(?:now\s+)?let me\b|\bi (?:will|need to|should|am going to)\b|\bi(?:'ll| will)\b",
-  ).hasMatch(response.toLowerCase());
 
   bool _containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
     List<ToolCallInfo> toolCalls,

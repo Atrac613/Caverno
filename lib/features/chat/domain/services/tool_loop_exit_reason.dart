@@ -41,6 +41,16 @@ enum ToolLoopExitReason {
   /// gave up (the current `toolFailureCounts[key] >= 2` break — LL29's target).
   toolFailureAbort,
 
+  /// Every tool call the model requested was discarded as a duplicate, leaving
+  /// the batch empty, and no recovery produced an answer.
+  ///
+  /// Distinct from [toolFailureAbort]: nothing failed. The turn ran out of
+  /// moves because the loop refused to repeat work it had already done and
+  /// could no longer show the model the result of. This exit used to report
+  /// itself as [textResponse], so a turn that stopped mid-task was
+  /// indistinguishable in the session log from one that answered.
+  allCallsDiscarded,
+
   /// A guardrail (e.g. release-approval, git-tag inspection) blocked the pending
   /// tool calls and ended the turn.
   guardrailBlock,
@@ -198,6 +208,10 @@ class ToolLoopExitClassifier {
       case ToolLoopExitReason.toolFailureAbort:
         return 'I stopped because a tool kept failing the same way. Tell me how '
             "you'd like to proceed, or share more detail about the blocker.";
+      case ToolLoopExitReason.allCallsDiscarded:
+        return 'I stopped because every tool call I asked for this turn had '
+            'already run, so there was nothing left to execute. Ask me to '
+            'continue and I will work from what those calls returned.';
       case ToolLoopExitReason.guardrailBlock:
         return 'I paused before running a tool that needs a closer look. Review '
             'the request above and confirm how you want me to continue.';
@@ -234,6 +248,8 @@ class ToolLoopExitClassifier {
         return 'unexecuted_tool_request';
       case ToolLoopExitReason.toolFailureAbort:
         return 'tool_failure_abort';
+      case ToolLoopExitReason.allCallsDiscarded:
+        return 'all_calls_discarded';
       case ToolLoopExitReason.guardrailBlock:
         return 'guardrail_block';
       case ToolLoopExitReason.userConfirmationBlock:

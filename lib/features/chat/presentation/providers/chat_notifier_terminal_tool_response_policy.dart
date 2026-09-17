@@ -14,7 +14,8 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         looksLikePlanOnlyFinalToolAnswer:
             const UnexecutedFinalAnswerToolRequestPolicy()
                 .looksLikePlanOnlyFinalToolAnswer,
-        looksLikePendingToolActionResponse: _looksLikePendingToolActionResponse,
+        looksLikePendingToolActionResponse:
+            DuplicateCommandAnswerPolicy.looksLikePendingToolAction,
         looksLikeStructuredToolRequest:
             const UnexecutedFinalAnswerToolRequestPolicy()
                 .looksLikeStructuredToolRequest,

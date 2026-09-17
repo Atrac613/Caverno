@@ -1651,6 +1651,12 @@ void registerChatNotifierGitGuardrailTests() {
   test(
     'repeated successful git command can continue to next tool call',
     () async {
+      // The contract is that the turn continues to `write_file` rather than
+      // dying on the repeat. The mechanism changed: a read-only git command is
+      // now allowed to run again (bounded by ReadOnlyCommandRepeatBudget)
+      // instead of being answered from the earlier batch, because the model
+      // re-issues it precisely when the follow-up request no longer carries
+      // that output -- session 96e27118.
       final conversationRepository = _FakeConversationRepository();
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
@@ -1749,6 +1755,7 @@ void registerChatNotifierGitGuardrailTests() {
         await Future<void>.delayed(Duration.zero);
 
         expect(toolService.executedToolNames, [
+          'git_execute_command',
           'git_execute_command',
           'write_file',
         ]);

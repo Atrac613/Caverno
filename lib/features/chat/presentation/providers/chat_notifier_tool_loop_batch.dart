@@ -94,6 +94,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
 
     String resolveProjectPath(String path) =>
         ToolDedupeKeys.resolvePath(path, projectRoot: projectRoot);
+    final repeatBudget = _readOnlyCommandRepeatBudget.forBatch(
+      interactionGeneration: interactionGeneration,
+      commandRetryGeneration: nextCommandRetryGeneration,
+      stateChangeGeneration: nextStateChangeGeneration,
+    );
     for (final toolCall in currentToolCalls) {
       final mutationGeneration = ownerMutationGeneration();
       final shouldSuppressAdditionalReadReplay =
@@ -117,16 +122,19 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             ),
           ) !=
           null;
+      final exhaustedRepeat = repeatBudget.isExhausted(toolCall);
+      final skipReason = shouldSuppressAdditionalReadReplay
+          ? 'repeated_read_replay_exhausted'
+          : exhaustedRepeat
+          ? 'read_only_command_repeat_exhausted'
+          : 'duplicate_tool_call';
       if ((executedToolCallKeys.contains(toolCallKey) &&
               !_shouldAllowRepeatedToolExecution(toolCall) &&
               !shouldBlockTimedOutCommandRetry) ||
-          shouldSuppressAdditionalReadReplay) {
+          shouldSuppressAdditionalReadReplay ||
+          exhaustedRepeat) {
         appLog(
-          shouldSuppressAdditionalReadReplay
-              ? '[InspectionReplay] Additional unchanged read_file replay '
-                    'suppressed: ${toolCall.arguments}'
-              : '[Tool] Duplicate tool call detected, skipping: '
-                    '${toolCall.name} ${toolCall.arguments}',
+          '[Tool] Skip ($skipReason): ${toolCall.name} ${toolCall.arguments}',
         );
         _logToolLifecycleEvent(
           generation: interactionGeneration,
@@ -135,9 +143,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           loopIndex: iteration,
           schedulerMode: ToolExecutionScheduler.executionModeFor(toolCall),
           resultStatus: 'skipped',
-          skipReason: shouldSuppressAdditionalReadReplay
-              ? 'repeated_read_replay_exhausted'
-              : 'duplicate_tool_call',
+          skipReason: skipReason,
         );
         await _modelEditTelemetry!.runtimeSamplerFeedback.recordEvent(
           RuntimeSamplerToolLoopRepetitionEvent(
@@ -155,6 +161,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolCall,
         interactionGeneration: interactionGeneration,
       );
+      repeatBudget.recordExecution(toolCall);
       pendingBatchCalls.add(toolCall);
     }
 

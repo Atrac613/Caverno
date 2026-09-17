@@ -148,8 +148,23 @@ class ToolCallExecutionPolicy {
   bool isFileMutationToolCall(ToolCallInfo toolCall) =>
       _fileMutationEvidencePolicy.isMutationToolName(toolCall.name);
 
+  /// Whether [toolCall] may run again after an identical call this turn.
+  ///
+  /// Read-only commands are admitted because the loop gives the model no other
+  /// way back to their output: a follow-up request carries only the current
+  /// batch's results, and `ToolLoopContextDigest` names the command and its
+  /// exit status while stating that the output is not carried. Refusing the
+  /// re-run made that instruction a trap -- session 96e27118 re-issued
+  /// `git tag --list --sort=-version:refname` to recover the tag list, the
+  /// guard skipped it, and the empty batch ended the turn mid-task.
+  ///
+  /// This is an allowance, not a licence to spin: `ReadOnlyCommandRepeatBudget`
+  /// caps how many times one such call may run per generation, and a mutating
+  /// command still collides with its own earlier key so one side effect cannot
+  /// run twice.
   bool shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
     return toolCall.name == 'read_file' ||
+        isReadOnlyCommandExecutionToolCall(toolCall) ||
         isRepeatableBackgroundProcessInspectionTool(toolCall) ||
         isRepeatableProcessMonitorToolCall(toolCall);
   }
@@ -379,12 +394,22 @@ class ToolCallExecutionPolicy {
     return outputs.join('\n');
   }
 
+  /// Whether a duplicate command call's earlier output may stand in as the
+  /// turn's answer.
+  ///
+  /// `git_execute_command` belongs here for the same reason the other two do:
+  /// its output is what the model asked for and could no longer see. Leaving
+  /// it out made the recovery unreachable for every git-driven turn — session
+  /// 96e27118 re-issued `git tag --list --sort=-version:refname` to recover
+  /// the tag list, this gate rejected it on the tool name alone, and the turn
+  /// ended on its own preamble with the tag list sitting unused in
+  /// [previousSuccessfulCommandOutputForDuplicateCalls].
   bool shouldUsePreviousOutputForDuplicateCommandCalls(
     List<ToolCallInfo> toolCalls,
   ) {
     return toolCalls.every((toolCall) {
       return switch (toolCall.name.trim().toLowerCase()) {
-        'local_execute_command' || 'run_tests' => true,
+        'local_execute_command' || 'git_execute_command' || 'run_tests' => true,
         _ => false,
       };
     });

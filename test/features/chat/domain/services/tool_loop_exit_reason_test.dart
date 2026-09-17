@@ -26,6 +26,23 @@ void main() {
     );
   }
 
+  group('allCallsDiscarded', () {
+    test('is a distinct exit, not a healthy text response', () {
+      // Session 96e27118 ended here and logged `text_response`, so a turn that
+      // stopped mid-task was indistinguishable from one that answered.
+      final reason = classifier.classify(
+        state(
+          text: 'まず現状のタグとコミット履歴を確認します。',
+          hint: ToolLoopExitReason.allCallsDiscarded,
+        ),
+      );
+
+      expect(reason, ToolLoopExitReason.allCallsDiscarded);
+      expect(classifier.logToken(reason), 'all_calls_discarded');
+      expect(classifier.completionExplanation(reason), isNotNull);
+    });
+  });
+
   group('classify', () {
     test('an explicit loop hint wins over content derivation', () {
       // A healthy-looking answer that the loop still tagged as a failure abort.

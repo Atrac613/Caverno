@@ -184,6 +184,98 @@ void registerChatNotifierCommandDedupTests() {
   );
 
   test(
+    'sendMessage re-runs a read-only git command whose output was dropped',
+    () async {
+      // Session 96e27118: the turn ran `git tag --list` at loop 5, the
+      // follow-up request carried only the current batch's results so the tag
+      // list was gone by loop 7, and the context digest told the model to run
+      // the command again when it needed the output. It did -- the duplicate
+      // guard discarded the identical call, the batch came back empty, and the
+      // turn ended on its own Japanese preamble with no notice. The re-run has
+      // to reach the shell.
+      const command = 'tag --list --sort=-version:refname';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tags-first',
+            name: 'git_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tags-second',
+                name: 'git_execute_command',
+                // Byte-identical to the first call, narration included.
+                arguments: const {
+                  'command': command,
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['Latest tag is 1.3.34+47.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'git_execute_command': jsonEncode({
+            'command': 'git $command',
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout': '1.3.34+47\n1.3.33+46\n',
+            'stderr': '',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('バージョンを上げてリリースして');
+
+        expect(
+          toolService.executedToolNames
+              .where((name) => name == 'git_execute_command')
+              .length,
+          2,
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage blocks an embedded git write before requesting approval',
     () async {
       const command = 'gh pr checkout 276 && git push --force-with-lease';

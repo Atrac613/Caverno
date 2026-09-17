@@ -100,6 +100,46 @@ final class ToolLoopAbortNotice {
     return buffer.toString();
   }
 
+  /// The notice for a turn that ended because every call it asked for had
+  /// already run.
+  ///
+  /// Nothing failed here, so the abort wording would misreport it: the loop
+  /// declined to repeat work whose result it could no longer show the model,
+  /// and then had nothing left to execute. The reader needs to know the turn
+  /// stopped short and what it did land, because the visible text is usually a
+  /// preamble promising the very step that was discarded.
+  String buildDiscardedDuplicateCallsNotice({
+    required List<ToolCallInfo> toolCalls,
+    required List<ToolResultInfo> executedToolResults,
+  }) {
+    final names = <String>[];
+    for (final toolCall in toolCalls) {
+      final name = toolCall.name.trim();
+      if (name.isEmpty || names.contains(name)) continue;
+      names.add(name);
+    }
+    final buffer = StringBuffer('\n')
+      ..writeln(
+        names.isEmpty
+            ? 'The turn stopped here: every tool call it asked for had already '
+                  'run this turn, so there was nothing left to execute.'
+            : 'The turn stopped here: every tool call it asked for '
+                  '(${names.join(', ')}) had already run this turn, so there '
+                  'was nothing left to execute. This is not a tool failure.',
+      );
+    final changed = changedFilePaths(executedToolResults);
+    if (changed.isNotEmpty) {
+      buffer.writeln('Already changed in this turn: ${changed.join(', ')}');
+    }
+    final ran = completedCommands(executedToolResults);
+    if (ran.isNotEmpty) {
+      buffer.writeln(
+        'Already ran successfully in this turn: ${ran.join(', ')}',
+      );
+    }
+    return buffer.toString();
+  }
+
   /// Commands this turn ran to a clean exit, in the order first issued.
   ///
   /// A command's file effects cannot be enumerated the way an `edit_file`

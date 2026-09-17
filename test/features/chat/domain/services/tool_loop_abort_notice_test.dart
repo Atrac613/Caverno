@@ -28,6 +28,45 @@ ToolResultInfo _command(String command, {int? exitCode}) => ToolResultInfo(
 void main() {
   const notice = ToolLoopAbortNotice();
 
+  group('ToolLoopAbortNotice.buildDiscardedDuplicateCallsNotice', () {
+    // Session 96e27118 stopped here in silence: every call it asked for had
+    // already run, the loop broke without a word, and the user was left with a
+    // preamble promising the step that was discarded.
+    test('says the turn stopped and why, without claiming a failure', () {
+      final text = notice.buildDiscardedDuplicateCallsNotice(
+        toolCalls: [
+          ToolCallInfo(
+            id: 'call-1',
+            name: 'git_execute_command',
+            arguments: const {'command': 'tag --list'},
+          ),
+        ],
+        executedToolResults: [
+          _edit('lib/main.dart'),
+          _command('git tag --list', exitCode: 0),
+        ],
+      );
+
+      expect(text, contains('git_execute_command'));
+      expect(text, contains('nothing left to execute'));
+      expect(text, contains('not a tool failure'));
+      // An abort that follows real work must never report as a turn that did
+      // nothing.
+      expect(text, contains('lib/main.dart'));
+      expect(text, contains('git tag --list'));
+    });
+
+    test('stands on its own when the turn landed nothing', () {
+      final text = notice.buildDiscardedDuplicateCallsNotice(
+        toolCalls: const [],
+        executedToolResults: const [],
+      );
+
+      expect(text, contains('nothing left to execute'));
+      expect(text, isNot(contains('Already')));
+    });
+  });
+
   group('ToolLoopAbortNotice', () {
     // The reported failure: `edit_file` could not find its `old_text` in a
     // local file, and the abort told the user to check their server

@@ -205,6 +205,61 @@ void main() {
       );
     });
 
+    test('allows a read-only command to run again', () {
+      // The follow-up request carries only the current batch's results, so a
+      // model that needs an earlier command's output has no way back to it
+      // except re-issuing the call. Session 96e27118 did exactly that with
+      // `git tag --list` and the duplicate guard discarded it, leaving the
+      // batch empty and ending the turn mid-task.
+      expect(
+        policy.shouldAllowRepeatedToolExecution(
+          _toolCall('git_execute_command', {
+            'command': 'tag --list --sort=-version:refname',
+          }),
+        ),
+        isTrue,
+      );
+      expect(
+        policy.shouldAllowRepeatedToolExecution(
+          _toolCall('local_execute_command', {'command': 'ls lib'}),
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not allow a mutating command to run again', () {
+      // Repeating a side effect is what the duplicate guard exists to stop.
+      expect(
+        policy.shouldAllowRepeatedToolExecution(
+          _toolCall('git_execute_command', {'command': 'commit -m "wip"'}),
+        ),
+        isFalse,
+      );
+      expect(
+        policy.shouldAllowRepeatedToolExecution(
+          _toolCall('git_execute_command', {'command': 'tag 1.3.35'}),
+        ),
+        isFalse,
+      );
+    });
+
+    test('git output may stand in for a duplicate command call', () {
+      // Excluding git here made the recovery unreachable for every git-driven
+      // turn, which is how 96e27118 ended on its own preamble.
+      expect(
+        policy.shouldUsePreviousOutputForDuplicateCommandCalls([
+          _toolCall('git_execute_command', {'command': 'tag --list'}),
+        ]),
+        isTrue,
+      );
+      expect(
+        policy.shouldUsePreviousOutputForDuplicateCommandCalls([
+          _toolCall('read_file', {'path': 'pubspec.yaml'}),
+        ]),
+        isFalse,
+      );
+    });
+
     test('classifies read-only inspection command tool calls', () {
       expect(
         policy.isReadOnlyInspectionToolCall(_toolCall('search_files')),
