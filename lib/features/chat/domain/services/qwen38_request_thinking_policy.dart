@@ -1,4 +1,3 @@
-import '../../../../core/constants/api_constants.dart';
 import '../entities/model_usage_role.dart';
 
 /// Applies explicit template thinking preferences and Qwen3.8 defaults.
@@ -34,12 +33,31 @@ final class Qwen38RequestThinkingPolicy {
   static bool suppressesThinking(ModelUsageRole role) =>
       _structuredUtilityRoles.contains(role);
 
+  /// Whether [model] is a Qwen3.8 build this policy governs.
+  ///
+  /// Matched by family, because the exact-name equality this replaces
+  /// (`model == ApiConstants.qwen38VisionModel`) switched the whole policy off
+  /// for every other Qwen3.8 build -- including the suppression above, which is
+  /// a fact about the request rather than about the model name. A local
+  /// llama.cpp serving `Qwen3.8-Flash-Next-Q2` got no `enable_thinking: false`
+  /// on any utility call: observed 2026-09-17, where a 400-token
+  /// `goalSuggestion` spent all 400 reasoning, hit `finish=length` inside an
+  /// unclosed think block, and returned nothing usable after 21s. The same
+  /// endpoint's memory extraction was fine only because it happened to be
+  /// pinned to the one model name this compared against.
+  ///
+  /// The prefix stays narrow on purpose: `chat_template_kwargs` is a llama.cpp
+  /// template control, and a hosted endpoint that has never heard of it must
+  /// keep receiving requests without it.
+  static bool isQwen38Model(String model) =>
+      model.trim().toLowerCase().startsWith('qwen3.8');
+
   Qwen38RequestOverrides? resolve({
     required String model,
     required int? maxTokens,
     ModelUsageRole role = ModelUsageRole.unknown,
   }) {
-    if (model.trim() != ApiConstants.qwen38VisionModel) {
+    if (!isQwen38Model(model)) {
       return enableThinking == null
           ? null
           : Qwen38RequestOverrides(

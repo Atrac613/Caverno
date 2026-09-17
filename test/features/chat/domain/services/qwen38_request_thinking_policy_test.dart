@@ -57,6 +57,51 @@ void main() {
     test('leaves other models untouched', () {
       const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'medium');
       expect(policy.resolve(model: 'gpt-5.6-luna', maxTokens: 1200), isNull);
+      // `chat_template_kwargs` is a llama.cpp template control; a hosted
+      // endpoint must keep receiving requests without it, utility role or not.
+      expect(
+        policy.resolve(
+          model: 'gpt-5.6-luna',
+          maxTokens: 400,
+          role: ModelUsageRole.goalSuggestion,
+        ),
+        isNull,
+      );
+    });
+
+    test('governs every Qwen3.8 build, not one exact name', () {
+      // A local llama.cpp serves `Qwen3.8-Flash-Next-Q2`, which the previous
+      // equality against ApiConstants.qwen38VisionModel did not match -- so no
+      // utility call on that endpoint was ever told not to think. Observed
+      // 2026-09-17: a 400-token goalSuggestion spent all 400 reasoning and
+      // returned nothing.
+      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'high');
+      expect(
+        policy
+            .resolve(
+              model: 'Qwen3.8-Flash-Next-Q2',
+              maxTokens: 400,
+              role: ModelUsageRole.goalSuggestion,
+            )!
+            .chatTemplateKwargs,
+        {'enable_thinking': false},
+      );
+      // The thinking branches follow the same family, so a chat turn on that
+      // build keeps the reasoning effort it asks for.
+      expect(
+        policy
+            .resolve(model: 'Qwen3.8-Flash-Next-Q2', maxTokens: 4096)!
+            .chatTemplateKwargs['enable_thinking'],
+        isTrue,
+      );
+      expect(
+        Qwen38RequestThinkingPolicy.isQwen38Model(' qwen3.8-27b-vision '),
+        isTrue,
+      );
+      expect(
+        Qwen38RequestThinkingPolicy.isQwen38Model('qwen3.6-27b-mtp-vision'),
+        isFalse,
+      );
     });
 
     test('medium effort enables thinking and raises a small chat budget', () {
