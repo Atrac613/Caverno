@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -23,6 +25,7 @@ import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_models.dart';
 import '../domain/remote_coding_session_policy.dart';
 import '../domain/remote_coding_transport_policy.dart';
+import 'remote_coding_platform.dart';
 
 final remoteCodingClientProvider =
     NotifierProvider<RemoteCodingClientNotifier, RemoteCodingClientState>(
@@ -185,10 +188,21 @@ class RemoteCodingClientState {
 class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   static const Duration _commandTimeout = Duration(seconds: 12);
   static const Duration _socketPingInterval = Duration(seconds: 20);
+  /// Delay before each successive automatic reconnect attempt.
+  ///
+  /// The last entry is a steady state, not a dead end: once the ladder is
+  /// walked the client keeps retrying at that interval instead of giving up.
+  /// The previous three-rung ladder surrendered after ~22 seconds, which is
+  /// shorter than a desktop takes to wake, so the common case -- phone comes
+  /// out of a pocket while the desktop is still asleep -- always ended in a
+  /// manual tap. A suspended app costs nothing here because the OS does not
+  /// fire timers while it is backgrounded.
   static const List<Duration> _reconnectBackoffDelays = [
     Duration(seconds: 2),
     Duration(seconds: 5),
     Duration(seconds: 15),
+    Duration(seconds: 30),
+    Duration(seconds: 60),
   ];
 
   final _uuid = const Uuid();
@@ -207,6 +221,15 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   @override
   RemoteCodingClientState build() {
     _repository = ref.read(remoteCodingRepositoryProvider);
+    // Mobile only. A desktop reports `resumed` every time its window regains
+    // focus, which is not a signal that the network came back.
+    if (isRemoteCodingMobileRuntimePlatform()) {
+      final observer = _ForegroundReconnectObserver(
+        () => unawaited(connectSavedHostIfIdle()),
+      );
+      WidgetsBinding.instance.addObserver(observer);
+      ref.onDispose(() => WidgetsBinding.instance.removeObserver(observer));
+    }
     ref.onDispose(() {
       _cancelReconnectTimer();
       _completeConnectedSnapshotWaiter(false);
@@ -216,10 +239,30 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     return RemoteCodingClientState(host: _repository.loadMobileHost());
   }
 
-  Future<void> connectSavedHost({bool automatic = false}) async {
+  /// Connects to the saved host.
+  ///
+  /// [automatic] keeps the backoff ladder running when this attempt fails;
+  /// a manual attempt reports the failure and stops instead.
+  ///
+  /// [continuingLadder] marks the ladder's own scheduled attempt. Every other
+  /// caller is an explicit request -- the Reconnect button, a tapped
+  /// notification, a background-woken Watch command -- and re-arms the ladder
+  /// from zero. Without that, one exhausted ladder disabled automatic
+  /// reconnection for the rest of the session: `reconnectAttempt` fell back to
+  /// zero only on a successful snapshot, so a manual retry that also failed
+  /// left it at the cap and the next unexpected drop gave up with no attempt
+  /// at all.
+  Future<void> connectSavedHost({
+    bool automatic = false,
+    bool continuingLadder = false,
+  }) async {
     _manualDisconnectRequested = false;
-    if (!automatic) {
+    if (!continuingLadder) {
       _cancelReconnectTimer();
+      state = state.copyWith(
+        reconnectAttempt: 0,
+        clearNextReconnectAt: true,
+      );
     }
     final host = _repository.loadMobileHost();
     if (host == null) {
@@ -276,6 +319,39 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         _connectedSnapshotWaiter = null;
       }
     }
+  }
+
+  /// Connects to the saved host when nothing else is already trying.
+  ///
+  /// Two callers, one situation: the app has come back to the foreground, or
+  /// the Remote Coding page has just been opened. Neither reconnected before.
+  /// The OS suspends timers while the app is backgrounded, so a ladder meant to
+  /// cover a sleeping desktop instead walks its rungs in the seconds after the
+  /// phone is unlocked -- against a desktop that has not finished waking -- and
+  /// nothing re-armed it afterwards. What was left was the Reconnect button,
+  /// and the person had to know to look for it.
+  ///
+  /// The attempt is automatic, so a failure keeps the backoff ladder running
+  /// rather than reporting an error and stopping the way a tap does.
+  ///
+  /// A manual disconnect is still honoured: that is a decision, not a fault.
+  Future<void> connectSavedHostIfIdle() async {
+    if (!ref.mounted || _manualDisconnectRequested) return;
+    switch (state.status) {
+      case RemoteCodingConnectionStatus.connected:
+      case RemoteCodingConnectionStatus.connecting:
+      case RemoteCodingConnectionStatus.pairing:
+        return;
+      case RemoteCodingConnectionStatus.disconnected:
+      case RemoteCodingConnectionStatus.error:
+        break;
+    }
+    // The published host, not the repository: a notifier whose `build` a test
+    // replaced never initialized `_repository`, and reading it here threw out
+    // of a post-frame callback where nothing could catch it. `connectSavedHost`
+    // still loads the host authoritatively; this is only the guard.
+    if (state.host == null) return;
+    await connectSavedHost(automatic: true);
   }
 
   Future<void> _startSavedHostReconnect() async {
@@ -1247,23 +1323,10 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   }) {
     _cancelReconnectTimer();
     final nextAttempt = state.reconnectAttempt + 1;
-    if (nextAttempt > _reconnectBackoffDelays.length) {
-      state = state.copyWith(
-        status: RemoteCodingConnectionStatus.disconnected,
-        error: '$baseMessage Reconnect attempts were exhausted.',
-        isLoading: false,
-        queuedCount: 0,
-        snapshotSequence: 0,
-        reconnectAttempt: nextAttempt - 1,
-        pendingCommandCount: 0,
-        clearPendingApproval: true,
-        clearSnapshotGeneratedAt: true,
-        clearNextReconnectAt: true,
-      );
-      _completeConnectedSnapshotWaiter(false);
-      return;
-    }
-    final delay = _reconnectBackoffDelays[nextAttempt - 1];
+    final delay = _reconnectBackoffDelays[math.min(
+      nextAttempt - 1,
+      _reconnectBackoffDelays.length - 1,
+    )];
     final nextReconnectAt = DateTime.now().add(delay);
     state = state.copyWith(
       status: RemoteCodingConnectionStatus.disconnected,
@@ -1280,7 +1343,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     );
     _reconnectTimer = Timer(delay, () {
       if (ref.mounted && !_manualDisconnectRequested) {
-        unawaited(connectSavedHost(automatic: true));
+        unawaited(connectSavedHost(automatic: true, continuingLadder: true));
       }
     });
   }
@@ -1345,6 +1408,24 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     _pendingCommandTimers.clear();
     if (ref.mounted) {
       state = state.copyWith(pendingCommandCount: 0);
+    }
+  }
+}
+
+/// Tells the client notifier that the app came back to the foreground.
+///
+/// `AppLifecycleService` records the state but announces nothing, and a
+/// suspended app hears none of the socket errors that would otherwise schedule
+/// a reconnect.
+final class _ForegroundReconnectObserver with WidgetsBindingObserver {
+  _ForegroundReconnectObserver(this._onResumed);
+
+  final void Function() _onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _onResumed();
     }
   }
 }

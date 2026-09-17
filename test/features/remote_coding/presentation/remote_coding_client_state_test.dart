@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/dashboard/domain/entities/dashboard_stats.dart';
 import 'package:caverno/features/dashboard/domain/services/dashboard_stats_codec.dart';
@@ -6,7 +8,9 @@ import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart'
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_platform.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -556,6 +560,158 @@ void main() {
       expect(state.status, RemoteCodingConnectionStatus.disconnected);
       expect(state.reconnectAttempt, 0);
       expect(state.nextReconnectAt, isNull);
+      expect(state.hasScheduledReconnect, isFalse);
+    });
+  });
+
+  group('automatic reconnection', () {
+    late SharedPreferences prefs;
+    late _FakeRemoteCodingRepository repository;
+    late ProviderContainer container;
+    late int closedPort;
+
+    /// A loopback port nothing is listening on, so a connection attempt is
+    /// refused immediately instead of waiting out the eight-second timeout.
+    Future<int> reserveClosedPort() async {
+      final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final port = socket.port;
+      await socket.close();
+      return port;
+    }
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+      closedPort = await reserveClosedPort();
+      repository = _FakeRemoteCodingRepository(
+        prefs,
+        RemoteCodingHost(
+          id: 'device-1',
+          name: 'Desktop',
+          host: '127.0.0.1',
+          port: closedPort,
+          createdAt: DateTime(2026, 5, 26, 12),
+          updatedAt: DateTime(2026, 5, 26, 12),
+          certificatePin: 'test-certificate-pin',
+        ),
+      );
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+    });
+
+    tearDown(() {
+      container.dispose();
+    });
+
+    test('the backoff ladder holds at its longest delay instead of giving up', () {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+      final delays = <String>[];
+
+      for (var i = 0; i < 7; i++) {
+        notifier.handleUnexpectedDisconnectForTest('Connection closed.');
+        final state = container.read(remoteCodingClientProvider);
+        expect(
+          state.hasScheduledReconnect,
+          isTrue,
+          reason: 'attempt ${state.reconnectAttempt} stopped retrying',
+        );
+        delays.add(
+          RegExp(r'in (\d+) seconds').firstMatch(state.error ?? '')!.group(1)!,
+        );
+      }
+
+      // The last rung is a steady state: a desktop takes longer to wake than
+      // the three-rung ladder's ~22 seconds, so surrendering there left the
+      // person with a Reconnect button and no explanation.
+      expect(delays, ['2', '5', '15', '30', '60', '60', '60']);
+      expect(container.read(remoteCodingClientProvider).reconnectAttempt, 7);
+    });
+
+    test('an explicitly requested connection re-arms the ladder', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+      for (var i = 0; i < 5; i++) {
+        notifier.handleUnexpectedDisconnectForTest('Connection closed.');
+      }
+      expect(container.read(remoteCodingClientProvider).reconnectAttempt, 5);
+
+      // The person taps Reconnect and it fails, because the desktop is still
+      // asleep. The counter used to survive that, so the ladder stayed at its
+      // cap and the next drop retried once a minute at best -- and, before the
+      // ladder was widened, never again at all.
+      await notifier.connectSavedHost();
+      expect(container.read(remoteCodingClientProvider).reconnectAttempt, 0);
+
+      notifier.handleUnexpectedDisconnectForTest('Connection closed.');
+      final state = container.read(remoteCodingClientProvider);
+      expect(state.reconnectAttempt, 1);
+      expect(state.error, contains('in 2 seconds'));
+    });
+
+    test('an idle client reconnects when the app comes back', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      await notifier.connectSavedHostIfIdle();
+
+      final state = container.read(remoteCodingClientProvider);
+      expect(state.status, RemoteCodingConnectionStatus.disconnected);
+      expect(state.reconnectAttempt, 1);
+      expect(state.hasScheduledReconnect, isTrue);
+    });
+
+    test('a manual disconnect is not undone when the app comes back', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+      await notifier.disconnect();
+
+      await notifier.connectSavedHostIfIdle();
+
+      final state = container.read(remoteCodingClientProvider);
+      expect(state.status, RemoteCodingConnectionStatus.disconnected);
+      expect(state.reconnectAttempt, 0);
+      expect(state.hasScheduledReconnect, isFalse);
+    });
+
+    test('coming back to the foreground reconnects on mobile', () async {
+      // The wiring, not the decision: `connectSavedHostIfIdle` is covered
+      // above, and what is easy to lose is the observer that calls it.
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      debugRemoteCodingMobileRuntimePlatformOverride = () => true;
+      addTearDown(() {
+        debugRemoteCodingMobileRuntimePlatformOverride = null;
+      });
+      // Withheld so the attempt stops before it opens a socket: this test is
+      // about whether the observer calls the notifier at all, and a test
+      // binding answers every HTTP request with a mock the socket path cannot
+      // use.
+      repository.token = null;
+      container.read(remoteCodingClientProvider.notifier);
+
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      // The observer starts the connect without awaiting it.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        container.read(remoteCodingClientProvider).error,
+        contains('Saved credentials'),
+        reason: 'the resume never reached the notifier',
+      );
+    });
+
+    test('no saved host means nothing to come back to', () async {
+      repository.host = null;
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      await notifier.connectSavedHostIfIdle();
+
+      final state = container.read(remoteCodingClientProvider);
+      expect(state.status, RemoteCodingConnectionStatus.disconnected);
+      expect(state.error, isNull);
       expect(state.hasScheduledReconnect, isFalse);
     });
   });

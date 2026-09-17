@@ -273,7 +273,10 @@ final class _RecordingRemoteCodingClient extends RemoteCodingClientNotifier {
   RemoteCodingApproval? approvalOnReconnect;
 
   @override
-  Future<void> connectSavedHost({bool automatic = false}) async {
+  Future<void> connectSavedHost({
+    bool automatic = false,
+    bool continuingLadder = false,
+  }) async {
     connectAttempts += 1;
     if (!connectSucceeds) return;
     final arriving = approvalOnReconnect;

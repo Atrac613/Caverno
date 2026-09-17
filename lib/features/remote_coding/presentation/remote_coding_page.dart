@@ -66,6 +66,15 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
       );
       _notifications!.setRemoteCodingPageVisible(true);
     }
+    // Opening this page with a saved host used to show a Reconnect button and
+    // wait to be tapped, even when the only thing wrong was a socket the OS
+    // had closed while the app was away. Connecting here is what the tap did.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref.read(remoteCodingClientProvider.notifier).connectSavedHostIfIdle(),
+      );
+    });
   }
 
   @override

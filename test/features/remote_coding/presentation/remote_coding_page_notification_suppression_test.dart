@@ -158,6 +158,96 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('opening the page reconnects a saved host', (tester) async {
+    // The page used to render a Reconnect button and wait to be tapped, even
+    // when the only thing wrong was a socket the OS closed while the app was
+    // away. Nothing else reconnects on its own, so the person had to know that
+    // the button was the way back.
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        remoteCodingRepositoryProvider.overrideWithValue(
+          RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
+        ),
+        remoteCodingMobileNotificationGatewayProvider.overrideWithValue(
+          _UnsupportedGateway(),
+        ),
+        remoteCodingNotificationRelayClientProvider.overrideWithValue(null),
+        remoteCodingNotificationReceiptStoreProvider.overrideWithValue(
+          RemoteCodingNotificationReceiptStore(preferences),
+        ),
+        notificationServiceProvider.overrideWithValue(_SilentNotifications()),
+        remoteCodingClientProvider.overrideWith(
+          () => _SavedHostClient(RemoteCodingConnectionStatus.disconnected),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: RemoteCodingPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final client =
+        container.read(remoteCodingClientProvider.notifier) as _SavedHostClient;
+    expect(client.connectAttempts, 1);
+    expect(
+      client.lastAttemptWasAutomatic,
+      isTrue,
+      reason:
+          'a connection nobody asked for keeps the backoff ladder running '
+          'instead of stopping at the first failure the way a tap does',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('opening the page leaves a connected client alone', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        remoteCodingRepositoryProvider.overrideWithValue(
+          RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
+        ),
+        remoteCodingMobileNotificationGatewayProvider.overrideWithValue(
+          _UnsupportedGateway(),
+        ),
+        remoteCodingNotificationRelayClientProvider.overrideWithValue(null),
+        remoteCodingNotificationReceiptStoreProvider.overrideWithValue(
+          RemoteCodingNotificationReceiptStore(preferences),
+        ),
+        notificationServiceProvider.overrideWithValue(_SilentNotifications()),
+        remoteCodingClientProvider.overrideWith(
+          () => _SavedHostClient(RemoteCodingConnectionStatus.connected),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: RemoteCodingPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      (container.read(remoteCodingClientProvider.notifier) as _SavedHostClient)
+          .connectAttempts,
+      0,
+      reason: 'tearing down a live socket to rebuild it loses the snapshot',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a read-only approval can still be closed', (tester) async {
     // It offers no answer, and the modal is deliberately not dismissible so a
     // stray tap cannot resolve an approval. Without a close button that
@@ -216,6 +306,40 @@ void main() {
 final class _DisconnectedClient extends RemoteCodingClientNotifier {
   @override
   RemoteCodingClientState build() => const RemoteCodingClientState();
+}
+
+/// A client that already knows which desktop it belongs to, so opening the
+/// page is a chance to reconnect rather than a chance to ask for a QR.
+final class _SavedHostClient extends RemoteCodingClientNotifier {
+  _SavedHostClient(this._status);
+
+  static final host = RemoteCodingHost(
+    id: 'device-1',
+    name: 'Desktop',
+    host: '192.168.1.10',
+    port: 8767,
+    createdAt: DateTime(2026, 5, 26, 12),
+    updatedAt: DateTime(2026, 5, 26, 12),
+    certificatePin: 'test-certificate-pin',
+  );
+
+  final RemoteCodingConnectionStatus _status;
+
+  int connectAttempts = 0;
+  bool lastAttemptWasAutomatic = false;
+
+  @override
+  RemoteCodingClientState build() =>
+      RemoteCodingClientState(status: _status, host: host);
+
+  @override
+  Future<void> connectSavedHost({
+    bool automatic = false,
+    bool continuingLadder = false,
+  }) async {
+    connectAttempts += 1;
+    lastAttemptWasAutomatic = automatic;
+  }
 }
 
 /// A connected client whose pending approval the test can withdraw.
