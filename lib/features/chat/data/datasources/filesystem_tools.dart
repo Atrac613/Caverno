@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
+import '../../../../core/utils/project_scan_exclusions.dart';
+
 import 'bounded_text_file_classifier.dart';
 import 'filesystem_diff_builder.dart';
 import 'filesystem_mutation_operations.dart';
@@ -652,11 +654,10 @@ class FilesystemTools {
       final matcher = _wildcardToRegExp(pattern.trim());
       final matches = <String>[];
 
-      await for (final entity in directory.list(
+      await for (final entity in ProjectScanExclusions.files(
+        directory,
         recursive: recursive,
-        followLinks: false,
       )) {
-        if (entity is! File) continue;
         final relativePath = _relativePath(entity.path, directory.path);
         final fileName = entity.uri.pathSegments.isEmpty
             ? relativePath
@@ -727,11 +728,7 @@ class FilesystemTools {
       var scanCeilingHit = false;
       var resultLimitHit = false;
 
-      await for (final entity in directory.list(
-        recursive: true,
-        followLinks: false,
-      )) {
-        if (entity is! File) continue;
+      await for (final entity in ProjectScanExclusions.files(directory)) {
         final relativePath = _relativePath(entity.path, directory.path);
         if (fileMatcher != null &&
             !fileMatcher.hasMatch(relativePath) &&
@@ -798,6 +795,9 @@ class FilesystemTools {
         if (resultLimitHit) break;
       }
 
+      final literalQueryHint = matches.isEmpty
+          ? _regexQueryHint(query)
+          : null;
       return jsonEncode({
         'path': directory.absolute.path,
         'query': query,
@@ -809,6 +809,7 @@ class FilesystemTools {
         'matches_seen': matchedLinesSeen,
         if (resultLimitHit) 'truncated': true,
         if (scanCeilingHit) 'scan_ceiling_hit': true,
+        'query_hint': ?literalQueryHint,
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
@@ -817,6 +818,34 @@ class FilesystemTools {
         error: error,
       );
     }
+  }
+
+  /// Names the regex metacharacter behind an empty result, when the query
+  /// carries one.
+  ///
+  /// `query` is matched as literal text, so `^version:` can never match a line
+  /// reading `version: 1.3.34+47`. Nothing said so: the empty result came back
+  /// with the generic "no matches does not prove absence" hint, which reads as
+  /// an instruction to keep looking. In session a40d48a8 the same anchored
+  /// query was reissued **six** times against a file that plainly contained
+  /// the text, and each failure sent the turn back to read_file.
+  ///
+  /// Triggering on the metacharacter, never judging on it: the hint is only
+  /// added to a result that already found nothing, and it names the cause
+  /// rather than guessing the intended query.
+  static String? _regexQueryHint(String query) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return null;
+    final anchors = <String>[
+      if (trimmed.startsWith('^')) r'a leading "^"',
+      if (trimmed.endsWith(r'$')) r'a trailing "\$"',
+    ];
+    if (anchors.isEmpty) return null;
+    return 'This query is matched as literal text, not as a regular '
+        'expression, and it carries ${anchors.join(' and ')}. That character '
+        'is searched for literally, so an anchored query matches nothing. '
+        'Retry with the plain substring, and narrow with file_pattern or '
+        'max_results instead of an anchor.';
   }
 
   static Future<TextFileSnapshot> captureTextSnapshot(String path) =>

@@ -16,6 +16,38 @@ typedef GitProcessHandoff = bool Function();
 ///
 /// Desktop only (macOS, Linux, Windows). Uses [Process.run] to invoke
 /// the system `git` binary — not available on iOS or Android.
+/// A `| head -N` / `| tail -N` clause [GitTools] applies to its own output.
+final class GitOutputLineLimit {
+  const GitOutputLineLimit({
+    required this.command,
+    required this.lines,
+    required this.fromEnd,
+  });
+
+  /// The git subcommand with the clause removed.
+  final String command;
+  final int lines;
+  final bool fromEnd;
+
+  String get describe => '${fromEnd ? 'tail' : 'head'} -$lines';
+
+  /// [output] reduced to the requested lines, or unchanged when it already
+  /// fits.
+  String apply(String output) {
+    final lineList = output.split('\n');
+    // A trailing newline makes an empty final element that is not a line.
+    final hasTrailingNewline = lineList.isNotEmpty && lineList.last.isEmpty;
+    final content = hasTrailingNewline
+        ? lineList.sublist(0, lineList.length - 1)
+        : lineList;
+    if (content.length <= lines) return output;
+    final kept = fromEnd
+        ? content.sublist(content.length - lines)
+        : content.sublist(0, lines);
+    return hasTrailingNewline ? '${kept.join('\n')}\n' : kept.join('\n');
+  }
+}
+
 class GitTools {
   /// Maximum characters returned for stdout/stderr.
   static const int _kMaxOutputChars = 8000;
@@ -172,6 +204,82 @@ class GitTools {
       }
     }
 
+    return null;
+  }
+
+  /// A trailing `| head -N` or `| tail -N` this tool applies to its own
+  /// output instead of refusing.
+  ///
+  /// Every shell-operator rejection in the session corpus -- 12 of 12, across
+  /// six sessions -- was this one shape, and nine of them were the identical
+  /// `tag --list --sort=-version:refname | head -5`. The reason is that git
+  /// has no count limit for `tag`: `-n1` sets annotation lines, not a count,
+  /// and `--max-count` is not a `git tag` option at all (exit 129). So the
+  /// refusal's advice to "filter with git's own arguments" cannot satisfy the
+  /// request that provoked it, the model reissues the same command, and the
+  /// second identical failure aborts the turn -- in session e91c396c after it
+  /// had already run every inspection it needed.
+  ///
+  /// Narrow on purpose. No shell is spawned and nothing new executes: the git
+  /// subcommand runs exactly as before and this only truncates the captured
+  /// stdout. Anything other than a single trailing head/tail is still refused.
+  static GitOutputLineLimit? parseTrailingLineLimit(String normalizedCommand) {
+    final pipe = _firstUnquotedPipeIndex(normalizedCommand);
+    if (pipe == null) return null;
+
+    final left = normalizedCommand.substring(0, pipe).trim();
+    final right = normalizedCommand.substring(pipe + 1).trim();
+    if (left.isEmpty) return null;
+    // The pipe must be the only operator: a second one means the model wanted
+    // a pipeline, which this cannot stand in for.
+    if (firstShellControlOperator(left) != null) return null;
+    if (_firstUnquotedPipeIndex(right) != null) return null;
+
+    final match = _trailingLineLimitPattern.firstMatch(right);
+    if (match == null) return null;
+    final lines = int.tryParse(match.group(2)!);
+    if (lines == null || lines < 1 || lines > 10000) return null;
+
+    return GitOutputLineLimit(
+      command: left,
+      lines: lines,
+      fromEnd: match.group(1) == 'tail',
+    );
+  }
+
+  static final RegExp _trailingLineLimitPattern = RegExp(
+    r'^(head|tail)\s+-(?:n\s*)?(\d+)$',
+    caseSensitive: false,
+  );
+
+  /// Index of the first `|` outside quotes, or null.
+  ///
+  /// Separate from [firstShellControlOperator] because that one reports which
+  /// operator it found, not where: it scans a control-token-stripped copy
+  /// whose indices no longer line up with the string a caller would split.
+  /// This runs on the normalized command, where the tokens are already gone.
+  static int? _firstUnquotedPipeIndex(String command) {
+    String? quoteChar;
+    for (var i = 0; i < command.length; i++) {
+      final c = command[i];
+      if (quoteChar != null) {
+        if (quoteChar == '"' && c == r'\') {
+          i += 1;
+          continue;
+        }
+        if (c == quoteChar) quoteChar = null;
+        continue;
+      }
+      if (c == '"' || c == "'") {
+        quoteChar = c;
+        continue;
+      }
+      if (c == '|') {
+        // `||` is control flow, not a filter.
+        if (i + 1 < command.length && command[i + 1] == '|') return null;
+        return i;
+      }
+    }
     return null;
   }
 
@@ -402,8 +510,13 @@ class GitTools {
     }
     final authorizedWorkingDirectory = cwdAuth.canonicalPath!;
 
-    final shellOperator = firstShellControlOperator(command);
-    final normalizedCommand = normalizeCommand(command);
+    // Parsed before the operator check so a trailing head/tail is applied
+    // rather than refused; anything else still falls through to the refusal.
+    final lineLimit = GitTools.parseTrailingLineLimit(normalizeCommand(command));
+    final shellOperator = lineLimit == null
+        ? firstShellControlOperator(command)
+        : null;
+    final normalizedCommand = lineLimit?.command ?? normalizeCommand(command);
 
     // Validate working directory.
     final dir = Directory(authorizedWorkingDirectory);
@@ -434,11 +547,13 @@ class GitTools {
         'error':
             'git_execute_command accepts one git subcommand per tool call and '
             'runs it without a shell, so the operator "$shellOperator" (pipes, '
-            'redirects, &&/;) is not supported. Do not retry the same command '
-            "unfiltered — filter with git's own arguments instead, e.g. "
-            '`tag --list "1.3.*" --sort=-v:refname`, `log -n 5 --oneline`, or '
-            '`branch --list "feature/*"`. Run separate git_execute_command '
-            'calls if you need multiple steps.',
+            'redirects, &&/;) is not supported. A trailing `| head -N` or '
+            '`| tail -N` is the exception and is applied for you. Do not retry '
+            'the same command unfiltered. Filter with git\'s own arguments '
+            'where git has one, e.g. `log -n 5 --oneline` or '
+            '`branch --list "feature/*"`. For anything else that needs a real '
+            'shell — a pipeline, a redirect, several commands — use '
+            'local_execute_command, which runs one.',
       });
     }
 
@@ -552,7 +667,10 @@ class GitTools {
         environment: environment,
       ).timeout(_kTimeout);
 
-      final stdout = result.stdout as String;
+      final rawStdout = result.stdout as String;
+      final stdout = lineLimit == null
+          ? rawStdout
+          : lineLimit.apply(rawStdout);
       final stderr = result.stderr as String;
       final stdoutTruncated = stdout.length > _kMaxOutputChars;
       final stderrTruncated = stderr.length > _kMaxOutputChars;
@@ -569,6 +687,7 @@ class GitTools {
             : stderr,
         if (stdoutTruncated) 'stdout_truncated': true,
         if (stderrTruncated) 'stderr_truncated': true,
+        if (lineLimit != null) 'output_limit': lineLimit.describe,
       };
       final detail = stderr.trim().isNotEmpty
           ? stderr.trim()

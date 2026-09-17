@@ -72,6 +72,23 @@ void main() {
     expect(result, isNull);
   });
 
+  test('still gates a tag creation carrying a trailing line limit', () {
+    // GitTools applies `| head -N` / `| tail -N` to its own output rather than
+    // refusing it, so this guard can no longer skip on "there is an operator":
+    // a tag creation would execute ungated. It strips the clause and judges
+    // what git will actually run.
+    expect(
+      _guard.evaluate(_input(command: 'tag -a v1.2.3 -m "Release" | head -5')),
+      isNotNull,
+      reason: 'the clause must not carry a tag creation past the gate',
+    );
+    // A real pipeline is still outside what this guard reasons about.
+    expect(
+      _guard.evaluate(_input(command: 'tag v1.2.3 | wc -l')),
+      isNull,
+    );
+  });
+
   test('blocks normalized lightweight and annotated tag creation', () {
     for (final command in [
       'tag v1.2.3',

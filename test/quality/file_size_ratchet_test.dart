@@ -154,7 +154,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/computer_use_tool_handler.dart': 473,
   'lib/features/chat/domain/services/git_process_execution_coordinator.dart':
       480,
-  'lib/features/chat/domain/services/git_tool_handler.dart': 315,
+  // +7: a trailing `| head -N` / `| tail -N` must not be refused here, since
+  // GitTools applies it to its own output. The parse lives in GitTools; what
+  // is left here is the call and a message that points a real pipeline at
+  // local_execute_command instead of back at this tool.
+  'lib/features/chat/domain/services/git_tool_handler.dart': 322,
   'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart':
       449,
   'lib/features/chat/domain/services/goal_auto_continue_decision_types.dart':
@@ -272,7 +276,10 @@ const Map<String, int> _lineBudgets = {
       142,
   'lib/features/chat/domain/services/chat_command_guardrail_collaborators.dart':
       3,
-  'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 151,
+  // +5: the operator skip had to learn about the trailing line limit. A tag
+  // creation carrying one now executes, so skipping on "there is an
+  // operator" would let it past this gate ungated.
+  'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 156,
   'lib/features/chat/domain/services/goal_validation_probe_guard.dart': 53,
   'lib/features/chat/domain/services/material_contract_assumption_arming.dart':
       31,

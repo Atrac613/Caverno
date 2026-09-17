@@ -161,7 +161,13 @@ abstract final class BuiltInFilesystemToolDefinitions {
             'description':
                 'Absolute or project-relative directory path. Optional when a coding project is selected.',
           },
-          'query': {'type': 'string', 'description': 'Text to search for.'},
+          'query': {
+            'type': 'string',
+            'description':
+                'Literal text to search for, matched as a plain substring. '
+                'Not a regular expression: "^" and "\$" are searched for as '
+                'characters, so an anchored query matches nothing.',
+          },
           'file_pattern': {
             'type': 'string',
             'description': 'Optional wildcard filter such as "*.dart".',

@@ -1207,12 +1207,15 @@ void main() {
       // Pinned so an accidental edit to a definition cannot silently move the
       // prompt prefix. Updated when read_file gained start_page / next_page
       // for long PDFs and inspect_file began sampling ends instead of the
-      // whole document.
+      // whole document, and again when search_files' `query` began saying it
+      // is literal text rather than a regular expression. A description edit
+      // moves the prefix once and then holds; a per-request edit would not,
+      // which is what this pin is here to catch.
       expect(
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-        '410a374cfaffdc09736c8d3346c9aa4badc601954b0d9999393e23c87e8c4cab',
+        '76f7b1abee8d26b33e01915cfdeff32e6a340566a4cf8c55ed0390e43fa8e3a8',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(

@@ -258,13 +258,18 @@ void main() {
       // Not a refusal: no rule forbade the command, git simply runs without a
       // shell. Counting it as one would inflate every "was stopped" rate --
       // this was the most frequent git error in the measured corpus.
+      //
+      // The example is `| wc -l` rather than the `| head -20` it used to be,
+      // because a trailing head/tail is now applied to the captured output
+      // instead of rejected. What is classified here is the operator that
+      // still needs a shell.
       final tempDir = await Directory.systemTemp.createTemp('origin_git_');
       addTearDown(() async {
         if (tempDir.existsSync()) await tempDir.delete(recursive: true);
       });
 
       final payload = await GitTools.execute(
-        command: 'tag --list | head -20',
+        command: 'tag --list | wc -l',
         workingDirectory: tempDir.path,
         projectRoot: tempDir.path,
       );

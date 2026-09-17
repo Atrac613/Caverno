@@ -212,8 +212,15 @@ String _denialMessage(ProjectMutationPathDenial denial, String? projectRoot) {
           '$rootClause Retry with an absolute path, or one relative to that root.',
     ProjectMutationPathDenial.pathUnavailable =>
       'The mutation target cannot be resolved from an existing parent path.',
+    // "path", not "mutation target": this fence also screens the operands of
+    // an externally executed shell command, where the denied path can belong
+    // to a pure read. Session a40d48a8 denied `cat /private/tmp/.../
+    // ExportOptions.plist` -- the agent was diagnosing its own failed iOS
+    // build -- and the word "mutation" sent it looking for a write it had
+    // never made.
     ProjectMutationPathDenial.outsideProject =>
-      'The mutation target is outside the authorized project root.'
-          '$rootClause',
+      'The path is outside the authorized project root, so no local tool may '
+          'read or write it.$rootClause Copy what you need into that root, or '
+          'ask the user for the contents.',
   };
 }

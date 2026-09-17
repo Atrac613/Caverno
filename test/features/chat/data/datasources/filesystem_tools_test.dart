@@ -501,6 +501,97 @@ void main() {
     );
   });
 
+  test('searchFiles and findFiles skip nested agent worktrees', () async {
+    // Session a40d48a8: .claude/worktrees held 72 checkouts, so the tree
+    // carried 105 pubspec.yaml files and "what version is this project on"
+    // came back with 100 answers from sibling worktrees.
+    Future<void> write(String relative, String contents) async {
+      final file = File('${tempDir.path}${Platform.pathSeparator}$relative');
+      await file.parent.create(recursive: true);
+      await file.writeAsString(contents);
+    }
+
+    await write('pubspec.yaml', 'name: caverno\nversion: 1.3.34+47\n');
+    await write(
+      '.claude/worktrees/sandbox/pubspec.yaml',
+      'name: caverno\nversion: 0.0.1+1\n',
+    );
+    await write('build/ios/pubspec.yaml', 'name: stale\nversion: 0.0.2+2\n');
+
+    final searchResult =
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: 'version:',
+                filePattern: 'pubspec.yaml',
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(searchResult['matches'], hasLength(1));
+    expect(searchResult['scanned_files'], 1);
+    expect((searchResult['matches'] as List).single, contains('1.3.34+47'));
+
+    final findResult =
+        jsonDecode(
+              await FilesystemTools.findFiles(
+                path: tempDir.path,
+                pattern: 'pubspec.yaml',
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(findResult['matches'], ['pubspec.yaml']);
+  });
+
+  test('searchFiles names the anchor behind an empty result', () async {
+    // `query` is literal, so `^version:` can never match. The same anchored
+    // query was reissued six times in session a40d48a8 because nothing said so.
+    await File(
+      '${tempDir.path}${Platform.pathSeparator}pubspec.yaml',
+    ).writeAsString('name: caverno\nversion: 1.3.34+47\n');
+
+    final anchored =
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: '^version:',
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(anchored['match_count'], 0);
+    expect(anchored['query_hint'], contains('literal text'));
+    expect(anchored['query_hint'], contains('^'));
+
+    final plain =
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: 'version:',
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(plain['match_count'], 1);
+    expect(
+      plain.containsKey('query_hint'),
+      isFalse,
+      reason: 'the hint is only for a result that already found nothing',
+    );
+
+    final missingPlain =
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: 'nowhere-in-this-tree',
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(missingPlain['match_count'], 0);
+    expect(
+      missingPlain.containsKey('query_hint'),
+      isFalse,
+      reason: 'an ordinary miss carries no metacharacter to name',
+    );
+  });
+
   test('searchFiles paginates matching lines with offset', () async {
     final libDir = Directory('${tempDir.path}${Platform.pathSeparator}lib')
       ..createSync(recursive: true);

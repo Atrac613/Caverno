@@ -47,12 +47,19 @@ final class GitToolHandler {
         'command is required and working_directory must be provided or inferred from the selected coding project',
       );
     }
-    final shellOperator = GitTools.firstShellControlOperator(rawCommand);
+    // A trailing `| head -N` / `| tail -N` is applied by GitTools to its own
+    // captured output, so it must not be refused here first.
+    final lineLimit = GitTools.parseTrailingLineLimit(command);
+    final shellOperator = lineLimit == null
+        ? GitTools.firstShellControlOperator(rawCommand)
+        : null;
     if (shellOperator != null) {
       return _failure(
         input.toolName,
         'git_execute_command accepts one Git subcommand per tool call; '
-        'shell operator "$shellOperator" is not supported',
+        'shell operator "$shellOperator" is not supported. A trailing '
+        '`| head -N` or `| tail -N` is the exception. For a real pipeline or '
+        'redirect, use local_execute_command.',
       );
     }
 

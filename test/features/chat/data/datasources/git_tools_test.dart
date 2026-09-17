@@ -60,6 +60,67 @@ void main() {
     });
   });
 
+  group('GitTools.parseTrailingLineLimit', () {
+    test('accepts the one shape every rejection in the corpus had', () {
+      // 12 of 12 shell-operator rejections across six sessions were
+      // `git tag ... | head -N`, nine of them this exact command. git has no
+      // count limit for tag, so the refusal's advice could not satisfy it.
+      final limit = GitTools.parseTrailingLineLimit(
+        'tag --list --sort=-version:refname | head -5',
+      )!;
+
+      expect(limit.command, 'tag --list --sort=-version:refname');
+      expect(limit.lines, 5);
+      expect(limit.fromEnd, isFalse);
+      expect(limit.describe, 'head -5');
+    });
+
+    test('accepts tail and the -n spellings', () {
+      expect(GitTools.parseTrailingLineLimit('log --oneline | tail -3')!.fromEnd, isTrue);
+      expect(GitTools.parseTrailingLineLimit('log --oneline | head -n 3')!.lines, 3);
+      expect(GitTools.parseTrailingLineLimit('log --oneline | head -n3')!.lines, 3);
+    });
+
+    test('refuses anything that needs a real shell', () {
+      for (final command in [
+        'tag --list | wc -l',
+        'tag --list | head -5 | tail -1',
+        'status && log --oneline',
+        'log --oneline > out.txt',
+        'tag --list || echo none',
+        'tag --list | head',
+        'tag --list | head -0',
+        'tag --list | xargs rm',
+        '| head -5',
+      ]) {
+        expect(
+          GitTools.parseTrailingLineLimit(command),
+          isNull,
+          reason: command,
+        );
+      }
+    });
+
+    test('a pipe inside quotes is not a limit clause', () {
+      expect(
+        GitTools.parseTrailingLineLimit('log --grep="a|b" --oneline'),
+        isNull,
+      );
+    });
+
+    test('apply keeps the requested lines from the requested end', () {
+      const head = GitOutputLineLimit(command: 'x', lines: 2, fromEnd: false);
+      const tail = GitOutputLineLimit(command: 'x', lines: 2, fromEnd: true);
+
+      expect(head.apply('a\nb\nc\n'), 'a\nb\n');
+      expect(tail.apply('a\nb\nc\n'), 'b\nc\n');
+      expect(head.apply('a\nb\nc'), 'a\nb');
+      // Shorter than the limit is returned untouched, trailing newline and all.
+      expect(head.apply('a\n'), 'a\n');
+      expect(head.apply(''), '');
+    });
+  });
+
   group('GitTools.firstShellControlOperator', () {
     test('detects shell operators outside quotes', () {
       expect(
@@ -231,11 +292,54 @@ void main() {
         expect(decoded['code'], 'command_rejected_before_execution');
         // The model must learn to filter with git's own arguments rather than
         // blindly retrying the unfiltered command, which is what caused the
-        // observed `tag --list` inspection loop.
+        // observed `tag --list` inspection loop. The old wording offered
+        // `tag --list "1.3.*"` as the example, which is a filter and not the
+        // count limit the model was asking for -- that is why it kept
+        // retrying. It now names an option git actually has, and sends a real
+        // pipeline to the tool that can run one.
         expect(error, contains('Do not retry the same command'));
-        expect(error, contains('tag --list'));
+        expect(error, contains('log -n 5 --oneline'));
+        expect(error, contains('local_execute_command'));
+        expect(error, contains('| head -N'));
       },
     );
+
+    test('applies a trailing head limit instead of refusing', () async {
+      final tempDir = await Directory.systemTemp.createTemp('git_tools_head_');
+      addTearDown(() async {
+        if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+      });
+      Future<void> git(List<String> args) async {
+        final r = await Process.run('git', args, workingDirectory: tempDir.path);
+        expect(r.exitCode, 0, reason: '${args.join(' ')}: ${r.stderr}');
+      }
+
+      await git(['init', '-q']);
+      await git(['config', 'user.email', 'test@example.com']);
+      await git(['config', 'user.name', 'Test']);
+      await File('${tempDir.path}/a.txt').writeAsString('a');
+      await git(['add', '.']);
+      await git(['commit', '-qm', 'first']);
+      for (final tag in ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
+        await git(['tag', tag]);
+      }
+
+      final raw = await GitTools.execute(
+        command: 'tag --list --sort=-v:refname | head -2',
+        workingDirectory: tempDir.path,
+        projectRoot: tempDir.path,
+      );
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+
+      expect(decoded['exit_code'], 0);
+      expect(decoded['code'], isNull);
+      expect(decoded['output_limit'], 'head -2');
+      expect(decoded['command'], 'git tag --list --sort=-v:refname');
+      expect(
+        (decoded['stdout'] as String).trim().split('\n'),
+        ['1.0.4', '1.0.3'],
+      );
+    });
 
     test('rejects commit when unstaged changes would be omitted', () async {
       final tempDir = await Directory.systemTemp.createTemp(

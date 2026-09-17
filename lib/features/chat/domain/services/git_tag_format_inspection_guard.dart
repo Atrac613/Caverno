@@ -36,12 +36,17 @@ final class GitTagFormatInspectionGuard {
     }
     final rawCommand =
         (input.resolvedArguments['command'] as String?)?.trim() ?? '';
+    // A trailing `| head -N` / `| tail -N` now executes, so it must not let a
+    // tag creation slip past this gate: strip it and judge what git will run.
+    final normalized = GitTools.normalizeCommand(rawCommand);
+    final lineLimit = GitTools.parseTrailingLineLimit(normalized);
     if (rawCommand.contains('\n') ||
         rawCommand.contains('\r') ||
-        GitTools.firstShellControlOperator(rawCommand) != null) {
+        (lineLimit == null &&
+            GitTools.firstShellControlOperator(rawCommand) != null)) {
       return null;
     }
-    final command = GitTools.normalizeCommand(rawCommand);
+    final command = lineLimit?.command ?? normalized;
     if (!isTagCreationCommand(command)) {
       return null;
     }
