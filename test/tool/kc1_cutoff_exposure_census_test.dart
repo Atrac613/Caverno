@@ -425,7 +425,12 @@ void main() {
       );
 
       expect(seen, ['bare', 'grounded', 'delta']);
-      expect(summary.runIdentity['flutter'], '3.44.8');
+      // Same reason the riverpod version above is read rather than written:
+      // a literal here expires on the next SDK bump, and `3.44.8` duly did
+      // when .fvmrc moved to 3.47.4. What is worth pinning is that the run
+      // records the pinned SDK at all, not which one it happens to be.
+      expect(oracle.flutterVersion, isNotNull);
+      expect(summary.runIdentity['flutter'], oracle.flutterVersion);
       expect(summary.runIdentity['toolCatalog'], 'none');
       expect(
         summary.runIdentity['buildCommit'],
