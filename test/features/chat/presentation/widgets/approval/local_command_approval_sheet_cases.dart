@@ -1,0 +1,123 @@
+part of 'approval_widgets_tiny_test.dart';
+
+void _runLocalCommandApprovalSheet() {
+  testWidgets('renders local command details and approves', (tester) async {
+    LocalCommandApproval? result;
+    await _pumpHarnessLocalCommandApprovalSheet(
+      tester,
+      onResult: (approval) => result = approval,
+    );
+
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Local Command Approval'), findsOneWidget);
+    expect(find.text('/repo/caverno'), findsOneWidget);
+    expect(find.text('Run verification'), findsOneWidget);
+    expect(find.text('rm -rf build'), findsOneWidget);
+
+    await tester.tap(find.text('Approve & Run'));
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.approved, isTrue);
+    expect(result!.shouldRemember, isFalse);
+  });
+
+  testWidgets('always deny returns remembered deny approval', (tester) async {
+    LocalCommandApproval? result = const LocalCommandApproval(approved: true);
+    await _pumpHarnessLocalCommandApprovalSheet(
+      tester,
+      onResult: (approval) => result = approval,
+    );
+
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Always Deny'));
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.approved, isFalse);
+    expect(result!.rememberedRuleAction, LocalCommandPermissionAction.deny);
+    expect(result!.rememberedRuleMatch, LocalCommandPermissionMatch.exact);
+  });
+
+  testWidgets('keeps action buttons visible for a long command', (
+    tester,
+  ) async {
+    final longCommand = List.generate(
+      200,
+      (index) => 'echo line $index: verify scroll behavior',
+    ).join('\n');
+
+    await _pumpHarnessLocalCommandApprovalSheet(
+      tester,
+      command: longCommand,
+      onResult: (_) {},
+    );
+
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('local-command-approval-scroll')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('echo line 0:'), findsOneWidget);
+    expect(find.text('Approve & Run'), findsOneWidget);
+    expect(find.text('Deny'), findsOneWidget);
+    expect(
+      tester.getRect(find.text('Approve & Run')).bottom,
+      lessThanOrEqualTo(tester.view.physicalSize.height),
+    );
+  });
+}
+
+Future<void> _pumpHarnessLocalCommandApprovalSheet(
+  WidgetTester tester, {
+  required ValueChanged<LocalCommandApproval?> onResult,
+  String command = 'rm -rf build',
+}) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1000, 900);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+
+  return tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) {
+            return Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  onResult(
+                    await LocalCommandApprovalSheet.show(
+                      context,
+                      PendingLocalCommand(
+                        owner: ChatTurnOwner(
+                          conversationId: 'local-sheet-test',
+                          interactionGeneration: 1,
+                        ),
+                        id: 'local-command-test',
+                        command: command,
+                        workingDirectory: '/repo/caverno',
+                        reason: 'Run verification',
+                        warningTitle: null,
+                        warningMessage: null,
+                        completer: Completer<LocalCommandApproval>(),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Open Sheet'),
+              ),
+            );
+          },
+        ),
+      ),
+    ),
+  );
+}
