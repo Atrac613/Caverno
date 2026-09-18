@@ -45,7 +45,11 @@ class LiveLlmToolDepthRung {
 /// sequential tool calls.
 ///
 /// Ported from the LocalLLM `tool_state_staircase` set rather than invented
-/// here. It is a staircase on purpose -- a single hard case reports one bit,
+/// here, then hardened after the first live measurement cleared all three
+/// rungs and left the axis with no discrimination at all: the search step now
+/// returns three matches whose newest is not first, so opening the right one
+/// is a selection rather than a copy of `results[0]`, and a plausible
+/// `search_wiki` sits beside `search_docs` in the catalog. It is a staircase on purpose -- a single hard case reports one bit,
 /// while rungs report how far a model got and can be extended past four
 /// without rescoring anything below.
 class LiveLlmToolDepthStaircase {
@@ -57,6 +61,20 @@ class LiveLlmToolDepthStaircase {
   static const query = 'flash attention';
 
   static const List<Map<String, dynamic>> toolDefinitions = [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'search_wiki',
+        'description': 'Search the internal wiki.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'query': {'type': 'string'},
+          },
+          'required': ['query'],
+        },
+      },
+    },
     {
       'type': 'function',
       'function': {
@@ -123,10 +141,26 @@ class LiveLlmToolDepthStaircase {
 
   static const _search = LiveLlmToolDepthStep(
     toolName: 'search_docs',
-    expectedArguments: {'query': query, 'top_k': 1},
+    // `top_k` is not pinned: the rung is about what the model does with the
+    // results, not how many it asked for.
+    expectedArguments: {'query': query},
     result: {
       'results': [
-        {'doc_id': docId, 'title': 'Flash attention tuning'},
+        {
+          'doc_id': 'doc-ds-17',
+          'title': 'Flash attention basics',
+          'updated_at': '2026-04-02',
+        },
+        {
+          'doc_id': docId,
+          'title': 'Flash attention tuning',
+          'updated_at': '2026-09-11',
+        },
+        {
+          'doc_id': 'doc-ds-31',
+          'title': 'Flash attention on ROCm',
+          'updated_at': '2026-07-20',
+        },
       ],
     },
   );
@@ -162,26 +196,29 @@ class LiveLlmToolDepthStaircase {
     LiveLlmToolDepthRung(
       depth: 2,
       prompt:
-          'Search the docs for flash attention, open the top result, and '
-          'reply with the document id of what you opened and nothing else.',
+          'Search the docs for flash attention, open the most recently '
+          'updated match, and reply with the document id of what you opened '
+          'and nothing else.',
       steps: [_search, _open],
       expectedFinalValues: [docId],
     ),
     LiveLlmToolDepthRung(
       depth: 3,
       prompt:
-          'Search the docs for flash attention, open the top result, '
-          'summarize it, and reply with the document id and the revision the '
-          'summary came from, separated by a space, and nothing else.',
+          'Search the docs for flash attention, open the most recently '
+          'updated match, summarize it, and reply with the document id and '
+          'the revision the summary came from, separated by a space, and '
+          'nothing else.',
       steps: [_search, _open, _summarize],
       expectedFinalValues: [docId, revision],
     ),
     LiveLlmToolDepthRung(
       depth: 4,
       prompt:
-          'Search the docs for flash attention, open the top result, '
-          'summarize it, then attach that summary at the revision it came '
-          'from. Reply with the attachment id and nothing else.',
+          'Search the docs for flash attention, open the most recently '
+          'updated match, summarize it, then attach that summary at the '
+          'revision it came from. Reply with the attachment id and nothing '
+          'else.',
       steps: [_search, _open, _summarize, _attach],
       expectedFinalValues: [attachmentId],
     ),

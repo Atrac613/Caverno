@@ -14,7 +14,7 @@ void main() {
       ladder.stages.map((stage) => stage.state).toSet(),
       {LiveLlmDiagnosticDifficultyStageState.notMeasured},
     );
-    expect(ladder.toJson()['suite'], 'tool-depth-v1');
+    expect(ladder.toJson()['suite'], 'tool-depth-v2');
     expect(ladder.toJson()['measured'], isFalse);
   });
 
@@ -56,7 +56,7 @@ void main() {
   // The axis exists to stay separate from the context ladder: a model can be
   // strong at one and weak at the other, and one number would hide it.
   test('carries its own suite id, axis and unit', () {
-    expect(LiveLlmDiagnosticToolDepthLadder.suite, 'tool-depth-v1');
+    expect(LiveLlmDiagnosticToolDepthLadder.suite, 'tool-depth-v2');
     expect(LiveLlmDiagnosticToolDepthLadder.axis, 'tool_state_depth');
     expect(
       LiveLlmDiagnosticToolDepthLadder.suite,

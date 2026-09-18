@@ -29,7 +29,10 @@ class LiveLlmDiagnosticToolDepthLadder {
   );
 
   static const id = 'tool-depth';
-  static const version = 1;
+  /// v2 hardened the rungs after v1 measured 4 of 4 on its first live run and
+  /// so separated nothing. Depths from the two versions are not comparable,
+  /// which is what the version is for.
+  static const version = 2;
   static const axis = 'tool_state_depth';
   static const unit = 'sequential_tool_calls';
 
