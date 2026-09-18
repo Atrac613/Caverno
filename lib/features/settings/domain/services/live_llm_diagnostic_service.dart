@@ -285,14 +285,22 @@ class LiveLlmDiagnosticService {
       'labelled Aster, the label of the tallest bar, the label of the '
       'shortest bar.';
 
-  /// A larger budget than the other probes get.
+  /// A larger budget for the probes whose answer follows a reasoning preamble.
   ///
-  /// This one asks for four readings off a picture, and a reasoning model
-  /// narrates the axis before it answers: a measured run spent 628 completion
-  /// tokens across the two arms, and at 1024 one run in three still ended
-  /// inside the think block with no answer at all. The shared 512 would have
-  /// reported that as a model that cannot read charts.
-  static const _chartProbeMaxTokens = 1024;
+  /// These ask for something a model narrates its way to -- four readings off a
+  /// picture, a unified diff, a schema-constrained object -- and the preamble is
+  /// charged to the same budget as the answer. Measured on the chart probe: 628
+  /// completion tokens across its two arms, yet at 1024 one run in three still
+  /// ended inside the think block with no answer at all, which the shared 512
+  /// would have reported as a model that cannot read charts.
+  ///
+  /// The 2026-09-18 qwen/qwen3.8-flash run set the current value. It was that
+  /// one run in three: the chart probe stopped at exactly 1024 and scored 0/20,
+  /// the unified-diff and json_schema arms both ran out at 512, and those 63
+  /// points were the whole remaining gap to the endpoint's attemptable total --
+  /// every one of them a truncation rather than a wrong answer. A cap is not an
+  /// allocation, so the headroom costs nothing on a model that answers sooner.
+  static const _reasoningProbeMaxTokens = 2048;
 
   static const _chartClassificationRejected = 'endpoint_rejected';
   static const _chartClassificationNoAnswer = 'no_answer_within_budget';
@@ -1016,7 +1024,7 @@ class LiveLlmDiagnosticService {
             ),
             model: _diagnosticModel,
             temperature: _diagnosticTemperature,
-            maxTokens: _diagnosticMaxTokens,
+            maxTokens: _reasoningProbeMaxTokens,
           );
       completed.add(schemaResult);
       final decoded = _tryDecodeJsonObject(schemaResult.content);
@@ -1915,15 +1923,21 @@ class LiveLlmDiagnosticService {
         ),
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
-        maxTokens: _diagnosticMaxTokens,
+        maxTokens: _reasoningProbeMaxTokens,
       );
       final normalized = _stripSingleCodeFence(
         _visibleDiagnosticContent(result.content),
       );
-      final failureDetail = _firstEditFormatMismatch(
+      final mismatch = _firstEditFormatMismatch(
         expected: testCase.prepare(testCase.expected),
         actual: testCase.prepare(normalized),
       );
+      // A cap the answer never got past reads as "received end of output",
+      // which names the symptom and hides the cause.
+      final failureDetail = mismatch == null || result.finishReason != 'length'
+          ? mismatch
+          : '$mismatch -- the response hit the token cap '
+                '(finish_reason: length)';
       outcomes.add(
         _EditFormatProbeOutcome(
           preference: testCase.preference,
@@ -2909,7 +2923,7 @@ class LiveLlmDiagnosticService {
         messages: messages,
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
-        maxTokens: _chartProbeMaxTokens,
+        maxTokens: _reasoningProbeMaxTokens,
       );
       return _VisionProbeArm(
         result: result,

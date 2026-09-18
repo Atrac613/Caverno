@@ -494,6 +494,34 @@ void main() {
     );
   });
 
+  test(
+    'names the token cap when an edit format answer was truncated',
+    () async {
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: _EditFormatDiagnosticDataSource(
+          {
+            ModelEditFormatPreference.wholeFile,
+            ModelEditFormatPreference.searchReplace,
+          },
+          unifiedDiffResponse: '',
+          unifiedDiffFinishReason: 'length',
+        ),
+        mcpToolService: McpToolService(),
+      );
+
+      final report = await service.run(probeIds: {'edit_format_fidelity'});
+      final result = _result(report, 'edit_format_fidelity');
+
+      // "received end of output" alone names the symptom and hides the cause.
+      expect(result.details, contains('received end of output'));
+      expect(
+        result.details,
+        contains('the response hit the token cap (finish_reason: length)'),
+      );
+    },
+  );
+
   test('accepts a unified diff without the git a/ b/ path prefixes', () async {
     // `diff -u` and `patch -p0` use the bare path; the prefixes are a git
     // convention. Requiring them scored an applicable diff as a failure and
@@ -1928,10 +1956,15 @@ const _editFormatUnifiedDiff = '''--- a/lib/greeting.dart
  }''';
 
 class _EditFormatDiagnosticDataSource extends _FakeDiagnosticDataSource {
-  _EditFormatDiagnosticDataSource(this.supported, {this.unifiedDiffResponse});
+  _EditFormatDiagnosticDataSource(
+    this.supported, {
+    this.unifiedDiffResponse,
+    this.unifiedDiffFinishReason = 'stop',
+  });
 
   final Set<ModelEditFormatPreference> supported;
   final String? unifiedDiffResponse;
+  final String unifiedDiffFinishReason;
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -1965,7 +1998,7 @@ class _EditFormatDiagnosticDataSource extends _FakeDiagnosticDataSource {
             (supported.contains(ModelEditFormatPreference.unifiedDiff)
                 ? _editFormatUnifiedDiff
                 : 'I changed the greeting.'),
-        finishReason: 'stop',
+        finishReason: unifiedDiffFinishReason,
       );
     }
     return super.createChatCompletion(
