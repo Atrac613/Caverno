@@ -7,7 +7,15 @@ import '../entities/live_llm_diagnostic.dart';
 /// as `passed: false` would blame the model for the harness's reach -- the
 /// same conflation that once scored a vision model blind on an image too small
 /// for its tower to resolve.
-enum LiveLlmDiagnosticDifficultyStageState { passed, failed, outOfRange }
+/// [notMeasured] is the state of every rung when the ladder never ran, which
+/// is the default: it is opt-in and expensive. A rung nobody attempted must
+/// not read as one the model lost.
+enum LiveLlmDiagnosticDifficultyStageState {
+  passed,
+  failed,
+  outOfRange,
+  notMeasured,
+}
 
 class LiveLlmDiagnosticDifficultyStage {
   const LiveLlmDiagnosticDifficultyStage({
@@ -42,6 +50,7 @@ class LiveLlmDiagnosticDifficultyLadder {
   const LiveLlmDiagnosticDifficultyLadder({
     required this.measuredPromptTokens,
     this.advertisedContextTokens = 0,
+    this.measurementAttempted = true,
   });
 
   factory LiveLlmDiagnosticDifficultyLadder.fromReport(
@@ -51,6 +60,10 @@ class LiveLlmDiagnosticDifficultyLadder {
         report.effectiveContextMetrics?.maxSuccessfulPromptTokens ?? 0,
     advertisedContextTokens:
         report.effectiveContextMetrics?.advertisedContextTokens ?? 0,
+    // Absent metrics mean the ladder was never run, which is not the same as
+    // a run that failed its first rung -- a run that fails 4096 still reports
+    // metrics, with no successful trial in them.
+    measurementAttempted: report.effectiveContextMetrics != null,
   );
 
   static const id = 'ladder';
@@ -74,6 +87,10 @@ class LiveLlmDiagnosticDifficultyLadder {
   /// attemptable: silence is not a limit.
   final int advertisedContextTokens;
 
+  /// Whether the expensive ladder ran at all. False leaves every rung
+  /// [LiveLlmDiagnosticDifficultyStageState.notMeasured].
+  final bool measurementAttempted;
+
   bool get isMeasured => measuredPromptTokens > 0;
 
   bool _isOutOfRange(int target) =>
@@ -83,7 +100,9 @@ class LiveLlmDiagnosticDifficultyLadder {
     for (final target in stagePromptTokens)
       LiveLlmDiagnosticDifficultyStage(
         promptTokens: target,
-        state: measuredPromptTokens >= target
+        state: !measurementAttempted
+            ? LiveLlmDiagnosticDifficultyStageState.notMeasured
+            : measuredPromptTokens >= target
             ? LiveLlmDiagnosticDifficultyStageState.passed
             // A measurement outranks the advertisement: an endpoint that
             // actually answered at this size was not limited by what it said.

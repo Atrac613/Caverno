@@ -12,6 +12,27 @@ void main() {
     expect(ladder.nextStagePromptTokens, 4096);
     expect(ladder.toJson()['suite'], 'ladder-v2');
     expect(ladder.toJson()['measured'], isFalse);
+    // The ladder is opt-in, so the ordinary run never attempts it. Every rung
+    // must say so rather than asserting the model lost a size nobody asked it
+    // for.
+    expect(
+      ladder.stages.map((stage) => stage.state).toSet(),
+      {LiveLlmDiagnosticDifficultyStageState.notMeasured},
+    );
+  });
+
+  // Distinct from the ladder never running: this run asked and the model did
+  // not clear the first rung, which is a real failure worth reporting.
+  test('a run that clears no rung reports failures, not silence', () {
+    final ladder = LiveLlmDiagnosticDifficultyLadder.fromReport(
+      _reportWithFailedLadder(),
+    );
+
+    expect(ladder.isMeasured, isFalse);
+    expect(
+      ladder.stages.first.state,
+      LiveLlmDiagnosticDifficultyStageState.failed,
+    );
   });
 
   test('maps the measured lower bound onto fixed physical-token stages', () {
@@ -131,5 +152,28 @@ LiveLlmDiagnosticReport _report({
               ),
             ],
           ),
+  );
+}
+
+/// A ladder that ran and cleared nothing: metrics are present, but no trial
+/// succeeded.
+LiveLlmDiagnosticReport _reportWithFailedLadder() {
+  return LiveLlmDiagnosticReport(
+    startedAt: DateTime.utc(2026, 8, 14),
+    baseUrl: 'http://localhost:1234/v1',
+    model: 'test-model',
+    demoMode: false,
+    mcpEnabled: false,
+    effectiveContextMetrics: const LiveLlmDiagnosticEffectiveContextMetrics(
+      configuredMaximumTokens: 32768,
+      trials: [
+        LiveLlmDiagnosticContextTrial(
+          requestedApproximateTokens: 4096,
+          elapsed: Duration(milliseconds: 50),
+          passed: false,
+          promptTokens: 0,
+        ),
+      ],
+    ),
   );
 }
