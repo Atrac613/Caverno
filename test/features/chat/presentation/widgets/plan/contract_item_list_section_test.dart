@@ -25,6 +25,7 @@ ConversationWorkflowSpec _spec({
   bool assumption = true,
   bool material = true,
   bool confirmed = false,
+  String clarificationQuestion = '',
 }) {
   return ConversationWorkflowSpec(
     constraints: const [_claim],
@@ -38,6 +39,7 @@ ConversationWorkflowSpec _spec({
         assumption: assumption,
         material: material,
         confirmed: confirmed,
+        clarificationQuestion: clarificationQuestion,
       ),
     ],
   );
@@ -46,6 +48,7 @@ ConversationWorkflowSpec _spec({
 Future<void> _pump(
   WidgetTester tester, {
   ConversationWorkflowSpec? spec,
+  void Function(ConversationWorkflowSpec confirmedSpec)? onConfirmAssumption,
 }) async {
   await tester.pumpWidget(
     EasyLocalization(
@@ -69,6 +72,7 @@ Future<void> _pump(
               kind: spec == null
                   ? null
                   : ConversationContractItemKind.constraint,
+              onConfirmAssumption: onConfirmAssumption,
             ),
           ),
         ),
@@ -135,5 +139,76 @@ void main() {
 
     expect(find.text('• $_claim'), findsOneWidget);
     expect(find.textContaining('Assumed'), findsNothing);
+  });
+
+  testWidgets('a blocking assumption offers the way to clear it', (
+    tester,
+  ) async {
+    final confirmed = <ConversationWorkflowSpec>[];
+    await _pump(
+      tester,
+      spec: _spec(clarificationQuestion: 'Are the UUIDs actually stable?'),
+      onConfirmAssumption: confirmed.add,
+    );
+
+    expect(
+      find.text('Are the UUIDs actually stable?'),
+      findsOneWidget,
+      reason:
+          'The clarification question was already on the mark and was being '
+          'discarded here, so the claim was shown without the question that '
+          'settles it.',
+    );
+
+    await tester.tap(find.text('Confirm this'));
+    await tester.pumpAndSettle();
+
+    expect(
+      confirmed,
+      hasLength(1),
+      reason:
+          'confirmMaterialAssumption had exactly one caller — the gate, which '
+          'only runs once a mutation is already blocked. Without a control '
+          'here a dismissed interrupt left no route back.',
+    );
+    expect(
+      confirmed.single.blockingAssumptions,
+      isEmpty,
+      reason:
+          'The spec handed to the page is the confirmed one, so persisting it '
+          'is all that is left to do — a callback that only named the item '
+          'would leave the transform to be repeated at every call site.',
+    );
+  });
+
+  testWidgets('a confirmed assumption offers nothing to confirm', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      spec: _spec(confirmed: true, clarificationQuestion: 'Still true?'),
+      onConfirmAssumption: (_) {},
+    );
+
+    expect(find.text('Confirm this'), findsNothing);
+    expect(
+      find.text('Still true?'),
+      findsNothing,
+      reason: 'A settled assumption is not asking anything.',
+    );
+  });
+
+  testWidgets('a draft list is blocked from confirming what it cannot save', (
+    tester,
+  ) async {
+    await _pump(tester, spec: _spec(clarificationQuestion: 'Is it stable?'));
+
+    expect(
+      find.text('Confirm this'),
+      findsNothing,
+      reason:
+          'Without a callback there is no live spec to persist onto, so the '
+          'button would be a dead end.',
+    );
   });
 }

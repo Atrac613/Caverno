@@ -1,8 +1,12 @@
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/entities/conversation_workflow.dart';
 import '../../../domain/services/conversation_contract_provenance_service.dart';
+import 'contract_item_line.dart';
+
+// Re-exported so the plan's labelled sections reach their callers through
+// one directive, as they did when they shared a file.
+export 'workflow_text_section.dart';
 
 /// One labelled list of contract items, with the ones the plan is *assuming*
 /// marked as such.
@@ -24,6 +28,7 @@ class ContractItemListSection extends StatelessWidget {
     required this.items,
     this.spec,
     this.kind,
+    this.onConfirmAssumption,
     super.key,
   });
 
@@ -37,7 +42,25 @@ class ContractItemListSection extends StatelessWidget {
   final ConversationWorkflowSpec? spec;
   final ConversationContractItemKind? kind;
 
+  /// Persists [spec] with one blocking assumption confirmed, when this list
+  /// shows a live spec. The transform happens here because this is already
+  /// where the marks are resolved; the page is left with the save.
+  final void Function(ConversationWorkflowSpec confirmedSpec)?
+  onConfirmAssumption;
+
   static const _provenance = ConversationContractProvenanceService();
+
+  void Function(ConversationContractItemProvenance item)? get _confirmHandler {
+    final confirm = onConfirmAssumption;
+    final currentSpec = spec;
+    if (confirm == null || currentSpec == null) return null;
+    return (item) => confirm(
+      _provenance.confirmMaterialAssumption(
+        workflowSpec: currentSpec,
+        itemId: item.itemId,
+      ),
+    );
+  }
 
   ConversationContractItemProvenance? _markFor(String value) {
     final currentSpec = spec;
@@ -77,55 +100,14 @@ class ContractItemListSection extends StatelessWidget {
           for (final item in normalizedItems)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: _ContractItemLine(item: item, mark: _markFor(item)),
+              child: ContractItemLine(
+                item: item,
+                mark: _markFor(item),
+                onConfirmAssumption: _confirmHandler,
+              ),
             ),
         ],
       ),
-    );
-  }
-}
-
-class _ContractItemLine extends StatelessWidget {
-  const _ContractItemLine({required this.item, required this.mark});
-
-  final String item;
-  final ConversationContractItemProvenance? mark;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final assumption = mark;
-    if (assumption == null) {
-      return Text('• $item', style: theme.textTheme.bodyMedium);
-    }
-
-    // Blocking is the state worth colouring: it is the only one that stops
-    // work, and the user is the only one who can clear it.
-    final blocks = assumption.blocksExecution;
-    final noteColor = blocks
-        ? theme.colorScheme.tertiary
-        : theme.colorScheme.onSurfaceVariant;
-    final note = assumption.confirmed
-        ? 'chat.contract_assumption_confirmed'.tr()
-        : blocks
-        ? 'chat.contract_assumption_blocking'.tr()
-        : 'chat.contract_assumption'.tr();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('• $item', style: theme.textTheme.bodyMedium),
-        Padding(
-          padding: const EdgeInsets.only(left: 12, top: 1),
-          child: Text(
-            note,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: noteColor,
-              fontWeight: blocks ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

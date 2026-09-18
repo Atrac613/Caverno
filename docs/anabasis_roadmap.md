@@ -1633,17 +1633,17 @@ Two ceilings were hit landing twenty lines, and both are worth knowing about:
 - `task_acceptance_decision.dart` was at 220 of 220, so the refusal and result
   shapes moved to `TaskAcceptancePayloads` to pay for the new ground.
 - The frozen RAG2 development declaration
-  (`tool/fixtures/rag2_explicit_source_roots_development_v1`) replays against the
-  **live working tree**, and its five source roots held 511 files against a
+  (`tool/fixtures/rag2_explicit_source_roots_development_v1`) replayed against
+  the **live working tree**, and its five source roots held 511 files against a
   frozen cap of 512. Adding two service files broke two tests in a blocked
-  track's evaluation. It now sits at exactly 512, so the next file added under
-  `lib/features/chat/domain/{entities,services}` or
-  `presentation/providers` breaks it again. The underlying defect is that a
-  declaration frozen at 2026-08-26 — with `priorFixtureUse: forbidden` and a
-  `declarationIdentity` hash — reads a corpus that drifts with development;
-  pinning its replay to the commit it was frozen at would keep the measurement
-  and stop it being a tax on unrelated work. Not done here: it changes a frozen
-  artifact's mechanism, which is a decision for the RAG track.
+  track's evaluation. The underlying defect was that a declaration frozen at
+  2026-08-26 — with `priorFixtureUse: forbidden` and a `declarationIdentity`
+  hash — read a corpus that drifts with development. **Repaired 2026-09-18**,
+  at exactly 512 of 512: both explicit-source-roots evaluations now acquire from
+  a detached worktree at `491aa6700`, the commit that froze the declarations,
+  their fixtures, and the tests together. The pinned corpus holds 460 files, and
+  adding a file under `lib/features/chat/domain/services` no longer breaks
+  anything. See the roadmap's Recommended Next Slice for the measurement.
 
 ### ANA4: Anabasis Workspace
 
@@ -1841,10 +1841,85 @@ branch -- and the parent's prompt is already assembled per turn from the role,
 not from the mode. Revisit it only if the parent's prompt needs to differ from
 `plan`'s in a way the role block cannot express.
 
+**The dismissal question, answered 2026-09-18. It does not survive its turn —
+and it did not survive the iteration it was made in.** The question the previous
+slice held the surface work for was whether a dismissed confirmation lasts, and
+the answer has two halves that point in opposite directions.
+
+The **assumption** is durable and always was: it lives in
+`ConversationWorkflowSpec.provenance`, `blocksExecution` is
+`assumption && material && !confirmed`, and declining writes nothing — so the
+mutation stays blocked across turns, which is what the gate documents.
+
+The **dismissal** was not durable for even one turn. `MaterialAssumptionConfirmationGate`
+promised that "an item is asked about at most once per gate", and every test
+that covered it held one gate in a local. Production does not: the gate is
+constructed inside `_executeToolLoopBatch`, which the turn calls **once per
+tool-loop iteration**, so its ask memory was a field on an object that lives for
+one iteration. Measured 2026-09-18 by the repro before the fix — three
+iterations, three identical modals, one answer:
+
+```
+Expected: an object with length of <1>
+  Actual: ['constraint:cf71bf56', 'constraint:cf71bf56', 'constraint:cf71bf56']
+```
+
+That is precisely the spinning approval dialog the gate's own doc calls "worse
+than a refusal the model can read", reached by a lifetime mismatch rather than
+by the stale-id case it was written about.
+
+The memory now lives in `MaterialAssumptionAskMemory`, keyed by `ChatTurnOwner`
+and released in the turn teardown scope beside `contextSurgeryObservations`.
+Owner-keyed rather than generation-keyed, because two threads share the
+generation counter and one must not be able to answer for the other. Per turn
+rather than persistent, on purpose: a revised assumption gets a new item id and
+is asked again, and **going back to a dismissal belongs to a persistent surface,
+not to an interrupt that reopens itself** — which is the surface slice below,
+now resting on a dismissal that holds still long enough to be listed.
+
+The canary was extended to assert the feed site takes the turn's scope, and was
+checked by reverting the fix: it fails. The ceiling was paid by deleting the
+notifier's private `_asBool`, a third copy of `argumentIsTruthy` that the same
+library already had in scope through `mcp_tool_service.dart`.
+
+Next action:
+- `MaterialContractAssumptionGuard` is still scoped to `WorkspaceMode.coding`,
+  which is now the only §16 gate left standing. Widen it when there is a
+  non-coding goal to widen it for; the pane no longer blocks one.
+**A blocking assumption had nowhere to be answered, 2026-09-18.** Scoping the
+awaiting-you listing found the same shape as the two before it: the thing the
+surface would point at was itself broken. `confirmMaterialAssumption` had
+**exactly one caller** — `MaterialAssumptionConfirmationGate`, which only runs
+once a mutation is already blocked — so the sole route to clearing an assumption
+was the interrupt raised mid-turn. `ContractItemListSection` rendered the
+blocking state and coloured it, under a comment reading "the user is the only
+one who can clear it", and offered no control to clear it with. The clarification
+question was on the mark and was being discarded.
+
+Landing the turn-scoped ask memory made that acute rather than merely untidy: a
+dismissal now holds for the turn, so dismissing once left the user blocked with
+no way back at all. Listing such an item in the awaiting-you section would have
+been a summary pointing at a dead end, which is the one thing §15 says that
+section must not be.
+
+`ContractItemLine` is extracted from the list, carries the clarification
+question, and offers the confirmation. Wired into the **live** workflow panel
+only — the draft and proposal lists have no conversation to persist onto, and a
+button there would be the dead end again. The transform stays in the section,
+which already resolves marks through the same provenance service, so the page
+owns the save and nothing else.
+
+Three ceilings were paid: `ContractItemLine` and `WorkflowTextSection` both came
+out of files they had no reason to be private to, and the two identical confirm
+callbacks in `_buildWorkflowPanel` became one local.
+
 Next action:
 - `MaterialContractAssumptionGuard` is still scoped to `WorkspaceMode.coding`,
   which is now the only §16 gate left standing. Widen it when there is a
   non-coding goal to widen it for; the pane no longer blocks one.
 - Pending material-assumption confirmations are still absent from the
-  awaiting-you section. The question to answer first is whether a dismissed
-  confirmation survives its turn at all.
+  awaiting-you section, and both blockers are now gone: a dismissal lasts the
+  turn, and the item it would point at has an answer surface. What remains is
+  the count itself — `unresolvedOpenQuestions` would have to become a union with
+  `blockingAssumptions`, and the two kinds need distinguishing in the row, since
+  one opens the review sheet and the other belongs in the workflow panel.

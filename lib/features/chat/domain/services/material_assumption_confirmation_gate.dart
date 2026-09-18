@@ -3,6 +3,7 @@ import '../entities/conversation_workflow.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'conversation_contract_provenance_service.dart';
+import 'material_assumption_ask_memory.dart';
 import 'material_contract_assumption_arming.dart';
 import 'material_contract_assumption_guard.dart';
 
@@ -25,10 +26,9 @@ import 'material_contract_assumption_guard.dart';
 ///   answered while a batch is running has to be visible to the next call in
 ///   that same batch, or the run stays blocked by an assumption the user has
 ///   already disposed of.
-/// * **An item is asked about at most once per gate.** If a confirmation fails
-///   to clear its item — a stale id, a revision that replaced the contract —
-///   re-asking would spin, and a spinning approval dialog is worse than a
-///   refusal the model can read.
+/// * **An item is asked about at most once per turn.** A spinning approval
+///   dialog is worse than a refusal the model can read, and this object lives
+///   for one iteration, so [MaterialAssumptionAskScope] owns that memory.
 /// * **Declining refuses.** It does not defer and it does not confirm: the
 ///   assumption stays unconfirmed, and the mutation stays blocked, which is
 ///   what `ConversationContractItemProvenance.blocksExecution` means.
@@ -37,6 +37,7 @@ final class MaterialAssumptionConfirmationGate {
     required this.currentSpec,
     required this.requestConfirmation,
     required this.persist,
+    required this.asked,
     this.provenance = const ConversationContractProvenanceService(),
     this.guard = const MaterialContractAssumptionGuard(),
   });
@@ -56,10 +57,9 @@ final class MaterialAssumptionConfirmationGate {
   /// Persists the confirmed spec onto the owning conversation.
   final Future<void> Function(ConversationWorkflowSpec spec) persist;
 
+  final MaterialAssumptionAskScope asked;
   final ConversationContractProvenanceService provenance;
   final MaterialContractAssumptionGuard guard;
-
-  final Set<String> _asked = <String>{};
 
   /// The refusal to return for [toolCall], or `null` once nothing blocks it.
   Future<McpToolResult?> evaluate(
@@ -76,11 +76,11 @@ final class MaterialAssumptionConfirmationGate {
       );
       if (refusal == null) return null;
 
-      final unasked = blocking.where((item) => !_asked.contains(item.itemId));
+      final unasked = blocking.where((item) => !asked.hasAsked(item.itemId));
       if (unasked.isEmpty) return refusal;
 
       final item = unasked.first;
-      _asked.add(item.itemId);
+      asked.markAsked(item.itemId);
       final confirmed = await requestConfirmation(
         item: item,
         itemText: provenance.itemValueFor(spec, item.itemId) ?? item.itemId,

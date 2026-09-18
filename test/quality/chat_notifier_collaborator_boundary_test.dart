@@ -213,6 +213,7 @@ void main() {
         'goal-validation-probe-guard',
         'local-command-tool-handler',
         'lsp-go-to-definition-tool-handler',
+        'material-assumption-ask-memory',
         'material-assumption-confirmation-gate',
         'material-contract-assumption-arming',
         'material-contract-assumption-guard',

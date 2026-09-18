@@ -22,6 +22,7 @@ const expectedTurnReleaseObligations = [
   'askUserQuestionRuntime',
   'responseMetadata',
   'contextSurgeryObservations',
+  'materialAssumptionAsks',
   'modelEditTelemetry',
   'modelSwitchCompaction',
   'runningTools',

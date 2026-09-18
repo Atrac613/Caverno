@@ -2,6 +2,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/material_assumption_ask_memory.dart';
 import 'package:caverno/features/chat/domain/services/material_assumption_confirmation_gate.dart';
 import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
 import 'package:test/test.dart';
@@ -58,8 +59,13 @@ class _Host {
   final List<String> asked = <String>[];
   final List<String> askedText = <String>[];
 
+  /// One turn's ask memory, shared by every gate this host hands out — which
+  /// is what production does across the tool loop's iterations.
+  final MaterialAssumptionAskScope askScope = MaterialAssumptionAskScope();
+
   MaterialAssumptionConfirmationGate get gate =>
       MaterialAssumptionConfirmationGate(
+        asked: askScope,
         currentSpec: () => spec,
         requestConfirmation:
             ({required item, required itemText, required toolName}) async {
@@ -209,6 +215,32 @@ void main() {
         );
       },
     );
+
+    test('a decline is not re-asked on the next tool-loop iteration', () async {
+      final host = _Host(_spec(), answer: false);
+
+      // Production builds one gate per `_executeToolLoopBatch` call, and the
+      // turn runs up to `maxIterations` of them. Each access to `host.gate`
+      // is one of those iterations.
+      for (var iteration = 0; iteration < 3; iteration++) {
+        expect(
+          await host.gate.evaluate(
+            _mutation,
+            workspaceMode: WorkspaceMode.coding,
+          ),
+          isNotNull,
+        );
+      }
+
+      expect(
+        host.asked,
+        hasLength(1),
+        reason:
+            'A dismissal must outlive the iteration it was made in. '
+            'Re-opening the same dialog on every iteration of one turn is '
+            'the spinning dialog this gate exists to avoid.',
+      );
+    });
 
     test(
       'a confirmation answered elsewhere is visible to the next call',

@@ -14,6 +14,12 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
   }) {
     final theme = Theme.of(context);
     final spec = currentConversation.effectiveWorkflowSpec;
+    void confirmAssumption(ConversationWorkflowSpec next) =>
+        _confirmMaterialAssumption(
+          context,
+          currentConversation: currentConversation,
+          confirmedSpec: next,
+        );
     final planArtifact = currentConversation.effectivePlanArtifact;
     final hasContext = currentConversation.hasWorkflowContext;
     final shouldPreferPlanDocument =
@@ -218,8 +224,7 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                 ] else if (hasContext && !shouldPreferPlanDocument) ...[
                   if (spec.goal.trim().isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    _buildWorkflowTextSection(
-                      context,
+                    WorkflowTextSection(
                       label: 'chat.workflow_goal'.tr(),
                       value: spec.goal.trim(),
                     ),
@@ -229,12 +234,14 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                     items: spec.constraints,
                     spec: spec,
                     kind: ConversationContractItemKind.constraint,
+                    onConfirmAssumption: confirmAssumption,
                   ),
                   ContractItemListSection(
                     label: 'chat.workflow_acceptance'.tr(),
                     items: spec.acceptanceCriteria,
                     spec: spec,
                     kind: ConversationContractItemKind.acceptanceCriterion,
+                    onConfirmAssumption: confirmAssumption,
                   ),
                   ContractItemListSection(
                     label: 'chat.workflow_open_questions'.tr(),
@@ -619,8 +626,7 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
           ),
           if (spec.goal.trim().isNotEmpty) ...[
             const SizedBox(height: 12),
-            _buildWorkflowTextSection(
-              context,
+            WorkflowTextSection(
               label: 'chat.workflow_goal'.tr(),
               value: spec.goal.trim(),
             ),
@@ -1314,25 +1320,26 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
     );
   }
 
-  Widget _buildWorkflowTextSection(
+  /// Persists one material assumption the user confirmed from the panel.
+  ///
+  /// `confirmMaterialAssumption`'s only other caller is the gate, which runs
+  /// when a mutation is already blocked. Without this the answer could only be
+  /// given to an interrupt, and a dismissed interrupt had no way back.
+  Future<void> _confirmMaterialAssumption(
     BuildContext context, {
-    required String label,
-    required String value,
-  }) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(value, style: theme.textTheme.bodyMedium),
-      ],
+    required Conversation currentConversation,
+    required ConversationWorkflowSpec confirmedSpec,
+  }) async {
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentWorkflow(
+          conversationId: currentConversation.id,
+          preserveWorkflowProjection: true,
+          workflowSpec: confirmedSpec,
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('chat.contract_assumption_confirm_toast'.tr())),
     );
   }
 }

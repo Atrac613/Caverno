@@ -550,6 +550,7 @@ const Map<String, int> _lineBudgets = {
   // eleventh sheet is the method the extraction existed for, and the number
   // should have been set once, for the pair, rather than at the halfway line.
   'lib/features/chat/presentation/pages/approval_sheet_dispatcher.dart': 159,
+  'lib/features/chat/domain/services/material_assumption_ask_memory.dart': 49,
   'lib/features/chat/domain/services/material_assumption_confirmation_gate.dart':
       99,
   'lib/features/chat/domain/services/computer_use_action_presentation.dart':

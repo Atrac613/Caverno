@@ -574,6 +574,8 @@
     "contract_assumption": "Assumed, not verified",
     "contract_assumption_blocking": "Assumed — work pauses until you confirm this",
     "contract_assumption_confirmed": "Assumed — you confirmed this",
+    "contract_assumption_confirm_action": "Confirm this",
+    "contract_assumption_confirm_toast": "Confirmed. Work is no longer paused on this assumption.",
     "workflow_task_waiting_on": "Waiting on",
     "workflow_task_waiting_task": "task",
     "workflow_task_waiting_assumption": "unconfirmed assumption",

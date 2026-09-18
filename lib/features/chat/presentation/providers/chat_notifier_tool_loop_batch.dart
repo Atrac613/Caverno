@@ -68,6 +68,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       // identity and is in scope either way.
       executingRole: _anabasisRoles.mainLoopRoleFor(interactionGeneration),
       assumptionGate: MaterialAssumptionConfirmationGate(
+        // The turn's memory, not this batch's: the loop builds a gate per
+        // iteration, so a field here would re-ask a dismissal every time.
+        asked: _materialAssumptionAsks.scopeFor(owner),
         currentSpec: () =>
             _conversationForId(owner.conversationId)?.effectiveWorkflowSpec ??
             const ConversationWorkflowSpec(),
@@ -764,7 +767,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final name = result.name.trim().toLowerCase();
     if (name != 'process_start' &&
         (name != 'local_execute_command' ||
-            !_asBool(result.arguments['background']))) {
+            !argumentIsTruthy(result.arguments['background']))) {
       return;
     }
     final snapshot = _backgroundProcessMonitorService
@@ -780,23 +783,6 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       '[BackgroundProcess] Monitoring ${snapshot.jobId} '
       '(${snapshot.status})',
     );
-  }
-
-  bool _asBool(Object? value) {
-    if (value == null) {
-      return false;
-    }
-    if (value is bool) {
-      return value;
-    }
-    if (value is num) {
-      return value != 0;
-    }
-    if (value is String) {
-      final normalized = value.trim().toLowerCase();
-      return normalized == 'true' || normalized == '1' || normalized == 'yes';
-    }
-    return false;
   }
 
   /// Accumulates executed commands for the exact turn owner.

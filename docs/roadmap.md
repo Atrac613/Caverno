@@ -113,13 +113,22 @@ every acceptance was written without the premise check; and the acceptance detai
 had no production reader, so `[accepted]` told the next turn nothing about what
 it rested on. ANA4's third acceptance criterion — the evidence behind an
 acceptance accessible from the workspace — is met as a result. Two ceilings were
-hit landing it, and one is a standing hazard: the frozen RAG2 development
-declaration replays against the **live working tree** and its five chat source
-roots now sit at exactly 512 of a frozen 512-file cap, so the next file added
-under `lib/features/chat/domain/{entities,services}` or
-`presentation/providers` fails a blocked track's evaluation with a
-RAG-shaped error. Pinning that replay to the commit it was frozen at is the
-repair; it belongs to the RAG track.
+hit landing it, and one of them was a standing hazard until 2026-09-18: the
+frozen RAG2 development declaration replayed against the **live working tree**,
+and its five chat source roots had reached exactly 512 of a frozen 512-file cap.
+
+**That hazard is closed.** Measured 2026-09-18 at 512 of 512, a probe file added
+under `lib/features/chat/domain/services` made the frozen evaluation report
+`file_count_exceeded` plus two RAG-shaped blockers that hid the cause. Both
+explicit-source-roots evaluations now acquire their corpus from a detached
+worktree at `491aa6700`, the commit that froze the declarations, their fixtures,
+and the tests together — a real worktree rather than an export, because
+acquisition attests every admitted source with `git status`, `git ls-files`, and
+`git rev-parse`. The pinned corpus holds 460 files with 52 of headroom that can
+no longer be consumed, and the same probe now passes. A declaration frozen on
+2026-08-26 cannot be validated against files written after it, so this is a
+correctness repair, not only a cap reprieve. No other RAG2 replay passed the
+live tree as a project root; the rest only assert that reports do not leak it.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
@@ -136,7 +145,7 @@ implementation slice active.
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
-| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | All four of §15's questions now have a persistent surface: the awaiting-you section shipped 2026-09-14 and sits in the both-workspaces list, so it does not need a coding project. **§16's mode question is answered — no fourth `WorkspaceMode`**: the parent's identity is per turn (`@anabasis` → one interaction generation carries authority, prompt block and billing role) and a mode is per conversation, which would force a per-conversation answer to a per-turn question; a conversation legitimately carries both kinds of turn. `AssistantMode` reuses `plan` for the same reason. What remains is `MaterialContractAssumptionGuard`'s `WorkspaceMode.coding` scope and making a dismissed confirmation durable. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
+| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | All four of §15's questions now have a persistent surface: the awaiting-you section shipped 2026-09-14 and sits in the both-workspaces list, so it does not need a coding project. **§16's mode question is answered — no fourth `WorkspaceMode`**: the parent's identity is per turn (`@anabasis` → one interaction generation carries authority, prompt block and billing role) and a mode is per conversation, which would force a per-conversation answer to a per-turn question; a conversation legitimately carries both kinds of turn. `AssistantMode` reuses `plan` for the same reason. What remains is `MaterialContractAssumptionGuard`'s `WorkspaceMode.coding` scope, held deliberately until a non-coding goal needs it, and the surface for pending confirmations. The question that blocked the surface is answered: measured 2026-09-18, a dismissal did not survive even the tool-loop iteration it was made in, because the gate's ask memory was a field on an object the turn rebuilds per iteration -- three iterations, three identical modals, one answer. `MaterialAssumptionAskMemory` now holds it per turn, keyed by owner and released in the turn teardown scope. Scoping the listing then found the surface it would point at was itself a dead end: `confirmMaterialAssumption` had exactly one caller, the gate, so an assumption could only be cleared by the interrupt raised mid-turn. The workflow panel now carries the clarification question and the confirmation, so what remains for the listing is the count -- a union of `unresolvedOpenQuestions` and `blockingAssumptions`, whose two kinds open different surfaces. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
 | Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Push delivery, lock-screen approval, and native withdrawal have hardware evidence dated 2026-09-09/10. Complete the remaining device matrix; see [WATCH5](apple_watch_roadmap.md#watch5-push-originated-notification-actions). |
 | Watch | WATCH14 | current | Browse the iPhone's paired host projects and existing threads, read a compact conversation, and dictate instructions into the selected remote thread. | Slices 1-3 provide paged browsing, compact transcripts, and destination-bound Dictation/Stop. A background-woken iPhone now reconnects the saved host, retires the old epoch, and offers an explicit Send again only after the same destination is freshly confirmed. Next: prove this on a signed locked/backgrounded iPhone/Watch pair and real desktop, plus concurrent thread changes, accessibility, and hidden tool traffic. See [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads). |
 

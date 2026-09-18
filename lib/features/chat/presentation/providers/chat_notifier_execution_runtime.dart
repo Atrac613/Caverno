@@ -223,6 +223,14 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         'contextSurgeryObservations',
         () => _contextSurgeryObservations.removeOwner(owner),
       )
+      // The turn's record of which material assumptions it already put in
+      // front of the user. Owner-keyed so a concurrent thread cannot answer
+      // for this one, and dropped here so a session does not accumulate one
+      // scope per turn.
+      ..register(
+        'materialAssumptionAsks',
+        () => _materialAssumptionAsks.removeOwner(owner),
+      )
       ..register(
         'modelEditTelemetry',
         () => _modelEditTelemetry?.retireOwner(owner),
@@ -296,6 +304,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     'runtimeTurns': _runtimeTurns.isEmpty,
     'turnSteering': _turnSteering.isEmpty,
     'turnEnd': _turnEnd.isEmpty,
+    'materialAssumptionAsks': _materialAssumptionAsks.isEmpty,
     // A scope nobody dropped is the stranded registration this boundary
     // exists to prevent, and it was the one thing here nothing observed.
     'turnReleases': _turnReleases.isEmpty,
@@ -311,6 +320,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
       _runtimeTurns.isEmpty &&
       _turnSteering.isEmpty &&
       _turnEnd.isEmpty &&
+      _materialAssumptionAsks.isEmpty &&
       _turnReleases.isEmpty;
 
   void _terminalizeRuntimeTurn(

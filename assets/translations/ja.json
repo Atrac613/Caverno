@@ -574,6 +574,8 @@
     "contract_assumption": "未確認の仮定",
     "contract_assumption_blocking": "仮定 — 確認するまで作業は止まります",
     "contract_assumption_confirmed": "仮定 — 確認済み",
+    "contract_assumption_confirm_action": "これを確認する",
+    "contract_assumption_confirm_toast": "確認しました。この仮定による作業の停止は解除されます。",
     "workflow_task_waiting_on": "待っているもの",
     "workflow_task_waiting_task": "タスク",
     "workflow_task_waiting_assumption": "未確認の仮定",

@@ -48,6 +48,9 @@ const Map<String, String> _ownerReleaseContract = {
   'responseMetadata': '()=>_responseMetadata.dispose(owner)',
   'contextSurgeryObservations':
       '()=>_contextSurgeryObservations.removeOwner(owner)',
+  // ANA4: a dismissal has to outlive the tool-loop iteration it was made
+  // in, and must not outlive the turn.
+  'materialAssumptionAsks': '()=>_materialAssumptionAsks.removeOwner(owner)',
   'modelEditTelemetry': '()=>_modelEditTelemetry?.retireOwner(owner)',
   'modelSwitchCompaction':
       '()=>_modelSwitchHandoffs.discardPromptCompaction(owner)',

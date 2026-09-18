@@ -161,6 +161,23 @@ bool _productionCallsConfirmation() {
 /// refusal and the question are not separable: the loop must evaluate through
 /// [MaterialAssumptionConfirmationGate], which asks and re-evaluates, and never
 /// call the guard directly, which can only say no.
+/// Whether the feed site's ask memory outlives the gate it is handed to.
+///
+/// The gate promises an item is asked about at most once, but production
+/// builds one per `_executeToolLoopBatch` call and the turn runs one of those
+/// per iteration. A memory owned by the gate keeps the promise for an
+/// iteration and breaks it for the turn -- measured 2026-09-18 as three
+/// identical dialogs for one declined assumption. The memory therefore has to
+/// come from outside, keyed by the owning turn.
+bool _feedSiteAskMemoryOutlivesTheGate() {
+  const feedSitePath =
+      'lib/features/chat/presentation/providers/'
+      'chat_notifier_tool_loop_batch.dart';
+  final source = File(feedSitePath).readAsStringSync();
+  return source.contains('asked: _materialAssumptionAsks.scopeFor(owner)') &&
+      !source.contains('asked: MaterialAssumptionAskScope()');
+}
+
 bool _feedSiteRefusesWithoutAsking() {
   const feedSitePath =
       'lib/features/chat/presentation/providers/'
@@ -277,6 +294,18 @@ void main() {
             'confirmation and re-evaluates. Calling the guard directly there '
             'restores the state ANA0 spent two PRs avoiding: a refusal whose '
             'only exit is a question the model may never ask.',
+      );
+    });
+
+    test('a dismissal outlives the iteration it was made in', () {
+      expect(
+        _feedSiteAskMemoryOutlivesTheGate(),
+        isTrue,
+        reason:
+            'The gate is rebuilt once per tool-loop iteration, so its ask '
+            'memory has to be the turn\'s. Constructing a scope at the feed '
+            'site would re-open the identical modal on every iteration after '
+            'the user already dismissed it.',
       );
     });
   });

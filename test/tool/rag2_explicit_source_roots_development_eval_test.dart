@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../tool/rag2_explicit_source_roots_development_eval.dart';
 import '../../tool/rag2_explicit_source_roots_replay.dart'
     show rag2ExplicitSourceRootsPolicy;
+import 'rag2_pinned_project_root.dart';
 
 const _declarationPath =
     'tool/fixtures/rag2_explicit_source_roots_development_v1/declaration.json';
@@ -17,19 +18,25 @@ const _inScopeEvidencePath =
 void main() {
   late Map<String, dynamic> declaration;
   late Map<String, dynamic> fixture;
+  late Rag2PinnedProjectRoot pinnedRoot;
   late Rag2ExplicitRootsDevelopmentEvalRun run;
 
   setUpAll(() async {
     declaration = _readFixture(_declarationPath);
     fixture = _readFixture(_fixturePath);
+    pinnedRoot = await Rag2PinnedProjectRoot.checkOut();
     run = await runRag2ExplicitRootsDevelopmentEvaluation(
-      projectRoot: Directory.current.path,
+      projectRoot: pinnedRoot.path,
       declaration: declaration,
       fixture: fixture,
     );
   });
 
-  test('passes live acquisition and every frozen development scope gate', () {
+  tearDownAll(() async {
+    await pinnedRoot.dispose();
+  });
+
+  test('passes pinned acquisition and every frozen development scope gate', () {
     final acquisition = run.acquisition;
     final result = run.evaluation;
 

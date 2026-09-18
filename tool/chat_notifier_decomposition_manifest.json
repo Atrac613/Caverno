@@ -176,6 +176,11 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/goal_validation_probe_guard.dart"
         },
         {
+          "id": "material-assumption-ask-memory",
+          "path": "lib/features/chat/domain/services/material_assumption_ask_memory.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/material_assumption_ask_memory.dart"
+        },
+        {
           "id": "material-assumption-confirmation-gate",
           "path": "lib/features/chat/domain/services/material_assumption_confirmation_gate.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/material_assumption_confirmation_gate.dart"

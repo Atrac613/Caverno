@@ -85,8 +85,7 @@ extension _ChatPagePlanBuilders on _ChatPageState {
           if (workflowSpec != null) ...[
             if (workflowSpec.goal.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
-              _buildWorkflowTextSection(
-                context,
+              WorkflowTextSection(
                 label: 'chat.workflow_goal'.tr(),
                 value: workflowSpec.goal.trim(),
               ),

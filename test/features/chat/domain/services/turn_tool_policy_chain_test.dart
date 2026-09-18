@@ -4,6 +4,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_tools.dart';
+import 'package:caverno/features/chat/domain/services/material_assumption_ask_memory.dart';
 import 'package:caverno/features/chat/domain/services/material_assumption_confirmation_gate.dart';
 import 'package:caverno/features/chat/domain/services/turn_tool_policy_chain.dart';
 import 'package:test/test.dart';
@@ -37,6 +38,7 @@ void main() {
     final chain = TurnToolPolicyChain(
       executingRole: ModelUsageRole.anabasisParent,
       assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
         currentSpec: _blockedSpec,
         requestConfirmation:
             ({required item, required itemText, required toolName}) async {
@@ -74,6 +76,7 @@ void main() {
     final chain = TurnToolPolicyChain(
       executingRole: ModelUsageRole.chat,
       assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
         currentSpec: _blockedSpec,
         requestConfirmation:
             ({required item, required itemText, required toolName}) async {
@@ -97,6 +100,7 @@ void main() {
     final chain = TurnToolPolicyChain(
       executingRole: ModelUsageRole.chat,
       assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
         currentSpec: () => const ConversationWorkflowSpec(goal: 'Ship it'),
         requestConfirmation:
             ({required item, required itemText, required toolName}) async =>
@@ -115,6 +119,7 @@ void main() {
     final chain = TurnToolPolicyChain(
       executingRole: ModelUsageRole.anabasisParent,
       assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
         currentSpec: _blockedSpec,
         requestConfirmation:
             ({required item, required itemText, required toolName}) async =>
@@ -145,6 +150,7 @@ void main() {
     final chain = TurnToolPolicyChain(
       executingRole: ModelUsageRole.anabasisParent,
       assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
         currentSpec: _blockedSpec,
         requestConfirmation:
             ({required item, required itemText, required toolName}) async =>

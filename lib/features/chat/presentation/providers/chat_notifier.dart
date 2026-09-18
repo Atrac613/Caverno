@@ -138,6 +138,7 @@ import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/goal_validation_probe_guard.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
+import '../../domain/services/material_assumption_ask_memory.dart';
 import '../../domain/services/material_assumption_confirmation_gate.dart';
 import '../../domain/services/material_contract_assumption_guard.dart';
 import '../../domain/services/memory_extraction_coordinator.dart';
@@ -2042,6 +2043,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final Set<int> _pendingActionLengthRecoveryGenerations = <int>{};
   final _explicitTerminalSuccessSummariesByGeneration = <int, String>{};
   final _askUserQuestionTurnCache = AskUserQuestionTurnCache();
+  final _materialAssumptionAsks = MaterialAssumptionAskMemory();
   final ResponseMetadataRegistry _responseMetadata = ResponseMetadataRegistry();
   final _pendingAskUserQuestionsByThread = <String, PendingAskUserQuestion>{};
   final _participantTurnControls = ParticipantTurnControlRegistry();
@@ -2190,6 +2192,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingActionLengthRecoveryGenerations.clear();
     _explicitTerminalSuccessSummariesByGeneration.clear();
     _askUserQuestionTurnCache.clear();
+    _materialAssumptionAsks.clear();
     _productionReleaseApprovals.clearAll();
     _blockedReleaseRetrySignatures.clear();
     _unexecutedCommandRetryOwners.clear();
@@ -4968,7 +4971,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final name = result.name.trim().toLowerCase();
       if (name != 'process_start' &&
           (name != 'local_execute_command' ||
-              !_asBool(result.arguments['background'])) &&
+              !argumentIsTruthy(result.arguments['background'])) &&
           name != 'process_status' &&
           name != 'process_wait') {
         continue;
