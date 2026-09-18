@@ -12,8 +12,9 @@ enum EndpointParameterSupport {
   supported,
 }
 
-/// Reads the request parameters an OpenAI-compatible endpoint advertises on
-/// `GET /models`.
+/// Reads what an OpenAI-compatible endpoint advertises about itself on
+/// `GET /models`: which request parameters it accepts, and how large a context
+/// its models carry.
 ///
 /// OpenRouter-shaped servers put a `supported_parameters` list on each model
 /// entry. Nothing in the OpenAI specification requires it, so a missing list, a
@@ -92,6 +93,52 @@ class OpenAiParameterSupportProbe {
     } on Object {
       return EndpointParameterSupport.unknown;
     }
+  }
+
+  /// The largest context window the listing advertises, or 0 when it says
+  /// nothing.
+  ///
+  /// Read so an instrument can tell "the model failed this size" from "this
+  /// size never fit". A ladder whose rungs run past the endpoint's window
+  /// otherwise reports its own reach as a model limit -- the same mistake as
+  /// scoring a probe image too small for the vision tower to resolve.
+  Future<int> advertisedContextTokens({
+    required String baseUrl,
+    required String model,
+    required http.Client client,
+    Map<String, String> headers = const <String, String>{},
+  }) async {
+    final uri = modelsUriFor(baseUrl);
+    if (uri == null) return 0;
+    try {
+      final response = await client.get(uri, headers: headers).timeout(timeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) return 0;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return 0;
+      final data = decoded['data'];
+      if (data is! List) return 0;
+
+      final wanted = model.trim().toLowerCase();
+      final entries = data.whereType<Map>().toList();
+      final exact = entries
+          .where((entry) => '${entry['id']}'.trim().toLowerCase() == wanted)
+          .toList();
+      final considered = exact.isNotEmpty ? exact : entries;
+
+      var largest = 0;
+      for (final entry in considered) {
+        final value = _positiveInt(entry['context_length']) ;
+        if (value > largest) largest = value;
+      }
+      return largest;
+    } on Object {
+      return 0;
+    }
+  }
+
+  static int _positiveInt(Object? value) {
+    final parsed = value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+    return parsed > 0 ? parsed : 0;
   }
 
   /// `http://host:8000/v1` -> `http://host:8000/v1/models`.

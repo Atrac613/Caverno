@@ -17,6 +17,18 @@ Future<EndpointParameterSupport> probe(
   );
 }
 
+Future<int> contextProbe(
+  http.Response Function(http.Request request) respond, {
+  String baseUrl = 'http://localhost:8000/v1',
+  String model = 'qwen3.8-flash-next',
+}) {
+  return const OpenAiParameterSupportProbe().advertisedContextTokens(
+    baseUrl: baseUrl,
+    model: model,
+    client: MockClient((request) async => respond(request)),
+  );
+}
+
 http.Response _json(Object body) => http.Response(
   jsonEncode(body),
   200,
@@ -171,6 +183,88 @@ void main() {
         await probe((_) => throw const SocketExceptionStub()),
         EndpointParameterSupport.unknown,
       );
+    });
+  });
+
+  group('advertisedContextTokens', () {
+    test('reads the window the listing publishes', () async {
+      expect(
+        await contextProbe(
+          (_) => _json({
+            'data': [
+              {
+                'id': 'qwen3.8-flash-next',
+                'context_length': 40960,
+              },
+            ],
+          }),
+        ),
+        40960,
+      );
+    });
+
+    test('takes the largest window when the model is unlisted', () async {
+      expect(
+        await contextProbe(
+          (_) => _json({
+            'data': [
+              {'id': 'qwen3.8-flash-next', 'context_length': 40960},
+              {'id': 'qwen3.8-flash-next-chat', 'context_length': 131072},
+            ],
+          }),
+          model: 'Qwen3.8-Flash-Next-Q2',
+        ),
+        131072,
+      );
+    });
+
+    test('an exact match outranks the rest of the listing', () async {
+      expect(
+        await contextProbe(
+          (_) => _json({
+            'data': [
+              {'id': 'other-model', 'context_length': 131072},
+              {'id': 'qwen3.8-flash-next', 'context_length': 40960},
+            ],
+          }),
+        ),
+        40960,
+      );
+    });
+
+    // 0 means "said nothing", which leaves every ladder stage attemptable.
+    test('reports zero when the listing publishes no window', () async {
+      expect(
+        await contextProbe(
+          (_) => _json({
+            'data': [
+              {'id': 'qwen3.8-flash-next'},
+            ],
+          }),
+        ),
+        0,
+      );
+    });
+
+    test('ignores a non-positive window', () async {
+      expect(
+        await contextProbe(
+          (_) => _json({
+            'data': [
+              {'id': 'qwen3.8-flash-next', 'context_length': 0},
+            ],
+          }),
+        ),
+        0,
+      );
+    });
+
+    test('reports zero for a non-2xx status', () async {
+      expect(await contextProbe((_) => http.Response('nope', 500)), 0);
+    });
+
+    test('reports zero when the request throws', () async {
+      expect(await contextProbe((_) => throw const SocketExceptionStub()), 0);
     });
   });
 }

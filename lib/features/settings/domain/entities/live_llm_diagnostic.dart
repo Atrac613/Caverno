@@ -411,10 +411,16 @@ class LiveLlmDiagnosticEffectiveContextMetrics {
   const LiveLlmDiagnosticEffectiveContextMetrics({
     required this.configuredMaximumTokens,
     required this.trials,
+    this.advertisedContextTokens = 0,
   });
 
   final int configuredMaximumTokens;
   final List<LiveLlmDiagnosticContextTrial> trials;
+
+  /// The context window the endpoint published for this model, or 0 when it
+  /// published none. Kept beside the trials so a reader can tell a size the
+  /// model failed from a size that was never going to fit.
+  final int advertisedContextTokens;
 
   int get maxSuccessfulPromptTokens => trials
       .where((trial) => trial.passed && trial.promptTokens > 0)
@@ -438,6 +444,8 @@ class LiveLlmDiagnosticEffectiveContextMetrics {
 
   Map<String, dynamic> toJson() => {
     'configuredMaximumTokens': configuredMaximumTokens,
+    if (advertisedContextTokens > 0)
+      'advertisedContextTokens': advertisedContextTokens,
     'maxSuccessfulPromptTokens': maxSuccessfulPromptTokens,
     'reachedConfiguredMaximum': reachedConfiguredMaximum,
     if (firstFailedApproximateTokens != null)

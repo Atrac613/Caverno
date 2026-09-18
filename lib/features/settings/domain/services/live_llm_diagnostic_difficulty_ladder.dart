@@ -1,17 +1,33 @@
 import '../entities/live_llm_diagnostic.dart';
 
+/// What a rung of the ladder measured.
+///
+/// [outOfRange] is not a failure: the endpoint published a context window too
+/// small to hold this prompt, so the stage was never attemptable. Reporting it
+/// as `passed: false` would blame the model for the harness's reach -- the
+/// same conflation that once scored a vision model blind on an image too small
+/// for its tower to resolve.
+enum LiveLlmDiagnosticDifficultyStageState { passed, failed, outOfRange }
+
 class LiveLlmDiagnosticDifficultyStage {
   const LiveLlmDiagnosticDifficultyStage({
     required this.promptTokens,
-    required this.passed,
+    required this.state,
   });
 
   final int promptTokens;
-  final bool passed;
+  final LiveLlmDiagnosticDifficultyStageState state;
+
+  bool get passed =>
+      state == LiveLlmDiagnosticDifficultyStageState.passed;
+
+  bool get attemptable =>
+      state != LiveLlmDiagnosticDifficultyStageState.outOfRange;
 
   Map<String, dynamic> toJson() => {
     'promptTokens': promptTokens,
     'passed': passed,
+    'state': state.name,
   };
 }
 
@@ -23,13 +39,18 @@ class LiveLlmDiagnosticDifficultyStage {
 /// while stages make the next harder target explicit and independently
 /// versionable from `cavernobench`.
 class LiveLlmDiagnosticDifficultyLadder {
-  const LiveLlmDiagnosticDifficultyLadder({required this.measuredPromptTokens});
+  const LiveLlmDiagnosticDifficultyLadder({
+    required this.measuredPromptTokens,
+    this.advertisedContextTokens = 0,
+  });
 
   factory LiveLlmDiagnosticDifficultyLadder.fromReport(
     LiveLlmDiagnosticReport report,
   ) => LiveLlmDiagnosticDifficultyLadder(
     measuredPromptTokens:
         report.effectiveContextMetrics?.maxSuccessfulPromptTokens ?? 0,
+    advertisedContextTokens:
+        report.effectiveContextMetrics?.advertisedContextTokens ?? 0,
   );
 
   static const id = 'ladder';
@@ -49,15 +70,32 @@ class LiveLlmDiagnosticDifficultyLadder {
 
   final int measuredPromptTokens;
 
+  /// 0 when the endpoint published no window, which leaves every stage
+  /// attemptable: silence is not a limit.
+  final int advertisedContextTokens;
+
   bool get isMeasured => measuredPromptTokens > 0;
+
+  bool _isOutOfRange(int target) =>
+      advertisedContextTokens > 0 && target > advertisedContextTokens;
 
   List<LiveLlmDiagnosticDifficultyStage> get stages => List.unmodifiable([
     for (final target in stagePromptTokens)
       LiveLlmDiagnosticDifficultyStage(
         promptTokens: target,
-        passed: measuredPromptTokens >= target,
+        state: measuredPromptTokens >= target
+            ? LiveLlmDiagnosticDifficultyStageState.passed
+            // A measurement outranks the advertisement: an endpoint that
+            // actually answered at this size was not limited by what it said.
+            : _isOutOfRange(target)
+            ? LiveLlmDiagnosticDifficultyStageState.outOfRange
+            : LiveLlmDiagnosticDifficultyStageState.failed,
       ),
   ]);
+
+  /// Stages this endpoint could ever be asked to clear.
+  int get attemptableStageCount =>
+      stagePromptTokens.where((target) => !_isOutOfRange(target)).length;
 
   int get passedStageCount => stagePromptTokens
       .where((target) => measuredPromptTokens >= target)
@@ -72,9 +110,13 @@ class LiveLlmDiagnosticDifficultyLadder {
     return highest;
   }
 
+  /// The next rung worth aiming at, or null when there is none. A stage past
+  /// the endpoint's published window is not a target, so it is skipped rather
+  /// than offered as the next thing to beat.
   int? get nextStagePromptTokens {
     for (final target in stagePromptTokens) {
-      if (measuredPromptTokens < target) return target;
+      if (measuredPromptTokens >= target) continue;
+      return _isOutOfRange(target) ? null : target;
     }
     return null;
   }
@@ -89,6 +131,9 @@ class LiveLlmDiagnosticDifficultyLadder {
     'measuredPromptTokens': measuredPromptTokens,
     'passedStageCount': passedStageCount,
     'stageCount': stagePromptTokens.length,
+    'attemptableStageCount': attemptableStageCount,
+    if (advertisedContextTokens > 0)
+      'advertisedContextTokens': advertisedContextTokens,
     'highestPassedStagePromptTokens': highestPassedStagePromptTokens,
     'nextStagePromptTokens': ?nextStagePromptTokens,
     'stages': stages.map((stage) => stage.toJson()).toList(),

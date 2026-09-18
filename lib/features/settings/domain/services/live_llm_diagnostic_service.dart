@@ -1055,6 +1055,23 @@ class LiveLlmDiagnosticService {
     }
   }
 
+  /// The context window the endpoint publishes, or 0 when it publishes none.
+  Future<int> _advertisedContextTokens() async {
+    final client = http.Client();
+    try {
+      return await const OpenAiParameterSupportProbe().advertisedContextTokens(
+        baseUrl: settings.baseUrl,
+        model: settings.effectiveModel,
+        client: client,
+        headers: ApiConstants.userAgentHeaders,
+      );
+    } on Object {
+      return 0;
+    } finally {
+      client.close();
+    }
+  }
+
   String _schemaArmDetail(ChatCompletionResult result) {
     final visible = _visibleDiagnosticContent(result.content);
     if (result.finishReason == 'length') {
@@ -1877,6 +1894,9 @@ class LiveLlmDiagnosticService {
     final metrics = LiveLlmDiagnosticEffectiveContextMetrics(
       configuredMaximumTokens: maximum,
       trials: List.unmodifiable(trials),
+      // Recorded so the ladder can tell a rung the model failed from one that
+      // never fit this endpoint's window.
+      advertisedContextTokens: await _advertisedContextTokens(),
     );
     final measured = metrics.maxSuccessfulPromptTokens;
     final status = measured == 0
