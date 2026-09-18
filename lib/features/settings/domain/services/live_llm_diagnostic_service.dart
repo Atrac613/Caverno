@@ -15,6 +15,7 @@ import '../../../chat/data/datasources/embeddings_math.dart';
 import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
+import '../../../chat/data/datasources/openai_parameter_support_probe.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
@@ -954,6 +955,27 @@ class LiveLlmDiagnosticService {
 
     final completed = <ChatCompletionResult>[];
     String schemaDetail;
+
+    // Ask the endpoint before spending a generation on it. A server that drops
+    // `response_format` still answers 200, so the schema arm's prompt -- which
+    // names no literal values, because the schema is supposed to supply them --
+    // leaves the model with nothing to produce. Measured against
+    // Qwen3.8-Flash-Next-Q2: 24 s to an empty `finish_reason: length`
+    // completion, to learn what `GET /v1/models` advertises in one round trip.
+    if (await _responseFormatSupport() ==
+        EndpointParameterSupport.unsupported) {
+      return _runStructuredObjectArm(
+        report: updated,
+        structuredDataSource: structuredDataSource,
+        completed: completed,
+        schemaDetail:
+            'json_schema: not attempted -- the endpoint does not list '
+            'response_format among its supported_parameters',
+        startedAt: startedAt,
+        onReport: onReport,
+      );
+    }
+
     try {
       final schemaResult = await structuredDataSource
           .createStructuredChatCompletion(
@@ -995,12 +1017,70 @@ class LiveLlmDiagnosticService {
         onReport?.call(updated);
         return updated;
       }
-      schemaDetail =
-          'json_schema: request completed but the response violated the schema';
+      // Truncation is not a contract violation. A reasoning model that never
+      // reaches an answer returns empty content with `finish_reason: length`,
+      // and reporting that as "violated the schema" blames the model for a
+      // budget the harness set.
+      schemaDetail = _schemaArmDetail(schemaResult);
     } catch (error) {
       schemaDetail = 'json_schema: request failed (${_preview('$error')})';
     }
 
+    return _runStructuredObjectArm(
+      report: updated,
+      structuredDataSource: structuredDataSource,
+      completed: completed,
+      schemaDetail: schemaDetail,
+      startedAt: startedAt,
+      onReport: onReport,
+    );
+  }
+
+  /// Reads `supported_parameters` off `GET /models`, reporting
+  /// [EndpointParameterSupport.unknown] for anything that does not answer --
+  /// which is most servers, and which keeps the generation arms running.
+  Future<EndpointParameterSupport> _responseFormatSupport() async {
+    final client = http.Client();
+    try {
+      return await const OpenAiParameterSupportProbe().responseFormatSupport(
+        baseUrl: settings.baseUrl,
+        model: settings.effectiveModel,
+        client: client,
+        headers: ApiConstants.userAgentHeaders,
+      );
+    } on Object {
+      return EndpointParameterSupport.unknown;
+    } finally {
+      client.close();
+    }
+  }
+
+  String _schemaArmDetail(ChatCompletionResult result) {
+    final visible = _visibleDiagnosticContent(result.content);
+    if (result.finishReason == 'length') {
+      return visible.isEmpty
+          ? 'json_schema: the model reasoned to the token cap and returned no '
+                'answer (finish_reason: length)'
+          : 'json_schema: the answer was truncated at the token cap '
+                '(finish_reason: length)';
+    }
+    if (visible.isEmpty) {
+      return 'json_schema: the request completed but returned no content';
+    }
+    return 'json_schema: request completed but the response violated the schema';
+  }
+
+  /// The json_object fallback arm, shared by the ordinary path and the
+  /// short-circuit that skips a schema the endpoint never advertised.
+  Future<LiveLlmDiagnosticReport> _runStructuredObjectArm({
+    required LiveLlmDiagnosticReport report,
+    required StructuredOutputChatDataSource structuredDataSource,
+    required List<ChatCompletionResult> completed,
+    required String schemaDetail,
+    required DateTime startedAt,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    var updated = report;
     try {
       final objectResult = await structuredDataSource
           .createStructuredChatCompletion(

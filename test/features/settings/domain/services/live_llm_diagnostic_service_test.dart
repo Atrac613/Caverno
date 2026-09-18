@@ -591,6 +591,25 @@ void main() {
     expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
   });
 
+  test('reports a token-cap truncation as truncation, not a violation', () async {
+    // The endpoint drops response_format and answers 200, so the schema arm
+    // reasons to the cap and returns nothing. Calling that "the response
+    // violated the schema" blames the model for a budget the harness set.
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(schemaArmRunsToTokenCap: true),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'structured_output'});
+    final result = _result(report, 'structured_output');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.details, contains('finish_reason: length'));
+    expect(result.details, isNot(contains('violated the schema')));
+    expect(result.metadata['structuredOutputSupport'], 'jsonObject');
+  });
+
   test('falls back to JSON object structured output', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -1323,10 +1342,15 @@ class _FakeDiagnosticDataSource
     this.bracedReasoning = false,
     this.blindChart = false,
     this.silentChart = false,
+    this.schemaArmRunsToTokenCap = false,
   });
 
   final bool textToolCalls;
   final ModelStructuredOutputSupport structuredOutputSupport;
+
+  /// Reasons to the token cap and returns no answer, the way a model does
+  /// when the endpoint silently dropped the schema it was told to follow.
+  final bool schemaArmRunsToTokenCap;
 
   /// Answers the chart question the same with and without the image, which is
   /// what a model that never looked at the picture does.
@@ -1360,6 +1384,14 @@ class _FakeDiagnosticDataSource
   }) async {
     requestedModels.add(model);
     if (responseFormat.format == StructuredOutputFormat.jsonSchema) {
+      if (schemaArmRunsToTokenCap) {
+        // An endpoint that drops response_format leaves the schema arm's
+        // prompt with no values to produce, so the model reasons to the cap.
+        return ChatCompletionResult(
+          content: '<think>The schema was supposed to say which marker',
+          finishReason: 'length',
+        );
+      }
       if (structuredOutputSupport != ModelStructuredOutputSupport.jsonSchema) {
         throw StateError('json_schema unsupported');
       }
