@@ -26,6 +26,9 @@ void main() {
   // WidgetsBinding.instance needs a binding to exist.
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // The notifier passes DateTime.now into the registration coordinator, so a
+  // frozen fixture clock plus a 30-day fake expiresAt starts failing CI once
+  // that date elapses. Keep the fixture on the wall clock.
   final now = DateTime.now().toUtc();
 
   RemoteCodingHost pairedHost() => RemoteCodingHost(

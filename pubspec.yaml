@@ -124,20 +124,20 @@ dependencies:
   # by the Wi-Fi tools) cannot take. Upgrading both is a separate change.
   share_plus: ^12.0.2
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.4.0
+  mobile_scanner: ^7.4.2
 
   # Desktop window management
   window_manager: ^0.5.2
 
   # SSH remote server tool
-  dartssh2: ^3.3.1
+  dartssh2: ^4.1.0
   flutter_secure_storage: ^10.0.0
 
   # BLE (Bluetooth Low Energy) tool
   bluetooth_low_energy: ^6.2.1
 
   # WiFi scanning tool
-  wifi_scan: ^0.4.1
+  wifi_scan: ^0.5.0
   network_info_plus: ^7.0.0
   desktop_drop: ^0.8.4
 
@@ -154,7 +154,7 @@ dependencies:
   # Embedded Python runtime for on-device LLM script execution
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
-  serious_python: ^4.6.0
+  serious_python: ^4.7.0
   drift: ^2.34.4
   sqlite3_flutter_libs: ^0.6.0+eol
   # Embedded terminal for the coding workspace bottom panel (desktop only:
