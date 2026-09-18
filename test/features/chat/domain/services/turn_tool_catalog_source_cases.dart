@@ -1,8 +1,6 @@
-import 'package:caverno/features/chat/domain/services/turn_tool_catalog_cache.dart';
-import 'package:caverno/features/chat/domain/services/turn_tool_catalog_source.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runTurnToolCatalogSource() {
   List<Map<String, dynamic>> definitions(List<String> names) => [
     for (final name in names)
       {

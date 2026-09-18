@@ -1,8 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_execution_summary_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runConversationExecutionSummaryService() {
   test('summarize prefers the latest execution event for the outcome', () {
     final progress = ConversationExecutionTaskProgress(
       taskId: 'task-1',

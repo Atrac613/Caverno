@@ -1,7 +1,6 @@
-import 'package:caverno/features/chat/domain/services/execution_budget_policy.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runExecutionBudgetPolicy() {
   const policy = ExecutionBudgetPolicy(maxTotalExtension: 6);
 
   test('grants a progress-backed extension within the ceiling', () {

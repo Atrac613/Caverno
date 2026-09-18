@@ -1,8 +1,4 @@
-import 'dart:convert';
-
-import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/stalled_diagnostic_repair_contract.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
 /// The payload shape LocalShellTools now produces for a failing dart command.
 ///
@@ -38,7 +34,7 @@ ToolResultInfo _failingAnalyzeResult({required String message}) {
   );
 }
 
-void main() {
+void _runCommandDiagnosticStreakFromCommandResult() {
   group('a real failing dart command feeds the stalled-repair streak', () {
     // Before diagnostics were attached to command results, only the canary's
     // synthetic verifier payload carried them, so this seam had never been

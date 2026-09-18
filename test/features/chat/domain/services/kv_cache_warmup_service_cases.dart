@@ -1,8 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/kv_cache_warmup_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runKvCacheWarmupService() {
   group('KvCacheWarmupService', () {
     test('sends a minimal system + user prefix with the tool list', () async {
       List<Message>? sentMessages;

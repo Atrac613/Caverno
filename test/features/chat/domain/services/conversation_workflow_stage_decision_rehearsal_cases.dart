@@ -1,14 +1,6 @@
-import 'dart:convert';
+part of 'chat_domain_services_test.dart';
 
-import 'package:caverno/features/chat/domain/entities/conversation.dart';
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
-import 'package:caverno/features/chat/domain/services/conversation_workflow_conflict_preservation_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_workflow_stage_decision_receipt_service.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
+void _runConversationWorkflowStageDecisionRehearsal() {
   const preservationService = ConversationWorkflowConflictPreservationService();
   const receiptService = ConversationWorkflowStageDecisionReceiptService();
 

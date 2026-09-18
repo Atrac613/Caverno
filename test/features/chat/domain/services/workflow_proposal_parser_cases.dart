@@ -1,9 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/workflow_proposal_parser.dart';
-import 'package:caverno/features/chat/domain/services/workflow_task_proposal_quality_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runWorkflowProposalParser() {
   late WorkflowProposalParser parser;
 
   setUp(() {

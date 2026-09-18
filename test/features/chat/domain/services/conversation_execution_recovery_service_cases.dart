@@ -1,8 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_execution_recovery_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runConversationExecutionRecoveryService() {
   test('suggests validation retry and replan actions after a failed check', () {
     final suggestions = ConversationExecutionRecoveryService.suggest(
       task: const ConversationWorkflowTask(

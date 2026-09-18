@@ -1,13 +1,4 @@
-import 'dart:convert';
-
-import 'package:caverno/features/chat/domain/entities/conversation.dart';
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
-import 'package:caverno/features/chat/domain/services/task_delegation_brief_builder.dart';
-import 'package:caverno/features/chat/domain/services/task_proposal_parser.dart';
-import 'package:caverno/features/chat/domain/services/workflow_task_proposal_quality_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
 const _dependency = 'Inspect the JSONL schema';
 const _implementation = 'Implement the JSONL counter';
@@ -95,7 +86,7 @@ Conversation _parsedPlan({
   );
 }
 
-void main() {
+void _runParsedPlanDelegation() {
   const projector = ExecutionSnapshotProjector();
   const builder = TaskDelegationBriefBuilder();
 

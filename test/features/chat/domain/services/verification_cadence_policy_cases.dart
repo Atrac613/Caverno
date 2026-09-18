@@ -1,7 +1,6 @@
-import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runVerificationCadencePolicy() {
   const policy = VerificationCadencePolicy();
 
   test('requires verification after mutation makes evidence stale', () {

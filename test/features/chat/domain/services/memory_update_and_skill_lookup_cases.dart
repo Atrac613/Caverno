@@ -1,10 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/skill.dart';
-import 'package:caverno/features/chat/domain/services/enabled_skill_named_in_text.dart';
-import 'package:caverno/features/chat/domain/services/memory_update_tool_use.dart';
-import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runMemoryUpdateAndSkillLookup() {
   test('MemoryUpdateToolUse wraps the extraction counts', () {
     const result = MemoryUpdateResult(
       summaryUpdated: true,

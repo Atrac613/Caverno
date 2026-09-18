@@ -1,10 +1,6 @@
-import 'package:caverno/core/security/conversation_taint_state.dart';
-import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_taint_recorder.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runToolResultTaintRecorder() {
   group('ToolResultTaintRecorder', () {
     late ConversationTaintState state;
     late ChatTurnOwner owner;

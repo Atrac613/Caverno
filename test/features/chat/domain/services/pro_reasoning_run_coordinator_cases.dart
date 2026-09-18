@@ -1,9 +1,6 @@
-import 'package:caverno/features/chat/domain/services/pro_reasoning_models.dart';
-import 'package:caverno/features/chat/domain/services/pro_reasoning_run_coordinator.dart';
-import 'package:caverno/features/settings/domain/entities/app_settings.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runProReasoningRunCoordinator() {
   test(
     'deadline skips remaining stages but still dispatches synthesis',
     () async {

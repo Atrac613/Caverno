@@ -1,10 +1,6 @@
-import 'package:caverno/core/types/workspace_mode.dart';
-import 'package:caverno/features/chat/domain/entities/conversation.dart';
-import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/conversation_checkpoint_recorder.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runConversationCheckpointRecorder() {
   test('records a checkpoint on the last non-streaming message', () {
     final now = DateTime(2026, 9, 8, 22);
     final conversation = Conversation(

@@ -1,8 +1,6 @@
-import 'package:caverno/features/chat/domain/services/pro_reasoning_models.dart';
-import 'package:caverno/features/settings/domain/entities/app_settings.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runProReasoningModels() {
   test('depth presets expose measured candidate and time budgets', () {
     expect(
       ProReasoningDepth.values.map(

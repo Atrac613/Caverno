@@ -1,12 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
-import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
-import 'package:caverno/features/chat/domain/services/goal_auto_continue_prompt_builder.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runGoalAutoContinuePromptBuilder() {
   test('quotes the selected plan step in the continuation nudge', () {
     final prompt = GoalAutoContinuePromptBuilder.build(
       goal: _goal(),

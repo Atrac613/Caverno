@@ -1,8 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/chat_request_prefix_stability_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runChatRequestPrefixStabilityService() {
   final now = DateTime(2026, 6, 13, 10);
 
   Message message({

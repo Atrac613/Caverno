@@ -1,10 +1,6 @@
-import 'dart:io';
+part of 'chat_domain_services_test.dart';
 
-import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
-import 'package:caverno/features/chat/domain/services/repo_map_lsp_symbol_cache.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
+void _runRepoMapLspSymbolCache() {
   late Directory tempDir;
 
   setUp(() {

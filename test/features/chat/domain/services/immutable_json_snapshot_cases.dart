@@ -1,7 +1,6 @@
-import 'package:caverno/features/chat/domain/services/immutable_json_snapshot.dart';
-import 'package:test/test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runImmutableJsonSnapshot() {
   test('recursively freezes JSON maps and lists with stable types', () {
     final nested = <String, dynamic>{
       'paths': <Object?>[

@@ -1,9 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_diff_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runConversationPlanDiffService() {
   test('buildTaskDiff reports added, removed, and changed task entries', () {
     final approvedMarkdown = ConversationPlanDocumentBuilder.build(
       workflowStage: ConversationWorkflowStage.implement,

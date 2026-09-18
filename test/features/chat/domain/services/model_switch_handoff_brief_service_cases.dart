@@ -1,11 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/conversation.dart';
-import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/model_switch_handoff_brief_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runModelSwitchHandoffBriefService() {
   test('returns null when there is no continuity context', () {
     final brief = ModelSwitchHandoffBriefService.build(
       conversation: null,
@@ -43,7 +38,7 @@ void main() {
         ],
       ),
       messages: [
-        _message(
+        _handoffBriefMessage(
           role: MessageRole.user,
           content: 'Please continue LL14 after changing models.',
         ),
@@ -74,8 +69,11 @@ void main() {
     final brief = ModelSwitchHandoffBriefService.build(
       conversation: _conversation(),
       messages: [
-        _message(role: MessageRole.user, content: 'Create the file.'),
-        _message(
+        _handoffBriefMessage(
+          role: MessageRole.user,
+          content: 'Create the file.',
+        ),
+        _handoffBriefMessage(
           role: MessageRole.assistant,
           content:
               '<tool_call>{"name":"write_file"}</tool_call>\nI saved /tmp/report.md and ran validation.',
@@ -128,7 +126,10 @@ Conversation _conversation({
   );
 }
 
-Message _message({required MessageRole role, required String content}) {
+Message _handoffBriefMessage({
+  required MessageRole role,
+  required String content,
+}) {
   return Message(
     id: '${role.name}-${content.hashCode}',
     content: content,

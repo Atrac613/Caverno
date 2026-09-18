@@ -1,11 +1,6 @@
-import 'dart:convert';
-import 'dart:io';
+part of 'chat_domain_services_test.dart';
 
-import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
-import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
+void _runLspDiagnosticFeedbackProvider() {
   group('LspDiagnosticFeedbackProvider', () {
     test(
       'maps LSP diagnostics for changed files into feedback payloads',
@@ -14,12 +9,12 @@ void main() {
           'caverno_lsp_diagnostic_feedback_',
         );
         addTearDown(() => root.delete(recursive: true));
-        final changedFile = await _writeFile(
+        final changedFile = await _writeLspFeedbackFile(
           root,
           'src/app.ts',
           'const app = missingSymbol;\n',
         );
-        final unrelatedFile = await _writeFile(
+        final unrelatedFile = await _writeLspFeedbackFile(
           root,
           'src/unrelated.ts',
           'const ok = true;\n',
@@ -83,7 +78,11 @@ void main() {
         'caverno_lsp_diagnostic_feedback_unavailable_',
       );
       addTearDown(() => root.delete(recursive: true));
-      final changedFile = await _writeFile(root, 'src/app.py', 'print(x)\n');
+      final changedFile = await _writeLspFeedbackFile(
+        root,
+        'src/app.py',
+        'print(x)\n',
+      );
       final service = CodingDiagnosticFeedbackService(
         provider: LspDiagnosticFeedbackProvider(
           client: const _UnavailableLspDiagnosticClient(),
@@ -105,7 +104,11 @@ void main() {
           'caverno_lsp_diagnostic_feedback_not_ready_',
         );
         addTearDown(() => root.delete(recursive: true));
-        final changedFile = await _writeFile(root, 'src/app.py', 'print(x)\n');
+        final changedFile = await _writeLspFeedbackFile(
+          root,
+          'src/app.py',
+          'print(x)\n',
+        );
         final client = _CountingLspDiagnosticClient();
         final service = CodingDiagnosticFeedbackService(
           provider: LspDiagnosticFeedbackProvider(
@@ -126,7 +129,7 @@ void main() {
   });
 }
 
-Future<File> _writeFile(
+Future<File> _writeLspFeedbackFile(
   Directory root,
   String relativePath,
   String content,

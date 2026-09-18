@@ -1,11 +1,6 @@
-import 'dart:convert';
+part of 'chat_domain_services_test.dart';
 
-import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/background_process_follow_up_policy.dart';
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
+void _runBackgroundProcessFollowUpPolicy() {
   test('prefers typed running state when scheduling a follow-up', () {
     final followUp = BackgroundProcessFollowUpPolicy.followUpToolCall([
       ToolResultInfo(

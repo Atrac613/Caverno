@@ -1,7 +1,6 @@
-import 'package:caverno/features/chat/domain/services/anabasis_address.dart';
-import 'package:test/test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runAnabasisAddress() {
   group('addressed', () {
     test('at the start, in either case, with or without punctuation', () {
       for (final content in [

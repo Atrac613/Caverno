@@ -1,10 +1,6 @@
-import 'dart:convert';
+part of 'chat_domain_services_test.dart';
 
-import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
+void _runDiagnosticSignature() {
   ToolResultCompletionEvidence evidence(List<Map<String, Object?>> items) {
     return ToolResultPromptBuilder.completionEvidence([
       ToolResultInfo(

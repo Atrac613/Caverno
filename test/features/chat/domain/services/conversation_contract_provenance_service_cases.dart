@@ -1,8 +1,6 @@
-import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:flutter_test/flutter_test.dart';
+part of 'chat_domain_services_test.dart';
 
-void main() {
+void _runConversationContractProvenanceService() {
   const service = ConversationContractProvenanceService();
 
   test('approved plan sources every contract item with stable ids', () {
