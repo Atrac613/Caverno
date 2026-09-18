@@ -1,89 +1,93 @@
 part of 'chat_domain_services_test.dart';
 
 void _runRepoMapLspSymbolCache() {
-  late Directory tempDir;
+  // Grouped so its setUp/tearDown stay scoped to these tests. At the
+  // top level of a merged suite they would run for every part's tests.
+  group('RepoMapLspSymbolCache', () {
+    late Directory tempDir;
 
-  setUp(() {
-    tempDir = Directory.systemTemp.createTempSync(
-      'repo_map_lsp_symbol_cache_test_',
-    );
-  });
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync(
+        'repo_map_lsp_symbol_cache_test_',
+      );
+    });
 
-  tearDown(() {
-    if (tempDir.existsSync()) {
-      tempDir.deleteSync(recursive: true);
-    }
-  });
+    tearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
 
-  test('stores LSP symbols by project root and changed file', () {
-    final source = _writeFile(
-      tempDir,
-      'src/app.ts',
-      'export class AppRoot {}\n',
-    );
-    final cache = RepoMapLspSymbolCache();
+    test('stores LSP symbols by project root and changed file', () {
+      final source = _writeFile(
+        tempDir,
+        'src/app.ts',
+        'export class AppRoot {}\n',
+      );
+      final cache = RepoMapLspSymbolCache();
 
-    cache.updateFromLsp(
-      projectRoot: tempDir.path,
-      changedPaths: [source.path],
-      symbols: [
-        LspDocumentSymbol(
-          uri: source.uri.toString(),
-          name: 'AppRoot',
-          kind: 5,
-          kindLabel: 'Class',
-          startLine: 0,
-          startCharacter: 13,
-        ),
-      ],
-    );
+      cache.updateFromLsp(
+        projectRoot: tempDir.path,
+        changedPaths: [source.path],
+        symbols: [
+          LspDocumentSymbol(
+            uri: source.uri.toString(),
+            name: 'AppRoot',
+            kind: 5,
+            kindLabel: 'Class',
+            startLine: 0,
+            startCharacter: 13,
+          ),
+        ],
+      );
 
-    final entries = cache.entriesForRoot(tempDir.path);
-    expect(entries, hasLength(1));
-    expect(entries.single.relativePath, 'src/app.ts');
-    expect(entries.single.symbols, ['class AppRoot']);
-  });
+      final entries = cache.entriesForRoot(tempDir.path);
+      expect(entries, hasLength(1));
+      expect(entries.single.relativePath, 'src/app.ts');
+      expect(entries.single.symbols, ['class AppRoot']);
+    });
 
-  test('replaces stale symbols for changed files', () {
-    final source = _writeFile(
-      tempDir,
-      'src/app.ts',
-      'export class AppRoot {}\n',
-    );
-    final cache = RepoMapLspSymbolCache();
+    test('replaces stale symbols for changed files', () {
+      final source = _writeFile(
+        tempDir,
+        'src/app.ts',
+        'export class AppRoot {}\n',
+      );
+      final cache = RepoMapLspSymbolCache();
 
-    cache.updateFromLsp(
-      projectRoot: tempDir.path,
-      changedPaths: [source.path],
-      symbols: [
-        LspDocumentSymbol(
-          uri: source.uri.toString(),
-          name: 'OldRoot',
-          kind: 5,
-          kindLabel: 'Class',
-          startLine: 0,
-          startCharacter: 13,
-        ),
-      ],
-    );
-    cache.updateFromLsp(
-      projectRoot: tempDir.path,
-      changedPaths: [source.path],
-      symbols: [
-        LspDocumentSymbol(
-          uri: source.uri.toString(),
-          name: 'NewRoot',
-          kind: 5,
-          kindLabel: 'Class',
-          startLine: 0,
-          startCharacter: 13,
-        ),
-      ],
-    );
+      cache.updateFromLsp(
+        projectRoot: tempDir.path,
+        changedPaths: [source.path],
+        symbols: [
+          LspDocumentSymbol(
+            uri: source.uri.toString(),
+            name: 'OldRoot',
+            kind: 5,
+            kindLabel: 'Class',
+            startLine: 0,
+            startCharacter: 13,
+          ),
+        ],
+      );
+      cache.updateFromLsp(
+        projectRoot: tempDir.path,
+        changedPaths: [source.path],
+        symbols: [
+          LspDocumentSymbol(
+            uri: source.uri.toString(),
+            name: 'NewRoot',
+            kind: 5,
+            kindLabel: 'Class',
+            startLine: 0,
+            startCharacter: 13,
+          ),
+        ],
+      );
 
-    final entries = cache.entriesForRoot(tempDir.path);
-    expect(entries, hasLength(1));
-    expect(entries.single.symbols, ['class NewRoot']);
+      final entries = cache.entriesForRoot(tempDir.path);
+      expect(entries, hasLength(1));
+      expect(entries.single.symbols, ['class NewRoot']);
+    });
   });
 }
 
