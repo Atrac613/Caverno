@@ -38,13 +38,13 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
     final state = ref.watch(liveLlmDiagnosticNotifierProvider);
     final report = state.report;
     final settings = ref.watch(settingsNotifierProvider);
-    final diagnosticHistory = state.history
-        .where(
-          (item) =>
-              item.baseUrl.trim() == settings.baseUrl.trim() &&
-              item.model.trim() == settings.effectiveModel.trim(),
-        )
-        .toList(growable: false);
+    // Every saved run is listed, whatever endpoint and model produced it.
+    // Scoping this list to the active endpoint/model made the saved run's
+    // model line read as a copy of the current setting: the only runs it could
+    // ever open were runs of the model already configured. Runs of earlier
+    // models were unreachable too, though storage keeps ten per model.
+    final diagnosticHistory = [...state.history]
+      ..sort((left, right) => right.startedAt.compareTo(left.startedAt));
     final saturationWatchdog = ModelBenchmarkSaturationWatchdog.evaluate(
       profiles: settings.modelCapabilityProfiles,
       suite: '${LiveLlmDiagnosticSuite.id}-v${LiveLlmDiagnosticSuite.version}',
@@ -308,10 +308,27 @@ class _DiagnosticHistorySection extends StatelessWidget {
                       color: _statusColor(context, report.overallStatus),
                     ),
                     title: Text(_formatTimestamp(report.startedAt)),
-                    subtitle: Text(
-                      '${_statusLabel(report.overallStatus)} • '
-                      '${report.passedProbeCount}/${report.scoredProbeCount} • '
-                      '${report.elapsed.inMilliseconds} ms',
+                    isThreeLine: report.model.trim().isNotEmpty,
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_statusLabel(report.overallStatus)} • '
+                          '${report.passedProbeCount}/${report.scoredProbeCount} • '
+                          '${report.elapsed.inMilliseconds} ms',
+                        ),
+                        // The run carries its own endpoint and model, so a
+                        // list spanning several of them stays readable.
+                        if (report.model.trim().isNotEmpty)
+                          Text(
+                            '${report.model} • ${report.baseUrl}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => onOpen(report),

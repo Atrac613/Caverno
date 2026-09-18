@@ -108,6 +108,92 @@ void main() {
     expect(find.text('Diagnostic History'), findsOneWidget);
   });
 
+  testWidgets('keeps a saved run labelled with the model that produced it', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'current-model',
+    );
+    final pastStartedAt = DateTime(2026, 8, 15, 9, 30);
+    final currentStartedAt = DateTime(2026, 9, 18, 15, 31);
+    LiveLlmDiagnosticReport reportFor({
+      required DateTime startedAt,
+      required String baseUrl,
+      required String model,
+    }) => LiveLlmDiagnosticReport(
+      startedAt: startedAt,
+      finishedAt: startedAt.add(const Duration(seconds: 2)),
+      baseUrl: baseUrl,
+      model: model,
+      demoMode: false,
+      mcpEnabled: false,
+      results: [
+        LiveLlmDiagnosticProbeResult(
+          id: 'instruction_echo',
+          status: LiveLlmDiagnosticStatus.passed,
+          summary: 'Probe of $model passed',
+        ),
+      ],
+    );
+    final pastReport = reportFor(
+      startedAt: pastStartedAt,
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'retired-model',
+    );
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(settings),
+        ),
+        liveLlmDiagnosticNotifierProvider.overrideWith(
+          () => _FixedLiveLlmDiagnosticNotifier(
+            LiveLlmDiagnosticState(
+              history: [
+                pastReport,
+                reportFor(
+                  startedAt: currentStartedAt,
+                  baseUrl: settings.baseUrl,
+                  model: settings.effectiveModel,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpPageWithContainer(tester, container);
+
+    final pastCard = find.byKey(
+      ValueKey('live-llm-diag-history-${pastStartedAt.toIso8601String()}'),
+    );
+    expect(
+      pastCard,
+      findsOneWidget,
+      reason: 'a run of another endpoint/model must stay reachable',
+    );
+    expect(
+      find.text('retired-model • https://api.openai.com/v1'),
+      findsOneWidget,
+      reason: 'the list must name the model each run measured',
+    );
+
+    await tester.ensureVisible(pastCard);
+    await tester.tap(
+      find.descendant(of: pastCard, matching: find.byType(ListTile)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Model: retired-model'), findsOneWidget);
+    expect(find.text('Endpoint: https://api.openai.com/v1'), findsOneWidget);
+    expect(
+      find.text('Model: current-model'),
+      findsNothing,
+      reason: 'the detail page must not report the currently configured model',
+    );
+  });
+
   testWidgets('imports two same-version artifacts and announces saturation', (
     tester,
   ) async {
