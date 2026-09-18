@@ -31,8 +31,14 @@ class LiveLlmDiagnosticSuite {
   /// ambiguous context-line wording induced an invalid hunk count. v10 adds
   /// chart reading and pays for it out of the quadrant probe: four solid
   /// colors show the vision path is wired, which is worth less than reading a
-  /// value off an axis, and the total has to stay at [probePointsTotal].
-  static const version = 10;
+  /// value off an axis, and the total has to stay at [probePointsTotal]. v11
+  /// adds tool recovery and pays for it out of `narrow_tool_call`: emitting
+  /// one tool call on demand is re-proven by `update_goal_fidelity`,
+  /// `tool_result_integration`, `initial_harness_selection` and
+  /// `multi_round_tool_loop`, while nothing measured what the model does when
+  /// a tool refuses or half succeeds -- which is where Caverno's own defects
+  /// have been.
+  static const version = 11;
 
   /// Points per probe. Weighted by how much of Caverno's agent loop the probe
   /// actually stands for: the tool-result round trip and the first tool call
@@ -59,7 +65,7 @@ class LiveLlmDiagnosticSuite {
     // model's score. Keeping it weightless also leaves probePointsTotal and
     // the suite version alone, so existing score history stays comparable.
     'video_input_modality': 0,
-    'narrow_tool_call': 65,
+    'narrow_tool_call': 25,
     'update_goal_fidelity': 60,
     'tool_result_integration': 75,
     'multi_round_tool_loop': 65,
@@ -72,6 +78,10 @@ class LiveLlmDiagnosticSuite {
     // would move a model's cavernobench total and break comparability with
     // every run already recorded.
     'tool_state_staircase': 0,
+    // Scored, unlike the ladder axes: three of its four cases are passed by
+    // declining to call a tool, and every other tool probe here rewards the
+    // opposite.
+    'tool_recovery': 40,
   };
 
   /// The LL16 sampler trials are the largest sample a run takes (32 of ~43

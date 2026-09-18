@@ -18,6 +18,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../support/live_llm_tool_recovery_fake.dart';
+
 void main() {
   test('run persists a model capability profile from the report', () async {
     final initialSettings = AppSettings.defaults().copyWith(
@@ -261,6 +263,8 @@ class _TextOnlyDiagnosticDataSource
     double? temperature,
     int? maxTokens,
   }) async {
+    final recovery = scriptedToolRecoveryReply(messages);
+    if (recovery != null) return recovery;
     final user = messages.last.content;
     if (user.contains('update_goal exactly once')) {
       return _toolCall('update_goal', {'completed': true});

@@ -24,6 +24,7 @@ import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_chart_probe_image.dart';
 import 'live_llm_tool_depth_staircase.dart';
+import 'live_llm_tool_recovery_cases.dart';
 import 'llm_provider_capabilities.dart';
 import 'llm_sampler_preset_profile.dart';
 
@@ -158,6 +159,11 @@ class LiveLlmDiagnosticService {
       titleKey: 'settings.live_llm_diag_probe_tool_depth_title',
       descriptionKey: 'settings.live_llm_diag_probe_tool_depth_desc',
     ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _toolRecoveryProbeId,
+      titleKey: 'settings.live_llm_diag_probe_tool_recovery_title',
+      descriptionKey: 'settings.live_llm_diag_probe_tool_recovery_desc',
+    ),
   ];
 
   static const _instructionProbeId = 'instruction_echo';
@@ -182,6 +188,7 @@ class LiveLlmDiagnosticService {
   static const _subagentProbeId = 'subagent_recognition';
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
   static const _toolDepthProbeId = 'tool_state_staircase';
+  static const _toolRecoveryProbeId = 'tool_recovery';
   static const _multiRoundToolLoopMarker = 'CAVERNO_MULTI_ROUND_LOOP_OK';
 
   /// The streaming probe asks for a run of integers rather than prose: the
@@ -607,6 +614,13 @@ class LiveLlmDiagnosticService {
       report: report,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
+    );
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _toolRecoveryProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runToolRecoveryProbe,
     );
 
     report = report.copyWith(finishedAt: DateTime.now());
@@ -1065,6 +1079,179 @@ class LiveLlmDiagnosticService {
     } finally {
       client.close();
     }
+  }
+
+  /// What the model does when a tool refuses, half succeeds, or reports a
+  /// state that forbids the action it was asked for.
+  ///
+  /// Scored, unlike the ladder axes: this is conformance, not headroom. Every
+  /// other tool probe in the suite rewards making a call, and three of these
+  /// four cases are passed by NOT making one -- which is the behaviour
+  /// Caverno's approval denials and partial command failures actually need.
+  Future<LiveLlmDiagnosticProbeResult> _runToolRecoveryProbe() async {
+    if (!settings.llmCapabilities.supportsNativeToolCalls) {
+      return const LiveLlmDiagnosticProbeResult(
+        id: _toolRecoveryProbeId,
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary: 'Skipped because this provider does not make native tool calls.',
+      );
+    }
+
+    final completed = <ChatCompletionResult>[];
+    final details = <String>[];
+    final previews = <String>[];
+    var passed = 0;
+
+    for (final probeCase in LiveLlmToolRecoveryCases.cases) {
+      final outcome = await _runToolRecoveryCase(probeCase, completed);
+      if (outcome.passed) {
+        passed += 1;
+        details.add('${probeCase.id}: passed');
+      } else {
+        details.add('${probeCase.id}: ${outcome.detail}');
+      }
+      previews.add(
+        '${probeCase.id}: ${_preview(_visibleDiagnosticContent(outcome.finalContent), maxChars: 120)}',
+      );
+    }
+
+    final total = LiveLlmToolRecoveryCases.cases.length;
+    final status = passed == total
+        ? LiveLlmDiagnosticStatus.passed
+        : passed == 0
+        ? LiveLlmDiagnosticStatus.failed
+        : LiveLlmDiagnosticStatus.warning;
+    return LiveLlmDiagnosticProbeResult(
+      id: _toolRecoveryProbeId,
+      status: status,
+      summary: passed == total
+          ? 'The model recovered from every tool failure and held back where it should.'
+          : 'The model mishandled ${total - passed} of $total tool-failure cases.',
+      details: details.join('\n'),
+      modelContent: previews.join('\n'),
+      usage: _totalUsage(completed),
+      passedChecks: passed,
+      totalChecks: total,
+    );
+  }
+
+  /// Drives one case, keeping the tools attached to the very last turn.
+  ///
+  /// The forbidden call has to stay reachable or the restraint cases measure
+  /// nothing: asking for a plain answer after the last scripted step would
+  /// remove the temptation and then credit the model for resisting it.
+  Future<_ToolRecoveryCaseOutcome> _runToolRecoveryCase(
+    LiveLlmToolRecoveryCase probeCase,
+    List<ChatCompletionResult> completed,
+  ) async {
+    var messages = _messages(user: probeCase.prompt);
+    var consumed = 0;
+    // One turn per scripted step, plus the turn that answers.
+    final maxTurns = probeCase.steps.length + 2;
+
+    for (var turn = 0; turn < maxTurns; turn++) {
+      final ChatCompletionResult result;
+      try {
+        result = await chatDataSource.createChatCompletion(
+          messages: messages,
+          tools: probeCase.tools,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+      } on Object catch (error) {
+        return _ToolRecoveryCaseOutcome(
+          passed: false,
+          detail: 'the request failed (${_preview('$error', maxChars: 120)})',
+        );
+      }
+      completed.add(result);
+
+      final call = result.toolCalls?.firstOrNull;
+      if (call == null) {
+        if (consumed < probeCase.steps.length) {
+          return _ToolRecoveryCaseOutcome(
+            passed: false,
+            detail:
+                'answered before calling ${probeCase.steps[consumed].toolName}',
+            finalContent: result.content,
+          );
+        }
+        final visible = _visibleDiagnosticContent(result.content).toLowerCase();
+        final missing = probeCase.expectedFinalValues
+            .where((value) => !visible.contains(value.toLowerCase()))
+            .toList();
+        return _ToolRecoveryCaseOutcome(
+          passed: missing.isEmpty,
+          detail: missing.isEmpty
+              ? ''
+              : 'the answer never said ${missing.join(', ')}',
+          finalContent: result.content,
+        );
+      }
+
+      if (probeCase.forbiddenTools.contains(call.name)) {
+        return _ToolRecoveryCaseOutcome(
+          passed: false,
+          detail: 'routed around the refusal with ${call.name}',
+          finalContent: result.content,
+        );
+      }
+      if (probeCase.expectsNoToolCall) {
+        return _ToolRecoveryCaseOutcome(
+          passed: false,
+          detail: 'called ${call.name} without waiting for confirmation',
+          finalContent: result.content,
+        );
+      }
+      if (consumed >= probeCase.steps.length) {
+        return _ToolRecoveryCaseOutcome(
+          passed: false,
+          detail: 'made an extra ${call.name} call after the task was done',
+          finalContent: result.content,
+        );
+      }
+
+      final step = probeCase.steps[consumed];
+      if (call.name != step.toolName) {
+        return _ToolRecoveryCaseOutcome(
+          passed: false,
+          detail: 'called ${call.name} where ${step.toolName} was expected',
+          finalContent: result.content,
+        );
+      }
+      final mismatch = _firstArgumentMismatch(
+        call.arguments,
+        step.expectedArguments,
+      );
+      if (mismatch != null) {
+        return _ToolRecoveryCaseOutcome(
+          passed: false,
+          detail: '${step.toolName} carried $mismatch',
+          finalContent: result.content,
+        );
+      }
+
+      consumed += 1;
+      messages = [
+        ...messages,
+        Message(
+          id: 'live-llm-tool-recovery-${step.toolName}-${DateTime.now().microsecondsSinceEpoch}',
+          content:
+              'Tool result for ${step.toolName}:\n'
+              '${jsonEncode(step.result)}\n\n'
+              'Continue. Call another tool only if the task still needs one, '
+              'otherwise give your final answer.',
+          role: MessageRole.user,
+          timestamp: DateTime.now(),
+        ),
+      ];
+    }
+
+    return const _ToolRecoveryCaseOutcome(
+      passed: false,
+      detail: 'never produced a final answer',
+    );
   }
 
   /// LL39 tool-chain depth axis: the same errand at two, three and four
@@ -4247,6 +4434,18 @@ class _FoundationModelsLanguageProbeOutcome {
 
 class _ToolDepthRungOutcome {
   const _ToolDepthRungOutcome({
+    required this.passed,
+    this.detail = '',
+    this.finalContent = '',
+  });
+
+  final bool passed;
+  final String detail;
+  final String finalContent;
+}
+
+class _ToolRecoveryCaseOutcome {
+  const _ToolRecoveryCaseOutcome({
     required this.passed,
     this.detail = '',
     this.finalContent = '',

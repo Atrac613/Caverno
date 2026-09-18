@@ -17,6 +17,8 @@ import 'package:caverno/features/settings/domain/services/live_llm_tool_depth_st
 import 'package:caverno/features/settings/domain/services/model_capability_profile_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../support/live_llm_tool_recovery_fake.dart';
+
 void main() {
   test('runs live harness probes with safe tool execution', () async {
     final dataSource = _FakeDiagnosticDataSource();
@@ -73,8 +75,8 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      // 16 since the tool-state staircase joined the default run.
-      16,
+      // 17 since the tool-state staircase and tool recovery joined the run.
+      17,
     );
     expect(
       _result(report, 'edit_format_fidelity').metadata['editFormatPreference'],
@@ -1521,6 +1523,8 @@ class _FakeDiagnosticDataSource
     requestedModels.add(model);
     final staircase = _toolDepthStaircaseReply(messages, tools);
     if (staircase != null) return staircase;
+    final recovery = scriptedToolRecoveryReply(messages);
+    if (recovery != null) return recovery;
     final user = messages.last.content;
     if (user.contains('product_label')) {
       return ChatCompletionResult(
