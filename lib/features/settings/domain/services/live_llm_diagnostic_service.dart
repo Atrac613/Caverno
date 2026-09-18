@@ -1190,25 +1190,29 @@ class LiveLlmDiagnosticService {
         );
       }
 
+      // A tool-call turn carries no content, so the offending call itself is
+      // the evidence. Reporting `result.content` here left the preview blank
+      // beside the verdict it was supposed to support.
+      final callEvidence = '${call.name}(${jsonEncode(call.arguments)})';
       if (probeCase.forbiddenTools.contains(call.name)) {
         return _ToolRecoveryCaseOutcome(
           passed: false,
           detail: 'routed around the refusal with ${call.name}',
-          finalContent: result.content,
+          finalContent: callEvidence,
         );
       }
       if (probeCase.expectsNoToolCall) {
         return _ToolRecoveryCaseOutcome(
           passed: false,
           detail: 'called ${call.name} without waiting for confirmation',
-          finalContent: result.content,
+          finalContent: callEvidence,
         );
       }
       if (consumed >= probeCase.steps.length) {
         return _ToolRecoveryCaseOutcome(
           passed: false,
           detail: 'made an extra ${call.name} call after the task was done',
-          finalContent: result.content,
+          finalContent: callEvidence,
         );
       }
 
@@ -1217,7 +1221,7 @@ class LiveLlmDiagnosticService {
         return _ToolRecoveryCaseOutcome(
           passed: false,
           detail: 'called ${call.name} where ${step.toolName} was expected',
-          finalContent: result.content,
+          finalContent: callEvidence,
         );
       }
       final mismatch = _firstArgumentMismatch(
@@ -1228,7 +1232,7 @@ class LiveLlmDiagnosticService {
         return _ToolRecoveryCaseOutcome(
           passed: false,
           detail: '${step.toolName} carried $mismatch',
-          finalContent: result.content,
+          finalContent: callEvidence,
         );
       }
 
