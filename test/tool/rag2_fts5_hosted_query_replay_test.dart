@@ -18,6 +18,25 @@ const _projectId = 'rag2-storage-replay-project';
 const _neighborProjectId = 'rag2-fts5-hosted-query-neighbor';
 
 void main() {
+  // These two tests ran the replay three times between them: twice for the
+  // idempotency check, and a third time only to read the artifacts off disk.
+  // One shared run serves both, because the second run writes the same
+  // artifacts as the first -- the property the idempotency test asserts, so a
+  // regression there still fails loudly.
+  late final Directory sharedOutput;
+  setUpAll(
+    () => sharedOutput = Directory.systemTemp.createTempSync(
+      'rag2-fts5-hosted-query-shared-',
+    ),
+  );
+  tearDownAll(() => sharedOutput.deleteSync(recursive: true));
+  late final sharedOptions = Rag2Fts5HostedQueryOptions(
+    fixturePath: _fixturePath,
+    outDir: sharedOutput.path,
+    storeRoot: '${sharedOutput.path}/store',
+  );
+  late final sharedReplay = runRag2Fts5HostedQueryReplay(sharedOptions);
+
   test('query hits the indexed slot from tokenized chunk text', () async {
     final output = Directory.systemTemp.createTempSync(
       'rag2-fts5-hosted-query-hit-',
@@ -253,43 +272,20 @@ void main() {
     );
   });
 
-  test(
-    'replays twice against the same output directory',
-    () async {
-      final output = Directory.systemTemp.createTempSync(
-        'rag2-fts5-hosted-query-twice-',
-      );
-      addTearDown(() => output.deleteSync(recursive: true));
-      final options = Rag2Fts5HostedQueryOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      );
-      final first = await runRag2Fts5HostedQueryReplay(options);
-      final second = await runRag2Fts5HostedQueryReplay(options);
-      expect(first.contractPassed, isTrue);
-      expect(second.toJson(), first.toJson());
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+  test('replays twice against the same output directory', () async {
+    final first = await sharedReplay;
+    final second = await runRag2Fts5HostedQueryReplay(sharedOptions);
+    expect(first.contractPassed, isTrue);
+    expect(second.toJson(), first.toJson());
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('writes aggregate-only reports', () async {
-    final output = Directory.systemTemp.createTempSync(
-      'rag2-fts5-hosted-query-report-',
-    );
-    addTearDown(() => output.deleteSync(recursive: true));
-    final report = await runRag2Fts5HostedQueryReplay(
-      Rag2Fts5HostedQueryOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      ),
-    );
+    final report = await sharedReplay;
     final jsonReport = File(
-      '${output.path}/rag2_fts5_hosted_query.json',
+      '${sharedOutput.path}/rag2_fts5_hosted_query.json',
     ).readAsStringSync();
     final markdownReport = File(
-      '${output.path}/rag2_fts5_hosted_query.md',
+      '${sharedOutput.path}/rag2_fts5_hosted_query.md',
     ).readAsStringSync();
 
     expect(report.contractPassed, isTrue);

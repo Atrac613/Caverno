@@ -23,6 +23,25 @@ const _updatedHash =
 const _projectId = 'rag2-storage-replay-project';
 
 void main() {
+  // These two tests ran the replay three times between them: twice for the
+  // idempotency check, and a third time only to read the artifacts off disk.
+  // One shared run serves both, because the second run writes the same
+  // artifacts as the first -- the property the idempotency test asserts, so a
+  // regression there still fails loudly.
+  late final Directory sharedOutput;
+  setUpAll(
+    () => sharedOutput = Directory.systemTemp.createTempSync(
+      'rag2-drift-shared-',
+    ),
+  );
+  tearDownAll(() => sharedOutput.deleteSync(recursive: true));
+  late final sharedOptions = Rag2DriftAdditiveSchemaOptions(
+    fixturePath: _fixturePath,
+    outDir: sharedOutput.path,
+    storeRoot: '${sharedOutput.path}/store',
+  );
+  late final sharedReplay = runRag2DriftAdditiveSchemaReplay(sharedOptions);
+
   test('migrates v4 AppDatabase without rewriting embedding rows', () async {
     final output = Directory.systemTemp.createTempSync('rag2-drift-migrate-');
     addTearDown(() => output.deleteSync(recursive: true));
@@ -114,73 +133,65 @@ void main() {
     );
   });
 
-  test(
-    'recovers generation 1 after a killed uncommitted writer',
-    () async {
-      final output = Directory.systemTemp.createTempSync('rag2-drift-crash-');
-      addTearDown(() => output.deleteSync(recursive: true));
-      final snapshots = await _snapshots();
-      final path = '${output.path}/caverno.sqlite';
-      await prepareRag2DriftHost(databasePath: path);
-      final store = Rag2DriftGenerationStore(
-        databasePath: path,
-        projectId: _projectId,
-      );
-      await store.apply(
-        declarationIdentity: _identity,
-        snapshot: snapshots.baseline,
-      );
-      store.close();
+  test('recovers generation 1 after a killed uncommitted writer', () async {
+    final output = Directory.systemTemp.createTempSync('rag2-drift-crash-');
+    addTearDown(() => output.deleteSync(recursive: true));
+    final snapshots = await _snapshots();
+    final path = '${output.path}/caverno.sqlite';
+    await prepareRag2DriftHost(databasePath: path);
+    final store = Rag2DriftGenerationStore(
+      databasePath: path,
+      projectId: _projectId,
+    );
+    await store.apply(
+      declarationIdentity: _identity,
+      snapshot: snapshots.baseline,
+    );
+    store.close();
 
-      final generation = await recoverAfterKilledUncommittedDriftWrite(
+    final generation = await recoverAfterKilledUncommittedDriftWrite(
+      fixturePath: _fixturePath,
+      databasePath: path,
+      projectId: _projectId,
+      declarationIdentity: _identity,
+    );
+
+    expect(generation?.generation, 1);
+    expect(generation?.snapshot.snapshotHash, _baselineHash);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('serializes concurrent writers onto increasing generations', () async {
+    final output = Directory.systemTemp.createTempSync(
+      'rag2-drift-concurrent-',
+    );
+    addTearDown(() => output.deleteSync(recursive: true));
+    final path = '${output.path}/caverno.sqlite';
+    await prepareRag2DriftHost(databasePath: path);
+    await Future.wait([
+      applyRag2DriftSnapshotInChild(
         fixturePath: _fixturePath,
         databasePath: path,
-        projectId: _projectId,
-        declarationIdentity: _identity,
-      );
-
-      expect(generation?.generation, 1);
-      expect(generation?.snapshot.snapshotHash, _baselineHash);
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
-
-  test(
-    'serializes concurrent writers onto increasing generations',
-    () async {
-      final output = Directory.systemTemp.createTempSync(
-        'rag2-drift-concurrent-',
-      );
-      addTearDown(() => output.deleteSync(recursive: true));
-      final path = '${output.path}/caverno.sqlite';
-      await prepareRag2DriftHost(databasePath: path);
-      await Future.wait([
-        applyRag2DriftSnapshotInChild(
-          fixturePath: _fixturePath,
-          databasePath: path,
-          snapshotIndex: 0,
-        ),
-        applyRag2DriftSnapshotInChild(
-          fixturePath: _fixturePath,
-          databasePath: path,
-          snapshotIndex: 1,
-        ),
-      ]);
-
-      final store = Rag2DriftGenerationStore(
+        snapshotIndex: 0,
+      ),
+      applyRag2DriftSnapshotInChild(
+        fixturePath: _fixturePath,
         databasePath: path,
-        projectId: _projectId,
-      );
-      addTearDown(store.close);
-      final generation = await store.read(_identity);
-      expect(generation?.generation, 2);
-      expect(
-        generation?.snapshot.snapshotHash,
-        isIn([_baselineHash, _updatedHash]),
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+        snapshotIndex: 1,
+      ),
+    ]);
+
+    final store = Rag2DriftGenerationStore(
+      databasePath: path,
+      projectId: _projectId,
+    );
+    addTearDown(store.close);
+    final generation = await store.read(_identity);
+    expect(generation?.generation, 2);
+    expect(
+      generation?.snapshot.snapshotHash,
+      isIn([_baselineHash, _updatedHash]),
+    );
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test(
     'rejects a generation row whose envelope disagrees with the payload',
@@ -428,40 +439,21 @@ void main() {
     );
   });
 
-  test(
-    'replays twice against the same output directory',
-    () async {
-      final output = Directory.systemTemp.createTempSync('rag2-drift-rerun-');
-      addTearDown(() => output.deleteSync(recursive: true));
-      final options = Rag2DriftAdditiveSchemaOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      );
-      final first = await runRag2DriftAdditiveSchemaReplay(options);
-      final second = await runRag2DriftAdditiveSchemaReplay(options);
-      expect(first.contractPassed, isTrue);
-      expect(second.contractPassed, isTrue);
-      expect(second.toJson(), first.toJson());
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+  test('replays twice against the same output directory', () async {
+    final first = await sharedReplay;
+    final second = await runRag2DriftAdditiveSchemaReplay(sharedOptions);
+    expect(first.contractPassed, isTrue);
+    expect(second.contractPassed, isTrue);
+    expect(second.toJson(), first.toJson());
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   test('writes aggregate-only reports', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-drift-report-');
-    addTearDown(() => output.deleteSync(recursive: true));
-    final report = await runRag2DriftAdditiveSchemaReplay(
-      Rag2DriftAdditiveSchemaOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      ),
-    );
+    final report = await sharedReplay;
     final jsonReport = File(
-      '${output.path}/rag2_drift_additive_schema.json',
+      '${sharedOutput.path}/rag2_drift_additive_schema.json',
     ).readAsStringSync();
     final markdownReport = File(
-      '${output.path}/rag2_drift_additive_schema.md',
+      '${sharedOutput.path}/rag2_drift_additive_schema.md',
     ).readAsStringSync();
 
     expect(report.contractPassed, isTrue);

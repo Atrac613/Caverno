@@ -21,6 +21,25 @@ const _updatedHash =
 const _projectId = 'rag2-storage-replay-project';
 
 void main() {
+  // These two tests ran the replay three times between them: twice for the
+  // idempotency check, and a third time only to read the artifacts off disk.
+  // One shared run serves both, because the second run writes the same
+  // artifacts as the first -- the property the idempotency test asserts, so a
+  // regression there still fails loudly.
+  late final Directory sharedOutput;
+  setUpAll(
+    () => sharedOutput = Directory.systemTemp.createTempSync(
+      'rag2-fts5-host-shared-',
+    ),
+  );
+  tearDownAll(() => sharedOutput.deleteSync(recursive: true));
+  late final sharedOptions = Rag2Fts5AppDatabaseHostOptions(
+    fixturePath: _fixturePath,
+    outDir: sharedOutput.path,
+    storeRoot: '${sharedOutput.path}/store',
+  );
+  late final sharedReplay = runRag2Fts5AppDatabaseHostReplay(sharedOptions);
+
   final projectIdentity = rag2ExplicitSourceRootsProjectIdentity(_projectId);
 
   test('v5 host upgrade does not create rag2_chunk_search', () async {
@@ -302,48 +321,23 @@ void main() {
     );
   });
 
-  test(
-    'preserves conversation-search contents and embeddings',
-    () async {
-      final output = Directory.systemTemp.createTempSync('rag2-fts5-host-ll5-');
-      addTearDown(() => output.deleteSync(recursive: true));
-      final report = await runRag2Fts5AppDatabaseHostReplay(
-        Rag2Fts5AppDatabaseHostOptions(
-          fixturePath: _fixturePath,
-          outDir: output.path,
-          storeRoot: '${output.path}/store',
-        ),
-      );
-      expect(report.conversationSearchPreserved, isTrue);
-      expect(report.embeddingsPreserved, isTrue);
-      expect(report.appDatabaseSchemaUnchanged, isTrue);
-      expect(report.fts5AbsentAfterHostUpgrade, isTrue);
-      expect(report.applyWithoutIndexLeavesFts5Absent, isTrue);
-      expect(report.crashRecoveredIndex, isTrue);
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+  test('preserves conversation-search contents and embeddings', () async {
+    final report = await sharedReplay;
+    expect(report.conversationSearchPreserved, isTrue);
+    expect(report.embeddingsPreserved, isTrue);
+    expect(report.appDatabaseSchemaUnchanged, isTrue);
+    expect(report.fts5AbsentAfterHostUpgrade, isTrue);
+    expect(report.applyWithoutIndexLeavesFts5Absent, isTrue);
+    expect(report.crashRecoveredIndex, isTrue);
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test(
-    'replays twice against the same output directory',
-    () async {
-      final output = Directory.systemTemp.createTempSync(
-        'rag2-fts5-host-rerun-',
-      );
-      addTearDown(() => output.deleteSync(recursive: true));
-      final options = Rag2Fts5AppDatabaseHostOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      );
-      final first = await runRag2Fts5AppDatabaseHostReplay(options);
-      final second = await runRag2Fts5AppDatabaseHostReplay(options);
-      expect(first.contractPassed, isTrue);
-      expect(second.contractPassed, isTrue);
-      expect(second.toJson(), first.toJson());
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+  test('replays twice against the same output directory', () async {
+    final first = await sharedReplay;
+    final second = await runRag2Fts5AppDatabaseHostReplay(sharedOptions);
+    expect(first.contractPassed, isTrue);
+    expect(second.contractPassed, isTrue);
+    expect(second.toJson(), first.toJson());
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   test('writes aggregate-only reports', () async {
     final output = Directory.systemTemp.createTempSync(
@@ -354,11 +348,11 @@ void main() {
       Rag2Fts5AppDatabaseHostOptions(
         fixturePath: _fixturePath,
         outDir: output.path,
-        storeRoot: '${output.path}/store',
+        storeRoot: '${sharedOutput.path}/store',
       ),
     );
     final jsonReport = File(
-      '${output.path}/rag2_fts5_appdatabase_host.json',
+      '${sharedOutput.path}/rag2_fts5_appdatabase_host.json',
     ).readAsStringSync();
     final markdownReport = File(
       '${output.path}/rag2_fts5_appdatabase_host.md',

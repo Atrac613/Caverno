@@ -26,6 +26,31 @@ const _updatedHash =
 const _projectId = 'rag2-storage-replay-project';
 
 void main() {
+  // These two tests used to run the replay three times between them: twice for
+  // the idempotency check and a third time only to read the reports off disk.
+  // One shared run serves both, because the artifacts the second run writes are
+  // identical to the first's -- which is the property the idempotency test
+  // asserts, so a regression there still fails loudly.
+  late final Directory sharedOutput;
+  late final Rag2DriftDaoGenerationStoreOptions sharedOptions;
+  Rag2DriftDaoGenerationStoreReport? sharedReport;
+
+  setUpAll(() {
+    sharedOutput = Directory.systemTemp.createTempSync(
+      'rag2-drift-dao-shared-',
+    );
+    sharedOptions = Rag2DriftDaoGenerationStoreOptions(
+      fixturePath: _fixturePath,
+      outDir: sharedOutput.path,
+      storeRoot: '${sharedOutput.path}/store',
+    );
+  });
+  tearDownAll(() => sharedOutput.deleteSync(recursive: true));
+
+  Future<Rag2DriftDaoGenerationStoreReport> sharedReplay() async =>
+      sharedReport ??= await runRag2DriftDaoGenerationStoreReplay(
+        sharedOptions,
+      );
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   test('reopens the last committed generation through a Drift DAO', () async {
     final output = Directory.systemTemp.createTempSync(
@@ -406,44 +431,21 @@ void main() {
     );
   });
 
-  test(
-    'replays twice against the same output directory',
-    () async {
-      final output = Directory.systemTemp.createTempSync(
-        'rag2-drift-dao-rerun-',
-      );
-      addTearDown(() => output.deleteSync(recursive: true));
-      final options = Rag2DriftDaoGenerationStoreOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      );
-      final first = await runRag2DriftDaoGenerationStoreReplay(options);
-      final second = await runRag2DriftDaoGenerationStoreReplay(options);
-      expect(first.contractPassed, isTrue);
-      expect(second.contractPassed, isTrue);
-      expect(second.toJson(), first.toJson());
-    },
-    timeout: const Timeout(Duration(minutes: 4)),
-  );
+  test('replays twice against the same output directory', () async {
+    final first = await sharedReplay();
+    final second = await runRag2DriftDaoGenerationStoreReplay(sharedOptions);
+    expect(first.contractPassed, isTrue);
+    expect(second.contractPassed, isTrue);
+    expect(second.toJson(), first.toJson());
+  }, timeout: const Timeout(Duration(minutes: 4)));
 
   test('writes aggregate-only reports', () async {
-    final output = Directory.systemTemp.createTempSync(
-      'rag2-drift-dao-report-',
-    );
-    addTearDown(() => output.deleteSync(recursive: true));
-    final report = await runRag2DriftDaoGenerationStoreReplay(
-      Rag2DriftDaoGenerationStoreOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      ),
-    );
+    final report = await sharedReplay();
     final jsonReport = File(
-      '${output.path}/rag2_drift_dao_generation_store.json',
+      '${sharedOutput.path}/rag2_drift_dao_generation_store.json',
     ).readAsStringSync();
     final markdownReport = File(
-      '${output.path}/rag2_drift_dao_generation_store.md',
+      '${sharedOutput.path}/rag2_drift_dao_generation_store.md',
     ).readAsStringSync();
 
     expect(report.contractPassed, isTrue);

@@ -18,6 +18,24 @@ const _updatedHash =
 const _projectId = 'rag2-storage-replay-project';
 
 void main() {
+  // These two tests ran the replay three times between them: twice for the
+  // idempotency check, and a third time only to read the artifacts off disk.
+  // One shared run serves both, because the second run writes the same
+  // artifacts as the first -- the property the idempotency test asserts, so a
+  // regression there still fails loudly.
+  late final Directory sharedOutput;
+  setUpAll(
+    () =>
+        sharedOutput = Directory.systemTemp.createTempSync('rag2-fts5-shared-'),
+  );
+  tearDownAll(() => sharedOutput.deleteSync(recursive: true));
+  late final sharedOptions = Rag2Fts5AdditiveIndexOptions(
+    fixturePath: _fixturePath,
+    outDir: sharedOutput.path,
+    storeRoot: '${sharedOutput.path}/store',
+  );
+  late final sharedReplay = runRag2Fts5AdditiveIndexReplay(sharedOptions);
+
   final projectIdentity = rag2ExplicitSourceRootsProjectIdentity(_projectId);
 
   test(
@@ -294,15 +312,7 @@ void main() {
   });
 
   test('preserves conversation-search contents and embeddings', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-fts5-host-');
-    addTearDown(() => output.deleteSync(recursive: true));
-    final report = await runRag2Fts5AdditiveIndexReplay(
-      Rag2Fts5AdditiveIndexOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      ),
-    );
+    final report = await sharedReplay;
 
     expect(report.conversationSearchPreserved, isTrue);
     expect(report.embeddingsPreserved, isTrue);
@@ -316,7 +326,7 @@ void main() {
       final output = Directory.systemTemp.createTempSync('rag2-fts5-reopen-');
       addTearDown(() => output.deleteSync(recursive: true));
       final snapshots = await _snapshots();
-      final path = '${output.path}/caverno.sqlite';
+      final path = '${sharedOutput.path}/caverno.sqlite';
       final writer = await _openIndexedStore(path, snapshots);
       await writer.close();
 
@@ -356,15 +366,8 @@ void main() {
   );
 
   test('replays twice against the same output directory', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-fts5-rerun-');
-    addTearDown(() => output.deleteSync(recursive: true));
-    final options = Rag2Fts5AdditiveIndexOptions(
-      fixturePath: _fixturePath,
-      outDir: output.path,
-      storeRoot: '${output.path}/store',
-    );
-    final first = await runRag2Fts5AdditiveIndexReplay(options);
-    final second = await runRag2Fts5AdditiveIndexReplay(options);
+    final first = await sharedReplay;
+    final second = await runRag2Fts5AdditiveIndexReplay(sharedOptions);
     expect(first.contractPassed, isTrue);
     expect(second.contractPassed, isTrue);
     expect(second.toJson(), first.toJson());
@@ -377,7 +380,7 @@ void main() {
       Rag2Fts5AdditiveIndexOptions(
         fixturePath: _fixturePath,
         outDir: output.path,
-        storeRoot: '${output.path}/store',
+        storeRoot: '${sharedOutput.path}/store',
       ),
     );
     final jsonReport = File(
