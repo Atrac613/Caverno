@@ -1442,8 +1442,17 @@ class _FakeDiagnosticDataSource
     }
     // One scripted observation message per completed step.
     final delivered = messages
-        .where((message) => message.content.contains('doc-ds-42'))
+        .where((message) => message.content.startsWith('Tool result for '))
         .length;
+    // Regression: a mid-loop message that tells the model to answer made the
+    // live run stop after one call and report "remains unexecuted".
+    for (final message in messages.where(
+      (message) => message.content.startsWith('Tool result for '),
+    )) {
+      if (message.content.contains("answer the user's question")) {
+        throw StateError('mid-loop observation told the model to answer');
+      }
+    }
     if (tools == null || delivered >= rung.steps.length) {
       return ChatCompletionResult(
         content: _withReasoning(rung.expectedFinalValues.join(' ')),

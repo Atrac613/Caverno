@@ -1225,23 +1225,39 @@ class LiveLlmDiagnosticService {
         );
       }
 
+      // A plain observation, NOT ToolResultPromptBuilder.buildAnswerPrompt.
+      // That builder opens with "Please answer the user's question based on
+      // the following tool results" and instructs the model to report any
+      // action that "remains unexecuted" -- so mid-loop it tells the model to
+      // stop and wrap up, and the staircase then scored it for stopping. The
+      // first live run returned exactly "doc-ds-42; open_doc remains
+      // unexecuted", the phrase lifted from that prompt.
       messages = [
         ...messages,
         Message(
           id: 'live-llm-tool-depth-${step.toolName}-${DateTime.now().microsecondsSinceEpoch}',
-          content: ToolResultPromptBuilder.buildAnswerPrompt([
-            ToolResultInfo(
-              id: 'live-llm-tool-depth-${step.toolName}',
-              name: step.toolName,
-              arguments: Map<String, dynamic>.from(step.expectedArguments),
-              result: jsonEncode(step.result),
-            ),
-          ]),
+          content:
+              'Tool result for ${step.toolName}:\n'
+              '${jsonEncode(step.result)}\n\n'
+              'The task is not finished. Call the next tool you need, using '
+              'the values this result gave you. Do not answer in text yet.',
           role: MessageRole.user,
           timestamp: DateTime.now(),
         ),
       ];
     }
+
+    messages = [
+      ...messages,
+      Message(
+        id: 'live-llm-tool-depth-final-${DateTime.now().microsecondsSinceEpoch}',
+        content:
+            'Every tool call is done. Now answer, using the exact values the '
+            'tool results gave you and no other text.',
+        role: MessageRole.user,
+        timestamp: DateTime.now(),
+      ),
+    ];
 
     final ChatCompletionResult finalResult;
     try {
