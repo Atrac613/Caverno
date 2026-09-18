@@ -124,7 +124,7 @@ dependencies:
   # by the Wi-Fi tools) cannot take. Upgrading both is a separate change.
   share_plus: ^12.0.2
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.4.0
+  mobile_scanner: ^7.4.2
 
   # Desktop window management
   window_manager: ^0.5.2
