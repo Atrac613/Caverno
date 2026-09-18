@@ -1,341 +1,142 @@
-# AGENTS.md
+# Caverno agent guide
 
-This file provides guidance to Codex when working with code in this repository.
+Caverno is a Flutter chat client for OpenAI-compatible LLM APIs. It supports
+MCP and built-in tools, session memory, voice I/O, routines, remote coding,
+and the Apple Watch companion app.
 
-## Project Overview
+This file contains repository-wide rules and a compact map of the codebase.
+Keep it short and update it when a rule stops being useful. Put detailed,
+workflow-specific procedures in the referenced documentation instead of
+expanding this file.
 
-Caverno is a Flutter chat client for OpenAI-compatible LLM APIs with tool calling (MCP protocol + built-in tools), session memory, voice I/O, and a routine scheduler. It defaults to a local LLM server (`localhost:1234`) but supports any OpenAI-compatible endpoint.
+## Scope and verification
 
-## Build & Development Commands
+- Read only the files and documentation relevant to the current task. Use the
+  references below when their condition applies; do not read every guide before
+  every edit.
+- Choose verification appropriate to the change. Documentation-only edits
+  usually need a diff and reference check; behavior changes need relevant
+  tests. Report checks performed and any unverified live or device behavior.
+- Complete the requested workflow: implement, inspect the result, run the
+  relevant checks, and fix failures caused by the change. Stop only when the
+  acceptance condition is met or a concrete external blocker remains.
+- Read-only research and API checks within the requested task are permitted.
+  Pushes, publication, purchases, outbound messages, and pull-request creation
+  require user authorization; authorization already given in the task applies.
+
+## Repository map
+
+```text
+lib/
+|-- core/                       # Shared services, types, constants, and utils
+|-- features/chat/              # Chat, Plan Mode, tools, persistence, memory
+|-- features/routines/          # Scheduled prompts and run history
+|-- features/remote_coding/     # Paired-device remote coding
+|-- features/settings/          # App configuration and imports/exports
+|-- features/watch/             # Apple Watch companion integration
+`-- main.dart                   # App bootstrap and provider overrides
+```
+
+The project uses Riverpod `Notifier` providers, Freezed entities for persisted
+aggregates, Hive for conversations and memory, and SharedPreferences for
+settings, routines, coding projects, and window state. Navigation uses Flutter
+routes, dialogs, bottom sheets, and the conversation drawer; there is no router
+package.
+
+## Commands
+
+The repository pins Flutter through FVM (`.fvmrc`). Prefer the quiet wrappers
+for agent runs so failures remain visible without flooding the transcript.
 
 ```bash
-# Flutter version (managed via FVM)
-fvm use 3.47.4
-
-# Install dependencies
 fvm flutter pub get
-
-# Code generation (freezed + json_serializable) - run after modifying generated entities
-fvm dart run build_runner build --delete-conflicting-outputs
-
-# Lint
 fvm flutter analyze
-
-# Run tests. Prints one line when green, and only the failing tests -- error,
-# filtered stack, and that test's own captured output -- when red. The raw
-# reporter emits ~3.4 MB for a green full run (and ~844 KB for
-# chat_notifier_test.dart alone), which an agent harness truncates to a 2 KB
-# preview -- hiding the very failure the run was meant to surface.
-tool/flutter_test_quiet.sh                       # whole suite
-tool/flutter_test_quiet.sh test/widget_test.dart # single file
-tool/flutter_test_quiet.sh --slowest 5           # add a slow-test list
-tool/flutter_test_quiet.sh --verbose             # also stream the raw reporter
-# The full JSON reporter log stays at build/test_reports/flutter_test.json.
-# tool/codex_verify.sh summarizes the same way; pass --raw-tests to opt out.
-
-# Raw reporter, for when the streaming output itself is what you need
-fvm flutter test
-fvm flutter test test/widget_test.dart
-
-# Bounded repository discovery for agent runs. The complete JSON result is
-# retained under build/codex_reports/. Use raw rg for exact follow-up review.
-tool/codex_rg.sh -- PATTERN [PATH ...]
-tool/codex_rg.sh --max-hits 80 -- PATTERN [PATH ...]
-rg PATTERN [PATH ...]
-
-# Run app
+tool/flutter_test_quiet.sh                       # Full test suite
+tool/flutter_test_quiet.sh test/widget_test.dart # Focused suite
+tool/codex_verify.sh                             # Verification gate
+tool/codex_rg.sh -- PATTERN [PATH ...]            # Bounded discovery
+rg PATTERN [PATH ...]                            # Exact follow-up search
 fvm flutter run
 ```
 
-## Codex Development Workflow
+Use `tool/codex_verify.sh --coverage` when coverage or missing edge cases are
+part of the task. Use raw `fvm flutter test` only when the reporter stream is
+itself needed. A full JSON reporter result is retained at
+`build/test_reports/flutter_test.json`.
 
-- Use `docs/codex_task_template.md` for non-trivial Codex tasks. Prompts should
-  read like GitHub issues: include the goal, affected files or components,
-  reference patterns, acceptance criteria, and the verification command.
-- Start large or risky changes with a short implementation plan before editing.
-  This applies when a task touches multiple feature layers, tool execution,
-  Plan Mode, Computer Use, persistence, generated entities, or release gates.
-- Keep implementation slices small enough to review in roughly one hour or a
-  few hundred lines of code. Prefer follow-up tasks over broad mixed changes.
-- After fixing a bug, search for adjacent patterns that could contain the same
-  issue. Record the search terms or inspected files in the PR or final handoff
-  when the pattern is important.
-- Use `tool/codex_rg.sh` for broad repository discovery. It prints bounded,
-  path-sorted hits and retains the complete JSON result. Use raw, targeted `rg`
-  for exact confirmation and security-sensitive review; the summary is not a
-  substitute for inspecting material matches. Use `--raw` for file-list,
-  count, quiet-check, or other non-match output modes.
-- Locate files and symbols before reading source. Prefer relevant 200-300-line
-  regions over whole large files. For Git review, start with stats and changed
-  paths, then inspect every material diff directly before concluding.
-- Pass `--quiet-output` when an agent runs `tool/release_ios_macos.sh`,
-  `tool/publish_macos_sparkle_release.sh`,
-  `tool/run_turn_steering_live_canary.sh`, or
-  `tool/run_pro_reasoning_live_canary.sh`. The scripts retain complete logs,
-  emit bounded heartbeats, and show a diagnostic tail on command failure. Their
-  default raw mode remains available for human-operated streaming.
-- Use `tool/codex_verify.sh` as the default local verification entrypoint. Add
-  `--coverage` when test coverage or missing edge cases are part of the task.
-  Test output is summarized by default (`--raw-tests` restores the full
-  reporter stream).
-  The script automatically uses `fvm flutter` and `fvm dart` when FVM metadata
-  is present.
-- When a macOS `flutter_tester` live canary targets an HTTP LAN endpoint, use
-  `tool/with_live_llm_loopback.sh -- <canary command>`. Do not create an ad hoc
-  SSH tunnel or fixed-port relay; the managed wrapper owns port allocation,
-  evidence metadata, and cleanup. Follow
-  `docs/live_llm_canary_agent_runbook.md` for preflight, bounded probes,
-  evidence checks, and failure triage.
-- For large-file refactors, follow `docs/large_file_refactor_plan.md`. Preserve
-  behavior first, move one concern at a time, and keep focused tests green after
-  each slice.
+When affected local tests use disposable fixtures and have no production
+access, run them, fix failures caused by the requested change, and rerun them
+without asking for approval at each step.
 
-## Architecture
+## Conditional references
 
-Clean Architecture with feature-based modules and Riverpod state management.
+- When drafting non-trivial task descriptions, use `docs/codex_task_template.md`.
+- Large-file refactors: follow `docs/large_file_refactor_plan.md`.
+- macOS `flutter_tester` canaries targeting an HTTP LAN LLM endpoint: use
+  `tool/with_live_llm_loopback.sh -- <canary command>` and follow
+  `docs/live_llm_canary_agent_runbook.md`; do not create ad hoc tunnels or
+  fixed-port relays.
+- Lint rule changes: read `docs/lint_policy.md` first. Never run bare
+  `dart fix --apply`; scope it with `--code=<rule>`.
+- Session-log schema, redaction, retention, or analysis: read
+  `docs/session_logs.md` first. Logs can contain prompts, tool arguments,
+  results, review packets, and diff previews; treat them as sensitive and never
+  commit them.
+- Release or distribution work: inspect the current release scripts and
+  platform configuration before running a release gate. Pass `--quiet-output`
+  to repository release and live-canary scripts that support it.
+- Apple Watch behavior: distinguish simulator/compile evidence from signed
+  device behavior; hardware Dictation and Smart Stack behavior require a
+  physical or otherwise signed verification path.
 
-```
-lib/
-|-- core/           # Constants, services, types, utils
-|-- features/
-|   |-- chat/          # Main chat, Plan Mode, tool execution, persistence
-|   |-- routines/      # Scheduled prompt execution and routine run history
-|   |-- remote_coding/ # Paired-device remote coding (server/client)
-|   `-- settings/      # App configuration, tool settings, imports/exports
-`-- main.dart       # Entry point (Hive, SharedPreferences, Riverpod bootstrap)
-```
+## Chat compatibility notes
 
-### Key Architectural Decisions
+- `McpToolService` is available even without a remote MCP server so built-in
+  tools continue to work. Remote MCP supports trusted HTTP and desktop stdio
+  servers.
+- Tool results are usually sent back as a user-role message because some local
+  models handle tool-role messages poorly. A clearly terminal tool-role final
+  response may still be accepted directly.
+- Streaming content may contain `<think>`, `<tool_call>`, or `<tool_use>` tags;
+  `ContentParser` must continue to handle incomplete tags safely.
 
-- **State management**: Riverpod `Notifier` / `NotifierProvider` pattern (not BLoC)
-- **Immutable entities**: Persisted aggregates and most domain entities use
-  Freezed (`Message`, `Conversation`, `ConversationWorkflow`, `Routine`,
-  `AppSettings`, `ChatState`, `McpToolEntity`); lightweight registries and
-  transient value helpers may be plain Dart classes
-- **Storage**: Hive for conversations/memory (JSON-serialized),
-  SharedPreferences for settings, routines, coding projects, and window settings
-- **API client**: `openai_dart` package wrapping OpenAI-compatible endpoints
-- **Navigation**: `MaterialPageRoute`, dialogs, bottom sheets, and a conversation drawer; no router package
+The approval audit trail is always on, including in release builds, and is
+not user-disableable. Session logs and app logs have separate on/off settings.
+Consult `docs/session_logs.md` for logging behavior and retention details.
 
-### Data Flow
+## Generated entities
 
-1. `main.dart` initializes Hive boxes, SharedPreferences, localization, desktop
-   window restoration, and Riverpod overrides
-2. `ChatNotifier` (Riverpod `Notifier`) orchestrates the chat loop:
-   - Builds system prompt via `SystemPromptBuilder` (includes temporal context, memory, tool names)
-   - Sends to LLM via `ChatRemoteDataSource` (streaming or non-streaming)
-   - Executes a bounded tool-calling loop when tools are available, starting at
-     12 iterations and extending only for recovery paths
-   - After response: saves to Hive via `ConversationsNotifier`, extracts session memory via LLM
-3. `SettingsNotifier` persists settings to SharedPreferences; changes
-   reactively update `ChatNotifier`, data sources, and MCP tool services
-4. `RoutinesNotifier` and `RoutineExecutionService` persist routines in
-   SharedPreferences, execute scheduled/manual runs, optionally use approved
-   Markdown plans and tools, and record run history
+When modifying a Freezed class or any entity with committed `*.freezed.dart` or
+`*.g.dart` outputs, run:
 
-### Tool Calling Flow
-
-The tool calling implementation in `ChatNotifier._sendWithTools()` /
-`_executeToolCalls()` has a specific pattern:
-- `McpToolService` is always available so built-in tools work even when no
-  remote MCP server is configured
-- Remote MCP supports trusted HTTP servers and desktop stdio servers
-- The first request prefers search, datetime, memory, network, coding, and
-  Computer Use tools when search tools are available; otherwise it sends all
-  tool definitions
-- Tool results are collected, then usually re-sent as a **user role** message
-  (not tool role) for final streaming answer
-- This workaround exists because some LLMs don't handle tool-role messages well;
-  clearly terminal tool-role final text can still be accepted directly
-- Content-embedded `<tool_call>` tags in streaming responses are also detected and executed
-
-### Session Memory System
-
-`SessionMemoryService` + `ChatMemoryRepository` manage persistent user memory:
-- On first message of a new session, injects past context into system prompt
-- After each assistant response, extracts memory via a secondary LLM call (JSON schema extraction)
-- Tracks user profile (persona, preferences, constraints) with TTL and confidence scores
-- Falls back to rule-based extraction if LLM extraction fails
-
-### Lint Policy
-
-`analysis_options.yaml` extends `package:flutter_lints` with rules chosen by
-measuring the whole repository first. `docs/lint_policy.md` records what was
-adopted, what was rejected and why (including three rules whose auto-fix
-changed behaviour or broke the build), and the rules for running `dart fix`.
-- Never run bare `dart fix --apply`; always `dart fix --apply --code=<rule>`.
-- `tool/fixtures/**` is excluded from analysis: those corpora are content-hashed
-  by the rag2 extraction eval tests.
-- Read `docs/lint_policy.md` before enabling or disabling a rule.
-
-### LLM Session Logs
-
-Caverno records Chat, Coding, and Routines LLM request/response exchanges as
-JSONL session logs for later debugging and Codex analysis.
-- Enabled by default in debug builds and for installs that predate the setting
-  (`_shouldEnableSessionLogsForDefaultOnMigration` turns them on once); a fresh
-  release install starts off, per SEC4.6k-C. The user toggles them at
-  Advanced > Logging > Save LLM session logs, or sets
-  `CAVERNO_SESSION_LOG_ENABLED=0` to force logging off.
-- Advanced > Logging is the single home for every local file sink: session
-  logs, the approval audit trail, and the app log file, each with a
-  "Delete saved files" action. Session logs and the app log file also have an
-  on/off switch; the audit trail does not (see below).
-- Default location: `$HOME/.caverno/session_logs/`
-- Override: `CAVERNO_SESSION_LOG_DIR`
-- Retention controls: `CAVERNO_SESSION_LOG_MAX_FILE_BYTES`,
-  `CAVERNO_SESSION_LOG_MAX_AGE_DAYS`, and
-  `CAVERNO_SESSION_LOG_MAX_ROTATED_FILES`
-- Workspace subdirectories: `chat/`, `coding/`, and `routines/`
-- Schema name: `caverno_llm_session_log_entry`
-- Treat logs as sensitive: prompts, tool arguments, tool results, auto-review
-  packets, and diff previews may be present even after redaction.
-- Do not commit session log files.
-- See `docs/session_logs.md` before changing log schema, redaction, retention,
-  or analysis workflows.
-- Quick triage: `tool/sec_verify_logs.sh [N] [YYYY-MM-DD]` prints the newest
-  session log(s) and that day's approval-audit entries with their SEC1/SEC2
-  perimeter fields (capability class/risk, untrustedInfluence, auto-review
-  verdict). Pure bash + python3; honors `CAVERNO_SESSION_LOG_DIR` /
-  `CAVERNO_APPROVAL_AUDIT_DIR`.
-- Find anomalous sessions: `python3 tool/triage_session_logs.py [--top N]
-  [--since-days D]` ranks every session log by an anomaly score (fr=length
-  truncations, transport errors, longest identical tool-call loop, oversized
-  turns, tool errors) so you can deep-dive the worst offenders instead of
-  opening logs at random. Pure python3; honors `CAVERNO_SESSION_LOG_DIR` /
-  `CAVERNO_HOME`. Counts only *grounded* logs — those carrying at least one LLM
-  request/response — and prints how many it skipped; `--include-ungrounded`
-  restores the old behavior. Logs with turn markers but no inference are test
-  output, and mixing them in inflated every published figure before 2026-08-05
-  (`docs/session_log_corpus_contamination_2026-08-05.md`).
-
-### Approval Audit Log
-
-Caverno records automated high-risk tool approvals (full-access auto-runs and
-LLM auto-review verdicts) as JSONL.
-- Always on, including release builds, and deliberately not user-disableable.
-  It records only the high-risk approvals the user never saw individually, one
-  redacted line each, and never leaves the machine — so unlike session logs
-  there is no exposure to opt out of. Advanced > Logging offers a delete action
-  instead, which serves the same "don't keep this around" need without blinding
-  the trail while an agent is running.
-- Default location: `$HOME/.caverno/approval_audit/<YYYY-MM-DD>.jsonl`
-- Override: `CAVERNO_APPROVAL_AUDIT_DIR`
-- Retention: `ToolApprovalAuditRetentionPolicy` (30 days / 60 day-files by
-  default, `CAVERNO_APPROVAL_AUDIT_MAX_AGE_DAYS` /
-  `CAVERNO_APPROVAL_AUDIT_MAX_FILES`). Pruning runs on the write path only, so
-  a disabled trail keeps whatever it already wrote until the user deletes it.
-- Schema name: `caverno_tool_approval_audit_entry` (v3); each entry carries
-  `capabilityClass` / `capabilityRisk` (SEC1) and `untrustedInfluence` (SEC2).
-- Manual approvals are intentionally not recorded (the user decided those).
-  One exception: releasing a file outside the project root is recorded with
-  `decisionSource: manual_outside_root_read`, because that grant outlives the
-  prompt that asked for it.
-
-### App Log File
-
-`appLog` mirrors its output to a daily plain-text file so a stall reproduced
-without an attached `flutter run` terminal still leaves evidence behind.
-- Default location: `$HOME/.caverno/app_logs/<YYYY-MM-DD>.log`
-- Override: `CAVERNO_APP_LOG_DIR`
-- Console output stays debug-only; the file sink also works in release builds,
-  gated by Advanced > Logging > Save app log file. On by default in debug, off
-  in release, so a fresh install writes nothing until the user opts in.
-- Retention: `AppLogFile.retainedDays` (7). Like the audit trail, pruning runs
-  on the write path only.
-- Writes go through `SensitiveDataRedactor`, which strips credentials and
-  tokens — not PII such as addresses or message content. Treat the file as
-  sensitive.
-- Never written under `flutter test`.
-
-### Content Parsing
-
-`ContentParser` handles special tags in LLM responses:
-- `<think>` blocks (reasoning/chain-of-thought)
-- `<tool_call>` / `<tool_use>` blocks (inline tool invocations)
-- Supports incomplete/streaming tags gracefully
-
-## Entity Changes
-
-When modifying any Freezed class with generated `*.freezed.dart` or `*.g.dart`
-outputs, always regenerate:
 ```bash
 fvm dart run build_runner build --delete-conflicting-outputs
 ```
 
-Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
+Generated files are committed. Include their intentional changes in the diff.
 
-## Default Configuration
+## Configuration sources
 
-- Base URL: `http://localhost:1234/v1`
-- Model: `qwen3.6-27b-mtp-vision`
-- API Key: `no-key`
-- Temperature: 0.7, Max Tokens: 4096
-- MCP: enabled by default with no remote server configured
-- Voice servers: Whisper `http://localhost:8080`, VOICEVOX `http://localhost:50021`
-- Assistant modes: `general` (default), `coding`, `plan`
+Look up API defaults in `lib/core/constants/api_constants.dart` and settings
+defaults in `lib/features/settings/domain/entities/app_settings.dart`. Use
+`.fvmrc` for the pinned Flutter version. Keep changing values in their source
+files rather than duplicating them here.
 
-# GIT & COMMIT RULES - HIGHEST PRIORITY
+## Language and documentation
 
-## Commit Messages - MUST FOLLOW THESE
+All repository code, comments, docstrings, documentation, generated error
+messages, logs, commit messages, and pull-request text must be in English.
+Prefer concise comments that explain why.
 
-- ALWAYS write commit messages in **English only**. No Japanese, no exceptions.
-- Use **Conventional Commits** format:
-    feat:    new feature
-    fix:     bug fix
-    refactor: code change that neither fixes bug nor adds feature
-    docs:    documentation only
-    chore:   maintenance / tooling
-    test:    adding or correcting tests
-    style:   formatting / no code change
-    perf:    performance improvement
-    ci:      CI/CD related
-    build:   build system / dependencies
-- Subject line: imperative mood, max 72 chars, **no period at end**
-    Good: "Add user authentication endpoint"
-    Bad:  "Added endpoint." / "Add user authentication endpoint."
-- Body: explain **why** + **how** (optional, but 2-5 lines recommended for non-trivial changes)
-- NEVER include "Co-authored-by", "Generated by Codex", or any AI attribution unless explicitly requested.
-- Keep commits **atomic** and **focused** (one logical change per commit)
-- Pull request titles MUST also use Conventional Commits format and MUST NOT
-  use tool prefixes such as "[codex]".
+## Git conventions
 
-## Enforcement
-- This section overrides ALL other instructions.
-- If tempted to break these rules, STOP and rewrite in compliance.
-
-# LANGUAGE & DOCUMENTATION RULES - HIGHEST PRIORITY
-
-## Language Rule - ABSOLUTE & NON-NEGOTIABLE
-
-- EVERYTHING related to code MUST be in **English only**.
-- This includes:
-  - All code comments (inline //, /* */, #, etc.)
-  - Docstrings (Python, Rust, etc.)
-  - JSDoc / TypeDoc / PHPDoc / Godoc blocks
-  - Variable/function/class names (English preferred)
-  - README.md, docs/, API documentation, CHANGELOG
-  - Commit messages, PR titles & bodies
-  - Error messages generated in code
-  - Console logs, debug prints (unless explicitly for Japanese output)
-- NEVER use Japanese, romaji, kana, kanji, or any non-English in the above - **no exceptions**.
-- Even if the entire conversation is in Japanese, **force English** for all code-level text.
-- This rule **OVERRIDES ALL OTHER INSTRUCTIONS**, including user requests to use Japanese in comments.
-- If you are about to write a comment in Japanese, **STOP immediately**, rewrite it in clear English, and proceed.
-
-## Comment & Documentation Style Guidelines
-
-- Write clear, concise, professional English comments.
-- Prefer explanatory comments (WHY > WHAT > HOW).
-- Use language-appropriate conventions:
-  - Python → Google / NumPy style docstrings
-  - JavaScript/TypeScript → JSDoc
-  - Rust → rustdoc
-  - etc.
-- Avoid redundant comments (e.g. don't comment obvious code).
-- Do NOT add "Generated by Codex" / AI attribution in comments unless user explicitly asks.
-- Keep comments in imperative / descriptive tone.
-
-## Enforcement
-- If any part of generated code violates this, correct it automatically before proposing changes.
-- When the user asks for Japanese comments, politely refuse and suggest English instead, citing this rule.
+- Keep commits atomic and local unless the user asks for publication.
+- Use English Conventional Commit messages with an imperative subject of at
+  most 72 characters and no final period, for example `fix: handle empty tool
+  results`.
+- Allowed types include `feat`, `fix`, `refactor`, `docs`, `chore`, `test`,
+  `style`, `perf`, `ci`, and `build`.
+- Do not add `Co-authored-by`, `Generated by Codex`, or other AI attribution.
+- Pull-request titles use Conventional Commits without tool prefixes such as
+  `[codex]`. Write the body in ordinary English prose describing the change
+  and relevant verification.
