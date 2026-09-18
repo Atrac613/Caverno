@@ -155,7 +155,7 @@ dependencies:
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
   serious_python: ^4.7.0
-  drift: ^2.34.4
+  drift: ^2.35.0
   sqlite3_flutter_libs: ^0.6.0+eol
   # Embedded terminal for the coding workspace bottom panel (desktop only:
   # macOS/Windows/Linux). xterm renders the screen buffer, flutter_pty spawns
@@ -178,7 +178,7 @@ dev_dependencies:
     sdk: flutter
 
   # Testing
-  analyzer: ^10.2.0
+  analyzer: ^13.3.0
   coverage: ^1.15.1
   mocktail: ^1.0.5
   pubspec_parse: ^1.6.0
@@ -188,7 +188,7 @@ dev_dependencies:
 
   # Code generation
   build_runner: ^2.15.1
-  freezed: ^3.2.5
+  freezed: ^4.0.1
   json_serializable: ^6.14.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -198,7 +198,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
-  drift_dev: ^2.34.0
+  drift_dev: ^2.35.0
 
 flutter_launcher_icons:
   android: true
