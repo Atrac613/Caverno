@@ -313,9 +313,12 @@ void main() {
 
     final result = _result(report, 'chart_reading');
     // Warning, not failed: a model that spent its budget reasoning was never
-    // measured, and scoring that as blindness reports the harness's limit.
+    // measured, so it was not shown to be unable to read a chart either.
     expect(result.status, LiveLlmDiagnosticStatus.warning);
     expect(result.details, contains('no_answer_within_budget'));
+    // Raising the budget was tried and the reasoning grew to fill it, so the
+    // report must not send the next reader to raise it again.
+    expect(result.details, isNot(contains('raise the probe budget')));
   });
 
   test('skips tool probes when MCP tools are disabled', () async {

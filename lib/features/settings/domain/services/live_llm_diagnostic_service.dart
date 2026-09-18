@@ -294,12 +294,18 @@ class LiveLlmDiagnosticService {
   /// ended inside the think block with no answer at all, which the shared 512
   /// would have reported as a model that cannot read charts.
   ///
-  /// The 2026-09-18 qwen/qwen3.8-flash run set the current value. It was that
-  /// one run in three: the chart probe stopped at exactly 1024 and scored 0/20,
-  /// the unified-diff and json_schema arms both ran out at 512, and those 63
-  /// points were the whole remaining gap to the endpoint's attemptable total --
-  /// every one of them a truncation rather than a wrong answer. A cap is not an
-  /// allocation, so the headroom costs nothing on a model that answers sooner.
+  /// The 2026-09-18 qwen/qwen3.8-flash run set the current value: the chart
+  /// probe stopped at exactly 1024, the unified-diff and json_schema arms at
+  /// 512. A cap is not an allocation, so the headroom costs nothing on a model
+  /// that answers sooner.
+  ///
+  /// **Do not raise this again to chase the two arms it did not fix.** The run
+  /// on 2048 is the measurement: the unified-diff arm converged at 946 tokens
+  /// and scored full marks, while the chart probe and the json_schema arm each
+  /// stopped at exactly 2048 again -- 2x and 4x their previous budgets bought
+  /// nothing. Those two do not run short of room, they fail to terminate, and
+  /// each retry costs ~50 s of wall clock for zero points. Bounding the
+  /// reasoning is the remaining lever, not enlarging it.
   static const _reasoningProbeMaxTokens = 2048;
 
   static const _chartClassificationRejected = 'endpoint_rejected';
@@ -2846,11 +2852,13 @@ class LiveLlmDiagnosticService {
       return LiveLlmDiagnosticProbeResult(
         id: _chartReadingProbeId,
         status: LiveLlmDiagnosticStatus.warning,
-        summary: 'The model produced no answer within the token budget.',
+        summary: 'The model did not finish reasoning within the token budget.',
         details:
             'Classification: $_chartClassificationNoAnswer\n'
             'Nothing was measured: the response carried reasoning and no '
-            'readings. Re-run, or raise the probe budget if it persists.',
+            'readings. Raising the budget was tried on 2026-09-18 and changed '
+            'nothing -- the reasoning grew to fill it. Read a repeat as the '
+            'model failing to bound itself, not as a probe that needs room.',
         modelContent: _preview(withImage.content, maxChars: 400),
         usage: _totalUsage([if (withImage.result != null) withImage.result!]),
         totalChecks: LiveLlmChartProbeImage.expectedAnswers.length,
