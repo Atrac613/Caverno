@@ -137,7 +137,7 @@ dependencies:
   bluetooth_low_energy: ^6.2.1
 
   # WiFi scanning tool
-  wifi_scan: ^0.4.1
+  wifi_scan: ^0.5.0
   network_info_plus: ^7.0.0
   desktop_drop: ^0.8.4
 
