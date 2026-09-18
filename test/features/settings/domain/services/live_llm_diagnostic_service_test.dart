@@ -1075,6 +1075,27 @@ void main() {
     expect(dataSource.toolResultImageCount, 1);
   });
 
+  test('vision probe grades the visible answer, not the think block', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _VisionReasoningDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'vision_attachment'});
+    final result = _result(report, 'vision_attachment');
+
+    // Both arms enumerate the four colors in order inside <think>; only the
+    // attachment arm answers with them. Scoring the raw response scored the
+    // control arm 4/4 and reported a sighted model as blind.
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(result.details, contains('read_correctly'));
+    expect(result.details, contains('No-image control: 0/4'));
+    // The preview carries the reading rather than the reasoning that hid it.
+    expect(result.modelContent, contains('with_image: yellow, blue, red, green'));
+    expect(result.modelContent, isNot(contains('<think>')));
+  });
+
   test(
     'vision probe treats a matching control arm as an ignored image',
     () async {
@@ -1950,6 +1971,40 @@ class _VisionRecordingDataSource extends _FakeDiagnosticDataSource {
       messages: messages,
       toolResults: toolResults,
       assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+/// Narrates the four colors inside a think block on both arms and answers
+/// correctly only with the image: the shape of a reasoning model, and the shape
+/// that made the raw-response scorer report a sighted model as blind.
+class _VisionReasoningDataSource extends _FakeDiagnosticDataSource {
+  static const _thought =
+      '<think>Quadrants could be yellow, blue, red, green or some other '
+      'arrangement.</think>';
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (messages.last.content.contains('four equal quadrants')) {
+      return ChatCompletionResult(
+        content: messages.last.imageBase64 == null
+            ? '$_thought\nred, green, blue, orange'
+            : '$_thought\nyellow, blue, red, green',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
       tools: tools,
       model: model,
       temperature: temperature,

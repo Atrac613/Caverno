@@ -2192,8 +2192,11 @@ class LiveLlmDiagnosticService {
         'No-image control: $controlMatched/${_visionProbeExpectedColors.length}',
       ].join('\n'),
       modelContent: [
-        'with_image: ${_preview(withImage.content, maxChars: 240)}',
-        'control: ${_preview(control.content, maxChars: 240)}',
+        // The visible answer, not the reasoning: a think block filled the whole
+        // preview and left the actual reading -- the evidence for the verdict
+        // above -- invisible in the report.
+        'with_image: ${_preview(_visibleDiagnosticContent(withImage.content), maxChars: 240)}',
+        'control: ${_preview(_visibleDiagnosticContent(control.content), maxChars: 240)}',
       ].join('\n'),
       usage: _totalUsage([
         if (withImage.result != null) withImage.result!,
@@ -2504,8 +2507,15 @@ class LiveLlmDiagnosticService {
   /// Counts leading quadrant colors named in the expected order. Order matters:
   /// naming the right four colors in the wrong arrangement means the layout was
   /// not actually read.
+  ///
+  /// Grades the visible answer rather than the raw response, for the reason the
+  /// chart probe already does: a reasoning model enumerates candidate colors on
+  /// its way to an answer, and scanning that text scores the thinking instead of
+  /// the reading. Scoring the raw response made the no-image control arm match
+  /// all four colors out of its own think block, which classified a
+  /// demonstrably sighted model as `model_ignored_the_image`.
   int _matchedQuadrantColors(String content) {
-    final normalized = content.toLowerCase();
+    final normalized = _visibleDiagnosticContent(content).toLowerCase();
     var cursor = 0;
     var matched = 0;
     for (final color in _visionProbeExpectedColors) {
