@@ -11,8 +11,8 @@ const _approvedActions = <String, ({String sha, String version})>{
     version: 'v7.0.1',
   ),
   'actions/setup-java': (
-    sha: 'dd06d9cba3e5552c54d9f8ea23572deb30010f7c',
-    version: 'v6.0.0',
+    sha: 'de7274f081f381c8f8158605e0321c36c376e2e6',
+    version: 'v6.0.1',
   ),
   'subosito/flutter-action': (
     sha: '1a449444c387b1966244ae4d4f8c696479add0b2',
