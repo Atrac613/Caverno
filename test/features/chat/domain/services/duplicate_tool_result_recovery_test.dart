@@ -584,5 +584,69 @@ void main() {
         }
       },
     );
+
+    test('inlines a long value the request does not otherwise carry', () {
+      final body = 'x' * 1200;
+      final recovered = _recovery.recover(
+        _input(
+          currentToolCalls: [_call(id: 'current-spec', path: 'pubspec.yaml')],
+          executedToolResults: [
+            _result(
+              id: 'prior-spec',
+              path: 'pubspec.yaml',
+              result: jsonEncode({'path': 'pubspec.yaml', 'content': body}),
+            ),
+          ],
+        ),
+      );
+
+      // The prior call is not in this request, so naming it would hand the
+      // model a reference it cannot follow -- session 64bad560's livelock.
+      final payload = _payload(recovered.single);
+      expect(payload['content'], body);
+      expect(payload['prior_tool_call_id'], 'prior-spec');
+      expect(recovered.single.result, isNot(contains('omitted here')));
+    });
+
+    test('points a repeated value at the copy carried beside it', () {
+      final body = 'y' * 1200;
+      final priorResult = jsonEncode({'path': 'skill.md', 'content': body});
+      final recovered = _recovery.recover(
+        _input(
+          currentToolCalls: [
+            _call(id: 'current-first', path: 'skill.md'),
+            _call(id: 'current-second', path: 'skill.md'),
+          ],
+          executedToolResults: [
+            _result(id: 'prior-skill', path: 'skill.md', result: priorResult),
+          ],
+        ),
+      );
+
+      expect(recovered, hasLength(2));
+      expect(_payload(recovered.first)['content'], body);
+      expect(
+        _payload(recovered.last)['content'],
+        allOf(
+          contains('current-first'),
+          contains('in this request'),
+          isNot(contains(body)),
+        ),
+      );
+      // Whatever a pointer names has to be in the batch it travels with.
+      expect(
+        recovered.map((result) => result.id),
+        contains(
+          _pointedToolCallId(_payload(recovered.last)['content'] as String),
+        ),
+      );
+    });
   });
+}
+
+/// Extracts the tool call id a reuse pointer names.
+String _pointedToolCallId(String pointer) {
+  return RegExp(
+    r'tool call (\S+) in this request',
+  ).firstMatch(pointer)!.group(1)!;
 }

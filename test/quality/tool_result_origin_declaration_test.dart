@@ -119,7 +119,7 @@ void main() {
     );
 
     test('a reused duplicate result is harness feedback', () {
-      final payload = const DuplicateToolResultReusePayload().build(
+      final payload = DuplicateToolResultReusePayload().build(
         ToolResultInfo(
           id: 'call-1',
           name: 'read_file',

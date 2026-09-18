@@ -70,11 +70,11 @@ final class DuplicateToolResultRecoveryInput {
 final class DuplicateToolResultRecovery {
   const DuplicateToolResultRecovery();
   static const _executionPolicy = ToolCallExecutionPolicy();
-  static const _reusePayload = DuplicateToolResultReusePayload();
 
   List<ToolResultInfo> recover(DuplicateToolResultRecoveryInput input) {
     final resolveProjectPath = _projectPathResolver(input.projectRoot);
     final recoveryToolResults = <ToolResultInfo>[];
+    final reusePayload = DuplicateToolResultReusePayload();
     for (final toolCall in input.currentToolCalls) {
       final matchingResult = _latestMatchingResult(
         toolCall: toolCall,
@@ -89,7 +89,7 @@ final class DuplicateToolResultRecovery {
           id: toolCall.id,
           name: toolCall.name,
           arguments: toolCall.arguments,
-          result: _reusePayload.build(
+          result: reusePayload.build(
             matchingResult,
             currentToolCallId: toolCall.id,
           ),
