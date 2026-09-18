@@ -913,7 +913,9 @@ const Map<String, int> _lineBudgets = {
   // -67 further: the approval-audit scenario sits with the other approval
   // tests, which paid for the stand-in calls the SEC4.4g gate now needs.
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 17610,
-  'test/features/chat/presentation/providers/mcp_tool_provider_rollback_store_test.dart':
+  // Folded into chat_presentation_providers_tiny_test.dart as a part file; the
+  // budget follows the content, which is what it was guarding.
+  'test/features/chat/presentation/providers/mcp_tool_provider_rollback_store_cases.dart':
       152,
   'test/support/mcp_file_tool_test_delegate.dart': 16,
   // The TurnRuntime prototype boundary. Registering these as decomposition
