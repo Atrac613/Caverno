@@ -1093,7 +1093,8 @@ class LiveLlmDiagnosticService {
       return const LiveLlmDiagnosticProbeResult(
         id: _toolRecoveryProbeId,
         status: LiveLlmDiagnosticStatus.skipped,
-        summary: 'Skipped because this provider does not make native tool calls.',
+        summary:
+            'Skipped because this provider does not make native tool calls.',
       );
     }
 
@@ -1407,7 +1408,10 @@ class LiveLlmDiagnosticService {
           finalContent: result.content,
         );
       }
-      final mismatch = _firstArgumentMismatch(call.arguments, step.expectedArguments);
+      final mismatch = _firstArgumentMismatch(
+        call.arguments,
+        step.expectedArguments,
+      );
       if (mismatch != null) {
         return _ToolDepthRungOutcome(
           passed: false,
@@ -1461,7 +1465,8 @@ class LiveLlmDiagnosticService {
     } on Object catch (error) {
       return _ToolDepthRungOutcome(
         passed: false,
-        detail: 'the final request failed (${_preview('$error', maxChars: 120)})',
+        detail:
+            'the final request failed (${_preview('$error', maxChars: 120)})',
       );
     }
     completed.add(finalResult);
@@ -2661,7 +2666,8 @@ class LiveLlmDiagnosticService {
       EndpointModalitySupport.unsupported => LiveLlmDiagnosticProbeResult(
         id: _videoInputModalityProbeId,
         status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The endpoint lists its modalities and video is not among them.',
+        summary:
+            'The endpoint lists its modalities and video is not among them.',
         details: 'Classification: $_videoModalityUnsupported',
         elapsed: timer.elapsed,
       ),
@@ -2954,7 +2960,11 @@ class LiveLlmDiagnosticService {
     final expected = LiveLlmChartProbeImage.expectedAnswers;
     final fields = _chartAnswerFields(ContentParser.parse(content).text.trim());
     var matched = 0;
-    for (var index = 0; index < expected.length && index < fields.length; index++) {
+    for (
+      var index = 0;
+      index < expected.length && index < fields.length;
+      index++
+    ) {
       if (_chartFieldMatches(fields[index], expected[index])) matched += 1;
     }
     return matched;
@@ -3663,8 +3673,8 @@ class LiveLlmDiagnosticService {
     );
     final searchRequest = await chatDataSource.createChatCompletion(
       messages: messages,
-      // The datetime tool is intentionally absent. The model must discover it
-      // first, so a direct or parallel call cannot satisfy the probe.
+      // The datetime tool is intentionally absent, so the model has to
+      // discover it before it can call it.
       tools: [searchTool],
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
@@ -3674,44 +3684,62 @@ class LiveLlmDiagnosticService {
     final searchCalls = _toolCallsFromResult(searchRequest);
     toolCallCount += searchCalls.length;
     observedToolNames.addAll(searchCalls.map((call) => call.name));
-    if (searchCalls.length != 1 ||
-        searchCalls.single.name != ToolDefinitionSearchService.toolName) {
+    // Judged by name, not by count. `tool_search` is the only tool attached
+    // here, so a second call is a second search -- the discovery this probe
+    // exists to measure, issued in parallel. Counting instead cost
+    // qwen/qwen3.8-flash all 65 points on 2026-09-18, and took the run's
+    // verdict to Failed, for searching twice before answering.
+    if (searchCalls.isEmpty ||
+        searchCalls.any(
+          (call) => call.name != ToolDefinitionSearchService.toolName,
+        )) {
       return finish(
         status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The first turn did not make exactly one tool_search call.',
+        summary: 'The first turn did not call tool_search.',
         details: 'Returned calls: ${observedToolNames.join(", ")}',
         modelContent: searchRequest.content,
       );
     }
 
-    final searchCall = searchCalls.single;
-    final searchExecution = await service.executeTool(
-      name: searchCall.name,
-      arguments: searchCall.arguments,
-    );
-    if (!searchExecution.isSuccess) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The local tool catalog search failed.',
-        details: searchExecution.errorMessage ?? searchExecution.result,
+    // Every search runs: parallel queries differ, and it is their union that
+    // decides whether the datetime tool was discovered.
+    final searchResults = <ToolResultInfo>[];
+    for (final searchCall in searchCalls) {
+      final searchExecution = await service.executeTool(
+        name: searchCall.name,
+        arguments: searchCall.arguments,
+      );
+      if (!searchExecution.isSuccess) {
+        return finish(
+          status: LiveLlmDiagnosticStatus.failed,
+          summary: 'The local tool catalog search failed.',
+          details: searchExecution.errorMessage ?? searchExecution.result,
+        );
+      }
+      successfulToolExecutionCount += 1;
+      searchResults.add(
+        ToolResultInfo(
+          id: searchCall.id.isEmpty
+              ? 'diagnostic-tool-search-call-${searchResults.length}'
+              : searchCall.id,
+          name: searchCall.name,
+          arguments: searchCall.arguments,
+          result: searchExecution.result,
+        ),
       );
     }
-    successfulToolExecutionCount += 1;
-    final searchResult = ToolResultInfo(
-      id: searchCall.id.isEmpty ? 'diagnostic-tool-search-call' : searchCall.id,
-      name: searchCall.name,
-      arguments: searchCall.arguments,
-      result: searchExecution.result,
-    );
     final discovered =
-        ToolDefinitionSearchService.discoveredToolNamesFromResults([
-          searchResult,
-        ]);
+        ToolDefinitionSearchService.discoveredToolNamesFromResults(
+          searchResults,
+        );
     if (!discovered.contains('get_current_datetime')) {
       return finish(
         status: LiveLlmDiagnosticStatus.failed,
         summary: 'Tool search did not discover get_current_datetime.',
-        details: _preview(searchExecution.result, maxChars: 1200),
+        details: _preview(
+          searchResults.map((result) => result.result).join('\n'),
+          maxChars: 1200,
+        ),
         passedChecks: 1,
       );
     }
@@ -3719,7 +3747,7 @@ class LiveLlmDiagnosticService {
     final dateRequest = await chatDataSource
         .createChatCompletionWithToolResults(
           messages: messages,
-          toolResults: [searchResult],
+          toolResults: searchResults,
           tools: [searchTool, dateTool],
           model: _diagnosticModel,
           temperature: _diagnosticTemperature,
@@ -3729,11 +3757,14 @@ class LiveLlmDiagnosticService {
     final dateCalls = _toolCallsFromResult(dateRequest);
     toolCallCount += dateCalls.length;
     observedToolNames.addAll(dateCalls.map((call) => call.name));
-    if (dateCalls.length != 1 ||
-        dateCalls.single.name != 'get_current_datetime') {
+    // Same rule as the first turn. Both tools are attached by now, so a call
+    // to anything but the datetime tool still fails -- re-searching here means
+    // the model dropped the catalog it was just handed.
+    if (dateCalls.isEmpty ||
+        dateCalls.any((call) => call.name != 'get_current_datetime')) {
       return finish(
         status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The second turn did not make exactly one datetime tool call.',
+        summary: 'The second turn did not call get_current_datetime.',
         details:
             'Returned calls: ${dateCalls.map((call) => call.name).join(", ")}',
         modelContent: dateRequest.content,
@@ -3741,7 +3772,8 @@ class LiveLlmDiagnosticService {
       );
     }
 
-    final dateCall = dateCalls.single;
+    // One reading is the whole answer, so repeats need no second execution.
+    final dateCall = dateCalls.first;
     final dateExecution = await service.executeTool(
       name: dateCall.name,
       arguments: dateCall.arguments,

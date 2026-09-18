@@ -285,19 +285,22 @@ void main() {
     });
   });
 
-  test('a chart answer the control arm matches is not counted as read', () async {
-    final service = LiveLlmDiagnosticService(
-      settings: _settings(mcpEnabled: true),
-      chatDataSource: _FakeDiagnosticDataSource(blindChart: true),
-      mcpToolService: McpToolService(),
-    );
+  test(
+    'a chart answer the control arm matches is not counted as read',
+    () async {
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true),
+        chatDataSource: _FakeDiagnosticDataSource(blindChart: true),
+        mcpToolService: McpToolService(),
+      );
 
-    final report = await service.run(probeIds: const {'chart_reading'});
+      final report = await service.run(probeIds: const {'chart_reading'});
 
-    final result = _result(report, 'chart_reading');
-    expect(result.status, LiveLlmDiagnosticStatus.failed);
-    expect(result.details, contains('model_guessed_without_reading'));
-  });
+      final result = _result(report, 'chart_reading');
+      expect(result.status, LiveLlmDiagnosticStatus.failed);
+      expect(result.details, contains('model_guessed_without_reading'));
+    },
+  );
 
   test('a chart answer that never arrived is not a failed reading', () async {
     final service = LiveLlmDiagnosticService(
@@ -635,24 +638,29 @@ void main() {
     expect(LiveLlmDiagnosticSuite.pointsFor('tool_state_staircase'), 0);
   });
 
-  test('reports a token-cap truncation as truncation, not a violation', () async {
-    // The endpoint drops response_format and answers 200, so the schema arm
-    // reasons to the cap and returns nothing. Calling that "the response
-    // violated the schema" blames the model for a budget the harness set.
-    final service = LiveLlmDiagnosticService(
-      settings: _settings(mcpEnabled: false),
-      chatDataSource: _FakeDiagnosticDataSource(schemaArmRunsToTokenCap: true),
-      mcpToolService: McpToolService(),
-    );
+  test(
+    'reports a token-cap truncation as truncation, not a violation',
+    () async {
+      // The endpoint drops response_format and answers 200, so the schema arm
+      // reasons to the cap and returns nothing. Calling that "the response
+      // violated the schema" blames the model for a budget the harness set.
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: _FakeDiagnosticDataSource(
+          schemaArmRunsToTokenCap: true,
+        ),
+        mcpToolService: McpToolService(),
+      );
 
-    final report = await service.run(probeIds: {'structured_output'});
-    final result = _result(report, 'structured_output');
+      final report = await service.run(probeIds: {'structured_output'});
+      final result = _result(report, 'structured_output');
 
-    expect(result.status, LiveLlmDiagnosticStatus.warning);
-    expect(result.details, contains('finish_reason: length'));
-    expect(result.details, isNot(contains('violated the schema')));
-    expect(result.metadata['structuredOutputSupport'], 'jsonObject');
-  });
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.details, contains('finish_reason: length'));
+      expect(result.details, isNot(contains('violated the schema')));
+      expect(result.metadata['structuredOutputSupport'], 'jsonObject');
+    },
+  );
 
   test('falls back to JSON object structured output', () async {
     final service = LiveLlmDiagnosticService(
@@ -1155,7 +1163,10 @@ void main() {
     expect(result.details, contains('read_correctly'));
     expect(result.details, contains('No-image control: 0/4'));
     // The preview carries the reading rather than the reasoning that hid it.
-    expect(result.modelContent, contains('with_image: yellow, blue, red, green'));
+    expect(
+      result.modelContent,
+      contains('with_image: yellow, blue, red, green'),
+    );
     expect(result.modelContent, isNot(contains('<think>')));
   });
 
@@ -1239,25 +1250,59 @@ void main() {
     );
   });
 
-  test('multi-round probe rejects extra calls on the first turn', () async {
-    final service = LiveLlmDiagnosticService(
-      settings: _settings(mcpEnabled: true),
-      chatDataSource: _ExtraFirstRoundCallDataSource(),
-      mcpToolService: McpToolService(),
-    );
+  test(
+    'multi-round probe rejects a non-search call on the first turn',
+    () async {
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true),
+        chatDataSource: _ExtraFirstRoundCallDataSource(),
+        mcpToolService: McpToolService(),
+      );
 
-    final report = await service.run(probeIds: const {'multi_round_tool_loop'});
-    final result = _result(report, 'multi_round_tool_loop');
+      final report = await service.run(
+        probeIds: const {'multi_round_tool_loop'},
+      );
+      final result = _result(report, 'multi_round_tool_loop');
 
-    expect(result.status, LiveLlmDiagnosticStatus.failed);
-    expect(result.summary, contains('exactly one tool_search'));
-    expect(result.toolCalls, ['tool_search', 'get_current_datetime']);
-    expect(report.multiRoundToolLoopMetrics, isNotNull);
-    expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 1);
-    expect(report.multiRoundToolLoopMetrics!.toolCallCount, 2);
-    expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 0);
-    expect(report.multiRoundToolLoopMetrics!.taskCompleted, isFalse);
-  });
+      expect(result.status, LiveLlmDiagnosticStatus.failed);
+      expect(result.summary, contains('did not call tool_search'));
+      expect(result.toolCalls, ['tool_search', 'get_current_datetime']);
+      expect(report.multiRoundToolLoopMetrics, isNotNull);
+      expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 1);
+      expect(report.multiRoundToolLoopMetrics!.toolCallCount, 2);
+      expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 0);
+      expect(report.multiRoundToolLoopMetrics!.taskCompleted, isFalse);
+    },
+  );
+
+  test(
+    'multi-round probe accepts a first turn that batches its searches',
+    () async {
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true),
+        chatDataSource: _ParallelSearchDataSource(),
+        mcpToolService: McpToolService(),
+      );
+
+      final report = await service.run(
+        probeIds: const {'multi_round_tool_loop'},
+      );
+      final result = _result(report, 'multi_round_tool_loop');
+
+      expect(result.status, LiveLlmDiagnosticStatus.passed);
+      expect(result.toolCalls, [
+        'tool_search',
+        'tool_search',
+        'get_current_datetime',
+      ]);
+      expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 3);
+      expect(report.multiRoundToolLoopMetrics!.toolCallCount, 3);
+      // Both searches ran: parallel queries differ, so their union is what
+      // decides discovery.
+      expect(report.multiRoundToolLoopMetrics!.successfulToolExecutionCount, 3);
+      expect(report.multiRoundToolLoopMetrics!.taskCompleted, isTrue);
+    },
+  );
 
   test('multi-round probe distinguishes a skipped search', () async {
     final service = LiveLlmDiagnosticService(
@@ -1270,7 +1315,7 @@ void main() {
     final result = _result(report, 'multi_round_tool_loop');
 
     expect(result.status, LiveLlmDiagnosticStatus.failed);
-    expect(result.summary, contains('exactly one tool_search'));
+    expect(result.summary, contains('did not call tool_search'));
     expect(result.toolCalls, isEmpty);
     expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 1);
     expect(report.multiRoundToolLoopMetrics!.toolCallCount, 0);
@@ -1288,7 +1333,7 @@ void main() {
     final result = _result(report, 'multi_round_tool_loop');
 
     expect(result.status, LiveLlmDiagnosticStatus.failed);
-    expect(result.summary, contains('exactly one datetime tool call'));
+    expect(result.summary, contains('did not call get_current_datetime'));
     expect(result.toolCalls, ['tool_search']);
     expect(report.multiRoundToolLoopMetrics!.modelTurnCount, 2);
     expect(report.multiRoundToolLoopMetrics!.toolCallCount, 1);
@@ -1421,9 +1466,9 @@ class _FakeDiagnosticDataSource
         '{ "diagnostic": ... }? I will answer with the locked object.'
         '</think>$content';
   }
+
   int toolResultFollowUpCount = 0;
   final List<String?> requestedModels = [];
-
 
   /// Replays the tool-state staircase: one call per scripted step, then a
   /// final answer carrying every value that rung asks to see survive.
@@ -1432,7 +1477,9 @@ class _FakeDiagnosticDataSource
     List<Map<String, dynamic>>? tools,
   ) {
     final rung = LiveLlmToolDepthStaircase.rungs
-        .where((candidate) => messages.any((m) => m.content == candidate.prompt))
+        .where(
+          (candidate) => messages.any((m) => m.content == candidate.prompt),
+        )
         .firstOrNull;
     if (rung == null) return null;
 
@@ -1708,7 +1755,8 @@ class _FakeDiagnosticDataSource
     int? maxTokens,
   }) async {
     requestedModels.add(model);
-    final toolResult = toolResults.single;
+    // first, not single: a first turn may batch its searches.
+    final toolResult = toolResults.first;
     final payload = jsonDecode(toolResult.result) as Map<String, dynamic>;
     if (payload['imageBase64'] is String) {
       return ChatCompletionResult(
@@ -1969,6 +2017,45 @@ class _ExtraFirstRoundCallDataSource extends _FakeDiagnosticDataSource {
   }
 }
 
+class _ParallelSearchDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (messages.last.content.contains(
+      'Find the available tool that reports',
+    )) {
+      return ChatCompletionResult(
+        content: '',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'call-search-date',
+            name: 'tool_search',
+            arguments: {'query': 'current date and timezone'},
+          ),
+          ToolCallInfo(
+            id: 'call-search-relative',
+            name: 'tool_search',
+            arguments: {'query': 'relative_dates'},
+          ),
+        ],
+        finishReason: 'tool_calls',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
 class _SkippedSearchDataSource extends _FakeDiagnosticDataSource {
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -2007,7 +2094,7 @@ class _SkippedDatetimeDataSource extends _FakeDiagnosticDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    if (toolResults.single.name == 'tool_search') {
+    if (toolResults.first.name == 'tool_search') {
       return ChatCompletionResult(
         content: '{"marker":"CAVERNO_MULTI_ROUND_LOOP_OK"}',
         finishReason: 'stop',
