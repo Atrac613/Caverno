@@ -26,7 +26,10 @@ void main() {
   // WidgetsBinding.instance needs a binding to exist.
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final now = DateTime.utc(2026, 8, 10, 16);
+  // The notifier passes DateTime.now into the registration coordinator, so a
+  // frozen fixture clock plus a 30-day fake expiresAt starts failing CI once
+  // that date elapses. Keep the fixture on the wall clock.
+  final now = DateTime.now().toUtc();
 
   test(
     'permission is requested only when the user enables notifications',
