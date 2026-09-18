@@ -1095,6 +1095,8 @@
     "live_llm_diag_probe_subagent_desc": "実行せずに well-formed な spawn_subagent request を emit できるか確認します。",
     "live_llm_diag_probe_remote_mcp_title": "Remote MCP exposure",
     "live_llm_diag_probe_remote_mcp_desc": "trusted remote MCP server の tool が harness に読み込まれているか報告します。",
+    "live_llm_diag_probe_tool_depth_title": "ツール状態の階段",
+    "live_llm_diag_probe_tool_depth_desc": "あるツールが返した値を、2回・3回・4回と続くツール呼び出しを通して保持できるか測ります。",
     "live_llm_diag_profile_history": "プロファイル履歴",
     "live_llm_diag_profile_history_empty": "このモデルのプロファイル改訂はまだ記録されていません。プローブを実行すると履歴の記録が始まります。",
     "live_llm_diag_history": "診断履歴",

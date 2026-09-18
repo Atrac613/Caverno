@@ -23,6 +23,7 @@ import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_chart_probe_image.dart';
+import 'live_llm_tool_depth_staircase.dart';
 import 'llm_provider_capabilities.dart';
 import 'llm_sampler_preset_profile.dart';
 
@@ -152,6 +153,11 @@ class LiveLlmDiagnosticService {
       titleKey: 'settings.live_llm_diag_probe_remote_mcp_title',
       descriptionKey: 'settings.live_llm_diag_probe_remote_mcp_desc',
     ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _toolDepthProbeId,
+      titleKey: 'settings.live_llm_diag_probe_tool_depth_title',
+      descriptionKey: 'settings.live_llm_diag_probe_tool_depth_desc',
+    ),
   ];
 
   static const _instructionProbeId = 'instruction_echo';
@@ -175,6 +181,7 @@ class LiveLlmDiagnosticService {
   static const _toolSearchProbeId = 'tool_search_catalog';
   static const _subagentProbeId = 'subagent_recognition';
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
+  static const _toolDepthProbeId = 'tool_state_staircase';
   static const _multiRoundToolLoopMarker = 'CAVERNO_MULTI_ROUND_LOOP_OK';
 
   /// The streaming probe asks for a run of integers rather than prose: the
@@ -595,6 +602,11 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: () => _runRemoteMcpProbe(catalogContext),
+    );
+    report = await _runToolDepthProbe(
+      report: report,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
     );
 
     report = report.copyWith(finishedAt: DateTime.now());
@@ -1053,6 +1065,232 @@ class LiveLlmDiagnosticService {
     } finally {
       client.close();
     }
+  }
+
+  /// LL39 tool-chain depth axis: the same errand at two, three and four
+  /// sequential tool calls, each rung needing a value the previous one
+  /// produced.
+  ///
+  /// Scripted rather than executed. The canned observations keep the rung
+  /// measuring the model's state carrying instead of whatever the live catalog
+  /// happens to hold, and keep the probe deterministic on an endpoint whose
+  /// tools may not exist.
+  ///
+  /// Unscored, like the context ladder: this is headroom above the conformance
+  /// floor, reported as a depth rather than folded into a percentage that
+  /// would saturate.
+  Future<LiveLlmDiagnosticReport> _runToolDepthProbe({
+    required LiveLlmDiagnosticReport report,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!_shouldRunProbe(_toolDepthProbeId, selectedProbeIds)) {
+      final updated = _skipProbe(
+        report,
+        _toolDepthProbeId,
+        'Skipped because this bounded diagnostic run did not request this probe.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+    if (!settings.llmCapabilities.supportsNativeToolCalls) {
+      final updated = _skipProbe(
+        report,
+        _toolDepthProbeId,
+        'Skipped because this provider does not make native tool calls.',
+      );
+      onReport?.call(updated);
+      return updated;
+    }
+
+    final startedAt = DateTime.now();
+    var updated = report.withProbeResult(
+      const LiveLlmDiagnosticProbeResult(
+        id: _toolDepthProbeId,
+        status: LiveLlmDiagnosticStatus.running,
+        summary: 'Running...',
+      ),
+    );
+    onReport?.call(updated);
+
+    final completed = <ChatCompletionResult>[];
+    final attempted = <int>[];
+    var deepest = 0;
+    var failureDetail = '';
+    String lastContent = '';
+
+    for (final rung in LiveLlmToolDepthStaircase.rungs) {
+      attempted.add(rung.depth);
+      final outcome = await _runToolDepthRung(rung, completed);
+      lastContent = outcome.finalContent;
+      if (!outcome.passed) {
+        failureDetail = 'depth ${rung.depth}: ${outcome.detail}';
+        break;
+      }
+      deepest = rung.depth;
+    }
+
+    final metrics = LiveLlmDiagnosticToolDepthMetrics(
+      deepestPassedDepth: deepest,
+      attemptedDepths: List.unmodifiable(attempted),
+      failureDetail: failureDetail,
+    );
+    final deepestRung = LiveLlmToolDepthStaircase.stageDepths.last;
+    // Never failed. This is headroom above the conformance floor, so a rung
+    // the model could not reach is a position on the axis rather than a
+    // defect: `multi_round_tool_loop` is the scored floor for tool chaining
+    // and does report failure. Failing here would drag a run's overall status
+    // down for a probe deliberately worth zero points.
+    final status = deepest >= deepestRung
+        ? LiveLlmDiagnosticStatus.passed
+        : LiveLlmDiagnosticStatus.warning;
+
+    updated = updated
+        .withProbeResult(
+          LiveLlmDiagnosticProbeResult(
+            id: _toolDepthProbeId,
+            status: status,
+            summary: deepest == 0
+                ? 'The model did not carry state through two tool calls.'
+                : deepest >= deepestRung
+                ? 'The model carried state through every rung of the staircase.'
+                : 'The model carried state through $deepest sequential tool calls.',
+            details: [
+              'Deepest passed depth: $deepest of $deepestRung',
+              'Attempted depths: ${attempted.join(', ')}',
+              if (failureDetail.isNotEmpty) failureDetail,
+            ].join('\n'),
+            modelContent: _preview(
+              _visibleDiagnosticContent(lastContent),
+              maxChars: 240,
+            ),
+            usage: _totalUsage(completed),
+            passedChecks: deepest == 0 ? 0 : attempted.indexOf(deepest) + 1,
+            totalChecks: LiveLlmToolDepthStaircase.stageDepths.length,
+            elapsed: DateTime.now().difference(startedAt),
+          ),
+        )
+        .copyWith(toolDepthMetrics: metrics);
+    onReport?.call(updated);
+    return updated;
+  }
+
+  /// Drives one rung: each scripted step must be the call the model makes, and
+  /// the final answer must carry the values only the tool results could supply.
+  Future<_ToolDepthRungOutcome> _runToolDepthRung(
+    LiveLlmToolDepthRung rung,
+    List<ChatCompletionResult> completed,
+  ) async {
+    var messages = _messages(user: rung.prompt);
+
+    for (final step in rung.steps) {
+      final ChatCompletionResult result;
+      try {
+        result = await chatDataSource.createChatCompletion(
+          messages: messages,
+          tools: LiveLlmToolDepthStaircase.toolDefinitions,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+      } on Object catch (error) {
+        return _ToolDepthRungOutcome(
+          passed: false,
+          detail: 'the request failed (${_preview('$error', maxChars: 120)})',
+        );
+      }
+      completed.add(result);
+
+      final call = result.toolCalls?.firstOrNull;
+      if (call == null) {
+        return _ToolDepthRungOutcome(
+          passed: false,
+          detail: 'expected a ${step.toolName} call and got a text answer',
+          finalContent: result.content,
+        );
+      }
+      if (call.name != step.toolName) {
+        return _ToolDepthRungOutcome(
+          passed: false,
+          detail: 'called ${call.name} where ${step.toolName} was expected',
+          finalContent: result.content,
+        );
+      }
+      final mismatch = _firstArgumentMismatch(call.arguments, step.expectedArguments);
+      if (mismatch != null) {
+        return _ToolDepthRungOutcome(
+          passed: false,
+          detail: '${step.toolName} carried $mismatch',
+          finalContent: result.content,
+        );
+      }
+
+      messages = [
+        ...messages,
+        Message(
+          id: 'live-llm-tool-depth-${step.toolName}-${DateTime.now().microsecondsSinceEpoch}',
+          content: ToolResultPromptBuilder.buildAnswerPrompt([
+            ToolResultInfo(
+              id: 'live-llm-tool-depth-${step.toolName}',
+              name: step.toolName,
+              arguments: Map<String, dynamic>.from(step.expectedArguments),
+              result: jsonEncode(step.result),
+            ),
+          ]),
+          role: MessageRole.user,
+          timestamp: DateTime.now(),
+        ),
+      ];
+    }
+
+    final ChatCompletionResult finalResult;
+    try {
+      finalResult = await chatDataSource.createChatCompletion(
+        messages: messages,
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+    } on Object catch (error) {
+      return _ToolDepthRungOutcome(
+        passed: false,
+        detail: 'the final request failed (${_preview('$error', maxChars: 120)})',
+      );
+    }
+    completed.add(finalResult);
+
+    // The visible answer, not the reasoning: a think block that names the
+    // carried id on the way to losing it is not the model carrying it.
+    final visible = _visibleDiagnosticContent(finalResult.content);
+    final missing = rung.expectedFinalValues
+        .where((value) => !visible.contains(value))
+        .toList();
+    if (missing.isNotEmpty) {
+      return _ToolDepthRungOutcome(
+        passed: false,
+        detail: 'the answer lost ${missing.join(', ')}',
+        finalContent: finalResult.content,
+      );
+    }
+    return _ToolDepthRungOutcome(
+      passed: true,
+      finalContent: finalResult.content,
+    );
+  }
+
+  /// Compares only the keys the rung pins, so a model may add its own optional
+  /// arguments; it may not get a pinned one wrong.
+  String? _firstArgumentMismatch(
+    Map<String, dynamic> actual,
+    Map<String, Object?> expected,
+  ) {
+    for (final entry in expected.entries) {
+      final value = actual[entry.key];
+      if (value == entry.value) continue;
+      if ('$value'.trim() == '${entry.value}'.trim()) continue;
+      return '${entry.key}=${value ?? 'nothing'} where ${entry.value} was expected';
+    }
+    return null;
   }
 
   /// The context window the endpoint publishes, or 0 when it publishes none.
@@ -3989,4 +4227,16 @@ class _FoundationModelsLanguageProbeOutcome {
   String toDetailLine() {
     return '$label: ${passed ? 'passed' : 'failed'} ($classification)';
   }
+}
+
+class _ToolDepthRungOutcome {
+  const _ToolDepthRungOutcome({
+    required this.passed,
+    this.detail = '',
+    this.finalContent = '',
+  });
+
+  final bool passed;
+  final String detail;
+  final String finalContent;
 }

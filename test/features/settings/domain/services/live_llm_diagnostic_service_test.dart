@@ -10,7 +10,10 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_chart_probe_image.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_scoring.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_service.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_tool_depth_ladder.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_tool_depth_staircase.dart';
 import 'package:caverno/features/settings/domain/services/model_capability_profile_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -70,7 +73,8 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      15,
+      // 16 since the tool-state staircase joined the default run.
+      16,
     );
     expect(
       _result(report, 'edit_format_fidelity').metadata['editFormatPreference'],
@@ -589,6 +593,44 @@ void main() {
     expect(result.status, LiveLlmDiagnosticStatus.passed);
     expect(result.passedChecks, 2);
     expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
+  });
+
+  // The staircase is headroom, not a floor: a model that loses the carried id
+  // at rung three sits at depth 2 and must not fail the run for it.
+  test('reports the deepest rung a model carried state through', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(toolDepthLimit: 2),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'tool_state_staircase'});
+    final result = _result(report, 'tool_state_staircase');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.details, contains('Deepest passed depth: 2 of 4'));
+    expect(result.details, contains('depth 3'));
+    expect(report.toolDepthMetrics?.deepestPassedDepth, 2);
+    expect(
+      LiveLlmDiagnosticToolDepthLadder.fromReport(report).passedStageCount,
+      1,
+    );
+  });
+
+  test('passes the whole staircase when state survives every rung', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: {'tool_state_staircase'});
+    final result = _result(report, 'tool_state_staircase');
+
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(report.toolDepthMetrics?.deepestPassedDepth, 4);
+    // Headroom stays unscored so cavernobench totals remain comparable.
+    expect(LiveLlmDiagnosticSuite.pointsFor('tool_state_staircase'), 0);
   });
 
   test('reports a token-cap truncation as truncation, not a violation', () async {
@@ -1343,6 +1385,7 @@ class _FakeDiagnosticDataSource
     this.blindChart = false,
     this.silentChart = false,
     this.schemaArmRunsToTokenCap = false,
+    this.toolDepthLimit = 4,
   });
 
   final bool textToolCalls;
@@ -1351,6 +1394,11 @@ class _FakeDiagnosticDataSource
   /// Reasons to the token cap and returns no answer, the way a model does
   /// when the endpoint silently dropped the schema it was told to follow.
   final bool schemaArmRunsToTokenCap;
+
+  /// How deep the scripted tool-state staircase is allowed to get. A rung past
+  /// this answers in text instead of calling the next tool, which is what
+  /// losing the carried state looks like.
+  final int toolDepthLimit;
 
   /// Answers the chart question the same with and without the image, which is
   /// what a model that never looked at the picture does.
@@ -1373,6 +1421,48 @@ class _FakeDiagnosticDataSource
   }
   int toolResultFollowUpCount = 0;
   final List<String?> requestedModels = [];
+
+
+  /// Replays the tool-state staircase: one call per scripted step, then a
+  /// final answer carrying every value that rung asks to see survive.
+  ChatCompletionResult? _toolDepthStaircaseReply(
+    List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+  ) {
+    final rung = LiveLlmToolDepthStaircase.rungs
+        .where((candidate) => messages.any((m) => m.content == candidate.prompt))
+        .firstOrNull;
+    if (rung == null) return null;
+
+    if (rung.depth > toolDepthLimit) {
+      return ChatCompletionResult(
+        content: 'I am not sure which document to use.',
+        finishReason: 'stop',
+      );
+    }
+    // One scripted observation message per completed step.
+    final delivered = messages
+        .where((message) => message.content.contains('doc-ds-42'))
+        .length;
+    if (tools == null || delivered >= rung.steps.length) {
+      return ChatCompletionResult(
+        content: _withReasoning(rung.expectedFinalValues.join(' ')),
+        finishReason: 'stop',
+      );
+    }
+    final step = rung.steps[delivered];
+    return ChatCompletionResult(
+      content: '',
+      toolCalls: [
+        ToolCallInfo(
+          id: 'staircase-$delivered',
+          name: step.toolName,
+          arguments: Map<String, dynamic>.from(step.expectedArguments),
+        ),
+      ],
+      finishReason: 'tool_calls',
+    );
+  }
 
   @override
   Future<ChatCompletionResult> createStructuredChatCompletion({
@@ -1420,6 +1510,8 @@ class _FakeDiagnosticDataSource
     int? maxTokens,
   }) async {
     requestedModels.add(model);
+    final staircase = _toolDepthStaircaseReply(messages, tools);
+    if (staircase != null) return staircase;
     final user = messages.last.content;
     if (user.contains('product_label')) {
       return ChatCompletionResult(

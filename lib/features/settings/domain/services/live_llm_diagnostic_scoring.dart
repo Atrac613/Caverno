@@ -1,5 +1,6 @@
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_diagnostic_difficulty_ladder.dart';
+import 'live_llm_diagnostic_tool_depth_ladder.dart';
 
 /// LL39 benchmark scoring for the Live LLM diagnostic.
 ///
@@ -66,6 +67,11 @@ class LiveLlmDiagnosticSuite {
     'tool_search_catalog': 35,
     'subagent_recognition': 25,
     'remote_mcp_exposure': 15,
+    // Zero for the same reason as effective_context: this is the tool-depth
+    // headroom axis, reported as a depth on its own ladder. Scoring it here
+    // would move a model's cavernobench total and break comparability with
+    // every run already recorded.
+    'tool_state_staircase': 0,
   };
 
   /// The LL16 sampler trials are the largest sample a run takes (32 of ~43
@@ -291,6 +297,12 @@ Map<String, dynamic> buildLiveLlmDiagnosticExport(
     ...report.toJson(),
     'benchmark': LiveLlmDiagnosticScore.fromReport(report).toJson(),
     'difficultyLadder': LiveLlmDiagnosticDifficultyLadder.fromReport(
+      report,
+    ).toJson(),
+    // A second key rather than a list under the first: `difficultyLadder` is
+    // already read by the capability profile and its v1 -> v2 migration, and
+    // reshaping it would rewrite score history to add an axis beside it.
+    'toolDepthLadder': LiveLlmDiagnosticToolDepthLadder.fromReport(
       report,
     ).toJson(),
   };

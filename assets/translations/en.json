@@ -1095,6 +1095,8 @@
     "live_llm_diag_probe_subagent_desc": "Checks whether the model can emit a well-formed spawn_subagent request without executing it.",
     "live_llm_diag_probe_remote_mcp_title": "Remote MCP exposure",
     "live_llm_diag_probe_remote_mcp_desc": "Reports whether trusted remote MCP servers loaded tools into the harness.",
+    "live_llm_diag_probe_tool_depth_title": "Tool-state staircase",
+    "live_llm_diag_probe_tool_depth_desc": "Carries a value produced by one tool through two, three and four sequential calls.",
     "live_llm_diag_profile_history": "Profile History",
     "live_llm_diag_profile_history_empty": "No profile revisions recorded yet for this model. Run a probe to start tracking history.",
     "live_llm_diag_history": "Diagnostic History",

@@ -454,6 +454,34 @@ class LiveLlmDiagnosticEffectiveContextMetrics {
   };
 }
 
+/// LL39 tool-chain depth evidence: how far a scripted tool staircase got.
+///
+/// [deepestPassedDepth] is a lower bound. The probe stops at the first rung it
+/// fails, so a deeper rung is never credited on a lucky pass after a miss.
+class LiveLlmDiagnosticToolDepthMetrics {
+  const LiveLlmDiagnosticToolDepthMetrics({
+    required this.deepestPassedDepth,
+    required this.attemptedDepths,
+    this.failureDetail = '',
+  });
+
+  final int deepestPassedDepth;
+
+  /// Every rung the probe actually asked for, shallowest first.
+  final List<int> attemptedDepths;
+
+  /// Why the first failing rung failed, or empty when every rung passed. Kept
+  /// because "depth 2" alone does not say whether the model called the wrong
+  /// tool, lost the carried id, or answered without it.
+  final String failureDetail;
+
+  Map<String, dynamic> toJson() => {
+    'deepestPassedDepth': deepestPassedDepth,
+    'attemptedDepths': attemptedDepths,
+    if (failureDetail.isNotEmpty) 'failureDetail': failureDetail,
+  };
+}
+
 class LiveLlmDiagnosticReport {
   const LiveLlmDiagnosticReport({
     required this.startedAt,
@@ -470,6 +498,7 @@ class LiveLlmDiagnosticReport {
     this.multiRoundToolLoopMetrics,
     this.embeddingMetrics,
     this.effectiveContextMetrics,
+    this.toolDepthMetrics,
   });
 
   final DateTime startedAt;
@@ -504,6 +533,10 @@ class LiveLlmDiagnosticReport {
   /// Null unless the expensive context ladder was explicitly enabled.
   final LiveLlmDiagnosticEffectiveContextMetrics? effectiveContextMetrics;
 
+  /// Null means the tool-depth staircase was not run, which is not the same as
+  /// a run that cleared no rung: that one reports a zero depth.
+  final LiveLlmDiagnosticToolDepthMetrics? toolDepthMetrics;
+
   LiveLlmDiagnosticReport copyWith({
     DateTime? finishedAt,
     LiveLlmDiagnosticToolCatalog? toolCatalog,
@@ -514,6 +547,7 @@ class LiveLlmDiagnosticReport {
     LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundToolLoopMetrics,
     LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics,
     LiveLlmDiagnosticEffectiveContextMetrics? effectiveContextMetrics,
+    LiveLlmDiagnosticToolDepthMetrics? toolDepthMetrics,
   }) {
     return LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -535,6 +569,7 @@ class LiveLlmDiagnosticReport {
       embeddingMetrics: embeddingMetrics ?? this.embeddingMetrics,
       effectiveContextMetrics:
           effectiveContextMetrics ?? this.effectiveContextMetrics,
+      toolDepthMetrics: toolDepthMetrics ?? this.toolDepthMetrics,
     );
   }
 
@@ -627,6 +662,7 @@ class LiveLlmDiagnosticReport {
     if (embeddingMetrics != null) 'embeddings': embeddingMetrics!.toJson(),
     if (effectiveContextMetrics != null)
       'effectiveContext': effectiveContextMetrics!.toJson(),
+    if (toolDepthMetrics != null) 'toolDepth': toolDepthMetrics!.toJson(),
     'results': results.map((result) => result.toJson()).toList(),
     if (samplerCalibrationTrials.isNotEmpty)
       'samplerCalibrationTrials': samplerCalibrationTrials
