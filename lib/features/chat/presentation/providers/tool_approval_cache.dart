@@ -23,8 +23,8 @@ class ToolApprovalCacheEntry {
 /// when it repeats an identical tool call after the user already approved
 /// or denied it.
 class ToolApprovalCache {
-  // Shares the loop's non-semantic key set so approval caching and tool-loop
-  // dedup cannot disagree on whether `reason` is meaningful.
+  // Stripped for every tool. `toolExecutionKey` once kept narration instead,
+  // letting a reworded call run twice off a single approval.
   static const Set<String> _nonSemanticArgumentKeys =
       ToolCallExecutionPolicy.nonSemanticArgumentKeys;
 

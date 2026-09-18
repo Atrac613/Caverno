@@ -17,10 +17,13 @@ class ToolCallExecutionPolicy {
   /// semantics. Stripped from the consecutive-failure key ([toolFailureKey])
   /// and from [ToolApprovalCache], so a model that re-issues the *same*
   /// failing/denied command while rewording `reason` is still counted as
-  /// repeating one action. Read-only execution keys keep narration so a
-  /// re-narrated inspection can legitimately re-run, while file mutations
-  /// strip it so rewording cannot bypass side-effect deduplication. Sharing
-  /// the set keeps the derivations from drifting apart.
+  /// repeating one action. [toolExecutionKey] keeps narration only for calls
+  /// [shouldAllowRepeatedToolExecution] already admits -- a re-narrated
+  /// read-only inspection may legitimately re-run -- and strips it everywhere
+  /// else, so rewording cannot bypass side-effect deduplication. Sharing the
+  /// set keeps the derivations from drifting apart; the allow-list keeps a
+  /// newly added side-effecting tool protected by default rather than exposed
+  /// until someone remembers to name it.
   static const Set<String> nonSemanticArgumentKeys = {'reason'};
 
   String toolExecutionKey(
@@ -33,7 +36,25 @@ class ToolCallExecutionPolicy {
       toolCall.name,
       toolCall.arguments,
       resolveProjectPath: resolveProjectPath,
-      excludeNonSemanticKeys: isFileMutationToolCall(toolCall),
+      // Narration survives the key only where re-running is already admitted.
+      // Naming the *protected* tools instead -- this read
+      // `isFileMutationToolCall` -- left every consequential tool that is not
+      // a file write exposed by default, which is how `browser_submit` came to
+      // re-execute under a reworded `reason` while `ToolApprovalCache`, which
+      // strips narration for everything, reported the call already approved
+      // and raised no second prompt.
+      //
+      // Command execution tools are carved out and keep today's behaviour.
+      // `isReadOnlyCommandExecutionToolCall` does not recognise `git status`,
+      // `git tag --list` or `gh pr checks` as read-only, so stripping
+      // narration here would stop the very inspections the loop depends on
+      // from re-running -- session 96e27118 ended a turn mid-task that way.
+      // That leaves a reworded *mutating* `local_execute_command` still able
+      // to re-execute; closing it needs a read-only command classifier worth
+      // trusting, which is its own change.
+      excludeNonSemanticKeys:
+          !shouldAllowRepeatedToolExecution(toolCall) &&
+          !isRepeatableCommandTool(toolCall),
     );
     if (!isRepeatableCommandTool(toolCall)) {
       return baseKey;
@@ -61,9 +82,10 @@ class ToolCallExecutionPolicy {
 
   /// Key for consecutive-failure tracking, distinct from [toolExecutionKey].
   ///
-  /// [toolExecutionKey] keeps model narration for non-file mutations so a
-  /// re-narrated read-only inspection (e.g. `git status` after a commit, then
-  /// after a revert) can legitimately re-run. Failure tracking needs the
+  /// [toolExecutionKey] keeps model narration for command execution and for
+  /// calls [shouldAllowRepeatedToolExecution] admits, so a re-narrated
+  /// inspection (e.g. `git status` after a commit, then after a revert) can
+  /// legitimately re-run. Failure tracking needs the
   /// opposite: a model that retries the *same* failing/denied command under
   /// reworded `reason` text is repeating one action, so
   /// [nonSemanticArgumentKeys] are stripped here.
