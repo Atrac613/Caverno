@@ -1020,9 +1020,19 @@ class LiveLlmDiagnosticService {
       final schemaResult = await structuredDataSource
           .createStructuredChatCompletion(
             messages: _messages(
+              // The values are named here, as the json_object arm names its
+              // own, so the two arms differ only in the format they request.
+              // Asking abstractly ("follow the supplied response schema") is
+              // answerable only when the schema actually reaches the model: a
+              // serving path that drops response_format leaves nothing to
+              // produce, and the model reasons in circles to the token cap.
+              // Measured on Qwen3.8-Flash-Next-Q2 and qwen/qwen3.8-flash --
+              // and a curl replay of the same request shape with the values
+              // named returned in ~5 s, with or without `strict`.
               user:
-                  'Produce one diagnostic object that follows the supplied response '
-                  'schema. Do not add markdown or explanatory text.',
+                  'Return one JSON object with exactly these two fields and no '
+                  'markdown, matching the supplied response schema: '
+                  '{"marker":"$_structuredOutputSchemaMarker","count":47}',
             ),
             responseFormat: const StructuredOutputRequest.jsonSchema(
               name: 'caverno_live_diagnostic',

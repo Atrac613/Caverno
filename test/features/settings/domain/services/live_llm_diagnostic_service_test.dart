@@ -613,6 +613,28 @@ void main() {
     );
   });
 
+  test('names the expected values in the json_schema prompt', () async {
+    final dataSource = _FakeDiagnosticDataSource();
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    await service.run(probeIds: {'structured_output'});
+
+    // Asking abstractly is answerable only when the schema reaches the model;
+    // a serving path that drops response_format leaves nothing to produce and
+    // the model reasons to the token cap. The two arms must ask the same thing
+    // and differ only in the format they request.
+    expect(dataSource.schemaArmPrompt, contains('CAVERNO_SCHEMA_LOCKED_47'));
+    expect(dataSource.schemaArmPrompt, contains('"count":47'));
+    expect(
+      dataSource.schemaArmPrompt,
+      contains('matching the supplied response schema'),
+    );
+  });
+
   test('scores a schema answer buried under a braced think block', () async {
     // Regression: the merged <think> prose contains a brace, so decoding the
     // raw content sliced from the thought into the answer and reported a
@@ -1469,6 +1491,9 @@ class _FakeDiagnosticDataSource
   final bool textToolCalls;
   final ModelStructuredOutputSupport structuredOutputSupport;
 
+  /// The last json_schema arm prompt, so a test can assert what it asked for.
+  String? schemaArmPrompt;
+
   /// Reasons to the token cap and returns no answer, the way a model does
   /// when the endpoint silently dropped the schema it was told to follow.
   final bool schemaArmRunsToTokenCap;
@@ -1563,6 +1588,7 @@ class _FakeDiagnosticDataSource
   }) async {
     requestedModels.add(model);
     if (responseFormat.format == StructuredOutputFormat.jsonSchema) {
+      schemaArmPrompt = messages.last.content;
       if (schemaArmRunsToTokenCap) {
         // An endpoint that drops response_format leaves the schema arm's
         // prompt with no values to produce, so the model reasons to the cap.
