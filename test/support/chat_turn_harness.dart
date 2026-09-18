@@ -154,10 +154,11 @@ final class ScriptedChatDataSource extends ChatRemoteDataSource {
   ///
   /// A tool-calling turn does not end at its tool-result follow-up: the loop
   /// re-sends the results as a user-role message and streams the final answer
-  /// through `streamChatCompletion` (see CLAUDE.md, "Tool Calling Flow"). Until
-  /// this list existed that method was hard-coded to `done`, so a test could
-  /// script a turn's tools but not its answer -- which silently turned an
-  /// assertion about the answer into an assertion about the fallback.
+  /// through `streamChatCompletion` (see docs/architecture.md, "Tool Calling
+  /// Flow"). Until this list existed that method was hard-coded to `done`, so
+  /// a test could script a turn's tools but not its answer -- which silently
+  /// turned an assertion about the answer into an assertion about the
+  /// fallback.
   ///
   /// Empty by default, preserving the `done` fallback the private doubles had.
   final List<ScriptedStep> _streamedSteps;

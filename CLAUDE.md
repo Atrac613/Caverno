@@ -1,334 +1,21 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository.
+Codex reads `AGENTS.md`. The two files overlap but are not identical and are
+maintained separately, so do not assume a rule here appears there.
 
 ## Project Overview
 
-Caverno is a Flutter chat client for OpenAI-compatible LLM APIs with tool calling (MCP protocol + built-in tools), session memory, voice I/O, and a routine scheduler. It defaults to a local LLM server (`localhost:1234`) but supports any OpenAI-compatible endpoint. Runs on iOS, Android, macOS, Windows, and Linux.
-
-## Build & Development Commands
-
-```bash
-# Flutter version (managed via FVM)
-fvm use 3.47.4
-
-# Install dependencies
-flutter pub get
-
-# Code generation (freezed + json_serializable) — run after modifying entity classes
-dart run build_runner build --delete-conflicting-outputs
-
-# Regenerate the embedded Python worker asset (run_python_script tool) after
-# editing lib/core/services/script_runtime/worker/ (incl. its vendored
-# __pypackages__/ deps). Produces a deterministic assets/python/app.zip:
-python3 tool/pack_python_worker.py
-# To vendor another pure-Python package (mobile supports pure-Python wheels
-# only), install it into the worker's __pypackages__/ and repackage:
-#   python3 -m pip install --no-deps --no-compile \
-#     --target lib/core/services/script_runtime/worker/__pypackages__ <package>
-#   python3 tool/pack_python_worker.py
-
-# serious_python (embedded Python) native setup — run once per machine after
-# `flutter pub get`. Stages the interpreter (Python.xcframework + compiled
-# stdlib) into dist_{ios,macos}/{xcframeworks,stdlib} and the Android site dirs.
-# pod install runs the same staging via the podspec's prepare_command, so this
-# is mostly to pre-stage + validate; Android still needs the env var below.
-# Note: it prints a benign "cp: .../iphoneos.arm64/*: No such file" / "total
-# size is 0" while syncing the (empty) pure-Python site-packages — expected.
-tool/prepare_serious_python.sh
-# iOS/macOS are then ready to build. Android ALSO needs the env var at build
-# time (the gradle plugin reads it live):
-#   export SERIOUS_PYTHON_SITE_PACKAGES="$(pwd)/build/serious_python_site"
-#   flutter run -d <android>   # or: flutter build apk
-
-# Lint
-flutter analyze
-
-# Run tests. Prints one line when green, and only the failing tests -- error,
-# filtered stack, and that test's own captured output -- when red. The raw
-# reporter emits ~3.4 MB for a green full run (and ~844 KB for
-# chat_notifier_test.dart alone), which an agent harness truncates to a 2 KB
-# preview -- hiding the very failure the run was meant to surface.
-tool/flutter_test_quiet.sh                       # whole suite
-tool/flutter_test_quiet.sh test/widget_test.dart # single file
-tool/flutter_test_quiet.sh --slowest 5           # add a slow-test list
-tool/flutter_test_quiet.sh --verbose             # also stream the raw reporter
-# The full JSON reporter log stays at build/test_reports/flutter_test.json.
-# tool/codex_verify.sh summarizes the same way; pass --raw-tests to opt out.
-
-# Raw reporter, for when the streaming output itself is what you need
-flutter test
-flutter test test/widget_test.dart
-
-# Bounded repository discovery for agent runs. The complete JSON result is
-# retained under build/codex_reports/. Use raw rg for exact follow-up review.
-tool/codex_rg.sh -- PATTERN [PATH ...]
-tool/codex_rg.sh --max-hits 80 -- PATTERN [PATH ...]
-rg PATTERN [PATH ...]
-
-# Run the embedded-Python integration test on a device/simulator (real
-# serious_python interpreter; proves the run_python_script native path):
-flutter test integration_test/python_runtime_test.dart -d <device-id>
-
-# Run the Python worker regression suite (system python3, no Flutter):
-python3 test/python/worker_test.py
-
-# Run app
-flutter run
-
-# Run macOS app (use the safe-flutter wrapper, see "macOS Build Policy" below)
-tool/safe-flutter run -d macos
-
-# Triage SEC1/SEC2 verification logs (newest session log + today's approval
-# audit, with capability/untrustedInfluence/auto-review verdict). See AGENTS.md.
-tool/sec_verify_logs.sh
-
-# Rank all session logs by how anomalous they look (fr=length truncations,
-# transport errors, tool loops, redundant file re-reads, oversized turns) to
-# find sessions worth a deep-dive. Pure python3; honors
-# CAVERNO_SESSION_LOG_DIR / CAVERNO_HOME. Counts only logs carrying a real LLM
-# request/response; --include-ungrounded also counts test output.
-python3 tool/triage_session_logs.py --top 10 [--since-days N]
-
-# Check whether a shipped harness change has actually fired in a real session,
-# rather than only in its unit tests. Qualified by git ancestry, so a hit from a
-# build that predates the change is flagged as a coincidence. Add a row to
-# SIGNATURES when a change ships.
-#
-# Two corpora are scanned and kept apart, because "used" and "reachable" are
-# different claims: ~/.caverno/session_logs (real sessions) reports FIRED, and
-# build/integration_test_reports (live canaries) reports FIRED (canary only).
-# A canary never raises the in-the-wild count. Passing --dir scans only that
-# directory, as a real-session corpus -- which is what the canary runners use to
-# judge one run in isolation.
-python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
-python3 tool/check_fix_firings.py --no-canaries   # real sessions only
-python3 test/python/check_fix_firings_test.py     # its own tests, no Flutter
-```
-
-## Agent Output Policy
-
-- Use `tool/codex_rg.sh` for broad repository discovery. It prints bounded,
-  path-sorted hits and retains the complete JSON result. Use raw, targeted `rg`
-  for exact confirmation and security-sensitive review. Use `--raw` for
-  file-list, count, quiet-check, or other non-match output modes.
-- Locate files and symbols before reading source. Prefer relevant 200-300-line
-  regions over whole large files. For Git review, start with stats and changed
-  paths, then inspect every material diff directly before concluding.
-- Pass `--quiet-output` when an agent runs `tool/release_ios_macos.sh`,
-  `tool/publish_macos_sparkle_release.sh`,
-  `tool/run_turn_steering_live_canary.sh`, or
-  `tool/run_pro_reasoning_live_canary.sh`. The scripts retain complete logs,
-  emit bounded heartbeats, and show a diagnostic tail on command failure. Their
-  default raw mode remains available for human-operated streaming.
-
-## Live LLM Canary Workflow
-
-When a macOS `flutter_tester` canary targets an HTTP LAN endpoint, use
-`tool/with_live_llm_loopback.sh -- <canary command>`. Do not create an ad hoc
-SSH tunnel or fixed-port relay. Follow
-[`docs/live_llm_canary_agent_runbook.md`](docs/live_llm_canary_agent_runbook.md)
-for endpoint preflight, the smallest bounded probe, evidence inspection, and
-failure triage. Use [`docs/live_llm_canary_coverage.md`](docs/live_llm_canary_coverage.md)
-only after the connection path is proven and broader surface selection is
-needed.
-
-## macOS Build Policy
-
-This repo is regularly checked out as multiple git worktrees (feature branches under `caverno-worktrees/`, AI-agent sandboxes under `~/.codex/worktrees/` and `~/.claude/worktrees/`, milestone branches under `/private/tmp/caverno-m*`, etc.). Each worktree that builds the macOS app emits its own `Caverno.app` claiming `com.noguwo.apps.caverno`. macOS LaunchServices then routes launchd / XPC requests to whichever copy was registered last, TCC grants drift across helper paths, and the Computer Use helper reports `helper_bundle_path_mismatch`.
-
-**Rule:** macOS builds (`flutter build macos`, `flutter run -d macos`, etc.) are allowed only in one worktree, designated as canonical via a gitignored `.macos-canonical` sentinel.
-
-### Designate the canonical worktree
-
-```bash
-# Run this once in the worktree that should own macOS builds:
-touch .macos-canonical
-```
-
-### Build macOS through tool/safe-flutter
-
-The wrapper refuses macOS subcommands when `.macos-canonical` is absent, and otherwise delegates to `fvm flutter` (or `flutter`):
-
-```bash
-tool/safe-flutter run -d macos
-tool/safe-flutter build macos --release
-```
-
-Non-macOS subcommands (`analyze`, `test`, `pub get`, `build apk`, `build ipa`, ...) pass through unchanged, so any worktree can still run lint and tests.
-
-The wrapper is also where compile-time defines are injected: build provenance
-(`CAVERNO_BUILD_*`) and the Remote Coding relay origin
-(`CAVERNO_NOTIFICATION_RELAY_URL`, from the gitignored
-`firebase/dart_defines.json` via `tool/caverno_dart_defines.sh`). **A binary
-built with bare `flutter` sends no push notifications** — the relay client
-resolves to `null` and delivery is skipped with no error anywhere except a
-log line and a warning on the desktop Remote Coding settings page. Use
-`tool/safe-flutter` for anything you intend to test on a device. See
-"Supplying the relay origin" in `docs/remote_coding_fcm_release_gate.md`.
-
-For convenience, optionally add to your shell init:
-
-```bash
-alias caverno-flutter='/Users/<you>/Documents/Workspace/Flutter/caverno/tool/safe-flutter'
-```
-
-One-off bypass without designating the worktree:
-
-```bash
-FLUTTER_ALLOW_MACOS_HERE=1 tool/safe-flutter build macos --release
-```
-
-### Recovery scripts
-
-If multiple worktrees have already produced conflicting `Caverno.app` bundles, or TCC reports the helper as missing permissions:
-
-```bash
-# 1. Clean stale Caverno*.app artifacts + LaunchServices entries.
-tool/macos_dev_preflight.sh
-
-# 2. Diagnose TCC state. Grant Full Disk Access to the terminal for the
-#    richer TCC.db view; the script still runs (via tccutil) without it.
-tool/macos_tcc_diagnose.sh
-
-# 3. Auto-fix detected issues (sudo tccutil reset + helper restart).
-tool/macos_tcc_diagnose.sh --fix
-```
-
-After recovery, the canonical worktree should be the only one that holds a Debug `Caverno.app`. Run `tool/macos_dev_preflight.sh --dry-run` in other worktrees periodically to confirm nothing else has been built.
-
-## Architecture
-
-Clean Architecture with feature-based modules and Riverpod state management.
-
-```
-lib/
-├── core/
-│   ├── constants/    # API defaults, system prompt constants
-│   ├── services/     # TTS/STT, Voicevox, Whisper, SSH, BLE, WiFi, LAN scan,
-│   │                 # notifications, window management, macOS computer-use, etc.
-│   ├── types/        # AssistantMode, WorkspaceMode enums
-│   └── utils/        # ContentParser, Logger, Debouncer, markdown sanitizer
-├── features/
-│   ├── chat/         # Main chat loop: data → domain → presentation
-│   ├── remote_coding/ # Paired-device remote coding (server/client): data → domain → presentation
-│   ├── routines/     # Scheduled/recurring agent runs: data → domain → presentation
-│   └── settings/     # App configuration: data → domain → presentation
-└── main.dart         # Bootstraps Hive boxes, SharedPreferences, EasyLocalization,
-                      # desktop window restoration, Riverpod overrides
-```
-
-There is no `lib/shared/`; shared UI lives inside the feature it serves.
-
-### Key Architectural Decisions
-
-- **State management**: Riverpod with `Notifier` / `NotifierProvider` pattern (not BLoC)
-- **Immutable entities**: All domain entities use Freezed (`Message`, `Conversation`, `AppSettings`, `ChatState`, `McpToolEntity`, `Routine`, `SessionMemory`, plan artifacts, etc.)
-- **Storage**: Hive for conversations and chat memory (JSON-serialized strings), SharedPreferences for settings and window geometry, `flutter_secure_storage` for SSH credentials
-- **API client**: `openai_dart` package wrapping OpenAI-compatible endpoints
-- **Navigation**: Single-page `ChatPage` with modal sheets (settings, plan editor) and conversation drawer; routines have their own page tree but no router package — push/pop via `Navigator`
-- **i18n**: `easy_localization` with `assets/translations/{en,ja}.json`, locale resolved via `AppLanguageResolver` from settings + system locale
-
-### Data Flow
-
-1. `main.dart` initializes Hive boxes (`conversations`, `chat_memory`), SharedPreferences, EasyLocalization, and (on desktop) `WindowManagerService`. All shared resources are passed via Riverpod overrides.
-2. `ChatNotifier` (Notifier, split across `chat_notifier*.dart` files) orchestrates the chat loop:
-   - Builds system prompt via `SystemPromptBuilder` (temporal context, session memory, tool names, assistant mode)
-   - Sends to LLM via `ChatRemoteDataSource` (streaming or non-streaming)
-   - If tools enabled: runs a tool-calling loop (capped iterations), re-sends results as user-role messages for the final streaming answer
-   - On completion: saves to Hive via `ConversationsNotifier`, extracts session memory via a secondary LLM call (`SessionMemoryService`), may emit plan/workflow artifacts
-3. `SettingsNotifier` persists settings to SharedPreferences; changes reactively update `ChatNotifier` and others via `ref.listen`
-4. `RoutinesNotifier` + `RoutineScheduler` run routines on schedule using `RoutineExecutionService`, which reuses the chat datasource and a `RoutineToolRunner` constrained by `RoutineToolPolicy`
-
-### Tool Calling Flow
-
-Tool calling logic lives in `ChatNotifier` and its handler part-files (`chat_notifier_*_handlers.dart` for BLE, SSH, Git, local files, macOS computer-use). It has a specific pattern:
-
-- First request sends only search-class tools (prevents the LLM from calling `web_url_read` before having a URL)
-- Tool results are collected, then re-sent as a **user role** message (not tool role) for the final streaming answer — some LLMs handle tool-role messages poorly
-- Content-embedded `<tool_call>` / `<tool_use>` tags in streaming responses are detected by `ContentParser` and executed inline
-- High-risk tools (shell, filesystem write, computer-use, SSH) require user approval, cached via `ToolApprovalCache`
-
-### Built-in Tool Catalog
-
-`lib/features/chat/data/datasources/` exposes built-in tools alongside MCP:
-
-- **Web / search**: `searxng_client`, web URL fetching
-- **MCP**: `mcp_client` (HTTP/SSE) and `mcp_stdio_client` (stdio) via `mcp_tool_service`
-- **Local code/files**: `filesystem_tools`, `git_tools`, `local_shell_tools`
-- **Network**: `network_tools`, `lan_scan_tools`, `wifi_tools`
-- **Devices**: `ble_tools` (Bluetooth LE)
-- **OS**: `os_log_tools`, macOS computer-use (`core/services/macos_computer_use_*.dart`)
-
-### Session Memory System
-
-`SessionMemoryService` + `ChatMemoryRepository` manage persistent user memory:
-
-- On the first message of a new session, injects past context into the system prompt
-- After each assistant response, extracts memory via a secondary LLM call (`MemoryExtractionDraftService` + `MemoryExtractionJsonParser`)
-- Tracks user profile (persona, preferences, constraints) with TTL and confidence scores
-- Falls back to rule-based extraction if LLM JSON extraction fails
-
-### Content Parsing
-
-`ContentParser` handles special tags in LLM responses:
-
-- `<think>` blocks (reasoning / chain-of-thought)
-- `<tool_call>` / `<tool_use>` blocks (inline tool invocations)
-- Supports incomplete/streaming tags gracefully (renders partial state without flicker)
-
-### Plan / Workflow System
-
-For multi-step tasks, `ChatNotifier` can produce a structured plan instead of a free-form answer. Relevant services live in `features/chat/domain/services/conversation_plan_*.dart` and `conversation_execution_*.dart`:
-
-- `ConversationPlanningPromptService` — builds the planning request
-- `ConversationPlanDocumentBuilder` / `ConversationPlanProjectionService` — assemble the plan artifact and its UI projection
-- `ConversationPlanExecutionCoordinator` + `ConversationPlanExecutionGuardrails` — drive step execution with safety checks
-- `ConversationPlanDiffService` / `ConversationPlanHash` — track plan revisions
-- `ConversationExecutionRecoveryService` / `ConversationExecutionSummaryService` — handle interrupted runs and post-run summaries
-
-Plan UI: `features/chat/presentation/widgets/plan/` (review sheet, editor sheet, approval sheet, timeline card, revision history).
-
-### Voice Mode
-
-`VoiceModeNotifier` orchestrates push-to-talk and continuous voice chat:
-
-- **STT**: `stt_service` (on-device `speech_to_text`) or `whisper_service` (remote Whisper-compatible endpoint)
-- **TTS**: `tts_service` (platform TTS via `flutter_tts`) or `voicevox_service` + `voicevox_audio_player` (remote VOICEVOX)
-- `voice_recorder` captures audio for Whisper; `voice_mode_overlay` is the active-call UI
-
-### Routines
-
-`features/routines/` lets the user save recurring prompts/agent runs:
-
-- `Routine` entity with schedule (cron-like) and tool policy
-- `RoutineScheduler` (provider) wakes routines using `flutter_local_notifications`; `RoutineExecutionService` runs them against the chat datasource
-- `RoutineToolPolicy` restricts which tools a routine can call
-- `RoutineCompletionActionService` dispatches the result (e.g., notification, Google Chat via `google_chat_delivery_service`)
-
-### Desktop Window Management
-
-On macOS / Windows / Linux, `WindowManagerService` + `WindowSettingsService` restore previous window size and position from SharedPreferences at startup.
-
-## Entity Changes
-
-When modifying Freezed entity classes (`*.dart` files in any `domain/entities/`), always regenerate:
-
-```bash
-dart run build_runner build --delete-conflicting-outputs
-```
-
-Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
-
-## Default Configuration
-
-Defined in `lib/core/constants/api_constants.dart`:
-
-- Base URL: `http://localhost:1234/v1`
-- Model: `qwen3.6-27b-mtp-vision`
-- API Key: `no-key`
-- Temperature: 0.7, Max Tokens: 4096
-- Assistant modes (`core/types/assistant_mode.dart`): `general` (default), `coding`, `plan`
+Caverno is a Flutter chat client for OpenAI-compatible LLM APIs with tool
+calling (MCP protocol + built-in tools), session memory, voice I/O, and a
+routine scheduler. It defaults to a local LLM server (`localhost:1234`) but
+supports any OpenAI-compatible endpoint. Runs on iOS, Android, macOS, Windows,
+and Linux.
+
+Architecture, data flow, the tool-calling loop, the plan system, session memory
+and the default configuration live in
+[`docs/architecture.md`](docs/architecture.md). Read it before changing any of
+them.
 
 # ──────────────────────────────────────────────
 # GIT & COMMIT RULES - HIGHEST PRIORITY
@@ -352,6 +39,8 @@ Defined in `lib/core/constants/api_constants.dart`:
     Good: "Add user authentication endpoint"
     Bad:  "ユーザ認証エンドポイントを追加" / "Added endpoint."
 - Body: explain **why** + **how** (optional, but 2-5 lines recommended for non-trivial changes)
+- Pull request titles MUST also use Conventional Commits format and MUST NOT
+  use tool prefixes such as "[claude]" or "[codex]".
 - NEVER include "Co-authored-by", "Generated by Claude", or any AI attribution unless explicitly requested.
 - Keep commits **atomic** and **focused** (one logical change per commit)
 
@@ -396,3 +85,202 @@ Defined in `lib/core/constants/api_constants.dart`:
 ## Enforcement
 - If any part of generated code violates this, correct it automatically before proposing changes.
 - When user asks for Japanese comments, politely refuse and suggest English instead, citing this rule.
+
+## Build & Development Commands
+
+```bash
+# Flutter version (managed via FVM)
+fvm use 3.47.4
+
+# Install dependencies
+flutter pub get
+
+# Code generation (freezed + json_serializable) — run after modifying any
+# entity in a domain/entities/ directory. Generated *.freezed.dart / *.g.dart
+# files are committed to the repo.
+dart run build_runner build --delete-conflicting-outputs
+
+# Lint
+flutter analyze
+
+# Run tests. Prints one line when green, and only the failing tests -- error,
+# filtered stack, and that test's own captured output -- when red. The raw
+# reporter emits ~3.4 MB for a green full run (and ~844 KB for
+# chat_notifier_test.dart alone), which an agent harness truncates to a 2 KB
+# preview -- hiding the very failure the run was meant to surface.
+tool/flutter_test_quiet.sh                       # whole suite
+tool/flutter_test_quiet.sh test/widget_test.dart # single file
+tool/flutter_test_quiet.sh --slowest 5           # add a slow-test list
+tool/flutter_test_quiet.sh --verbose             # also stream the raw reporter
+# The full JSON reporter log stays at build/test_reports/flutter_test.json.
+
+# Raw reporter, for when the streaming output itself is what you need
+flutter test
+flutter test test/widget_test.dart
+
+# Bounded repository discovery for agent runs. The complete JSON result is
+# retained under build/codex_reports/. Use raw rg for exact follow-up review.
+tool/codex_rg.sh -- PATTERN [PATH ...]
+tool/codex_rg.sh --max-hits 80 -- PATTERN [PATH ...]
+
+# Run app. macOS MUST go through the wrapper -- see "macOS Build Policy".
+flutter run
+tool/safe-flutter run -d macos
+```
+
+### Embedded Python (run_python_script)
+
+```bash
+# Repack the worker asset after editing
+# lib/core/services/script_runtime/worker/ or its vendored __pypackages__/.
+# Produces a deterministic assets/python/app.zip.
+python3 tool/pack_python_worker.py
+```
+
+Vendoring a package, the one-time-per-machine `serious_python` native setup and
+the worker's two test entrypoints are in
+[`docs/embedded_python.md`](docs/embedded_python.md).
+
+## Verification & Lint
+
+- `tool/codex_verify.sh` is the default local verification entrypoint. Add
+  `--coverage` when test coverage or missing edge cases are part of the task.
+  It summarizes test output the same way as `tool/flutter_test_quiet.sh`
+  (`--raw-tests` restores the full reporter stream), and automatically uses
+  `fvm flutter` / `fvm dart` when FVM metadata is present.
+- **Never run bare `dart fix --apply`.** Always scope it:
+  `dart fix --apply --code=<rule>`.
+- `analysis_options.yaml` extends `package:flutter_lints` with rules chosen by
+  measuring the whole repository first. Read
+  [`docs/lint_policy.md`](docs/lint_policy.md) before enabling or disabling a
+  rule; it records what was rejected and why, including three rules whose
+  auto-fix changed behaviour or broke the build.
+- `tool/fixtures/**` is excluded from analysis: those corpora are
+  content-hashed by the rag2 extraction eval tests.
+
+## Agent Output Policy
+
+- Use `tool/codex_rg.sh` for broad repository discovery. It prints bounded,
+  path-sorted hits and retains the complete JSON result. Use raw, targeted `rg`
+  for exact confirmation and security-sensitive review. Use `--raw` for
+  file-list, count, quiet-check, or other non-match output modes.
+- Locate files and symbols before reading source. Prefer relevant 200-300-line
+  regions over whole large files. For Git review, start with stats and changed
+  paths, then inspect every material diff directly before concluding.
+- Pass `--quiet-output` when an agent runs `tool/release_ios_macos.sh`,
+  `tool/publish_macos_sparkle_release.sh`,
+  `tool/run_turn_steering_live_canary.sh`, or
+  `tool/run_pro_reasoning_live_canary.sh`. The scripts retain complete logs,
+  emit bounded heartbeats, and show a diagnostic tail on command failure. Their
+  default raw mode remains available for human-operated streaming.
+
+## Working Practice
+
+- Start large or risky changes with a short implementation plan before editing:
+  anything touching multiple feature layers, tool execution, Plan Mode,
+  Computer Use, persistence, generated entities, or release gates.
+- Keep implementation slices small enough to review in roughly one hour or a
+  few hundred lines. Prefer follow-up tasks over broad mixed changes.
+- After fixing a bug, search for adjacent patterns that could carry the same
+  defect, and record the search terms or inspected files in the handoff.
+- For large-file refactors follow
+  [`docs/large_file_refactor_plan.md`](docs/large_file_refactor_plan.md):
+  preserve behavior first, move one concern at a time, keep focused tests green
+  after each slice.
+
+## macOS Build Policy
+
+This repo is regularly checked out as multiple git worktrees (feature branches,
+AI-agent sandboxes under `~/.codex/worktrees/` and `~/.claude/worktrees/`,
+milestone branches under `/private/tmp/caverno-m*`). Every worktree that builds
+the macOS app emits its own `Caverno.app` claiming `com.noguwo.apps.caverno`,
+so LaunchServices routes launchd / XPC to whichever copy registered last and the
+Computer Use helper reports `helper_bundle_path_mismatch`.
+
+**Rule:** macOS builds are allowed only in the one worktree holding the
+gitignored `.macos-canonical` sentinel, and only through `tool/safe-flutter`,
+which refuses macOS subcommands elsewhere.
+
+```bash
+touch .macos-canonical              # designate this worktree, once
+tool/safe-flutter run -d macos
+tool/safe-flutter build macos --release
+```
+
+`tool/safe-flutter` also injects the compile-time defines: build provenance
+(`CAVERNO_BUILD_*`) and the Remote Coding relay origin
+(`CAVERNO_NOTIFICATION_RELAY_URL`). **A binary built with bare `flutter` sends
+no push notifications** — the relay client resolves to `null` and delivery is
+skipped silently. Use `tool/safe-flutter` for anything you intend to test on a
+device.
+
+Non-macOS subcommands pass through unchanged, so any worktree can run lint and
+tests. Full reasoning, the one-off bypass, and the TCC/LaunchServices recovery
+scripts are in [`docs/macos_build_policy.md`](docs/macos_build_policy.md).
+
+## Live LLM Canary Workflow
+
+When a macOS `flutter_tester` canary targets an HTTP LAN endpoint, use
+`tool/with_live_llm_loopback.sh -- <canary command>`. Do not create an ad hoc
+SSH tunnel or fixed-port relay; the managed wrapper owns port allocation,
+evidence metadata, and cleanup. Follow
+[`docs/live_llm_canary_agent_runbook.md`](docs/live_llm_canary_agent_runbook.md)
+for endpoint preflight, the smallest bounded probe, evidence inspection, and
+failure triage. Use
+[`docs/live_llm_canary_coverage.md`](docs/live_llm_canary_coverage.md) only
+after the connection path is proven and broader surface selection is needed.
+
+## Local Log Files
+
+Caverno writes three local sinks under `$HOME/.caverno/`, all managed from
+Advanced > Logging in the app. Treat every one as sensitive — prompts, tool
+arguments, tool results, auto-review packets and diff previews can survive
+redaction — and never commit them.
+
+| Sink | Path | Override | Notes |
+| --- | --- | --- | --- |
+| LLM session logs | `session_logs/{chat,coding,routines}/` | `CAVERNO_SESSION_LOG_DIR` | On in debug, off on a fresh release install (SEC4.6k-C). `CAVERNO_SESSION_LOG_ENABLED=0` forces off. Schema `caverno_llm_session_log_entry`. |
+| Approval audit | `approval_audit/<YYYY-MM-DD>.jsonl` | `CAVERNO_APPROVAL_AUDIT_DIR` | Always on and deliberately not disableable: it records only the high-risk approvals the user never saw individually. Schema `caverno_tool_approval_audit_entry` (v3). |
+| App log file | `app_logs/<YYYY-MM-DD>.log` | `CAVERNO_APP_LOG_DIR` | On in debug, off in release. Never written under `flutter test`. Retained 7 days. |
+
+Read [`docs/session_logs.md`](docs/session_logs.md) before changing log schema,
+redaction, retention, or analysis workflows.
+
+```bash
+# Newest session log(s) + that day's approval-audit entries, with their SEC1/SEC2
+# perimeter fields (capability class/risk, untrustedInfluence, auto-review verdict).
+tool/sec_verify_logs.sh [N] [YYYY-MM-DD]
+
+# Rank every session log by anomaly score (fr=length truncations, transport
+# errors, tool loops, redundant file re-reads, oversized turns) to find sessions
+# worth a deep-dive. Counts only *grounded* logs -- those carrying a real LLM
+# request/response -- because logs with turn markers but no inference are test
+# output, and mixing them in inflated every published figure before 2026-08-05.
+# --include-ungrounded restores the old behavior. Honors CAVERNO_SESSION_LOG_DIR
+# / CAVERNO_HOME.
+python3 tool/triage_session_logs.py --top 10 [--since-days N]
+
+# Has a shipped harness change actually fired in a real session, rather than only
+# in its unit tests? Qualified by git ancestry, so a hit from a build predating
+# the change is flagged as a coincidence. Add a row to SIGNATURES when a change
+# ships. Real sessions (~/.caverno/session_logs) report FIRED; live canaries
+# (build/integration_test_reports) report FIRED (canary only) and never raise the
+# in-the-wild count. --dir scans one directory as a real-session corpus.
+python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
+python3 tool/check_fix_firings.py --no-canaries   # real sessions only
+python3 test/python/check_fix_firings_test.py     # its own tests, no Flutter
+```
+
+## Reference Documents
+
+| Document | Covers |
+| --- | --- |
+| [`docs/architecture.md`](docs/architecture.md) | Layering, data flow, tool-calling loop, built-in tool catalog, session memory, plan system, voice mode, routines, default configuration |
+| [`docs/macos_build_policy.md`](docs/macos_build_policy.md) | Why macOS builds are single-worktree, and the TCC / LaunchServices recovery scripts |
+| [`docs/session_logs.md`](docs/session_logs.md) | Session log schema, redaction, retention, analysis workflow |
+| [`docs/embedded_python.md`](docs/embedded_python.md) | Vendoring into the Python worker, and the `serious_python` native setup |
+| [`docs/lint_policy.md`](docs/lint_policy.md) | Which lints were adopted or rejected, and the rules for running `dart fix` |
+| [`docs/live_llm_canary_agent_runbook.md`](docs/live_llm_canary_agent_runbook.md) | Live LLM canary preflight, bounded probes, evidence, failure triage |
+| [`docs/large_file_refactor_plan.md`](docs/large_file_refactor_plan.md) | How to slice a large-file refactor without losing behavior |
+| [`docs/roadmap.md`](docs/roadmap.md) | Cross-track roadmap index |
+| [`AGENTS.md`](AGENTS.md) | The Codex entrypoint. Shorter and independently maintained; it carries scope/verification and authorization rules this file does not |
