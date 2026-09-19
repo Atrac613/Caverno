@@ -202,6 +202,7 @@ import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/tool_result_taint_recorder.dart';
 import '../../domain/services/tool_terminal_response_policy.dart';
 import '../../domain/services/tool_terminal_success_policy.dart';
+import '../../domain/services/truncated_reasoning_continuation.dart';
 import '../../domain/services/truncated_tool_call_arguments_guard.dart';
 import '../../domain/services/turn_diff_service.dart';
 import '../../domain/services/turn_finalization_recovery_policy.dart';
@@ -377,6 +378,7 @@ class ChatNotifier extends Notifier<ChatState> {
   late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
   late SshService _sshService;
+  final _truncatedReasoning = const TruncatedReasoningContinuation();
   final _toolLoopRecoveryPolicy = const ToolLoopRecoveryPolicy();
   final _toolCallExecutionPolicy = const ToolCallExecutionPolicy();
   final _claims = const FinalAnswerClaimDetector();
@@ -1731,7 +1733,7 @@ class ChatNotifier extends Notifier<ChatState> {
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
   }) {
-    return _buildToolLoopExhaustionRecoveryPrompt(
+    return _toolLoopRecoveryPolicy.buildExhaustionRecoveryPrompt(
       toolCalls,
       previousToolResults: previousToolResults,
     );
@@ -5273,6 +5275,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     var iteration = 0;
     var hasTextResponse = false;
+    var truncatedBeforeAnswer = false;
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
     final executedToolResults = <ToolResultInfo>[];
@@ -5872,7 +5875,7 @@ class ChatNotifier extends Notifier<ChatState> {
               Message(
                 id: 'tool_loop_exhaustion_recovery_${DateTime.now().millisecondsSinceEpoch}',
                 role: MessageRole.user,
-                content: _buildToolLoopExhaustionRecoveryPrompt(
+                content: _toolLoopRecoveryPolicy.buildExhaustionRecoveryPrompt(
                   currentToolCalls,
                   previousToolResults: recoveryToolResults,
                 ),
@@ -5933,6 +5936,11 @@ class ChatNotifier extends Notifier<ChatState> {
         }
       } else {
         // End the loop on a text response, but delay rendering it.
+        truncatedBeforeAnswer |= _truncatedReasoning.isCutOffBeforeAnswer(
+          finishReason: nextResult.finishReason,
+          content: nextResult.content,
+          hasToolCalls: false,
+        );
         appLog('[Tool] LLM returned final text response (via tool role)');
         currentToolCalls = [];
         final fallbackResponse = savedValidationSucceededInLoop
@@ -6448,7 +6456,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final shouldRequestPendingActionRecovery = _pendingActions
           .shouldRequestActionOnlyRecovery(
-            finishReason: _responseMetadata.finishReasonFor(turnOwner),
+            finishReason: truncatedBeforeAnswer
+                ? 'length'
+                : _responseMetadata.finishReasonFor(turnOwner),
             isCodingWorkspace: _isCodingWorkspaceOrMode(interactionGeneration),
             hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
               recoveryTools,
@@ -7341,16 +7351,6 @@ class ChatNotifier extends Notifier<ChatState> {
       previousToolResults,
     ),
   );
-
-  String _buildToolLoopExhaustionRecoveryPrompt(
-    List<ToolCallInfo> toolCalls, {
-    List<ToolResultInfo> previousToolResults = const [],
-  }) {
-    return _toolLoopRecoveryPolicy.buildExhaustionRecoveryPrompt(
-      toolCalls,
-      previousToolResults: previousToolResults,
-    );
-  }
 
   List<ToolResultInfo> _buildToolLoopRecoveryToolResults({
     required List<ToolResultInfo> currentToolResults,
