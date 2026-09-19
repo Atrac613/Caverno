@@ -140,11 +140,24 @@ class ToolLoopContextDigest {
   /// tail (the old head-only cap) dropped exactly the entries worth reminding
   /// about (session b73801da: 3 files at first-seen indices 15/18/19 fell off a
   /// 16-entry cap and were promptly re-read).
+  /// [carried] are the results the same request sends in full. Naming one of
+  /// those here would tell the model its output is absent while it sits in the
+  /// very same payload, so every label they cover is skipped. The current
+  /// batch has always been in this position and was always listed anyway.
   String build(
     List<ToolResultInfo> results, {
     int maxEntries = 32,
     int minEntries = 2,
+    List<ToolResultInfo> carried = const <ToolResultInfo>[],
   }) {
+    final carriedLabels = <String>{};
+    for (final result in carried) {
+      final name = result.name.trim().toLowerCase();
+      final label = _digestableCommandTools.contains(name)
+          ? _commandLabelFor(name, result.arguments)
+          : _labelFor(name, result.arguments);
+      if (label != null) carriedLabels.add(label);
+    }
     // Preserve first-seen order of distinct labels while collecting every
     // result body for each, so a label repeated with identical output can be
     // flagged as `unchanged`. Track each label's most recent position too, so
@@ -195,7 +208,7 @@ class ToolLoopContextDigest {
       final label = isCommand
           ? _commandLabelFor(name, result.arguments)
           : _labelFor(name, result.arguments);
-      if (label == null) {
+      if (label == null || carriedLabels.contains(label)) {
         continue;
       }
       if (isCommand) {
@@ -253,7 +266,8 @@ class ToolLoopContextDigest {
         final repeated = bodies.length >= 2;
         final exitCode = commandExitCodes[label];
         final facts = <String>[
-          if (exitCode != null) repeated ? 'last exit $exitCode' : 'exit $exitCode',
+          if (exitCode != null)
+            repeated ? 'last exit $exitCode' : 'exit $exitCode',
           if (repeated) 'already run ${bodies.length}x this turn',
         ];
         commandLines.add(
@@ -287,14 +301,15 @@ class ToolLoopContextDigest {
     for (final label in mutationOrder) {
       final status = mutationStatus[label]!;
       if (status.failureCode case final code?) {
-        mutationLines.add('- $label — FAILED ($code); the file was not changed');
+        mutationLines.add(
+          '- $label — FAILED ($code); the file was not changed',
+        );
         continue;
       }
       final facts = <String>[
         // A byte-identical write reports the same success as a real one, which
         // is what lets an edit → run → re-read loop spin without progress.
-        if (status.changed == false)
-          'no-op: the file was already exactly this',
+        if (status.changed == false) 'no-op: the file was already exactly this',
         if ((lastMutationPosition[label] ?? -1) > lastCheckPosition)
           'no command or check has run since',
       ];
@@ -534,7 +549,8 @@ class _MutationStatus {
     }
     if (decoded is Map<String, dynamic>) {
       final error = decoded['error'];
-      if (decoded['ok'] == false || (error is String && error.trim().isNotEmpty)) {
+      if (decoded['ok'] == false ||
+          (error is String && error.trim().isNotEmpty)) {
         final code = decoded['code'];
         return _MutationStatus(
           failureCode: code is String && code.trim().isNotEmpty

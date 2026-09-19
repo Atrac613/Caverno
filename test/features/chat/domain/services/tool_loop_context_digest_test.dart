@@ -754,6 +754,37 @@ void main() {
       expect(label, endsWith('…'));
       expect(label.length, lessThanOrEqualTo(121));
     });
+
+    test('omits what the same request carries in full', () {
+      final read = _result('read_file', {'path': 'pubspec.yaml'});
+      final command = _result('git_execute_command', {
+        'command': 'tag --list',
+      }, exitCode: 0);
+      // Two survivors, because the digest stays silent below minEntries.
+      final other = _result('read_file', {'path': 'lib/main.dart'});
+      final another = _result('read_file', {'path': 'lib/app.dart'});
+
+      final digest = const ToolLoopContextDigest().build(
+        [read, command, other, another],
+        carried: [read, command],
+      );
+
+      // Naming a result whose body travels in the same payload would tell the
+      // model its output is absent while it sits right there.
+      expect(digest, isNot(contains('pubspec.yaml')));
+      expect(digest, isNot(contains('tag --list')));
+      expect(digest, contains('lib/main.dart'));
+      expect(digest, contains('lib/app.dart'));
+    });
+
+    test('says nothing at all when every result is carried', () {
+      final read = _result('read_file', {'path': 'pubspec.yaml'});
+
+      expect(
+        const ToolLoopContextDigest().build([read], carried: [read]),
+        isEmpty,
+      );
+    });
   });
 }
 

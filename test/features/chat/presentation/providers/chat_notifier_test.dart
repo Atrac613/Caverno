@@ -6279,70 +6279,75 @@ void main() {
     },
   );
 
-  test('sendMessage marks plan-only final tool answers as unexecuted', () async {
-    final toolLoopResponses = _toolLoopResponsesThroughRecoveredRead();
-    final toolDataSource = _QueuedToolLoopChatDataSource(
-      initialToolCalls: [
-        ToolCallInfo(
-          id: 'tool-command-0',
-          name: 'local_execute_command',
-          arguments: const {'command': 'probe-0'},
-        ),
-      ],
-      toolLoopResponses: toolLoopResponses,
-      finalAnswerChunks: const [
-        'Investigation plan\n\n'
-            '1. Inspect the universal_ble Android implementation.\n'
-            '2. Trace the notification byte flow.\n'
-            '3. Check parser conversion boundaries.\n\n'
-            'First, I will inspect the universal_ble Android implementation.',
-      ],
-    );
-    final toolService = _FakeMcpToolService(
-      results: const {
-        'local_execute_command':
-            '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
-        'read_file':
-            '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
-      },
-    );
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final toolContainer = ProviderContainer(
-      overrides: [
-        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
-        conversationsNotifierProvider.overrideWith(
-          _TestConversationsNotifier.new,
-        ),
-        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
-        sessionMemoryServiceProvider.overrideWithValue(
-          _TestSessionMemoryService(),
-        ),
-        mcpToolServiceProvider.overrideWithValue(toolService),
-        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-        backgroundTaskServiceProvider.overrideWithValue(
-          _TestBackgroundTaskService(),
-        ),
-      ],
-    );
-    try {
-      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-      final appLogs = captureAppLog();
-      await toolNotifier.sendMessage('Find and read the interrupted log');
-
-      final finalPrompt = toolDataSource.finalAnswerMessages
-          .map((message) => message.content)
-          .join('\n');
-      expect(finalPrompt, contains('Do not restate an investigation plan'));
-      expectUnexecutedToolRequestLogged(
-        appLogs,
-        toolNotifier.state.messages.last.content,
+  test(
+    'sendMessage marks plan-only final tool answers as unexecuted',
+    () async {
+      final toolLoopResponses = _toolLoopResponsesThroughRecoveredRead();
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-0',
+            name: 'local_execute_command',
+            arguments: const {'command': 'probe-0'},
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const [
+          'Investigation plan\n\n'
+              '1. Inspect the universal_ble Android implementation.\n'
+              '2. Trace the notification byte flow.\n'
+              '3. Check parser conversion boundaries.\n\n'
+              'First, I will inspect the universal_ble Android implementation.',
+        ],
       );
-    } finally {
-      toolContainer.dispose();
-    }
-  });
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
+          'read_file':
+              '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        final appLogs = captureAppLog();
+        await toolNotifier.sendMessage('Find and read the interrupted log');
+
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(finalPrompt, contains('Do not restate an investigation plan'));
+        expectUnexecutedToolRequestLogged(
+          appLogs,
+          toolNotifier.state.messages.last.content,
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage discovers a deferred tool with tool_search before execution',
@@ -8335,10 +8340,12 @@ with open(path, "rb") as file:
             .map((batch) => batch.map((item) => item.name).toList())
             .toList(),
         [
+          // Each follow-up carries the reads it still needs, not only the
+          // batch that just ran -- see RecentReadResultCarry.
           ['list_directory'],
-          ['read_file'],
           ['list_directory', 'read_file'],
-          ['write_test_file'],
+          ['list_directory', 'read_file'],
+          ['list_directory', 'read_file', 'write_test_file'],
         ],
       );
       expect(
@@ -8539,7 +8546,7 @@ with open(path, "rb") as file:
               .toList(),
           [
             ['list_directory'],
-            ['read_file'],
+            ['list_directory', 'read_file'],
             ['list_directory', 'read_file'],
           ],
         );
@@ -8983,10 +8990,12 @@ with open(path, "rb") as file:
             .map((batch) => batch.map((item) => item.name).toList())
             .toList(),
         [
+          // create_tests_dir is a mutating command: never carried, and it ends
+          // the carry chain for everything read before it.
           ['create_tests_dir'],
           ['read_file'],
           ['create_tests_dir', 'read_file'],
-          ['write_test_file'],
+          ['read_file', 'write_test_file'],
         ],
       );
       expect(

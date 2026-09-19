@@ -132,6 +132,7 @@ import '../../domain/services/final_answer_claim_detector.dart';
 import '../../domain/services/final_answer_claim_notice_applicator.dart';
 import '../../domain/services/final_answer_message_notice_service.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
+import '../../domain/services/follow_up_assistant_content.dart';
 import '../../domain/services/git_write_confirmation_policy.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
@@ -161,6 +162,7 @@ import '../../domain/services/production_release_approval_coordinator.dart';
 import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
 import '../../domain/services/python_attachment_repair_policy.dart';
+import '../../domain/services/recent_read_result_carry.dart';
 import '../../domain/services/referenced_specification_loader.dart';
 import '../../domain/services/request_tool_observation_collector.dart';
 import '../../domain/services/run_tests_command_builder.dart';
@@ -175,7 +177,6 @@ import '../../domain/services/skill_prompt_index_builder.dart';
 import '../../domain/services/skipped_browser_action_repair_prompt.dart';
 import '../../domain/services/skipped_skill_load_text.dart';
 import '../../domain/services/stalled_diagnostic_repair_contract.dart';
-import '../../domain/services/sticky_tool_result_policy.dart';
 import '../../domain/services/subagent_command_observation.dart';
 import '../../domain/services/subagent_execution_service.dart';
 import '../../domain/services/subagent_result_payloads.dart';
@@ -194,7 +195,6 @@ import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_failure_classifier.dart';
 import '../../domain/services/tool_loop_abort_notice.dart';
-import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/tool_loop_exhaustion_policy.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
@@ -399,7 +399,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final _unexecutedCommandRetryOwners = <String>{};
   final _blockedReleaseRetrySignatures = <String>{};
   final _planningToolPolicy = const PlanningToolPolicy();
-  final _toolLoopContextDigest = const ToolLoopContextDigest();
+  final _followUpAssistantContent = const FollowUpAssistantContent();
   final _runtimeTurns = <int, CavernoRuntimeTurnHandle>{};
   final _turnReleases = <ChatTurnOwner, TurnReleaseScope>{};
   (List<String>, List<String>)? _lastTurnRelease;
@@ -5660,7 +5660,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
       final tools = selectedDefinitionsFor(mcpToolService);
-      final followUpToolResults = _stickyToolResultPolicy.resolve(
+      final followUpToolResults = _recentReadResultCarry.resolve(
         batchToolResults: batchToolResults,
         executedToolResults: executedToolResults,
       );
@@ -5680,16 +5680,11 @@ class ChatNotifier extends Notifier<ChatState> {
           '[Tool] Withholding tool definitions after saved validation success',
         );
       }
-      final contextDigest = _toolLoopContextDigest.build(executedToolResults);
-      final trimmedAssistantContent = currentAssistantContent?.trim();
-      final followUpAssistantContent = contextDigest.isEmpty
-          ? currentAssistantContent
-          : [
-              if (trimmedAssistantContent != null &&
-                  trimmedAssistantContent.isNotEmpty)
-                trimmedAssistantContent,
-              contextDigest,
-            ].join('\n\n');
+      final followUpAssistantContent = _followUpAssistantContent.build(
+        assistantContent: currentAssistantContent,
+        executedToolResults: executedToolResults,
+        carried: followUpToolResults,
+      );
       final nextResult = await _createToolResultCompletionWithContextRetry(
         logLabel: 'tool-result follow-up',
         interactionGeneration: interactionGeneration,
@@ -6826,7 +6821,7 @@ class ChatNotifier extends Notifier<ChatState> {
     await _finishStreaming(interactionGeneration: interactionGeneration);
   }
 
-  static const _stickyToolResultPolicy = StickyToolResultPolicy();
+  static const _recentReadResultCarry = RecentReadResultCarry();
 
   void _appendToLastMessageForGeneration(
     int generation,
