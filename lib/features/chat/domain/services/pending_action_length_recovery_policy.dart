@@ -1,7 +1,16 @@
 import 'tool_result_prompt_builder.dart';
 
 /// Routes a length-truncated response back to executable coding work when the
-/// current tool evidence still proves that the task is incomplete.
+/// task is demonstrably unfinished.
+///
+/// Tool evidence proves that in the usual case: a mutation nothing verified, an
+/// unresolved error, an unexecuted action claim. It cannot prove it when the
+/// reply ran out of tokens *before* the model acted, because a turn that only
+/// looked at things leaves nothing incomplete behind -- which is exactly the
+/// turn most worth resuming. Session 5206eab6 is that case: ten iterations of
+/// reads and git queries, the eleventh cut off at the cap with no visible
+/// answer, and every incompleteness signal false because nothing had been
+/// changed yet. [cutOffBeforeAnswer] carries that fact in on its own.
 class PendingActionLengthRecoveryPolicy {
   const PendingActionLengthRecoveryPolicy();
 
@@ -11,13 +20,15 @@ class PendingActionLengthRecoveryPolicy {
     required bool hasAvailableActionTools,
     required bool retryAlreadyUsed,
     required ToolResultCompletionEvidence completionEvidence,
+    bool cutOffBeforeAnswer = false,
   }) {
-    return _isLengthTruncated(finishReason) &&
+    return (_isLengthTruncated(finishReason) || cutOffBeforeAnswer) &&
         canPrepareActionOnlyRecovery(
           isCodingWorkspace: isCodingWorkspace,
           hasAvailableActionTools: hasAvailableActionTools,
           retryAlreadyUsed: retryAlreadyUsed,
           completionEvidence: completionEvidence,
+          cutOffBeforeAnswer: cutOffBeforeAnswer,
         );
   }
 
@@ -26,11 +37,12 @@ class PendingActionLengthRecoveryPolicy {
     required bool hasAvailableActionTools,
     required bool retryAlreadyUsed,
     required ToolResultCompletionEvidence completionEvidence,
+    bool cutOffBeforeAnswer = false,
   }) {
     return isCodingWorkspace &&
         hasAvailableActionTools &&
         !retryAlreadyUsed &&
-        completionEvidence.hasIncompleteEvidence;
+        (completionEvidence.hasIncompleteEvidence || cutOffBeforeAnswer);
   }
 
   String buildRetryPrompt(ToolResultCompletionEvidence completionEvidence) {

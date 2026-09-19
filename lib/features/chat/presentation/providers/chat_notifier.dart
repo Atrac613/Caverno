@@ -6433,6 +6433,7 @@ class ChatNotifier extends Notifier<ChatState> {
           : selectedDefinitionsFor(mcpToolService);
       final canPreparePendingActionRecovery = _pendingActions
           .canPrepareActionOnlyRecovery(
+            cutOffBeforeAnswer: truncatedBeforeAnswer,
             isCodingWorkspace: _isCodingWorkspaceOrMode(interactionGeneration),
             hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
               recoveryTools,
@@ -6456,9 +6457,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final shouldRequestPendingActionRecovery = _pendingActions
           .shouldRequestActionOnlyRecovery(
-            finishReason: truncatedBeforeAnswer
-                ? 'length'
-                : _responseMetadata.finishReasonFor(turnOwner),
+            cutOffBeforeAnswer: truncatedBeforeAnswer,
+            finishReason: _responseMetadata.finishReasonFor(turnOwner),
             isCodingWorkspace: _isCodingWorkspaceOrMode(interactionGeneration),
             hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
               recoveryTools,
