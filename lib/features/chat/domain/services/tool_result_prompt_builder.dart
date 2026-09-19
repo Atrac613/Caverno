@@ -1759,6 +1759,11 @@ class ToolResultPromptBuilder {
         countKey: 'match_count',
         noMatchHint: _findFilesNoMatchHint,
       ),
+      'dart_analyze_feedback' ||
+      'dart_test_feedback' => _budgetDiagnosticFeedbackResult(
+        decoded,
+        budget: budget,
+      ),
       _ => _budgetJsonMap(decoded, budget: budget),
     };
 
@@ -1839,6 +1844,61 @@ class ToolResultPromptBuilder {
       if (!result.containsKey(countKey)) {
         result[countKey] = items.length;
       }
+    }
+    return result;
+  }
+
+  /// Keys of a diagnostic-feedback payload that describe *how* the analyzer
+  /// ran rather than *what* it found.
+  ///
+  /// `analyzer` duplicates `telemetry.attempts.last` almost verbatim, and
+  /// `language_diagnostics_bridge` reports provider/capability plumbing the
+  /// model cannot act on. Together they are the bulk of the payload.
+  static const Set<String> _diagnosticFeedbackProvenanceKeys = {
+    'analyzer',
+    'language_diagnostics_bridge',
+    'telemetry',
+  };
+
+  /// Lead a diagnostic-feedback result with the finding, not its provenance.
+  ///
+  /// The producer emits `diagnostics` last, after ~10 provenance and counter
+  /// fields, so the one line that names the broken symbol sits at the bottom of
+  /// a long JSON blob. Session c79826af shows the cost: `dart_analyze_feedback`
+  /// reported `UNDEFINED_METHOD: The method '_formatDuration' isn't defined`
+  /// one tool-result slot after the edit that caused it, and the model then
+  /// spent ten iterations text-searching for that same symbol.
+  ///
+  /// This reorders the prompt copy so `instruction` and `diagnostics` come
+  /// first and drops the provenance blocks. It changes only what the prompt
+  /// shows — `ToolResultInfo.result` keeps the full payload, so the completion
+  /// guards that read `diagnostics`/`validationStatus` off the raw result are
+  /// unaffected, as is the session log.
+  static Map<String, dynamic> _budgetDiagnosticFeedbackResult(
+    Map<String, dynamic> decoded, {
+    required _ToolResultPromptBudget budget,
+  }) {
+    final result = <String, dynamic>{};
+    for (final key in const ['instruction', 'diagnostics']) {
+      if (decoded.containsKey(key)) {
+        result[key] = decoded[key];
+      }
+    }
+    for (final entry in decoded.entries) {
+      if (result.containsKey(entry.key)) continue;
+      if (_diagnosticFeedbackProvenanceKeys.contains(entry.key)) continue;
+      result[entry.key] = entry.value;
+    }
+
+    final diagnostics = decoded['diagnostics'];
+    if (diagnostics is List && diagnostics.length > budget.maxListItems) {
+      result
+        ..['diagnostics'] = diagnostics
+            .take(budget.maxListItems)
+            .toList(growable: false)
+        ..['diagnostics_reduced_for_prompt_budget'] = true
+        ..['omitted_diagnostics_count'] =
+            diagnostics.length - budget.maxListItems;
     }
     return result;
   }

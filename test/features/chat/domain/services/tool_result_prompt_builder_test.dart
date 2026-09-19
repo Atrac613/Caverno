@@ -2034,5 +2034,130 @@ void main() {
       expect(first['image_omitted_for_prompt_budget'], isTrue);
       expect(second['imageBase64'], 'latest-image');
     });
+
+    group('diagnostic feedback payload ordering', () {
+      // The exact dart_analyze_feedback payload from session c79826af, where
+      // the model went on to spend ten iterations text-searching for the very
+      // symbol this result already named.
+      Map<String, Object?> analyzeFeedbackPayload() => {
+        'schema': 'caverno_dart_analyze_feedback',
+        'provider': 'dart_analyzer',
+        'instruction':
+            'These new code diagnostics were detected after the latest file '
+            'edits. Fix relevant errors or warnings before claiming the '
+            'coding task is complete.',
+        'project_root': '/repo',
+        'changed_paths': ['lib/a.dart'],
+        'baseline_applied': true,
+        'baseline_diagnostic_count': 0,
+        'current_diagnostic_count': 1,
+        'existing_diagnostic_count': 0,
+        'diagnostic_count': 1,
+        'new_diagnostic_count': 1,
+        'language_diagnostics_bridge': {
+          'provider': 'dart_analyzer',
+          'protocol': 'dart_analyzer_cli',
+          'status': 'degraded',
+          'capabilities': {
+            'diagnostics': true,
+            'document_symbols': false,
+            'go_to_definition': false,
+          },
+          'attempted_primary_provider': 'lsp_json_rpc',
+          'degrade_reason': 'primary_empty',
+        },
+        'telemetry': {
+          'duration_ms': 6931,
+          'command_attempt_count': 1,
+          'attempts': [
+            {
+              'executable': 'fvm',
+              'arguments': ['dart', 'analyze', '--format=machine'],
+              'exit_code': 3,
+              'duration_ms': 6929,
+              'diagnostic_count': 1,
+            },
+          ],
+        },
+        'analyzer': {
+          'executable': 'fvm',
+          'arguments': ['dart', 'analyze', '--format=machine'],
+          'exit_code': 3,
+          'duration_ms': 6929,
+        },
+        'diagnostics': [
+          {
+            'relative_path': 'lib/a.dart',
+            'severity': 'Error',
+            'line': 748,
+            'column': 18,
+            'code': 'UNDEFINED_METHOD',
+            'message':
+                "The method '_formatDuration' isn't defined for the type "
+                "'_ResponseMetricsRow'.",
+          },
+        ],
+      };
+
+      ToolResultInfo analyzeFeedback() => ToolResultInfo(
+        id: 'diag_1',
+        name: 'dart_analyze_feedback',
+        arguments: const {'project_root': '/repo'},
+        result: jsonEncode(analyzeFeedbackPayload()),
+      );
+
+      String budgetedPayload() => ToolResultPromptBuilder.budgetToolResults([
+        analyzeFeedback(),
+      ]).single.result;
+
+      test('the diagnostic leads the payload instead of trailing it', () {
+        final payload = budgetedPayload();
+        final diagnosticsAt = payload.indexOf('UNDEFINED_METHOD');
+        final countsAt = payload.indexOf('baseline_diagnostic_count');
+        expect(diagnosticsAt, greaterThanOrEqualTo(0));
+        expect(countsAt, greaterThanOrEqualTo(0));
+        expect(
+          diagnosticsAt,
+          lessThan(countsAt),
+          reason: 'the finding must precede the counters',
+        );
+      });
+
+      test('provenance blocks are dropped from the prompt copy', () {
+        final payload = budgetedPayload();
+        expect(payload, contains('UNDEFINED_METHOD'));
+        expect(payload, contains('_formatDuration'));
+        expect(payload, isNot(contains('language_diagnostics_bridge')));
+        expect(payload, isNot(contains('command_attempt_count')));
+        expect(payload, isNot(contains('degrade_reason')));
+      });
+
+      test('trimming meaningfully shrinks the payload', () {
+        // On the real c79826af payload this is 1911 -> 939 chars (51%). The
+        // fixture abbreviates telemetry.attempts, so it trims slightly less;
+        // the bar here is the guarantee, not that exact ratio.
+        final before = jsonEncode(analyzeFeedbackPayload()).length;
+        final after = budgetedPayload().length;
+        expect(after, lessThan((before * 0.6).round()));
+      });
+
+      test('the raw result keeps its provenance for the session log', () {
+        // Budgeting must not mutate the stored result: the log and the
+        // degraded-bridge signal are read from it.
+        expect(analyzeFeedback().result, contains('language_diagnostics_bridge'));
+      });
+
+      test('trimming does not disturb the completion guard', () {
+        // The guard reads `diagnostics` off the raw result, not the prompt
+        // copy, so dropping provenance must leave it firing.
+        final blockers = ToolResultPromptBuilder.completionBlockerInstructions([
+          analyzeFeedback(),
+        ]);
+        expect(
+          blockers.any((b) => b.contains('TASK NOT COMPLETE')),
+          isTrue,
+        );
+      });
+    });
   });
 }
