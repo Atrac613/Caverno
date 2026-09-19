@@ -53,10 +53,19 @@ final class RecentReadResultCarry {
     required List<ToolResultInfo> batchToolResults,
     required List<ToolResultInfo> executedToolResults,
   }) => augment(
-    resolved: _stickyPolicy.resolve(
-      batchToolResults: batchToolResults,
-      executedToolResults: executedToolResults,
-    ),
+    // The sticky results are re-sent from earlier iterations too, so they are
+    // marked the same way; only the batch that just ran is current.
+    resolved: _stickyPolicy
+        .resolve(
+          batchToolResults: batchToolResults,
+          executedToolResults: executedToolResults,
+        )
+        .map(
+          (result) => batchToolResults.any((batch) => identical(batch, result))
+              ? result
+              : _asHistory(result),
+        )
+        .toList(growable: false),
     executedToolResults: executedToolResults,
   );
 
@@ -90,8 +99,22 @@ final class RecentReadResultCarry {
       carried.add(result);
     }
     if (carried.isEmpty) return resolved;
-    return <ToolResultInfo>[...carried.reversed, ...resolved];
+    return <ToolResultInfo>[
+      for (final result in carried.reversed) _asHistory(result),
+      ...resolved,
+    ];
   }
+
+  /// Marks a result as re-sent rather than newly arrived, so the request
+  /// formatter can place it as its own earlier exchange.
+  ToolResultInfo _asHistory(ToolResultInfo result) => ToolResultInfo(
+    id: result.id,
+    name: result.name,
+    arguments: result.arguments,
+    result: result.result,
+    outcome: result.outcome,
+    fromEarlierLoop: true,
+  );
 
   bool _changesTheWorkspace(ToolResultInfo result) {
     final call = _callFor(result);

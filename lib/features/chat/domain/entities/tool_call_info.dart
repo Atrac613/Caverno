@@ -17,6 +17,7 @@ class ToolResultInfo {
     required this.arguments,
     required this.result,
     this.outcome,
+    this.fromEarlierLoop = false,
   });
 
   final String id;
@@ -36,4 +37,17 @@ class ToolResultInfo {
   /// absent outcome means "unknown", never "succeeded". See LL34 in
   /// `docs/local_llm_agent_roadmap.md`.
   final ToolOutcome? outcome;
+
+  /// Whether this result is being re-sent from an earlier loop iteration
+  /// rather than having just arrived.
+  ///
+  /// The follow-up request carries a bounded tail of earlier read-only results
+  /// (`RecentReadResultCarry`), and merging them into the current batch's
+  /// assistant turn told the model that eight tools had just returned at once.
+  /// Measured on session 95631b24: reasoning grew with the carried count --
+  /// 4,002 characters at three carried, 9,977 at six -- to emit a single tool
+  /// call, 8.5x the thinking of the run before the carry existed, and 92% of
+  /// that growth was reasoning rather than output. History has to look like
+  /// history, so the formatter emits these as their own earlier exchanges.
+  final bool fromEarlierLoop;
 }

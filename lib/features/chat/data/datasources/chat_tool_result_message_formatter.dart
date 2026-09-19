@@ -71,6 +71,28 @@ final class ChatToolResultMessageFormatter {
     required List<ToolResultInfo> toolResults,
     String? assistantContent,
   }) {
+    // Results re-sent from earlier iterations get their own exchange each, in
+    // order, so they read as history. Merged into the current turn they read
+    // as a batch that just returned, and the model re-analyses all of them on
+    // every request -- see ToolResultInfo.fromEarlierLoop.
+    for (final toolResult in toolResults.where(
+      (toolResult) => toolResult.fromEarlierLoop,
+    )) {
+      _appendExchange(messages, [toolResult]);
+    }
+    final current = toolResults
+        .where((toolResult) => !toolResult.fromEarlierLoop)
+        .toList(growable: false);
+    _appendExchange(messages, current, assistantContent: assistantContent);
+    messages.addAll(buildImageObservationMessages(toolResults));
+  }
+
+  void _appendExchange(
+    List<ChatMessage> messages,
+    List<ToolResultInfo> toolResults, {
+    String? assistantContent,
+  }) {
+    if (toolResults.isEmpty && (assistantContent ?? '').isEmpty) return;
     messages.add(
       AssistantMessage(
         // mlx-lm.server requires content, so an absent assistant turn is sent
@@ -98,7 +120,6 @@ final class ChatToolResultMessageFormatter {
         ),
       ),
     );
-    messages.addAll(buildImageObservationMessages(toolResults));
   }
 
   List<ChatMessage> buildImageObservationMessages(
