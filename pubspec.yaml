@@ -183,7 +183,7 @@ dev_dependencies:
   mocktail: ^1.0.5
   pubspec_parse: ^1.6.0
   # Read-only persisted-data audit tools use the resolved SQLite API directly.
-  sqlite3: ^3.5.2
+  sqlite3: ^3.6.0
   test: ^1.31.0
 
   # Code generation
