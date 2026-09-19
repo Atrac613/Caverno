@@ -288,6 +288,27 @@ SIGNATURES = {
         # real turn being held by one.
         "match": lambda s: "material_contract_assumption_unconfirmed" in s,
     },
+    "lsp_definition_tool_offered": {
+        "commit": "6259e77f1",
+        "what": "the symbol-navigation tool reaches the model's tool list",
+        # Deliberately the tool-catalog key that the withdrawn
+        # parent_records_its_own_judgement row above was rejected for matching.
+        # There the catalog contaminated the question, because what was being
+        # asked was whether the parent *used* accept_task. Here being offered
+        # at all IS the fix: lsp_go_to_definition had a definition but no
+        # BuiltInToolInfo entry, so the initial tool-search selection dropped
+        # it from 2026-06-19 until this commit. Before it, the string appears
+        # in 1 of 158 logs, and that one is a personal-eval replay fixture
+        # built long before the fix, so ancestry reports it as the coincidence
+        # it is. Verified against both: the fixture matches, session c79826af
+        # does not, and the Dart sources spell the key with single quotes so a
+        # read_file or search_files of this repo cannot fire it.
+        #
+        # This row says the tool is on offer. It does NOT say the model chose
+        # to call it -- that is a separate question and needs its own row keyed
+        # on a lookup result, not on the name.
+        "match": lambda s: '"name": "lsp_go_to_definition"' in s,
+    },
 }
 
 _ANCESTRY_CACHE = {}
