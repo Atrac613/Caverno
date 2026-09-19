@@ -12,7 +12,16 @@ const _macosAppProfileDefinitionCount = 118;
 /// tool in the initial selection. It was offered in the catalog and absent from
 /// this set for five days, so an addressed parent could not call the tool its
 /// own prompt told it to use without a tool_search round trip it never made.
-const _macosAppProfileInitialCount = 38;
+///
+/// 38 -> 41: the same omission, three more times. inspect_file, delete_file and
+/// lsp_go_to_definition were offered in the catalog but never registered, so
+/// the F6 guard -- which only walks the registry -- could not see them and the
+/// initial selection dropped all three. lsp_go_to_definition had been missing
+/// since 2026-06-19: session c79826af shows a coding turn spending ten
+/// iterations on search_files variants hunting one symbol, with the tool built
+/// for that job absent from its list. The catalog counts are unchanged because
+/// these tools were always offered; only the initial selection moves.
+const _macosAppProfileInitialCount = 41;
 
 void _runLiveLlmBenchmarkAppToolProfile() {
   group('live benchmark app tool profile', () {
@@ -36,8 +45,11 @@ void _runLiveLlmBenchmarkAppToolProfile() {
       // initial selection needed no change at all, and the consequence -- the
       // parent being told to record its judgement with a tool absent from its
       // list -- went unnoticed until a live canary showed it never attempted.
+      // 23 -> 26: inspect_file, delete_file and lsp_go_to_definition joined the
+      // registry for the same reason. The catalog length is unchanged -- all
+      // three were already offered; only their classification was missing.
       expect(definitions, hasLength(46));
-      expect(initial.toolDefinitions, hasLength(23));
+      expect(initial.toolDefinitions, hasLength(26));
     });
 
     test(
