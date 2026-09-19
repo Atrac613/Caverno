@@ -390,7 +390,7 @@ SPEC CHECKSUMS:
   SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
   url_launcher_ios: bb13df5870e8c4234ca12609d04010a21be43dfa
   video_player_avfoundation: e54d03b3b19f64f2c557354f72ce538387541ba6
-  wifi_scan: 6d20b3b4f59bbad1ddcf3e241560f3acd62f6cbe
+  wifi_scan: 0218d596cc0049ae88520443ae256ca9b2a86884
 
 PODFILE CHECKSUM: 1bcd73791a66fdb83a398bc4c30d595c52e2db10
 
