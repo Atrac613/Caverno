@@ -546,11 +546,7 @@ const Map<String, int> _lineBudgets = {
   // worth keeping were moved to AwaitingYouSheet first; the +1 this budget
   // took to wire that is repaid here many times over.
   'lib/features/chat/presentation/pages/chat_page.dart': 1323,
-  'lib/features/chat/presentation/widgets/plan/task_precondition_notice.dart':
-      57,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
-  'lib/features/chat/presentation/widgets/plan/workflow_task_menu_items.dart':
-      74,
   'lib/features/chat/presentation/widgets/plan/contract_item_list_section.dart':
       131,
   // 159 rather than the 145 this file was born at one commit earlier: the
@@ -707,10 +703,6 @@ const Map<String, int> _lineBudgets = {
       298,
   'lib/features/chat/domain/services/coding_command_preflight_issue_detector.dart':
       356,
-  'lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart':
-      218,
-  'lib/features/chat/presentation/widgets/workflow/workflow_task_editor_sheet.dart':
-      209,
   'lib/features/chat/presentation/widgets/slash_command_help_sheet.dart': 42,
   'lib/features/chat/presentation/widgets/chat_page_scaffold.dart': 87,
   'lib/features/chat/presentation/widgets/chat_right_sidebar.dart': 114,
