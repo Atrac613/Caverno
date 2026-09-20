@@ -47,7 +47,8 @@ class SkillPromptIndexBuilder {
     int maxSkillChars = defaultMaxSkillChars,
     int maxCarriedSkillChars = defaultMaxCarriedSkillChars,
 
-    /// The most recently loaded skill, carried with its instructions.
+    /// The most recently loaded skill, carried with its instructions. An id
+    /// or a name, since a `load_skill` call may carry only one of them.
     String? carriedSkillId,
 
     /// Every skill loaded earlier in this thread, including [carriedSkillId].
@@ -90,7 +91,9 @@ class SkillPromptIndexBuilder {
       final entry = _buildEntry(
         skill,
         maxSkillChars: maxSkillChars,
-        wasLoaded: loadedSkillIds.contains(skill.id),
+        wasLoaded:
+            loadedSkillIds.contains(skill.id) ||
+            loadedSkillIds.contains(skill.normalizedName),
       );
       if (buffer.length - indexStart + entry.length > maxPromptChars) {
         buffer.writeln(
@@ -108,7 +111,10 @@ class SkillPromptIndexBuilder {
     final id = carriedSkillId?.trim();
     if (id == null || id.isEmpty) return null;
     for (final skill in skills) {
-      if (skill.id == id && skill.normalizedContent.isNotEmpty) return skill;
+      if ((skill.id == id || skill.normalizedName == id) &&
+          skill.normalizedContent.isNotEmpty) {
+        return skill;
+      }
     }
     // A skill that was disabled or deleted since it was loaded carries
     // nothing; the marker path below still tells the model it is gone.

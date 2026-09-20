@@ -83,7 +83,6 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
-import '../../domain/entities/skill.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/worktree_agent_task.dart';
@@ -121,7 +120,6 @@ import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/delegated_result_digest.dart';
 import '../../domain/services/duplicate_recovery_prompt_builder.dart';
 import '../../domain/services/duplicate_tool_result_recovery.dart';
-import '../../domain/services/enabled_skill_named_in_text.dart';
 import '../../domain/services/execution_budget_policy.dart';
 import '../../domain/services/fenced_tool_arguments_detector.dart';
 import '../../domain/services/fenced_tool_name_blocks.dart';
@@ -138,6 +136,7 @@ import '../../domain/services/goal_auto_continue_prompt_builder.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/goal_validation_probe_guard.dart';
+import '../../domain/services/loaded_skill_memory.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/material_assumption_ask_memory.dart';
 import '../../domain/services/material_assumption_confirmation_gate.dart';
@@ -175,7 +174,7 @@ import '../../domain/services/session_memory_service.dart';
 import '../../domain/services/short_prompt_contract_builder.dart';
 import '../../domain/services/skill_prompt_index_builder.dart';
 import '../../domain/services/skipped_browser_action_repair_prompt.dart';
-import '../../domain/services/skipped_skill_load_text.dart';
+import '../../domain/services/skipped_skill_load_recovery.dart';
 import '../../domain/services/stalled_diagnostic_repair_contract.dart';
 import '../../domain/services/subagent_command_observation.dart';
 import '../../domain/services/subagent_execution_service.dart';
@@ -388,6 +387,9 @@ class ChatNotifier extends Notifier<ChatState> {
   final _finalAnswerRecoveryPolicy = const FinalAnswerRecoveryPolicy();
   final _fileMutationEvidencePolicy = const FileMutationEvidencePolicy();
   final _pendingActions = const PendingActionLengthRecoveryPolicy();
+  /// Which skills each thread has loaded, so the one it works from can be
+  /// repeated into the turns that follow the load.
+  final loadedSkills = LoadedSkillMemory();
   final _transcriptRepairs = const NarratedTranscriptRepairPlanner();
   final _blockedReleaseRetries = const BlockedProductionReleaseRetryPolicy();
   late final _productionReleaseApprovals = ProductionReleaseApprovalCoordinator(
@@ -884,8 +886,12 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
     try {
-      final skills = ref.read(skillsNotifierProvider).enabledSkills;
-      return SkillPromptIndexBuilder.build(skills);
+      final id = conversationId ?? '';
+      return SkillPromptIndexBuilder.build(
+        ref.read(skillsNotifierProvider).enabledSkills,
+        carriedSkillId: loadedSkills.carriedRefFor(id),
+        loadedSkillIds: loadedSkills.loadedRefsFor(id),
+      );
     } catch (_) {
       return null;
     }
@@ -897,49 +903,25 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<Map<String, dynamic>> allTools,
     required int interactionGeneration,
   }) {
-    if (result.hasToolCalls ||
-        _settings.disabledBuiltInToolsSet.contains('load_skill') ||
-        !ToolDefinitionSearchService.toolNamesFromDefinitions(
-          allTools,
-        ).contains('load_skill')) {
-      return null;
-    }
-
-    final latestUserContent = _latestUserContentForGeneration(
-      interactionGeneration,
-    );
-    if (!SkippedSkillLoadText.mentionsSkill(latestUserContent)) {
-      return null;
-    }
-
-    Skill? skill;
     try {
-      skill = EnabledSkillNamedInText.find(
-        latestUserContent,
-        ref.read(skillsNotifierProvider).enabledSkills,
+      return const SkippedSkillLoadRecovery().resolve(
+        hasToolCalls: result.hasToolCalls,
+        availableToolNames: ToolDefinitionSearchService.toolNamesFromDefinitions(
+          allTools,
+        ).toSet(),
+        disabledToolNames: _settings.disabledBuiltInToolsSet,
+        latestUserContent: _latestUserContentForGeneration(
+          interactionGeneration,
+        ),
+        responseContent: streamedAssistantContent.isNotEmpty
+            ? streamedAssistantContent
+            : result.content,
+        enabledSkills: ref.read(skillsNotifierProvider).enabledSkills,
+        now: DateTime.now(),
       );
     } catch (_) {
-      skill = null;
-    }
-    if (skill == null) {
       return null;
     }
-
-    final responseContent =
-        (streamedAssistantContent.isNotEmpty
-                ? streamedAssistantContent
-                : result.content)
-            .trim();
-    if (responseContent.isNotEmpty &&
-        !SkippedSkillLoadText.looksLikeSkippedLoad(responseContent)) {
-      return null;
-    }
-
-    return ToolCallInfo(
-      id: 'recovered_load_skill_${DateTime.now().microsecondsSinceEpoch}',
-      name: 'load_skill',
-      arguments: {'id': skill.id, 'name': skill.normalizedName},
-    );
   }
 
   ToolCallInfo? _buildSkippedBrowserActionRecoveryToolCall({

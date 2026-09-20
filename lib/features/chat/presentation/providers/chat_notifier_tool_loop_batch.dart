@@ -470,6 +470,15 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         loopIndex: iteration,
       );
 
+      if (result.isSuccess && toolCall.name == 'load_skill') {
+        loadedSkills.record(
+          conversationId: owner.conversationId,
+          skillRef:
+              (toolCall.arguments['id'] ?? toolCall.arguments['name'] ?? '')
+                  .toString(),
+        );
+      }
+
       final promptToolResult = await _persistToolResultForPrompt(
         ToolResultInfo(
           id: toolCall.id,

@@ -553,6 +553,10 @@ const Map<String, int> _lineBudgets = {
   // eleventh sheet is the method the extraction existed for, and the number
   // should have been set once, for the pair, rather than at the halfway line.
   'lib/features/chat/presentation/pages/approval_sheet_dispatcher.dart': 159,
+  // The turn-crossing half of the skill carry: a load_skill result lives for
+  // exactly the turn that produced it, so the thread has to remember which
+  // skill it is working from.
+  'lib/features/chat/domain/services/loaded_skill_memory.dart': 50,
   'lib/features/chat/domain/services/material_assumption_ask_memory.dart': 49,
   'lib/features/chat/domain/services/material_assumption_confirmation_gate.dart':
       99,

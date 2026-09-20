@@ -211,6 +211,7 @@ void main() {
         'goal-continuation-log-record-builder',
         'goal-update-tool-handler',
         'goal-validation-probe-guard',
+        'loaded-skill-memory',
         'local-command-tool-handler',
         'lsp-go-to-definition-tool-handler',
         'material-assumption-ask-memory',
