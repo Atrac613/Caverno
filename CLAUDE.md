@@ -263,9 +263,14 @@ python3 tool/triage_session_logs.py --top 10 [--since-days N]
 # Has a shipped harness change actually fired in a real session, rather than only
 # in its unit tests? Qualified by git ancestry, so a hit from a build predating
 # the change is flagged as a coincidence. Add a row to SIGNATURES when a change
-# ships. Real sessions (~/.caverno/session_logs) report FIRED; live canaries
-# (build/integration_test_reports) report FIRED (canary only) and never raise the
-# in-the-wild count. --dir scans one directory as a real-session corpus.
+# ships: key it on "transform" (an LL33 id, read structurally from
+# turnExit.transforms) whenever the change records one, and fall back to "match"
+# on the log's prose only when it does not. A row must carry exactly one of the
+# two or the module refuses to load, because a malformed row goes dark and reads
+# as "the code never ran". Real sessions (~/.caverno/session_logs) report FIRED;
+# live canaries (build/integration_test_reports) report FIRED (canary only) and
+# never raise the in-the-wild count. --dir scans one directory as a real-session
+# corpus.
 python3 tool/check_fix_firings.py [--dir LOG_DIR] [--repo REPO]
 python3 tool/check_fix_firings.py --no-canaries   # real sessions only
 python3 test/python/check_fix_firings_test.py     # its own tests, no Flutter

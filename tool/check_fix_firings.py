@@ -3,9 +3,10 @@
 
 A harness change that only passes its unit tests is unproven: the path it
 touches may simply never be reached in real turns. This walks the session-log
-corpus for the textual signature each change leaves behind, and reports, per
-change, whether it has been observed and how many logs even ran on a build
-capable of producing it.
+corpus for the signature each change leaves behind -- an LL33 transform id
+where the change records one, otherwise the prose it put in front of the model
+-- and reports, per change, whether it has been observed and how many logs even
+ran on a build capable of producing it.
 
 Every hit is qualified by git ancestry, so a signature found in a log from a
 build that predates the change is reported as a coincidence rather than as a
@@ -64,7 +65,17 @@ import subprocess
 import sys
 
 # name -> commit that introduced it, what it does, and the log evidence that
-# proves it ran. `match` receives the whole log serialized as one JSON string.
+# proves it ran. A row carries exactly one of two evidence keys:
+#
+#   "match"      receives the whole log serialized as one JSON string. Use it
+#                when the only trace a change leaves is prose it put in front
+#                of the model.
+#   "transform"  names an LL33 post-LLM transform id, read structurally from
+#                `turnExit.transforms`. Prefer it whenever the change records
+#                one: that is the channel LL33 added so a guard firing is a
+#                direct signal instead of an inference from leaked notice
+#                prose, and it cannot be fired by a log that merely quotes the
+#                notice -- including one produced by reading this repo.
 SIGNATURES = {
     "failed_read_digest": {
         "commit": "5e7f8ebb",
@@ -309,7 +320,35 @@ SIGNATURES = {
         # on a lookup result, not on the name.
         "match": lambda s: '"name": "lsp_go_to_definition"' in s,
     },
+    "pending_action_length_recovery": {
+        "commit": "7284c8f86",
+        "what": "a turn cut off before it acted on anything is resumed",
+        # The first row keyed on a transform rather than on prose, and the
+        # reason the key exists. PendingActionLengthRecoveryPolicy shipped long
+        # before it could fire: its gate read the finish reason recorded for
+        # the turn, which the regenerated answer's `stop` had already
+        # overwritten (3d1671b1b), and then still required incomplete evidence
+        # that a turn which had only *looked* at things could not leave behind
+        # (7284c8f86). Both commit bodies say "still unverified live", because
+        # the check they name is an app-log line this instrument cannot read.
+        #
+        # It fired the same day it became reachable: session 63d9042e, build
+        # 7284c8f86 -- the very commit -- carries the whole chain in one
+        # turnExit, pending_action_length_recovery ->
+        # coding_continuation_recovery_length_truncated_pending_action, and the
+        # turn exits on pending_batch_executed. A truncated turn resumed and
+        # ran tools, which is the claim the policy exists to make.
+        "transform": "pending_action_length_recovery",
+    },
 }
+
+for _name, _signature in SIGNATURES.items():
+    # A row carrying neither key, or both, is the failure this instrument is
+    # least able to report: it goes dark and reads as "the code never ran".
+    if ("match" in _signature) == ("transform" in _signature):
+        raise SystemExit(
+            f"signature {_name} must carry exactly one of match/transform"
+        )
 
 _ANCESTRY_CACHE = {}
 
@@ -356,6 +395,26 @@ def build_contains(commit, fix_commit, repo):
         verdict = None
     _ANCESTRY_CACHE[key] = verdict
     return verdict
+
+
+def turn_exit_transforms(entries):
+    """Every LL33 post-LLM transform id this log recorded.
+
+    Read structurally from `turnExit.transforms` rather than from the
+    serialized blob. Python's `json.dumps` separators are not the Dart
+    writer's, so a literal tuned to one spelling silently never matches the
+    other -- which is the first of the three faults the 2026-09-13 audit found
+    behind a "not yet observed" row.
+    """
+    found = set()
+    for entry in entries:
+        turn_exit = entry.get("turnExit")
+        if not isinstance(turn_exit, dict):
+            continue
+        for transform in turn_exit.get("transforms") or ():
+            if isinstance(transform, str):
+                found.add(transform)
+    return found
 
 
 def main():
@@ -415,11 +474,17 @@ def main():
             continue
         commit = entries[0].get("build", {}).get("commit", "?")
         blob = json.dumps(entries, ensure_ascii=False)
+        transforms = turn_exit_transforms(entries)
         for name, signature in SIGNATURES.items():
             could = build_contains(commit, signature["commit"], args.repo)
             if could:
                 eligible[name] += 1
-            if signature["match"](blob):
+            matched = (
+                signature["transform"] in transforms
+                if "transform" in signature
+                else signature["match"](blob)
+            )
+            if matched:
                 hits[name].append(
                     (os.path.basename(path)[:8], commit, could, origin)
                 )

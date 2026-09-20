@@ -154,5 +154,118 @@ class CheckFixFiringsCorpusTest(unittest.TestCase):
         self.assertIn("not yet observed", self._verdict_line(output))
 
 
+class CheckFixFiringsTransformChannelTest(unittest.TestCase):
+    """A transform row reads `turnExit.transforms`, not the log's prose.
+
+    That distinction is the whole reason the key exists. LL33 records a
+    transform id precisely so a guard firing stops being inferred from the
+    notice it leaked into the answer, and a row that fell back to a substring
+    search would re-acquire exactly the contamination LL33 removed -- a log
+    quoting the id, including one produced by reading this repository, would
+    read as a firing.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tool = _load_tool()
+        cls.head = _head_commit()
+        cls.signature_name = "pending_action_length_recovery"
+        cls.signature = cls.tool.SIGNATURES[cls.signature_name]
+        cls.transform = cls.signature["transform"]
+
+    def _write_log(self, directory, name, *, transforms=None, prose=""):
+        os.makedirs(directory, exist_ok=True)
+        grounded = {
+            "build": {"commit": self.head, "dirty": False},
+            "request": {"messages": [{"role": "user", "content": prose}]},
+            "response": {"content": prose, "finishReason": "length"},
+        }
+        lines = [grounded]
+        if transforms is not None:
+            lines.append(
+                {
+                    "build": {"commit": self.head, "dirty": False},
+                    "operation": "turn_exit",
+                    "turnExit": {
+                        "reason": "pending_batch_executed",
+                        "noVisibleAnswer": False,
+                        "transforms": transforms,
+                    },
+                }
+            )
+        path = os.path.join(directory, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            for line in lines:
+                handle.write(json.dumps(line, ensure_ascii=False) + "\n")
+        return path
+
+    def _verdict_line(self, output):
+        suffix = f"] {self.signature_name}  ({self.signature['commit']})"
+        for line in output.splitlines():
+            if line.endswith(suffix):
+                return line
+        self.fail(f"signature not reported:\n{output}")
+
+    def _run(self, wild):
+        out = io.StringIO()
+        saved = sys.argv
+        sys.argv = ["check_fix_firings.py", "--dir", wild, "--repo", REPO_ROOT]
+        try:
+            with redirect_stdout(out):
+                status = self.tool.main()
+        finally:
+            sys.argv = saved
+        self.assertEqual(status, 0, out.getvalue())
+        return out.getvalue()
+
+    def test_a_recorded_transform_is_a_firing(self):
+        with tempfile.TemporaryDirectory() as wild:
+            self._write_log(
+                wild,
+                "hit.jsonl",
+                transforms=[self.transform, "final_answer_concise_retry"],
+            )
+            output = self._run(wild)
+        self.assertTrue(
+            self._verdict_line(output).startswith("[FIRED] "),
+            self._verdict_line(output),
+        )
+
+    def test_prose_quoting_the_id_is_not_a_firing(self):
+        # The case that would be silently wrong under a substring match: this
+        # very repository's sources, a commit body and this test file all spell
+        # the id, and none of them is a turn that ran it.
+        with tempfile.TemporaryDirectory() as wild:
+            self._write_log(
+                wild,
+                "quote.jsonl",
+                transforms=None,
+                prose=f"the guard is named {self.transform} in chat_notifier",
+            )
+            output = self._run(wild)
+        self.assertIn("not yet observed", self._verdict_line(output))
+
+    def test_an_unrelated_transform_is_not_a_firing(self):
+        with tempfile.TemporaryDirectory() as wild:
+            self._write_log(
+                wild, "other.jsonl", transforms=["unwritten_file_claim_notice"]
+            )
+            output = self._run(wild)
+        self.assertIn("not yet observed", self._verdict_line(output))
+
+    def test_every_row_carries_exactly_one_evidence_key(self):
+        # A row with neither key, or both, goes dark and reads as "the code
+        # never ran" -- the one failure this instrument cannot report on
+        # itself. The module refuses to load in that state; assert the
+        # invariant here too, so the reason is written down where it is read.
+        for name, signature in self.tool.SIGNATURES.items():
+            with self.subTest(signature=name):
+                self.assertNotEqual(
+                    "match" in signature,
+                    "transform" in signature,
+                    f"{name} must carry exactly one of match/transform",
+                )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

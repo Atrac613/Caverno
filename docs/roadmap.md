@@ -80,55 +80,50 @@ become implementation milestones only through an explicit promotion decision.
 ## Active Focus
 
 Structural review: 2026-09-13, against local main `70466c022` and the
-owning roadmap documents. This aligns status placement and current summaries;
-it does not rerun historical release, device, or live-model gates.
+owning roadmap documents; the recommendation below and the LL33 row were
+refreshed 2026-09-20 against local main `0fd1276ab`. This aligns status
+placement and current summaries; it does not rerun historical release, device,
+or live-model gates.
 `current` means unfinished track scope, not simultaneous implementation.
 `next` is a candidate within a track, not a commitment to start every candidate.
 
 ### Recommended Next Slice
 
-ANA3 closed on 2026-09-13: run 12 of the worktree canary wrote an acceptance on
-the worktree route's own evidence — a branch, a green verification command, and
-one changed file — after a turn restricted to `accept_task` asked for it. Two
-prose asks in the same run got prose answers, which reproduces the `update_goal`
-finding on a second tool. ANA0 through ANA3 are now all `done`.
+ANA4's first slice shipped on 2026-09-14, so the recommendation this block
+used to carry is done: the awaiting-you section is on screen in the both-
+workspaces list. What follows is refreshed against local main on 2026-09-20,
+after 62 commits (29 in `lib/`) landed past the last edit to this block.
 
-**ANA4 is promoted to `next` as of 2026-09-14, on a measurement rather than a
-design.** The coding companion panel is already a persistent side pane carrying
-three of the mock's six left-pane sections — task rows with their lifecycle
-state, the worktree agents list, and progress — so opening with a fourth
-`WorkspaceMode` would re-derive a surface that exists. The first slice is the one
-of §15's four questions with no persistent surface at all: **what is waiting on
-the user.** Open questions live in a modal sheet and a material-assumption
-confirmation arrives as an interrupt, so a user who dismissed one has nowhere
-that remembers. The mode question (§16) is then answered from use.
+**Verified since: a truncated turn now resumes, and the instrument can see it.**
+`PendingActionLengthRecoveryPolicy` shipped able to answer a turn cut off
+mid-action and could not fire for either of two reasons in turn — its gate read
+a finish reason the regenerated answer had already overwritten (`3d1671b1b`),
+and then still required incomplete evidence that a turn which had only *looked*
+at things never leaves behind (`7284c8f86`). Both commit bodies close with
+"still unverified live", and both are out of date: the path fired on 2026-09-19
+in session `63d9042e`, on build `7284c8f86` — the very commit — carrying the
+whole chain in one `turnExit` and exiting on `pending_batch_executed`.
 
-The one acceptance route still unobserved is a *subagent* result — it passes no
-audit level, so it rests on the parent's word alone and is a different claim from
-the one run 12 settled.
+Neither commit could know that, because the check they name is an app-log line
+and `tool/check_fix_firings.py` reads session logs. That gap was the more
+general finding: LL33 records a transform id precisely so a guard firing stops
+being inferred from the notice it leaked into the answer, 27 logs carry one
+across 18 distinct ids, and not one of the instrument's 25 rows read them — all
+25 matched prose. A row may now be keyed on `turnExit.transforms` structurally,
+which is both stricter and cheaper than a literal: a log that merely quotes the
+id, including one produced by reading this repository, is not a firing. The
+report is 13/26.
 
-Scoping ANA4 on 2026-09-13 found two things already broken rather than unbuilt,
-and both are fixed: ANA2's contradiction policy had no production caller, so
-every acceptance was written without the premise check; and the acceptance detail
-had no production reader, so `[accepted]` told the next turn nothing about what
-it rested on. ANA4's third acceptance criterion — the evidence behind an
-acceptance accessible from the workspace — is met as a result. Two ceilings were
-hit landing it, and one of them was a standing hazard until 2026-09-18: the
-frozen RAG2 development declaration replayed against the **live working tree**,
-and its five chat source roots had reached exactly 512 of a frozen 512-file cap.
-
-**That hazard is closed.** Measured 2026-09-18 at 512 of 512, a probe file added
-under `lib/features/chat/domain/services` made the frozen evaluation report
-`file_count_exceeded` plus two RAG-shaped blockers that hid the cause. Both
-explicit-source-roots evaluations now acquire their corpus from a detached
-worktree at `491aa6700`, the commit that froze the declarations, their fixtures,
-and the tests together — a real worktree rather than an export, because
-acquisition attests every admitted source with `git status`, `git ls-files`, and
-`git rev-parse`. The pinned corpus holds 460 files with 52 of headroom that can
-no longer be consumed, and the same probe now passes. A declaration frozen on
-2026-08-26 cannot be validated against files written after it, so this is a
-correctness repair, not only a cap reprieve. No other RAG2 replay passed the
-live tree as a project root; the rest only assert that reports do not leak it.
+**The next slice is ANA4's remaining one: the awaiting-you count.** Measured
+2026-09-20, `AwaitingYouPanelSection` counts through
+`Conversation.unresolvedOpenQuestions` alone, so a blocking material assumption
+— the other thing that waits on a user, and the one that arrives as an
+interrupt — is absent from the only surface that remembers. The count itself is
+cheap: `blockingAssumptions` is a getter on `ConversationWorkflowSpec`, already
+reachable from the conversation the panel holds. The work is the routing. The
+section takes a single `onOpen`, and the two kinds open different surfaces, so
+a union has to carry per-item destination rather than one callback — which is
+the same reason the roadmap has described this as a count rather than a list.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
@@ -141,7 +136,7 @@ implementation slice active.
 | Remote Coding | RC1 | current | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | Reconnect resilience was recorded as implemented, and measuring it 2026-09-17 found three defects behind that claim. `reconnectAttempt` fell back to zero only on a successful snapshot, so one walked ladder disabled automatic reconnection for the rest of the session -- a failed manual retry left the counter at its cap and the next unexpected drop gave up with no attempt at all. The ladder itself surrendered after 2s/5s/15s, which is shorter than a desktop takes to wake, and nothing re-armed it: `lib/features/remote_coding/` had no `AppLifecycleState.resumed` hook, and opening the page rendered a Reconnect button and waited to be tapped. All three are fixed with regression tests. The remaining evidence is the iOS/Android LAN soak, support-packet review, and multi-device household check; consult the security follow-up and promotion records before release. |
 | Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Characterize the unowned `NetworkTools` route, interface, and path-MTU cluster selected by the 2026-07-18 full boundary inventory before extracting code. |
 | Knowledge Currency | KC1 | current | Measure claim correctness, not only tool coverage: classify version-sensitive prose and code-artifact claims, compare asserted values with a fixture oracle, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. | Three measurements cover classes 2 and 4 and separate correctness from grounding. Finish the class 1 oracle and class 3 verdict shape before closing the gate; see [KC1](local_llm_agent_roadmap.md#kc1-cutoff-exposure-census) and `docs/knowledge_currency_track_design.md`. |
-| Local LLM | LL33 | current | Turn provenance: correlate the session log to the on-screen conversation (turnId + assistantMessageId) and record applied post-LLM transforms (guard notices), so log↔UI is traceable and guard firings are a direct triage signal instead of inferred from leaked notice prose. | Landed correlation keys + transform record + triage distribution; extend transforms to truncation/file-save/recovery next, defer Level 3 event-sourcing. |
+| Local LLM | LL33 | current | Turn provenance: correlate the session log to the on-screen conversation (turnId + assistantMessageId) and record applied post-LLM transforms (guard notices), so log↔UI is traceable and guard firings are a direct triage signal instead of inferred from leaked notice prose. | Landed correlation keys + transform record + triage distribution. Truncation and recovery are covered -- `truncated_tool_call_arguments_feedback`, `pending_action_length_recovery`, `coding_continuation_recovery_*`, `final_answer_concise_retry` and the three unexecuted-action retries all record one -- and as of 2026-09-20 `tool/check_fix_firings.py` reads `turnExit.transforms` structurally, so a shipped guard's firing is evidence rather than an inference from the notice it leaked. That closed the instrument half of this milestone's stated goal: before it, 27 logs carried a transform across 18 ids and all 25 signature rows matched prose instead. What is left is file-save, which records no transform at all today, and Level 3 event-sourcing, still deferred. |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
