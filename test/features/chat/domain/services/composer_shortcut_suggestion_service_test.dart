@@ -120,12 +120,51 @@ void main() {
       '{"shortcuts":['
       '{"kind":"git","label":"Force push","prompt":"Run git push --force to the remote."},'
       '{"kind":"git","label":"Reset","prompt":"Run git reset --hard HEAD~1."},'
-      '{"kind":"git","label":"Ship it","prompt":"Deploy the build to production."},'
+      '{"kind":"git","label":"Wipe","prompt":"Run rm -rf build to start clean."},'
       '{"kind":"git","label":"Commit","prompt":"Commit the staged changes."}]}',
     );
 
     expect(shortcuts, hasLength(1));
     expect(shortcuts.single.label, 'Commit');
+  });
+
+  test('keeps release and deploy prompts', () {
+    // These were dropped until 2026-09-20. Running one is gated by tool
+    // approval, and a release needs its own issued token, so the button could
+    // never release unattended -- while the ban removed the most useful
+    // shortcut at the moment a release thread pauses to ask whether to go on.
+    final shortcuts = ComposerShortcutSuggestionService.parse(
+      '{"shortcuts":['
+      '{"kind":"follow_up","label":"リリースを実行","prompt":"実際のリリース実行に進んでください。"},'
+      '{"kind":"follow_up","label":"Release it","prompt":"Run the iOS and macOS release now."},'
+      '{"kind":"follow_up","label":"Release notes","prompt":"Write the release notes for this version."},'
+      '{"kind":"git","label":"Deploy","prompt":"Deploy the build to production."}]}',
+    );
+
+    expect(
+      shortcuts.map((shortcut) => shortcut.label),
+      ['リリースを実行', 'Release it', 'Release notes', 'Deploy'],
+    );
+  });
+
+  test('the prompt keeps follow_up available when git and verify are gated', () {
+    // A finished release leaves a clean tree and no code change, closing git
+    // and verify at once. Without this guarantee the model answered
+    // {"shortcuts":[]} -- 29 of 45 drafts came back empty.
+    const prompt = ComposerShortcutSuggestionService.systemPrompt;
+
+    expect(prompt, contains('never restrict "follow_up"'));
+    expect(prompt, contains('always available'));
+    expect(
+      prompt,
+      contains('ends by asking the user something'),
+      reason: 'the answer to a trailing question is the obvious first chip',
+    );
+    expect(
+      prompt,
+      isNot(contains('deploying and releasing')),
+      reason: 'the release ban was lifted; see keeps release and deploy prompts',
+    );
   });
 
   test('hasUsefulContext requires an assistant answer and a user message', () {
