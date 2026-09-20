@@ -114,16 +114,39 @@ which is both stricter and cheaper than a literal: a log that merely quotes the
 id, including one produced by reading this repository, is not a firing. The
 report is 13/26.
 
-**The next slice is ANA4's remaining one: the awaiting-you count.** Measured
-2026-09-20, `AwaitingYouPanelSection` counts through
-`Conversation.unresolvedOpenQuestions` alone, so a blocking material assumption
-— the other thing that waits on a user, and the one that arrives as an
-interrupt — is absent from the only surface that remembers. The count itself is
-cheap: `blockingAssumptions` is a getter on `ConversationWorkflowSpec`, already
-reachable from the conversation the panel holds. The work is the routing. The
-section takes a single `onOpen`, and the two kinds open different surfaces, so
-a union has to carry per-item destination rather than one callback — which is
-the same reason the roadmap has described this as a count rather than a list.
+**The next slice is not the awaiting-you count. Scoping it on 2026-09-20 found
+that neither kind of item has a surface to route to.** `_buildWorkflowPanel`
+has one reference in the repository — its own declaration. Its only call site
+was deleted on 2026-04-18 by `93e867dfb`, and `0d857a595` moved the method into
+a part file a month later under an `// ignore: unused_element` that silenced
+the analyzer. Everything hangs off it and is therefore unreachable: the
+assumption confirmation (`_confirmMaterialAssumption`, the `onConfirmAssumption`
+route added by `52eae07c6` on 2026-09-18), open-question answering
+(`PlanOpenQuestionSection` with `_answerOpenQuestion` and
+`_setOpenQuestionStatus`), `_buildPlanProposalCard`, `_buildPlanDocumentCard`,
+`_buildCompactWorkflowSummary` and `_buildWorkflowTasksSection`. Each is called
+exactly once, from inside the dead panel.
+
+So this roadmap's claim that "the workflow panel now carries the clarification
+question and the confirmation" is true of the source and false of the running
+app, and the same is true of `AwaitingYouPanelSection`'s own comment that the
+sheet "already owns answering, with a status menu and a note editor per
+question" — its `onOpen` reaches `PlanReviewSheet`, which renders a markdown
+preview and three buttons and no questions at all. Adding `blockingAssumptions`
+to the count would point a second kind of item at the same absent destination.
+
+**The slice is therefore a mount decision, not a count.** Either re-mount the
+panel, or move the two answering surfaces onto one that is live — the second is
+the smaller change and collapses the "two kinds open different surfaces"
+problem that made this a count rather than a list. The count is a follow-up to
+whichever is chosen, and `blockingAssumptions` is already a getter on
+`ConversationWorkflowSpec` reachable from the conversation the panel holds, so
+it stays cheap once there is somewhere for it to go.
+
+This is the fourth instance of the pattern the repository keeps paying for: a
+feature complete in source and unreachable in production, its evidence gap
+recorded as unbuilt scope. Prefer the reachability check — does the entry point
+have a caller — before scoping anything that builds on an existing surface.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
@@ -140,7 +163,7 @@ implementation slice active.
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
-| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | All four of §15's questions now have a persistent surface: the awaiting-you section shipped 2026-09-14 and sits in the both-workspaces list, so it does not need a coding project. **§16's mode question is answered — no fourth `WorkspaceMode`**: the parent's identity is per turn (`@anabasis` → one interaction generation carries authority, prompt block and billing role) and a mode is per conversation, which would force a per-conversation answer to a per-turn question; a conversation legitimately carries both kinds of turn. `AssistantMode` reuses `plan` for the same reason. What remains is `MaterialContractAssumptionGuard`'s `WorkspaceMode.coding` scope, held deliberately until a non-coding goal needs it, and the surface for pending confirmations. The question that blocked the surface is answered: measured 2026-09-18, a dismissal did not survive even the tool-loop iteration it was made in, because the gate's ask memory was a field on an object the turn rebuilds per iteration -- three iterations, three identical modals, one answer. `MaterialAssumptionAskMemory` now holds it per turn, keyed by owner and released in the turn teardown scope. Scoping the listing then found the surface it would point at was itself a dead end: `confirmMaterialAssumption` had exactly one caller, the gate, so an assumption could only be cleared by the interrupt raised mid-turn. The workflow panel now carries the clarification question and the confirmation, so what remains for the listing is the count -- a union of `unresolvedOpenQuestions` and `blockingAssumptions`, whose two kinds open different surfaces. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
+| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | All four of §15's questions now have a persistent surface: the awaiting-you section shipped 2026-09-14 and sits in the both-workspaces list, so it does not need a coding project. **§16's mode question is answered — no fourth `WorkspaceMode`**: the parent's identity is per turn (`@anabasis` → one interaction generation carries authority, prompt block and billing role) and a mode is per conversation, which would force a per-conversation answer to a per-turn question; a conversation legitimately carries both kinds of turn. `AssistantMode` reuses `plan` for the same reason. What remains is `MaterialContractAssumptionGuard`'s `WorkspaceMode.coding` scope, held deliberately until a non-coding goal needs it, and the surface for pending confirmations. The question that blocked the surface is answered: measured 2026-09-18, a dismissal did not survive even the tool-loop iteration it was made in, because the gate's ask memory was a field on an object the turn rebuilds per iteration -- three iterations, three identical modals, one answer. `MaterialAssumptionAskMemory` now holds it per turn, keyed by owner and released in the turn teardown scope. Scoping the listing then found the surface it would point at was itself a dead end: `confirmMaterialAssumption` had exactly one caller, the gate, so an assumption could only be cleared by the interrupt raised mid-turn. The workflow panel carries the clarification question and the confirmation in source only: measured 2026-09-20, `_buildWorkflowPanel` has no caller anywhere in the repository -- its one call site was deleted on 2026-04-18 (`93e867dfb`) and the analyzer warning was silenced by an `// ignore: unused_element` a month later (`0d857a595`). Assumption confirmation, open-question answering, both proposal cards and the tasks section are each called exactly once, from inside it, so none of them renders. The remaining work is that mount decision -- re-mount the panel, or move the two answering surfaces onto a live one -- and only then the count, a union of `unresolvedOpenQuestions` and `blockingAssumptions`. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
 | Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Push delivery, lock-screen approval, and native withdrawal have hardware evidence dated 2026-09-09/10. Complete the remaining device matrix; see [WATCH5](apple_watch_roadmap.md#watch5-push-originated-notification-actions). |
 | Watch | WATCH14 | current | Browse the iPhone's paired host projects and existing threads, read a compact conversation, and dictate instructions into the selected remote thread. | Slices 1-3 provide paged browsing, compact transcripts, and destination-bound Dictation/Stop. A background-woken iPhone now reconnects the saved host, retires the old epoch, and offers an explicit Send again only after the same destination is freshly confirmed. Next: prove this on a signed locked/backgrounded iPhone/Watch pair and real desktop, plus concurrent thread changes, accessibility, and hidden tool traffic. See [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads). |
 
