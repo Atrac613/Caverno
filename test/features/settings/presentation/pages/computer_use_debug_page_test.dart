@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../support/pump_until_test_support.dart';
+
 void main() {
   setUp(MacosComputerUseAuditLog.instance.clear);
 
@@ -1160,6 +1162,13 @@ void main() {
     await _pumpPage(tester, service);
     await _tapByKey(tester, 'computer-use-export-diagnostics');
 
+    // The label waits on a real file write, so asserting straight after the
+    // tap passes only while that write lands inside the tap's own pumping.
+    await pumpUntilFound(
+      tester,
+      find.textContaining('Last export:', skipOffstage: false),
+      what: 'the diagnostics export path',
+    );
     expect(
       find.textContaining('Last export:', skipOffstage: false),
       findsOneWidget,

@@ -14,6 +14,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../support/pump_until_test_support.dart';
+
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
 
@@ -199,9 +201,10 @@ void main() {
 
     await _tapByKey(tester, 'computer-use-settings-export-diagnostics');
 
-    await _pumpUntilFound(
+    await pumpUntilFound(
       tester,
       find.textContaining('Last export:', skipOffstage: false),
+      what: 'the diagnostics export path',
     );
     expect(
       find.textContaining('Last export:', skipOffstage: false),
@@ -998,20 +1001,6 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
   }
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
-}
-
-Future<void> _pumpUntilFound(
-  WidgetTester tester,
-  Finder finder, {
-  Duration timeout = const Duration(seconds: 3),
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (!tester.any(finder)) {
-    if (DateTime.now().isAfter(deadline)) {
-      break;
-    }
-    await tester.pump(const Duration(milliseconds: 50));
-  }
 }
 
 class _FakeMacosComputerUseService extends MacosComputerUseService {
