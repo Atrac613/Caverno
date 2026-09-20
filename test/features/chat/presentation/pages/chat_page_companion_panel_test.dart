@@ -13,6 +13,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -21,6 +22,7 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/session_log_details_provider.dart';
+import 'package:caverno/features/chat/presentation/widgets/plan/awaiting_you_sheet.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
@@ -1001,4 +1003,104 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     );
     expect(find.byKey(const ValueKey('revert-last-turn-action')), findsNothing);
   });
+
+  testWidgets('the companion panel opens the surface that answers', (
+    tester,
+  ) async {
+    // The check the widget tests beside this one cannot make. Mounting a
+    // section in isolation proves it works, never that anything renders it --
+    // which is the gap `_buildWorkflowPanel` sat in for five months, unmounted
+    // since 2026-04-18 with every surface below it passing its own tests.
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const question = 'Which API version is required?';
+    const claim = 'The staging database is a copy of production';
+    const provenanceService = ConversationContractProvenanceService();
+    final now = DateTime(2026, 9, 20, 11, 0);
+    final conversation = Conversation(
+      id: 'awaiting-thread-1',
+      title: 'Awaiting thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+      workspaceMode: WorkspaceMode.chat,
+      workflowSpec: ConversationWorkflowSpec(
+        openQuestions: const [question],
+        constraints: const [claim],
+        provenance: [
+          ConversationContractItemProvenance(
+            itemId: provenanceService.itemId(
+              kind: ConversationContractItemKind.constraint,
+              value: claim,
+            ),
+            kind: ConversationContractItemKind.constraint,
+            assumption: true,
+            material: true,
+          ),
+        ],
+      ),
+    );
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        settingsNotifierProvider.overrideWith(_ChatSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          () => _ChatConversationsNotifier(conversation),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          _EmptyCodingProjectsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const ChatPage(showDashboardOnStartup: false),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Mounted: the summary reaches a real page, and counts both kinds.
+    expect(find.text('Waiting on you (2)'), findsOneWidget);
+
+    // Routed: its one way in reaches the surface that owns answering. Until
+    // 2026-09-20 it reached PlanReviewSheet, a markdown preview with no
+    // questions in it at all, because the two surfaces that answer were
+    // reachable only from inside the unmounted panel.
+    await tester.tap(find.text(question));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AwaitingYouSheet), findsOneWidget);
+    expect(find.text('Unconfirmed assumptions'), findsOneWidget);
+    expect(find.text('Confirm this'), findsOneWidget);
+  });
+
 }
