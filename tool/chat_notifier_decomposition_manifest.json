@@ -206,6 +206,11 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/saved_validation_command_guard.dart"
         },
         {
+          "id": "saved-task-authored-request-text",
+          "path": "lib/features/chat/domain/services/saved_task_authored_request_text.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/saved_task_authored_request_text.dart"
+        },
+        {
           "id": "saved-task-target-scope-guard",
           "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart"

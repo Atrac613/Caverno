@@ -166,6 +166,7 @@ import '../../domain/services/referenced_specification_loader.dart';
 import '../../domain/services/request_tool_observation_collector.dart';
 import '../../domain/services/run_tests_command_builder.dart';
 import '../../domain/services/runtime_sampler_feedback_recorder.dart';
+import '../../domain/services/saved_task_authored_request_text.dart';
 import '../../domain/services/saved_task_target_scope_guard.dart';
 import '../../domain/services/saved_validation_command_guard.dart';
 import '../../domain/services/secondary_call_budget.dart';
@@ -6377,7 +6378,10 @@ class ChatNotifier extends Notifier<ChatState> {
             ...executedToolResults,
             ...unexecutedPendingToolResults,
           ],
-          latestUserContent: turnSnapshot!.latestUserContent,
+          latestUserContent: const SavedTaskAuthoredRequestText().resolve(
+            latestUserContent: turnSnapshot!.latestUserContent,
+            savedTask: turnSnapshot.savedTask,
+          ),
         );
     // Re-run analysis so final diagnostics reflect the post-edit state.
     final finalDiagnosticFeedback = hasTextResponse

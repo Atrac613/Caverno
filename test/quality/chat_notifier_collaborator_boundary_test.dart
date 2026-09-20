@@ -239,6 +239,7 @@ void main() {
         'running-tool-tracker',
         'runtime-sampler-feedback-recorder',
         'save-skill-tool-handler',
+        'saved-task-authored-request-text',
         'saved-task-target-scope-guard',
         'saved-validation-command-guard',
         'secondary-completion-router',

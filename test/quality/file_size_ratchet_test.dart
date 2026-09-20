@@ -290,6 +290,12 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/saved_validation_command_guard.dart': 180,
   // -24: the frozen input snapshot moved to saved_task_target_scope_input.dart
   // and is re-exported, so the guard file holds only the decision.
+  // Introduction budget. The guard's view of an executor-driven turn's
+  // request, resolved through the saved task's own authored fields. Two
+  // fall-throughs carry most of the body: an empty task, and the synthetic
+  // request wrapper whose placeholder title carries none of the request.
+  'lib/features/chat/domain/services/saved_task_authored_request_text.dart':
+      63,
   'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 113,
   'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
   'lib/features/chat/domain/services/uninspected_commit_guard.dart': 144,
