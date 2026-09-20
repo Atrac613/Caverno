@@ -543,7 +543,15 @@ void main() {
 
       final migrated = AppSettings.migrateLegacyJson(json);
 
-      expect(migrated['llmEndpoints'], json['llmEndpoints']);
+      // What this guards is that the unified-endpoint step does not rewrite a
+      // registry that already exists. The chat_template_kwargs step does add
+      // its key to every row -- that is its whole job -- so compare the fields
+      // this test is about rather than the whole map.
+      final row = (migrated['llmEndpoints'] as List).single as Map;
+      expect(migrated['llmEndpoints'], hasLength(1));
+      expect(row['id'], 'unified-id');
+      expect(row['baseUrl'], 'http://unified.example/v1');
+      expect(row['source'], 'manual');
       expect(migrated, contains('llmEndpointProfiles'));
     });
 
@@ -1352,6 +1360,67 @@ void main() {
         const LlmEndpoint(id: 'x', baseUrl: 'https://api.example.com/v1')
             .chatTemplateKwargsEnabled,
         isFalse,
+      );
+    });
+  });
+
+  group('chat_template_kwargs opt-in migration', () {
+    Map<String, dynamic> withEndpointJson(Map<String, dynamic> endpoint) => {
+      'baseUrl': 'http://192.168.100.241:1234/v1',
+      'model': 'whatever',
+      'apiKey': 'no-key',
+      'temperature': 0.7,
+      'maxTokens': 4096,
+      'llmEndpoints': [endpoint],
+    };
+
+    test('opts in the endpoints that relied on the old model-name gate', () {
+      // Suppression used to follow from the name alone, so an install already
+      // depending on it must not lose it when the name stops deciding.
+      final migrated = AppSettings.migrateLegacyJson(
+        withEndpointJson({
+          'id': 'local',
+          'baseUrl': 'http://192.168.100.241:1234/v1',
+          'model': 'Qwen3.8-Flash-Next-Q2',
+        }),
+      );
+
+      expect(
+        (migrated['llmEndpoints'] as List).single['chatTemplateKwargsEnabled'],
+        isTrue,
+      );
+    });
+
+    test('leaves every other endpoint opted out', () {
+      final migrated = AppSettings.migrateLegacyJson(
+        withEndpointJson({
+          'id': 'hosted',
+          'baseUrl': 'https://api.example.com/v1',
+          'model': 'some-unrecognised-model',
+        }),
+      );
+
+      expect(
+        (migrated['llmEndpoints'] as List).single['chatTemplateKwargsEnabled'],
+        isFalse,
+        reason: 'it never had suppression, so it gains nothing silently',
+      );
+    });
+
+    test('never overwrites a choice already made', () {
+      final migrated = AppSettings.migrateLegacyJson(
+        withEndpointJson({
+          'id': 'local',
+          'baseUrl': 'http://192.168.100.241:1234/v1',
+          'model': 'qwen3.8-27b-vision',
+          'chatTemplateKwargsEnabled': false,
+        }),
+      );
+
+      expect(
+        (migrated['llmEndpoints'] as List).single['chatTemplateKwargsEnabled'],
+        isFalse,
+        reason: 'the migration runs once; the person outranks it',
       );
     });
   });

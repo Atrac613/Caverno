@@ -2222,12 +2222,12 @@ mixin _$LlmEndpoint {
 /// to an endpoint that does not know it is the outcome worth avoiding.
 ///
 /// Until this existed, whether a request could suppress thinking was
-/// decided by the model *name* (`startsWith('qwen3.8')`) even though
-/// [Qwen38RequestThinkingPolicy] documents suppression as a fact about the
-/// request. A local llama.cpp serving anything else -- gemma, say -- got
-/// no suppression on its JSON utility calls, so goalSuggestion,
-/// memoryExtraction and approvalAutoReview thought inside a 400-token
-/// budget and returned nothing usable.
+/// decided by the model *name*, even though suppression is a fact about
+/// the request: a local llama.cpp serving any unrecognised family got none
+/// on its JSON utility calls, so goalSuggestion, memoryExtraction and
+/// approvalAutoReview thought inside a 400-token budget and returned
+/// nothing usable. This flag replaced that gate, so no model name takes
+/// part in the decision any more.
  bool get chatTemplateKwargsEnabled;@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource get source; DateTime? get createdAt;
 /// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
@@ -2456,12 +2456,12 @@ class _LlmEndpoint extends LlmEndpoint {
 /// to an endpoint that does not know it is the outcome worth avoiding.
 ///
 /// Until this existed, whether a request could suppress thinking was
-/// decided by the model *name* (`startsWith('qwen3.8')`) even though
-/// [Qwen38RequestThinkingPolicy] documents suppression as a fact about the
-/// request. A local llama.cpp serving anything else -- gemma, say -- got
-/// no suppression on its JSON utility calls, so goalSuggestion,
-/// memoryExtraction and approvalAutoReview thought inside a 400-token
-/// budget and returned nothing usable.
+/// decided by the model *name*, even though suppression is a fact about
+/// the request: a local llama.cpp serving any unrecognised family got none
+/// on its JSON utility calls, so goalSuggestion, memoryExtraction and
+/// approvalAutoReview thought inside a 400-token budget and returned
+/// nothing usable. This flag replaced that gate, so no model name takes
+/// part in the decision any more.
 @override@JsonKey() final  bool chatTemplateKwargsEnabled;
 @override@JsonKey(unknownEnumValue: LlmEndpointSource.manual) final  LlmEndpointSource source;
 @override final  DateTime? createdAt;

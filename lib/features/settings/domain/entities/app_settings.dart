@@ -778,12 +778,12 @@ abstract class LlmEndpoint with _$LlmEndpoint {
     /// to an endpoint that does not know it is the outcome worth avoiding.
     ///
     /// Until this existed, whether a request could suppress thinking was
-    /// decided by the model *name* (`startsWith('qwen3.8')`) even though
-    /// [Qwen38RequestThinkingPolicy] documents suppression as a fact about the
-    /// request. A local llama.cpp serving anything else -- gemma, say -- got
-    /// no suppression on its JSON utility calls, so goalSuggestion,
-    /// memoryExtraction and approvalAutoReview thought inside a 400-token
-    /// budget and returned nothing usable.
+    /// decided by the model *name*, even though suppression is a fact about
+    /// the request: a local llama.cpp serving any unrecognised family got none
+    /// on its JSON utility calls, so goalSuggestion, memoryExtraction and
+    /// approvalAutoReview thought inside a 400-token budget and returned
+    /// nothing usable. This flag replaced that gate, so no model name takes
+    /// part in the decision any more.
     @Default(false) bool chatTemplateKwargsEnabled,
     @JsonKey(unknownEnumValue: LlmEndpointSource.manual)
     @Default(LlmEndpointSource.manual)
@@ -1377,7 +1377,50 @@ abstract class AppSettings with _$AppSettings {
     var migrated = _migrateApprovalMode(json);
     migrated = _migrateUnifiedEndpoints(migrated);
     migrated = _migrateProReasoningCandidateRouting(migrated);
+    migrated = _migrateChatTemplateKwargsOptIn(migrated);
     return migrated;
+  }
+
+  /// Carries the old model-name behaviour onto the endpoint flag, once.
+  ///
+  /// Suppressing thinking on the structured utility roles used to be reachable
+  /// only for models named `qwen3.8*`. That gate is gone -- the decision is now
+  /// the role plus [LlmEndpoint.chatTemplateKwargsEnabled], with no model name
+  /// in it -- so an install whose endpoint already relied on it would quietly
+  /// lose suppression. Turn the flag on for exactly the endpoints that had it,
+  /// and nothing changes for them.
+  ///
+  /// This is the only place a model name decides anything, and it runs once:
+  /// an endpoint added afterwards is opted in by the person, like any other
+  /// capability we cannot detect.
+  static Map<String, dynamic> _migrateChatTemplateKwargsOptIn(
+    Map<String, dynamic> json,
+  ) {
+    final endpoints = json['llmEndpoints'];
+    if (endpoints is! List) return json;
+    var changed = false;
+    final migrated = <dynamic>[];
+    for (final entry in endpoints) {
+      if (entry is! Map) {
+        migrated.add(entry);
+        continue;
+      }
+      final row = Map<String, dynamic>.from(entry);
+      if (row.containsKey('chatTemplateKwargsEnabled')) {
+        migrated.add(row);
+        continue;
+      }
+      final model = row['model']?.toString().trim().toLowerCase() ?? '';
+      // Spelled out rather than read from Qwen38RequestThinkingPolicy on
+      // purpose. A migration records what the old build did, so it has to stay
+      // frozen even if that predicate later widens, narrows or disappears --
+      // and settings does not otherwise depend on the chat feature.
+      row['chatTemplateKwargsEnabled'] = model.startsWith('qwen3.8');
+      changed = true;
+      migrated.add(row);
+    }
+    if (!changed) return json;
+    return <String, dynamic>{...json, 'llmEndpoints': migrated};
   }
 
   static Map<String, dynamic> _migrateProReasoningCandidateRouting(

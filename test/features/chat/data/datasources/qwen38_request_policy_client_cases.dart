@@ -40,7 +40,13 @@ void _runQwen38RequestPolicyClient() {
     final delegate = _RecordingClient();
     final client = Qwen38RequestPolicyClient(
       delegate: delegate,
-      policy: const Qwen38RequestThinkingPolicy(reasoningEffort: 'medium'),
+      // Opted in because suppression is now decided by the role plus the
+      // endpoint's opt-in, with no model name in it. What this case proves is
+      // unchanged: that the role survives the zone hop into the http client.
+      policy: const Qwen38RequestThinkingPolicy(
+        reasoningEffort: 'medium',
+        acceptsChatTemplateKwargs: true,
+      ),
     );
     final request =
         http.Request(

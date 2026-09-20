@@ -19,7 +19,10 @@ void main() {
     test(
       'explicit on enables automatic effort but preserves utility suppression',
       () {
-        const policy = Qwen38RequestThinkingPolicy(enableThinking: true);
+        const policy = Qwen38RequestThinkingPolicy(
+          enableThinking: true,
+          acceptsChatTemplateKwargs: true,
+        );
         expect(
           policy.resolve(model: model, maxTokens: 100)!.chatTemplateKwargs,
           {'enable_thinking': true},
@@ -75,7 +78,10 @@ void main() {
       // utility call on that endpoint was ever told not to think. Observed
       // 2026-09-17: a 400-token goalSuggestion spent all 400 reasoning and
       // returned nothing.
-      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'high');
+      const policy = Qwen38RequestThinkingPolicy(
+        reasoningEffort: 'high',
+        acceptsChatTemplateKwargs: true,
+      );
       expect(
         policy
             .resolve(
@@ -116,7 +122,10 @@ void main() {
     });
 
     test('structured utility roles never think, whatever the chat effort', () {
-      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'high');
+      const policy = Qwen38RequestThinkingPolicy(
+        reasoningEffort: 'high',
+        acceptsChatTemplateKwargs: true,
+      );
 
       for (final role in const [
         ModelUsageRole.memoryExtraction,
@@ -180,7 +189,10 @@ void main() {
     // llama.cpp serving any other family sent its JSON utility calls with
     // thinking on. Observed 2026-09-20: goalSuggestion spent a 400-token
     // budget reasoning and every composer-shortcut draft came back empty.
-    const otherModel = 'gemma-4-31B-it-Q4_K_M.gguf';
+    // The model name no longer takes part; the role and the opt-in decide.
+    // Deliberately a name this policy has never heard of: suppression must
+    // not depend on recognising the family.
+    const otherModel = 'some-unrecognised-model';
 
     test('suppresses thinking for a utility role on any model', () {
       for (final role in [
@@ -251,6 +263,29 @@ void main() {
         ),
         isNull,
       );
+    });
+
+    test('an unrecognised family is suppressed exactly like qwen3.8', () {
+      // The point of the opt-in: two models with nothing in common produce the
+      // same overrides for the same role, because neither name is consulted.
+      const policy = Qwen38RequestThinkingPolicy(
+        reasoningEffort: 'high',
+        acceptsChatTemplateKwargs: true,
+      );
+      final known = policy.resolve(
+        model: 'qwen3.8-27b-vision',
+        maxTokens: 400,
+        role: ModelUsageRole.goalSuggestion,
+      )!;
+      final unknown = policy.resolve(
+        model: 'some-unrecognised-model',
+        maxTokens: 400,
+        role: ModelUsageRole.goalSuggestion,
+      )!;
+
+      expect(unknown.chatTemplateKwargs, known.chatTemplateKwargs);
+      expect(unknown.maxTokens, known.maxTokens);
+      expect(unknown.preserveReasoningEffort, known.preserveReasoningEffort);
     });
   });
 }
