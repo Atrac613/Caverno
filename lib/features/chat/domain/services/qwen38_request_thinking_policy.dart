@@ -20,10 +20,35 @@ final class Qwen38RequestThinkingPolicy {
   /// latency (49-204s each, 977s of the session's wall clock), zero memory
   /// written. The JSON itself needs ~700 tokens, so the budget was never the
   /// problem; thinking inside it was.
+  ///
+  /// Planning was added on 2026-09-20 after session 132829af reproduced that
+  /// exactly: all four planning calls of a release turn ended on
+  /// `finishReason: length`, at 1600, 1800, 1536 and 1536 tokens, each spending
+  /// its whole budget inside `<think>` and emitting no JSON. 274s of the
+  /// session's 21 minutes, and a plan with zero tasks — which then left the
+  /// execution turn with no structure to advance through, so it swept the same
+  /// evidence three times (17 of 48 tool calls were exact repeats) and wrote
+  /// nothing.
+  ///
+  /// The 1800-token attempt is why this is suppression and not a bigger budget:
+  /// raising it had already been tried within the same turn and failed, and a
+  /// thinking model expands to fill whatever it is given, so "raise until it
+  /// fits" has no terminus. The capability was never missing either — the same
+  /// model, in the same session, ran a competent 19-call investigation and
+  /// correctly concluded that the Info.plist files must *not* be edited because
+  /// they reference `$(FLUTTER_BUILD_NAME)`. What it could not do was say that
+  /// in the shape it was asked for, inside a utility budget.
+  ///
+  /// Planning is the one role here whose quality plausibly depends on
+  /// deliberation, so this is the member to re-measure first if plans get
+  /// thinner: a vacuous task list under suppression is evidence that planning
+  /// does not belong on [SecondaryCallBudget] at all, which is a
+  /// reclassification rather than a policy tweak.
   static const Set<ModelUsageRole> _structuredUtilityRoles = {
     ModelUsageRole.memoryExtraction,
     ModelUsageRole.approvalAutoReview,
     ModelUsageRole.goalSuggestion,
+    ModelUsageRole.planning,
   };
 
   final String? reasoningEffort;

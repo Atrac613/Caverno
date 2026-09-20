@@ -131,6 +131,13 @@ void main() {
         ModelUsageRole.memoryExtraction,
         ModelUsageRole.approvalAutoReview,
         ModelUsageRole.goalSuggestion,
+        // 2026-09-20, session 132829af: all four planning calls of a release
+        // turn ended on finishReason: length -- 1600, 1800, and 1536 twice --
+        // each spending its whole budget inside <think> and emitting no JSON.
+        // The plan came out with zero tasks. The 1536s are this policy's own
+        // medium floor inflating a smaller budget, which is why the budget
+        // assertion below matters as much as the thinking one.
+        ModelUsageRole.planning,
       ]) {
         final overrides = policy.resolve(
           model: model,
@@ -151,12 +158,17 @@ void main() {
       }
     });
 
-    test('chat and planning keep the reasoning the user asked for', () {
+    test('the roles that answer in prose keep the reasoning asked for', () {
+      // Planning left this list on 2026-09-20. It reads as the one role here
+      // whose quality could depend on deliberation, so the reason it moved is
+      // worth stating: its answer is a parsed task list on a utility budget,
+      // and the same model in the same session ran a competent 19-call
+      // investigation -- the capability was never missing, only the ability to
+      // say it in that shape inside that budget.
       const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'medium');
 
       for (final role in const [
         ModelUsageRole.chat,
-        ModelUsageRole.planning,
         ModelUsageRole.proReasoning,
         ModelUsageRole.subagent,
       ]) {
