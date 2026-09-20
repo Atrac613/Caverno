@@ -408,31 +408,14 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 
     _quitDialogOpen = true;
     try {
-      final shouldQuit = await QuitConfirmationDialog.show(navigatorContext);
-
-      if (!shouldQuit) {
-        return;
-      }
-
-      appLog('[Quit] confirmed; closing persistence');
-      final exitResponse = await _handleAppExit();
-      if (exitResponse == AppExitResponse.cancel) {
-        // `didRequestAppExit` refuses an OS-initiated exit when persistence
-        // cannot close, so a *running* app is never left with a closed
-        // database. Here the user asked to quit, so the app is going away
-        // either way and returning early would be indistinguishable from a
-        // dead menu item -- which is exactly how this failure was reported.
-        appLog('[Quit] persistence close refused the exit; quitting anyway');
-      }
-
-      final windowManagerService = widget.windowManagerService;
-      if (windowManagerService != null) {
-        appLog('[Quit] terminating');
-        await windowManagerService.quitApplication();
-        return;
-      }
-
-      await SystemNavigator.pop();
+      // The dialog holds the screen while `_runQuitTeardown` works instead of
+      // popping on confirm. Closing persistence can take seconds, and handing
+      // the user back the ordinary UI for that wait is indistinguishable from
+      // a frozen app.
+      await QuitConfirmationDialog.show(
+        navigatorContext,
+        onConfirmed: _runQuitTeardown,
+      );
     } catch (error, stackTrace) {
       appLog('[Quit] quit flow failed: $error');
       appLog('[Quit] $stackTrace');
@@ -440,6 +423,32 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     } finally {
       _quitDialogOpen = false;
     }
+  }
+
+  /// Tears the app down after the user confirmed the quit.
+  ///
+  /// Runs while the quit dialog shows its progress state, and on desktop does
+  /// not return: it ends in `windowManager.destroy()`.
+  Future<void> _runQuitTeardown() async {
+    appLog('[Quit] confirmed; closing persistence');
+    final exitResponse = await _handleAppExit();
+    if (exitResponse == AppExitResponse.cancel) {
+      // `didRequestAppExit` refuses an OS-initiated exit when persistence
+      // cannot close, so a *running* app is never left with a closed
+      // database. Here the user asked to quit, so the app is going away
+      // either way and returning early would be indistinguishable from a
+      // dead menu item -- which is exactly how this failure was reported.
+      appLog('[Quit] persistence close refused the exit; quitting anyway');
+    }
+
+    final windowManagerService = widget.windowManagerService;
+    if (windowManagerService != null) {
+      appLog('[Quit] terminating');
+      await windowManagerService.quitApplication();
+      return;
+    }
+
+    await SystemNavigator.pop();
   }
 
   @override
