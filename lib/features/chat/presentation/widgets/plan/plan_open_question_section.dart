@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/entities/conversation.dart';
 import '../../../domain/entities/conversation_workflow.dart';
+import 'blocking_assumption_items.dart';
 
 /// What is waiting on the user, in the panel that is always on screen.
 ///
@@ -12,14 +13,22 @@ import '../../../domain/entities/conversation_workflow.dart';
 /// which is the half that makes the workspace somewhere to intervene rather
 /// than only to observe.
 ///
-/// Deliberately a summary with one way in, not a second answering surface. The
-/// sheet already owns answering, with a status menu and a note editor per
-/// question; duplicating that here would give the same decision two places to
-/// be made and two places to drift.
+/// Deliberately a summary with one way in, not a second answering surface.
+/// `AwaitingYouSheet` owns answering, with a status menu and a note editor per
+/// question and a confirmation per assumption; duplicating that here would give
+/// the same decision two places to be made and two places to drift.
 ///
-/// It counts through [Conversation.unresolvedOpenQuestions], so an untriaged
-/// question counts -- the count that walked progress rows reported zero until a
-/// human opened the sheet, which is exactly the user this section is for.
+/// **The `onOpen` this comment described did not exist until 2026-09-20.** It
+/// went to `PlanReviewSheet`, which renders a markdown preview and three
+/// buttons, because the surfaces that do own answering hung off
+/// `_buildWorkflowPanel` -- unmounted since 2026-04-18 behind an
+/// `// ignore: unused_element`. Both kinds now reach `AwaitingYouSheet`.
+///
+/// It counts the union of two kinds. [Conversation.unresolvedOpenQuestions], so
+/// an untriaged question counts -- the count that walked progress rows reported
+/// zero until a human opened the sheet, which is exactly the user this section
+/// is for -- and the blocking material assumptions, which stop work outright
+/// and, before this, could only be answered by the interrupt raised mid-turn.
 class AwaitingYouPanelSection extends StatelessWidget {
   const AwaitingYouPanelSection({
     super.key,
@@ -30,14 +39,41 @@ class AwaitingYouPanelSection extends StatelessWidget {
   final Conversation currentConversation;
   final VoidCallback onOpen;
 
+  /// Everything waiting on the user, questions first.
+  ///
+  /// Questions lead because they are the cheaper answer; an assumption stops
+  /// work and is worth seeing even at the bottom of a truncated preview, which
+  /// is what the trailing count is for.
+  static List<({String text, bool blocks})> waitingItems(
+    Conversation conversation,
+  ) {
+    final spec = conversation.effectiveWorkflowSpec;
+    return [
+      for (final question in conversation.unresolvedOpenQuestions)
+        (text: question, blocks: false),
+      for (final item in blockingAssumptionItems(
+        spec: spec,
+        kind: ConversationContractItemKind.constraint,
+        items: spec.constraints,
+      ))
+        (text: item, blocks: true),
+      for (final item in blockingAssumptionItems(
+        spec: spec,
+        kind: ConversationContractItemKind.acceptanceCriterion,
+        items: spec.acceptanceCriteria,
+      ))
+        (text: item, blocks: true),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final questions = currentConversation.unresolvedOpenQuestions;
-    if (questions.isEmpty) return const SizedBox.shrink();
+    final items = waitingItems(currentConversation);
+    if (items.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    final visible = questions.take(3).toList(growable: false);
-    final remaining = questions.length - visible.length;
+    final visible = items.take(3).toList(growable: false);
+    final remaining = items.length - visible.length;
 
     return Padding(
       padding: const EdgeInsets.only(top: 18),
@@ -63,7 +99,7 @@ class AwaitingYouPanelSection extends StatelessWidget {
                     Expanded(
                       child: Text(
                         'chat.companion_awaiting_you'.tr(
-                          namedArgs: {'count': '${questions.length}'},
+                          namedArgs: {'count': '${items.length}'},
                         ),
                         style: theme.textTheme.labelLarge?.copyWith(
                           fontWeight: FontWeight.w700,
@@ -73,14 +109,35 @@ class AwaitingYouPanelSection extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                for (final question in visible) ...[
-                  Text(
-                    question,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
+                for (final item in visible) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // A blocking assumption reads like a statement, not a
+                      // question, so without the mark the two kinds are
+                      // indistinguishable in one list.
+                      if (item.blocks) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Icon(
+                            Icons.pause_circle_outline,
+                            size: 13,
+                            color: theme.colorScheme.tertiary,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      Expanded(
+                        child: Text(
+                          item.text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
                   ),
-                  if (question != visible.last) const SizedBox(height: 6),
+                  if (item != visible.last) const SizedBox(height: 6),
                 ],
                 if (remaining > 0) ...[
                   const SizedBox(height: 6),

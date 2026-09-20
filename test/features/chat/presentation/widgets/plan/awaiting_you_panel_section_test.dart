@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/presentation/widgets/plan/plan_open_question_section.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -19,16 +20,39 @@ class _TestTranslationLoader extends AssetLoader {
   }
 }
 
+const _provenanceService = ConversationContractProvenanceService();
+
+/// A constraint the plan is assuming, which blocks execution until confirmed.
+ConversationContractItemProvenance _blockingMark(
+  String claim, {
+  bool confirmed = false,
+}) => ConversationContractItemProvenance(
+  itemId: _provenanceService.itemId(
+    kind: ConversationContractItemKind.constraint,
+    value: claim,
+  ),
+  kind: ConversationContractItemKind.constraint,
+  assumption: true,
+  material: true,
+  confirmed: confirmed,
+);
+
 Conversation _conversation({
   List<String> openQuestions = const [],
   List<ConversationOpenQuestionProgress> progress = const [],
+  List<String> constraints = const [],
+  List<ConversationContractItemProvenance> provenance = const [],
 }) => Conversation(
   id: 'conversation-1',
   title: 'Plan thread',
   messages: const <Message>[],
   createdAt: DateTime(2026, 9, 14),
   updatedAt: DateTime(2026, 9, 14),
-  workflowSpec: ConversationWorkflowSpec(openQuestions: openQuestions),
+  workflowSpec: ConversationWorkflowSpec(
+    openQuestions: openQuestions,
+    constraints: constraints,
+    provenance: provenance,
+  ),
   openQuestionProgress: progress,
 );
 
@@ -117,6 +141,67 @@ void main() {
     expect(find.text('Three?'), findsOneWidget);
     expect(find.text('Four?'), findsNothing);
     expect(find.textContaining('2 more'), findsOneWidget);
+  });
+
+  testWidgets('a blocking assumption is waiting too', (tester) async {
+    // The other thing that waits on a user, and the one that stops work. Before
+    // the union it was absent from the only surface that remembers, because a
+    // dismissed interrupt left nowhere to go back to.
+    const claim = 'The staging database is a copy of production';
+    await _pump(
+      tester,
+      _conversation(constraints: const [claim], provenance: [
+        _blockingMark(claim),
+      ]),
+    );
+
+    expect(find.text('Waiting on you (1)'), findsOneWidget);
+    expect(find.text(claim), findsOneWidget);
+  });
+
+  testWidgets('a confirmed assumption stops waiting', (tester) async {
+    const claim = 'The staging database is a copy of production';
+    await _pump(
+      tester,
+      _conversation(constraints: const [claim], provenance: [
+        _blockingMark(claim, confirmed: true),
+      ]),
+    );
+
+    expect(tester.getSize(find.byType(AwaitingYouPanelSection)).height, 0);
+  });
+
+  testWidgets('the count is the union of both kinds', (tester) async {
+    const claim = 'The staging database is a copy of production';
+    await _pump(
+      tester,
+      _conversation(
+        openQuestions: const ['Which API version is required?'],
+        constraints: const [claim],
+        provenance: [_blockingMark(claim)],
+      ),
+    );
+
+    expect(find.text('Waiting on you (2)'), findsOneWidget);
+    // Questions lead, because they are the cheaper answer.
+    expect(find.text('Which API version is required?'), findsOneWidget);
+    expect(find.text(claim), findsOneWidget);
+  });
+
+  testWidgets('only the assumption carries the paused mark', (tester) async {
+    // A blocking assumption reads like a statement, not a question, so without
+    // the mark the two kinds are indistinguishable in one list.
+    const claim = 'The staging database is a copy of production';
+    await _pump(
+      tester,
+      _conversation(
+        openQuestions: const ['Which API version is required?'],
+        constraints: const [claim],
+        provenance: [_blockingMark(claim)],
+      ),
+    );
+
+    expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
   });
 
   testWidgets('tapping it opens the surface that answers', (tester) async {

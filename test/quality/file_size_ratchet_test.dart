@@ -538,7 +538,13 @@ const Map<String, int> _lineBudgets = {
   // library aggregate below, which is the ceiling that was actually blocking
   // work -- PR 3's remaining UI and every later per-task label had nowhere to
   // land.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1800,
+  // +1 for the awaiting-you sheet import. The panel section had always
+  // described a destination that owns answering and there was none: its
+  // onOpen reached PlanReviewSheet, a markdown preview, while the two
+  // surfaces that do answer were reachable only through _buildWorkflowPanel,
+  // which has had no caller since 2026-04-18. The sheet and its presentation
+  // are both outside this library; this line is the whole cost here.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1801,
   'lib/features/chat/presentation/widgets/plan/task_precondition_notice.dart':
       57,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
@@ -1161,7 +1167,16 @@ const Map<String, int> _libraryLineBudgets = {
   // method on the page's state -- and the two details it now carries, a
   // blocked reason and what an acceptance rested on, would not have fit
   // here at all: this budget was met exactly.
-  'lib/features/chat/presentation/pages/chat_page.dart': 8440,
+  // +27 for wiring the awaiting-you sheet: one import and the opener, which
+  // is the three actions this page owns and nothing else -- AwaitingYouSheet
+  // and showAwaitingYouSheet both live beside the widgets, following
+  // CompanionTaskRow. This is a raise rather than an offsetting extraction
+  // because the room this library actually has is the ~900 lines under
+  // _buildWorkflowPanel, unreachable since 2026-04-18 behind an
+  // `// ignore: unused_element`. Deleting that is a product decision about
+  // surfaces nobody has seen in five months, not a line-count exercise, so it
+  // is its own change; take these 27 back there.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8467,
   // +4, to 1,147, matching the primary file: the accept_task reservation and
   // offer are four lines in the primary, not a new part.
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1147,

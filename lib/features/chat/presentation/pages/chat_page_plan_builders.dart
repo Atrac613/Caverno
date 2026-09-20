@@ -963,6 +963,34 @@ extension _ChatPagePlanBuilders on _ChatPageState {
     );
   }
 
+  /// The panel's one way in, wired to the three actions this page owns.
+  Future<void> _openAwaitingYouSheet(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    await showAwaitingYouSheet(
+      context,
+      currentConversation: currentConversation,
+      watchConversation: (sheetRef) =>
+          sheetRef.watch(conversationsNotifierProvider).currentConversation,
+      onStatusSelected: (question, status) =>
+          _setOpenQuestionStatus(context, question: question, status: status),
+      onAnswerPressed: (question, existingNote) => _answerOpenQuestion(
+        context,
+        question: question,
+        existingNote: existingNote,
+      ),
+      onConfirmAssumption: (conversation, confirmedSpec) =>
+          _confirmMaterialAssumption(
+            context,
+            currentConversation: conversation,
+            confirmedSpec: confirmedSpec,
+          ),
+    );
+    if (!mounted) return;
+    setState(() {});
+  }
+
   Future<void> _showPlanDocumentEditor(
     BuildContext context,
     Conversation currentConversation, {

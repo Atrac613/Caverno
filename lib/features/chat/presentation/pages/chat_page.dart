@@ -85,6 +85,7 @@ import '../widgets/message_input.dart';
 import '../widgets/message_input_send_handler.dart';
 import '../widgets/mobile_keyboard_dismiss.dart';
 import '../widgets/participant_roster_bar.dart';
+import '../widgets/plan/awaiting_you_sheet.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/plan/contract_item_list_section.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
