@@ -340,6 +340,27 @@ SIGNATURES = {
         # ran tools, which is the claim the policy exists to make.
         "transform": "pending_action_length_recovery",
     },
+    "skill_carried_past_its_turn": {
+        "commit": "73cc602d7",
+        "what": "the skill a turn works from is repeated into that turn",
+        # A load_skill result lives for exactly the turn that produced it.
+        # Session fd153d88 is the cost: the skill was loaded in turn 2, the
+        # write it governed happened in turn 4, and from turn 3 the request
+        # carried only the skill's *name* -- the index -- so the notes went to
+        # the repository root against a convention the skill states.
+        #
+        # Keyed on the prompt rather than on a transform, because nothing is
+        # transformed: the carry is context the request now holds. The literal
+        # spans the two adjacent string literals the builder concatenates, so
+        # no source spells it contiguously and reading the repository cannot
+        # fire it -- the builder's test pins it the same way, split, for that
+        # reason. This file is the sole exception, as it is for every row here:
+        # an instrument has to spell what it looks for.
+        #
+        # be857297 shipped the builder and could not fire; 73cc602d7 is the
+        # wiring, which is what makes the row reachable at all.
+        "match": lambda s: "here because a tool result" in s,
+    },
 }
 
 for _name, _signature in SIGNATURES.items():
