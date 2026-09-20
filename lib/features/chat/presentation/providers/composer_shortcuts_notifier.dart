@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../../settings/domain/services/app_language_resolver.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_datasource.dart';
@@ -133,7 +136,7 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
   Future<void> suggest({
     required String threadId,
     required String assistantContent,
-    String languageCode = 'en',
+    String? languageCode,
   }) async {
     final settings = ref.read(settingsNotifierProvider);
     if (!settings.composerShortcutsEnabled) return;
@@ -154,7 +157,7 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
         messages: ComposerShortcutSuggestionService.buildMessages(
           conversation: conversation,
           assistantContent: assistantContent,
-          languageCode: languageCode,
+          languageCode: languageCode ?? preferredLanguageCode(settings),
           repoSnapshot: isCodingWorkspace ? await _repoSnapshot() : null,
           isCodingWorkspace: isCodingWorkspace,
         ),
@@ -225,6 +228,21 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
         );
     return result.content;
   }
+
+  /// The language the chips should be written in.
+  ///
+  /// The parameter above defaulted to `'en'` and no caller ever passed it, so
+  /// every draft since this feature shipped asked for English -- including in
+  /// Japanese threads, where tapping a chip then posted an English sentence
+  /// into the conversation as if the user had typed it. Resolve the app's own
+  /// language preference instead, through the same resolver the UI uses, so
+  /// `system` follows the device rather than silently meaning English.
+  @visibleForTesting
+  static String preferredLanguageCode(AppSettings settings) =>
+      resolveAppLanguageCode(
+        preference: settings.language,
+        systemLocale: PlatformDispatcher.instance.locale,
+      );
 
   /// Branch and change volume for the selected coding project, or null when
   /// there is no project, no git, or git did not answer in time.
