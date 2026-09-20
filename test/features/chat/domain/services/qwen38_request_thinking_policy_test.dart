@@ -174,4 +174,83 @@ void main() {
       expect(overrides.maxTokens, 4096);
     });
   });
+
+  group('endpoints that accept chat_template_kwargs', () {
+    // Suppression used to be reachable only through isQwen38Model, so a local
+    // llama.cpp serving any other family sent its JSON utility calls with
+    // thinking on. Observed 2026-09-20: goalSuggestion spent a 400-token
+    // budget reasoning and every composer-shortcut draft came back empty.
+    const otherModel = 'gemma-4-31B-it-Q4_K_M.gguf';
+
+    test('suppresses thinking for a utility role on any model', () {
+      for (final role in [
+        ModelUsageRole.goalSuggestion,
+        ModelUsageRole.memoryExtraction,
+        ModelUsageRole.approvalAutoReview,
+      ]) {
+        const policy = Qwen38RequestThinkingPolicy(
+          acceptsChatTemplateKwargs: true,
+        );
+        final overrides = policy.resolve(
+          model: otherModel,
+          maxTokens: 400,
+          role: role,
+        );
+
+        expect(overrides, isNotNull, reason: '$role must be suppressed');
+        expect(overrides!.chatTemplateKwargs['enable_thinking'], isFalse);
+        expect(overrides.maxTokens, 400);
+      }
+    });
+
+    test('sends nothing without the opt-in', () {
+      // The field is the outcome worth avoiding on an endpoint that has never
+      // heard of it, so an unmarked endpoint keeps its old request shape.
+      const policy = Qwen38RequestThinkingPolicy();
+
+      expect(
+        policy.resolve(
+          model: otherModel,
+          maxTokens: 400,
+          role: ModelUsageRole.goalSuggestion,
+        ),
+        isNull,
+      );
+    });
+
+    test('leaves a prose role alone', () {
+      // Only the structured utility roles are suppressed; the opt-in is not a
+      // switch that turns thinking off for the whole endpoint.
+      const policy = Qwen38RequestThinkingPolicy(
+        acceptsChatTemplateKwargs: true,
+      );
+
+      expect(
+        policy.resolve(
+          model: otherModel,
+          maxTokens: 4096,
+          role: ModelUsageRole.chat,
+        ),
+        isNull,
+      );
+    });
+
+    test('does not apply the Qwen3.8 effort mapping to another family', () {
+      // Those branches are tuned to one template and mean nothing elsewhere,
+      // so the opt-in opens suppression only.
+      const policy = Qwen38RequestThinkingPolicy(
+        reasoningEffort: 'medium',
+        acceptsChatTemplateKwargs: true,
+      );
+
+      expect(
+        policy.resolve(
+          model: otherModel,
+          maxTokens: 512,
+          role: ModelUsageRole.chat,
+        ),
+        isNull,
+      );
+    });
+  });
 }

@@ -768,6 +768,23 @@ abstract class LlmEndpoint with _$LlmEndpoint {
     /// usually advertises nothing, and there is no way to tell that apart from
     /// a server that simply cannot take video -- so the person says.
     @Default(false) bool videoInputEnabled,
+
+    /// Manual opt-in for `chat_template_kwargs`, the llama.cpp chat-template
+    /// control that carries `enable_thinking`.
+    ///
+    /// Like [videoInputEnabled], nothing advertises this: a server that has
+    /// never heard of the field and a server that honours it look identical
+    /// over the wire, so the person says. Off by default, because sending it
+    /// to an endpoint that does not know it is the outcome worth avoiding.
+    ///
+    /// Until this existed, whether a request could suppress thinking was
+    /// decided by the model *name* (`startsWith('qwen3.8')`) even though
+    /// [Qwen38RequestThinkingPolicy] documents suppression as a fact about the
+    /// request. A local llama.cpp serving anything else -- gemma, say -- got
+    /// no suppression on its JSON utility calls, so goalSuggestion,
+    /// memoryExtraction and approvalAutoReview thought inside a 400-token
+    /// budget and returned nothing usable.
+    @Default(false) bool chatTemplateKwargsEnabled,
     @JsonKey(unknownEnumValue: LlmEndpointSource.manual)
     @Default(LlmEndpointSource.manual)
     LlmEndpointSource source,
@@ -1128,6 +1145,23 @@ abstract class AppSettings with _$AppSettings {
           profile,
     ];
     return copyWith(llmEndpoints: synced, activeLlmEndpointId: activeId);
+  }
+
+  /// Whether the endpoint serving [baseUrl] was marked as accepting
+  /// `chat_template_kwargs`.
+  ///
+  /// Matched on the normalized base URL because the secondary routers hand
+  /// their datasource factory a base URL and an API key, not an endpoint row.
+  /// Falls back to the active endpoint when [baseUrl] matches nothing, which
+  /// is the primary-connection case, and to false when nothing matches at all.
+  bool acceptsChatTemplateKwargsFor(String baseUrl) {
+    final normalized = LlmEndpoint.normalizeBaseUrl(baseUrl);
+    for (final endpoint in usableLlmEndpoints) {
+      if (endpoint.normalizedBaseUrl == normalized) {
+        return endpoint.chatTemplateKwargsEnabled;
+      }
+    }
+    return activeLlmEndpoint?.chatTemplateKwargsEnabled ?? false;
   }
 
   String get effectiveMemoryExtractionModel =>

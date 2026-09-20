@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 
 import '../../../../core/constants/api_constants.dart';
-import '../../../../core/security/llm_endpoint_transport_policy.dart';
 import '../../../../core/utils/logger.dart';
 import '../../application/runtime/turn_abort_signals.dart';
 import '../../domain/entities/message.dart';
@@ -58,6 +57,7 @@ class ChatRemoteDataSource
     String? apiKey,
     String? reasoningEffort,
     bool? enableThinking,
+    bool acceptsChatTemplateKwargs = false,
     http.Client? httpClient,
     http.Client Function()? streamClientFactory,
     ModelUsageSink? usageSink,
@@ -66,33 +66,27 @@ class ChatRemoteDataSource
     VideoAttachmentResolver? videoAttachmentResolver,
     this.defaultTopP,
   }) : _videoAttachmentResolver = videoAttachmentResolver,
-       _qwen38RequestPolicy = ChatDataSourceClientFactory.thinkingPolicy(
+       _qwen38RequestPolicy = ChatDataSourceClientFactory.thinkingPolicy((
          reasoningEffort: reasoningEffort,
          enableThinking: enableThinking,
-       ),
+         acceptsChatTemplateKwargs: acceptsChatTemplateKwargs,
+       )),
        _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
        _telemetry = ChatResponseTelemetry(
          usageSink: usageSink,
          endpointId: endpointId,
          labelResolver: usageLabelResolver,
        ),
-       _client = OpenAIClient.withApiKey(
-         apiKey ?? ApiConstants.defaultApiKey,
-         baseUrl: const LlmEndpointTransportPolicy().validate(
-           baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
-           apiKey: apiKey ?? ApiConstants.defaultApiKey,
-         ),
-         defaultHeaders: ApiConstants.userAgentHeaders,
-         httpClient: ChatDataSourceClientFactory.wrap(
-           httpClient ?? http.Client(),
+       _client = ChatDataSourceClientFactory.client(
+         baseUrl: baseUrl,
+         apiKey: apiKey,
+         shape: (
            reasoningEffort: reasoningEffort,
            enableThinking: enableThinking,
+           acceptsChatTemplateKwargs: acceptsChatTemplateKwargs,
          ),
-         streamClientFactory: () => ChatDataSourceClientFactory.wrap(
-           streamClientFactory?.call() ?? http.Client(),
-           reasoningEffort: reasoningEffort,
-           enableThinking: enableThinking,
-         ),
+         httpClient: httpClient,
+         streamClientFactory: streamClientFactory,
        );
 
   final OpenAIClient _client;

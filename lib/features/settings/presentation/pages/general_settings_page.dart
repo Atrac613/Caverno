@@ -1498,6 +1498,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
   late final TextEditingController _modelController;
   late bool _enabled;
   late bool _videoInputEnabled;
+  late bool _chatTemplateKwargsEnabled;
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -1516,6 +1517,8 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
     );
     _enabled = existing?.enabled ?? true;
     _videoInputEnabled = existing?.videoInputEnabled ?? false;
+    _chatTemplateKwargsEnabled =
+        existing?.chatTemplateKwargsEnabled ?? false;
   }
 
   @override
@@ -1560,6 +1563,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
         model: _modelController.text,
         enabled: _enabled,
         videoInputEnabled: _videoInputEnabled,
+        chatTemplateKwargsEnabled: _chatTemplateKwargsEnabled,
         source: existing?.source ?? LlmEndpointSource.manual,
         createdAt: existing?.createdAt,
       ),
@@ -1642,6 +1646,17 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
               value: _videoInputEnabled,
               onChanged: (value) =>
                   setState(() => _videoInputEnabled = value),
+            ),
+            SwitchListTile(
+              key: const ValueKey(
+                'settings-endpoint-chat-template-kwargs-toggle',
+              ),
+              contentPadding: EdgeInsets.zero,
+              title: Text('settings.endpoint_chat_template_kwargs_field'.tr()),
+              subtitle: Text('settings.endpoint_chat_template_kwargs_hint'.tr()),
+              value: _chatTemplateKwargsEnabled,
+              onChanged: (value) =>
+                  setState(() => _chatTemplateKwargsEnabled = value),
             ),
           ],
         ),

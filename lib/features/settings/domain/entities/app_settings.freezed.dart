@@ -2213,7 +2213,22 @@ mixin _$LlmEndpoint {
 /// modalities. A proxy that rewrites requests for a video-capable server
 /// usually advertises nothing, and there is no way to tell that apart from
 /// a server that simply cannot take video -- so the person says.
- bool get videoInputEnabled;@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource get source; DateTime? get createdAt;
+ bool get videoInputEnabled;/// Manual opt-in for `chat_template_kwargs`, the llama.cpp chat-template
+/// control that carries `enable_thinking`.
+///
+/// Like [videoInputEnabled], nothing advertises this: a server that has
+/// never heard of the field and a server that honours it look identical
+/// over the wire, so the person says. Off by default, because sending it
+/// to an endpoint that does not know it is the outcome worth avoiding.
+///
+/// Until this existed, whether a request could suppress thinking was
+/// decided by the model *name* (`startsWith('qwen3.8')`) even though
+/// [Qwen38RequestThinkingPolicy] documents suppression as a fact about the
+/// request. A local llama.cpp serving anything else -- gemma, say -- got
+/// no suppression on its JSON utility calls, so goalSuggestion,
+/// memoryExtraction and approvalAutoReview thought inside a 400-token
+/// budget and returned nothing usable.
+ bool get chatTemplateKwargsEnabled;@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource get source; DateTime? get createdAt;
 /// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2226,16 +2241,16 @@ $LlmEndpointCopyWith<LlmEndpoint> get copyWith => _$LlmEndpointCopyWithImpl<LlmE
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.videoInputEnabled, videoInputEnabled) || other.videoInputEnabled == videoInputEnabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.videoInputEnabled, videoInputEnabled) || other.videoInputEnabled == videoInputEnabled)&&(identical(other.chatTemplateKwargsEnabled, chatTemplateKwargsEnabled) || other.chatTemplateKwargsEnabled == chatTemplateKwargsEnabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,videoInputEnabled,source,createdAt);
+int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,videoInputEnabled,chatTemplateKwargsEnabled,source,createdAt);
 
 @override
 String toString() {
-  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, videoInputEnabled: $videoInputEnabled, source: $source, createdAt: $createdAt)';
+  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, videoInputEnabled: $videoInputEnabled, chatTemplateKwargsEnabled: $chatTemplateKwargsEnabled, source: $source, createdAt: $createdAt)';
 }
 
 
@@ -2246,7 +2261,7 @@ abstract mixin class $LlmEndpointCopyWith<$Res>  {
   factory $LlmEndpointCopyWith(LlmEndpoint value, $Res Function(LlmEndpoint) _then) = _$LlmEndpointCopyWithImpl;
 @useResult
 $Res call({
- String id, String label, String baseUrl, String apiKey, String model, bool enabled, bool videoInputEnabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
+ String id, String label, String baseUrl, String apiKey, String model, bool enabled, bool videoInputEnabled, bool chatTemplateKwargsEnabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
 });
 
 
@@ -2263,7 +2278,7 @@ class _$LlmEndpointCopyWithImpl<$Res>
 
 /// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? videoInputEnabled = null,Object? source = null,Object? createdAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? videoInputEnabled = null,Object? chatTemplateKwargsEnabled = null,Object? source = null,Object? createdAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
@@ -2272,6 +2287,7 @@ as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullabl
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
 as bool,videoInputEnabled: null == videoInputEnabled ? _self.videoInputEnabled : videoInputEnabled // ignore: cast_nullable_to_non_nullable
+as bool,chatTemplateKwargsEnabled: null == chatTemplateKwargsEnabled ? _self.chatTemplateKwargsEnabled : chatTemplateKwargsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as LlmEndpointSource,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
@@ -2359,10 +2375,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled,  bool chatTemplateKwargsEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _LlmEndpoint() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.source,_that.createdAt);case _:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.chatTemplateKwargsEnabled,_that.source,_that.createdAt);case _:
   return orElse();
 
 }
@@ -2380,10 +2396,10 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled,  bool chatTemplateKwargsEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _LlmEndpoint():
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.source,_that.createdAt);case _:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.chatTemplateKwargsEnabled,_that.source,_that.createdAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2400,10 +2416,10 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled,  bool videoInputEnabled,  bool chatTemplateKwargsEnabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _LlmEndpoint() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.source,_that.createdAt);case _:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.videoInputEnabled,_that.chatTemplateKwargsEnabled,_that.source,_that.createdAt);case _:
   return null;
 
 }
@@ -2415,7 +2431,7 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 @JsonSerializable()
 
 class _LlmEndpoint extends LlmEndpoint {
-  const _LlmEndpoint({required this.id, this.label = '', this.baseUrl = '', this.apiKey = '', this.model = '', this.enabled = true, this.videoInputEnabled = false, @JsonKey(unknownEnumValue: LlmEndpointSource.manual) this.source = LlmEndpointSource.manual, this.createdAt}): super._();
+  const _LlmEndpoint({required this.id, this.label = '', this.baseUrl = '', this.apiKey = '', this.model = '', this.enabled = true, this.videoInputEnabled = false, this.chatTemplateKwargsEnabled = false, @JsonKey(unknownEnumValue: LlmEndpointSource.manual) this.source = LlmEndpointSource.manual, this.createdAt}): super._();
   factory _LlmEndpoint.fromJson(Map<String, dynamic> json) => _$LlmEndpointFromJson(json);
 
 @override final  String id;
@@ -2431,6 +2447,22 @@ class _LlmEndpoint extends LlmEndpoint {
 /// usually advertises nothing, and there is no way to tell that apart from
 /// a server that simply cannot take video -- so the person says.
 @override@JsonKey() final  bool videoInputEnabled;
+/// Manual opt-in for `chat_template_kwargs`, the llama.cpp chat-template
+/// control that carries `enable_thinking`.
+///
+/// Like [videoInputEnabled], nothing advertises this: a server that has
+/// never heard of the field and a server that honours it look identical
+/// over the wire, so the person says. Off by default, because sending it
+/// to an endpoint that does not know it is the outcome worth avoiding.
+///
+/// Until this existed, whether a request could suppress thinking was
+/// decided by the model *name* (`startsWith('qwen3.8')`) even though
+/// [Qwen38RequestThinkingPolicy] documents suppression as a fact about the
+/// request. A local llama.cpp serving anything else -- gemma, say -- got
+/// no suppression on its JSON utility calls, so goalSuggestion,
+/// memoryExtraction and approvalAutoReview thought inside a 400-token
+/// budget and returned nothing usable.
+@override@JsonKey() final  bool chatTemplateKwargsEnabled;
 @override@JsonKey(unknownEnumValue: LlmEndpointSource.manual) final  LlmEndpointSource source;
 @override final  DateTime? createdAt;
 
@@ -2447,16 +2479,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.videoInputEnabled, videoInputEnabled) || other.videoInputEnabled == videoInputEnabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.videoInputEnabled, videoInputEnabled) || other.videoInputEnabled == videoInputEnabled)&&(identical(other.chatTemplateKwargsEnabled, chatTemplateKwargsEnabled) || other.chatTemplateKwargsEnabled == chatTemplateKwargsEnabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,videoInputEnabled,source,createdAt);
+int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,videoInputEnabled,chatTemplateKwargsEnabled,source,createdAt);
 
 @override
 String toString() {
-  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, videoInputEnabled: $videoInputEnabled, source: $source, createdAt: $createdAt)';
+  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, videoInputEnabled: $videoInputEnabled, chatTemplateKwargsEnabled: $chatTemplateKwargsEnabled, source: $source, createdAt: $createdAt)';
 }
 
 
@@ -2467,7 +2499,7 @@ abstract mixin class _$LlmEndpointCopyWith<$Res> implements $LlmEndpointCopyWith
   factory _$LlmEndpointCopyWith(_LlmEndpoint value, $Res Function(_LlmEndpoint) _then) = __$LlmEndpointCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String label, String baseUrl, String apiKey, String model, bool enabled, bool videoInputEnabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
+ String id, String label, String baseUrl, String apiKey, String model, bool enabled, bool videoInputEnabled, bool chatTemplateKwargsEnabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
 });
 
 
@@ -2484,7 +2516,7 @@ class __$LlmEndpointCopyWithImpl<$Res>
 
 /// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? videoInputEnabled = null,Object? source = null,Object? createdAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? videoInputEnabled = null,Object? chatTemplateKwargsEnabled = null,Object? source = null,Object? createdAt = freezed,}) {
   return _then(_LlmEndpoint(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
@@ -2493,6 +2525,7 @@ as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullabl
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
 as bool,videoInputEnabled: null == videoInputEnabled ? _self.videoInputEnabled : videoInputEnabled // ignore: cast_nullable_to_non_nullable
+as bool,chatTemplateKwargsEnabled: null == chatTemplateKwargsEnabled ? _self.chatTemplateKwargsEnabled : chatTemplateKwargsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as LlmEndpointSource,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,

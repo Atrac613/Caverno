@@ -491,6 +491,8 @@ _LlmEndpoint _$LlmEndpointFromJson(Map<String, dynamic> json) => _LlmEndpoint(
   model: json['model'] as String? ?? '',
   enabled: json['enabled'] as bool? ?? true,
   videoInputEnabled: json['videoInputEnabled'] as bool? ?? false,
+  chatTemplateKwargsEnabled:
+      json['chatTemplateKwargsEnabled'] as bool? ?? false,
   source:
       $enumDecodeNullable(
         _$LlmEndpointSourceEnumMap,
@@ -512,6 +514,7 @@ Map<String, dynamic> _$LlmEndpointToJson(_LlmEndpoint instance) =>
       'model': instance.model,
       'enabled': instance.enabled,
       'videoInputEnabled': instance.videoInputEnabled,
+      'chatTemplateKwargsEnabled': instance.chatTemplateKwargsEnabled,
       'source': _$LlmEndpointSourceEnumMap[instance.source]!,
       'createdAt': instance.createdAt?.toIso8601String(),
     };

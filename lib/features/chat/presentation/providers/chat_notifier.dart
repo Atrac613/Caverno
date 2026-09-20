@@ -468,6 +468,9 @@ class ChatNotifier extends Notifier<ChatState> {
           apiKey: apiKey,
           reasoningEffort: _settings.reasoningEffort.apiValue,
           enableThinking: _settings.enableThinking,
+          acceptsChatTemplateKwargs: _settings.acceptsChatTemplateKwargsFor(
+            baseUrl,
+          ),
         ),
         _settings,
       ),

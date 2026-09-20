@@ -28,6 +28,9 @@ final chatDataSourceFactoryProvider = Provider<ChatDataSourceFactory>((ref) {
       apiKey: settings.apiKey,
       reasoningEffort: settings.reasoningEffort.apiValue,
       enableThinking: settings.enableThinking,
+      acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+        settings.baseUrl,
+      ),
       usageSink: usageSink,
       endpointId: settings.activeLlmEndpointId,
       usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
@@ -69,6 +72,9 @@ final primaryRouteEndpointDataSourceFactoryProvider =
         apiKey: apiKey,
         reasoningEffort: settings.reasoningEffort.apiValue,
         enableThinking: settings.enableThinking,
+        acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+          baseUrl,
+        ),
         usageSink: usageSink,
         endpointId: endpointId,
         usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,

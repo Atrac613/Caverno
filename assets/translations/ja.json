@@ -1427,6 +1427,8 @@
     "endpoint_enabled_field": "有効",
     "endpoint_video_input_field": "動画入力に対応",
     "endpoint_video_input_hint": "動画を受け付けるが対応を公開していないエンドポイント（動画対応サーバーの手前に立つプロキシなど）で有効にします。",
+    "endpoint_chat_template_kwargs_field": "chat_template_kwargs を受け付ける",
+    "endpoint_chat_template_kwargs_hint": "llama.cpp のテンプレート制御。ユーティリティ呼び出し（メモリ・自動レビュー・ショートカット）が thinking を切れるようになり、小さな JSON 予算を推論で使い切らずに済みます。未知のフィールドを拒否するエンドポイントではオフのまま。",
     "local_stack_title": "ローカルスタック",
     "local_stack_menu_desc": "llama.cpp router のモデルを管理",
     "local_stack_intro": "プライマリ llama.cpp router エンドポイントが公開しているモデルを管理します。読み込みと解放の操作は、models directory を指定した router mode のサーバーでのみ利用できます。",

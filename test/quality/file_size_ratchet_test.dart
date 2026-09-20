@@ -779,8 +779,21 @@ const Map<String, int> _lineBudgets = {
   // cancelled turn's raw <tool_call> bubble in the transcript. Nothing was
   // extractable; the alternative is a stopped turn whose request keeps
   // generating, measured at 36.7 minutes in session c138c465.
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1129,
-  'lib/features/chat/data/datasources/chat_datasource_client_factory.dart': 37,
+  // -5: OpenAIClient construction moved to ChatDataSourceClientFactory.client,
+  // which already owned the two wrapped http clients it hands that constructor.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1124,
+  // +32, and the only budget raised here rather than lowered. 20 of it is the
+  // client construction that left chat_remote_datasource.dart just above,
+  // offset there; the rest is the endpoint's chat_template_kwargs opt-in and
+  // the ChatRequestShape record the three client paths now share.
+  //
+  // Extraction was tried first and made it worse: a constructor initializer
+  // list cannot hold a local, so keeping the client in the datasource meant
+  // spelling the shape out once per path, and splitting the constructor into a
+  // factory plus a private one cost 26 lines to save 4. Moving the whole
+  // construction into the class whose documented job is "the HTTP client stack
+  // every chat request path shares" is what actually shrank the primary file.
+  'lib/features/chat/data/datasources/chat_datasource_client_factory.dart': 69,
   // -23: embedded tool-call recovery moved to
   // chat_completion_embedded_tool_call_parser.dart, which owns both the tagged
   // forms and the advertised-name gate that makes recovering an untagged call

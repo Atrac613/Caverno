@@ -1268,4 +1268,91 @@ void main() {
     expect(legacy.codingPrimaryEndpointId, isEmpty);
     expect(legacy.planPrimaryEndpointId, isEmpty);
   });
+
+  group('acceptsChatTemplateKwargsFor', () {
+    // The secondary routers hand their datasource factory a base URL and an
+    // API key, never an endpoint row, so the flag has to be resolvable from
+    // the URL alone.
+    const base = AppSettings(
+      baseUrl: 'http://192.168.100.241:1234/v1',
+      model: 'gemma-4-31B-it-Q4_K_M.gguf',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      mcpEnabled: true,
+    );
+
+    AppSettings withEndpoints(List<LlmEndpoint> endpoints, {String? activeId}) =>
+        base.copyWith(
+          llmEndpoints: endpoints,
+          activeLlmEndpointId: activeId ?? endpoints.first.id,
+        );
+
+    test('reads the flag off the endpoint serving that base URL', () {
+      final settings = withEndpoints([
+        const LlmEndpoint(
+          id: 'local',
+          baseUrl: 'http://192.168.100.241:1234/v1',
+          chatTemplateKwargsEnabled: true,
+        ),
+        const LlmEndpoint(id: 'hosted', baseUrl: 'https://api.example.com/v1'),
+      ]);
+
+      expect(
+        settings.acceptsChatTemplateKwargsFor('http://192.168.100.241:1234/v1'),
+        isTrue,
+      );
+      expect(
+        settings.acceptsChatTemplateKwargsFor('https://api.example.com/v1'),
+        isFalse,
+        reason: 'the opt-in is per endpoint, not per install',
+      );
+    });
+
+    test('ignores a trailing slash', () {
+      final settings = withEndpoints([
+        const LlmEndpoint(
+          id: 'local',
+          baseUrl: 'http://192.168.100.241:1234/v1',
+          chatTemplateKwargsEnabled: true,
+        ),
+      ]);
+
+      expect(
+        settings.acceptsChatTemplateKwargsFor(
+          'http://192.168.100.241:1234/v1/',
+        ),
+        isTrue,
+      );
+    });
+
+    test('falls back to the active endpoint for an unlisted URL', () {
+      final settings = withEndpoints([
+        const LlmEndpoint(
+          id: 'local',
+          baseUrl: 'http://192.168.100.241:1234/v1',
+          chatTemplateKwargsEnabled: true,
+        ),
+      ]);
+
+      expect(
+        settings.acceptsChatTemplateKwargsFor('http://elsewhere:1234/v1'),
+        isTrue,
+      );
+    });
+
+    test('is false when nothing is registered', () {
+      expect(base.acceptsChatTemplateKwargsFor(base.baseUrl), isFalse);
+    });
+
+    test('defaults to off for a freshly added endpoint', () {
+      // Sending the field to a server that has never heard of it is the
+      // outcome worth avoiding, so the opt-in is never implicit.
+      expect(
+        const LlmEndpoint(id: 'x', baseUrl: 'https://api.example.com/v1')
+            .chatTemplateKwargsEnabled,
+        isFalse,
+      );
+    });
+  });
 }

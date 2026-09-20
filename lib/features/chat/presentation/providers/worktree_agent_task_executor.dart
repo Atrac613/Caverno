@@ -117,6 +117,9 @@ final worktreeAgentTaskExecutionDelegateProvider =
           baseUrl: baseUrl,
           apiKey: apiKey,
           reasoningEffort: settings.reasoningEffort.apiValue,
+          acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+            baseUrl,
+          ),
         ),
       );
       final toolService = ref.watch(mcpToolServiceProvider);

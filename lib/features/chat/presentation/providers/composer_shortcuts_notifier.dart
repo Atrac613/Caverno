@@ -194,6 +194,9 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
         baseUrl: baseUrl,
         apiKey: apiKey,
         reasoningEffort: settings.reasoningEffort.apiValue,
+        acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+          baseUrl,
+        ),
         usageSink: ref.read(modelUsageSinkProvider),
       ),
     );

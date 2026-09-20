@@ -1427,6 +1427,8 @@
     "endpoint_enabled_field": "Enabled",
     "endpoint_video_input_field": "Accepts video input",
     "endpoint_video_input_hint": "Turn this on for an endpoint that takes video but does not advertise it, such as a proxy in front of a video-capable server.",
+    "endpoint_chat_template_kwargs_field": "Accepts chat_template_kwargs",
+    "endpoint_chat_template_kwargs_hint": "llama.cpp template control. Lets utility calls (memory, auto-review, shortcuts) turn thinking off so their small JSON budget is not spent reasoning. Leave off for endpoints that reject unknown fields.",
     "local_stack_title": "Local Stack",
     "local_stack_menu_desc": "Manage llama.cpp router models",
     "local_stack_intro": "Manage models exposed by the primary llama.cpp router endpoint. Load and unload controls are available only when the server is running in router mode with a models directory.",

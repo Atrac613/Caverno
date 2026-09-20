@@ -5,6 +5,7 @@ final class Qwen38RequestThinkingPolicy {
   const Qwen38RequestThinkingPolicy({
     this.reasoningEffort,
     this.enableThinking,
+    this.acceptsChatTemplateKwargs = false,
   });
 
   static const int mediumMinimumMaxTokens = 1536;
@@ -29,6 +30,14 @@ final class Qwen38RequestThinkingPolicy {
 
   /// Null preserves the model-specific automatic behavior.
   final bool? enableThinking;
+
+  /// Whether the endpoint was marked as accepting `chat_template_kwargs`
+  /// (`LlmEndpoint.chatTemplateKwargsEnabled`).
+  ///
+  /// Only opens the [_structuredUtilityRoles] suppression below. The reasoning
+  /// -effort mapping stays behind [isQwen38Model], because those branches are
+  /// tuned to that family's template and mean nothing to another one.
+  final bool acceptsChatTemplateKwargs;
 
   static bool suppressesThinking(ModelUsageRole role) =>
       _structuredUtilityRoles.contains(role);
@@ -58,6 +67,20 @@ final class Qwen38RequestThinkingPolicy {
     ModelUsageRole role = ModelUsageRole.unknown,
   }) {
     if (!isQwen38Model(model)) {
+      // Suppression is a fact about the request, so it applies to any endpoint
+      // that accepts the field -- not only to the one family whose name this
+      // policy is written around. Without this, a local llama.cpp serving
+      // gemma sent its JSON utility calls with thinking on, spent the whole
+      // 400-token budget reasoning and returned nothing parsable; the empty
+      // composer-shortcut drafts of 2026-09-20 are that failure.
+      if (acceptsChatTemplateKwargs &&
+          (suppressesThinking(role) || enableThinking == false)) {
+        return Qwen38RequestOverrides(
+          maxTokens: maxTokens,
+          chatTemplateKwargs: const {'enable_thinking': false},
+          preserveReasoningEffort: true,
+        );
+      }
       return enableThinking == null
           ? null
           : Qwen38RequestOverrides(
