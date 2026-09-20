@@ -1124,6 +1124,12 @@ abstract class AppSettings with _$AppSettings {
             baseUrl: trimmedBaseUrl,
             apiKey: apiKey.trim(),
             model: model.trim(),
+            // An install that predates the endpoint list has no `llmEndpoints`
+            // key for _migrateChatTemplateKwargsOptIn to walk, so its endpoint
+            // is born here instead and has to carry the same history. Without
+            // this it was seeded opted out whatever the model, which is the
+            // silent loss of suppression that migration exists to prevent.
+            chatTemplateKwargsEnabled: _hadModelNameThinkingSuppression(model),
           ),
         ],
         activeLlmEndpointId: seededLlmEndpointId,
@@ -1393,6 +1399,16 @@ abstract class AppSettings with _$AppSettings {
   /// This is the only place a model name decides anything, and it runs once:
   /// an endpoint added afterwards is opted in by the person, like any other
   /// capability we cannot detect.
+  /// Whether a build before the endpoint opt-in would have suppressed thinking
+  /// for this model, by name alone.
+  ///
+  /// Spelled out rather than read from `Qwen38RequestThinkingPolicy` on
+  /// purpose. This records what the old build did, so it has to stay frozen
+  /// even if that predicate later widens, narrows or disappears -- and
+  /// settings does not otherwise depend on the chat feature.
+  static bool _hadModelNameThinkingSuppression(String model) =>
+      model.trim().toLowerCase().startsWith('qwen3.8');
+
   static Map<String, dynamic> _migrateChatTemplateKwargsOptIn(
     Map<String, dynamic> json,
   ) {
@@ -1410,12 +1426,9 @@ abstract class AppSettings with _$AppSettings {
         migrated.add(row);
         continue;
       }
-      final model = row['model']?.toString().trim().toLowerCase() ?? '';
-      // Spelled out rather than read from Qwen38RequestThinkingPolicy on
-      // purpose. A migration records what the old build did, so it has to stay
-      // frozen even if that predicate later widens, narrows or disappears --
-      // and settings does not otherwise depend on the chat feature.
-      row['chatTemplateKwargsEnabled'] = model.startsWith('qwen3.8');
+      row['chatTemplateKwargsEnabled'] = _hadModelNameThinkingSuppression(
+        row['model']?.toString() ?? '',
+      );
       changed = true;
       migrated.add(row);
     }

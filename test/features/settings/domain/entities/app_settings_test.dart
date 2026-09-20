@@ -1407,6 +1407,31 @@ void main() {
       );
     });
 
+    test('seeds the same history when there is no endpoint list', () {
+      // An install predating the endpoint list has no `llmEndpoints` key, so
+      // its endpoint is born in withNormalizedLlmEndpoints and never passes
+      // the migration. It was seeded opted out whatever the model, which lost
+      // suppression on exactly the installs that had it.
+      AppSettings seeded(String model) => AppSettings.fromJson({
+        'baseUrl': 'http://192.168.100.241:1234/v1',
+        'model': model,
+        'apiKey': 'no-key',
+        'temperature': 0.7,
+        'maxTokens': 4096,
+      }).withNormalizedLlmEndpoints();
+
+      expect(
+        seeded('qwen3.8-27b-vision').llmEndpoints.single
+            .chatTemplateKwargsEnabled,
+        isTrue,
+      );
+      expect(
+        seeded('some-unrecognised-model').llmEndpoints.single
+            .chatTemplateKwargsEnabled,
+        isFalse,
+      );
+    });
+
     test('never overwrites a choice already made', () {
       final migrated = AppSettings.migrateLegacyJson(
         withEndpointJson({
