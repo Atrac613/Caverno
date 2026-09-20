@@ -152,15 +152,34 @@ recorded as unbuilt scope. Prefer the reachability check — does the entry poin
 have a caller, and how does its reference count compare with its siblings —
 before scoping anything that builds on an existing surface.
 
-**The next slice is the deletion that follows.** `_buildWorkflowPanel` and the
-~900 lines only it reaches are now superseded for the two surfaces that
-mattered and unreachable for the rest. They are also the room this library
-actually has: wiring the sheet cost +1 file and +27 aggregate ratchet lines,
-raised in place rather than offset, precisely because the offset belongs there.
-Deleting surfaces nobody has seen in five months is a product decision about
-what the plan/workflow pane should be, not a line-count exercise, so it is its
-own change — and the analyzer will cascade, since each child becomes unused as
-its parent goes.
+**That deletion landed too (`2e010dfca`), scoped per surface first.** Every
+one of the seven has a live equivalent: the tasks section is `CompanionTaskRow`
+in the companion pane; both proposal cards and the plan document card are
+`CompactPlanFooterCard` in the header, which auto-presents `PlanReviewSheet`
+and owns approve, edit and cancel; the contract's open questions and blocking
+assumptions are the sheet above; goal, constraints and acceptance criteria are
+in the plan markdown the review sheet renders, marks and all. Two have no
+equivalent and were not replaced — the workflow stage chip and the quick
+actions — but neither has been on screen since April, so nothing regressed.
+
+It came to **3,116 lines across four part files**, not the ~900 the panel body
+suggested: the task editors, replan paths, blocked-reason flows and status
+helpers behind it were each reachable only through a surface that was itself
+unreachable. `chat_page_workflow_builders.dart` is gone entirely. The ratchets
+drop to the measured values, 1801 → 1323 and 8467 → 5343.
+
+**One thing the stage raised is still open.** `workflowStage` is not dead
+code: `chat_notifier_prompt_context.dart` puts it in the system prompt, so the
+model reads it and only the user cannot see it. Whether that deserves a display
+is a product question with its own evidence need, separate from the deletion.
+
+**And one class of dead code has no instrument.** Five widget files are
+orphaned — no importer anywhere — and the analyzer cannot report it, because
+`unused_element` covers private declarations only. That is the same blindness
+that hid `plan_open_question_section` and `contract_item_list_section` for five
+months while their own tests stayed green. A repository check for a public
+widget with no importer would close it; today the only way to find one is to go
+looking.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
