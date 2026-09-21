@@ -23,6 +23,7 @@ import '../domain/remote_coding_debug_pairing_policy.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_attachment_picker.dart';
 import 'remote_coding_client_notifier.dart';
+import 'remote_coding_companion_panel.dart';
 import 'remote_coding_mobile_notification_notifier.dart';
 import 'remote_coding_platform.dart';
 
@@ -252,6 +253,9 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
           _RemoteCodingHeader(
             state: state,
             notificationState: notificationState,
+            onOpenCompanion: state.selectedProjectId == null
+                ? null
+                : () => unawaited(_showCompanionPanel(state)),
             onRefresh: notifier.requestSnapshot,
             onEnableNotifications: _enableCompletionNotifications,
             onDisableNotifications: () => ref
@@ -464,6 +468,25 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     if (!mounted || !sent) return;
     _controller.clear();
     setState(() => _attachment = null);
+  }
+
+  Future<void> _showCompanionPanel(RemoteCodingClientState state) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) {
+        return FractionallySizedBox(
+          heightFactor: 0.82,
+          child: RemoteCodingCompanionPanel(
+            snapshot: state.companion,
+            isLoading: state.isLoading,
+            queuedCount: state.queuedCount,
+            pendingQuestion: state.pendingQuestion?.question,
+          ),
+        );
+      },
+    );
   }
 
   void _scrollToLatestMessage() {
@@ -1584,6 +1607,7 @@ class _RemoteCodingHeader extends StatelessWidget {
   const _RemoteCodingHeader({
     required this.state,
     required this.notificationState,
+    required this.onOpenCompanion,
     required this.onRefresh,
     required this.onEnableNotifications,
     required this.onDisableNotifications,
@@ -1591,6 +1615,7 @@ class _RemoteCodingHeader extends StatelessWidget {
 
   final RemoteCodingClientState state;
   final RemoteCodingMobileNotificationState notificationState;
+  final VoidCallback? onOpenCompanion;
   final VoidCallback onRefresh;
   final VoidCallback onEnableNotifications;
   final VoidCallback onDisableNotifications;
@@ -1641,6 +1666,12 @@ class _RemoteCodingHeader extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            key: const ValueKey('remote-coding-companion-action'),
+            onPressed: onOpenCompanion,
+            icon: const Icon(Icons.view_sidebar_outlined),
+            tooltip: 'Toggle companion panel',
           ),
           if (notificationState.isEnabled ||
               notificationState.status ==

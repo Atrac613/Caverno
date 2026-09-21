@@ -24,6 +24,7 @@ import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
 import '../data/remote_coding_websocket_connector.dart';
 import '../domain/remote_coding_attachment.dart';
+import '../domain/remote_coding_companion_models.dart';
 import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_models.dart';
 import '../domain/remote_coding_session_policy.dart';
@@ -70,6 +71,7 @@ class RemoteCodingClientState {
     this.pendingApproval,
     this.pendingQuestion,
     this.pendingPlanReview,
+    this.companion,
     this.dashboardStatsByRange = const <DashboardRange, DashboardStats>{},
     this.snapshotSequence = 0,
     this.snapshotGeneratedAt,
@@ -96,6 +98,7 @@ class RemoteCodingClientState {
   final RemoteCodingApproval? pendingApproval;
   final RemoteCodingQuestion? pendingQuestion;
   final RemoteCodingPlanReview? pendingPlanReview;
+  final RemoteCodingCompanionSnapshot? companion;
   final Map<DashboardRange, DashboardStats> dashboardStatsByRange;
   final int snapshotSequence;
   final DateTime? snapshotGeneratedAt;
@@ -126,6 +129,7 @@ class RemoteCodingClientState {
     RemoteCodingApproval? pendingApproval,
     RemoteCodingQuestion? pendingQuestion,
     RemoteCodingPlanReview? pendingPlanReview,
+    RemoteCodingCompanionSnapshot? companion,
     Map<DashboardRange, DashboardStats>? dashboardStatsByRange,
     int? snapshotSequence,
     DateTime? snapshotGeneratedAt,
@@ -144,6 +148,7 @@ class RemoteCodingClientState {
     bool clearPendingApproval = false,
     bool clearPendingQuestion = false,
     bool clearPendingPlanReview = false,
+    bool clearCompanion = false,
     bool clearSnapshotGeneratedAt = false,
     bool clearNextReconnectAt = false,
     bool clearLastTerminalNotification = false,
@@ -181,6 +186,7 @@ class RemoteCodingClientState {
       pendingPlanReview: clearPendingPlanReview
           ? null
           : (pendingPlanReview ?? this.pendingPlanReview),
+      companion: clearCompanion ? null : (companion ?? this.companion),
       dashboardStatsByRange:
           dashboardStatsByRange ?? this.dashboardStatsByRange,
       snapshotSequence: snapshotSequence ?? this.snapshotSequence,
@@ -627,6 +633,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         pendingCommandCount: 0,
         clearPendingApproval: true,
         clearPendingPlanReview: true,
+        clearCompanion: true,
         clearSnapshotGeneratedAt: true,
         clearNextReconnectAt: true,
       );
@@ -1006,6 +1013,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         snapshotSequence: 0,
         clearPendingApproval: true,
         clearPendingPlanReview: true,
+        clearCompanion: true,
         clearSnapshotGeneratedAt: true,
       );
     }
@@ -1041,6 +1049,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         snapshotSequence: 0,
         clearPendingApproval: true,
         clearPendingPlanReview: true,
+        clearCompanion: true,
         clearSnapshotGeneratedAt: true,
       );
       _completeConnectedSnapshotWaiter(false);
@@ -1169,6 +1178,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       final approvalJson = payload['pendingApproval'];
       final questionJson = payload['pendingQuestion'];
       final planReviewJson = payload['pendingPlanReview'];
+      final companionJson = payload['companion'];
       // The one line that separates "the desktop never told us" from "we were
       // told and did not act". Everything downstream of this — the
       // notification, its actions, the watch — is invisible when it does not
@@ -1221,6 +1231,10 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         pendingPlanReview: planReviewJson is Map<String, dynamic>
             ? RemoteCodingPlanReview.fromJson(planReviewJson)
             : null,
+        companion: companionJson is Map<String, dynamic>
+            ? RemoteCodingCompanionSnapshot.fromJson(companionJson)
+            : null,
+        clearCompanion: companionJson == null,
         dashboardStatsByRange: dashboardStatsByRange,
         snapshotSequence: snapshotSequence != null && snapshotSequence > 0
             ? snapshotSequence

@@ -43,6 +43,7 @@ import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_tls_identity.dart';
 import '../domain/remote_coding_attachment.dart';
 import '../domain/remote_coding_audit.dart';
+import '../domain/remote_coding_companion_models.dart';
 import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_grant_kinds.dart';
 import '../domain/remote_coding_listen_policy.dart';
@@ -1903,6 +1904,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _snapshotSequence += 1;
     final selectedProjectId =
         conversationsState.activeProjectId ?? projectsState.selectedProjectId;
+    final selectedProject = _findProject(selectedProjectId);
     final visibleConversations = conversationsState.conversations
         .where(
           (conversation) =>
@@ -1911,11 +1913,14 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         )
         .toList(growable: false);
     final currentConversation = conversationsState.currentConversation;
-    final messages =
+    final selectedConversation =
         currentConversation?.workspaceMode == projectWorkspaceMode &&
             currentConversation?.normalizedProjectId == selectedProjectId
-        ? chatState.messages
-        : const <Message>[];
+        ? currentConversation
+        : null;
+    final messages = selectedConversation == null
+        ? const <Message>[]
+        : chatState.messages;
     final dashboardStatsByRange = {
       for (final range in DashboardRange.values)
         range: DashboardStatsCalculator.compute(
@@ -1968,8 +1973,12 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       'projects': orderedProjects.map(_projectToJson).toList(),
       'selectedProjectId': selectedProjectId,
       'conversations': visibleConversations.map(_conversationToJson).toList(),
-      'currentConversationId': currentConversation?.id,
+      'currentConversationId': selectedConversation?.id,
       'messages': messages.map((message) => message.toJson()).toList(),
+      'companion': _companionFor(
+        project: selectedProject,
+        conversation: selectedConversation,
+      )?.toJson(),
       'dashboardStatsByRange': DashboardStatsCodec.encodeByRange(
         dashboardStatsByRange,
       ),
@@ -2232,6 +2241,76 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     'name': project.name,
     'rootPath': project.rootPath,
   };
+
+  RemoteCodingCompanionSnapshot? _companionFor({
+    required CodingProject? project,
+    required Conversation? conversation,
+  }) {
+    if (project == null && conversation == null) {
+      return null;
+    }
+
+    final changes = conversation == null
+        ? const <RemoteCodingCompanionChange>[]
+        : conversation.effectiveTurnDiffs.reversed
+              .take(5)
+              .map((diff) {
+                final filePaths =
+                    <String>{
+                          ...diff.changedFilePaths,
+                          for (final file in diff.files) file.filePath,
+                        }
+                        .where((path) => path.trim().isNotEmpty)
+                        .toList(growable: false);
+                return RemoteCodingCompanionChange(
+                  title: diff.userPromptPreview.trim().isEmpty
+                      ? 'Assistant turn'
+                      : diff.userPromptPreview.trim(),
+                  filesChanged: diff.filesChanged,
+                  linesAdded: diff.linesAdded,
+                  linesRemoved: diff.linesRemoved,
+                  filePaths: filePaths,
+                );
+              })
+              .toList(growable: false);
+    final tasks = conversation == null
+        ? const <RemoteCodingCompanionTask>[]
+        : conversation.projectedExecutionTasks
+              .where((task) => task.title.trim().isNotEmpty)
+              .map(
+                (task) => RemoteCodingCompanionTask(
+                  id: task.id,
+                  title: task.title,
+                  status: task.status.name,
+                  targetFiles: task.targetFiles,
+                ),
+              )
+              .toList(growable: false);
+    final sourceLocators = <String>{
+      for (final task in tasks)
+        for (final path in task.targetFiles)
+          if (path.trim().isNotEmpty) path.trim(),
+    };
+    if (conversation != null) {
+      for (final source in conversation.effectiveWorkflowSpec.sources) {
+        final locator = source.locator.trim();
+        final section = source.section.trim();
+        if (locator.isNotEmpty) {
+          sourceLocators.add(section.isEmpty ? locator : '$locator#$section');
+        } else if (section.isNotEmpty) {
+          sourceLocators.add(section);
+        }
+      }
+    }
+    return RemoteCodingCompanionSnapshot(
+      projectRootPath: project?.normalizedRootPath ?? '',
+      worktreePath: conversation?.normalizedWorktreePath ?? '',
+      tasks: tasks,
+      changes: changes,
+      openQuestions: conversation?.unresolvedOpenQuestions ?? const <String>[],
+      sourceLocators: sourceLocators.toList(growable: false),
+    );
+  }
 
   Map<String, dynamic> _conversationToJson(Conversation conversation) => {
     'id': conversation.id,
