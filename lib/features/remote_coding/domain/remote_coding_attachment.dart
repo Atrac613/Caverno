@@ -22,10 +22,12 @@ class RemoteCodingAttachmentDraft {
 /// as several small JSON messages rather than weakening the socket's resource
 /// boundary for one large base64 payload.
 abstract final class RemoteCodingAttachmentPolicy {
-  static const int maxBytes = 4 * 1024 * 1024;
+  static const int maxBytes = 32 * 1024 * 1024;
   static const int chunkBytes = 96 * 1024;
   static const int maxNameCharacters = 120;
   static const int maxMimeTypeCharacters = 128;
+
+  static String get maxSizeLabel => '${maxBytes ~/ (1024 * 1024)} MiB';
 
   static int chunkCount(int byteLength) {
     if (byteLength <= 0) return 1;
@@ -45,7 +47,7 @@ abstract final class RemoteCodingAttachmentPolicy {
       return 'Attachment MIME type is invalid.';
     }
     if (byteLength < 0 || byteLength > maxBytes) {
-      return 'Attachment exceeds the 4 MiB Remote Coding limit.';
+      return 'Attachment exceeds the $maxSizeLabel Remote Coding limit.';
     }
     return null;
   }

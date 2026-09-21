@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
-import 'package:crypto/crypto.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/attachment_storage_service.dart';
+import '../../../core/services/image_attachment_preparation_service.dart';
 import '../../../core/types/workspace_mode.dart';
 import '../../../core/utils/attachment_format.dart';
 import '../../../core/utils/logger.dart';
@@ -640,7 +640,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         await _handleMessage(client, message);
       }
     } finally {
-      final uploadedPaths = client.takeUploadedAttachmentPaths();
+      final uploadedPaths = await client.takeUploadedAttachmentPaths();
       await AttachmentStorageService.deleteOwnedAttachments(uploadedPaths);
       client.dispose();
       _sessionChallenges.removeConnection(client.connectionId);
@@ -1133,7 +1133,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         chunkIndex >= chunkCount ||
         digest.length != 64 ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
-      client.discardAttachmentUpload(uploadId);
+      await client.discardAttachmentUpload(uploadId);
       reject(
         'invalid_attachment',
         validationError ?? 'Attachment metadata is invalid.',
@@ -1145,12 +1145,12 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     try {
       bytes = Uint8List.fromList(base64Decode(encodedData));
     } on FormatException {
-      client.discardAttachmentUpload(uploadId);
+      await client.discardAttachmentUpload(uploadId);
       reject('invalid_attachment', 'Attachment data is not valid base64.');
       return;
     }
     if (bytes.length > RemoteCodingAttachmentPolicy.chunkBytes) {
-      client.discardAttachmentUpload(uploadId);
+      await client.discardAttachmentUpload(uploadId);
       reject('invalid_attachment', 'Attachment chunk is too large.');
       return;
     }
@@ -1165,14 +1165,28 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         reject('invalid_attachment', 'Attachment chunks must start at zero.');
         return;
       }
-      upload = _RemoteCodingAttachmentUpload(
-        id: uploadId,
-        name: name,
-        mimeType: mimeType,
-        sizeBytes: sizeBytes,
-        chunkCount: chunkCount,
-        sha256: digest,
-      );
+      try {
+        upload = _RemoteCodingAttachmentUpload(
+          id: uploadId,
+          name: name,
+          mimeType: mimeType,
+          sizeBytes: sizeBytes,
+          chunkCount: chunkCount,
+          sha256: digest,
+          storage: await AttachmentStorageService.beginWrite(
+            originalName: name,
+          ),
+        );
+      } catch (error) {
+        reject(
+          'attachment_store_failed',
+          'The desktop could not store the attachment.',
+        );
+        appDebugPrint(
+          '[RemoteCoding] Failed to start attachment store: $error',
+        );
+        return;
+      }
       client.attachmentUploads[uploadId] = upload;
     } else if (!upload.matches(
       name: name,
@@ -1181,20 +1195,30 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       chunkCount: chunkCount,
       sha256: digest,
     )) {
-      client.discardAttachmentUpload(uploadId);
+      await client.discardAttachmentUpload(uploadId);
       reject('invalid_attachment', 'Attachment chunks do not match.');
       return;
     }
 
     if (upload.nextChunkIndex != chunkIndex ||
         upload.receivedBytes + bytes.length > sizeBytes) {
-      client.discardAttachmentUpload(uploadId);
+      await client.discardAttachmentUpload(uploadId);
       reject('invalid_attachment', 'Attachment chunks are out of order.');
       return;
     }
-    upload.bytes.add(bytes);
-    upload.receivedBytes += bytes.length;
-    upload.nextChunkIndex += 1;
+    try {
+      await upload.write(bytes);
+      upload.receivedBytes += bytes.length;
+      upload.nextChunkIndex += 1;
+    } catch (error) {
+      await client.discardAttachmentUpload(uploadId);
+      reject(
+        'attachment_store_failed',
+        'The desktop could not store the attachment.',
+      );
+      appDebugPrint('[RemoteCoding] Failed to write attachment chunk: $error');
+      return;
+    }
     final isLastChunk = chunkIndex == chunkCount - 1;
     if (!isLastChunk) {
       client.send(
@@ -1211,29 +1235,26 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
 
     if (upload.receivedBytes != sizeBytes) {
-      client.discardAttachmentUpload(uploadId);
+      await client.discardAttachmentUpload(uploadId);
       reject('invalid_attachment', 'Attachment size does not match metadata.');
       return;
     }
-    final completeBytes = upload.bytes.takeBytes();
-    if (sha256.convert(completeBytes).toString() != upload.sha256) {
-      client.discardAttachmentUpload(uploadId);
+    if (upload.computedSha256 != upload.sha256) {
+      await client.discardAttachmentUpload(uploadId);
       reject('invalid_attachment', 'Attachment integrity verification failed.');
       return;
     }
 
+    String? completedPath;
     try {
-      final path = await AttachmentStorageService.persistBytes(
-        bytes: completeBytes,
-        originalName: name,
-      );
+      completedPath = await upload.complete();
       client.attachmentUploads.remove(uploadId);
       client.uploadedAttachments[uploadId] = _RemoteCodingUploadedAttachment(
         id: uploadId,
         name: name,
         mimeType: mimeType,
         sizeBytes: sizeBytes,
-        path: path,
+        path: completedPath,
       );
       client.send(
         type: RemoteCodingProtocol.commandResult,
@@ -1246,8 +1267,11 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         },
       );
     } catch (error) {
-      client.discardAttachmentUpload(uploadId);
+      await client.discardAttachmentUpload(uploadId);
       await client.discardUploadedAttachment(uploadId);
+      if (completedPath != null) {
+        await AttachmentStorageService.deleteOwnedAttachments([completedPath]);
+      }
       reject(
         'attachment_store_failed',
         'The desktop could not store the attachment.',
@@ -1284,11 +1308,17 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 
     try {
       if (attachment.isImage) {
-        final bytes = await File(attachment.path).readAsBytes();
+        final originalBytes = await File(attachment.path).readAsBytes();
+        final preparedImage =
+            await ImageAttachmentPreparationService.prepareForModel(
+              bytes: originalBytes,
+              mimeType: attachment.mimeType,
+              filePath: attachment.name,
+            );
         final prepared = _RemoteCodingPreparedMessage(
           visibleContent: content,
-          imageBase64: base64Encode(bytes),
-          imageMimeType: attachment.mimeType,
+          imageBase64: base64Encode(preparedImage.bytes),
+          imageMimeType: preparedImage.mimeType,
           originalImagePath: attachment.path,
           originalImageMimeType: attachment.mimeType,
         );
@@ -2026,7 +2056,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     if (!validation.isValid || validation.previewTasks.isEmpty) {
       return null;
     }
-    final reviewId = sha256
+    final reviewId = crypto.sha256
         .convert(
           utf8.encode(
             '$conversationId\n$draftMarkdown\n${artifact.updatedAt?.toIso8601String() ?? ''}',
@@ -2667,6 +2697,7 @@ class _RemoteCodingAttachmentUpload {
     required this.sizeBytes,
     required this.chunkCount,
     required this.sha256,
+    required this.storage,
   });
 
   final String id;
@@ -2675,9 +2706,36 @@ class _RemoteCodingAttachmentUpload {
   final int sizeBytes;
   final int chunkCount;
   final String sha256;
-  final BytesBuilder bytes = BytesBuilder(copy: false);
+  final AttachmentStorageWriteSession storage;
+  final _RemoteCodingDigestSink _digestSink = _RemoteCodingDigestSink();
+  late final _digestInput = crypto.sha256.startChunkedConversion(_digestSink);
+  bool _digestClosed = false;
   int receivedBytes = 0;
   int nextChunkIndex = 0;
+
+  Future<void> write(List<int> bytes) async {
+    await storage.write(bytes);
+    _digestInput.add(bytes);
+  }
+
+  String get computedSha256 {
+    if (!_digestClosed) {
+      _digestClosed = true;
+      _digestInput.close();
+    }
+    final digest = _digestSink.value;
+    if (digest == null) {
+      throw StateError('Attachment digest was not generated.');
+    }
+    return digest.toString();
+  }
+
+  Future<String> complete() async {
+    computedSha256;
+    return storage.complete();
+  }
+
+  Future<void> discard() => storage.discard();
 
   bool matches({
     required String name,
@@ -2692,6 +2750,21 @@ class _RemoteCodingAttachmentUpload {
         this.chunkCount == chunkCount &&
         this.sha256 == sha256;
   }
+}
+
+class _RemoteCodingDigestSink implements Sink<crypto.Digest> {
+  crypto.Digest? value;
+
+  @override
+  void add(crypto.Digest value) {
+    if (this.value != null) {
+      throw StateError('Attachment digest was emitted more than once.');
+    }
+    this.value = value;
+  }
+
+  @override
+  void close() {}
 }
 
 class _RemoteCodingUploadedAttachment {
@@ -2769,8 +2842,9 @@ class _RemoteCodingSocketClient {
     return limiter.tryAcquire();
   }
 
-  void discardAttachmentUpload(String uploadId) {
-    attachmentUploads.remove(uploadId);
+  Future<void> discardAttachmentUpload(String uploadId) async {
+    final upload = attachmentUploads.remove(uploadId);
+    await upload?.discard();
   }
 
   Future<void> discardUploadedAttachment(String uploadId) async {
@@ -2780,12 +2854,16 @@ class _RemoteCodingSocketClient {
     }
   }
 
-  List<String> takeUploadedAttachmentPaths() {
+  Future<List<String>> takeUploadedAttachmentPaths() async {
     final paths = uploadedAttachments.values
         .map((attachment) => attachment.path)
         .toList(growable: false);
+    final pendingUploads = attachmentUploads.values.toList(growable: false);
     uploadedAttachments.clear();
     attachmentUploads.clear();
+    for (final upload in pendingUploads) {
+      await upload.discard();
+    }
     return paths;
   }
 

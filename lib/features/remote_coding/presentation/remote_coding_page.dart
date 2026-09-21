@@ -467,7 +467,12 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   void _setAttachment(RemoteCodingAttachmentDraft attachment) {
     if (attachment.bytes.length > RemoteCodingAttachmentPolicy.maxBytes) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Attachments must be 4 MiB or smaller.')),
+        SnackBar(
+          content: Text(
+            'Attachments must be ${RemoteCodingAttachmentPolicy.maxSizeLabel} '
+            'or smaller.',
+          ),
+        ),
       );
       return;
     }

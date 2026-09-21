@@ -4,6 +4,19 @@ import 'package:caverno/features/remote_coding/domain/remote_coding_attachment.d
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('uses a 32 MiB attachment boundary', () {
+    expect(RemoteCodingAttachmentPolicy.maxBytes, 32 * 1024 * 1024);
+    expect(RemoteCodingAttachmentPolicy.maxSizeLabel, '32 MiB');
+    expect(
+      RemoteCodingAttachmentPolicy.validate(
+        name: 'exact.bin',
+        mimeType: 'application/octet-stream',
+        byteLength: RemoteCodingAttachmentPolicy.maxBytes,
+      ),
+      isNull,
+    );
+  });
+
   test('chunks empty and exact-boundary payloads deterministically', () {
     expect(RemoteCodingAttachmentPolicy.chunkCount(0), 1);
     expect(

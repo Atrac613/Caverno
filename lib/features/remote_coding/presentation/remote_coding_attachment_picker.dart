@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
@@ -13,19 +12,17 @@ import '../domain/remote_coding_attachment.dart';
 class RemoteCodingAttachmentPicker {
   const RemoteCodingAttachmentPicker();
 
-  static const int _maxImageDimension = 1280;
-
   Future<RemoteCodingAttachmentDraft?> pickImage() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null) return null;
     final bytes = await picked.readAsBytes();
     if (bytes.isEmpty) return null;
-    return _normalizeImage(
-      bytes: bytes,
+    return RemoteCodingAttachmentDraft(
       name: picked.name.isEmpty ? 'image.jpg' : picked.name,
       mimeType:
           picked.mimeType ??
           _mimeTypeForName(picked.name, fallback: 'image/jpeg'),
+      bytes: bytes,
     );
   }
 
@@ -86,13 +83,7 @@ class RemoteCodingAttachmentPicker {
         fallbackName: fallbackName,
       );
       if (attachment != null) {
-        return attachment.isImage
-            ? _normalizeImage(
-                bytes: attachment.bytes,
-                name: attachment.name,
-                mimeType: attachment.mimeType,
-              )
-            : attachment;
+        return attachment;
       }
     }
     final suggestedName = await reader.getSuggestedName();
@@ -106,13 +97,7 @@ class RemoteCodingAttachmentPicker {
       fallbackName: suggestedName ?? 'clipboard.bin',
     );
     if (attachment == null) return null;
-    return attachment.isImage
-        ? _normalizeImage(
-            bytes: attachment.bytes,
-            name: attachment.name,
-            mimeType: attachment.mimeType,
-          )
-        : attachment;
+    return attachment;
   }
 
   Future<RemoteCodingAttachmentDraft?> fromInsertedContent(
@@ -124,10 +109,10 @@ class RemoteCodingAttachmentPicker {
       return null;
     }
     final extension = mimeType.split('/').last;
-    return _normalizeImage(
-      bytes: bytes,
+    return RemoteCodingAttachmentDraft(
       name: 'inserted.$extension',
       mimeType: mimeType,
+      bytes: bytes,
     );
   }
 
@@ -165,66 +150,6 @@ class RemoteCodingAttachmentPicker {
     );
     if (progress == null) return null;
     return completer.future;
-  }
-
-  Future<RemoteCodingAttachmentDraft> _normalizeImage({
-    required Uint8List bytes,
-    required String name,
-    required String mimeType,
-  }) async {
-    ui.Codec? codec;
-    ui.Image? image;
-    try {
-      codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      image = frame.image;
-      if (image.width <= _maxImageDimension &&
-          image.height <= _maxImageDimension) {
-        return RemoteCodingAttachmentDraft(
-          name: name,
-          mimeType: mimeType,
-          bytes: bytes,
-        );
-      }
-      final targetWidth = image.width >= image.height
-          ? _maxImageDimension
-          : null;
-      final targetHeight = image.height > image.width
-          ? _maxImageDimension
-          : null;
-      image.dispose();
-      image = null;
-      codec.dispose();
-      codec = await ui.instantiateImageCodec(
-        bytes,
-        targetWidth: targetWidth,
-        targetHeight: targetHeight,
-      );
-      final resized = await codec.getNextFrame();
-      image = resized.image;
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) {
-        return RemoteCodingAttachmentDraft(
-          name: name,
-          mimeType: mimeType,
-          bytes: bytes,
-        );
-      }
-      return RemoteCodingAttachmentDraft(
-        name: 'image.png',
-        mimeType: 'image/png',
-        bytes: data.buffer.asUint8List(),
-      );
-    } catch (_) {
-      return RemoteCodingAttachmentDraft(
-        name: name,
-        mimeType: mimeType,
-        bytes: bytes,
-      );
-    } finally {
-      image?.dispose();
-      codec?.dispose();
-    }
   }
 
   static String _mimeTypeForName(

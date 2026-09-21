@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:caverno/core/services/attachment_storage_service.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
@@ -841,12 +842,7 @@ void main() {
         () => AttachmentStorageService.deleteOwnedAttachments([uploadedPath!]),
       );
 
-      final imageBytes = Uint8List.fromList(
-        base64Decode(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk'
-          '+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-        ),
-      );
+      final imageBytes = await _makePng(width: 2048, height: 512);
       final imageMessage = await client.sendMessageToConversation(
         projectId: 'project-1',
         conversationId: 'thread-1',
@@ -859,14 +855,20 @@ void main() {
       );
       expect(imageMessage.outcome, RemoteCodingBoundCommandOutcome.accepted);
       expect(chat.sentMessages.last, 'Inspect this image');
-      expect(chat.sentImageBase64.last, base64Encode(imageBytes));
+      final modelImageBytes = base64Decode(chat.sentImageBase64.last!);
+      final modelCodec = await ui.instantiateImageCodec(modelImageBytes);
+      final modelFrame = await modelCodec.getNextFrame();
+      expect(modelFrame.image.width, 1024);
+      expect(modelFrame.image.height, 256);
       expect(chat.sentImageMimeTypes.last, 'image/png');
       final originalImagePath = chat.sentOriginalImagePaths.last;
       expect(originalImagePath, isNotNull);
+      final imagePath = originalImagePath!;
+      expect(File(imagePath).readAsBytesSync(), imageBytes);
+      modelFrame.image.dispose();
+      modelCodec.dispose();
       addTearDown(
-        () => AttachmentStorageService.deleteOwnedAttachments([
-          originalImagePath!,
-        ]),
+        () => AttachmentStorageService.deleteOwnedAttachments([imagePath]),
       );
 
       await client.disconnect();
@@ -2891,4 +2893,16 @@ final class _SlowAuditWriteRepository extends RemoteCodingRepository {
       await Future.wait(_writes.toList());
     }
   }
+}
+
+Future<Uint8List> _makePng({required int width, required int height}) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawColor(const ui.Color(0xff336699), ui.BlendMode.srcOver);
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(width, height);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  picture.dispose();
+  return data!.buffer.asUint8List();
 }
