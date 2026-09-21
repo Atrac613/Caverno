@@ -72,6 +72,7 @@
     "empty_state": "メッセージを送信してチャットを開始",
     "new_conversation": "新しい会話",
     "new_thread": "新しいスレッド",
+    "scroll_to_latest": "最新位置へスクロール",
     "slash_commands_title": "スラッシュコマンド",
     "slash_help_desc": "利用できるスラッシュコマンドを表示",
     "slash_new_desc": "新しい会話またはコーディングスレッドを開始",

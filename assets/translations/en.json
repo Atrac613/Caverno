@@ -72,6 +72,7 @@
     "empty_state": "Send a message to start chatting",
     "new_conversation": "New Conversation",
     "new_thread": "New Thread",
+    "scroll_to_latest": "Scroll to latest",
     "slash_commands_title": "Slash Commands",
     "slash_help_desc": "Show available slash commands",
     "slash_new_desc": "Start a new conversation or coding thread",

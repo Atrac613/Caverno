@@ -46,6 +46,9 @@ class ThreadScrollCoordinator {
   static const double _bottomThreshold = 80;
 
   final ScrollController controller = ScrollController();
+  final ValueNotifier<bool> showScrollToBottomButton = ValueNotifier<bool>(
+    false,
+  );
   final Map<String, ThreadScrollAnchor> _anchors =
       <String, ThreadScrollAnchor>{};
 
@@ -56,9 +59,15 @@ class ThreadScrollCoordinator {
   bool _scheduledScrollShouldAnimate = false;
   bool _isDisposed = false;
 
+  ThreadScrollCoordinator() {
+    controller.addListener(_updateScrollToBottomButtonVisibility);
+  }
+
   void dispose() {
     _isDisposed = true;
+    controller.removeListener(_updateScrollToBottomButtonVisibility);
     controller.dispose();
+    showScrollToBottomButton.dispose();
   }
 
   bool get isNearBottom {
@@ -67,6 +76,19 @@ class ThreadScrollCoordinator {
     }
     final position = controller.position;
     return position.maxScrollExtent - position.pixels <= _bottomThreshold;
+  }
+
+  void _updateScrollToBottomButtonVisibility() {
+    if (_isDisposed) {
+      return;
+    }
+    final visible =
+        controller.hasClients &&
+        controller.position.maxScrollExtent - controller.position.pixels >
+            _epsilon;
+    if (showScrollToBottomButton.value != visible) {
+      showScrollToBottomButton.value = visible;
+    }
   }
 
   /// Tracks deliberate user scrolling so streaming auto-scroll backs off when
@@ -79,6 +101,7 @@ class ThreadScrollCoordinator {
     if (notification.depth != 0) {
       return false;
     }
+    _updateScrollToBottomButtonVisibility();
     if (notification is UserScrollNotification) {
       if (notification.direction == ScrollDirection.forward) {
         // Dragging toward older messages: stop following the live stream.
@@ -94,6 +117,12 @@ class ThreadScrollCoordinator {
   }
 
   void onChatStateChanged(ChatState? previous, ChatState next) {
+    // A growing message can change maxScrollExtent without changing pixels.
+    // Refresh after the list has laid out the new content as well as from the
+    // scroll notifications emitted during normal user interaction.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateScrollToBottomButtonVisibility();
+    });
     if (previous?.messages.length != next.messages.length) {
       // A message was added or removed: snap to the newest entry and resume
       // following the live stream.
