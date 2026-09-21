@@ -8,6 +8,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/coding_project_ordering.dart';
 import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -53,6 +54,62 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
 class _TestConversationsNotifier extends ConversationsNotifier {
   @override
   ConversationsState build() => ConversationsState.initial();
+}
+
+class _RemoteOrderCodingProjectsNotifier extends CodingProjectsNotifier {
+  @override
+  CodingProjectsState build() {
+    return CodingProjectsState(
+      projects: [
+        CodingProject(
+          id: 'newer-project',
+          name: 'Newer project',
+          rootPath: '/tmp/newer-project',
+          createdAt: DateTime.utc(2026, 9, 19),
+          updatedAt: DateTime.utc(2026, 9, 19),
+        ),
+        CodingProject(
+          id: 'older-project',
+          name: 'Older project',
+          rootPath: '/tmp/older-project',
+          createdAt: DateTime.utc(2026, 9, 18),
+          updatedAt: DateTime.utc(2026, 9, 18),
+        ),
+      ],
+      selectedProjectId: 'newer-project',
+    );
+  }
+}
+
+class _RemoteOrderConversationsNotifier extends ConversationsNotifier {
+  @override
+  ConversationsState build() {
+    return ConversationsState(
+      conversations: [
+        Conversation(
+          id: 'newer-thread',
+          title: 'Newer project thread',
+          messages: const [],
+          createdAt: DateTime.utc(2026, 9, 19, 10),
+          updatedAt: DateTime.utc(2026, 9, 19, 10),
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'newer-project',
+        ),
+        Conversation(
+          id: 'older-thread',
+          title: 'Older project thread',
+          messages: const [],
+          createdAt: DateTime.utc(2026, 9, 19, 11),
+          updatedAt: DateTime.utc(2026, 9, 19, 11),
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'older-project',
+        ),
+      ],
+      currentConversationId: 'newer-thread',
+      activeWorkspaceMode: WorkspaceMode.coding,
+      activeProjectId: 'newer-project',
+    );
+  }
 }
 
 class _DashboardConversationsNotifier extends ConversationsNotifier {
@@ -1536,6 +1593,76 @@ void main() {
     } finally {
       await subscription?.cancel();
       await socket?.close();
+      container.dispose();
+    }
+  });
+
+  test('remote project snapshots use the desktop drawer ordering', () async {
+    SharedPreferences.setMockInitialValues({
+      codingProjectSortOrderPrefsKey: 'recentlyActiveFirst',
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final port = await _unusedPort();
+    const rawToken = 'project-order-token';
+    final device = RemoteCodingPairedDevice(
+      id: 'device-project-order',
+      name: 'Phone',
+      tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+      createdAt: DateTime(2026, 9, 19, 12),
+      lastSeenAt: DateTime(2026, 9, 19, 12),
+    );
+    final repository = RemoteCodingRepository(
+      prefs,
+      secureStore: _MemorySecureStore(),
+    );
+    await repository.saveServerSettings(
+      RemoteCodingServerSettings(
+        enabled: true,
+        port: port,
+        pairedDevices: [device],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        remoteCodingRepositoryProvider.overrideWithValue(repository),
+        codingProjectsNotifierProvider.overrideWith(
+          _RemoteOrderCodingProjectsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _RemoteOrderConversationsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+      ],
+    );
+
+    try {
+      container.read(remoteCodingServerProvider);
+      await _waitUntil(
+        () => container.read(remoteCodingServerProvider).isRunning,
+      );
+      final connection = await _connectAuthenticatedDevice(
+        container: container,
+        port: port,
+        token: rawToken,
+        authId: 'auth-project-order',
+      );
+      try {
+        final snapshot = connection.messages.firstWhere(
+          (message) =>
+              message.id == 'auth-project-order' && message.type == 'snapshot',
+        );
+        final projectIds = (snapshot.payload['projects'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((project) => project['id'])
+            .toList(growable: false);
+
+        expect(projectIds, ['older-project', 'newer-project']);
+      } finally {
+        await connection.subscription.cancel();
+        await connection.socket.close();
+      }
+    } finally {
       container.dispose();
     }
   });

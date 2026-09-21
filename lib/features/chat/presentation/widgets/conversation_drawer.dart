@@ -19,6 +19,7 @@ import '../../data/repositories/conversation_repository_api.dart';
 import '../../data/repositories/semantic_search_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/services/coding_project_ordering.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';
@@ -27,19 +28,10 @@ import 'conversation_search_delegate.dart';
 
 const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';
-const _codingProjectSortOrderPrefsKey =
-    'conversationDrawer.codingProjectSortOrder';
 // Inset for rounded ListTile hover/selection so the fill does not touch the
 // drawer edge, plus a gap between neighboring rows.
 const _drawerRowMargin = 8.0;
 const _drawerRowGap = 4.0;
-
-enum _CodingProjectSortOrder {
-  newestFirst,
-  oldestFirst,
-  recentlyActiveFirst,
-  leastRecentlyActiveFirst,
-}
 
 enum _CodingSortAction {
   projectsNewestFirst,
@@ -91,8 +83,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
 
   final Set<String> _expandedProjectIds = <String>{};
   final Set<String> _collapsedProjectIds = <String>{};
-  _CodingProjectSortOrder _projectSortOrder =
-      _CodingProjectSortOrder.newestFirst;
+  CodingProjectSortOrder _projectSortOrder = CodingProjectSortOrder.newestFirst;
 
   @override
   void initState() {
@@ -303,8 +294,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
       final result = await service.search(query);
       final conversations = <Conversation>[];
       for (final id in result.conversationIds) {
-        final loaded =
-            await repository.refresh(id) ?? repository.getById(id);
+      final loaded =
+          await repository.refresh(id) ?? repository.getById(id);
         if (loaded != null) {
           conversations.add(loaded);
         }
@@ -515,12 +506,9 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     try {
       final prefs = ref.read(sharedPreferencesProvider);
       final storedProjectOrder = prefs.getString(
-        _codingProjectSortOrderPrefsKey,
+        codingProjectSortOrderPrefsKey,
       );
-      _projectSortOrder = _CodingProjectSortOrder.values.firstWhere(
-        (order) => order.name == storedProjectOrder,
-        orElse: () => _CodingProjectSortOrder.newestFirst,
-      );
+      _projectSortOrder = codingProjectSortOrderFromName(storedProjectOrder);
     } catch (e) {
       appDebugPrint('Failed to load coding drawer sort order: $e');
     }
@@ -530,22 +518,19 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     setState(() {
       switch (action) {
         case _CodingSortAction.projectsNewestFirst:
-          _projectSortOrder = _CodingProjectSortOrder.newestFirst;
+          _projectSortOrder = CodingProjectSortOrder.newestFirst;
         case _CodingSortAction.projectsOldestFirst:
-          _projectSortOrder = _CodingProjectSortOrder.oldestFirst;
+          _projectSortOrder = CodingProjectSortOrder.oldestFirst;
         case _CodingSortAction.projectsRecentlyActiveFirst:
-          _projectSortOrder = _CodingProjectSortOrder.recentlyActiveFirst;
+          _projectSortOrder = CodingProjectSortOrder.recentlyActiveFirst;
         case _CodingSortAction.projectsLeastRecentlyActiveFirst:
-          _projectSortOrder = _CodingProjectSortOrder.leastRecentlyActiveFirst;
+          _projectSortOrder = CodingProjectSortOrder.leastRecentlyActiveFirst;
       }
     });
     try {
       final prefs = ref.read(sharedPreferencesProvider);
       unawaited(
-        prefs.setString(
-          _codingProjectSortOrderPrefsKey,
-          _projectSortOrder.name,
-        ),
+        prefs.setString(codingProjectSortOrderPrefsKey, _projectSortOrder.name),
       );
     } catch (e) {
       appDebugPrint('Failed to persist coding drawer sort order: $e');
@@ -772,49 +757,17 @@ class _CodingProjectsSection extends StatelessWidget {
   final ValueChanged<CodingProject> onOpenProject;
   final ValueChanged<String> onToggleProjectExpanded;
   final ValueChanged<String> onToggleProjectCollapsed;
-  final _CodingProjectSortOrder projectSortOrder;
+  final CodingProjectSortOrder projectSortOrder;
   final ValueChanged<_CodingSortAction> onSortSelected;
 
   @override
   Widget build(BuildContext context) {
     final activeThreads = conversationsState.visibleConversations;
-    final latestThreadUpdates = <String, DateTime>{};
-    for (final conversation in conversationsState.conversations) {
-      if (conversation.workspaceMode != WorkspaceMode.coding) continue;
-      final projectId = conversation.normalizedProjectId;
-      if (projectId == null) continue;
-      final previous = latestThreadUpdates[projectId];
-      if (previous == null || conversation.updatedAt.isAfter(previous)) {
-        latestThreadUpdates[projectId] = conversation.updatedAt;
-      }
-    }
-    final projects = projectsState.projects.toList(growable: false)
-      ..sort((left, right) {
-        final byPrimarySort = switch (projectSortOrder) {
-          _CodingProjectSortOrder.newestFirst => right.createdAt.compareTo(
-            left.createdAt,
-          ),
-          _CodingProjectSortOrder.oldestFirst => left.createdAt.compareTo(
-            right.createdAt,
-          ),
-          _CodingProjectSortOrder.recentlyActiveFirst =>
-            _compareLatestThreadUpdates(
-              latestThreadUpdates[left.id],
-              latestThreadUpdates[right.id],
-              newestFirst: true,
-            ),
-          _CodingProjectSortOrder.leastRecentlyActiveFirst =>
-            _compareLatestThreadUpdates(
-              latestThreadUpdates[left.id],
-              latestThreadUpdates[right.id],
-              newestFirst: false,
-            ),
-        };
-        if (byPrimarySort != 0) return byPrimarySort;
-        final byCreatedAt = right.createdAt.compareTo(left.createdAt);
-        if (byCreatedAt != 0) return byCreatedAt;
-        return left.id.compareTo(right.id);
-      });
+    final projects = sortCodingProjects(
+      projects: projectsState.projects,
+      conversations: conversationsState.conversations,
+      sortOrder: projectSortOrder,
+    );
 
     return Column(
       children: [
@@ -904,17 +857,6 @@ class _CodingProjectsSection extends StatelessWidget {
       return left.id.compareTo(right.id);
     });
     return threads;
-  }
-
-  int _compareLatestThreadUpdates(
-    DateTime? left,
-    DateTime? right, {
-    required bool newestFirst,
-  }) {
-    if (left == null && right == null) return 0;
-    if (left == null) return 1;
-    if (right == null) return -1;
-    return newestFirst ? right.compareTo(left) : left.compareTo(right);
   }
 }
 
@@ -1235,7 +1177,7 @@ class _CodingSortMenuButton extends StatelessWidget {
     required this.onSelected,
   });
 
-  final _CodingProjectSortOrder projectSortOrder;
+  final CodingProjectSortOrder projectSortOrder;
   final ValueChanged<_CodingSortAction> onSelected;
 
   @override
@@ -1249,25 +1191,25 @@ class _CodingSortMenuButton extends StatelessWidget {
         _sortMenuItem(
           action: _CodingSortAction.projectsNewestFirst,
           label: 'drawer.sort_projects_newest'.tr(),
-          selected: projectSortOrder == _CodingProjectSortOrder.newestFirst,
+          selected: projectSortOrder == CodingProjectSortOrder.newestFirst,
         ),
         _sortMenuItem(
           action: _CodingSortAction.projectsOldestFirst,
           label: 'drawer.sort_projects_oldest'.tr(),
-          selected: projectSortOrder == _CodingProjectSortOrder.oldestFirst,
+          selected: projectSortOrder == CodingProjectSortOrder.oldestFirst,
         ),
         _sortMenuItem(
           action: _CodingSortAction.projectsRecentlyActiveFirst,
           label: 'drawer.sort_projects_recent_thread'.tr(),
           selected:
-              projectSortOrder == _CodingProjectSortOrder.recentlyActiveFirst,
+              projectSortOrder == CodingProjectSortOrder.recentlyActiveFirst,
         ),
         _sortMenuItem(
           action: _CodingSortAction.projectsLeastRecentlyActiveFirst,
           label: 'drawer.sort_projects_oldest_thread'.tr(),
           selected:
               projectSortOrder ==
-              _CodingProjectSortOrder.leastRecentlyActiveFirst,
+              CodingProjectSortOrder.leastRecentlyActiveFirst,
         ),
       ],
     );

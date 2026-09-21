@@ -16,6 +16,7 @@ import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/services/coding_project_ordering.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
 import '../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
@@ -25,6 +26,7 @@ import '../../chat/presentation/providers/conversations_notifier.dart';
 import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_calculator.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
+import '../../settings/presentation/providers/settings_notifier.dart';
 import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
 import '../data/remote_coding_notification_relay_providers.dart';
@@ -1792,6 +1794,18 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           range: range,
         ),
     };
+    // Remote Coding sends only the selected project's threads, so the phone
+    // cannot independently reproduce the desktop's project ordering.
+    final projectSortOrder = codingProjectSortOrderFromName(
+      ref
+          .read(sharedPreferencesProvider)
+          .getString(codingProjectSortOrderPrefsKey),
+    );
+    final orderedProjects = sortCodingProjects(
+      projects: projectsState.projects,
+      conversations: conversationsState.conversations,
+      sortOrder: projectSortOrder,
+    );
 
     return {
       'notificationRelayHandle':
@@ -1822,7 +1836,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         'destinationBoundCommands': true,
         'attachments': true,
       },
-      'projects': projectsState.projects.map(_projectToJson).toList(),
+      'projects': orderedProjects.map(_projectToJson).toList(),
       'selectedProjectId': selectedProjectId,
       'conversations': visibleConversations.map(_conversationToJson).toList(),
       'currentConversationId': currentConversation?.id,
