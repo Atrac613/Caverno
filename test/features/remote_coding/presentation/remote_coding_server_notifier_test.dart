@@ -31,6 +31,7 @@ import 'package:caverno/features/remote_coding/domain/remote_coding_resource_pol
 import 'package:caverno/features/remote_coding/domain/remote_coding_session_policy.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter/services.dart';
@@ -742,6 +743,16 @@ void main() {
           container.read(chatNotifierProvider.notifier)
               as _BoundCommandChatNotifier;
 
+      await client.updateComposerSettings(
+        model: 'remote-model',
+        reasoningEffort: ReasoningEffortPreference.high,
+        enableThinking: false,
+      );
+      final desktopComposer = container.read(settingsNotifierProvider);
+      expect(desktopComposer.model, 'remote-model');
+      expect(desktopComposer.reasoningEffort, ReasoningEffortPreference.high);
+      expect(desktopComposer.enableThinking, isFalse);
+
       final accepted = await client.sendMessageToConversation(
         projectId: 'project-1',
         conversationId: 'thread-1',
@@ -1413,6 +1424,132 @@ void main() {
         await owner?.socket.close();
         await other?.subscription.cancel();
         await other?.socket.close();
+        container.dispose();
+      }
+    },
+  );
+
+  test(
+    'createThread opens a desktop coding draft instead of persisting a thread',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: _MemorySecureStore(),
+      );
+      final port = await _unusedPort();
+      const rawToken = 'draft-token';
+      final now = DateTime.utc(2026, 9, 20);
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [
+            RemoteCodingPairedDevice(
+              id: 'draft-phone',
+              name: 'Draft phone',
+              tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+              createdAt: now,
+              lastSeenAt: now,
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            _BoundCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _BoundConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        ],
+      );
+      WebSocket? socket;
+      StreamSubscription<dynamic>? subscription;
+      try {
+        container.read(remoteCodingServerProvider);
+        await _waitUntil(
+          () => container.read(remoteCodingServerProvider).isRunning,
+        );
+        final connection = await _connectAuthenticatedDevice(
+          container: container,
+          port: port,
+          token: rawToken,
+          authId: 'draft-auth',
+        );
+        socket = connection.socket;
+        subscription = connection.subscription;
+
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'createThread',
+            id: 'draft-create',
+            payload: {'projectId': 'project-1'},
+          ),
+        );
+        await _waitUntil(
+          () => connection.messages.any(
+            (message) =>
+                message.id == 'draft-create' && message.type == 'snapshot',
+          ),
+          description: 'draft thread snapshot',
+        );
+
+        final snapshot = connection.messages.lastWhere(
+          (message) => message.id == 'draft-create',
+        );
+        expect(snapshot.payload['currentConversationId'], isNull);
+        expect(
+          container.read(conversationsNotifierProvider).currentConversation,
+          isNull,
+        );
+        expect(
+          container.read(conversationsNotifierProvider).activeProjectId,
+          'project-1',
+        );
+
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: RemoteCodingProtocol.updateComposerSettings,
+            id: 'draft-plan-mode',
+            payload: {
+              'composer': {
+                'model': 'desktop-model',
+                'reasoningEffort': 'automatic',
+                'enableThinking': null,
+                'assistantMode': 'plan',
+              },
+            },
+          ),
+        );
+        await _waitUntil(
+          () => connection.messages.any(
+            (message) =>
+                message.id == 'draft-plan-mode' &&
+                message.type == RemoteCodingProtocol.commandResult,
+          ),
+          description: 'draft composer mode result',
+        );
+        final composerResult = connection.messages.lastWhere(
+          (message) => message.id == 'draft-plan-mode',
+        );
+        expect(
+          (composerResult.payload['composer']
+              as Map<String, dynamic>)['assistantMode'],
+          'plan',
+        );
+        expect(
+          container.read(conversationsNotifierProvider).currentConversation,
+          isNull,
+        );
+      } finally {
+        await subscription?.cancel();
+        await socket?.close();
         container.dispose();
       }
     },
@@ -2816,11 +2953,9 @@ void main() {
     await _waitUntil(() => relayClient.deliveries.isNotEmpty);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(
-      relayClient.deliveries.map((delivery) => delivery.deliveryHandle),
-      ['delivery_handle_granted'],
-      reason: 'the ungranted device must not be told the approval exists',
-    );
+    expect(relayClient.deliveries.map((delivery) => delivery.deliveryHandle), [
+      'delivery_handle_granted',
+    ], reason: 'the ungranted device must not be told the approval exists');
     final payload =
         relayClient.deliveries.single.payload
             as RemoteCodingApprovalNotificationPayload;
@@ -2844,11 +2979,9 @@ void main() {
     await _waitUntil(() => relayClient.deliveries.isNotEmpty);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(
-      relayClient.deliveries.map((delivery) => delivery.deliveryHandle),
-      ['delivery_handle_granted'],
-      reason: 'the withdrawal follows the request, device for device',
-    );
+    expect(relayClient.deliveries.map((delivery) => delivery.deliveryHandle), [
+      'delivery_handle_granted',
+    ], reason: 'the withdrawal follows the request, device for device');
     final withdrawal =
         relayClient.deliveries.single.payload
             as RemoteCodingApprovalWithdrawalPayload;

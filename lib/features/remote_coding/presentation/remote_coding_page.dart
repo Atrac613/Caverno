@@ -1,19 +1,30 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/types/assistant_mode.dart';
 import '../../../core/utils/attachment_format.dart';
 import '../../chat/domain/entities/conversation_plan_artifact.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
 import '../../chat/presentation/pages/approval_dialog_presenter.dart';
+import '../../chat/presentation/providers/custom_slash_commands_notifier.dart';
+import '../../chat/presentation/slash_commands/slash_command.dart';
+import '../../chat/presentation/slash_commands/slash_command_catalog.dart';
+import '../../chat/presentation/slash_commands/slash_command_prompt_template.dart';
 import '../../chat/presentation/widgets/approval/approval_dialog_route.dart';
 import '../../chat/presentation/widgets/composer_attachment_button.dart';
+import '../../chat/presentation/widgets/composer_control_chip.dart';
+import '../../chat/presentation/widgets/composer_model_selector.dart';
 import '../../chat/presentation/widgets/message_bubble.dart';
+import '../../chat/presentation/widgets/message_input_control_labels.dart';
+import '../../chat/presentation/widgets/message_input_slash_suggestion_list.dart';
 import '../../chat/presentation/widgets/plan/plan_review_sheet.dart';
+import '../../chat/presentation/widgets/slash_command_help_sheet.dart';
 import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
@@ -231,6 +242,9 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
 
     final state = ref.watch(remoteCodingClientProvider);
     final notificationState = ref.watch(remoteCodingMobileNotificationProvider);
+    final customSlashCommandTemplates = ref.watch(
+      customSlashCommandsNotifierProvider,
+    );
     _scheduleNotificationTap(notificationState);
     _schedulePendingPrompts(state);
     final notifier = ref.read(remoteCodingClientProvider.notifier);
@@ -244,6 +258,59 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         onCopySupportPacket: () => _copyClientSupportPacket(state),
       );
     }
+
+    final selectedProject = _selectedRemoteProject(state);
+    final isDraftComposer =
+        selectedProject != null && state.currentConversationId == null;
+    final slashCommands = buildSlashCommandCatalog(
+      text: _resolveSlashCommandText,
+      customPromptTemplates: customSlashCommandTemplates,
+    );
+    final composer = _RemoteComposer(
+      controller: _controller,
+      isLoading: state.isLoading,
+      enabled: state.projects.isNotEmpty,
+      supportsAttachments: state.supportsAttachments,
+      attachment: _attachment,
+      isAttachmentBusy: _isAttachmentBusy,
+      composerSettings: state.composerSettings,
+      slashCommands: slashCommands,
+      onSlashCommand: (invocation) => _handleSlashCommand(
+        invocation,
+        isLoading: state.isLoading,
+        customPromptTemplates: customSlashCommandTemplates,
+        projectId: selectedProject?.id,
+      ),
+      onSend: () => _send(notifier),
+      onCancel: notifier.cancelStreaming,
+      onLoadModels: notifier.loadComposerModels,
+      onComposerSettingsChanged: (selection) => notifier.updateComposerSettings(
+        model: selection.model,
+        reasoningEffort: selection.reasoningEffort,
+        enableThinking: selection.enableThinking,
+        assistantMode:
+            state.composerSettings?.assistantMode ?? AssistantMode.coding,
+      ),
+      onAssistantModeSelected: (mode) {
+        final settings = state.composerSettings;
+        if (settings == null) return;
+        unawaited(
+          notifier.updateComposerSettings(
+            model: settings.model,
+            reasoningEffort: settings.reasoningEffort,
+            enableThinking: settings.enableThinking,
+            assistantMode: mode,
+          ),
+        );
+      },
+      assistantMode:
+          state.composerSettings?.assistantMode ?? AssistantMode.coding,
+      onPickImage: _pickImage,
+      onPickFile: _pickFile,
+      onClearAttachment: _clearAttachment,
+      onPaste: _handlePaste,
+      onContentInserted: _handleContentInserted,
+    );
 
     return SafeArea(
       top: false,
@@ -272,6 +339,13 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
           const Divider(height: 1),
           if (state.projects.isEmpty)
             const Expanded(child: _RemoteEmptyProjectsView())
+          else if (isDraftComposer)
+            Expanded(
+              child: _RemoteCodingDraftComposer(
+                projectName: selectedProject.name,
+                composer: composer,
+              ),
+            )
           else
             Expanded(
               child: ListView.builder(
@@ -294,21 +368,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
                 ),
               ),
             ),
-          _RemoteComposer(
-            controller: _controller,
-            isLoading: state.isLoading,
-            enabled: state.projects.isNotEmpty,
-            supportsAttachments: state.supportsAttachments,
-            attachment: _attachment,
-            isAttachmentBusy: _isAttachmentBusy,
-            onSend: () => _send(notifier),
-            onCancel: notifier.cancelStreaming,
-            onPickImage: _pickImage,
-            onPickFile: _pickFile,
-            onClearAttachment: _clearAttachment,
-            onPaste: _handlePaste,
-            onContentInserted: _handleContentInserted,
-          ),
+          if (!isDraftComposer) composer,
         ],
       ),
     );
@@ -450,6 +510,131 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     await _applyPickedAttachment(
       _attachmentPicker.fromInsertedContent(content),
     );
+  }
+
+  String _resolveSlashCommandText(
+    String key, {
+    Map<String, String>? namedArgs,
+  }) => key.tr(namedArgs: namedArgs);
+
+  Future<SlashCommandExecutionResult> _handleSlashCommand(
+    SlashCommandInvocation invocation, {
+    required bool isLoading,
+    required List<SlashCommandPromptTemplate> customPromptTemplates,
+    required String? projectId,
+  }) async {
+    if (isLoading && !invocation.definition.enabledWhileLoading) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_blocked_while_loading'.tr(),
+      );
+    }
+
+    final notifier = ref.read(remoteCodingClientProvider.notifier);
+    final currentSettings = ref
+        .read(remoteCodingClientProvider)
+        .composerSettings;
+    switch (invocation.definition.action) {
+      case SlashCommandAction.help:
+        await showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          builder: (context) => SlashCommandHelpSheet(
+            title: 'chat.slash_commands_title'.tr(),
+            commands: buildSlashCommandCatalog(
+              text: _resolveSlashCommandText,
+              customPromptTemplates: customPromptTemplates,
+            ),
+          ),
+        );
+        return SlashCommandExecutionResult.handled;
+      case SlashCommandAction.newConversation:
+        if (projectId == null) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_new_thread_started'.tr(),
+          );
+        }
+        await notifier.createThread(projectId: projectId);
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_new_thread_started'.tr(),
+        );
+      case SlashCommandAction.clear:
+        await notifier.clearConversation();
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_cleared'.tr(),
+        );
+      case SlashCommandAction.general:
+      case SlashCommandAction.coding:
+      case SlashCommandAction.plan:
+        final mode = switch (invocation.definition.action) {
+          SlashCommandAction.general => AssistantMode.general,
+          SlashCommandAction.coding => AssistantMode.coding,
+          SlashCommandAction.plan => AssistantMode.plan,
+          _ => AssistantMode.coding,
+        };
+        if (currentSettings == null) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'The desktop composer settings are unavailable.',
+          );
+        }
+        await notifier.updateComposerSettings(
+          model: currentSettings.model,
+          reasoningEffort: currentSettings.reasoningEffort,
+          enableThinking: currentSettings.enableThinking,
+          assistantMode: mode,
+        );
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_mode_changed'.tr(
+            namedArgs: {'mode': messageInputAssistantModeLabel(mode)},
+          ),
+        );
+      case SlashCommandAction.cancel:
+        if (!isLoading) {
+          return SlashCommandExecutionResult(
+            feedbackMessage: 'chat.slash_cancel_idle'.tr(),
+          );
+        }
+        await notifier.cancelStreaming();
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_cancelled'.tr(),
+        );
+      case SlashCommandAction.review:
+      case SlashCommandAction.fix:
+      case SlashCommandAction.explain:
+      case SlashCommandAction.test:
+      case SlashCommandAction.promptTemplate:
+        final template = resolveSlashCommandPromptTemplate(
+          invocation,
+          customPromptTemplates,
+        );
+        if (template == null) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'message.slash_command_failed'.tr(),
+          );
+        }
+        return SlashCommandExecutionResult.sendPrompt(
+          template.expand(
+            args: invocation.args,
+            commandName: invocation.commandName,
+          ),
+        );
+      case SlashCommandAction.pro:
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_pro_unavailable'.tr(),
+        );
+      case SlashCommandAction.goal:
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_goal_unavailable'.tr(),
+        );
+      case SlashCommandAction.feedback:
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage:
+              'Feedback submission is available from the desktop composer.',
+        );
+      case SlashCommandAction.worktreeAgent:
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_agent_unavailable'.tr(),
+        );
+    }
   }
 
   Future<void> _send(RemoteCodingClientNotifier notifier) async {
@@ -1817,6 +2002,87 @@ class _RemoteEmptyProjectsView extends StatelessWidget {
   }
 }
 
+class _RemoteCodingDraftComposer extends StatelessWidget {
+  const _RemoteCodingDraftComposer({
+    required this.projectName,
+    required this.composer,
+  });
+
+  final String projectName;
+  final Widget composer;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'chat.coding_draft_prompt'.tr(
+                  namedArgs: {'project': projectName},
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 22),
+              composer,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoteAssistantModeSelector extends StatelessWidget {
+  const _RemoteAssistantModeSelector({
+    required this.enabled,
+    required this.assistantMode,
+    required this.onSelected,
+  });
+
+  final bool enabled;
+  final AssistantMode assistantMode;
+  final ValueChanged<AssistantMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Opacity(
+      opacity: enabled ? 1 : 0.6,
+      child: PopupMenuButton<AssistantMode>(
+        enabled: enabled,
+        tooltip: 'message.mode_tooltip'.tr(),
+        padding: EdgeInsets.zero,
+        onSelected: onSelected,
+        itemBuilder: (context) => [
+          for (final mode in AssistantMode.values)
+            CheckedPopupMenuItem<AssistantMode>(
+              value: mode,
+              checked: assistantMode == mode,
+              child: Text(messageInputAssistantModeLabel(mode)),
+            ),
+        ],
+        child: buildComposerControlChip(
+          theme: theme,
+          icon: Icons.tune,
+          label: messageInputAssistantModeLabel(assistantMode),
+          key: const ValueKey('remote-assistant-mode-selector'),
+        ),
+      ),
+    );
+  }
+}
+
 class _RemoteComposer extends StatelessWidget {
   const _RemoteComposer({
     required this.controller,
@@ -1825,8 +2091,15 @@ class _RemoteComposer extends StatelessWidget {
     required this.supportsAttachments,
     required this.attachment,
     required this.isAttachmentBusy,
+    required this.composerSettings,
+    required this.assistantMode,
+    required this.slashCommands,
+    required this.onSlashCommand,
+    required this.onAssistantModeSelected,
     required this.onSend,
     required this.onCancel,
+    required this.onLoadModels,
+    required this.onComposerSettingsChanged,
     required this.onPickImage,
     required this.onPickFile,
     required this.onClearAttachment,
@@ -1840,20 +2113,127 @@ class _RemoteComposer extends StatelessWidget {
   final bool supportsAttachments;
   final RemoteCodingAttachmentDraft? attachment;
   final bool isAttachmentBusy;
+  final RemoteCodingComposerSettings? composerSettings;
+  final AssistantMode assistantMode;
+  final List<SlashCommandDefinition> slashCommands;
+  final SlashCommandHandler? onSlashCommand;
+  final ValueChanged<AssistantMode> onAssistantModeSelected;
   final VoidCallback onSend;
   final VoidCallback onCancel;
+  final ComposerModelListLoader onLoadModels;
+  final ComposerModelSelectionChanged onComposerSettingsChanged;
   final VoidCallback onPickImage;
   final VoidCallback onPickFile;
   final VoidCallback onClearAttachment;
   final VoidCallback onPaste;
   final Future<void> Function(KeyboardInsertedContent) onContentInserted;
 
+  List<SlashCommandDefinition> _suggestions() {
+    if (slashCommands.isEmpty || onSlashCommand == null || attachment != null) {
+      return const <SlashCommandDefinition>[];
+    }
+    return filterSlashCommandSuggestions(controller.text, slashCommands);
+  }
+
+  void _showSlashCommandFeedback(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _applySlashSuggestion(
+    BuildContext context,
+    SlashCommandDefinition command,
+  ) {
+    final nextText = '/${command.name} ';
+    controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+    );
+    if (command.requiresArguments) return;
+    unawaited(_submitSlashCommand(context));
+  }
+
+  Future<bool> _submitSlashCommand(BuildContext context) async {
+    if (onSlashCommand == null || attachment != null) return false;
+    final rawInput = controller.text.trimRight();
+    final parsed = parseSlashCommandInput(rawInput);
+    if (parsed == null) return false;
+    final definition = findSlashCommand(parsed.commandName, slashCommands);
+    if (definition == null) {
+      _showSlashCommandFeedback(
+        context,
+        'message.slash_unknown_command'.tr(
+          namedArgs: {'command': parsed.commandName},
+        ),
+      );
+      controller.clear();
+      return true;
+    }
+    if (definition.requiresArguments && parsed.args.isEmpty) {
+      _showSlashCommandFeedback(
+        context,
+        'message.slash_missing_arguments'.tr(
+          namedArgs: {'command': definition.name, 'usage': definition.usage},
+        ),
+      );
+      return true;
+    }
+    if (!definition.acceptsArguments && parsed.args.isNotEmpty) {
+      _showSlashCommandFeedback(
+        context,
+        'message.slash_unexpected_arguments'.tr(
+          namedArgs: {'command': definition.name},
+        ),
+      );
+      return true;
+    }
+
+    final result = await onSlashCommand!(
+      SlashCommandInvocation(
+        definition: definition,
+        rawInput: rawInput,
+        commandName: parsed.commandName,
+        args: parsed.args,
+      ),
+    );
+    if (!context.mounted) return true;
+    if (result.feedbackMessage != null) {
+      _showSlashCommandFeedback(context, result.feedbackMessage!);
+    }
+    final prompt = result.promptToSend;
+    if (prompt != null && prompt.trim().isNotEmpty) {
+      controller.value = TextEditingValue(
+        text: prompt,
+        selection: TextSelection.collapsed(offset: prompt.length),
+      );
+      onSend();
+    } else if (result.clearInput) {
+      controller.clear();
+    }
+    return true;
+  }
+
+  void _handleSend(BuildContext context) {
+    if (attachment == null && onSlashCommand != null) {
+      final parsed = parseSlashCommandInput(controller.text.trimRight());
+      if (parsed != null) {
+        unawaited(_submitSlashCommand(context));
+        return;
+      }
+    }
+    onSend();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isNarrowComposer = MediaQuery.sizeOf(context).width < 480;
+
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1865,117 +2245,221 @@ class _RemoteComposer extends StatelessWidget {
                   onClear: onClearAttachment,
                 ),
               ),
-            Row(
-              children: [
-                if (supportsAttachments)
-                  IgnorePointer(
-                    ignoring: isAttachmentBusy,
-                    child: Opacity(
-                      opacity: isAttachmentBusy ? 0.55 : 1,
-                      child: ComposerAttachmentButton(
-                        onPickImage: onPickImage,
-                        onPickFile: onPickFile,
-                      ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, _, _) {
+                final suggestions = _suggestions();
+                if (suggestions.isEmpty) return const SizedBox.shrink();
+                return MessageInputSlashSuggestionList(
+                  suggestions: suggestions,
+                  selectedIndex: 0,
+                  onSelected: (index) =>
+                      _applySlashSuggestion(context, suggestions[index]),
+                );
+              },
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(context.radii.lg),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
                     ),
-                  ),
-                Expanded(
-                  child: Actions(
-                    actions: <Type, Action<Intent>>{
-                      if (supportsAttachments)
-                        PasteTextIntent: CallbackAction<PasteTextIntent>(
-                          onInvoke: (_) {
-                            onPaste();
-                            return null;
-                          },
-                        ),
-                    },
-                    child: TextField(
-                      controller: controller,
-                      enabled: enabled,
-                      contentInsertionConfiguration: supportsAttachments
-                          ? ContentInsertionConfiguration(
-                              onContentInserted: (content) {
-                                unawaited(onContentInserted(content));
-                              },
-                              allowedMimeTypes: const [
-                                'image/png',
-                                'image/jpeg',
-                                'image/gif',
-                                'image/webp',
-                                'image/heic',
-                                'image/heif',
-                                'image/tiff',
-                                'image/bmp',
-                              ],
-                            )
-                          : null,
-                      contextMenuBuilder: (context, editableTextState) {
-                        if (!supportsAttachments) {
-                          return AdaptiveTextSelectionToolbar.buttonItems(
-                            anchors: editableTextState.contextMenuAnchors,
-                            buttonItems:
-                                editableTextState.contextMenuButtonItems,
-                          );
-                        }
-                        final buttonItems = editableTextState
-                            .contextMenuButtonItems
-                            .map((item) {
-                              if (item.type != ContextMenuButtonType.paste) {
-                                return item;
-                              }
-                              return ContextMenuButtonItem(
+                    child: Actions(
+                      actions: <Type, Action<Intent>>{
+                        if (supportsAttachments)
+                          PasteTextIntent: CallbackAction<PasteTextIntent>(
+                            onInvoke: (_) {
+                              onPaste();
+                              return null;
+                            },
+                          ),
+                      },
+                      child: TextField(
+                        controller: controller,
+                        enabled: enabled,
+                        contentInsertionConfiguration: supportsAttachments
+                            ? ContentInsertionConfiguration(
+                                onContentInserted: (content) {
+                                  unawaited(onContentInserted(content));
+                                },
+                                allowedMimeTypes: const [
+                                  'image/png',
+                                  'image/jpeg',
+                                  'image/gif',
+                                  'image/webp',
+                                  'image/heic',
+                                  'image/heif',
+                                  'image/tiff',
+                                  'image/bmp',
+                                ],
+                              )
+                            : null,
+                        contextMenuBuilder: (context, editableTextState) {
+                          if (!supportsAttachments) {
+                            return AdaptiveTextSelectionToolbar.buttonItems(
+                              anchors: editableTextState.contextMenuAnchors,
+                              buttonItems:
+                                  editableTextState.contextMenuButtonItems,
+                            );
+                          }
+                          final buttonItems = editableTextState
+                              .contextMenuButtonItems
+                              .map((item) {
+                                if (item.type != ContextMenuButtonType.paste) {
+                                  return item;
+                                }
+                                return ContextMenuButtonItem(
+                                  onPressed: () {
+                                    editableTextState.hideToolbar();
+                                    onPaste();
+                                  },
+                                  type: ContextMenuButtonType.paste,
+                                  label: item.label,
+                                );
+                              })
+                              .toList();
+                          if (!buttonItems.any(
+                            (item) => item.type == ContextMenuButtonType.paste,
+                          )) {
+                            buttonItems.add(
+                              ContextMenuButtonItem(
                                 onPressed: () {
                                   editableTextState.hideToolbar();
                                   onPaste();
                                 },
                                 type: ContextMenuButtonType.paste,
-                                label: item.label,
-                              );
-                            })
-                            .toList();
-                        if (!buttonItems.any(
-                          (item) => item.type == ContextMenuButtonType.paste,
-                        )) {
-                          buttonItems.add(
-                            ContextMenuButtonItem(
-                              onPressed: () {
-                                editableTextState.hideToolbar();
-                                onPaste();
-                              },
-                              type: ContextMenuButtonType.paste,
-                            ),
+                              ),
+                            );
+                          }
+                          return AdaptiveTextSelectionToolbar.buttonItems(
+                            anchors: editableTextState.contextMenuAnchors,
+                            buttonItems: buttonItems,
                           );
-                        }
-                        return AdaptiveTextSelectionToolbar.buttonItems(
-                          anchors: editableTextState.contextMenuAnchors,
-                          buttonItems: buttonItems,
-                        );
-                      },
-                      minLines: 1,
-                      maxLines: 5,
-                      decoration: const InputDecoration(
-                        hintText: 'Message remote coding host',
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                        },
+                        minLines: 1,
+                        maxLines: 6,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        decoration: InputDecoration(
+                          hintText: 'message.input_hint'.tr(),
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          isCollapsed: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: !enabled || isAttachmentBusy
-                      ? null
-                      : (isLoading ? onCancel : onSend),
-                  icon: isAttachmentBusy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(isLoading ? Icons.stop : Icons.send),
-                  tooltip: isLoading ? 'Stop' : 'Send',
-                ),
-              ],
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, _) {
+                      final hasContent =
+                          value.text.trim().isNotEmpty || attachment != null;
+                      final canSend =
+                          enabled && !isAttachmentBusy && hasContent;
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (supportsAttachments)
+                                    IgnorePointer(
+                                      ignoring: isAttachmentBusy,
+                                      child: Opacity(
+                                        opacity: isAttachmentBusy ? 0.55 : 1,
+                                        child: ComposerAttachmentButton(
+                                          onPickImage: onPickImage,
+                                          onPickFile: onPickFile,
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(width: 8),
+                                  ComposerModelSelector(
+                                    enabled:
+                                        enabled &&
+                                        !isLoading &&
+                                        !isAttachmentBusy,
+                                    compact: isNarrowComposer,
+                                    selection: composerSettings == null
+                                        ? null
+                                        : ComposerModelSelection(
+                                            model: composerSettings!.model,
+                                            reasoningEffort: composerSettings!
+                                                .reasoningEffort,
+                                            enableThinking: composerSettings!
+                                                .enableThinking,
+                                          ),
+                                    modelLoader: onLoadModels,
+                                    onSelectionChanged:
+                                        onComposerSettingsChanged,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _RemoteAssistantModeSelector(
+                                    enabled:
+                                        enabled &&
+                                        !isLoading &&
+                                        !isAttachmentBusy,
+                                    assistantMode: assistantMode,
+                                    onSelected: onAssistantModeSelected,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (hasContent) ...[
+                            IconButton(
+                              onPressed: canSend
+                                  ? () => _handleSend(context)
+                                  : null,
+                              icon: isAttachmentBusy
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.send),
+                              tooltip: 'message.send'.tr(),
+                              style: IconButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                              ),
+                            ),
+                            if (isLoading) const SizedBox(width: 4),
+                          ],
+                          if (isLoading)
+                            IconButton(
+                              onPressed: enabled ? onCancel : null,
+                              icon: const Icon(Icons.stop_circle),
+                              tooltip: 'message.cancel'.tr(),
+                              style: IconButton.styleFrom(
+                                backgroundColor:
+                                    theme.colorScheme.errorContainer,
+                                foregroundColor:
+                                    theme.colorScheme.onErrorContainer,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),

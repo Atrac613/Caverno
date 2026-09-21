@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/attachment_storage_service.dart';
+import '../../../core/types/assistant_mode.dart';
 import '../../../core/types/workspace_mode.dart';
 import '../../../core/utils/attachment_format.dart';
 import '../../../core/utils/logger.dart';
@@ -28,6 +29,8 @@ import '../../chat/presentation/providers/conversations_notifier.dart';
 import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_calculator.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
+import '../../settings/data/model_remote_datasource.dart';
+import '../../settings/domain/entities/app_settings.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
 import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
@@ -693,6 +696,12 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         await _handleBoundSendMessage(client, message);
       case RemoteCodingProtocol.cancelConversationStreaming:
         _handleBoundCancelStreaming(client, message);
+      case RemoteCodingProtocol.requestComposerModels:
+        await _handleRequestComposerModels(client, message);
+      case RemoteCodingProtocol.updateComposerSettings:
+        await _handleUpdateComposerSettings(client, message);
+      case RemoteCodingProtocol.clearConversation:
+        await _handleClearConversation(client, message);
       case 'resolveApproval':
         _handleResolveApproval(client, message);
       case 'resolveQuestion':
@@ -1084,7 +1093,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     ref.read(codingProjectsNotifierProvider.notifier).selectProject(project.id);
     ref
         .read(conversationsNotifierProvider.notifier)
-        .createNewConversation(
+        .startDraftConversation(
           workspaceMode: projectWorkspaceMode,
           projectId: project.id,
         );
@@ -1263,6 +1272,208 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     return value.isEmpty ? null : value;
   }
 
+  Map<String, dynamic> _composerSettingsPayload() {
+    final settings = ref.read(settingsNotifierProvider);
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final assistantMode = conversation?.isPlanningSession == true
+        ? AssistantMode.plan
+        : conversation != null && settings.assistantMode == AssistantMode.plan
+        ? AssistantMode.coding
+        : settings.assistantMode;
+    return {
+      'model': settings.effectiveModel,
+      'reasoningEffort': settings.reasoningEffort.name,
+      'enableThinking': settings.enableThinking,
+      'assistantMode': assistantMode.name,
+    };
+  }
+
+  ReasoningEffortPreference? _parseReasoningEffort(Object? raw) {
+    if (raw is! String) return null;
+    final value = raw.trim();
+    for (final effort in ReasoningEffortPreference.values) {
+      if (effort.name == value || effort.apiValue == value) return effort;
+    }
+    return null;
+  }
+
+  Future<bool> _applyComposerSettings(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final raw = message.payload['composer'];
+    if (raw == null) return true;
+    if (raw is! Map<String, dynamic>) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'Composer settings must be an object.',
+      );
+      return false;
+    }
+
+    final rawModel = raw['model'];
+    final model = rawModel is String ? rawModel.trim() : null;
+    if (rawModel != null &&
+        (model == null || model.isEmpty || model.length > 512)) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The selected model is invalid.',
+      );
+      return false;
+    }
+
+    final rawEffort = raw['reasoningEffort'];
+    final reasoningEffort = rawEffort == null
+        ? null
+        : _parseReasoningEffort(rawEffort);
+    if (rawEffort != null && reasoningEffort == null) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The selected reasoning effort is invalid.',
+      );
+      return false;
+    }
+
+    final rawThinking = raw['enableThinking'];
+    if (raw.containsKey('enableThinking') &&
+        rawThinking != null &&
+        rawThinking is! bool) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The thinking preference is invalid.',
+      );
+      return false;
+    }
+
+    final rawAssistantMode = raw['assistantMode'];
+    final assistantMode = rawAssistantMode == null
+        ? null
+        : AssistantMode.values
+              .where((value) => value.name == rawAssistantMode)
+              .firstOrNull;
+    if (rawAssistantMode != null && assistantMode == null) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The assistant mode is invalid.',
+      );
+      return false;
+    }
+
+    try {
+      final settings = ref.read(settingsNotifierProvider);
+      final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
+      if (model != null && model != settings.effectiveModel.trim()) {
+        await settingsNotifier.updateModel(model);
+      }
+      if (reasoningEffort != null &&
+          reasoningEffort != settings.reasoningEffort) {
+        await settingsNotifier.updateReasoningEffort(reasoningEffort);
+      }
+      if (raw.containsKey('enableThinking') &&
+          rawThinking != settings.enableThinking) {
+        await settingsNotifier.updateEnableThinking(rawThinking as bool?);
+      }
+      if (assistantMode != null) {
+        final conversationsNotifier = ref.read(
+          conversationsNotifierProvider.notifier,
+        );
+        final conversation = ref
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        if (assistantMode == AssistantMode.plan) {
+          if (conversation != null && !conversation.isPlanningSession) {
+            await conversationsNotifier.enterPlanningSession();
+          }
+        } else {
+          if (conversation?.isPlanningSession == true) {
+            await conversationsNotifier.exitPlanningSession();
+          }
+        }
+        if (assistantMode != settings.assistantMode) {
+          await settingsNotifier.updateAssistantMode(assistantMode);
+        }
+      }
+      return true;
+    } on Object catch (error) {
+      appDebugPrint('[RemoteCoding] Composer settings update failed: $error');
+      client.sendError(
+        id: message.id,
+        code: 'composer_settings_failed',
+        message: 'The desktop could not update the composer settings.',
+      );
+      return false;
+    }
+  }
+
+  Future<void> _handleRequestComposerModels(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    try {
+      final settings = ref.read(settingsNotifierProvider);
+      final models = await ModelRemoteDataSource(
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+      ).listModelIds();
+      client.send(
+        type: RemoteCodingProtocol.commandResult,
+        id: message.id,
+        payload: {
+          'command': RemoteCodingProtocol.requestComposerModels,
+          'models': models,
+          'composer': _composerSettingsPayload(),
+        },
+      );
+    } on Object catch (error) {
+      appDebugPrint('[RemoteCoding] Composer model list failed: $error');
+      client.sendError(
+        id: message.id,
+        code: 'composer_models_unavailable',
+        message: 'The desktop model list is unavailable.',
+      );
+    }
+  }
+
+  Future<void> _handleUpdateComposerSettings(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    if (!await _applyComposerSettings(client, message)) return;
+    client.send(
+      type: RemoteCodingProtocol.commandResult,
+      id: message.id,
+      payload: {
+        'command': RemoteCodingProtocol.updateComposerSettings,
+        'composer': _composerSettingsPayload(),
+      },
+    );
+  }
+
+  Future<void> _handleClearConversation(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
+      return;
+    }
+    ref.read(chatNotifierProvider.notifier).clearMessages();
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentConversation(const <Message>[]);
+    client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
+  }
+
   Future<_RemoteCodingPreparedMessage?> _prepareRemoteMessage({
     required _RemoteCodingSocketClient client,
     required String? requestId,
@@ -1327,6 +1538,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
+    if (!await _applyComposerSettings(client, message)) return;
     final content = (message.payload['content'] as String?)?.trim() ?? '';
     final attachmentId = _attachmentId(message);
     if (attachmentId == null && content.isEmpty) {
@@ -1339,11 +1551,30 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
     final conversationsState = ref.read(conversationsNotifierProvider);
     final project = _findProject(conversationsState.activeProjectId);
-    if (project == null || conversationsState.currentConversation == null) {
+    if (project == null) {
       client.sendError(
         id: message.id,
         code: 'project_not_found',
         message: 'Select an existing desktop coding project before sending.',
+      );
+      return;
+    }
+    if (conversationsState.currentConversation == null) {
+      ref
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation(
+            workspaceMode: projectWorkspaceMode,
+            projectId: project.id,
+          );
+    }
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      client.sendError(
+        id: message.id,
+        code: 'conversation_unavailable',
+        message: 'The desktop could not create the coding thread.',
       );
       return;
     }
@@ -1357,7 +1588,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     if (prepared == null) return;
 
     _rememberPlanReviewOwner(
-      conversationId: conversationsState.currentConversation!.id,
+      conversationId: currentConversation.id,
       deviceId: client.deviceId,
     );
 
@@ -1386,6 +1617,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
+    if (!await _applyComposerSettings(client, message)) return;
     final attachmentId = _attachmentId(message);
     final conversation = _validatedBoundDestination(client, message);
     if (conversation == null) {
@@ -1964,6 +2196,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         'notificationRelaySetup': true,
         'destinationBoundCommands': true,
         'attachments': true,
+        'composerSettings': true,
       },
       'projects': orderedProjects.map(_projectToJson).toList(),
       'selectedProjectId': selectedProjectId,
@@ -1975,6 +2208,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       ),
       'isLoading': chatState.isLoading,
       'queuedCount': chatState.queuedMessages.length,
+      'composer': _composerSettingsPayload(),
       'pendingApproval': _pendingRemoteApproval(
         chatState,
         authenticatedDeviceId: authenticatedDeviceId,
@@ -2240,6 +2474,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         : conversation.title,
     'projectId': conversation.normalizedProjectId,
     'updatedAt': conversation.updatedAt.toIso8601String(),
+    'isPlanningSession': conversation.isPlanningSession,
   };
 
   void _broadcastSnapshot(String type) {

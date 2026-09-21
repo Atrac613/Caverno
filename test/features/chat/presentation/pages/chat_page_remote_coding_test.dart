@@ -248,6 +248,11 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
       threads: threads,
       currentConversationId: 'thread-1',
       snapshotGeneratedAt: _generatedAt,
+      composerSettings: RemoteCodingComposerSettings(
+        model: 'desktop-model',
+        reasoningEffort: ReasoningEffortPreference.high,
+        enableThinking: false,
+      ),
     );
   }
 
@@ -289,6 +294,14 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
       threads: [thread, ...state.threads],
       currentConversationId: threadId,
     );
+  }
+}
+
+class _ConnectedRemoteCodingDraftClientNotifier
+    extends _ConnectedRemoteCodingClientNotifier {
+  @override
+  RemoteCodingClientState build() {
+    return super.build().copyWith(clearCurrentConversationId: true);
   }
 }
 
@@ -512,6 +525,68 @@ void main() {
     expect(find.text('Remote Coding'), findsOneWidget);
     expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
     expect(find.byIcon(Icons.add), findsNothing);
+  });
+
+  testWidgets('mobile remote coding uses the chat composer controls', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    await _pumpCodingWorkspace(
+      tester,
+      size: const Size(390, 844),
+      connectRemoteClient: true,
+    );
+
+    expect(find.byKey(const ValueKey('composer-model-chip')), findsOneWidget);
+    expect(find.text('desktop-model'), findsOneWidget);
+  });
+
+  testWidgets('mobile remote coding exposes desktop slash commands', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    await _pumpCodingWorkspace(
+      tester,
+      size: const Size(390, 844),
+      connectRemoteClient: true,
+    );
+
+    final textField = find.byType(TextField).last;
+    await tester.enterText(textField, '/');
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('slash-command-suggestions')),
+      findsOneWidget,
+    );
+    expect(find.text('/help'), findsOneWidget);
+  });
+
+  testWidgets('mobile remote coding centers the new-thread composer', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    await _pumpCodingWorkspace(
+      tester,
+      size: const Size(390, 844),
+      connectRemoteClient: true,
+      remoteCodingClientBuilder: _ConnectedRemoteCodingDraftClientNotifier.new,
+    );
+
+    expect(find.text('What should we build in Caverno?'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('remote-assistant-mode-selector')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('remote-assistant-mode-selector')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Plan mode'), findsOneWidget);
   });
 
   testWidgets('mobile remote coding keeps the navigation drawer accessible', (
@@ -970,6 +1045,7 @@ Future<ProviderContainer> _pumpCodingWorkspace(
   WidgetTester tester, {
   Size size = const Size(1200, 900),
   bool connectRemoteClient = false,
+  RemoteCodingClientNotifier Function()? remoteCodingClientBuilder,
   SecurityScopedBookmarkService? bookmarkService,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -993,7 +1069,7 @@ Future<ProviderContainer> _pumpCodingWorkspace(
       routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
       if (connectRemoteClient)
         remoteCodingClientProvider.overrideWith(
-          _ConnectedRemoteCodingClientNotifier.new,
+          remoteCodingClientBuilder ?? _ConnectedRemoteCodingClientNotifier.new,
         ),
       if (bookmarkService != null)
         securityScopedBookmarkServiceProvider.overrideWithValue(

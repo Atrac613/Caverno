@@ -14,6 +14,42 @@ import 'composer_control_chip.dart';
 import 'composer_menu_rows.dart';
 import 'message_input_control_labels.dart';
 
+typedef ComposerModelListLoader = Future<List<String>> Function();
+typedef ComposerModelSelectionChanged =
+    FutureOr<void> Function(ComposerModelSelection selection);
+
+/// The model-related values shown by the composer chip.
+///
+/// A normal chat composer reads these values from local settings. Remote Coding
+/// supplies the desktop's values instead, while keeping the same menu and
+/// visual control on the phone.
+class ComposerModelSelection {
+  const ComposerModelSelection({
+    required this.model,
+    required this.reasoningEffort,
+    required this.enableThinking,
+  });
+
+  final String model;
+  final ReasoningEffortPreference reasoningEffort;
+  final bool? enableThinking;
+
+  ComposerModelSelection copyWith({
+    String? model,
+    ReasoningEffortPreference? reasoningEffort,
+    bool? enableThinking,
+    bool clearEnableThinking = false,
+  }) {
+    return ComposerModelSelection(
+      model: model ?? this.model,
+      reasoningEffort: reasoningEffort ?? this.reasoningEffort,
+      enableThinking: clearEnableThinking
+          ? null
+          : enableThinking ?? this.enableThinking,
+    );
+  }
+}
+
 /// Composer chip for model selection, reasoning effort, and template thinking.
 /// The chip shows the model and effort; its menu also exposes the independent
 /// thinking preference with automatic, enabled, and disabled states.
@@ -28,6 +64,9 @@ class ComposerModelSelector extends ConsumerStatefulWidget {
     super.key,
     required this.enabled,
     this.compact = false,
+    this.selection,
+    this.modelLoader,
+    this.onSelectionChanged,
   });
 
   /// False while a reply is running, matching the other composer controls.
@@ -38,6 +77,18 @@ class ComposerModelSelector extends ConsumerStatefulWidget {
   /// gives up the second value rather than pushing them off screen. The effort
   /// is still one tap away, in the menu.
   final bool compact;
+
+  /// Optional values supplied by a remote composer. When omitted, the local
+  /// settings provider remains the source of truth.
+  final ComposerModelSelection? selection;
+
+  /// Optional model-list source. Remote Coding uses the desktop endpoint;
+  /// ordinary chat uses the local model-list provider.
+  final ComposerModelListLoader? modelLoader;
+
+  /// Optional remote update handler. When present, menu changes are sent to
+  /// that surface instead of being persisted only in local settings.
+  final ComposerModelSelectionChanged? onSelectionChanged;
 
   @override
   ConsumerState<ComposerModelSelector> createState() =>
@@ -57,12 +108,19 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final settings = ref.watch(settingsNotifierProvider);
-    final selectedModel = settings.effectiveModel.trim();
+    final selection =
+        widget.selection ??
+        ComposerModelSelection(
+          model: settings.effectiveModel,
+          reasoningEffort: settings.reasoningEffort,
+          enableThinking: settings.enableThinking,
+        );
+    final selectedModel = selection.model.trim();
     final modelLabel = selectedModel.isEmpty
         ? 'message.model_unset'.tr()
         : selectedModel;
     final effortLabel = messageInputReasoningEffortLabel(
-      settings.reasoningEffort,
+      selection.reasoningEffort,
     );
 
     return Opacity(
@@ -79,24 +137,18 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
             ComposerChoiceSubmenu<ReasoningEffortPreference>(
               title: Text('message.reasoning_effort_menu_label'.tr()),
               values: ReasoningEffortPreference.values,
-              selected: settings.reasoningEffort,
+              selected: selection.reasoningEffort,
               labelOf: messageInputReasoningEffortLabel,
-              onSelected: (value) => unawaited(
-                ref
-                    .read(settingsNotifierProvider.notifier)
-                    .updateReasoningEffort(value),
-              ),
+              onSelected: (value) =>
+                  unawaited(_selectReasoningEffort(value, selection)),
             ),
             ComposerChoiceSubmenu<bool?>(
               title: Text('message.thinking_menu_label'.tr()),
               values: const <bool?>[null, true, false],
-              selected: settings.enableThinking,
+              selected: selection.enableThinking,
               labelOf: messageInputEnableThinkingLabel,
-              onSelected: (value) => unawaited(
-                ref
-                    .read(settingsNotifierProvider.notifier)
-                    .updateEnableThinking(value),
-              ),
+              onSelected: (value) =>
+                  unawaited(_selectEnableThinking(value, selection)),
             ),
           ],
           builder: (context, controller, _) => InkWell(
@@ -124,7 +176,9 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     AppSettings settings,
     String selectedModel,
   ) {
-    final isApple = settings.llmProvider == LlmProvider.appleFoundationModels;
+    final isApple =
+        widget.modelLoader == null &&
+        settings.llmProvider == LlmProvider.appleFoundationModels;
     final options = [..._models];
     if (selectedModel.isNotEmpty && !options.contains(selectedModel)) {
       options.insert(0, selectedModel);
@@ -195,24 +249,35 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
   /// endpoint never turns the picker into a dead control.
   Future<void> _loadModels(AppSettings settings) async {
     if (_isLoadingModels) return;
-    if (settings.llmProvider == LlmProvider.appleFoundationModels) return;
+    if (widget.modelLoader == null &&
+        settings.llmProvider == LlmProvider.appleFoundationModels) {
+      return;
+    }
     setState(() {
       _isLoadingModels = true;
       _modelsFailed = false;
     });
-    final config = _modelListConfig(settings);
     var models = const <String>[];
     var failed = false;
-    // Hold a listener while the request is in flight: the catalog provider is
-    // autoDispose, and a bare read would let it drop mid-fetch.
-    final subscription = ref.listenManual(modelListProvider(config), (_, _) {});
+    final config = _modelListConfig(settings);
+    ProviderSubscription<AsyncValue<List<String>>>? subscription;
     try {
-      models = await ref.read(modelListProvider(config).future);
+      if (widget.modelLoader != null) {
+        models = await widget.modelLoader!();
+      } else {
+        // Hold a listener while the request is in flight: the catalog provider
+        // is autoDispose, and a bare read would let it drop mid-fetch.
+        subscription = ref.listenManual<AsyncValue<List<String>>>(
+          modelListProvider(config),
+          (_, _) {},
+        );
+        models = await ref.read(modelListProvider(config).future);
+      }
     } on Object catch (error) {
       failed = true;
       appDebugPrint('Composer model list failed to load: $error');
     } finally {
-      subscription.close();
+      subscription?.close();
     }
     if (!mounted) return;
     setState(() {
@@ -223,7 +288,9 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
   }
 
   Future<void> _reloadModels(AppSettings settings) async {
-    ref.invalidate(modelCatalogProvider(_modelListConfig(settings)));
+    if (widget.modelLoader == null) {
+      ref.invalidate(modelCatalogProvider(_modelListConfig(settings)));
+    }
     await _loadModels(settings);
   }
 
@@ -231,7 +298,20 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     _menuController.close();
     final selected = model.trim();
     if (selected.isEmpty) return;
-    if (selected == settings.effectiveModel.trim()) return;
+    final currentSelection =
+        widget.selection ??
+        ComposerModelSelection(
+          model: settings.effectiveModel,
+          reasoningEffort: settings.reasoningEffort,
+          enableThinking: settings.enableThinking,
+        );
+    if (selected == currentSelection.model.trim()) return;
+    if (widget.onSelectionChanged != null) {
+      await widget.onSelectionChanged!(
+        currentSelection.copyWith(model: selected),
+      );
+      return;
+    }
     await ref.read(settingsNotifierProvider.notifier).updateModel(selected);
     if (!mounted) return;
     // Same follow-up the settings picker runs, so capability-derived behavior
@@ -249,5 +329,39 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
         );
       }),
     );
+  }
+
+  Future<void> _selectReasoningEffort(
+    ReasoningEffortPreference value,
+    ComposerModelSelection currentSelection,
+  ) async {
+    if (value == currentSelection.reasoningEffort) return;
+    if (widget.onSelectionChanged != null) {
+      await widget.onSelectionChanged!(
+        currentSelection.copyWith(reasoningEffort: value),
+      );
+      return;
+    }
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .updateReasoningEffort(value);
+  }
+
+  Future<void> _selectEnableThinking(
+    bool? value,
+    ComposerModelSelection currentSelection,
+  ) async {
+    if (value == currentSelection.enableThinking) return;
+    if (widget.onSelectionChanged != null) {
+      await widget.onSelectionChanged!(
+        value == null
+            ? currentSelection.copyWith(clearEnableThinking: true)
+            : currentSelection.copyWith(enableThinking: value),
+      );
+      return;
+    }
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .updateEnableThinking(value);
   }
 }
