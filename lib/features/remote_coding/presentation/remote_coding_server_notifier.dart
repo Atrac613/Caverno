@@ -17,7 +17,9 @@ import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/services/coding_project_ordering.dart';
+import '../../chat/domain/services/conversation_plan_projection_service.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/presentation/coordinators/plan_review_action_coordinator.dart';
 import '../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
@@ -140,6 +142,8 @@ class RemoteCodingServerState {
 class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   static const Duration _pairingLifetime = Duration(minutes: 5);
   static const Duration _relayPairingLifetime = Duration(minutes: 5);
+  static const String _remotePlanExecutionPrompt =
+      'Use the approved plan for this coding thread. Start with the highest-value task, explain the small change you are making, then implement it. After each completed task, continue to the next pending saved task automatically unless you are blocked, requirements changed, or the approved workflow must change. If the app shows file or command approvals, treat them as sufficient and do not ask for duplicate permission in natural language.';
 
   final _uuid = const Uuid();
   final RemoteCodingPairingRegistry _pairingRegistry =
@@ -151,6 +155,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   final Set<_RemoteCodingSocketClient> _clients = {};
   final RemoteCodingTerminalNotificationMapper _terminalNotificationMapper =
       const RemoteCodingTerminalNotificationMapper();
+  final Map<String, String> _planReviewOwnerDeviceIds = <String, String>{};
 
   late final RemoteCodingRepository _repository;
   late final RemoteCodingResourcePolicy _resourcePolicy;
@@ -692,6 +697,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         _handleResolveApproval(client, message);
       case 'resolveQuestion':
         _handleResolveQuestion(client, message);
+      case 'resolvePlanReview':
+        await _handleResolvePlanReview(client, message);
       case 'requestSnapshot':
         client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
       case 'requestNotificationRelay':
@@ -1349,6 +1356,11 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     );
     if (prepared == null) return;
 
+    _rememberPlanReviewOwner(
+      conversationId: conversationsState.currentConversation!.id,
+      deviceId: client.deviceId,
+    );
+
     unawaited(
       ref
           .read(chatNotifierProvider.notifier)
@@ -1362,7 +1374,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
-            bypassPlanMode: true,
+            bypassPlanMode: false,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
           ),
@@ -1398,6 +1410,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       attachmentId: attachmentId,
     );
     if (prepared == null) return;
+    _rememberPlanReviewOwner(
+      conversationId: conversation.id,
+      deviceId: client.deviceId,
+    );
     final chatState = ref.read(chatNotifierProvider);
     final queued = chatState.isLoading || chatState.queuedMessages.isNotEmpty;
     unawaited(
@@ -1413,7 +1429,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
-            bypassPlanMode: true,
+            bypassPlanMode: false,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
           ),
@@ -1729,6 +1745,119 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _broadcastSnapshot('questionResolved');
   }
 
+  Future<void> _handleResolvePlanReview(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final reviewId = (message.payload['reviewId'] as String?)?.trim() ?? '';
+    final action = (message.payload['action'] as String?)?.trim() ?? '';
+    if (!const {'approve', 'edit', 'cancel'}.contains(action)) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_request',
+        message: 'Plan review action is invalid.',
+      );
+      return;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final review = _pendingRemotePlanReview(
+      currentConversation,
+      authenticatedDeviceId: client.deviceId,
+    );
+    if (review == null || review.id != reviewId) {
+      client.sendError(
+        id: message.id,
+        code: 'plan_review_not_found',
+        message: 'The remote plan review is no longer pending.',
+      );
+      return;
+    }
+
+    if (action == 'edit') {
+      _planReviewOwnerDeviceIds.remove(review.conversationId);
+      client.send(
+        type: 'chatStateChanged',
+        id: message.id,
+        payload: _snapshotFor(client),
+      );
+      _broadcastSnapshot('chatStateChanged');
+      return;
+    }
+
+    if (currentConversation == null) {
+      client.sendError(
+        id: message.id,
+        code: 'plan_review_not_found',
+        message: 'The remote coding conversation is no longer available.',
+      );
+      return;
+    }
+
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final coordinator = PlanReviewActionCoordinator(
+      conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+      readCurrentConversation: () =>
+          ref.read(conversationsNotifierProvider).currentConversation,
+      dismissPlanProposal: chatNotifier.dismissPlanProposal,
+      isPageMounted: () => ref.mounted,
+      now: DateTime.now,
+    );
+
+    if (action == 'cancel') {
+      final completed = await coordinator.cancelReview(
+        currentConversation: currentConversation,
+      );
+      if (!completed) return;
+    } else {
+      final outcome = await coordinator.approveCurrentPlan(
+        currentConversation: currentConversation,
+      );
+      switch (outcome) {
+        case PlanReviewApprovalMissingDocument():
+          client.sendError(
+            id: message.id,
+            code: 'plan_review_not_ready',
+            message: 'The plan document is no longer available.',
+          );
+          return;
+        case PlanReviewApprovalBlocked(:final errorMessage):
+          client.sendError(
+            id: message.id,
+            code: 'plan_review_not_ready',
+            message: 'The plan could not be approved: $errorMessage',
+          );
+          return;
+        case PlanReviewApprovalAborted():
+          return;
+        case PlanReviewApprovalReady():
+          break;
+      }
+    }
+
+    _planReviewOwnerDeviceIds.remove(review.conversationId);
+    client.send(
+      type: 'chatStateChanged',
+      id: message.id,
+      payload: _snapshotFor(client),
+    );
+    _broadcastSnapshot('chatStateChanged');
+
+    if (action == 'approve') {
+      unawaited(
+        chatNotifier.sendMessage(
+          _remotePlanExecutionPrompt,
+          languageCode: (message.payload['languageCode'] as String?) ?? 'en',
+          bypassPlanMode: true,
+          origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: client.deviceId,
+        ),
+      );
+    }
+  }
+
   AskUserQuestionAnswer _parseRemoteQuestionAnswer(
     PendingAskUserQuestion pending,
     Map<String, dynamic> payload,
@@ -1854,7 +1983,65 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         chatState,
         authenticatedDeviceId: authenticatedDeviceId,
       )?.toJson(),
+      'pendingPlanReview': _pendingRemotePlanReview(
+        currentConversation,
+        authenticatedDeviceId: authenticatedDeviceId,
+      )?.toJson(),
     };
+  }
+
+  void _rememberPlanReviewOwner({
+    required String conversationId,
+    required String? deviceId,
+  }) {
+    final normalizedConversationId = conversationId.trim();
+    final normalizedDeviceId = deviceId?.trim() ?? '';
+    if (normalizedConversationId.isEmpty || normalizedDeviceId.isEmpty) {
+      return;
+    }
+    _planReviewOwnerDeviceIds[normalizedConversationId] = normalizedDeviceId;
+  }
+
+  /// Projects the saved draft into the same review artifact rendered on the
+  /// desktop, but only to the paired device that started the remote turn.
+  RemoteCodingPlanReview? _pendingRemotePlanReview(
+    Conversation? conversation, {
+    required String? authenticatedDeviceId,
+  }) {
+    if (conversation == null || !conversation.isPlanningSession) {
+      return null;
+    }
+    final conversationId = conversation.id.trim();
+    final ownerDeviceId = _planReviewOwnerDeviceIds[conversationId];
+    if (ownerDeviceId == null || ownerDeviceId != authenticatedDeviceId) {
+      return null;
+    }
+    final artifact = conversation.effectivePlanArtifact;
+    final draftMarkdown = artifact.normalizedDraftMarkdown;
+    if (draftMarkdown == null) return null;
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: draftMarkdown,
+      requireTasks: true,
+    );
+    if (!validation.isValid || validation.previewTasks.isEmpty) {
+      return null;
+    }
+    final reviewId = sha256
+        .convert(
+          utf8.encode(
+            '$conversationId\n$draftMarkdown\n${artifact.updatedAt?.toIso8601String() ?? ''}',
+          ),
+        )
+        .toString();
+    return RemoteCodingPlanReview(
+      id: reviewId,
+      conversationId: conversationId,
+      draftMarkdown: draftMarkdown,
+      approvedMarkdown: artifact.normalizedApprovedMarkdown ?? '',
+      isPlanMode: true,
+      canApprove: true,
+      canCancel: true,
+    );
   }
 
   /// Maps a remote-origin `ask_user_question` into the wire model. Mirrors

@@ -69,6 +69,7 @@ class RemoteCodingClientState {
     this.queuedCount = 0,
     this.pendingApproval,
     this.pendingQuestion,
+    this.pendingPlanReview,
     this.dashboardStatsByRange = const <DashboardRange, DashboardStats>{},
     this.snapshotSequence = 0,
     this.snapshotGeneratedAt,
@@ -94,6 +95,7 @@ class RemoteCodingClientState {
   final int queuedCount;
   final RemoteCodingApproval? pendingApproval;
   final RemoteCodingQuestion? pendingQuestion;
+  final RemoteCodingPlanReview? pendingPlanReview;
   final Map<DashboardRange, DashboardStats> dashboardStatsByRange;
   final int snapshotSequence;
   final DateTime? snapshotGeneratedAt;
@@ -123,6 +125,7 @@ class RemoteCodingClientState {
     int? queuedCount,
     RemoteCodingApproval? pendingApproval,
     RemoteCodingQuestion? pendingQuestion,
+    RemoteCodingPlanReview? pendingPlanReview,
     Map<DashboardRange, DashboardStats>? dashboardStatsByRange,
     int? snapshotSequence,
     DateTime? snapshotGeneratedAt,
@@ -140,6 +143,7 @@ class RemoteCodingClientState {
     bool clearCurrentConversationId = false,
     bool clearPendingApproval = false,
     bool clearPendingQuestion = false,
+    bool clearPendingPlanReview = false,
     bool clearSnapshotGeneratedAt = false,
     bool clearNextReconnectAt = false,
     bool clearLastTerminalNotification = false,
@@ -174,6 +178,9 @@ class RemoteCodingClientState {
       pendingQuestion: clearPendingQuestion
           ? null
           : (pendingQuestion ?? this.pendingQuestion),
+      pendingPlanReview: clearPendingPlanReview
+          ? null
+          : (pendingPlanReview ?? this.pendingPlanReview),
       dashboardStatsByRange:
           dashboardStatsByRange ?? this.dashboardStatsByRange,
       snapshotSequence: snapshotSequence ?? this.snapshotSequence,
@@ -619,6 +626,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         reconnectAttempt: 0,
         pendingCommandCount: 0,
         clearPendingApproval: true,
+        clearPendingPlanReview: true,
         clearSnapshotGeneratedAt: true,
         clearNextReconnectAt: true,
       );
@@ -797,6 +805,18 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     });
   }
 
+  Future<void> resolvePlanReview({
+    required String reviewId,
+    required String action,
+    String languageCode = 'en',
+  }) {
+    return _sendCommand('resolvePlanReview', {
+      'reviewId': reviewId,
+      'action': action,
+      'languageCode': languageCode,
+    });
+  }
+
   Future<void> requestSnapshot() {
     return _sendCommand('requestSnapshot', const <String, dynamic>{});
   }
@@ -902,6 +922,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
           snapshotSequence: 0,
           pendingCommandCount: 0,
           clearPendingApproval: true,
+          clearPendingPlanReview: true,
           clearSnapshotGeneratedAt: true,
           clearNextReconnectAt: true,
         );
@@ -925,6 +946,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
           queuedCount: 0,
           snapshotSequence: 0,
           clearPendingApproval: true,
+          clearPendingPlanReview: true,
           clearSnapshotGeneratedAt: true,
         );
         return;
@@ -983,6 +1005,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         queuedCount: 0,
         snapshotSequence: 0,
         clearPendingApproval: true,
+        clearPendingPlanReview: true,
         clearSnapshotGeneratedAt: true,
       );
     }
@@ -1017,6 +1040,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         queuedCount: 0,
         snapshotSequence: 0,
         clearPendingApproval: true,
+        clearPendingPlanReview: true,
         clearSnapshotGeneratedAt: true,
       );
       _completeConnectedSnapshotWaiter(false);
@@ -1066,6 +1090,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       snapshotSequence: 0,
       pendingCommandCount: 0,
       clearPendingApproval: true,
+      clearPendingPlanReview: true,
       clearSnapshotGeneratedAt: true,
       clearNextReconnectAt: true,
     );
@@ -1143,16 +1168,19 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
                 .toList(growable: false);
       final approvalJson = payload['pendingApproval'];
       final questionJson = payload['pendingQuestion'];
+      final planReviewJson = payload['pendingPlanReview'];
       // The one line that separates "the desktop never told us" from "we were
       // told and did not act". Everything downstream of this — the
       // notification, its actions, the watch — is invisible when it does not
       // happen, and this notifier logged nothing at all before.
       if (state.status != RemoteCodingConnectionStatus.connected ||
-          approvalJson != null) {
+          approvalJson != null ||
+          planReviewJson != null) {
         appLog(
           '[RemoteCodingClient] snapshot while ${state.status.name}: '
           'pendingApproval=${approvalJson is Map<String, dynamic> ? approvalJson['id'] : 'none'}, '
-          'pendingQuestion=${questionJson is Map<String, dynamic> ? 'yes' : 'none'}',
+          'pendingQuestion=${questionJson is Map<String, dynamic> ? 'yes' : 'none'}, '
+          'pendingPlanReview=${planReviewJson is Map<String, dynamic> ? planReviewJson['id'] : 'none'}',
         );
       }
       final dashboardStatsByRange = DashboardStatsCodec.decodeByRange(
@@ -1190,6 +1218,9 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         pendingQuestion: questionJson is Map<String, dynamic>
             ? RemoteCodingQuestion.fromJson(questionJson)
             : null,
+        pendingPlanReview: planReviewJson is Map<String, dynamic>
+            ? RemoteCodingPlanReview.fromJson(planReviewJson)
+            : null,
         dashboardStatsByRange: dashboardStatsByRange,
         snapshotSequence: snapshotSequence != null && snapshotSequence > 0
             ? snapshotSequence
@@ -1199,6 +1230,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         pendingCommandCount: _pendingCommandTimers.length,
         clearPendingApproval: approvalJson == null,
         clearPendingQuestion: questionJson == null,
+        clearPendingPlanReview: planReviewJson == null,
         clearError: true,
         clearNextReconnectAt: true,
       );
@@ -1475,6 +1507,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         snapshotSequence: 0,
         pendingCommandCount: 0,
         clearPendingApproval: true,
+        clearPendingPlanReview: true,
         clearSnapshotGeneratedAt: true,
         clearNextReconnectAt: true,
       );
@@ -1505,6 +1538,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       nextReconnectAt: nextReconnectAt,
       pendingCommandCount: 0,
       clearPendingApproval: true,
+      clearPendingPlanReview: true,
       clearSnapshotGeneratedAt: true,
     );
     _reconnectTimer = Timer(delay, () {

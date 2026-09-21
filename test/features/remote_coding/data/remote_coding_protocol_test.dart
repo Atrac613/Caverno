@@ -62,6 +62,7 @@ void main() {
         RemoteCodingProtocol.cancelConversationStreaming,
         'resolveApproval',
         'resolveQuestion',
+        'resolvePlanReview',
         'requestSnapshot',
         'relayDelegationReady',
         'requestNotificationRelay',

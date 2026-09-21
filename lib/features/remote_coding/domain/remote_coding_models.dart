@@ -507,6 +507,53 @@ class RemoteCodingQuestion {
   };
 }
 
+/// A saved Plan Mode draft waiting for the person who started the remote turn
+/// to review it before implementation begins.
+///
+/// Remote Coding only needs the two documents rendered by the review sheet.
+/// Revision history remains on the desktop and is not sent over the wire.
+class RemoteCodingPlanReview {
+  const RemoteCodingPlanReview({
+    required this.id,
+    required this.conversationId,
+    required this.draftMarkdown,
+    required this.approvedMarkdown,
+    this.isPlanMode = true,
+    this.canApprove = true,
+    this.canCancel = true,
+  });
+
+  final String id;
+  final String conversationId;
+  final String draftMarkdown;
+  final String approvedMarkdown;
+  final bool isPlanMode;
+  final bool canApprove;
+  final bool canCancel;
+
+  factory RemoteCodingPlanReview.fromJson(Map<String, dynamic> json) {
+    return RemoteCodingPlanReview(
+      id: (json['id'] as String?)?.trim() ?? '',
+      conversationId: (json['conversationId'] as String?)?.trim() ?? '',
+      draftMarkdown: (json['draftMarkdown'] as String?) ?? '',
+      approvedMarkdown: (json['approvedMarkdown'] as String?) ?? '',
+      isPlanMode: json['isPlanMode'] != false,
+      canApprove: json['canApprove'] != false,
+      canCancel: json['canCancel'] != false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'conversationId': conversationId,
+    'draftMarkdown': draftMarkdown,
+    'approvedMarkdown': approvedMarkdown,
+    'isPlanMode': isPlanMode,
+    'canApprove': canApprove,
+    'canCancel': canCancel,
+  };
+}
+
 class RemoteCodingProjectSummary {
   const RemoteCodingProjectSummary({
     required this.id,

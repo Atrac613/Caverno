@@ -202,6 +202,7 @@ class _BoundCommandChatNotifier extends ChatNotifier {
   final List<String?> sentImageBase64 = [];
   final List<String?> sentImageMimeTypes = [];
   final List<String?> sentOriginalImagePaths = [];
+  final List<bool> sentBypassPlanModes = [];
   int cancelCount = 0;
 
   @override
@@ -235,6 +236,7 @@ class _BoundCommandChatNotifier extends ChatNotifier {
     sentImageBase64.add(imageBase64);
     sentImageMimeTypes.add(imageMimeType);
     sentOriginalImagePaths.add(originalImagePath);
+    sentBypassPlanModes.add(bypassPlanMode);
     return ChatTurnOwner(conversationId: 'thread-1', interactionGeneration: 1);
   }
 
@@ -750,6 +752,7 @@ void main() {
       expect(accepted.requestId, isNotEmpty);
       expect(chat.sentMessages, ['Run focused tests']);
       expect(chat.sentVoiceModes, [true]);
+      expect(chat.sentBypassPlanModes, [false]);
 
       final idleCancel = await client.cancelConversationStreaming(
         projectId: 'project-1',

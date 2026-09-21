@@ -359,6 +359,62 @@ class _ConnectedRemoteCodingQuestionClientNotifier
   }
 }
 
+class _ConnectedRemoteCodingPlanReviewClientNotifier
+    extends RemoteCodingClientNotifier {
+  static final _generatedAt = DateTime(2026, 6, 3, 12);
+  final List<String> resolvedPlanReviewActions = <String>[];
+
+  @override
+  RemoteCodingClientState build() {
+    return RemoteCodingClientState(
+      status: RemoteCodingConnectionStatus.connected,
+      host: RemoteCodingHost(
+        id: 'desktop-1',
+        name: 'Desktop',
+        host: '192.168.1.10',
+        port: 8767,
+        createdAt: _generatedAt,
+        updatedAt: _generatedAt,
+        certificatePin: 'test-certificate-pin',
+      ),
+      projects: const [
+        RemoteCodingProjectSummary(
+          id: 'project-1',
+          name: 'Caverno',
+          rootPath: '/workspace/caverno',
+        ),
+      ],
+      selectedProjectId: 'project-1',
+      threads: [
+        RemoteCodingThreadSummary(
+          id: 'thread-1',
+          title: 'Mobile plan thread',
+          projectId: 'project-1',
+          updatedAt: _generatedAt,
+        ),
+      ],
+      currentConversationId: 'thread-1',
+      pendingPlanReview: const RemoteCodingPlanReview(
+        id: 'review-1',
+        conversationId: 'thread-1',
+        draftMarkdown: '# Plan\n\n- [ ] Run the tests',
+        approvedMarkdown: '',
+      ),
+      snapshotGeneratedAt: _generatedAt,
+    );
+  }
+
+  @override
+  Future<void> resolvePlanReview({
+    required String reviewId,
+    required String action,
+    String languageCode = 'en',
+  }) async {
+    resolvedPlanReviewActions.add('$reviewId:$action');
+    state = state.copyWith(clearPendingPlanReview: true);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
@@ -659,6 +715,66 @@ void main() {
         container.read(remoteCodingClientProvider.notifier)
             as _ConnectedRemoteCodingQuestionClientNotifier;
     expect(notifier.resolvedQuestionIds, ['question-1']);
+  });
+
+  testWidgets('mobile remote coding presents the pending Plan Mode review', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        remoteCodingClientProvider.overrideWith(
+          _ConnectedRemoteCodingPlanReviewClientNotifier.new,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const Scaffold(body: RemoteCodingPage()),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Suggested plan'), findsOneWidget);
+    expect(find.text('Approve and start'), findsOneWidget);
+    expect(find.text('Run the tests'), findsOneWidget);
+
+    await tester.tap(find.text('Approve and start'));
+    await tester.pumpAndSettle();
+
+    final notifier =
+        container.read(remoteCodingClientProvider.notifier)
+            as _ConnectedRemoteCodingPlanReviewClientNotifier;
+    expect(notifier.resolvedPlanReviewActions, ['review-1:approve']);
+    expect(find.text('Suggested plan'), findsNothing);
   });
 
   testWidgets('notification tap opens the matching connected remote thread', (

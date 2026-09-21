@@ -7,11 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/utils/attachment_format.dart';
+import '../../chat/domain/entities/conversation_plan_artifact.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
 import '../../chat/presentation/pages/approval_dialog_presenter.dart';
 import '../../chat/presentation/widgets/approval/approval_dialog_route.dart';
 import '../../chat/presentation/widgets/composer_attachment_button.dart';
 import '../../chat/presentation/widgets/message_bubble.dart';
+import '../../chat/presentation/widgets/plan/plan_review_sheet.dart';
 import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
@@ -102,6 +104,10 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     if (question != null) {
       _scheduleQuestionSheet(question);
     }
+    final planReview = state.pendingPlanReview;
+    if (planReview != null) {
+      _schedulePlanReviewSheet(planReview);
+    }
   }
 
   /// Opens a sheet for something that was already pending when this page
@@ -126,6 +132,17 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
       next: question,
       idOf: (question) => question.id,
       present: _showQuestionSheet,
+      isMounted: () => mounted,
+    );
+  }
+
+  void _schedulePlanReviewSheet(RemoteCodingPlanReview review) {
+    _approvalDialogs.sync<RemoteCodingPlanReview>(
+      context: context,
+      previous: null,
+      next: review,
+      idOf: (review) => review.id,
+      present: _showPlanReviewSheet,
       isMounted: () => mounted,
     );
   }
@@ -187,6 +204,17 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         next: next,
         idOf: (question) => question.id,
         present: _showQuestionSheet,
+        isMounted: () => mounted,
+      ),
+    );
+    ref.listen<RemoteCodingPlanReview?>(
+      remoteCodingClientProvider.select((state) => state.pendingPlanReview),
+      (previous, next) => _approvalDialogs.sync<RemoteCodingPlanReview>(
+        context: context,
+        previous: previous,
+        next: next,
+        idOf: (review) => review.id,
+        present: _showPlanReviewSheet,
         isMounted: () => mounted,
       ),
     );
@@ -790,6 +818,44 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
           selectedOptionIds: result?.selectedOptionIds ?? const <String>[],
           otherText: result?.otherText ?? '',
           cancelled: result == null,
+        );
+  }
+
+  Future<void> _showPlanReviewSheet(RemoteCodingPlanReview review) async {
+    final action = await showModalBottomSheet<PlanReviewSheetAction>(
+      context: context,
+      routeSettings: RouteSettings(name: approvalDialogRouteName(review.id)),
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return FractionallySizedBox(
+          heightFactor: 0.96,
+          child: PlanReviewSheet(
+            planArtifact: ConversationPlanArtifact(
+              draftMarkdown: review.draftMarkdown,
+              approvedMarkdown: review.approvedMarkdown,
+            ),
+            isPlanMode: review.isPlanMode,
+            canApprove: review.canApprove,
+            canCancel: review.canCancel,
+          ),
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+    final actionName = switch (action) {
+      PlanReviewSheetAction.approve => 'approve',
+      PlanReviewSheetAction.edit => 'edit',
+      PlanReviewSheetAction.cancel => 'cancel',
+    };
+    await ref
+        .read(remoteCodingClientProvider.notifier)
+        .resolvePlanReview(
+          reviewId: review.id,
+          action: actionName,
+          languageCode: Localizations.localeOf(context).languageCode,
         );
   }
 

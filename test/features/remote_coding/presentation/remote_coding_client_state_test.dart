@@ -48,6 +48,24 @@ void main() {
     expect(decoded.otherPlaceholder, 'custom');
   });
 
+  test('RemoteCodingPlanReview survives a JSON round-trip', () {
+    const review = RemoteCodingPlanReview(
+      id: 'review-1',
+      conversationId: 'thread-1',
+      draftMarkdown: '# Plan\n\n- [ ] Run the tests',
+      approvedMarkdown: '',
+    );
+
+    final decoded = RemoteCodingPlanReview.fromJson(review.toJson());
+    expect(decoded.id, review.id);
+    expect(decoded.conversationId, review.conversationId);
+    expect(decoded.draftMarkdown, review.draftMarkdown);
+    expect(decoded.approvedMarkdown, isEmpty);
+    expect(decoded.isPlanMode, isTrue);
+    expect(decoded.canApprove, isTrue);
+    expect(decoded.canCancel, isTrue);
+  });
+
   test('copyWith can clear stale remote selection IDs', () {
     const state = RemoteCodingClientState(
       selectedProjectId: 'project-1',
@@ -158,6 +176,12 @@ void main() {
             'subtitle': '/tmp/app',
             'detail': 'dart test',
           },
+          'pendingPlanReview': {
+            'id': 'review-1',
+            'conversationId': 'thread-1',
+            'draftMarkdown': '# Plan\n\n- [ ] Run the tests',
+            'approvedMarkdown': '',
+          },
         });
 
         final state = container.read(remoteCodingClientProvider);
@@ -180,6 +204,8 @@ void main() {
         expect(state.isLoading, isTrue);
         expect(state.queuedCount, 2);
         expect(state.pendingApproval?.id, 'approval-1');
+        expect(state.pendingPlanReview?.id, 'review-1');
+        expect(state.pendingPlanReview?.conversationId, 'thread-1');
         expect(state.supportsDestinationBoundCommands, isTrue);
       },
     );
@@ -236,6 +262,54 @@ void main() {
       });
       expect(
         container.read(remoteCodingClientProvider).pendingQuestion,
+        isNull,
+      );
+    });
+
+    test('restores and clears pending plan review state', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      await notifier.applySnapshotForTest({
+        'snapshotSequence': 8,
+        'currentConversationId': 'thread-1',
+        'conversations': [
+          {
+            'id': 'thread-1',
+            'title': 'Plan thread',
+            'projectId': 'project-1',
+            'updatedAt': DateTime(2026, 5, 26, 12).toIso8601String(),
+          },
+        ],
+        'pendingPlanReview': {
+          'id': 'review-1',
+          'conversationId': 'thread-1',
+          'draftMarkdown': '# Plan\n\n- [ ] Run the tests',
+          'approvedMarkdown': '',
+          'isPlanMode': true,
+          'canApprove': true,
+          'canCancel': true,
+        },
+      });
+
+      expect(
+        container.read(remoteCodingClientProvider).pendingPlanReview?.id,
+        'review-1',
+      );
+
+      await notifier.applySnapshotForTest({
+        'snapshotSequence': 9,
+        'currentConversationId': 'thread-1',
+        'conversations': [
+          {
+            'id': 'thread-1',
+            'title': 'Plan thread',
+            'projectId': 'project-1',
+            'updatedAt': DateTime(2026, 5, 26, 12).toIso8601String(),
+          },
+        ],
+      });
+      expect(
+        container.read(remoteCodingClientProvider).pendingPlanReview,
         isNull,
       );
     });

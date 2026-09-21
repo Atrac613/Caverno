@@ -79,6 +79,7 @@ class RemoteCodingProtocol {
     cancelConversationStreaming,
     'resolveApproval',
     'resolveQuestion',
+    'resolvePlanReview',
     'requestSnapshot',
     'relayDelegationReady',
     'requestNotificationRelay',
