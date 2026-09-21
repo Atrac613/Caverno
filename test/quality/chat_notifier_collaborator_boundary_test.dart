@@ -230,6 +230,7 @@ void main() {
         'proposal-parsing-text-utils',
         'production-release-approval-coordinator',
         'production-release-approval-policy',
+        'production-release-dispatch-evidence',
         'project-scoped-read-tool-handler',
         'python-attachment-repair-policy',
         'python-script-tool-handler',

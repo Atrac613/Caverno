@@ -197,6 +197,12 @@ const Map<String, int> _lineBudgets = {
       203,
   'lib/features/chat/domain/services/production_release_blocked_result.dart':
       59,
+  // Extracted from the coordinator and the blocked result so a release the
+  // turn already ran is one concern: the typed read that proves it ran, and
+  // the refusal that says so instead of demanding an approval no answer could
+  // satisfy.
+  'lib/features/chat/domain/services/production_release_dispatch_evidence.dart':
+      98,
   'lib/features/chat/domain/services/production_release_prose_shadow.dart': 77,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,

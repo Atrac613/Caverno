@@ -12,6 +12,7 @@ import 'production_release_approval_evidence_snapshot.dart';
 import 'production_release_approval_policy.dart';
 import 'production_release_approval_token_registry.dart';
 import 'production_release_blocked_result.dart';
+import 'production_release_dispatch_evidence.dart';
 import 'production_release_prose_shadow.dart';
 import 'tool_call_execution_policy.dart';
 
@@ -41,6 +42,8 @@ final class ProductionReleaseApprovalCoordinator {
 
   static const _policy = ProductionReleaseApprovalPolicy();
   static const _executionPolicy = ToolCallExecutionPolicy();
+
+  static const _dispatchEvidence = ProductionReleaseDispatchEvidence();
 
   final _pendingReleases = <String, PendingBlockedRelease>{};
   final _proseShadow = ProductionReleaseProseShadow();
@@ -105,17 +108,29 @@ final class ProductionReleaseApprovalCoordinator {
     ToolCallInfo toolCall, {
     required String? currentAssistantContent,
     required ProductionReleaseApprovalEvidenceSnapshot evidence,
+    List<ToolResultInfo> executedToolResults = const [],
   }) {
     if (!_policy.isProductionReleaseCommandToolCall(toolCall)) return null;
     final conversationId = evidence.conversationId;
+    final command =
+        _executionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
+
+    if (_dispatchEvidence.hasDispatched(
+      command: command,
+      executedToolResults: executedToolResults,
+    )) {
+      return _dispatchEvidence.buildAlreadyExecutedResult(
+        toolName: toolCall.name,
+        command: command,
+      );
+    }
+
     if (evidence.approved) {
       // The token authorized this release and nothing else.
       if (conversationId != null) removePendingRelease(conversationId);
       return null;
     }
 
-    final command =
-        _executionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
     if (conversationId != null && command.trim().isNotEmpty) {
       _pendingReleases[conversationId] = PendingBlockedRelease(
         toolName: toolCall.name.trim(),

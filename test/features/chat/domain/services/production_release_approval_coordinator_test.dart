@@ -7,6 +7,8 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cache.dart';
 import 'package:caverno/features/chat/domain/services/production_release_approval_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/production_release_dispatch_evidence.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -184,6 +186,179 @@ void main() {
       isNull,
       reason: 'the token authorized this release and nothing else',
     );
+  });
+
+  group('a release already dispatched in this turn', () {
+    final releaseCall = ToolCallInfo(
+      id: 'release-call',
+      name: 'process_start',
+      arguments: const {'command': 'bash tool/release_ios_macos.sh'},
+    );
+
+    /// The turn result of a release that really launched.
+    ToolResultInfo dispatched({
+      String command = 'bash tool/release_ios_macos.sh',
+    }) => ToolResultInfo(
+      id: 'release-result',
+      name: 'process_start',
+      arguments: {'command': command},
+      result: jsonEncode({'ok': true, 'job_id': 'proc_1'}),
+      outcome: const ToolOutcome(processState: ToolProcessState.running),
+    );
+
+    /// Approves and lets the release through, leaving the token spent.
+    void approveAndDispatch() {
+      coordinator.buildGuardResult(
+        releaseCall,
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+      );
+      selectTokenOption();
+      expect(
+        coordinator.buildGuardResult(
+          releaseCall,
+          currentAssistantContent: null,
+          evidence: coordinator.evidenceFor(7),
+        ),
+        isNull,
+        reason: 'the token authorized this release',
+      );
+      expect(coordinator.approvalToken('conversation-a'), isNull);
+    }
+
+    test('is refused as already executed rather than re-gated', () {
+      approveAndDispatch();
+
+      final repeated = coordinator.buildGuardResult(
+        releaseCall,
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+        executedToolResults: [dispatched()],
+      );
+
+      expect(repeated, isNotNull, reason: 'the release must not run twice');
+      expect(
+        jsonDecode(repeated!.result),
+        containsPair('code', 'production_release_already_executed'),
+      );
+      expect(
+        coordinator.approvalToken('conversation-a'),
+        isNull,
+        reason:
+            'minting a second token is the livelock: the turn answer cache '
+            'can only replay the answer carrying the spent one, so no answer '
+            'the user gives could ever satisfy it',
+      );
+    });
+
+    test('is matched across whitespace spellings of the same command', () {
+      approveAndDispatch();
+
+      final repeated = coordinator.buildGuardResult(
+        ToolCallInfo(
+          id: 'release-call-2',
+          name: 'process_start',
+          arguments: const {'command': 'bash  tool/release_ios_macos.sh'},
+        ),
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+        executedToolResults: [dispatched()],
+      );
+
+      expect(
+        jsonDecode(repeated!.result),
+        containsPair('code', 'production_release_already_executed'),
+      );
+    });
+
+    test('does not cover a different release command', () {
+      approveAndDispatch();
+
+      final other = coordinator.buildGuardResult(
+        ToolCallInfo(
+          id: 'other-release',
+          name: 'process_start',
+          arguments: const {
+            'command': 'bash tool/publish_macos_sparkle_release.sh',
+          },
+        ),
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+        executedToolResults: [dispatched()],
+      );
+
+      expect(
+        jsonDecode(other!.result),
+        containsPair('code', 'production_release_explicit_approval_required'),
+        reason: 'a release nobody approved still needs approval',
+      );
+    });
+
+    test('is not inferred from a result that never ran the command', () {
+      // The guard refusal is itself a turn result, and it carries no outcome.
+      // Reading it as a dispatch would let an unapproved release through.
+      final blocked = coordinator.buildGuardResult(
+        releaseCall,
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+      );
+      final blockedResult = ToolResultInfo(
+        id: 'release-result',
+        name: 'process_start',
+        arguments: const {'command': 'bash tool/release_ios_macos.sh'},
+        result: blocked!.result,
+      );
+
+      expect(
+        const ProductionReleaseDispatchEvidence().hasDispatched(
+          command: 'bash tool/release_ios_macos.sh',
+          executedToolResults: [blockedResult],
+        ),
+        isFalse,
+      );
+      final repeated = coordinator.buildGuardResult(
+        releaseCall,
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+        executedToolResults: [blockedResult],
+      );
+      expect(
+        jsonDecode(repeated!.result),
+        containsPair('code', 'production_release_explicit_approval_required'),
+      );
+    });
+
+    test('is not inferred from a launch that was denied', () {
+      // A denied process reaches no exit, so both fields stay null. Flattening
+      // that into "it ran" would strand the turn on a release it never made.
+      expect(
+        const ProductionReleaseDispatchEvidence().hasDispatched(
+          command: 'bash tool/release_ios_macos.sh',
+          executedToolResults: [
+            ToolResultInfo(
+              id: 'release-result',
+              name: 'process_start',
+              arguments: const {'command': 'bash tool/release_ios_macos.sh'},
+              result: 'denied',
+              outcome: const ToolOutcome(),
+            ),
+          ],
+        ),
+        isFalse,
+      );
+    });
+
+    test('ignores a dry run, which is not a production release', () {
+      expect(
+        const ProductionReleaseDispatchEvidence().hasDispatched(
+          command: 'bash tool/release_ios_macos.sh --dry-run',
+          executedToolResults: [
+            dispatched(command: 'bash tool/release_ios_macos.sh --dry-run'),
+          ],
+        ),
+        isFalse,
+      );
+    });
   });
 }
 

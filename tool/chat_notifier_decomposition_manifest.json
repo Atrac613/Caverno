@@ -279,6 +279,11 @@
           "id": "production-release-approval-coordinator",
           "path": "lib/features/chat/domain/services/production_release_approval_coordinator.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_coordinator.dart"
+        },
+        {
+          "id": "production-release-dispatch-evidence",
+          "path": "lib/features/chat/domain/services/production_release_dispatch_evidence.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release_dispatch_evidence.dart"
         }
       ]
     },

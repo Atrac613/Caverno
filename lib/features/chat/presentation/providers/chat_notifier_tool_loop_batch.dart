@@ -257,6 +257,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
               evidence: _productionReleaseApprovals.evidenceFor(
                 interactionGeneration,
               ),
+              executedToolResults: executedToolResults,
             );
         if (productionReleaseGuardResult != null) {
           return productionReleaseGuardResult;
