@@ -172,6 +172,8 @@ void main() {
         'analysis-options-lint-edit-guard',
         'ask-user-question-option-parser',
         'ask-user-question-policy',
+        'ask-user-question-reuse-policy',
+        'ask-user-question-text-normalization',
         'ask-user-question-turn-cache',
         'background-process-tool-handler',
         'ble-connection-tool-handler',

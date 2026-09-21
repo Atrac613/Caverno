@@ -319,8 +319,12 @@ void registerChatNotifierAskUserQuestionTests() {
             name: 'ask_user_question',
             arguments: const {
               'question': 'Which direction should we use now?',
+              // The picked option is still offered, so the recorded answer
+              // still stands for a choice the user made. Dropping it makes
+              // this a different decision and the user is asked again; that
+              // boundary is covered in ask_user_question_turn_cache_test.
               'options': [
-                {'label': 'UI first'},
+                {'label': 'Minimal patch'},
                 {'label': 'Refactor with tests'},
               ],
             },

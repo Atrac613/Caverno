@@ -56,6 +56,16 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart"
         },
         {
+          "id": "ask-user-question-reuse-policy",
+          "path": "lib/features/chat/domain/services/ask_user_question_reuse_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_reuse_policy.dart"
+        },
+        {
+          "id": "ask-user-question-text-normalization",
+          "path": "lib/features/chat/domain/services/ask_user_question_text_normalization.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_text_normalization.dart"
+        },
+        {
           "id": "ask-user-question-option-parser",
           "path": "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_option_parser.dart"
