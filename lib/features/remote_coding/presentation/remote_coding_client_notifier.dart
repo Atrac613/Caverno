@@ -9,10 +9,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/types/assistant_mode.dart';
 import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
+import '../../settings/domain/entities/app_settings.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_relay_delegation.dart';
@@ -82,6 +84,7 @@ class RemoteCodingClientState {
     this.supportsNotificationRelaySetup = false,
     this.supportsDestinationBoundCommands = false,
     this.supportsAttachments = false,
+    this.composerSettings,
     this.notificationRelayHandle,
   });
 
@@ -110,6 +113,7 @@ class RemoteCodingClientState {
   final bool supportsNotificationRelaySetup;
   final bool supportsDestinationBoundCommands;
   final bool supportsAttachments;
+  final RemoteCodingComposerSettings? composerSettings;
   final String? notificationRelayHandle;
 
   bool get isConnected => status == RemoteCodingConnectionStatus.connected;
@@ -140,6 +144,7 @@ class RemoteCodingClientState {
     bool? supportsNotificationRelaySetup,
     bool? supportsDestinationBoundCommands,
     bool? supportsAttachments,
+    RemoteCodingComposerSettings? composerSettings,
     String? notificationRelayHandle,
     bool clearNotificationRelayHandle = false,
     bool clearError = false,
@@ -149,6 +154,7 @@ class RemoteCodingClientState {
     bool clearPendingQuestion = false,
     bool clearPendingPlanReview = false,
     bool clearCompanion = false,
+    bool clearComposerSettings = false,
     bool clearSnapshotGeneratedAt = false,
     bool clearNextReconnectAt = false,
     bool clearLastTerminalNotification = false,
@@ -160,6 +166,9 @@ class RemoteCodingClientState {
           supportsDestinationBoundCommands ??
           this.supportsDestinationBoundCommands,
       supportsAttachments: supportsAttachments ?? this.supportsAttachments,
+      composerSettings: clearComposerSettings
+          ? null
+          : composerSettings ?? this.composerSettings,
       notificationRelayHandle: clearNotificationRelayHandle
           ? null
           : notificationRelayHandle ?? this.notificationRelayHandle,
@@ -208,6 +217,7 @@ class RemoteCodingClientState {
 class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   static const Duration _commandTimeout = Duration(seconds: 12);
   static const Duration _socketPingInterval = Duration(seconds: 20);
+
   /// Delay before each successive automatic reconnect attempt.
   ///
   /// The last entry is a steady state, not a dead end: once the ladder is
@@ -280,10 +290,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     _manualDisconnectRequested = false;
     if (!continuingLadder) {
       _cancelReconnectTimer();
-      state = state.copyWith(
-        reconnectAttempt: 0,
-        clearNextReconnectAt: true,
-      );
+      state = state.copyWith(reconnectAttempt: 0, clearNextReconnectAt: true);
     }
     final host = _repository.loadMobileHost();
     if (host == null) {
@@ -717,12 +724,60 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     final attachmentId = await _uploadAttachment(attachment);
     if (attachment != null && attachmentId == null) return false;
     final connected = _socket != null && state.isConnected;
+    final composerSettings = state.composerSettings;
     await _sendCommand('sendMessage', {
       'content': content,
       'languageCode': languageCode,
+      if (composerSettings != null) 'composer': composerSettings.toJson(),
       ...?attachmentId == null ? null : {'attachmentId': attachmentId},
     });
     return connected;
+  }
+
+  Future<List<String>> loadComposerModels() async {
+    final response = await _requestCommand(
+      RemoteCodingProtocol.requestComposerModels,
+      const <String, dynamic>{},
+    );
+    final rawModels = response.payload['models'];
+    if (rawModels is! List) {
+      throw StateError('The desktop returned an invalid model list.');
+    }
+    return rawModels
+        .whereType<String>()
+        .map((model) => model.trim())
+        .where((model) => model.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  Future<void> updateComposerSettings({
+    required String model,
+    required ReasoningEffortPreference reasoningEffort,
+    required bool? enableThinking,
+    AssistantMode? assistantMode,
+  }) async {
+    final next = RemoteCodingComposerSettings(
+      model: model.trim(),
+      reasoningEffort: reasoningEffort,
+      enableThinking: enableThinking,
+      assistantMode:
+          assistantMode ??
+          state.composerSettings?.assistantMode ??
+          AssistantMode.coding,
+    );
+    state = state.copyWith(composerSettings: next, clearError: true);
+    await _requestCommand(RemoteCodingProtocol.updateComposerSettings, {
+      'composer': next.toJson(),
+    });
+  }
+
+  Future<void> clearConversation() {
+    return _sendCommand(
+      RemoteCodingProtocol.clearConversation,
+      const <String, dynamic>{},
+    );
   }
 
   Future<void> cancelStreaming() {
@@ -772,6 +827,8 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         'content': content,
         'languageCode': languageCode,
         'isVoiceMode': isVoiceMode,
+        if (state.composerSettings != null)
+          'composer': state.composerSettings!.toJson(),
         ...?attachmentId == null ? null : {'attachmentId': attachmentId},
       },
     );
@@ -973,6 +1030,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         case 'runTerminal':
           _handleRunTerminal(message.payload);
         case RemoteCodingProtocol.commandResult:
+          _applyComposerCommandResult(message.payload);
           break;
         case 'error':
           if (_boundCommandReplies.containsKey(message.id) &&
@@ -1065,6 +1123,15 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       lastTerminalNotification: RemoteCodingNotificationPayload.fromFcmData(
         payload,
       ),
+    );
+  }
+
+  void _applyComposerCommandResult(Map<String, dynamic> payload) {
+    final raw = payload['composer'];
+    if (raw is! Map<String, dynamic>) return;
+    state = state.copyWith(
+      composerSettings: RemoteCodingComposerSettings.fromJson(raw),
+      clearError: true,
     );
   }
 
@@ -1179,6 +1246,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       final questionJson = payload['pendingQuestion'];
       final planReviewJson = payload['pendingPlanReview'];
       final companionJson = payload['companion'];
+      final composerJson = payload['composer'];
       // The one line that separates "the desktop never told us" from "we were
       // told and did not act". Everything downstream of this — the
       // notification, its actions, the watch — is invisible when it does not
@@ -1209,6 +1277,9 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
             (payload['capabilities']
                 as Map<String, dynamic>?)?['attachments'] ==
             true,
+        composerSettings: composerJson is Map<String, dynamic>
+            ? RemoteCodingComposerSettings.fromJson(composerJson)
+            : null,
         notificationRelayHandle: payload['notificationRelayHandle'] as String?,
         clearNotificationRelayHandle:
             payload['notificationRelayHandle'] == null,
@@ -1245,6 +1316,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         clearPendingApproval: approvalJson == null,
         clearPendingQuestion: questionJson == null,
         clearPendingPlanReview: planReviewJson == null,
+        clearComposerSettings: composerJson == null,
         clearError: true,
         clearNextReconnectAt: true,
       );
@@ -1536,10 +1608,11 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   }) {
     _cancelReconnectTimer();
     final nextAttempt = state.reconnectAttempt + 1;
-    final delay = _reconnectBackoffDelays[math.min(
-      nextAttempt - 1,
-      _reconnectBackoffDelays.length - 1,
-    )];
+    final delay =
+        _reconnectBackoffDelays[math.min(
+          nextAttempt - 1,
+          _reconnectBackoffDelays.length - 1,
+        )];
     final nextReconnectAt = DateTime.now().add(delay);
     state = state.copyWith(
       status: RemoteCodingConnectionStatus.disconnected,

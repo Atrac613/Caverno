@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/dashboard/domain/entities/dashboard_stats.dart';
 import 'package:caverno/features/dashboard/domain/services/dashboard_stats_codec.dart';
@@ -9,6 +10,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_repository.dar
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_platform.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -151,6 +153,12 @@ void main() {
           ],
           'currentConversationId': 'thread-1',
           'messages': [message.toJson()],
+          'composer': {
+            'model': 'desktop-model',
+            'reasoningEffort': 'high',
+            'enableThinking': false,
+            'assistantMode': 'plan',
+          },
           'dashboardStatsByRange': DashboardStatsCodec.encodeByRange({
             DashboardRange.all: DashboardStats(
               sessionCount: 4,
@@ -238,6 +246,13 @@ void main() {
           'docs/debugging.md#Crash flow',
         ]);
         expect(state.supportsDestinationBoundCommands, isTrue);
+        expect(state.composerSettings?.model, 'desktop-model');
+        expect(
+          state.composerSettings?.reasoningEffort,
+          ReasoningEffortPreference.high,
+        );
+        expect(state.composerSettings?.enableThinking, isFalse);
+        expect(state.composerSettings?.assistantMode, AssistantMode.plan);
       },
     );
 
@@ -714,29 +729,34 @@ void main() {
       container.dispose();
     });
 
-    test('the backoff ladder holds at its longest delay instead of giving up', () {
-      final notifier = container.read(remoteCodingClientProvider.notifier);
-      final delays = <String>[];
+    test(
+      'the backoff ladder holds at its longest delay instead of giving up',
+      () {
+        final notifier = container.read(remoteCodingClientProvider.notifier);
+        final delays = <String>[];
 
-      for (var i = 0; i < 7; i++) {
-        notifier.handleUnexpectedDisconnectForTest('Connection closed.');
-        final state = container.read(remoteCodingClientProvider);
-        expect(
-          state.hasScheduledReconnect,
-          isTrue,
-          reason: 'attempt ${state.reconnectAttempt} stopped retrying',
-        );
-        delays.add(
-          RegExp(r'in (\d+) seconds').firstMatch(state.error ?? '')!.group(1)!,
-        );
-      }
+        for (var i = 0; i < 7; i++) {
+          notifier.handleUnexpectedDisconnectForTest('Connection closed.');
+          final state = container.read(remoteCodingClientProvider);
+          expect(
+            state.hasScheduledReconnect,
+            isTrue,
+            reason: 'attempt ${state.reconnectAttempt} stopped retrying',
+          );
+          delays.add(
+            RegExp(
+              r'in (\d+) seconds',
+            ).firstMatch(state.error ?? '')!.group(1)!,
+          );
+        }
 
-      // The last rung is a steady state: a desktop takes longer to wake than
-      // the three-rung ladder's ~22 seconds, so surrendering there left the
-      // person with a Reconnect button and no explanation.
-      expect(delays, ['2', '5', '15', '30', '60', '60', '60']);
-      expect(container.read(remoteCodingClientProvider).reconnectAttempt, 7);
-    });
+        // The last rung is a steady state: a desktop takes longer to wake than
+        // the three-rung ladder's ~22 seconds, so surrendering there left the
+        // person with a Reconnect button and no explanation.
+        expect(delays, ['2', '5', '15', '30', '60', '60', '60']);
+        expect(container.read(remoteCodingClientProvider).reconnectAttempt, 7);
+      },
+    );
 
     test('an explicitly requested connection re-arms the ladder', () async {
       final notifier = container.read(remoteCodingClientProvider.notifier);
