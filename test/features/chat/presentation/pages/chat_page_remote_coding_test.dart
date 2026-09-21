@@ -18,6 +18,7 @@ import 'package:caverno/features/chat/presentation/widgets/approval/git_command_
 import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_companion_models.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
@@ -248,6 +249,39 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
       selectedProjectId: 'project-1',
       threads: threads,
       currentConversationId: 'thread-1',
+      companion: const RemoteCodingCompanionSnapshot(
+        projectRootPath: '/workspace/caverno',
+        worktreePath: '/workspace/caverno',
+        tasks: [
+          RemoteCodingCompanionTask(
+            id: 'task-1',
+            title: 'Inspect the mobile surface',
+            status: 'completed',
+            targetFiles: [
+              'lib/features/remote_coding/presentation/remote_coding_page.dart',
+            ],
+          ),
+          RemoteCodingCompanionTask(
+            id: 'task-2',
+            title: 'Add the companion panel',
+            status: 'inProgress',
+            targetFiles: ['remote_coding_companion_panel.dart'],
+          ),
+        ],
+        changes: [
+          RemoteCodingCompanionChange(
+            title: 'Add the companion panel',
+            filesChanged: 2,
+            linesAdded: 40,
+            linesRemoved: 1,
+            filePaths: [
+              'lib/features/remote_coding/presentation/remote_coding_page.dart',
+            ],
+          ),
+        ],
+        openQuestions: ['Which device should receive the next notification?'],
+        sourceLocators: ['docs/remote_coding.md'],
+      ),
       snapshotGeneratedAt: _generatedAt,
     );
   }
@@ -733,6 +767,39 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'mobile remote coding opens the companion panel in a bottom sheet',
+    (tester) async {
+      debugRemoteCodingMobilePlatformOverride = () => true;
+
+      await _pumpCodingWorkspace(
+        tester,
+        size: const Size(390, 844),
+        connectRemoteClient: true,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('remote-coding-companion-action')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('remote-coding-companion-panel')),
+        findsOneWidget,
+      );
+      expect(find.text('Progress'), findsOneWidget);
+      expect(find.text('Changes'), findsOneWidget);
+      expect(find.text('Environment'), findsOneWidget);
+      expect(find.text('Awaiting you'), findsOneWidget);
+      expect(find.text('Sources'), findsOneWidget);
+      expect(find.text('Add the companion panel'), findsNWidgets(2));
+      expect(
+        find.text('Which device should receive the next notification?'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('mobile remote coding presents an already pending question', (
     tester,

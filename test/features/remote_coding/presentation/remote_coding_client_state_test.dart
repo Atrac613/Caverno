@@ -182,6 +182,29 @@ void main() {
             'draftMarkdown': '# Plan\n\n- [ ] Run the tests',
             'approvedMarkdown': '',
           },
+          'companion': {
+            'projectRootPath': '/tmp/app',
+            'worktreePath': '/tmp/app/.worktrees/fix-crash',
+            'tasks': [
+              {
+                'id': 'task-1',
+                'title': 'Inspect the crash',
+                'status': 'completed',
+                'targetFiles': ['lib/main.dart'],
+              },
+            ],
+            'changes': [
+              {
+                'title': 'Inspect the crash',
+                'filesChanged': 1,
+                'linesAdded': 3,
+                'linesRemoved': 1,
+                'filePaths': ['lib/main.dart'],
+              },
+            ],
+            'openQuestions': ['Use the release channel?'],
+            'sourceLocators': ['docs/debugging.md#Crash flow'],
+          },
         });
 
         final state = container.read(remoteCodingClientProvider);
@@ -206,6 +229,14 @@ void main() {
         expect(state.pendingApproval?.id, 'approval-1');
         expect(state.pendingPlanReview?.id, 'review-1');
         expect(state.pendingPlanReview?.conversationId, 'thread-1');
+        expect(state.companion?.projectRootPath, '/tmp/app');
+        expect(state.companion?.worktreePath, '/tmp/app/.worktrees/fix-crash');
+        expect(state.companion?.completedTaskCount, 1);
+        expect(state.companion?.changes.single.linesAdded, 3);
+        expect(state.companion?.openQuestions, ['Use the release channel?']);
+        expect(state.companion?.sourceLocators, [
+          'docs/debugging.md#Crash flow',
+        ]);
         expect(state.supportsDestinationBoundCommands, isTrue);
       },
     );
@@ -359,6 +390,7 @@ void main() {
             {'id': 'project-old', 'name': 'Old', 'rootPath': '/tmp/old'},
           ],
           'selectedProjectId': 'project-old',
+          'companion': {'projectRootPath': '/tmp/old'},
           'isLoading': true,
           'queuedCount': 1,
           'pendingApproval': {
@@ -378,6 +410,7 @@ void main() {
         expect(state.isLoading, isFalse);
         expect(state.queuedCount, 0);
         expect(state.pendingApproval, isNull);
+        expect(state.companion, isNull);
 
         await notifier.applySnapshotForTest({
           'snapshotSequence': 1,
