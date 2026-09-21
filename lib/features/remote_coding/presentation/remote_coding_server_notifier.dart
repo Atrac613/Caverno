@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/attachment_storage_service.dart';
 import '../../../core/types/workspace_mode.dart';
+import '../../../core/utils/attachment_format.dart';
 import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
@@ -33,6 +37,7 @@ import '../data/remote_coding_session_challenge_registry.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_tls_identity.dart';
+import '../domain/remote_coding_attachment.dart';
 import '../domain/remote_coding_audit.dart';
 import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_grant_kinds.dart';
@@ -628,6 +633,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         await _handleMessage(client, message);
       }
     } finally {
+      final uploadedPaths = client.takeUploadedAttachmentPaths();
+      await AttachmentStorageService.deleteOwnedAttachments(uploadedPaths);
       client.dispose();
       _sessionChallenges.removeConnection(client.connectionId);
       _clients.remove(client);
@@ -668,13 +675,15 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         _handleSelectConversation(client, message);
       case 'createThread':
         _handleCreateThread(client, message);
+      case RemoteCodingProtocol.uploadAttachment:
+        await _handleUploadAttachment(client, message);
       case 'sendMessage':
         await _handleSendMessage(client, message);
       case 'cancelStreaming':
         ref.read(chatNotifierProvider.notifier).cancelStreaming();
         client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
       case RemoteCodingProtocol.sendMessageToConversation:
-        _handleBoundSendMessage(client, message);
+        await _handleBoundSendMessage(client, message);
       case RemoteCodingProtocol.cancelConversationStreaming:
         _handleBoundCancelStreaming(client, message);
       case 'resolveApproval':
@@ -1073,12 +1082,245 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
+  Future<void> _handleUploadAttachment(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final payload = message.payload;
+    final uploadId = (payload['uploadId'] as String?)?.trim() ?? '';
+    final rawName = (payload['name'] as String?) ?? '';
+    final rawMimeType = (payload['mimeType'] as String?) ?? '';
+    final sizeBytes = (payload['sizeBytes'] as num?)?.toInt();
+    final chunkIndex = (payload['chunkIndex'] as num?)?.toInt();
+    final chunkCount = (payload['chunkCount'] as num?)?.toInt();
+    final digest = (payload['sha256'] as String?)?.trim().toLowerCase() ?? '';
+    final encodedData = payload['data'];
+
+    void reject(String code, String text) {
+      client.sendError(id: message.id, code: code, message: text);
+    }
+
+    if (message.id == null ||
+        uploadId.isEmpty ||
+        sizeBytes == null ||
+        chunkIndex == null ||
+        chunkCount == null ||
+        encodedData is! String) {
+      reject('invalid_attachment', 'Attachment upload metadata is invalid.');
+      return;
+    }
+    final name = RemoteCodingAttachmentPolicy.normalizedName(rawName);
+    final mimeType = RemoteCodingAttachmentPolicy.normalizedMimeType(
+      rawMimeType,
+    );
+    final validationError = RemoteCodingAttachmentPolicy.validate(
+      name: name,
+      mimeType: mimeType,
+      byteLength: sizeBytes,
+    );
+    if (validationError != null ||
+        chunkCount != RemoteCodingAttachmentPolicy.chunkCount(sizeBytes) ||
+        chunkIndex < 0 ||
+        chunkIndex >= chunkCount ||
+        digest.length != 64 ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
+      client.discardAttachmentUpload(uploadId);
+      reject(
+        'invalid_attachment',
+        validationError ?? 'Attachment metadata is invalid.',
+      );
+      return;
+    }
+
+    late final Uint8List bytes;
+    try {
+      bytes = Uint8List.fromList(base64Decode(encodedData));
+    } on FormatException {
+      client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment data is not valid base64.');
+      return;
+    }
+    if (bytes.length > RemoteCodingAttachmentPolicy.chunkBytes) {
+      client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment chunk is too large.');
+      return;
+    }
+
+    var upload = client.attachmentUploads[uploadId];
+    if (upload == null && client.uploadedAttachments.containsKey(uploadId)) {
+      reject('invalid_attachment', 'Attachment upload ID is already complete.');
+      return;
+    }
+    if (upload == null) {
+      if (chunkIndex != 0) {
+        reject('invalid_attachment', 'Attachment chunks must start at zero.');
+        return;
+      }
+      upload = _RemoteCodingAttachmentUpload(
+        id: uploadId,
+        name: name,
+        mimeType: mimeType,
+        sizeBytes: sizeBytes,
+        chunkCount: chunkCount,
+        sha256: digest,
+      );
+      client.attachmentUploads[uploadId] = upload;
+    } else if (!upload.matches(
+      name: name,
+      mimeType: mimeType,
+      sizeBytes: sizeBytes,
+      chunkCount: chunkCount,
+      sha256: digest,
+    )) {
+      client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment chunks do not match.');
+      return;
+    }
+
+    if (upload.nextChunkIndex != chunkIndex ||
+        upload.receivedBytes + bytes.length > sizeBytes) {
+      client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment chunks are out of order.');
+      return;
+    }
+    upload.bytes.add(bytes);
+    upload.receivedBytes += bytes.length;
+    upload.nextChunkIndex += 1;
+    final isLastChunk = chunkIndex == chunkCount - 1;
+    if (!isLastChunk) {
+      client.send(
+        type: RemoteCodingProtocol.commandResult,
+        id: message.id,
+        payload: {
+          'command': RemoteCodingProtocol.uploadAttachment,
+          'uploadId': uploadId,
+          'chunkIndex': chunkIndex,
+          'complete': false,
+        },
+      );
+      return;
+    }
+
+    if (upload.receivedBytes != sizeBytes) {
+      client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment size does not match metadata.');
+      return;
+    }
+    final completeBytes = upload.bytes.takeBytes();
+    if (sha256.convert(completeBytes).toString() != upload.sha256) {
+      client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment integrity verification failed.');
+      return;
+    }
+
+    try {
+      final path = await AttachmentStorageService.persistBytes(
+        bytes: completeBytes,
+        originalName: name,
+      );
+      client.attachmentUploads.remove(uploadId);
+      client.uploadedAttachments[uploadId] = _RemoteCodingUploadedAttachment(
+        id: uploadId,
+        name: name,
+        mimeType: mimeType,
+        sizeBytes: sizeBytes,
+        path: path,
+      );
+      client.send(
+        type: RemoteCodingProtocol.commandResult,
+        id: message.id,
+        payload: {
+          'command': RemoteCodingProtocol.uploadAttachment,
+          'uploadId': uploadId,
+          'chunkIndex': chunkIndex,
+          'complete': true,
+        },
+      );
+    } catch (error) {
+      client.discardAttachmentUpload(uploadId);
+      await client.discardUploadedAttachment(uploadId);
+      reject(
+        'attachment_store_failed',
+        'The desktop could not store the attachment.',
+      );
+      appDebugPrint('[RemoteCoding] Failed to store attachment: $error');
+    }
+  }
+
+  String? _attachmentId(RemoteCodingProtocolMessage message) {
+    final raw = message.payload['attachmentId'];
+    if (raw == null) return null;
+    final value = raw is String ? raw.trim() : '';
+    return value.isEmpty ? null : value;
+  }
+
+  Future<_RemoteCodingPreparedMessage?> _prepareRemoteMessage({
+    required _RemoteCodingSocketClient client,
+    required String? requestId,
+    required String content,
+    required String? attachmentId,
+  }) async {
+    if (attachmentId == null) {
+      return _RemoteCodingPreparedMessage(visibleContent: content);
+    }
+    final attachment = client.uploadedAttachments[attachmentId];
+    if (attachment == null) {
+      client.sendError(
+        id: requestId,
+        code: 'attachment_not_found',
+        message: 'The uploaded attachment is no longer available.',
+      );
+      return null;
+    }
+
+    try {
+      if (attachment.isImage) {
+        final bytes = await File(attachment.path).readAsBytes();
+        final prepared = _RemoteCodingPreparedMessage(
+          visibleContent: content,
+          imageBase64: base64Encode(bytes),
+          imageMimeType: attachment.mimeType,
+          originalImagePath: attachment.path,
+          originalImageMimeType: attachment.mimeType,
+        );
+        client.uploadedAttachments.remove(attachmentId);
+        return prepared;
+      }
+
+      final humanSize = formatAttachmentSize(attachment.sizeBytes);
+      final visibleBlock = '[File: ${attachment.name} ($humanSize)]';
+      final modelBlock =
+          '[Attached file: ${attachment.path} ($humanSize)]\n'
+          '${attachment.mimeType == 'application/pdf' ? 'This PDF is available on disk at the path above. Use inspect_file first, then read_file with offset, limit, and start_page.' : 'This file is available on disk at the path above. Use inspect_file first, then search_files / read_file with offset and limit.'}';
+      final prepared = _RemoteCodingPreparedMessage(
+        visibleContent: content.isEmpty
+            ? visibleBlock
+            : '$content\n\n$visibleBlock',
+        modelContent: content.isEmpty ? modelBlock : '$modelBlock\n\n$content',
+        attachmentPath: attachment.path,
+      );
+      client.uploadedAttachments.remove(attachmentId);
+      return prepared;
+    } catch (error) {
+      client.uploadedAttachments.remove(attachmentId);
+      await AttachmentStorageService.deleteOwnedAttachments([attachment.path]);
+      client.sendError(
+        id: requestId,
+        code: 'attachment_read_failed',
+        message: 'The desktop could not read the uploaded attachment.',
+      );
+      appDebugPrint('[RemoteCoding] Failed to read attachment: $error');
+      return null;
+    }
+  }
+
   Future<void> _handleSendMessage(
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
     final content = (message.payload['content'] as String?)?.trim() ?? '';
-    if (content.isEmpty) {
+    final attachmentId = _attachmentId(message);
+    if (attachmentId == null && content.isEmpty) {
       client.sendError(
         id: message.id,
         code: 'empty_message',
@@ -1097,11 +1339,25 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       return;
     }
 
+    final prepared = await _prepareRemoteMessage(
+      client: client,
+      requestId: message.id,
+      content: content,
+      attachmentId: attachmentId,
+    );
+    if (prepared == null) return;
+
     unawaited(
       ref
           .read(chatNotifierProvider.notifier)
           .sendMessage(
-            content,
+            prepared.visibleContent,
+            modelContent: prepared.modelContent,
+            attachmentPath: prepared.attachmentPath,
+            imageBase64: prepared.imageBase64,
+            imageMimeType: prepared.imageMimeType,
+            originalImagePath: prepared.originalImagePath,
+            originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
             bypassPlanMode: true,
@@ -1112,14 +1368,20 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
-  void _handleBoundSendMessage(
+  Future<void> _handleBoundSendMessage(
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
-  ) {
+  ) async {
+    final attachmentId = _attachmentId(message);
     final conversation = _validatedBoundDestination(client, message);
-    if (conversation == null) return;
+    if (conversation == null) {
+      if (attachmentId != null) {
+        await client.discardUploadedAttachment(attachmentId);
+      }
+      return;
+    }
     final content = (message.payload['content'] as String?)?.trim() ?? '';
-    if (content.isEmpty) {
+    if (attachmentId == null && content.isEmpty) {
       client.sendError(
         id: message.id,
         code: 'empty_message',
@@ -1127,13 +1389,26 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       );
       return;
     }
+    final prepared = await _prepareRemoteMessage(
+      client: client,
+      requestId: message.id,
+      content: content,
+      attachmentId: attachmentId,
+    );
+    if (prepared == null) return;
     final chatState = ref.read(chatNotifierProvider);
     final queued = chatState.isLoading || chatState.queuedMessages.isNotEmpty;
     unawaited(
       ref
           .read(chatNotifierProvider.notifier)
           .sendMessage(
-            content,
+            prepared.visibleContent,
+            modelContent: prepared.modelContent,
+            attachmentPath: prepared.attachmentPath,
+            imageBase64: prepared.imageBase64,
+            imageMimeType: prepared.imageMimeType,
+            originalImagePath: prepared.originalImagePath,
+            originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
             bypassPlanMode: true,
@@ -1545,6 +1820,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         'mobileApprovals': true,
         'notificationRelaySetup': true,
         'destinationBoundCommands': true,
+        'attachments': true,
       },
       'projects': projectsState.projects.map(_projectToJson).toList(),
       'selectedProjectId': selectedProjectId,
@@ -2162,6 +2438,79 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 
 const projectWorkspaceMode = WorkspaceMode.coding;
 
+class _RemoteCodingPreparedMessage {
+  const _RemoteCodingPreparedMessage({
+    required this.visibleContent,
+    this.modelContent,
+    this.attachmentPath,
+    this.imageBase64,
+    this.imageMimeType,
+    this.originalImagePath,
+    this.originalImageMimeType,
+  });
+
+  final String visibleContent;
+  final String? modelContent;
+  final String? attachmentPath;
+  final String? imageBase64;
+  final String? imageMimeType;
+  final String? originalImagePath;
+  final String? originalImageMimeType;
+}
+
+class _RemoteCodingAttachmentUpload {
+  _RemoteCodingAttachmentUpload({
+    required this.id,
+    required this.name,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.chunkCount,
+    required this.sha256,
+  });
+
+  final String id;
+  final String name;
+  final String mimeType;
+  final int sizeBytes;
+  final int chunkCount;
+  final String sha256;
+  final BytesBuilder bytes = BytesBuilder(copy: false);
+  int receivedBytes = 0;
+  int nextChunkIndex = 0;
+
+  bool matches({
+    required String name,
+    required String mimeType,
+    required int sizeBytes,
+    required int chunkCount,
+    required String sha256,
+  }) {
+    return this.name == name &&
+        this.mimeType == mimeType &&
+        this.sizeBytes == sizeBytes &&
+        this.chunkCount == chunkCount &&
+        this.sha256 == sha256;
+  }
+}
+
+class _RemoteCodingUploadedAttachment {
+  const _RemoteCodingUploadedAttachment({
+    required this.id,
+    required this.name,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.path,
+  });
+
+  final String id;
+  final String name;
+  final String mimeType;
+  final int sizeBytes;
+  final String path;
+
+  bool get isImage => mimeType.startsWith('image/');
+}
+
 class _RemoteCodingSocketClient {
   _RemoteCodingSocketClient(
     this.socket, {
@@ -2182,6 +2531,8 @@ class _RemoteCodingSocketClient {
   final RemoteCodingMessageRateLimiter _authenticatedMessageRateLimiter;
   Timer? _authenticationDeadlineTimer;
   Future<void>? _closeFuture;
+  final Map<String, _RemoteCodingAttachmentUpload> attachmentUploads = {};
+  final Map<String, _RemoteCodingUploadedAttachment> uploadedAttachments = {};
 
   bool get isAuthenticated =>
       session != null &&
@@ -2215,6 +2566,26 @@ class _RemoteCodingSocketClient {
         ? _authenticatedMessageRateLimiter
         : _unauthenticatedMessageRateLimiter;
     return limiter.tryAcquire();
+  }
+
+  void discardAttachmentUpload(String uploadId) {
+    attachmentUploads.remove(uploadId);
+  }
+
+  Future<void> discardUploadedAttachment(String uploadId) async {
+    final attachment = uploadedAttachments.remove(uploadId);
+    if (attachment != null) {
+      await AttachmentStorageService.deleteOwnedAttachments([attachment.path]);
+    }
+  }
+
+  List<String> takeUploadedAttachmentPaths() {
+    final paths = uploadedAttachments.values
+        .map((attachment) => attachment.path)
+        .toList(growable: false);
+    uploadedAttachments.clear();
+    attachmentUploads.clear();
+    return paths;
   }
 
   Future<void> closeWithError({

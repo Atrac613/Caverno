@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +23,7 @@ import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
 import '../data/remote_coding_security.dart';
 import '../data/remote_coding_websocket_connector.dart';
+import '../domain/remote_coding_attachment.dart';
 import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_models.dart';
 import '../domain/remote_coding_session_policy.dart';
@@ -75,6 +78,7 @@ class RemoteCodingClientState {
     this.lastTerminalNotification,
     this.supportsNotificationRelaySetup = false,
     this.supportsDestinationBoundCommands = false,
+    this.supportsAttachments = false,
     this.notificationRelayHandle,
   });
 
@@ -100,6 +104,7 @@ class RemoteCodingClientState {
 
   final bool supportsNotificationRelaySetup;
   final bool supportsDestinationBoundCommands;
+  final bool supportsAttachments;
   final String? notificationRelayHandle;
 
   bool get isConnected => status == RemoteCodingConnectionStatus.connected;
@@ -127,6 +132,7 @@ class RemoteCodingClientState {
     RemoteCodingNotificationPayload? lastTerminalNotification,
     bool? supportsNotificationRelaySetup,
     bool? supportsDestinationBoundCommands,
+    bool? supportsAttachments,
     String? notificationRelayHandle,
     bool clearNotificationRelayHandle = false,
     bool clearError = false,
@@ -144,6 +150,7 @@ class RemoteCodingClientState {
       supportsDestinationBoundCommands:
           supportsDestinationBoundCommands ??
           this.supportsDestinationBoundCommands,
+      supportsAttachments: supportsAttachments ?? this.supportsAttachments,
       notificationRelayHandle: clearNotificationRelayHandle
           ? null
           : notificationRelayHandle ?? this.notificationRelayHandle,
@@ -217,6 +224,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   final _relayReplies = <String, Completer<RemoteCodingProtocolMessage>>{};
   final _boundCommandReplies =
       <String, Completer<RemoteCodingProtocolMessage>>{};
+  final _commandReplies = <String, Completer<RemoteCodingProtocolMessage>>{};
 
   @override
   RemoteCodingClientState build() {
@@ -686,11 +694,20 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     return _sendCommand('createThread', payload);
   }
 
-  Future<void> sendMessage(String content, {String languageCode = 'en'}) {
-    return _sendCommand('sendMessage', {
+  Future<bool> sendMessage(
+    String content, {
+    String languageCode = 'en',
+    RemoteCodingAttachmentDraft? attachment,
+  }) async {
+    final attachmentId = await _uploadAttachment(attachment);
+    if (attachment != null && attachmentId == null) return false;
+    final connected = _socket != null && state.isConnected;
+    await _sendCommand('sendMessage', {
       'content': content,
       'languageCode': languageCode,
+      ...?attachmentId == null ? null : {'attachmentId': attachmentId},
     });
+    return connected;
   }
 
   Future<void> cancelStreaming() {
@@ -703,7 +720,35 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     required String content,
     String languageCode = 'en',
     bool isVoiceMode = false,
-  }) {
+    RemoteCodingAttachmentDraft? attachment,
+  }) async {
+    final socket = _socket;
+    final requestId = _uuid.v4();
+    if (socket == null || !state.isConnected) {
+      return RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.unknown,
+        requestId: requestId,
+        code: 'disconnected',
+        message: 'The desktop connection is unavailable.',
+      );
+    }
+    if (!state.supportsDestinationBoundCommands) {
+      return RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.refused,
+        requestId: requestId,
+        code: 'unsupported_peer',
+        message: 'The desktop does not support destination-bound commands.',
+      );
+    }
+    final attachmentId = await _uploadAttachment(attachment);
+    if (attachment != null && attachmentId == null) {
+      return RemoteCodingBoundCommandResult(
+        outcome: RemoteCodingBoundCommandOutcome.refused,
+        requestId: requestId,
+        code: 'attachment_upload_failed',
+        message: 'The attachment could not be uploaded to the desktop.',
+      );
+    }
     return _requestBoundCommand(
       RemoteCodingProtocol.sendMessageToConversation,
       {
@@ -712,6 +757,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         'content': content,
         'languageCode': languageCode,
         'isVoiceMode': isVoiceMode,
+        ...?attachmentId == null ? null : {'attachmentId': attachmentId},
       },
     );
   }
@@ -922,6 +968,10 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       if (boundReply != null && !boundReply.isCompleted) {
         boundReply.complete(message);
       }
+      final commandReply = _commandReplies[message.id];
+      if (commandReply != null && !commandReply.isCompleted) {
+        commandReply.complete(message);
+      }
     } catch (error) {
       if (!ref.mounted) {
         return;
@@ -1117,6 +1167,10 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
             (payload['capabilities']
                 as Map<String, dynamic>?)?['destinationBoundCommands'] ==
             true,
+        supportsAttachments:
+            (payload['capabilities']
+                as Map<String, dynamic>?)?['attachments'] ==
+            true,
         notificationRelayHandle: payload['notificationRelayHandle'] as String?,
         clearNotificationRelayHandle:
             payload['notificationRelayHandle'] == null,
@@ -1187,6 +1241,118 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     socket.add(
       RemoteCodingProtocol.encode(type: type, id: id, payload: payload),
     );
+  }
+
+  Future<String?> _uploadAttachment(
+    RemoteCodingAttachmentDraft? attachment,
+  ) async {
+    if (attachment == null) return null;
+    if (!state.supportsAttachments) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          error: 'The desktop does not support Remote Coding attachments.',
+        );
+      }
+      return null;
+    }
+
+    final name = RemoteCodingAttachmentPolicy.normalizedName(attachment.name);
+    final mimeType = RemoteCodingAttachmentPolicy.normalizedMimeType(
+      attachment.mimeType,
+    );
+    final validationError = RemoteCodingAttachmentPolicy.validate(
+      name: name,
+      mimeType: mimeType,
+      byteLength: attachment.bytes.length,
+    );
+    if (validationError != null) {
+      if (ref.mounted) state = state.copyWith(error: validationError);
+      return null;
+    }
+
+    final socket = _socket;
+    if (socket == null || !state.isConnected) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          status: RemoteCodingConnectionStatus.disconnected,
+          error: 'Remote coding host is not connected.',
+        );
+      }
+      return null;
+    }
+
+    final uploadId = _uuid.v4();
+    final chunkCount = RemoteCodingAttachmentPolicy.chunkCount(
+      attachment.bytes.length,
+    );
+    final digest = sha256.convert(attachment.bytes).toString();
+    try {
+      for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+        final start = chunkIndex * RemoteCodingAttachmentPolicy.chunkBytes;
+        final end = math.min(
+          attachment.bytes.length,
+          start + RemoteCodingAttachmentPolicy.chunkBytes,
+        );
+        final data = base64Encode(attachment.bytes.sublist(start, end));
+        final response =
+            await _requestCommand(RemoteCodingProtocol.uploadAttachment, {
+              'uploadId': uploadId,
+              'name': name,
+              'mimeType': mimeType,
+              'sizeBytes': attachment.bytes.length,
+              'chunkIndex': chunkIndex,
+              'chunkCount': chunkCount,
+              'sha256': digest,
+              'data': data,
+            });
+        if (response.payload['uploadId'] != uploadId ||
+            response.payload['chunkIndex'] != chunkIndex ||
+            (chunkIndex == chunkCount - 1 &&
+                response.payload['complete'] != true)) {
+          throw StateError('The desktop returned an invalid attachment ACK.');
+        }
+      }
+      return uploadId;
+    } catch (error) {
+      if (ref.mounted) {
+        state = state.copyWith(error: 'Attachment upload failed: $error');
+      }
+      return null;
+    }
+  }
+
+  Future<RemoteCodingProtocolMessage> _requestCommand(
+    String type,
+    Map<String, dynamic> payload,
+  ) async {
+    final socket = _socket;
+    if (socket == null || !state.isConnected) {
+      throw StateError('Remote coding host is not connected.');
+    }
+    final id = _uuid.v4();
+    final completer = Completer<RemoteCodingProtocolMessage>();
+    _commandReplies[id] = completer;
+    _trackPendingCommand(id, type);
+    try {
+      socket.add(
+        RemoteCodingProtocol.encode(type: type, id: id, payload: payload),
+      );
+      final response = await completer.future.timeout(_commandTimeout);
+      if (response.type == 'error') {
+        throw StateError(
+          (response.payload['message'] as String?) ??
+              'The desktop refused the attachment.',
+        );
+      }
+      if (response.type != RemoteCodingProtocol.commandResult ||
+          response.payload['command'] != type) {
+        throw StateError('The desktop returned an invalid command result.');
+      }
+      return response;
+    } finally {
+      _commandReplies.remove(id);
+      _clearPendingCommandTimer(id);
+    }
   }
 
   Future<RemoteCodingBoundCommandResult> _requestBoundCommand(
@@ -1402,6 +1568,14 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
       }
     }
     _boundCommandReplies.clear();
+    for (final reply in _commandReplies.values) {
+      if (!reply.isCompleted) {
+        reply.completeError(
+          StateError('Desktop disconnected during the attachment upload.'),
+        );
+      }
+    }
+    _commandReplies.clear();
     for (final timer in _pendingCommandTimers.values) {
       timer.cancel();
     }

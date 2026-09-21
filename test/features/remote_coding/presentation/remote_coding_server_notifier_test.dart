@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/attachment_storage_service.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
@@ -21,6 +23,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_repository.dar
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_websocket_connector.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_attachment.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_resource_policy.dart';
@@ -29,9 +32,18 @@ import 'package:caverno/features/remote_coding/presentation/remote_coding_client
 import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _RemoteCodingTestBinding extends WidgetsFlutterBinding
+    with TestDefaultBinaryMessengerBinding {
+  static _RemoteCodingTestBinding ensureInitialized() {
+    return _RemoteCodingTestBinding();
+  }
+}
 
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
@@ -128,6 +140,11 @@ class _BoundConversationsNotifier extends ConversationsNotifier {
 class _BoundCommandChatNotifier extends ChatNotifier {
   final List<String> sentMessages = [];
   final List<bool> sentVoiceModes = [];
+  final List<String?> sentModelContents = [];
+  final List<String?> sentAttachmentPaths = [];
+  final List<String?> sentImageBase64 = [];
+  final List<String?> sentImageMimeTypes = [];
+  final List<String?> sentOriginalImagePaths = [];
   int cancelCount = 0;
 
   @override
@@ -156,6 +173,11 @@ class _BoundCommandChatNotifier extends ChatNotifier {
   }) async {
     sentMessages.add(content);
     sentVoiceModes.add(isVoiceMode);
+    sentModelContents.add(modelContent);
+    sentAttachmentPaths.add(attachmentPath);
+    sentImageBase64.add(imageBase64);
+    sentImageMimeTypes.add(imageMimeType);
+    sentOriginalImagePaths.add(originalImagePath);
     return ChatTurnOwner(conversationId: 'thread-1', interactionGeneration: 1);
   }
 
@@ -567,6 +589,27 @@ _connectAuthenticatedDevice({
 }
 
 void main() {
+  final binding = _RemoteCodingTestBinding.ensureInitialized();
+  final applicationSupportDirectory = Directory.systemTemp.createTempSync(
+    'caverno_remote_coding_attachments_',
+  );
+  const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
+  binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    pathProviderChannel,
+    (call) async => call.method == 'getApplicationSupportDirectory'
+        ? applicationSupportDirectory.path
+        : null,
+  );
+  tearDownAll(() async {
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      pathProviderChannel,
+      null,
+    );
+    if (applicationSupportDirectory.existsSync()) {
+      await applicationSupportDirectory.delete(recursive: true);
+    }
+  });
+
   test(
     'destination-bound commands acknowledge only the displayed coding thread',
     () async {
@@ -632,6 +675,10 @@ void main() {
             .supportsDestinationBoundCommands,
         description: 'destination-bound command capability',
       );
+      expect(
+        container.read(remoteCodingClientProvider).supportsAttachments,
+        isTrue,
+      );
       final chat =
           container.read(chatNotifierProvider.notifier)
               as _BoundCommandChatNotifier;
@@ -692,6 +739,75 @@ void main() {
       expect(staleCancel.outcome, RemoteCodingBoundCommandOutcome.refused);
       expect(staleCancel.code, 'destination_changed');
       expect(chat.cancelCount, 1);
+
+      final uploaded = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Inspect this file',
+        attachment: RemoteCodingAttachmentDraft(
+          name: 'notes.txt',
+          mimeType: 'text/plain',
+          bytes: Uint8List.fromList(utf8.encode('hello')),
+        ),
+      );
+      // The destination has changed above, so the bound command must refuse
+      // the request and clean up the uploaded attachment.
+      expect(uploaded.outcome, RemoteCodingBoundCommandOutcome.refused);
+      expect(uploaded.code, 'destination_changed');
+
+      (container.read(conversationsNotifierProvider.notifier)
+              as _BoundConversationsNotifier)
+          .selectForTest('thread-1');
+      chat.setLoading(false);
+      final attached = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Inspect this file',
+        attachment: RemoteCodingAttachmentDraft(
+          name: 'notes.txt',
+          mimeType: 'text/plain',
+          bytes: Uint8List.fromList(utf8.encode('hello')),
+        ),
+      );
+      expect(attached.outcome, RemoteCodingBoundCommandOutcome.accepted);
+      expect(
+        chat.sentMessages.last,
+        'Inspect this file\n\n[File: notes.txt (5 B)]',
+      );
+      expect(chat.sentModelContents.last, contains('[Attached file:'));
+      final uploadedPath = chat.sentAttachmentPaths.last;
+      expect(uploadedPath, isNotNull);
+      addTearDown(
+        () => AttachmentStorageService.deleteOwnedAttachments([uploadedPath!]),
+      );
+
+      final imageBytes = Uint8List.fromList(
+        base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk'
+          '+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        ),
+      );
+      final imageMessage = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Inspect this image',
+        attachment: RemoteCodingAttachmentDraft(
+          name: 'pixel.png',
+          mimeType: 'image/png',
+          bytes: imageBytes,
+        ),
+      );
+      expect(imageMessage.outcome, RemoteCodingBoundCommandOutcome.accepted);
+      expect(chat.sentMessages.last, 'Inspect this image');
+      expect(chat.sentImageBase64.last, base64Encode(imageBytes));
+      expect(chat.sentImageMimeTypes.last, 'image/png');
+      final originalImagePath = chat.sentOriginalImagePaths.last;
+      expect(originalImagePath, isNotNull);
+      addTearDown(
+        () => AttachmentStorageService.deleteOwnedAttachments([
+          originalImagePath!,
+        ]),
+      );
 
       await client.disconnect();
     },

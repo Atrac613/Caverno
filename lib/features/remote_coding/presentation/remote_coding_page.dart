@@ -6,16 +6,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/utils/attachment_format.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
 import '../../chat/presentation/pages/approval_dialog_presenter.dart';
 import '../../chat/presentation/widgets/approval/approval_dialog_route.dart';
+import '../../chat/presentation/widgets/composer_attachment_button.dart';
 import '../../chat/presentation/widgets/message_bubble.dart';
 import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_support_packet.dart';
+import '../domain/remote_coding_attachment.dart';
 import '../domain/remote_coding_debug_pairing_policy.dart';
 import '../domain/remote_coding_models.dart';
+import 'remote_coding_attachment_picker.dart';
 import 'remote_coding_client_notifier.dart';
 import 'remote_coding_mobile_notification_notifier.dart';
 import 'remote_coding_platform.dart';
@@ -40,6 +44,9 @@ class _RemoteQuestionResult {
 class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  final _attachmentPicker = const RemoteCodingAttachmentPicker();
+  RemoteCodingAttachmentDraft? _attachment;
+  bool _isAttachmentBusy = false;
 
   /// Opens each sheet once and closes it again when the interaction is
   /// answered or withdrawn elsewhere. Shared with the chat page rather than
@@ -263,8 +270,16 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
             controller: _controller,
             isLoading: state.isLoading,
             enabled: state.projects.isNotEmpty,
+            supportsAttachments: state.supportsAttachments,
+            attachment: _attachment,
+            isAttachmentBusy: _isAttachmentBusy,
             onSend: () => _send(notifier),
             onCancel: notifier.cancelStreaming,
+            onPickImage: _pickImage,
+            onPickFile: _pickFile,
+            onClearAttachment: _clearAttachment,
+            onPaste: _handlePaste,
+            onContentInserted: _handleContentInserted,
           ),
         ],
       ),
@@ -328,14 +343,99 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         );
   }
 
+  Future<void> _pickImage() async {
+    await _applyPickedAttachment(_attachmentPicker.pickImage());
+  }
+
+  Future<void> _pickFile() async {
+    await _applyPickedAttachment(_attachmentPicker.pickFile());
+  }
+
+  Future<void> _applyPickedAttachment(
+    Future<RemoteCodingAttachmentDraft?> pending,
+  ) async {
+    if (_isAttachmentBusy) return;
+    setState(() => _isAttachmentBusy = true);
+    try {
+      final attachment = await pending;
+      if (!mounted || attachment == null) return;
+      _setAttachment(attachment);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not add attachment: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAttachmentBusy = false);
+    }
+  }
+
+  void _setAttachment(RemoteCodingAttachmentDraft attachment) {
+    if (attachment.bytes.length > RemoteCodingAttachmentPolicy.maxBytes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Attachments must be 4 MiB or smaller.')),
+      );
+      return;
+    }
+    setState(() => _attachment = attachment);
+  }
+
+  void _clearAttachment() {
+    setState(() => _attachment = null);
+  }
+
+  Future<void> _handlePaste() async {
+    if (_isAttachmentBusy) return;
+    setState(() => _isAttachmentBusy = true);
+    try {
+      final attachment = await _attachmentPicker.readClipboard();
+      if (mounted && attachment != null) {
+        _setAttachment(attachment);
+        return;
+      }
+      final clipData = await Clipboard.getData(Clipboard.kTextPlain);
+      final pastedText = clipData?.text;
+      if (mounted && pastedText != null && pastedText.isNotEmpty) {
+        final selection = _controller.selection;
+        final text = _controller.text;
+        final start = selection.isValid ? selection.start : text.length;
+        final end = selection.isValid ? selection.end : text.length;
+        final nextText = text.replaceRange(start, end, pastedText);
+        _controller.value = TextEditingValue(
+          text: nextText,
+          selection: TextSelection.collapsed(offset: start + pastedText.length),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not paste attachment: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAttachmentBusy = false);
+    }
+  }
+
+  Future<void> _handleContentInserted(KeyboardInsertedContent content) async {
+    await _applyPickedAttachment(
+      _attachmentPicker.fromInsertedContent(content),
+    );
+  }
+
   Future<void> _send(RemoteCodingClientNotifier notifier) async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
-    _controller.clear();
-    await notifier.sendMessage(
+    final attachment = _attachment;
+    if (text.isEmpty && attachment == null) return;
+    final sent = await notifier.sendMessage(
       text,
+      attachment: attachment,
       languageCode: Localizations.localeOf(context).languageCode,
     );
+    if (!mounted || !sent) return;
+    _controller.clear();
+    setState(() => _attachment = null);
   }
 
   void _scrollToLatestMessage() {
@@ -1656,15 +1756,31 @@ class _RemoteComposer extends StatelessWidget {
     required this.controller,
     required this.isLoading,
     required this.enabled,
+    required this.supportsAttachments,
+    required this.attachment,
+    required this.isAttachmentBusy,
     required this.onSend,
     required this.onCancel,
+    required this.onPickImage,
+    required this.onPickFile,
+    required this.onClearAttachment,
+    required this.onPaste,
+    required this.onContentInserted,
   });
 
   final TextEditingController controller;
   final bool isLoading;
   final bool enabled;
+  final bool supportsAttachments;
+  final RemoteCodingAttachmentDraft? attachment;
+  final bool isAttachmentBusy;
   final VoidCallback onSend;
   final VoidCallback onCancel;
+  final VoidCallback onPickImage;
+  final VoidCallback onPickFile;
+  final VoidCallback onClearAttachment;
+  final VoidCallback onPaste;
+  final Future<void> Function(KeyboardInsertedContent) onContentInserted;
 
   @override
   Widget build(BuildContext context) {
@@ -1672,29 +1788,191 @@ class _RemoteComposer extends StatelessWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                enabled: enabled,
-                minLines: 1,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  hintText: 'Message remote coding host',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+            if (attachment != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _RemoteAttachmentPreview(
+                  attachment: attachment!,
+                  onClear: onClearAttachment,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: !enabled ? null : (isLoading ? onCancel : onSend),
-              icon: Icon(isLoading ? Icons.stop : Icons.send),
-              tooltip: isLoading ? 'Stop' : 'Send',
+            Row(
+              children: [
+                if (supportsAttachments)
+                  IgnorePointer(
+                    ignoring: isAttachmentBusy,
+                    child: Opacity(
+                      opacity: isAttachmentBusy ? 0.55 : 1,
+                      child: ComposerAttachmentButton(
+                        onPickImage: onPickImage,
+                        onPickFile: onPickFile,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: Actions(
+                    actions: <Type, Action<Intent>>{
+                      if (supportsAttachments)
+                        PasteTextIntent: CallbackAction<PasteTextIntent>(
+                          onInvoke: (_) {
+                            onPaste();
+                            return null;
+                          },
+                        ),
+                    },
+                    child: TextField(
+                      controller: controller,
+                      enabled: enabled,
+                      contentInsertionConfiguration: supportsAttachments
+                          ? ContentInsertionConfiguration(
+                              onContentInserted: (content) {
+                                unawaited(onContentInserted(content));
+                              },
+                              allowedMimeTypes: const [
+                                'image/png',
+                                'image/jpeg',
+                                'image/gif',
+                                'image/webp',
+                                'image/heic',
+                                'image/heif',
+                                'image/tiff',
+                                'image/bmp',
+                              ],
+                            )
+                          : null,
+                      contextMenuBuilder: (context, editableTextState) {
+                        if (!supportsAttachments) {
+                          return AdaptiveTextSelectionToolbar.buttonItems(
+                            anchors: editableTextState.contextMenuAnchors,
+                            buttonItems:
+                                editableTextState.contextMenuButtonItems,
+                          );
+                        }
+                        final buttonItems = editableTextState
+                            .contextMenuButtonItems
+                            .map((item) {
+                              if (item.type != ContextMenuButtonType.paste) {
+                                return item;
+                              }
+                              return ContextMenuButtonItem(
+                                onPressed: () {
+                                  editableTextState.hideToolbar();
+                                  onPaste();
+                                },
+                                type: ContextMenuButtonType.paste,
+                                label: item.label,
+                              );
+                            })
+                            .toList();
+                        if (!buttonItems.any(
+                          (item) => item.type == ContextMenuButtonType.paste,
+                        )) {
+                          buttonItems.add(
+                            ContextMenuButtonItem(
+                              onPressed: () {
+                                editableTextState.hideToolbar();
+                                onPaste();
+                              },
+                              type: ContextMenuButtonType.paste,
+                            ),
+                          );
+                        }
+                        return AdaptiveTextSelectionToolbar.buttonItems(
+                          anchors: editableTextState.contextMenuAnchors,
+                          buttonItems: buttonItems,
+                        );
+                      },
+                      minLines: 1,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        hintText: 'Message remote coding host',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: !enabled || isAttachmentBusy
+                      ? null
+                      : (isLoading ? onCancel : onSend),
+                  icon: isAttachmentBusy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(isLoading ? Icons.stop : Icons.send),
+                  tooltip: isLoading ? 'Stop' : 'Send',
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RemoteAttachmentPreview extends StatelessWidget {
+  const _RemoteAttachmentPreview({
+    required this.attachment,
+    required this.onClear,
+  });
+
+  final RemoteCodingAttachmentDraft attachment;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final preview = attachment.isImage
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.memory(
+              attachment.bytes,
+              height: 96,
+              width: 96,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+            ),
+          )
+        : Expanded(
+            child: Row(
+              children: [
+                Icon(Icons.attach_file, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${attachment.name} · ${formatAttachmentSize(attachment.bytes.length)}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          preview,
+          const Spacer(),
+          IconButton(
+            onPressed: onClear,
+            icon: const Icon(Icons.close),
+            tooltip: 'Remove attachment',
+          ),
+        ],
       ),
     );
   }

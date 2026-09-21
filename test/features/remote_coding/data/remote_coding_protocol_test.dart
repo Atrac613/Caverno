@@ -52,6 +52,7 @@ void main() {
         'selectConversation',
         'createThread',
         'sendMessage',
+        RemoteCodingProtocol.uploadAttachment,
         'cancelStreaming',
         // Per-conversation messaging, the same class as the two above: a
         // thread the caller names rather than the one the server has

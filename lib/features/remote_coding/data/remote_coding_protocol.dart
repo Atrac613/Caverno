@@ -61,6 +61,7 @@ class RemoteCodingProtocolMessage {
 class RemoteCodingProtocol {
   RemoteCodingProtocol._();
 
+  static const String uploadAttachment = 'uploadAttachment';
   static const String sendMessageToConversation = 'sendMessageToConversation';
   static const String cancelConversationStreaming =
       'cancelConversationStreaming';
@@ -72,6 +73,7 @@ class RemoteCodingProtocol {
     'selectConversation',
     'createThread',
     'sendMessage',
+    uploadAttachment,
     'cancelStreaming',
     sendMessageToConversation,
     cancelConversationStreaming,
