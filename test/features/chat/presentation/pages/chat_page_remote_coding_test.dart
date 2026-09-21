@@ -8,6 +8,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -292,6 +293,24 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
   }
 }
 
+class _ScrollableConnectedRemoteCodingClientNotifier
+    extends _ConnectedRemoteCodingClientNotifier {
+  @override
+  RemoteCodingClientState build() {
+    return super.build().copyWith(
+      messages: [
+        for (var index = 0; index < 32; index += 1)
+          Message(
+            id: 'remote-message-$index',
+            content: 'Remote message $index\nLine one\nLine two\nLine three',
+            role: index.isEven ? MessageRole.user : MessageRole.assistant,
+            timestamp: DateTime(2026, 6, 3, 12).add(Duration(minutes: index)),
+          ),
+      ],
+    );
+  }
+}
+
 class _ConnectedRemoteCodingQuestionClientNotifier
     extends RemoteCodingClientNotifier {
   static final _generatedAt = DateTime(2026, 6, 3, 12);
@@ -513,6 +532,45 @@ void main() {
     expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
     expect(find.byIcon(Icons.add), findsNothing);
   });
+
+  testWidgets(
+    'mobile remote coding shows a button away from the latest message',
+    (tester) async {
+      debugRemoteCodingMobilePlatformOverride = () => true;
+
+      await _pumpCodingWorkspace(
+        tester,
+        size: const Size(390, 844),
+        connectRemoteClient: true,
+        remoteClientBuilder: _ScrollableConnectedRemoteCodingClientNotifier.new,
+      );
+
+      final listFinder = find.byType(ListView);
+      final buttonFinder = find.byKey(
+        const ValueKey('scroll-to-bottom-button'),
+      );
+      expect(listFinder, findsOneWidget);
+      expect(buttonFinder, findsOneWidget);
+
+      ScrollPosition position() {
+        return tester.widget<ListView>(listFinder).controller!.position;
+      }
+
+      expect(position().maxScrollExtent - position().pixels, greaterThan(0));
+
+      await tester.tap(buttonFinder);
+      await tester.pumpAndSettle();
+      expect(
+        position().maxScrollExtent - position().pixels,
+        lessThanOrEqualTo(1),
+      );
+      expect(buttonFinder, findsNothing);
+
+      await tester.drag(listFinder, const Offset(0, 400));
+      await tester.pumpAndSettle();
+      expect(buttonFinder, findsOneWidget);
+    },
+  );
 
   testWidgets('mobile remote coding keeps the navigation drawer accessible', (
     tester,
@@ -970,6 +1028,7 @@ Future<ProviderContainer> _pumpCodingWorkspace(
   WidgetTester tester, {
   Size size = const Size(1200, 900),
   bool connectRemoteClient = false,
+  RemoteCodingClientNotifier Function()? remoteClientBuilder,
   SecurityScopedBookmarkService? bookmarkService,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -993,7 +1052,7 @@ Future<ProviderContainer> _pumpCodingWorkspace(
       routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
       if (connectRemoteClient)
         remoteCodingClientProvider.overrideWith(
-          _ConnectedRemoteCodingClientNotifier.new,
+          remoteClientBuilder ?? _ConnectedRemoteCodingClientNotifier.new,
         ),
       if (bookmarkService != null)
         securityScopedBookmarkServiceProvider.overrideWithValue(

@@ -14,6 +14,7 @@ import '../../chat/presentation/widgets/approval/approval_dialog_route.dart';
 import '../../chat/presentation/widgets/composer_attachment_button.dart';
 import '../../chat/presentation/widgets/message_bubble.dart';
 import '../../chat/presentation/widgets/plan/plan_review_sheet.dart';
+import '../../chat/presentation/widgets/thread_scroll_to_bottom_button.dart';
 import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
@@ -44,8 +45,15 @@ class _RemoteQuestionResult {
 }
 
 class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
+  // Text layout on phone-sized viewports can leave a fractional pixel at the
+  // end of a scroll extent. Treat that rounding residue as the bottom.
+  static const double _scrollBottomEpsilon = 1;
+
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  final ValueNotifier<bool> _showScrollToBottomButton = ValueNotifier<bool>(
+    false,
+  );
   final _attachmentPicker = const RemoteCodingAttachmentPicker();
   RemoteCodingAttachmentDraft? _attachment;
   bool _isAttachmentBusy = false;
@@ -66,6 +74,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_updateScrollToBottomButtonVisibility);
     // This page raises its own approval sheet, so while it is on screen a
     // notification would ask the same question twice. The notifier cannot
     // infer that from any state it holds, so the page says so itself.
@@ -90,8 +99,37 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   void dispose() {
     _notifications?.setRemoteCodingPageVisible(false);
     _controller.dispose();
+    _scrollController.removeListener(_updateScrollToBottomButtonVisibility);
     _scrollController.dispose();
+    _showScrollToBottomButton.dispose();
     super.dispose();
+  }
+
+  void _updateScrollToBottomButtonVisibility() {
+    if (!mounted || !_scrollController.hasClients) {
+      return;
+    }
+    final position = _scrollController.position;
+    final visible =
+        position.maxScrollExtent - position.pixels > _scrollBottomEpsilon;
+    if (_showScrollToBottomButton.value != visible) {
+      _showScrollToBottomButton.value = visible;
+    }
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.depth == 0) {
+      _updateScrollToBottomButtonVisibility();
+    }
+    return false;
+  }
+
+  void _scheduleScrollToBottomButtonVisibilityUpdate() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _updateScrollToBottomButtonVisibility();
+      }
+    });
   }
 
   void _schedulePendingPrompts(RemoteCodingClientState state) {
@@ -233,6 +271,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     final notificationState = ref.watch(remoteCodingMobileNotificationProvider);
     _scheduleNotificationTap(notificationState);
     _schedulePendingPrompts(state);
+    _scheduleScrollToBottomButtonVisibilityUpdate();
     final notifier = ref.read(remoteCodingClientProvider.notifier);
 
     if (!state.isConnected) {
@@ -274,13 +313,39 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
             const Expanded(child: _RemoteEmptyProjectsView())
           else
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: state.messages.length,
-                itemBuilder: (context, index) {
-                  return MessageBubble(message: state.messages[index]);
-                },
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _handleScrollNotification,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: state.messages.length,
+                      itemBuilder: (context, index) {
+                        return MessageBubble(message: state.messages[index]);
+                      },
+                    ),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _showScrollToBottomButton,
+                      builder: (context, visible, child) {
+                        if (!visible) {
+                          return const SizedBox.shrink();
+                        }
+                        return Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: ThreadScrollToBottomButton(
+                        onPressed: _scrollToLatestMessage,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           if (state.queuedCount > 0)
@@ -470,10 +535,19 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     if (!mounted || !_scrollController.hasClients) {
       return;
     }
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
+    _showScrollToBottomButton.value = false;
+    unawaited(
+      _scrollController
+          .animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+          )
+          .then((_) {
+            if (mounted) {
+              _updateScrollToBottomButtonVisibility();
+            }
+          }),
     );
   }
 
