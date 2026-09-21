@@ -89,97 +89,27 @@ or live-model gates.
 
 ### Recommended Next Slice
 
-ANA4's first slice shipped on 2026-09-14, so the recommendation this block
-used to carry is done: the awaiting-you section is on screen in the both-
-workspaces list. What follows is refreshed against local main on 2026-09-20,
-after 62 commits (29 in `lib/`) landed past the last edit to this block.
+This selection is refreshed on 2026-09-21 against local main `cf1c0b162`,
+which is 24 commits beyond the previous `0fd1276ab` review. The previous
+ANA4 cleanup and Widget reachability instrument are complete. The F5 route,
+interface, and path-MTU extraction is also complete; its owner document says
+to refresh the boundary ranking before selecting another slice.
 
-**Verified since: a truncated turn now resumes, and the instrument can see it.**
-`PendingActionLengthRecoveryPolicy` shipped able to answer a turn cut off
-mid-action and could not fire for either of two reasons in turn — its gate read
-a finish reason the regenerated answer had already overwritten (`3d1671b1b`),
-and then still required incomplete evidence that a turn which had only *looked*
-at things never leaves behind (`7284c8f86`). Both commit bodies close with
-"still unverified live", and both are out of date: the path fired on 2026-09-19
-in session `63d9042e`, on build `7284c8f86` — the very commit — carrying the
-whole chain in one `turnExit` and exiting on `pending_batch_executed`.
+**Recommended next slice: RC1 signed-device evidence.** The latest main-side
+work remains concentrated on Remote Coding — attachments, project ordering, and
+mobile Plan Mode review — while the implementation fixes already have focused
+tests. The remaining roadmap gate is external evidence: an iOS/Android LAN
+soak, reconnect after background or desktop wake, support-packet review, and a
+multi-device household check. Record build identities, transport mode, device
+ownership, reconnect outcomes, attachment behavior, and any cross-device
+visibility before treating RC1 as ready for promotion.
 
-Neither commit could know that, because the check they name is an app-log line
-and `tool/check_fix_firings.py` reads session logs. That gap was the more
-general finding: LL33 records a transform id precisely so a guard firing stops
-being inferred from the notice it leaked into the answer, 27 logs carry one
-across 18 distinct ids, and not one of the instrument's 25 rows read them — all
-25 matched prose. A row may now be keyed on `turnExit.transforms` structurally,
-which is both stricter and cheaper than a literal: a log that merely quotes the
-id, including one produced by reading this repository, is not a firing. The
-report is 13/26.
-
-**The next slice is not the awaiting-you count. Scoping it on 2026-09-20 found
-that neither kind of item has a surface to route to.** `_buildWorkflowPanel`
-has one reference in the repository — its own declaration. Its only call site
-was deleted on 2026-04-18 by `93e867dfb`, and `0d857a595` moved the method into
-a part file a month later under an `// ignore: unused_element` that silenced
-the analyzer. Everything hangs off it and is therefore unreachable: the
-assumption confirmation (`_confirmMaterialAssumption`, the `onConfirmAssumption`
-route added by `52eae07c6` on 2026-09-18), open-question answering
-(`PlanOpenQuestionSection` with `_answerOpenQuestion` and
-`_setOpenQuestionStatus`), `_buildPlanProposalCard`, `_buildPlanDocumentCard`,
-`_buildCompactWorkflowSummary` and `_buildWorkflowTasksSection`. Each is called
-exactly once, from inside the dead panel.
-
-So this roadmap's claim that "the workflow panel now carries the clarification
-question and the confirmation" is true of the source and false of the running
-app, and the same is true of `AwaitingYouPanelSection`'s own comment that the
-sheet "already owns answering, with a status menu and a note editor per
-question" — its `onOpen` reaches `PlanReviewSheet`, which renders a markdown
-preview and three buttons and no questions at all. Adding `blockingAssumptions`
-to the count would point a second kind of item at the same absent destination.
-
-**That mount decision is made and shipped (`276a7e3c1`): move, do not
-re-mount.** `AwaitingYouSheet` is the destination the summary always described.
-It carries both kinds and only the waiting ones — open questions, and the
-blocking assumptions filtered out of the contract by `blockingAssumptionItems`
-— so it answers "what is stopping work" rather than repeating the plan.
-Answering and confirming reach the page's existing actions unchanged. A new
-mount rather than a revival, because the dead panel also held proposal cards, a
-tasks section and a compact summary the companion pane has since grown its own
-versions of. **ANA4's count landed with it**, as a union that marks the
-assumption kind apart, which settles the last half of §15's third question.
-
-This was the fourth instance of the pattern the repository keeps paying for: a
-feature complete in source and unreachable in production, its evidence gap
-recorded as unbuilt scope. Prefer the reachability check — does the entry point
-have a caller, and how does its reference count compare with its siblings —
-before scoping anything that builds on an existing surface.
-
-**That deletion landed too (`2e010dfca`), scoped per surface first.** Every
-one of the seven has a live equivalent: the tasks section is `CompanionTaskRow`
-in the companion pane; both proposal cards and the plan document card are
-`CompactPlanFooterCard` in the header, which auto-presents `PlanReviewSheet`
-and owns approve, edit and cancel; the contract's open questions and blocking
-assumptions are the sheet above; goal, constraints and acceptance criteria are
-in the plan markdown the review sheet renders, marks and all. Two have no
-equivalent and were not replaced — the workflow stage chip and the quick
-actions — but neither has been on screen since April, so nothing regressed.
-
-It came to **3,116 lines across four part files**, not the ~900 the panel body
-suggested: the task editors, replan paths, blocked-reason flows and status
-helpers behind it were each reachable only through a surface that was itself
-unreachable. `chat_page_workflow_builders.dart` is gone entirely. The ratchets
-drop to the measured values, 1801 → 1323 and 8467 → 5343.
-
-**One thing the stage raised is still open.** `workflowStage` is not dead
-code: `chat_notifier_prompt_context.dart` puts it in the system prompt, so the
-model reads it and only the user cannot see it. Whether that deserves a display
-is a product question with its own evidence need, separate from the deletion.
-
-**And one class of dead code has no instrument.** Five widget files are
-orphaned — no importer anywhere — and the analyzer cannot report it, because
-`unused_element` covers private declarations only. That is the same blindness
-that hid `plan_open_question_section` and `contract_item_list_section` for five
-months while their own tests stayed green. A repository check for a public
-widget with no importer would close it; today the only way to find one is to go
-looking.
+LL33 does not need another production transform implementation as its next
+slice. File-save and finalization paths already carry stable transform IDs; the
+remaining work is live triage coverage for those IDs. Level 3 event sourcing
+remains deferred. If signed-device access is unavailable, KC1 is the fallback
+research slice: finish the class 1 oracle and class 3 verdict shape without
+starting KC2 before the baseline is preserved.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
@@ -190,13 +120,13 @@ implementation slice active.
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
 | Remote Coding | RC1 | current | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | Reconnect resilience was recorded as implemented, and measuring it 2026-09-17 found three defects behind that claim. `reconnectAttempt` fell back to zero only on a successful snapshot, so one walked ladder disabled automatic reconnection for the rest of the session -- a failed manual retry left the counter at its cap and the next unexpected drop gave up with no attempt at all. The ladder itself surrendered after 2s/5s/15s, which is shorter than a desktop takes to wake, and nothing re-armed it: `lib/features/remote_coding/` had no `AppLifecycleState.resumed` hook, and opening the page rendered a Reconnect button and waited to be tapped. All three are fixed with regression tests. The remaining evidence is the iOS/Android LAN soak, support-packet review, and multi-device household check; consult the security follow-up and promotion records before release. |
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Characterize the unowned `NetworkTools` route, interface, and path-MTU cluster selected by the 2026-07-18 full boundary inventory before extracting code. |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | The route/interface/path-MTU cluster is complete. Refresh the boundary ranking and ownership before selecting another extraction; do not reopen the completed cluster. |
 | Knowledge Currency | KC1 | current | Measure claim correctness, not only tool coverage: classify version-sensitive prose and code-artifact claims, compare asserted values with a fixture oracle, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. | Three measurements cover classes 2 and 4 and separate correctness from grounding. Finish the class 1 oracle and class 3 verdict shape before closing the gate; see [KC1](local_llm_agent_roadmap.md#kc1-cutoff-exposure-census) and `docs/knowledge_currency_track_design.md`. |
-| Local LLM | LL33 | current | Turn provenance: correlate the session log to the on-screen conversation (turnId + assistantMessageId) and record applied post-LLM transforms (guard notices), so log↔UI is traceable and guard firings are a direct triage signal instead of inferred from leaked notice prose. | Landed correlation keys + transform record + triage distribution. Truncation and recovery are covered -- `truncated_tool_call_arguments_feedback`, `pending_action_length_recovery`, `coding_continuation_recovery_*`, `final_answer_concise_retry` and the three unexecuted-action retries all record one -- and as of 2026-09-20 `tool/check_fix_firings.py` reads `turnExit.transforms` structurally, so a shipped guard's firing is evidence rather than an inference from the notice it leaked. That closed the instrument half of this milestone's stated goal: before it, 27 logs carried a transform across 18 ids and all 25 signature rows matched prose instead. What is left is file-save, which records no transform at all today, and Level 3 event-sourcing, still deferred. |
+| Local LLM | LL33 | current | Turn provenance: correlate the session log to the on-screen conversation (turnId + assistantMessageId) and record applied post-LLM transforms (guard notices), so log↔UI is traceable and guard firings are a direct triage signal instead of inferred from leaked notice prose. | Correlation, transform recording, triage distribution, truncation, recovery, and file-save transform IDs are implemented. Run live triage coverage for the file-save IDs and keep Level 3 event sourcing deferred unless Level 2 proves insufficient. |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
-| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | All four of §15's questions now have a persistent surface: the awaiting-you section shipped 2026-09-14 and sits in the both-workspaces list, so it does not need a coding project. **§16's mode question is answered — no fourth `WorkspaceMode`**: the parent's identity is per turn (`@anabasis` → one interaction generation carries authority, prompt block and billing role) and a mode is per conversation, which would force a per-conversation answer to a per-turn question; a conversation legitimately carries both kinds of turn. `AssistantMode` reuses `plan` for the same reason. What remains is `MaterialContractAssumptionGuard`'s `WorkspaceMode.coding` scope, held deliberately until a non-coding goal needs it, and the surface for pending confirmations. The question that blocked the surface is answered: measured 2026-09-18, a dismissal did not survive even the tool-loop iteration it was made in, because the gate's ask memory was a field on an object the turn rebuilds per iteration -- three iterations, three identical modals, one answer. `MaterialAssumptionAskMemory` now holds it per turn, keyed by owner and released in the turn teardown scope. Scoping the listing then found the surface it would point at was itself a dead end: `confirmMaterialAssumption` had exactly one caller, the gate, so an assumption could only be cleared by the interrupt raised mid-turn. The workflow panel carries the clarification question and the confirmation in source only: measured 2026-09-20, `_buildWorkflowPanel` has no caller anywhere in the repository -- its one call site was deleted on 2026-04-18 (`93e867dfb`) and the analyzer warning was silenced by an `// ignore: unused_element` a month later (`0d857a595`). Assumption confirmation, open-question answering, both proposal cards and the tasks section are each called exactly once, from inside it, so none of them renders. Shipped 2026-09-20 in `276a7e3c1`: `AwaitingYouSheet` is a new live mount carrying both kinds and only the waiting ones, and the summary now counts the union with the assumption kind marked apart. **§15's third question is fully answered.** What remains for the track is deleting the dead panel and the ~900 lines only it reaches, which is a product decision about the plan/workflow pane rather than a line-count exercise. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
+| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | The awaiting-you surface and the dead workflow-panel deletion shipped on 2026-09-20. The remaining product question is whether the model-visible `workflowStage` deserves a user-facing display; hold that decision until there is evidence that the current plan/review surfaces leave users unable to understand the stage. |
 | Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Push delivery, lock-screen approval, and native withdrawal have hardware evidence dated 2026-09-09/10. Complete the remaining device matrix; see [WATCH5](apple_watch_roadmap.md#watch5-push-originated-notification-actions). |
 | Watch | WATCH14 | current | Browse the iPhone's paired host projects and existing threads, read a compact conversation, and dictate instructions into the selected remote thread. | Slices 1-3 provide paged browsing, compact transcripts, and destination-bound Dictation/Stop. A background-woken iPhone now reconnects the saved host, retires the old epoch, and offers an explicit Send again only after the same destination is freshly confirmed. Next: prove this on a signed locked/backgrounded iPhone/Watch pair and real desktop, plus concurrent thread changes, accessibility, and hidden tool traffic. See [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads). |
 

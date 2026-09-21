@@ -4359,9 +4359,9 @@ to add the turn-exit producer is superseded by the shipped implementation.
 
 Status: `current`
 
-The correlation and guard-notice baseline is complete. Remaining transform
-coverage below keeps the track current, matching the milestone index; Level 3
-event sourcing remains deferred.
+The correlation and guard-notice baseline plus the remaining finalization
+transform coverage are complete. Live triage coverage for the file-save labels
+is the remaining evidence slice; Level 3 event sourcing remains deferred.
 
 Problem:
 - The LLM session log (`*.jsonl`) records the raw LLM request/response; the
@@ -4403,9 +4403,10 @@ Source: the verification-guard investigation (the `git_execute_command`
 false-positive fix). The notice-prose detection method it relied on is exactly
 what `transforms[]` replaces with a first-class signal.
 
-Next action: extend `transforms[]` to the remaining finalization transforms
-(file-save notice, max-token truncation, finalization recovery) and consider a
-small triage join that prints the on-screen final content for a flagged turn.
+Next action: run live triage coverage for the file-save transform labels and,
+for flagged turns, join the `assistantMessageId` back to the saved message
+content. Do not start Level 3 event sourcing unless this Level 2 evidence is
+insufficient.
 
 ## Grounded Verification Track (LL34-LL37)
 
