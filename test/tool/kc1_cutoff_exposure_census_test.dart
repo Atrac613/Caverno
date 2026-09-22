@@ -33,6 +33,11 @@ ClaimRecord _score(
   repeat: 1,
   response: response,
   truthSource: 'test',
+  promptSupportsClaim: promptSupportsClaimFor(
+    testCase: _caseNamed(id),
+    arm: arm,
+    oracle: _oracle(),
+  ),
 );
 
 void main() {
@@ -149,7 +154,7 @@ void main() {
 
     test('the grounded arm is attributed to the prompt, not to a tool result', () {
       final claim = _score(
-        'riverpod-notifier',
+        'repo-state-management',
         'final p = NotifierProvider(...);',
         arm: CensusArm.grounded,
       );
@@ -163,6 +168,85 @@ void main() {
             'same-turn tool result would make the KC2 block look ineffective '
             'exactly where it worked.',
       );
+    });
+
+    test('a stale grounded claim contradicts the prompt context', () {
+      final claim = _score(
+        'repo-state-management',
+        'final p = StateNotifierProvider(...);',
+        arm: CensusArm.grounded,
+      );
+
+      expect(claim.truth, TruthVerdict.stale);
+      expect(claim.grounding, GroundingVerdict.contradicted);
+      expect(claim.provenance, GroundingProvenance.promptContext);
+    });
+
+    test('a version-only API claim has absent grounding', () {
+      final claim = _score(
+        'color-with-values',
+        'base.withValues(alpha: 0.5)',
+        arm: CensusArm.grounded,
+      );
+
+      expect(claim.truth, TruthVerdict.correct);
+      expect(claim.grounding, GroundingVerdict.absent);
+      expect(claim.provenance, GroundingProvenance.none);
+    });
+
+    test('an unscorable grounded response has no grounding provenance', () {
+      final claim = _score(
+        'repo-state-management',
+        'NotifierProvider StateNotifierProvider',
+        arm: CensusArm.grounded,
+      );
+
+      expect(claim.truth, TruthVerdict.unscorable);
+      expect(claim.grounding, GroundingVerdict.absent);
+      expect(claim.provenance, GroundingProvenance.none);
+    });
+
+    test('an uncovered delta claim has absent grounding', () {
+      final claim = _score(
+        'flutter-pop-scope',
+        'return PopScope(canPop: false);',
+        arm: CensusArm.deltaGrounded,
+      );
+
+      expect(claim.truth, TruthVerdict.correct);
+      expect(claim.grounding, GroundingVerdict.absent);
+      expect(claim.provenance, GroundingProvenance.none);
+    });
+
+    test('summary reports stale and unsupported rates separately', () {
+      final summary = CensusSummary(
+        claims: [
+          _score(
+            'repo-state-management',
+            'final p = NotifierProvider(...);',
+            arm: CensusArm.grounded,
+          ),
+          _score(
+            'repo-state-management',
+            'final p = StateNotifierProvider(...);',
+            arm: CensusArm.grounded,
+          ),
+        ],
+        runIdentity: const {},
+      );
+
+      expect(summary.staleRate(CensusArm.grounded), 0.5);
+      expect(summary.unsupportedRate(CensusArm.grounded), 0.5);
+      expect(
+        summary.unsupportedRateFor(
+          CutoffClass.thisRepository,
+          CensusArm.grounded,
+        ),
+        0.5,
+      );
+      final json = summary.toJson();
+      expect(json['schemaVersion'], 2);
+      expect((json['arms'] as Map)['grounded']['unsupportedRate'], 0.5);
     });
   });
 
@@ -296,16 +380,62 @@ void main() {
       expect(seen, ['bare', 'grounded', 'delta']);
     });
 
-    test('every grounded arm is attributed to the prompt', () {
-      for (final arm in const [CensusArm.grounded, CensusArm.deltaGrounded]) {
-        final claim = _score(
-          'color-with-values',
-          'base.withValues(alpha: 0.5)',
-          arm: arm,
-        );
-        expect(claim.grounding, GroundingVerdict.supported);
-        expect(claim.provenance, GroundingProvenance.promptContext);
-      }
+    test('an uncovered delta response is not marked as grounded', () async {
+      final options = CensusOptions.parse(const [
+        '--endpoint',
+        'http://scripted/v1/chat/completions',
+        '--model',
+        'scripted',
+        '--repeats',
+        '1',
+        '--case',
+        'flutter-pop-scope',
+      ], const {});
+
+      final summary = await runCutoffCensus(
+        options: options!,
+        oracle: _oracle(),
+        cases: [_caseNamed('flutter-pop-scope')],
+        send: (system, user) async => 'return PopScope(canPop: false);',
+      );
+      final deltaClaim = summary.claims.firstWhere(
+        (claim) => claim.arm == CensusArm.deltaGrounded,
+      );
+
+      expect(deltaClaim.truth, TruthVerdict.correct);
+      expect(deltaClaim.grounding, GroundingVerdict.absent);
+      expect(deltaClaim.provenance, GroundingProvenance.none);
+    });
+
+    test('prompt-context coverage is case-specific', () {
+      final groundedRepositoryClaim = _score(
+        'repo-state-management',
+        'final p = NotifierProvider(...);',
+        arm: CensusArm.grounded,
+      );
+      final deltaApiClaim = _score(
+        'color-with-values',
+        'base.withValues(alpha: 0.5)',
+        arm: CensusArm.deltaGrounded,
+      );
+      final deltaRepositoryClaim = _score(
+        'repo-state-management',
+        'final p = NotifierProvider(...);',
+        arm: CensusArm.deltaGrounded,
+      );
+
+      expect(groundedRepositoryClaim.grounding, GroundingVerdict.supported);
+      expect(
+        groundedRepositoryClaim.provenance,
+        GroundingProvenance.promptContext,
+      );
+      expect(deltaApiClaim.grounding, GroundingVerdict.supported);
+      expect(deltaApiClaim.provenance, GroundingProvenance.promptContext);
+      expect(deltaRepositoryClaim.grounding, GroundingVerdict.supported);
+      expect(
+        deltaRepositoryClaim.provenance,
+        GroundingProvenance.promptContext,
+      );
       expect(
         _score('color-with-values', 'base.withValues(alpha: 0.5)').grounding,
         GroundingVerdict.absent,
@@ -353,6 +483,8 @@ void main() {
 
       expect(summary.failures(), CensusArm.values.length);
       expect(summary.staleRate(CensusArm.bare), 0);
+      expect(summary.unsupportedRate(CensusArm.bare), isNull);
+      expect(summary.report(), contains('stale  - unsupported'));
       expect(summary.claims.first.failure, contains('endpoint down'));
     });
   });

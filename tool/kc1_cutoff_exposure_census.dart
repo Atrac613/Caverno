@@ -132,6 +132,7 @@ class CutoffCase {
     required this.confirmStale,
     required this.description,
     this.coverageSymbols = const [],
+    this.groundCoverageSymbols = const [],
   });
 
   final String id;
@@ -157,6 +158,11 @@ class CutoffCase {
   /// Matching the code pattern against the digest reported every case as
   /// uncovered, which would have read as a digest that reaches nothing.
   final List<String> coverageSymbols;
+
+  /// Plain names whose presence in the installed-toolchain block counts as
+  /// coverage. This is separate from [coverageSymbols]: a version block can
+  /// establish a repository dependency without stating an API migration.
+  final List<String> groundCoverageSymbols;
 }
 
 final cutoffCases = <CutoffCase>[
@@ -232,6 +238,7 @@ final cutoffCases = <CutoffCase>[
   ),
   CutoffCase(
     id: 'repo-state-management',
+    groundCoverageSymbols: const ['riverpod:'],
     cutoffClass: CutoffClass.thisRepository,
     description: 'this project holds state in Riverpod Notifier providers',
     task:
@@ -349,6 +356,30 @@ bool digestCovers(CutoffCase testCase, CutoffOracle oracle) {
   return testCase.coverageSymbols.any(digest.contains);
 }
 
+/// Whether the installed-toolchain block names evidence for [testCase].
+bool groundTruthCovers(CutoffCase testCase, CutoffOracle oracle) {
+  if (testCase.groundCoverageSymbols.isEmpty) return false;
+  final ground = groundTruthBlock(oracle);
+  return testCase.groundCoverageSymbols.any(ground.contains);
+}
+
+/// Whether the complete prompt context supports [testCase] for [arm].
+///
+/// The delta arm contains the ground block as well as the delta block, so its
+/// support is the union of both blocks rather than the delta coverage alone.
+bool promptSupportsClaimFor({
+  required CutoffCase testCase,
+  required CensusArm arm,
+  required CutoffOracle oracle,
+}) {
+  final ground = groundTruthCovers(testCase, oracle);
+  return switch (arm) {
+    CensusArm.bare => false,
+    CensusArm.grounded => ground,
+    CensusArm.deltaGrounded => ground || digestCovers(testCase, oracle),
+  };
+}
+
 class ClaimRecord {
   const ClaimRecord({
     required this.claimId,
@@ -434,6 +465,20 @@ class CensusSummary {
 
   int failures() => claims.where((c) => c.failure != null).length;
 
+  /// Claims without supporting grounding, including claims that contradict the
+  /// prompt context, as a fraction of scorable claims in [arm], or null when
+  /// nothing is scorable.
+  double? unsupportedRate(CensusArm arm) {
+    final scored = _scored(
+      arm,
+    ).where((c) => c.truth != TruthVerdict.unscorable).toList(growable: false);
+    if (scored.isEmpty) return null;
+    return scored
+            .where((c) => c.grounding != GroundingVerdict.supported)
+            .length /
+        scored.length;
+  }
+
   /// Stale-claim rate for one class in one arm, or null when nothing scorable.
   ///
   /// Reported per class rather than as one aggregate, because the whole
@@ -455,26 +500,49 @@ class CensusSummary {
         scored.length;
   }
 
+  /// Unsupported-claim rate for one class in one arm, or null when nothing is
+  /// scorable.
+  double? unsupportedRateFor(CutoffClass cutoffClass, CensusArm arm) {
+    final scored = claims
+        .where(
+          (c) =>
+              c.cutoffClass == cutoffClass &&
+              c.arm == arm &&
+              c.failure == null &&
+              c.truth != TruthVerdict.unscorable,
+        )
+        .toList(growable: false);
+    if (scored.isEmpty) return null;
+    return scored
+            .where((c) => c.grounding != GroundingVerdict.supported)
+            .length /
+        scored.length;
+  }
+
   Set<CutoffClass> get classes =>
       claims.map((c) => c.cutoffClass).toSet();
 
   Map<String, dynamic> toJson() => {
     'schema': 'caverno_kc1_cutoff_exposure_census',
-    'schemaVersion': 1,
+    'schemaVersion': 2,
     'run': runIdentity,
     'claims': claims.length,
     'failures': failures(),
     'byClass': {
       for (final cutoffClass in classes)
         cutoffClass.name: {
-          'bare': staleRateFor(cutoffClass, CensusArm.bare),
-          'grounded': staleRateFor(cutoffClass, CensusArm.grounded),
+          for (final arm in CensusArm.values)
+            arm.name: {
+              'staleRate': staleRateFor(cutoffClass, arm),
+              'unsupportedRate': unsupportedRateFor(cutoffClass, arm),
+            },
         },
     },
     'arms': {
       for (final arm in CensusArm.values)
         arm.name: {
           'staleRate': staleRate(arm),
+          'unsupportedRate': unsupportedRate(arm),
           'unscorable': unscorable(arm),
         },
     },
@@ -489,20 +557,41 @@ class CensusSummary {
       ..writeln('build: ${runIdentity['buildCommit']}${runIdentity['buildDirty'] == true ? ' (dirty)' : ''}')
       ..writeln('claims: ${claims.length}  failures: ${failures()}')
       ..writeln()
-      ..writeln('stale-claim rate');
+      ..writeln('stale-claim and unsupported-claim rate');
     for (final arm in CensusArm.values) {
+      final unsupported = unsupportedRate(arm);
+      final unsupportedText = unsupported == null
+          ? '-'
+          : '${(unsupported * 100).toStringAsFixed(0).padLeft(3)}%';
       buffer.writeln(
         '  ${arm.name.padRight(16)} '
         '${(staleRate(arm) * 100).toStringAsFixed(0).padLeft(3)}%  '
-        '(${unscorable(arm)} unscorable)',
+        'stale  $unsupportedText '
+        'unsupported  (${unscorable(arm)} unscorable)',
       );
     }
     buffer
       ..writeln()
-      ..writeln('per class (bare / grounded / delta stale rate)');
+      ..writeln('per class stale-claim rate (bare / grounded / delta)');
     for (final cutoffClass in classes) {
       String rate(CensusArm arm) {
         final value = staleRateFor(cutoffClass, arm);
+        return value == null ? '-' : '${(value * 100).toStringAsFixed(0)}%';
+      }
+
+      buffer.writeln(
+        '  ${cutoffClass.name.padRight(22)} '
+        '${rate(CensusArm.bare).padLeft(5)} / '
+        '${rate(CensusArm.grounded).padLeft(5)} / '
+        '${rate(CensusArm.deltaGrounded).padLeft(5)}',
+      );
+    }
+    buffer
+      ..writeln()
+      ..writeln('per class unsupported-claim rate (bare / grounded / delta)');
+    for (final cutoffClass in classes) {
+      String rate(CensusArm arm) {
+        final value = unsupportedRateFor(cutoffClass, arm);
         return value == null ? '-' : '${(value * 100).toStringAsFixed(0)}%';
       }
 
@@ -550,6 +639,7 @@ ClaimRecord scoreCutoffResponse({
   required int repeat,
   required String response,
   required String truthSource,
+  required bool promptSupportsClaim,
 }) {
   final usedStale = testCase.stale.hasMatch(response);
   final usedCurrent = testCase.current.hasMatch(response);
@@ -558,6 +648,12 @@ ClaimRecord scoreCutoffResponse({
       : usedCurrent && !usedStale
       ? TruthVerdict.correct
       : TruthVerdict.unscorable;
+  final grounding = switch ((promptSupportsClaim, truth)) {
+    (false, _) => GroundingVerdict.absent,
+    (_, TruthVerdict.correct) => GroundingVerdict.supported,
+    (_, TruthVerdict.stale) => GroundingVerdict.contradicted,
+    (_, TruthVerdict.unscorable) => GroundingVerdict.absent,
+  };
   return ClaimRecord(
     claimId: '${testCase.id}:${arm.name}:$repeat',
     caseId: testCase.id,
@@ -566,14 +662,12 @@ ClaimRecord scoreCutoffResponse({
     repeat: repeat,
     truth: truth,
     // No tools are attached, so the only grounding a claim can have is what the
-    // prompt carried. Recorded rather than inferred: the criteria ask that KC2
-    // evidence not be reported as an absent same-turn tool result.
-    grounding: arm == CensusArm.bare
-        ? GroundingVerdict.absent
-        : GroundingVerdict.supported,
-    provenance: arm == CensusArm.bare
-        ? GroundingProvenance.none
-        : GroundingProvenance.promptContext,
+    // prompt carried. A stale claim contradicts that context; an unscorable
+    // response does not assert a claim that can be grounded.
+    grounding: grounding,
+    provenance: promptSupportsClaim && truth != TruthVerdict.unscorable
+        ? GroundingProvenance.promptContext
+        : GroundingProvenance.none,
     assertedValue: usedStale && usedCurrent
         ? 'both'
         : usedStale
@@ -629,6 +723,11 @@ Future<CensusSummary> runCutoffCensus({
               repeat: repeat,
               response: response,
               truthSource: truthSource,
+              promptSupportsClaim: promptSupportsClaimFor(
+                testCase: testCase,
+                arm: arm,
+                oracle: oracle,
+              ),
             ),
           );
         } on Object catch (error) {
