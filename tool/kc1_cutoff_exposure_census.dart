@@ -171,7 +171,6 @@ class CutoffCase {
     required this.confirmStale,
     required this.description,
     this.coverageSymbols = const [],
-    this.groundCoverageSymbols = const [],
   });
 
   final String id;
@@ -198,10 +197,6 @@ class CutoffCase {
   /// uncovered, which would have read as a digest that reaches nothing.
   final List<String> coverageSymbols;
 
-  /// Plain names whose presence in the installed-toolchain block counts as
-  /// coverage. This is separate from [coverageSymbols]: a version block can
-  /// establish a repository dependency without stating an API migration.
-  final List<String> groundCoverageSymbols;
 }
 
 final cutoffCases = <CutoffCase>[
@@ -277,7 +272,6 @@ final cutoffCases = <CutoffCase>[
   ),
   CutoffCase(
     id: 'repo-state-management',
-    groundCoverageSymbols: const ['riverpod:'],
     cutoffClass: CutoffClass.thisRepository,
     description: 'this project holds state in Riverpod Notifier providers',
     task:
@@ -446,27 +440,20 @@ bool digestCovers(CutoffCase testCase, CutoffOracle oracle) {
   return testCase.coverageSymbols.any(digest.contains);
 }
 
-/// Whether the installed-toolchain block names evidence for [testCase].
-bool groundTruthCovers(CutoffCase testCase, CutoffOracle oracle) {
-  if (testCase.groundCoverageSymbols.isEmpty) return false;
-  final ground = groundTruthBlock(oracle);
-  return testCase.groundCoverageSymbols.any(ground.contains);
-}
-
 /// Whether the complete prompt context supports [testCase] for [arm].
 ///
-/// The delta arm contains the ground block as well as the delta block, so its
-/// support is the union of both blocks rather than the delta coverage alone.
+/// The installed-toolchain block contains versions only; it does not state an
+/// API migration or repository convention. Only the delta block has explicit
+/// case coverage in this fixture set.
 bool promptSupportsClaimFor({
   required CutoffCase testCase,
   required CensusArm arm,
   required CutoffOracle oracle,
 }) {
-  final ground = groundTruthCovers(testCase, oracle);
   return switch (arm) {
     CensusArm.bare => false,
-    CensusArm.grounded => ground,
-    CensusArm.deltaGrounded => ground || digestCovers(testCase, oracle),
+    CensusArm.grounded => false,
+    CensusArm.deltaGrounded => digestCovers(testCase, oracle),
   };
 }
 
@@ -747,11 +734,11 @@ class CensusSummary {
   Iterable<ClaimRecord> _scored(CensusArm arm) =>
       claims.where((c) => c.arm == arm && c.failure == null);
 
-  double staleRate(CensusArm arm) {
+  double? staleRate(CensusArm arm) {
     final scored = _scored(
       arm,
     ).where((c) => c.truth != TruthVerdict.unscorable).toList(growable: false);
-    if (scored.isEmpty) return 0;
+    if (scored.isEmpty) return null;
     return scored.where((c) => c.truth == TruthVerdict.stale).length /
         scored.length;
   }
@@ -900,13 +887,17 @@ class CensusSummary {
       ..writeln()
       ..writeln('stale-claim and unsupported-claim rate');
     for (final arm in CensusArm.values) {
+      final stale = staleRate(arm);
+      final staleText = stale == null
+          ? '-'
+          : '${(stale * 100).toStringAsFixed(0).padLeft(3)}%';
       final unsupported = unsupportedRate(arm);
       final unsupportedText = unsupported == null
           ? '-'
           : '${(unsupported * 100).toStringAsFixed(0).padLeft(3)}%';
       buffer.writeln(
         '  ${arm.name.padRight(16)} '
-        '${(staleRate(arm) * 100).toStringAsFixed(0).padLeft(3)}%  '
+        '$staleText  '
         'stale  $unsupportedText '
         'unsupported  (${unscorable(arm)} unscorable)',
       );

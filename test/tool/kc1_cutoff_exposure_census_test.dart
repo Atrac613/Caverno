@@ -415,12 +415,12 @@ void main() {
     );
 
     test(
-      'the grounded arm is attributed to the prompt, not to a tool result',
+      'the delta arm is attributed to the prompt, not to a tool result',
       () {
         final claim = _score(
-          'repo-state-management',
-          'final p = NotifierProvider(...);',
-          arm: CensusArm.grounded,
+          'color-with-values',
+          'base.withValues(alpha: 0.5)',
+          arm: CensusArm.deltaGrounded,
         );
 
         expect(claim.grounding, GroundingVerdict.supported);
@@ -435,11 +435,11 @@ void main() {
       },
     );
 
-    test('a stale grounded claim contradicts the prompt context', () {
+    test('a stale delta claim contradicts the prompt context', () {
       final claim = _score(
-        'repo-state-management',
-        'final p = StateNotifierProvider(...);',
-        arm: CensusArm.grounded,
+        'color-with-values',
+        'base.withOpacity(0.5)',
+        arm: CensusArm.deltaGrounded,
       );
 
       expect(claim.truth, TruthVerdict.stale);
@@ -459,11 +459,11 @@ void main() {
       expect(claim.provenance, GroundingProvenance.none);
     });
 
-    test('an unscorable grounded response has no grounding provenance', () {
+    test('an unscorable delta response has no grounding provenance', () {
       final claim = _score(
-        'repo-state-management',
-        'NotifierProvider StateNotifierProvider',
-        arm: CensusArm.grounded,
+        'color-with-values',
+        'base.withOpacity(0.5) and base.withValues(alpha: 0.5)',
+        arm: CensusArm.deltaGrounded,
       );
 
       expect(claim.truth, TruthVerdict.unscorable);
@@ -487,31 +487,34 @@ void main() {
       final summary = CensusSummary(
         claims: [
           _score(
-            'repo-state-management',
-            'final p = NotifierProvider(...);',
-            arm: CensusArm.grounded,
+            'color-with-values',
+            'base.withValues(alpha: 0.5)',
+            arm: CensusArm.deltaGrounded,
           ),
           _score(
-            'repo-state-management',
-            'final p = StateNotifierProvider(...);',
-            arm: CensusArm.grounded,
+            'color-with-values',
+            'base.withOpacity(0.5)',
+            arm: CensusArm.deltaGrounded,
           ),
         ],
         runIdentity: const {},
       );
 
-      expect(summary.staleRate(CensusArm.grounded), 0.5);
-      expect(summary.unsupportedRate(CensusArm.grounded), 0.5);
+      expect(summary.staleRate(CensusArm.deltaGrounded), 0.5);
+      expect(summary.unsupportedRate(CensusArm.deltaGrounded), 0.5);
       expect(
         summary.unsupportedRateFor(
-          CutoffClass.thisRepository,
-          CensusArm.grounded,
+          CutoffClass.apiDrift,
+          CensusArm.deltaGrounded,
         ),
         0.5,
       );
       final json = summary.toJson();
       expect(json['schemaVersion'], 3);
-      expect((json['arms'] as Map)['grounded']['unsupportedRate'], 0.5);
+      expect(
+        (json['arms'] as Map)['deltaGrounded']['unsupportedRate'],
+        0.5,
+      );
     });
   });
 
@@ -673,9 +676,9 @@ void main() {
     });
 
     test('prompt-context coverage is case-specific', () {
-      final groundedRepositoryClaim = _score(
-        'repo-state-management',
-        'final p = NotifierProvider(...);',
+      final groundedVersionClaim = _score(
+        'color-with-values',
+        'base.withValues(alpha: 0.5)',
         arm: CensusArm.grounded,
       );
       final deltaApiClaim = _score(
@@ -683,24 +686,14 @@ void main() {
         'base.withValues(alpha: 0.5)',
         arm: CensusArm.deltaGrounded,
       );
-      final deltaRepositoryClaim = _score(
-        'repo-state-management',
-        'final p = NotifierProvider(...);',
-        arm: CensusArm.deltaGrounded,
-      );
 
-      expect(groundedRepositoryClaim.grounding, GroundingVerdict.supported);
+      expect(groundedVersionClaim.grounding, GroundingVerdict.absent);
       expect(
-        groundedRepositoryClaim.provenance,
-        GroundingProvenance.promptContext,
+        groundedVersionClaim.provenance,
+        GroundingProvenance.none,
       );
       expect(deltaApiClaim.grounding, GroundingVerdict.supported);
       expect(deltaApiClaim.provenance, GroundingProvenance.promptContext);
-      expect(deltaRepositoryClaim.grounding, GroundingVerdict.supported);
-      expect(
-        deltaRepositoryClaim.provenance,
-        GroundingProvenance.promptContext,
-      );
       expect(
         _score('color-with-values', 'base.withValues(alpha: 0.5)').grounding,
         GroundingVerdict.absent,
@@ -749,7 +742,7 @@ void main() {
         );
 
         expect(summary.failures(), CensusArm.values.length);
-        expect(summary.staleRate(CensusArm.bare), 0);
+        expect(summary.staleRate(CensusArm.bare), isNull);
         expect(summary.unsupportedRate(CensusArm.bare), isNull);
         expect(summary.report(), contains('stale  - unsupported'));
         expect(summary.claims.first.failure, contains('endpoint down'));
