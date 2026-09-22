@@ -965,14 +965,14 @@ is gone.
 
 Status: `current`
 
-Progress as of 2026-09-22: the paired replay instrument and three measurements
-landed for classes 2 and 4. Class 3 now has an oracle-backed environment
-verdict shape (`required` / `inherited` / `unnecessary` / `wrong` /
-`unscorable`) and a non-prescriptive Flutter `ThemeData.useMaterial3` fixture;
-its paired measurement is still open. Redundant-default exposure is reported
-separately from truth/staleness so a behaviorally correct but stale override is
-not hidden in the ordinary stale rate. Class 1 still needs a networked oracle,
-so the full acceptance gate remains open. See
+Progress as of 2026-09-23: three measurements cover classes 2 and 4, and the
+fourth covers the oracle-backed class 3 `ThemeData.useMaterial3` fixture. All
+fourteen scorable responses redundantly asserted `useMaterial3: true`, so
+environment exposure was 100% in the bare, grounded, and delta-grounded arms;
+one bare response was unscorable. The environment fact fixed grounding
+attribution but did not change behavior, a preserved negative result rather
+than a prompt-tuning trigger. Class 1 still needs a networked oracle, so the
+full acceptance gate remains open. See
 [the track design](knowledge_currency_track_design.md) for the measurements
 and [the cross-track index](roadmap.md#active-focus) for the current next action.
 

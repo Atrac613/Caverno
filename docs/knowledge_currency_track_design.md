@@ -206,9 +206,10 @@ asks for a minimal Material 3 configuration without prescribing the
 default, treats omission on a true-default SDK as `inherited`, and reports an
 explicit redundant `true` as `unnecessary`. The paired replay exposes that
 latter case through a separate environment-exposure rate, while ordinary
-truth/staleness remains distinct. The §4 promotion gate, which asks whether
-class 2 *dominates*, is not yet answered; the remaining work is a paired class
-3 measurement and the class 1 oracle.
+truth/staleness remains distinct. The class 3 replay is now recorded below.
+The §4 promotion gate, which asks whether class 2 *dominates*, is still open
+because class 1 has no oracle yet and one environment fixture does not size the
+whole class.
 
 #### Second measurement (2026-09-03): what KC2 should carry
 
@@ -363,6 +364,46 @@ Implications for the track order:
    "the symbol exists in both versions but the installed one deprecates it",
    which is KC3's stated acceptance criterion and the case LL10 answers wrongly.
    What it lacks is the LL10 response envelope and containment, not the lookup.
+
+#### Fourth measurement (2026-09-23): class 3 environment exposure
+
+One oracle-backed environment fixture, three arms, five repeats: 15 claims,
+`qwen3.8-27b-vision`, temperature 0.7, no tools, clean build `9d613c364`.
+Flutter 3.47.4 reports `ThemeData.useMaterial3` defaulting to `true`. The task
+asks for a minimal Material 3 configuration that preserves that installed
+default and explicitly says not to add redundant overrides. The
+[evidence record](evidence/kc1_class3_environment_exposure_2026-09-23.json)
+includes all fifteen raw answers; the exact
+[census output](evidence/kc1_class3_environment_exposure_2026-09-23_census.json)
+and [offline replay](evidence/kc1_class3_environment_exposure_2026-09-23_postgen.json)
+are retained with matching SHA-256 hashes.
+
+| arm | required | inherited | unnecessary | wrong | unscorable | exposure among scorable | unsupported |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| bare | 0 | 0 | 4 | 0 | 1 | **100%** | 100% |
+| +environment fact | 0 | 0 | 5 | 0 | 0 | **100%** | 0% |
+| +environment fact + deltas | 0 | 0 | 5 | 0 | 0 | **100%** | 0% |
+
+**The environment fact fixed attribution, not behavior.** Grounded answers are
+supported rather than absent because the prompt carries the installed default,
+but every scorable answer still wrote `useMaterial3: true`. The delta block did
+not move the result either. This is the negative result the acceptance rule
+requires preserving: do not tune the fixture wording merely because the rate
+did not improve.
+
+All 15 raw responses were inspected. Fourteen contain a literal
+`ThemeData(... useMaterial3: true)` and match `unnecessary`. The one
+`unscorable` response uses
+`copyWith(useMaterial3: existing.useMaterial3 ?? true)`, not a literal
+constructor setting, so excluding it is correct. The offline post-generation
+replay likewise labels fourteen behaviorally correct and one unscorable. Its
+bare-name nominator flags `Theme.of` through the common symbol `of`; that is the
+receiver-less false-positive class already measured above and is not used for
+the environment verdict.
+
+This closes the class 3 measurement gap for the present fixture without
+claiming population-level dominance. The remaining KC1 implementation slice is
+the class 1 network oracle.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 

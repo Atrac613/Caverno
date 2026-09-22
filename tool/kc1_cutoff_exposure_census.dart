@@ -48,8 +48,8 @@ import 'kc1_cutoff_oracle.dart';
 ///   shape than "used the expired idiom of two".
 ///
 /// So the §4 promotion gate, which asks whether class 2 *dominates*, is not yet
-/// answered by a paired measurement. Class 3's fixture is oracle-backed but
-/// remains unmeasured until a model replay is authorized.
+/// answered by this fixture set. The class 3 replay was measured on 2026-09-23;
+/// class 1 remains absent. See `docs/knowledge_currency_track_design.md`.
 Future<void> main(List<String> args) async {
   final options = CensusOptions.parse(args, Platform.environment);
   if (options == null) {
