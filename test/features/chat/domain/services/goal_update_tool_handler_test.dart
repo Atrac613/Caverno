@@ -14,7 +14,7 @@ void main() {
     test('rejects an update when the owning goal is absent', () {
       final outcome = _handle(
         hasGoal: false,
-        arguments: const {'message': 'Made progress'},
+        arguments: const {'completed': false, 'message': 'Made progress'},
       );
 
       expect(outcome.ackOutcome, GoalUpdateAckOutcome.rejectedInactive);
@@ -44,7 +44,10 @@ void main() {
 
     test('returns the exact progress acknowledgement without a claim', () {
       final outcome = _handle(
-        arguments: const {'message': '  Added the parser  '},
+        arguments: const {
+          'completed': false,
+          'message': '  Added the parser  ',
+        },
       );
 
       expect(outcome.ackOutcome, GoalUpdateAckOutcome.progressLogged);
@@ -61,7 +64,10 @@ void main() {
 
     test('returns the exact blocker acknowledgement without a claim', () {
       final outcome = _handle(
-        arguments: const {'blocked_reason': '  Waiting for credentials  '},
+        arguments: const {
+          'completed': false,
+          'blocked_reason': '  Waiting for credentials  ',
+        },
       );
 
       expect(outcome.ackOutcome, GoalUpdateAckOutcome.blockerLogged);

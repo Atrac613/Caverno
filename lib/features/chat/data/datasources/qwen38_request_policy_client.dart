@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/services/qwen38_request_thinking_policy.dart';
 
@@ -20,6 +21,7 @@ final class Qwen38RequestPolicyClient extends http.BaseClient {
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     if (request is http.Request && _isChatCompletion(request)) {
       _applyPolicy(request);
+      _logStrictToolRequest(request);
     }
     return _delegate.send(request);
   }
@@ -42,6 +44,36 @@ final class Qwen38RequestPolicyClient extends http.BaseClient {
     );
     if (overrides == null) return;
     request.body = jsonEncode(overrides.applyTo(body));
+  }
+
+  /// Records the exact post-policy control request immediately before send.
+  ///
+  /// Only forced control turns are expanded. Ordinary multi-tool turns keep
+  /// their compact existing logs, while session JSONL retains their complete
+  /// definitions. Messages and headers are deliberately excluded here.
+  void _logStrictToolRequest(http.Request request) {
+    final decoded = jsonDecode(request.body);
+    if (decoded is! Map) return;
+    final body = Map<String, dynamic>.from(decoded);
+    final toolChoice = body['tool_choice'];
+    if (toolChoice is! Map) return;
+    final tools = body['tools'];
+    if (tools is! List) return;
+    final safeTools = tools
+        .whereType<Map>()
+        .map((tool) {
+          final function = tool['function'];
+          if (function is! Map) return <String, dynamic>{};
+          return <String, dynamic>{
+            'name': function['name'],
+            'parameters': function['parameters'],
+          };
+        })
+        .where((tool) => tool.isNotEmpty)
+        .toList(growable: false);
+    appLog(
+      '[LLM] Strict tool request: ${jsonEncode({'model': body['model'], 'temperature': body['temperature'], 'enable_thinking': body['enable_thinking'], 'chat_template_kwargs': body['chat_template_kwargs'], 'tool_choice': toolChoice, 'tools': safeTools})}',
+    );
   }
 
   static int? _asInt(Object? value) => switch (value) {

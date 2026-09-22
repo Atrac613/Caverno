@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -202,6 +203,71 @@ void main() {
   });
 
   group('Qwen3.8 request thinking policy', () {
+    test('preserves the strict update_goal wire contract for EXL3', () async {
+      final requestBodies = <Map<String, dynamic>>[];
+      final client = _capturingCompletionClient(requestBodies);
+      final qwenDataSource = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+      );
+
+      await qwenDataSource.createChatCompletion(
+        messages: [_userMessage()],
+        tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
+        model: 'qwen3.8-27b-exl3',
+        temperature: 0,
+        maxTokens: 512,
+      );
+
+      final body = requestBodies.single;
+      expect(body['temperature'], 0.0);
+      expect(body['enable_thinking'], isFalse);
+      expect(body['chat_template_kwargs'], {'enable_thinking': false});
+      expect(body.containsKey('reasoning_effort'), isFalse);
+      expect(body['tool_choice'], {
+        'type': 'function',
+        'function': {'name': 'update_goal'},
+      });
+      final parameters = body['tools'][0]['function']['parameters'];
+      expect(parameters, isA<Map<String, dynamic>>());
+      expect(parameters['properties']['completed']['type'], 'boolean');
+      expect(parameters['required'], ['completed']);
+      expect(parameters['additionalProperties'], isFalse);
+    });
+
+    test('leaves ordinary tool selection unforced', () async {
+      final requestBodies = <Map<String, dynamic>>[];
+      final client = _capturingCompletionClient(requestBodies);
+      final source = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+      );
+      const ordinaryTool = {
+        'type': 'function',
+        'function': {
+          'name': 'read_file',
+          'parameters': {'type': 'object'},
+        },
+      };
+
+      await source.createChatCompletion(
+        messages: [_userMessage()],
+        tools: const [ordinaryTool],
+        model: 'qwen3.8-27b-exl3',
+      );
+      await source.createChatCompletion(
+        messages: [_userMessage()],
+        tools: [McpGoalRoutineToolDefinitions.updateGoalTool, ordinaryTool],
+        model: 'qwen3.8-27b-exl3',
+      );
+
+      expect(requestBodies, hasLength(2));
+      expect(requestBodies[0].containsKey('tool_choice'), isFalse);
+      expect(requestBodies[1].containsKey('tool_choice'), isFalse);
+    });
+
     test('serializes the exact disabled tool-request shape', () async {
       final requestBodies = <Map<String, dynamic>>[];
       final client = MockClient((request) async {

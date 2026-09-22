@@ -161,6 +161,8 @@ class LlmSessionLogRequest {
     this.model,
     this.temperature,
     this.maxTokens,
+    this.toolChoice,
+    this.enableThinking,
     this.chatTemplateKwargs,
     this.label,
     this.usageRole = ModelUsageRole.unknown,
@@ -179,6 +181,8 @@ class LlmSessionLogRequest {
   final String? model;
   final double? temperature;
   final int? maxTokens;
+  final Map<String, dynamic>? toolChoice;
+  final bool? enableThinking;
   final Map<String, dynamic>? chatTemplateKwargs;
 
   /// How the video on a message was actually delivered, by message id.
@@ -309,7 +313,9 @@ class LlmSessionLogStore {
   static const schemaName = 'caverno_llm_session_log_entry';
   // v2 adds the `build` field (git commit/dirty/builtAt provenance).
   // v3 adds `request.label`, naming the producer that issued the request.
-  static const schemaVersion = 4;
+  // v4 adds `request.usageRole` for exact producer attribution.
+  // v5 adds strict tool choice and thinking controls to request evidence.
+  static const schemaVersion = 5;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
   static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
@@ -718,6 +724,9 @@ class LlmSessionLogStore {
       'model': request.model,
       'temperature': request.temperature,
       'maxTokens': request.maxTokens,
+      if (request.toolChoice != null) 'tool_choice': request.toolChoice,
+      if (request.enableThinking != null)
+        'enable_thinking': request.enableThinking,
       if (request.chatTemplateKwargs != null)
         'chat_template_kwargs': request.chatTemplateKwargs,
       if (request.label != null && request.label!.trim().isNotEmpty)

@@ -7,6 +7,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
@@ -819,6 +820,71 @@ void main() {
       });
     });
 
+    test('records strict tool request controls without credentials', () async {
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'strict-tool-log',
+        conversationId: 'strict-tool-log',
+      );
+      final remote = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'secret-must-not-be-logged',
+        httpClient: MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'id': 'chatcmpl-strict-tool-log',
+              'object': 'chat.completion',
+              'created': 0,
+              'model': 'qwen3.8-27b-exl3',
+              'choices': [
+                {
+                  'index': 0,
+                  'message': {'role': 'assistant', 'content': 'done'},
+                  'finish_reason': 'stop',
+                },
+              ],
+            }),
+            200,
+            headers: const {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: remote,
+        logStore: store,
+      );
+
+      await LlmSessionLogContext.run(context, () {
+        return dataSource.createChatCompletion(
+          messages: [_message('user-1', MessageRole.user, 'Finish the goal')],
+          tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
+          model: 'qwen3.8-27b-exl3',
+          temperature: 0,
+          maxTokens: 512,
+        );
+      });
+
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final request =
+          (jsonDecode(line) as Map<String, dynamic>)['request']
+              as Map<String, dynamic>;
+      expect(request['model'], 'qwen3.8-27b-exl3');
+      expect(request['temperature'], 0.0);
+      expect(request['enable_thinking'], isFalse);
+      expect(request['chat_template_kwargs'], {'enable_thinking': false});
+      expect(request['tool_choice'], {
+        'type': 'function',
+        'function': {'name': 'update_goal'},
+      });
+      expect(
+        request['tools'][0]['function']['parameters']['properties']['completed']['type'],
+        'boolean',
+      );
+      expect(line, isNot(contains('secret-must-not-be-logged')));
+    });
+
     test('records the ambient producer label on the request', () async {
       // Without this, a tool catalogue that changes shape between two requests
       // of the same operation cannot be attributed to a code path.
@@ -854,7 +920,7 @@ void main() {
       )).readAsLines()).single;
       final decoded = jsonDecode(line) as Map<String, dynamic>;
       expect(decoded['request']['label'], 'narrated transcript feedback');
-      expect(decoded['schemaVersion'], 4);
+      expect(decoded['schemaVersion'], 5);
     });
 
     test('records the ambient usage role on the request', () async {

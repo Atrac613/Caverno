@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../../core/types/goal_completion_policy.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/mcp_tool_entity.dart';
@@ -15,6 +17,9 @@ enum GoalUpdateKind { progress, completion, blocker }
 /// harness really did, so a rejected completion reads as a rejection and the
 /// model keeps working. See LL35 in `docs/local_llm_agent_roadmap.md`.
 enum GoalUpdateAckOutcome {
+  /// The model emitted arguments that do not satisfy the advertised schema.
+  invalidArguments,
+
   /// A `message`-only update was logged as progress.
   progressLogged,
 
@@ -46,20 +51,63 @@ class GoalUpdateInput {
     this.completed = false,
     this.message,
     this.blockedReason,
+    this.validationError,
   });
 
   /// Reads an `update_goal` tool call's raw JSON arguments.
   factory GoalUpdateInput.fromArguments(Map<String, dynamic> arguments) {
+    final completed = arguments['completed'];
+    final message = arguments['message'];
+    final blockedReason = arguments['blocked_reason'];
     return GoalUpdateInput(
-      completed: arguments['completed'] == true,
-      message: arguments['message'] as String?,
-      blockedReason: arguments['blocked_reason'] as String?,
+      completed: completed is bool && completed,
+      message: message is String ? message : null,
+      blockedReason: blockedReason is String ? blockedReason : null,
+      validationError: validateArguments(arguments),
     );
+  }
+
+  /// Returns the exact schema violation without coercing any raw value.
+  static String? validateArguments(Map<String, dynamic> arguments) {
+    if (!arguments.containsKey('completed')) {
+      return 'Invalid update_goal arguments: completed is required and must '
+          'be a JSON boolean.';
+    }
+    final completed = arguments['completed'];
+    if (completed is! bool) {
+      return 'Invalid update_goal arguments: completed must be a JSON '
+          'boolean; received ${completed.runtimeType} ${jsonEncode(completed)}.';
+    }
+    const allowedKeys = {'completed', 'message', 'blocked_reason'};
+    final unexpected =
+        arguments.keys
+            .where((key) => !allowedKeys.contains(key))
+            .toList(growable: false)
+          ..sort();
+    if (unexpected.isNotEmpty) {
+      return 'Invalid update_goal arguments: unexpected field(s): '
+          '${unexpected.join(', ')}.';
+    }
+    final message = arguments['message'];
+    if (arguments.containsKey('message') && message is! String) {
+      return 'Invalid update_goal arguments: message must be a JSON string; '
+          'received ${message.runtimeType} ${jsonEncode(message)}.';
+    }
+    final blockedReason = arguments['blocked_reason'];
+    if (arguments.containsKey('blocked_reason') && blockedReason is! String) {
+      return 'Invalid update_goal arguments: blocked_reason must be a JSON '
+          'string; received ${blockedReason.runtimeType} '
+          '${jsonEncode(blockedReason)}.';
+    }
+    return null;
   }
 
   final bool completed;
   final String? message;
   final String? blockedReason;
+  final String? validationError;
+
+  bool get isValid => validationError == null;
 
   String? get normalizedMessage {
     final trimmed = message?.trim();
@@ -114,17 +162,17 @@ class GoalUpdateAck {
   ///
   /// A rejected completion is a well-formed call the harness answered, not a
   /// tool failure, so it is a successful result whose body is the verdict —
-  /// the model reads the gaps as data. Only a genuinely inactive goal fails.
+  /// the model reads the gaps as data. An inactive goal or schema-invalid
+  /// arguments are tool failures.
   McpToolResult toToolResult(String toolName) {
+    final failed =
+        outcome == GoalUpdateAckOutcome.rejectedInactive ||
+        outcome == GoalUpdateAckOutcome.invalidArguments;
     return McpToolResult(
       toolName: toolName,
-      result: outcome == GoalUpdateAckOutcome.rejectedInactive
-          ? ''
-          : modelMessage,
-      isSuccess: outcome != GoalUpdateAckOutcome.rejectedInactive,
-      errorMessage: outcome == GoalUpdateAckOutcome.rejectedInactive
-          ? modelMessage
-          : null,
+      result: failed ? '' : modelMessage,
+      isSuccess: !failed,
+      errorMessage: failed ? modelMessage : null,
     );
   }
 }
@@ -167,6 +215,12 @@ class GoalUpdateAckResolver {
         const ToolResultCompletionEvidence(),
     GoalCompletionPolicy completionPolicy = GoalCompletionPolicy.toolOrAsk,
   }) {
+    if (!input.isValid) {
+      return GoalUpdateAck(
+        outcome: GoalUpdateAckOutcome.invalidArguments,
+        modelMessage: input.validationError!,
+      );
+    }
     if (goal == null || !goal.isActive) {
       return const GoalUpdateAck(
         outcome: GoalUpdateAckOutcome.rejectedInactive,

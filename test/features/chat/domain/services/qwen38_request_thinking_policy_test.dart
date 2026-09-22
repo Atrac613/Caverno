@@ -121,6 +121,23 @@ void main() {
       );
     });
 
+    test('preserves high reasoning effort without remapping it', () {
+      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'high');
+      final overrides = policy.resolve(
+        model: 'qwen3.8-27b-exl3',
+        maxTokens: 4096,
+      )!;
+      final body = overrides.applyTo({
+        'model': 'qwen3.8-27b-exl3',
+        'reasoning_effort': 'high',
+      });
+
+      expect(overrides.chatTemplateKwargs['reasoning_effort'], 'high');
+      expect(overrides.topLevelEnableThinking, isTrue);
+      expect(body['enable_thinking'], isTrue);
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    });
+
     test('structured utility roles never think, whatever the chat effort', () {
       const policy = Qwen38RequestThinkingPolicy(
         reasoningEffort: 'high',

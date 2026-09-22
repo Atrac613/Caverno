@@ -16,8 +16,10 @@ import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
 import '../../../chat/data/datasources/openai_parameter_support_probe.dart';
+import '../../../chat/data/datasources/strict_tool_choice_policy.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
+import '../../../chat/domain/services/goal_update_ack.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
@@ -3165,7 +3167,8 @@ class LiveLlmDiagnosticService {
       messages: _messages(
         user:
             'The active goal is complete. Report that state by calling '
-            'update_goal exactly once with completed set to true. Do not add '
+            'update_goal exactly once with completed set to the JSON boolean '
+            'literal true, not the string "true" or "True". Do not add '
             'message or blocked_reason, and do not answer in text.',
       ),
       tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
@@ -3175,9 +3178,14 @@ class LiveLlmDiagnosticService {
     );
     final calls = _toolCallsFromResult(result);
     final names = calls.map((call) => call.name).toList(growable: false);
+    final argumentValidationError =
+        calls.length == 1 && calls.single.name == 'update_goal'
+        ? GoalUpdateInput.validateArguments(calls.single.arguments)
+        : null;
     final passed =
         calls.length == 1 &&
         calls.single.name == 'update_goal' &&
+        argumentValidationError == null &&
         calls.single.arguments.length == 1 &&
         calls.single.arguments['completed'] == true;
     return LiveLlmDiagnosticProbeResult(
@@ -3192,13 +3200,61 @@ class LiveLlmDiagnosticService {
           ? 'Observed update_goal with {"completed":true}; it was not executed.'
           : calls.isEmpty
           ? 'No tool calls were returned.'
-          : calls
-                .map((call) => '${call.name}: ${jsonEncode(call.arguments)}')
-                .join('\n'),
+          : [
+              ?argumentValidationError,
+              ...calls.map(
+                (call) => '${call.name}: ${jsonEncode(call.arguments)}',
+              ),
+            ].join('\n'),
       modelContent: _preview(result.content),
       toolCalls: names,
       usage: _usage(result),
+      metadata: {
+        ..._goalUpdateRequestMetadata(),
+        'argumentValidationError': ?argumentValidationError,
+      },
     );
+  }
+
+  /// The contract this probe put on the wire, kept beside the model's call so
+  /// a string boolean stays visible as a model miss rather than a schema miss.
+  Map<String, String> _goalUpdateRequestMetadata() {
+    final tools = [McpGoalRoutineToolDefinitions.updateGoalTool];
+    final function =
+        tools.single['function'] as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final parameters =
+        function['parameters'] as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final properties = parameters['properties'];
+    final completed = properties is Map ? properties['completed'] : null;
+    final completedType = completed is Map ? completed['type'] : null;
+    final requiredFields = parameters['required'];
+    final toolChoice = StrictToolChoicePolicy.openAiToolChoice(tools);
+    final metadata = <String, String>{
+      'toolName': '${function['name']}',
+      'completedType': '$completedType',
+      'required': requiredFields is List ? requiredFields.join(',') : '',
+      'additionalProperties': '${parameters['additionalProperties']}',
+      'temperature': '$_diagnosticTemperature',
+      if (toolChoice != null) 'toolChoice': jsonEncode(toolChoice),
+    };
+    final remote = chatDataSource;
+    if (remote is ChatRemoteDataSource) {
+      final overrides = remote.qwen38RequestOverrides(
+        model: _diagnosticModel,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final enableThinking = overrides?.topLevelEnableThinking;
+      if (enableThinking != null) {
+        metadata['enableThinking'] = '$enableThinking';
+      }
+      final template = overrides?.chatTemplateKwargs;
+      if (template != null) {
+        metadata['chatTemplateKwargs'] = jsonEncode(template);
+      }
+    }
+    return metadata;
   }
 
   Future<LiveLlmDiagnosticReport> _appendToolLoopSamplerCalibrationTrials({

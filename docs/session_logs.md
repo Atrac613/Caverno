@@ -53,7 +53,10 @@ Each line is one JSON object with schema name
 - Operation name such as `streamChatCompletionWithTools` or
   `createChatCompletionWithToolResults`
 - Request messages, model, temperature, max token budget, tools, and tool
-  result payloads when available. A first-party structured tool result can also
+  result payloads when available. Schema v5 also records `tool_choice`, the
+  top-level `enable_thinking` value, and `chat_template_kwargs` so strict tool
+  requests can be compared with the exact post-policy wire controls without
+  recording credentials. A first-party structured tool result can also
   carry optional `request.toolResults[].outcome` facts such as exit status,
   file change/identity, or diagnostic counts. The outcome is additive and can
   be absent for older entries and tools without a trustworthy typed fact.

@@ -90,6 +90,12 @@ final class Qwen38RequestThinkingPolicy {
   static bool isQwen38Model(String model) =>
       model.trim().toLowerCase().startsWith('qwen3.8');
 
+  /// TabbyAPI's EXL3 request path accepts both the top-level switch and the
+  /// template kwarg. Sending the same value through both prevents the backend
+  /// default from re-enabling thinking after the template control was set.
+  static bool isExl3Model(String model) =>
+      isQwen38Model(model) && model.trim().toLowerCase().contains('exl3');
+
   Qwen38RequestOverrides? resolve({
     required String model,
     required int? maxTokens,
@@ -107,6 +113,7 @@ final class Qwen38RequestThinkingPolicy {
       return Qwen38RequestOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: const {'enable_thinking': false},
+        includeTopLevelEnableThinking: isExl3Model(model),
       );
     }
 
@@ -119,6 +126,7 @@ final class Qwen38RequestThinkingPolicy {
               maxTokens: maxTokens,
               chatTemplateKwargs: {'enable_thinking': enableThinking!},
               preserveReasoningEffort: true,
+              includeTopLevelEnableThinking: isExl3Model(model),
             );
     }
 
@@ -126,6 +134,7 @@ final class Qwen38RequestThinkingPolicy {
       return Qwen38RequestOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: const {'enable_thinking': false},
+        includeTopLevelEnableThinking: isExl3Model(model),
       );
     }
 
@@ -137,17 +146,28 @@ final class Qwen38RequestThinkingPolicy {
           'enable_thinking': true,
           'reasoning_effort': 'low',
         },
+        includeTopLevelEnableThinking: isExl3Model(model),
       ),
-      'medium' || 'high' => Qwen38RequestOverrides(
+      'medium' => Qwen38RequestOverrides(
         maxTokens: _atLeastMediumBudget(maxTokens),
         chatTemplateKwargs: const {
           'enable_thinking': true,
           'reasoning_effort': 'medium',
         },
+        includeTopLevelEnableThinking: isExl3Model(model),
+      ),
+      'high' => Qwen38RequestOverrides(
+        maxTokens: _atLeastMediumBudget(maxTokens),
+        chatTemplateKwargs: const {
+          'enable_thinking': true,
+          'reasoning_effort': 'high',
+        },
+        includeTopLevelEnableThinking: isExl3Model(model),
       ),
       _ => Qwen38RequestOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: {'enable_thinking': enableThinking ?? false},
+        includeTopLevelEnableThinking: isExl3Model(model),
       ),
     };
   }
@@ -165,11 +185,17 @@ final class Qwen38RequestOverrides {
     required this.maxTokens,
     required this.chatTemplateKwargs,
     this.preserveReasoningEffort = false,
+    this.includeTopLevelEnableThinking = false,
   });
 
   final bool preserveReasoningEffort;
+  final bool includeTopLevelEnableThinking;
   final int? maxTokens;
   final Map<String, dynamic> chatTemplateKwargs;
+
+  bool? get topLevelEnableThinking => includeTopLevelEnableThinking
+      ? chatTemplateKwargs['enable_thinking'] as bool?
+      : null;
 
   Map<String, dynamic> applyTo(Map<String, dynamic> body) {
     final result = Map<String, dynamic>.of(body)..remove('max_tokens');
@@ -177,6 +203,10 @@ final class Qwen38RequestOverrides {
       result['max_tokens'] = maxTokens;
     }
     if (!preserveReasoningEffort) result.remove('reasoning_effort');
+    final wireEnableThinking = topLevelEnableThinking;
+    if (wireEnableThinking != null) {
+      result['enable_thinking'] = wireEnableThinking;
+    }
     result['chat_template_kwargs'] = {
       if (body['chat_template_kwargs'] is Map)
         ...Map<String, dynamic>.from(body['chat_template_kwargs'] as Map),

@@ -25,6 +25,7 @@ import 'chat_request_logger.dart';
 import 'chat_response_telemetry.dart';
 import 'chat_tool_result_message_formatter.dart';
 import 'reasoning_tagged_stream_assembler.dart';
+import 'strict_tool_choice_policy.dart';
 import 'video_delivery_ledger.dart';
 
 export '../../domain/entities/chat_completion_terminal_metadata.dart';
@@ -195,8 +196,19 @@ class ChatRemoteDataSource
         name: function['name'] as String,
         description: function['description'] as String?,
         parameters: function['parameters'] as Map<String, dynamic>?,
+        strict: function['strict'] == true,
       );
     }).toList();
+  }
+
+  /// Forces a declared control tool on the opening request only.
+  ///
+  /// Tool-result follow-ups stay model-directed. Forcing `update_goal` again
+  /// after its result would require another call and trap a restricted goal
+  /// turn that should be allowed to finish in text.
+  ToolChoice? _buildToolChoice(List<Map<String, dynamic>>? tools) {
+    final functionName = StrictToolChoicePolicy.forcedFunctionName(tools);
+    return functionName == null ? null : ToolChoice.function(functionName);
   }
 
   /// Get chat completion via streaming (without tools)
@@ -369,6 +381,7 @@ class ChatRemoteDataSource
               maxCompletionTokens: _requestFallback
                   .maxCompletionTokensForRequest(maxTokens),
               tools: _buildTools(tools),
+              toolChoice: _buildToolChoice(tools),
               streamOptions: const StreamOptions(includeUsage: true),
               reasoningEffort: _requestFallback.reasoningEffortForRequest(
                 includeReasoning,
@@ -548,6 +561,7 @@ class ChatRemoteDataSource
           maxTokens,
         ),
         tools: _buildTools(tools),
+        toolChoice: _buildToolChoice(tools),
         responseFormat: responseFormat,
         reasoningEffort: _requestFallback.reasoningEffortForRequest(
           includeReasoning,

@@ -450,6 +450,29 @@ void main() {
     },
   );
 
+  test('keeps update_goal string boolean failures explicit', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _FakeDiagnosticDataSource(goalCompleted: 'True'),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'update_goal_fidelity'});
+    final result = _result(report, 'update_goal_fidelity');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.details, contains('must be a JSON boolean'));
+    expect(result.details, contains('{"completed":"True"}'));
+    expect(
+      result.metadata['argumentValidationError'],
+      contains('received String "True"'),
+    );
+    expect(result.metadata['completedType'], 'boolean');
+    expect(result.metadata['required'], 'completed');
+    expect(result.metadata['additionalProperties'], 'false');
+    expect(result.metadata['toolChoice'], contains('update_goal'));
+  });
+
   test('selects the strongest exactly reproduced edit format', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -1486,6 +1509,7 @@ class _FakeDiagnosticDataSource
     this.silentChart = false,
     this.schemaArmRunsToTokenCap = false,
     this.toolDepthLimit = 4,
+    this.goalCompleted = true,
   });
 
   final bool textToolCalls;
@@ -1502,6 +1526,7 @@ class _FakeDiagnosticDataSource
   /// this answers in text instead of calling the next tool, which is what
   /// losing the carried state looks like.
   final int toolDepthLimit;
+  final Object goalCompleted;
 
   /// Answers the chart question the same with and without the image, which is
   /// what a model that never looked at the picture does.
@@ -1759,7 +1784,7 @@ class _FakeDiagnosticDataSource
       });
     }
     if (user.contains('update_goal exactly once')) {
-      return _toolCall('update_goal', const {'completed': true});
+      return _toolCall('update_goal', {'completed': goalCompleted});
     }
     if (user.contains('get_current_datetime')) {
       return _toolCall('get_current_datetime', const <String, dynamic>{});
