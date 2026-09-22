@@ -965,9 +965,14 @@ is gone.
 
 Status: `current`
 
-Progress as of 2026-09-05: the paired replay instrument and three measurements
-landed for classes 2 and 4. Class 1 still needs a networked oracle, and class 3
-needs a different verdict shape; the full acceptance gate remains open. See
+Progress as of 2026-09-22: the paired replay instrument and three measurements
+landed for classes 2 and 4. Class 3 now has an oracle-backed environment
+verdict shape (`required` / `inherited` / `unnecessary` / `wrong` /
+`unscorable`) and a non-prescriptive Flutter `ThemeData.useMaterial3` fixture;
+its paired measurement is still open. Redundant-default exposure is reported
+separately from truth/staleness so a behaviorally correct but stale override is
+not hidden in the ordinary stale rate. Class 1 still needs a networked oracle,
+so the full acceptance gate remains open. See
 [the track design](knowledge_currency_track_design.md) for the measurements
 and [the cross-track index](roadmap.md#active-focus) for the current next action.
 
@@ -1048,9 +1053,10 @@ Acceptance criteria:
 - A lockfile/installed-metadata mismatch is labeled and omitted from the
   authoritative dependency list; `unverifiable` never becomes an exact claim.
 - Byte-identical block across two consecutive turns in the same project.
-- A paired KC1 re-run reports the API-drift/environment stale and unsupported
-  rate changes. If neither moves, that is a negative result, not a reason to
-  keep tuning the wording.
+- A paired KC1 re-run reports the API-drift stale/unsupported rates and the
+  environment stale, unsupported, and redundant-default exposure rates. If
+  none moves, that is a negative result, not a reason to keep tuning the
+  wording.
 
 Known risk, handled rather than deferred: **the block carries authority.** A
 `pubspec.lock` that is stale relative to what is actually installed makes the

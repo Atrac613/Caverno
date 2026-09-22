@@ -120,10 +120,11 @@ class CutoffOracle {
     for (final root in _flutterSourceRoots()) {
       final directory = Directory(root);
       if (!directory.existsSync()) continue;
-      for (final file in directory
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((file) => file.path.endsWith('.dart'))) {
+      for (final file
+          in directory
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((file) => file.path.endsWith('.dart'))) {
         final message = _deprecationBefore(file.readAsLinesSync(), symbol);
         if (message != null) return message;
       }
@@ -141,13 +142,30 @@ class CutoffOracle {
           .whereType<File>()
           .where((file) => file.path.endsWith('.dart'))
           .any(
-            (file) => file
-                .readAsStringSync()
-                .contains(RegExp('(class|Color) $symbol\\b')),
+            (file) => file.readAsStringSync().contains(
+              RegExp('(class|Color) $symbol\\b'),
+            ),
           );
       if (found) return true;
     }
     return false;
+  }
+
+  /// The default assigned to `ThemeData.useMaterial3` by the installed
+  /// framework source, or null when the pinned SDK cannot be inspected.
+  ///
+  /// This is environment evidence rather than a deprecation claim: an
+  /// explicit `useMaterial3: true` can be redundant while remaining a
+  /// supported API.
+  bool? flutterThemeDataUseMaterial3Default() {
+    final file = File(
+      '$flutterSdkRoot/packages/flutter/lib/src/material/theme_data.dart',
+    );
+    if (!file.existsSync()) return null;
+    final match = RegExp(
+      r'useMaterial3\s*\?\?=\s*(true|false)\s*;',
+    ).firstMatch(file.readAsStringSync());
+    return match == null ? null : match.group(1) == 'true';
   }
 
   /// Whether [package] defines [symbol] under a path segment named `legacy`.
@@ -208,14 +226,17 @@ class CutoffOracle {
     for (final root in _flutterSourceRoots()) {
       final directory = Directory(root);
       if (!directory.existsSync()) continue;
-      for (final file in directory
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((file) => file.path.endsWith('.dart'))) {
+      for (final file
+          in directory
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((file) => file.path.endsWith('.dart'))) {
         found.addAll(_deprecationsIn(file.readAsLinesSync()));
       }
     }
-    found.sort((a, b) => _compareRelease(_releaseKey(b.since), _releaseKey(a.since)));
+    found.sort(
+      (a, b) => _compareRelease(_releaseKey(b.since), _releaseKey(a.since)),
+    );
     // One deprecated parameter reappears on every widget that takes it, so the
     // raw scan repeats `cacheExtent` eight times before reaching a second API.
     // Deduplicated on the advice a reader would act on, which is the symbol and
@@ -237,11 +258,12 @@ class CutoffOracle {
     final lib = Directory(_packageLib(package));
     if (!lib.existsSync()) return const [];
     final symbols = <String>{};
-    for (final file in lib
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.dart'))
-        .where((file) => file.path.contains('/legacy/'))) {
+    for (final file
+        in lib
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.dart'))
+            .where((file) => file.path.contains('/legacy/'))) {
       for (final match in RegExp(
         r'^(?:abstract\s+|final\s+|base\s+|sealed\s+|interface\s+)*class\s+(\w+)',
         multiLine: true,
@@ -277,11 +299,15 @@ class CutoffOracle {
 
   /// Sortable key for a release string such as `v3.33.0-1.0.pre`.
   static List<int> _releaseKey(String since) {
-    final numbers = RegExp(r'\d+').allMatches(since).map((m) => int.parse(m.group(0)!));
+    final numbers = RegExp(
+      r'\d+',
+    ).allMatches(since).map((m) => int.parse(m.group(0)!));
     return [...numbers, 0, 0, 0].take(3).toList(growable: false);
   }
 
-  static Iterable<ToolchainDeprecation> _deprecationsIn(List<String> lines) sync* {
+  static Iterable<ToolchainDeprecation> _deprecationsIn(
+    List<String> lines,
+  ) sync* {
     for (var i = 0; i < lines.length; i++) {
       if (!lines[i].contains('@Deprecated(')) continue;
       final annotation = StringBuffer();
@@ -343,18 +369,20 @@ class CutoffOracle {
     final counts = {for (final symbol in symbols) symbol: 0};
     final lib = Directory('$projectRoot/lib');
     if (!lib.existsSync()) return counts;
-    for (final file in lib
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.dart'))
-        .where(
-          (file) =>
-              !file.path.endsWith('.g.dart') &&
-              !file.path.endsWith('.freezed.dart'),
-        )) {
+    for (final file
+        in lib
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.dart'))
+            .where(
+              (file) =>
+                  !file.path.endsWith('.g.dart') &&
+                  !file.path.endsWith('.freezed.dart'),
+            )) {
       final contents = file.readAsStringSync();
       for (final symbol in counts.keys) {
-        counts[symbol] = counts[symbol]! +
+        counts[symbol] =
+            counts[symbol]! +
             RegExp('\\b$symbol\\b').allMatches(contents).length;
       }
     }

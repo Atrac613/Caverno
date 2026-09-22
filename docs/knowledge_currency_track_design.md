@@ -115,8 +115,10 @@ Scope:
   tool-catalog settings. Historical logs may seed cases but do not replace the
   paired replay.
 - Report per-class stale-claim rate, unsupported-claim rate, and detector
-  precision/recall. Do not collapse them into one aggregate that hides the
-  network/offline boundary.
+  precision/recall. For class 3, also report environment-exposure rate: the
+  fraction of scorable answers that redundantly restate an installed default.
+  Do not collapse these into one aggregate that hides the network/offline
+  boundary.
 
 Acceptance criteria:
 - A negative control passes: an arm fed deliberately stale fixtures must make
@@ -195,14 +197,18 @@ point: every one of them would have been published as a fact about the model.
    The model answered `const Color(0x80FF0000)` in eight of ten runs — neither
    idiom. Reworded to name an existing colour, the fixture scores 10 of 10.
 
-**Scope, stated rather than implied.** Classes 1 and 3 are absent, and neither
-is an oversight. Class 1 has no offline oracle by definition; sizing it needs a
-networked run. Class 3 does not decompose into a two-idiom pair, because its
-failure is an *unnecessary* line rather than a wrong one — a model setting
-`useMaterial3: true` on an SDK where it is both the default and deprecated —
-and that needs a different verdict shape. So the §4 promotion gate, which asks
-whether class 2 *dominates*, is not yet answered; what this measures is class 2
-against class 4.
+**Scope, stated rather than implied.** Class 1 is still absent because it has
+no offline oracle by definition; sizing it needs a networked run. Class 3 now
+has a separate oracle-backed verdict shape in the census tool: `required`,
+`inherited`, `unnecessary`, `wrong`, or `unscorable`. The environment fixture
+asks for a minimal Material 3 configuration without prescribing the
+`useMaterial3` assertion. It reads the installed `ThemeData.useMaterial3`
+default, treats omission on a true-default SDK as `inherited`, and reports an
+explicit redundant `true` as `unnecessary`. The paired replay exposes that
+latter case through a separate environment-exposure rate, while ordinary
+truth/staleness remains distinct. The §4 promotion gate, which asks whether
+class 2 *dominates*, is not yet answered; the remaining work is a paired class
+3 measurement and the class 1 oracle.
 
 #### Second measurement (2026-09-03): what KC2 should carry
 

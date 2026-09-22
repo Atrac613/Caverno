@@ -23,6 +23,9 @@ CutoffOracle _oracle() => CutoffOracle.resolve();
 CutoffCase _caseNamed(String id) =>
     cutoffCases.firstWhere((testCase) => testCase.id == id);
 
+EnvironmentCase _environmentCaseNamed(String id) =>
+    environmentCases.firstWhere((testCase) => testCase.id == id);
+
 ClaimRecord _score(
   String id,
   String response, {
@@ -54,6 +57,33 @@ void main() {
       );
     });
 
+    test('the environment fixture reads the installed Material 3 default', () {
+      final oracle = _oracle();
+      expect(verifyEnvironmentFixtures(environmentCases, oracle), isEmpty);
+      expect(oracle.flutterThemeDataUseMaterial3Default(), isTrue);
+      expect(environmentCases.single.readDefault(oracle), isTrue);
+    });
+
+    test('environment context does not alter the existing replay block', () {
+      final oracle = _oracle();
+      expect(groundTruthBlock(oracle), isNot(contains('useMaterial3')));
+      expect(
+        environmentGroundTruthBlock(oracle),
+        contains('Flutter ThemeData.useMaterial3 default: true'),
+      );
+    });
+
+    test('the environment task does not prescribe the assertion', () {
+      expect(
+        environmentCases.single.task,
+        isNot(contains('Include the useMaterial3 setting')),
+      );
+      expect(
+        environmentCases.single.task,
+        contains('Do not add redundant overrides'),
+      );
+    });
+
     test('the oracle reads deprecation from the SDK, not from a constant', () {
       final oracle = _oracle();
       expect(oracle.flutterDeprecation('WillPopScope'), contains('PopScope'));
@@ -62,10 +92,7 @@ void main() {
         isNull,
         reason: 'The replacement must not itself be deprecated.',
       );
-      expect(
-        oracle.flutterDeprecation('withOpacity'),
-        contains('withValues'),
-      );
+      expect(oracle.flutterDeprecation('withOpacity'), contains('withValues'));
     });
 
     test('a symbol contained in another is not reported as legacy', () {
@@ -81,6 +108,233 @@ void main() {
             'A substring match reports NotifierProvider as legacy because '
             'StateNotifierProvider contains it, which inverts the fixture. '
             'Found by probing the oracle before trusting it.',
+      );
+    });
+  });
+
+  group('class 3 environment verdicts', () {
+    test(
+      'distinguishes required, inherited, unnecessary, wrong, and unscorable',
+      () {
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: true)',
+            defaultValue: false,
+          ),
+          EnvironmentVerdict.required,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: true)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unnecessary,
+        );
+        expect(
+          scoreEnvironmentSetting(response: 'ThemeData()', defaultValue: true),
+          EnvironmentVerdict.inherited,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: false)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.wrong,
+        );
+        expect(
+          scoreEnvironmentSetting(response: 'ThemeData()', defaultValue: true),
+          EnvironmentVerdict.inherited,
+        );
+        expect(
+          scoreEnvironmentSetting(response: 'ThemeData()', defaultValue: false),
+          EnvironmentVerdict.wrong,
+        );
+        expect(
+          scoreEnvironmentSetting(response: 'SizedBox()', defaultValue: true),
+          EnvironmentVerdict.unscorable,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData() // useMaterial3: true',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.inherited,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: "final text = 'useMaterial3: true'; ThemeData()",
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.inherited,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: enabled)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unscorable,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: null)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unscorable,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: true && enabled)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unscorable,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: true ? enabled : false)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unscorable,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData.light()',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.inherited,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response:
+                'ThemeData.from(colorScheme: ColorScheme.light(), useMaterial3: true)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unnecessary,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData.lerp(a, b, 0.5)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unscorable,
+        );
+        expect(
+          scoreEnvironmentSetting(
+            response: 'ThemeData(useMaterial3: true, useMaterial3: false)',
+            defaultValue: true,
+          ),
+          EnvironmentVerdict.unscorable,
+        );
+      },
+    );
+
+    test('keeps environment verdict separate from grounding', () {
+      final testCase = _environmentCaseNamed('flutter-material3-default');
+      final claim = scoreEnvironmentResponse(
+        testCase: testCase,
+        arm: CensusArm.grounded,
+        repeat: 1,
+        response: 'ThemeData(useMaterial3: true)',
+        truthSource: 'test',
+        promptSupportsClaim: true,
+        defaultValue: true,
+      );
+
+      expect(claim.environmentVerdict, EnvironmentVerdict.unnecessary);
+      expect(claim.truth, TruthVerdict.correct);
+      expect(claim.grounding, GroundingVerdict.supported);
+      expect(claim.provenance, GroundingProvenance.promptContext);
+      expect(claim.assertedValue, 'true');
+      expect(claim.expectedValue, 'omitted');
+      expect(claim.toJson()['environment_verdict'], 'unnecessary');
+    });
+
+    test('records an omitted default override as inherited', () {
+      final testCase = _environmentCaseNamed('flutter-material3-default');
+      final claim = scoreEnvironmentResponse(
+        testCase: testCase,
+        arm: CensusArm.bare,
+        repeat: 1,
+        response: 'ThemeData()',
+        truthSource: 'test',
+        promptSupportsClaim: false,
+        defaultValue: true,
+      );
+
+      expect(claim.environmentVerdict, EnvironmentVerdict.inherited);
+      expect(claim.truth, TruthVerdict.correct);
+      expect(claim.assertedValue, 'omitted');
+      expect(claim.expectedValue, 'omitted');
+      expect(claim.grounding, GroundingVerdict.absent);
+    });
+
+    test(
+      'records the required assertion when the installed default is false',
+      () {
+        final testCase = _environmentCaseNamed('flutter-material3-default');
+        final claim = scoreEnvironmentResponse(
+          testCase: testCase,
+          arm: CensusArm.bare,
+          repeat: 1,
+          response: 'ThemeData(useMaterial3: true)',
+          truthSource: 'test',
+          promptSupportsClaim: false,
+          defaultValue: false,
+        );
+
+        expect(claim.environmentVerdict, EnvironmentVerdict.required);
+        expect(claim.assertedValue, 'true');
+        expect(claim.expectedValue, 'true');
+        expect(claim.truth, TruthVerdict.correct);
+      },
+    );
+
+    test('the environment negative control fails before replay', () {
+      final wrong = EnvironmentCase(
+        id: 'deliberately-wrong-environment',
+        task: 'irrelevant',
+        description: 'claims an unavailable environment fact',
+        readDefault: (_) => null,
+        confirmEnvironment: (_) => 'the environment oracle is unavailable',
+      );
+
+      expect(verifyEnvironmentFixtures([wrong], _oracle()), [
+        'deliberately-wrong-environment: the environment oracle is unavailable',
+      ]);
+    });
+
+    test('the replay records class 3 verdicts in the summary', () async {
+      final options = CensusOptions.parse(const [
+        '--endpoint',
+        'http://scripted/v1/chat/completions',
+        '--model',
+        'scripted',
+        '--repeats',
+        '1',
+        '--case',
+        'flutter-material3-default',
+      ], const {});
+      final summary = await runCutoffCensus(
+        options: options!,
+        oracle: _oracle(),
+        environmentCases: [_environmentCaseNamed('flutter-material3-default')],
+        send: (system, user) async => 'ThemeData(useMaterial3: true)',
+      );
+
+      expect(summary.claims, hasLength(CensusArm.values.length));
+      expect(
+        summary.environmentVerdicts(CensusArm.grounded),
+        containsPair(EnvironmentVerdict.unnecessary, 1),
+      );
+      expect(
+        summary
+            .toJson()['arms']['grounded']['environmentVerdicts']['unnecessary'],
+        1,
+      );
+      expect(summary.environmentExposureRateFor(CensusArm.grounded), 1);
+      expect(
+        summary
+            .toJson()['byClass']['environment']['grounded']['environmentExposureRate'],
+        1,
       );
     });
   });
@@ -105,8 +359,10 @@ void main() {
 
     test('using both, or neither, is unscorable rather than either side', () {
       expect(
-        _score('color-with-values', 'c.withOpacity(0.5) // or c.withValues()')
-            .truth,
+        _score(
+          'color-with-values',
+          'c.withOpacity(0.5) // or c.withValues()',
+        ).truth,
         TruthVerdict.unscorable,
       );
       expect(
@@ -137,38 +393,47 @@ void main() {
   });
 
   group('truth and grounding are separate axes', () {
-    test('a correct and a stale claim with no grounding differ in truth only', () {
-      final correct = _score('riverpod-notifier', 'final p = NotifierProvider(...);');
-      final stale = _score(
-        'riverpod-notifier',
-        'final p = StateNotifierProvider(...);',
-      );
+    test(
+      'a correct and a stale claim with no grounding differ in truth only',
+      () {
+        final correct = _score(
+          'riverpod-notifier',
+          'final p = NotifierProvider(...);',
+        );
+        final stale = _score(
+          'riverpod-notifier',
+          'final p = StateNotifierProvider(...);',
+        );
 
-      expect(correct.truth, TruthVerdict.correct);
-      expect(stale.truth, TruthVerdict.stale);
-      expect(correct.grounding, GroundingVerdict.absent);
-      expect(stale.grounding, GroundingVerdict.absent);
-      expect(correct.provenance, GroundingProvenance.none);
-      expect(stale.provenance, GroundingProvenance.none);
-    });
+        expect(correct.truth, TruthVerdict.correct);
+        expect(stale.truth, TruthVerdict.stale);
+        expect(correct.grounding, GroundingVerdict.absent);
+        expect(stale.grounding, GroundingVerdict.absent);
+        expect(correct.provenance, GroundingProvenance.none);
+        expect(stale.provenance, GroundingProvenance.none);
+      },
+    );
 
-    test('the grounded arm is attributed to the prompt, not to a tool result', () {
-      final claim = _score(
-        'repo-state-management',
-        'final p = NotifierProvider(...);',
-        arm: CensusArm.grounded,
-      );
+    test(
+      'the grounded arm is attributed to the prompt, not to a tool result',
+      () {
+        final claim = _score(
+          'repo-state-management',
+          'final p = NotifierProvider(...);',
+          arm: CensusArm.grounded,
+        );
 
-      expect(claim.grounding, GroundingVerdict.supported);
-      expect(
-        claim.provenance,
-        GroundingProvenance.promptContext,
-        reason:
-            'KC2 evidence arrives in the prompt. Reporting it as an absent '
-            'same-turn tool result would make the KC2 block look ineffective '
-            'exactly where it worked.',
-      );
-    });
+        expect(claim.grounding, GroundingVerdict.supported);
+        expect(
+          claim.provenance,
+          GroundingProvenance.promptContext,
+          reason:
+              'KC2 evidence arrives in the prompt. Reporting it as an absent '
+              'same-turn tool result would make the KC2 block look ineffective '
+              'exactly where it worked.',
+        );
+      },
+    );
 
     test('a stale grounded claim contradicts the prompt context', () {
       final claim = _score(
@@ -245,7 +510,7 @@ void main() {
         0.5,
       );
       final json = summary.toJson();
-      expect(json['schemaVersion'], 2);
+      expect(json['schemaVersion'], 3);
       expect((json['arms'] as Map)['grounded']['unsupportedRate'], 0.5);
     });
   });
@@ -464,29 +729,32 @@ void main() {
       expect(problems.single, contains('does not deprecate PopScope'));
     });
 
-    test('a transport failure is recorded, never scored as staleness', () async {
-      final options = CensusOptions.parse(const [
-        '--endpoint',
-        'http://scripted/v1/chat/completions',
-        '--model',
-        'scripted',
-        '--repeats',
-        '1',
-      ], const {});
+    test(
+      'a transport failure is recorded, never scored as staleness',
+      () async {
+        final options = CensusOptions.parse(const [
+          '--endpoint',
+          'http://scripted/v1/chat/completions',
+          '--model',
+          'scripted',
+          '--repeats',
+          '1',
+        ], const {});
 
-      final summary = await runCutoffCensus(
-        options: options!,
-        oracle: _oracle(),
-        cases: [_caseNamed('flutter-pop-scope')],
-        send: (system, user) async => throw StateError('endpoint down'),
-      );
+        final summary = await runCutoffCensus(
+          options: options!,
+          oracle: _oracle(),
+          cases: [_caseNamed('flutter-pop-scope')],
+          send: (system, user) async => throw StateError('endpoint down'),
+        );
 
-      expect(summary.failures(), CensusArm.values.length);
-      expect(summary.staleRate(CensusArm.bare), 0);
-      expect(summary.unsupportedRate(CensusArm.bare), isNull);
-      expect(summary.report(), contains('stale  - unsupported'));
-      expect(summary.claims.first.failure, contains('endpoint down'));
-    });
+        expect(summary.failures(), CensusArm.values.length);
+        expect(summary.staleRate(CensusArm.bare), 0);
+        expect(summary.unsupportedRate(CensusArm.bare), isNull);
+        expect(summary.report(), contains('stale  - unsupported'));
+        expect(summary.claims.first.failure, contains('endpoint down'));
+      },
+    );
   });
 
   group('the run records what it was', () {
@@ -567,7 +835,8 @@ void main() {
       expect(
         summary.runIdentity['buildCommit'],
         isNotEmpty,
-        reason: 'Grounded logs only: a run without build provenance is not one.',
+        reason:
+            'Grounded logs only: a run without build provenance is not one.',
       );
     });
   });

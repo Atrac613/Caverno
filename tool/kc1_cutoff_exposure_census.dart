@@ -34,22 +34,22 @@ import 'kc1_cutoff_oracle.dart';
 /// neither is `unscorable`, reported as itself rather than folded into either
 /// side.
 ///
-/// Scope limit, stated rather than implied. Classes 2 (API drift) and 4 (this
-/// repository) are covered; classes 1 and 3 are not, and neither is an
-/// oversight:
+/// Scope limit, stated rather than implied. The paired idiom arms cover
+/// classes 2 (API drift) and 4 (this repository), and the separate environment
+/// arm covers class 3. Class 1 is not covered, and that is not an oversight:
 ///
 /// - **Class 1, world facts**, has no offline oracle by definition — its
 ///   correct ground is web search, per §2. Sizing it needs a networked run, not
 ///   a fixture here.
 /// - **Class 3, environment facts**, does not decompose into a two-idiom pair.
 ///   Its failure is usually an *unnecessary* line rather than a wrong one — a
-///   model setting `useMaterial3: true` on an SDK where it is both the default
-///   and deprecated. Scoring "wrote something superfluous" needs a different
-///   verdict shape than "used the expired idiom of two", and forcing it into
-///   this one would make most responses unscorable.
+///   model setting `useMaterial3: true` on an SDK where it is already the
+///   default. Scoring "wrote something superfluous" needs a different verdict
+///   shape than "used the expired idiom of two".
 ///
 /// So the §4 promotion gate, which asks whether class 2 *dominates*, is not yet
-/// answered. What this measures is class 2's rate against class 4's.
+/// answered by a paired measurement. Class 3's fixture is oracle-backed but
+/// remains unmeasured until a model replay is authorized.
 Future<void> main(List<String> args) async {
   final options = CensusOptions.parse(args, Platform.environment);
   if (options == null) {
@@ -60,17 +60,33 @@ Future<void> main(List<String> args) async {
 
   final oracle = CutoffOracle.resolve(projectRoot: options.projectRoot);
   final fixtureProblems = verifyFixtures(cutoffCases, oracle);
-  if (fixtureProblems.isNotEmpty) {
-    stderr.writeln('Fixture verification failed against the installed toolchain:');
-    for (final problem in fixtureProblems) {
+  final environmentProblems = verifyEnvironmentFixtures(
+    environmentCases,
+    oracle,
+  );
+  if (fixtureProblems.isNotEmpty || environmentProblems.isNotEmpty) {
+    stderr.writeln(
+      'Fixture verification failed against the installed toolchain:',
+    );
+    for (final problem in [...fixtureProblems, ...environmentProblems]) {
       stderr.writeln('  - $problem');
     }
     exitCode = 65;
     return;
   }
   if (options.verifyOnly) {
-    stdout.writeln('All ${cutoffCases.length} fixtures confirmed by the oracle.');
+    stdout.writeln(
+      'All ${cutoffCases.length + environmentCases.length} fixtures '
+      'confirmed by the oracle.',
+    );
     stdout.writeln(groundTruthBlock(oracle));
+    final material3Default = oracle.flutterThemeDataUseMaterial3Default();
+    if (material3Default != null) {
+      stdout.writeln(
+        'Environment fixture: Flutter ThemeData.useMaterial3 default: '
+        '$material3Default',
+      );
+    }
     return;
   }
 
@@ -90,8 +106,11 @@ Future<void> main(List<String> args) async {
         userPrompt: user,
       ),
       onProgress: (line) => stderr.writeln(line),
+      environmentCases: environmentCases,
     );
-    final encoded = const JsonEncoder.withIndent('  ').convert(summary.toJson());
+    final encoded = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(summary.toJson());
     if (options.outputPath != null) {
       final file = File(options.outputPath!);
       await file.parent.create(recursive: true);
@@ -115,6 +134,26 @@ enum GroundingProvenance { promptContext, toolResult, none }
 enum TruthVerdict { correct, stale, unscorable }
 
 enum GroundingVerdict { supported, contradicted, absent }
+
+/// The environment-specific shape needed for claims such as an explicit
+/// setting that is already the installed SDK default.
+enum EnvironmentVerdict {
+  /// The setting is required because the installed default is false.
+  required,
+
+  /// The response inherits the installed true default by omitting the setting.
+  inherited,
+
+  /// The setting repeats the installed true default and exposes stale config
+  /// knowledge even though the resulting behavior is still correct.
+  unnecessary,
+
+  /// The response disables Material 3 or omits the required enablement.
+  wrong,
+
+  /// The response contains conflicting explicit values.
+  unscorable,
+}
 
 /// One replayable case.
 ///
@@ -275,6 +314,39 @@ final cutoffCases = <CutoffCase>[
   ),
 ];
 
+class EnvironmentCase {
+  const EnvironmentCase({
+    required this.id,
+    required this.task,
+    required this.description,
+    required this.readDefault,
+    required this.confirmEnvironment,
+  });
+
+  final String id;
+  final String task;
+  final String description;
+  final bool? Function(CutoffOracle oracle) readDefault;
+  final String? Function(CutoffOracle oracle) confirmEnvironment;
+}
+
+final environmentCases = <EnvironmentCase>[
+  EnvironmentCase(
+    id: 'flutter-material3-default',
+    description: 'ThemeData.useMaterial3 default is read from the SDK source',
+    task:
+        'In Flutter, write a minimal ThemeData configuration that enables '
+        'Material 3 while preserving the installed SDK default when it '
+        'already enables Material 3. Do not add redundant overrides. '
+        'Return only Dart code.',
+    readDefault: (oracle) => oracle.flutterThemeDataUseMaterial3Default(),
+    confirmEnvironment: (oracle) =>
+        oracle.flutterThemeDataUseMaterial3Default() == null
+        ? 'the installed Flutter SDK does not expose ThemeData.useMaterial3'
+        : null,
+  ),
+];
+
 /// Fixture problems, empty when the installed toolchain confirms every case.
 ///
 /// Runs before any request. A fixture the toolchain does not back is not a
@@ -282,6 +354,17 @@ final cutoffCases = <CutoffCase>[
 List<String> verifyFixtures(List<CutoffCase> cases, CutoffOracle oracle) => [
   for (final testCase in cases)
     if (testCase.confirmStale(oracle) case final problem?)
+      '${testCase.id}: $problem',
+];
+
+/// Fixture problems for environment claims, empty when the installed SDK
+/// exposes the fact the fixture measures.
+List<String> verifyEnvironmentFixtures(
+  List<EnvironmentCase> cases,
+  CutoffOracle oracle,
+) => [
+  for (final testCase in cases)
+    if (testCase.confirmEnvironment(oracle) case final problem?)
       '${testCase.id}: $problem',
 ];
 
@@ -298,6 +381,15 @@ String groundTruthBlock(CutoffOracle oracle) {
     if (version != null) buffer.write('\n- $package: $version');
   }
   return buffer.toString();
+}
+
+/// The environment fixture's measured context. Kept separate from
+/// [groundTruthBlock] so adding class 3 does not change the class 2/4 replay
+/// baseline.
+String environmentGroundTruthBlock(CutoffOracle oracle) {
+  final material3Default = oracle.flutterThemeDataUseMaterial3Default();
+  if (material3Default == null) return groundTruthBlock(oracle);
+  return '${groundTruthBlock(oracle)}\n- Flutter ThemeData.useMaterial3 default: $material3Default';
 }
 
 enum CensusArm {
@@ -336,9 +428,7 @@ String deltaBlock(CutoffOracle oracle) {
   }
   final legacy = oracle.packageLegacySymbols('riverpod');
   if (legacy.isNotEmpty) {
-    buffer.write(
-      '\n- riverpod moved these to legacy: ${legacy.join(', ')}',
-    );
+    buffer.write('\n- riverpod moved these to legacy: ${legacy.join(', ')}');
   }
   for (final line in oracle.packageBreakingChanges('freezed')) {
     buffer.write('\n- freezed: ${line.replaceFirst(RegExp(r'^-\s*'), '')}');
@@ -380,6 +470,208 @@ bool promptSupportsClaimFor({
   };
 }
 
+/// Whether the complete prompt context carries the environment fact for
+/// [testCase]. The grounded and delta arms both carry the measured default.
+bool promptSupportsEnvironmentClaimFor({
+  required EnvironmentCase testCase,
+  required CensusArm arm,
+  required CutoffOracle oracle,
+}) => arm != CensusArm.bare && testCase.readDefault(oracle) != null;
+
+class _EnvironmentAssertion {
+  const _EnvironmentAssertion({
+    required this.hasThemeData,
+    required this.explicitTrue,
+    required this.explicitFalse,
+    required this.unknownValue,
+  });
+
+  final bool hasThemeData;
+  final bool explicitTrue;
+  final bool explicitFalse;
+  final bool unknownValue;
+
+  String get value => !hasThemeData
+      ? 'none'
+      : unknownValue
+      ? 'unknown'
+      : explicitTrue && explicitFalse
+      ? 'both'
+      : explicitTrue
+      ? 'true'
+      : explicitFalse
+      ? 'false'
+      : 'omitted';
+}
+
+/// Replaces comments and string literals with spaces while preserving code
+/// characters and newlines. Environment scoring must inspect the constructor,
+/// not examples or explanations embedded in an otherwise valid code response.
+String _sanitizeDartForEnvironment(String source) {
+  final output = StringBuffer();
+  var index = 0;
+  var lineComment = false;
+  var blockComment = false;
+  String? quote;
+  var tripleQuote = false;
+  while (index < source.length) {
+    final char = source[index];
+    final next = index + 1 < source.length ? source[index + 1] : null;
+    final nextNext = index + 2 < source.length ? source[index + 2] : null;
+    if (lineComment) {
+      if (char == '\n') {
+        lineComment = false;
+        output.write('\n');
+      } else {
+        output.write(' ');
+      }
+      index++;
+      continue;
+    }
+    if (blockComment) {
+      if (char == '*' && next == '/') {
+        output.write('  ');
+        index += 2;
+      } else {
+        output.write(char == '\n' ? '\n' : ' ');
+        index++;
+      }
+      if (index >= 2 && source[index - 2] == '*' && source[index - 1] == '/') {
+        blockComment = false;
+      }
+      continue;
+    }
+    if (quote != null) {
+      if (tripleQuote && char == quote && next == quote && nextNext == quote) {
+        output.write('   ');
+        index += 3;
+        quote = null;
+        tripleQuote = false;
+      } else if (!tripleQuote && char == '\\') {
+        output.write('  ');
+        index += next == null ? 1 : 2;
+      } else if (!tripleQuote && char == quote) {
+        output.write(' ');
+        index++;
+        quote = null;
+      } else {
+        output.write(char == '\n' ? '\n' : ' ');
+        index++;
+      }
+      continue;
+    }
+    if (char == '/' && next == '/') {
+      output.write('  ');
+      index += 2;
+      lineComment = true;
+      continue;
+    }
+    if (char == '/' && next == '*') {
+      output.write('  ');
+      index += 2;
+      blockComment = true;
+      continue;
+    }
+    if (char == "'" || char == '"') {
+      final isTriple = char == next && char == nextNext;
+      output.write(isTriple ? '   ' : ' ');
+      index += isTriple ? 3 : 1;
+      quote = char;
+      tripleQuote = isTriple;
+      continue;
+    }
+    output.write(char);
+    index++;
+  }
+  return output.toString();
+}
+
+String? _parenthesizedBody(String source, int openingIndex) {
+  var depth = 0;
+  for (var index = openingIndex + 1; index < source.length; index++) {
+    switch (source[index]) {
+      case '(':
+        depth++;
+      case ')':
+        if (depth == 0) return source.substring(openingIndex + 1, index);
+        depth--;
+    }
+  }
+  return null;
+}
+
+_EnvironmentAssertion _readEnvironmentAssertion(String response) {
+  final sanitized = _sanitizeDartForEnvironment(response);
+  var hasThemeData = false;
+  var malformedThemeData = false;
+  var explicitTrue = false;
+  var explicitFalse = false;
+  var unknownValue = false;
+  final constructorPattern = RegExp(
+    r'\bThemeData(?:\.(?:from|light|dark|fallback|raw))?\s*\(',
+  );
+  final settingPattern = RegExp(r'\buseMaterial3\s*:');
+  final truePattern = RegExp(r'\buseMaterial3\s*:\s*true\s*(?=,|$)');
+  final falsePattern = RegExp(r'\buseMaterial3\s*:\s*false\s*(?=,|$)');
+  for (final match in constructorPattern.allMatches(sanitized)) {
+    final body = _parenthesizedBody(sanitized, match.end - 1);
+    if (body == null) {
+      malformedThemeData = true;
+      continue;
+    }
+    hasThemeData = true;
+    final hasSetting = settingPattern.hasMatch(body);
+    final hasTrue = truePattern.hasMatch(body);
+    final hasFalse = falsePattern.hasMatch(body);
+    explicitTrue = explicitTrue || hasTrue;
+    explicitFalse = explicitFalse || hasFalse;
+    unknownValue = unknownValue || (hasSetting && !hasTrue && !hasFalse);
+  }
+  return _EnvironmentAssertion(
+    hasThemeData: hasThemeData && !malformedThemeData,
+    explicitTrue: explicitTrue,
+    explicitFalse: explicitFalse,
+    unknownValue: unknownValue,
+  );
+}
+
+/// Classifies an environment setting against the installed default. Omitting
+/// the setting is a valid, correct inheritance claim when the default already
+/// enables Material 3; omitting it on a false-default SDK fails enablement.
+/// This is intentionally separate from the stale/current idiom scorer used by
+/// API drift fixtures.
+EnvironmentVerdict scoreEnvironmentSetting({
+  required String response,
+  required bool defaultValue,
+}) {
+  final assertion = _readEnvironmentAssertion(response);
+  if (!assertion.hasThemeData ||
+      assertion.unknownValue ||
+      (assertion.explicitTrue && assertion.explicitFalse)) {
+    return EnvironmentVerdict.unscorable;
+  }
+  if (!assertion.explicitTrue && !assertion.explicitFalse) {
+    return defaultValue
+        ? EnvironmentVerdict.inherited
+        : EnvironmentVerdict.wrong;
+  }
+  if (assertion.explicitTrue) {
+    return defaultValue
+        ? EnvironmentVerdict.unnecessary
+        : EnvironmentVerdict.required;
+  }
+  return EnvironmentVerdict.wrong;
+}
+
+TruthVerdict truthForEnvironment(EnvironmentVerdict verdict) =>
+    switch (verdict) {
+      EnvironmentVerdict.required ||
+      EnvironmentVerdict.inherited ||
+      EnvironmentVerdict.unnecessary => TruthVerdict.correct,
+      EnvironmentVerdict.wrong => TruthVerdict.stale,
+      EnvironmentVerdict.unscorable => TruthVerdict.unscorable,
+    };
+
 class ClaimRecord {
   const ClaimRecord({
     required this.claimId,
@@ -393,6 +685,7 @@ class ClaimRecord {
     required this.assertedValue,
     required this.expectedValue,
     required this.truthSource,
+    this.environmentVerdict,
     this.failure,
   });
 
@@ -405,14 +698,15 @@ class ClaimRecord {
   final GroundingVerdict grounding;
   final GroundingProvenance provenance;
 
-  /// The idiom the response actually used, as matched.
+  /// The value or idiom the response actually asserted, as matched.
   final String assertedValue;
 
-  /// The idiom the installed toolchain uses.
+  /// The value or idiom the installed toolchain expects.
   final String expectedValue;
 
   /// What on disk said so.
   final String truthSource;
+  final EnvironmentVerdict? environmentVerdict;
   final String? failure;
 
   Map<String, dynamic> toJson() => {
@@ -427,6 +721,8 @@ class ClaimRecord {
     'asserted_value': assertedValue,
     'expected_value': expectedValue,
     'truth_source': truthSource,
+    if (environmentVerdict case final verdict?)
+      'environment_verdict': verdict.name,
     if (failure != null) 'failure': failure,
   };
 }
@@ -500,6 +796,28 @@ class CensusSummary {
         scored.length;
   }
 
+  /// Rate of environment claims that redundantly restate the installed true
+  /// default. This is separate from truth/staleness: the resulting behavior is
+  /// correct, but the explicit override is the class-3 exposure being measured.
+  double? environmentExposureRateFor(CensusArm arm) {
+    final scored = claims
+        .where(
+          (c) =>
+              c.cutoffClass == CutoffClass.environment &&
+              c.arm == arm &&
+              c.failure == null &&
+              c.truth != TruthVerdict.unscorable,
+        )
+        .toList(growable: false);
+    if (scored.isEmpty) return null;
+    return scored
+            .where(
+              (c) => c.environmentVerdict == EnvironmentVerdict.unnecessary,
+            )
+            .length /
+        scored.length;
+  }
+
   /// Unsupported-claim rate for one class in one arm, or null when nothing is
   /// scorable.
   double? unsupportedRateFor(CutoffClass cutoffClass, CensusArm arm) {
@@ -519,12 +837,24 @@ class CensusSummary {
         scored.length;
   }
 
-  Set<CutoffClass> get classes =>
-      claims.map((c) => c.cutoffClass).toSet();
+  Map<EnvironmentVerdict, int> environmentVerdicts(CensusArm arm) {
+    final counts = {
+      for (final verdict in EnvironmentVerdict.values) verdict: 0,
+    };
+    for (final claim in claims) {
+      if (claim.arm == arm && claim.failure == null) {
+        final verdict = claim.environmentVerdict;
+        if (verdict != null) counts[verdict] = counts[verdict]! + 1;
+      }
+    }
+    return counts;
+  }
+
+  Set<CutoffClass> get classes => claims.map((c) => c.cutoffClass).toSet();
 
   Map<String, dynamic> toJson() => {
     'schema': 'caverno_kc1_cutoff_exposure_census',
-    'schemaVersion': 2,
+    'schemaVersion': 3,
     'run': runIdentity,
     'claims': claims.length,
     'failures': failures(),
@@ -535,6 +865,8 @@ class CensusSummary {
             arm.name: {
               'staleRate': staleRateFor(cutoffClass, arm),
               'unsupportedRate': unsupportedRateFor(cutoffClass, arm),
+              if (cutoffClass == CutoffClass.environment)
+                'environmentExposureRate': environmentExposureRateFor(arm),
             },
         },
     },
@@ -544,6 +876,11 @@ class CensusSummary {
           'staleRate': staleRate(arm),
           'unsupportedRate': unsupportedRate(arm),
           'unscorable': unscorable(arm),
+          'environmentExposureRate': environmentExposureRateFor(arm),
+          'environmentVerdicts': {
+            for (final entry in environmentVerdicts(arm).entries)
+              entry.key.name: entry.value,
+          },
         },
     },
     'digestCoverage': digestCoverage,
@@ -553,8 +890,12 @@ class CensusSummary {
   String report() {
     final buffer = StringBuffer()
       ..writeln('KC1 — cutoff exposure census')
-      ..writeln('model: ${runIdentity['model']}  flutter: ${runIdentity['flutter']}')
-      ..writeln('build: ${runIdentity['buildCommit']}${runIdentity['buildDirty'] == true ? ' (dirty)' : ''}')
+      ..writeln(
+        'model: ${runIdentity['model']}  flutter: ${runIdentity['flutter']}',
+      )
+      ..writeln(
+        'build: ${runIdentity['buildCommit']}${runIdentity['buildDirty'] == true ? ' (dirty)' : ''}',
+      )
       ..writeln('claims: ${claims.length}  failures: ${failures()}')
       ..writeln()
       ..writeln('stale-claim and unsupported-claim rate');
@@ -569,6 +910,13 @@ class CensusSummary {
         'stale  $unsupportedText '
         'unsupported  (${unscorable(arm)} unscorable)',
       );
+      final environment = environmentVerdicts(arm).entries
+          .where((entry) => entry.value > 0)
+          .map((entry) => '${entry.key.name}=${entry.value}')
+          .join(', ');
+      if (environment.isNotEmpty) {
+        buffer.writeln('  ${arm.name.padRight(16)} environment $environment');
+      }
     }
     buffer
       ..writeln()
@@ -585,6 +933,19 @@ class CensusSummary {
         '${rate(CensusArm.grounded).padLeft(5)} / '
         '${rate(CensusArm.deltaGrounded).padLeft(5)}',
       );
+      if (cutoffClass == CutoffClass.environment) {
+        String exposure(CensusArm arm) {
+          final value = environmentExposureRateFor(arm);
+          return value == null ? '-' : '${(value * 100).toStringAsFixed(0)}%';
+        }
+
+        buffer.writeln(
+          '  ${cutoffClass.name.padRight(22)} '
+          'environment exposure ${exposure(CensusArm.bare).padLeft(5)} / '
+          '${exposure(CensusArm.grounded).padLeft(5)} / '
+          '${exposure(CensusArm.deltaGrounded).padLeft(5)}',
+        );
+      }
     }
     buffer
       ..writeln()
@@ -680,12 +1041,54 @@ ClaimRecord scoreCutoffResponse({
   );
 }
 
+/// Scores one response for an environment fixture while retaining the common
+/// truth/grounding axes in the claim record.
+ClaimRecord scoreEnvironmentResponse({
+  required EnvironmentCase testCase,
+  required CensusArm arm,
+  required int repeat,
+  required String response,
+  required String truthSource,
+  required bool promptSupportsClaim,
+  required bool defaultValue,
+}) {
+  final assertion = _readEnvironmentAssertion(response);
+  final environmentVerdict = scoreEnvironmentSetting(
+    response: response,
+    defaultValue: defaultValue,
+  );
+  final truth = truthForEnvironment(environmentVerdict);
+  final grounding = switch ((promptSupportsClaim, truth)) {
+    (false, _) => GroundingVerdict.absent,
+    (_, TruthVerdict.correct) => GroundingVerdict.supported,
+    (_, TruthVerdict.stale) => GroundingVerdict.contradicted,
+    (_, TruthVerdict.unscorable) => GroundingVerdict.absent,
+  };
+  return ClaimRecord(
+    claimId: '${testCase.id}:${arm.name}:$repeat',
+    caseId: testCase.id,
+    cutoffClass: CutoffClass.environment,
+    arm: arm,
+    repeat: repeat,
+    truth: truth,
+    grounding: grounding,
+    provenance: promptSupportsClaim && truth != TruthVerdict.unscorable
+        ? GroundingProvenance.promptContext
+        : GroundingProvenance.none,
+    assertedValue: assertion.value,
+    expectedValue: defaultValue ? 'omitted' : 'true',
+    truthSource: truthSource,
+    environmentVerdict: environmentVerdict,
+  );
+}
+
 Future<CensusSummary> runCutoffCensus({
   required CensusOptions options,
   required CutoffOracle oracle,
   required ChatCompletionSender send,
   void Function(String line)? onProgress,
   List<CutoffCase> cases = const [],
+  List<EnvironmentCase> environmentCases = const [],
 }) async {
   final all = cases.isEmpty ? cutoffCases : cases;
   final selected = options.caseFilter.isEmpty
@@ -693,8 +1096,14 @@ Future<CensusSummary> runCutoffCensus({
       : all
             .where((testCase) => options.caseFilter.contains(testCase.id))
             .toList(growable: false);
+  final selectedEnvironment = options.caseFilter.isEmpty
+      ? environmentCases
+      : environmentCases
+            .where((testCase) => options.caseFilter.contains(testCase.id))
+            .toList(growable: false);
   final ground = groundTruthBlock(oracle);
   final delta = deltaBlock(oracle);
+  final environmentGround = environmentGroundTruthBlock(oracle);
   final claims = <ClaimRecord>[];
   for (final testCase in selected) {
     final truthSource =
@@ -751,6 +1160,70 @@ Future<CensusSummary> runCutoffCensus({
       }
     }
   }
+  for (final testCase in selectedEnvironment) {
+    final defaultValue = testCase.readDefault(oracle);
+    if (defaultValue == null) {
+      throw StateError(
+        '${testCase.id}: the environment oracle returned no default value',
+      );
+    }
+    final truthSource =
+        'Flutter ${oracle.flutterVersion}: '
+        'ThemeData.useMaterial3 default: $defaultValue';
+    for (var repeat = 1; repeat <= options.repeats; repeat++) {
+      for (final arm in CensusArm.values) {
+        onProgress?.call('${testCase.id} ${arm.name} #$repeat');
+        final prompt = switch (arm) {
+          CensusArm.bare => testCase.task,
+          CensusArm.grounded => '$environmentGround\n\n${testCase.task}',
+          CensusArm.deltaGrounded =>
+            '$environmentGround\n\n$delta\n\n${testCase.task}',
+        };
+        try {
+          final response = await send(_systemPrompt, prompt);
+          if (options.dumpDir case final dumpDir?) {
+            final file = File(
+              '$dumpDir/${testCase.id}.${arm.name}.$repeat.txt',
+            );
+            await file.parent.create(recursive: true);
+            await file.writeAsString(response);
+          }
+          claims.add(
+            scoreEnvironmentResponse(
+              testCase: testCase,
+              arm: arm,
+              repeat: repeat,
+              response: response,
+              truthSource: truthSource,
+              promptSupportsClaim: promptSupportsEnvironmentClaimFor(
+                testCase: testCase,
+                arm: arm,
+                oracle: oracle,
+              ),
+              defaultValue: defaultValue,
+            ),
+          );
+        } on Object catch (error) {
+          claims.add(
+            ClaimRecord(
+              claimId: '${testCase.id}:${arm.name}:$repeat',
+              caseId: testCase.id,
+              cutoffClass: CutoffClass.environment,
+              arm: arm,
+              repeat: repeat,
+              truth: TruthVerdict.unscorable,
+              grounding: GroundingVerdict.absent,
+              provenance: GroundingProvenance.none,
+              assertedValue: 'none',
+              expectedValue: defaultValue ? 'omitted' : 'true',
+              truthSource: truthSource,
+              failure: 'request failed: $error',
+            ),
+          );
+        }
+      }
+    }
+  }
   return CensusSummary(
     claims: claims,
     runIdentity: _runIdentity(options: options, oracle: oracle),
@@ -764,20 +1237,22 @@ Future<CensusSummary> runCutoffCensus({
 const _systemPrompt =
     'You are a coding assistant. Answer with code only, no explanation.';
 
-String _truthSourceFor(CutoffCase testCase, CutoffOracle oracle) =>
-    switch (testCase.id) {
-      'flutter-pop-scope' =>
-        'flutter ${oracle.flutterVersion}: ${oracle.flutterDeprecation('WillPopScope')}',
-      'color-with-values' =>
-        'flutter ${oracle.flutterVersion}: ${oracle.flutterDeprecation('withOpacity')}',
-      'riverpod-notifier' =>
-        'riverpod ${oracle.packageVersion('riverpod')}: StateNotifierProvider under lib/src/providers/legacy/',
-      'freezed-abstract' =>
-        'freezed ${oracle.packageVersion('freezed')}: ${oracle.packageBreakingChange('freezed', 'abstract')}',
-      'repo-state-management' =>
-        'lib/ uses NotifierProvider ${oracle.repoUsage(const ['NotifierProvider'])['NotifierProvider']} times and no alternative',
-      _ => 'installed toolchain',
-    };
+String _truthSourceFor(
+  CutoffCase testCase,
+  CutoffOracle oracle,
+) => switch (testCase.id) {
+  'flutter-pop-scope' =>
+    'flutter ${oracle.flutterVersion}: ${oracle.flutterDeprecation('WillPopScope')}',
+  'color-with-values' =>
+    'flutter ${oracle.flutterVersion}: ${oracle.flutterDeprecation('withOpacity')}',
+  'riverpod-notifier' =>
+    'riverpod ${oracle.packageVersion('riverpod')}: StateNotifierProvider under lib/src/providers/legacy/',
+  'freezed-abstract' =>
+    'freezed ${oracle.packageVersion('freezed')}: ${oracle.packageBreakingChange('freezed', 'abstract')}',
+  'repo-state-management' =>
+    'lib/ uses NotifierProvider ${oracle.repoUsage(const ['NotifierProvider'])['NotifierProvider']} times and no alternative',
+  _ => 'installed toolchain',
+};
 
 Map<String, dynamic> _runIdentity({
   required CensusOptions options,
@@ -912,7 +1387,8 @@ class CensusOptions {
     final caseFilter = <String>{};
     var projectRoot = Directory.current.path;
 
-    String? value(int index) => index + 1 < args.length ? args[index + 1] : null;
+    String? value(int index) =>
+        index + 1 < args.length ? args[index + 1] : null;
     for (var i = 0; i < args.length; i++) {
       switch (args[i]) {
         case '--endpoint':
