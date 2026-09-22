@@ -361,7 +361,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
             notificationState: notificationState,
             onOpenCompanion: state.selectedProjectId == null
                 ? null
-                : () => unawaited(_showCompanionPanel(state)),
+                : () => unawaited(_showCompanionPanel()),
             onRefresh: notifier.requestSnapshot,
             onEnableNotifications: _enableCompletionNotifications,
             onDisableNotifications: () => ref
@@ -725,20 +725,25 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     setState(() => _attachment = null);
   }
 
-  Future<void> _showCompanionPanel(RemoteCodingClientState state) {
+  Future<void> _showCompanionPanel() {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (_) {
-        return FractionallySizedBox(
-          heightFactor: 0.82,
-          child: RemoteCodingCompanionPanel(
-            snapshot: state.companion,
-            isLoading: state.isLoading,
-            queuedCount: state.queuedCount,
-            pendingQuestion: state.pendingQuestion?.question,
-          ),
+        return Consumer(
+          builder: (context, ref, _) {
+            final liveState = ref.watch(remoteCodingClientProvider);
+            return FractionallySizedBox(
+              heightFactor: 0.82,
+              child: RemoteCodingCompanionPanel(
+                snapshot: liveState.companion,
+                isLoading: liveState.isLoading,
+                queuedCount: liveState.queuedCount,
+                pendingQuestion: liveState.pendingQuestion?.question,
+              ),
+            );
+          },
         );
       },
     );

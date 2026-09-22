@@ -194,6 +194,17 @@ class _BoundConversationsNotifier extends ConversationsNotifier {
   void selectForTest(String id) {
     state = state.copyWith(currentConversationId: id);
   }
+
+  void setMessagesForTest(String id, List<Message> messages) {
+    state = state.copyWith(
+      conversations: [
+        for (final conversation in state.conversations)
+          conversation.id == id
+              ? conversation.copyWith(messages: messages)
+              : conversation,
+      ],
+    );
+  }
 }
 
 class _BoundCommandChatNotifier extends ChatNotifier {
@@ -883,6 +894,140 @@ void main() {
       );
 
       await client.disconnect();
+    },
+  );
+
+  test(
+    'destination-bound commands do not mutate a stale destination',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: _MemorySecureStore(),
+      );
+      final port = await _unusedPort();
+      final now = DateTime.utc(2026, 9, 16);
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [
+            RemoteCodingPairedDevice(
+              id: 'stale-target-phone',
+              name: 'Stale target phone',
+              tokenHash: RemoteCodingSecurity.hashToken('stale-target-token'),
+              createdAt: now,
+              lastSeenAt: now,
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            _BoundCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _BoundConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_BoundCommandChatNotifier.new),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(remoteCodingServerProvider);
+      await _waitUntil(
+        () => container.read(remoteCodingServerProvider).isRunning,
+      );
+      final connection = await _connectAuthenticatedDevice(
+        container: container,
+        port: port,
+        token: 'stale-target-token',
+        authId: 'stale-target-auth',
+      );
+      addTearDown(() async {
+        await connection.subscription.cancel();
+        await connection.socket.close();
+      });
+
+      final conversations =
+          container.read(conversationsNotifierProvider.notifier)
+              as _BoundConversationsNotifier;
+      conversations.setMessagesForTest('thread-2', [
+        Message(
+          id: 'thread-2-message',
+          content: 'Keep this message',
+          role: MessageRole.user,
+          timestamp: now,
+        ),
+      ]);
+      conversations.selectForTest('thread-2');
+      final initialSettings = container.read(settingsNotifierProvider);
+
+      connection.socket.add(
+        RemoteCodingProtocol.encode(
+          type: RemoteCodingProtocol.clearConversation,
+          id: 'stale-clear',
+          payload: {'projectId': 'project-1', 'conversationId': 'thread-1'},
+        ),
+      );
+      await _waitUntil(
+        () => connection.messages.any(
+          (message) => message.id == 'stale-clear' && message.type == 'error',
+        ),
+        description: 'stale clear rejection',
+      );
+      expect(
+        connection.messages
+            .lastWhere((message) => message.id == 'stale-clear')
+            .payload['code'],
+        'destination_changed',
+      );
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .conversations
+            .firstWhere((conversation) => conversation.id == 'thread-2')
+            .messages,
+        hasLength(1),
+      );
+
+      connection.socket.add(
+        RemoteCodingProtocol.encode(
+          type: RemoteCodingProtocol.sendMessageToConversation,
+          id: 'stale-send',
+          payload: {
+            'projectId': 'project-1',
+            'conversationId': 'thread-1',
+            'content': 'Must not send',
+            'composer': {
+              'model': 'must-not-apply',
+              'reasoningEffort': 'automatic',
+              'enableThinking': null,
+              'assistantMode': 'coding',
+            },
+          },
+        ),
+      );
+      await _waitUntil(
+        () => connection.messages.any(
+          (message) => message.id == 'stale-send' && message.type == 'error',
+        ),
+        description: 'stale send rejection',
+      );
+      expect(
+        container.read(settingsNotifierProvider).model,
+        initialSettings.model,
+      );
+      expect(
+        (container.read(chatNotifierProvider.notifier)
+                as _BoundCommandChatNotifier)
+            .sentMessages,
+        isEmpty,
+      );
     },
   );
 

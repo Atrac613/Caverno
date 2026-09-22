@@ -774,10 +774,15 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
   }
 
   Future<void> clearConversation() {
-    return _sendCommand(
-      RemoteCodingProtocol.clearConversation,
-      const <String, dynamic>{},
-    );
+    final projectId = state.selectedProjectId;
+    final conversationId = state.currentConversationId;
+    if (projectId == null || conversationId == null) {
+      return Future<void>.value();
+    }
+    return _sendCommand(RemoteCodingProtocol.clearConversation, {
+      'projectId': projectId,
+      'conversationId': conversationId,
+    });
   }
 
   Future<void> cancelStreaming() {

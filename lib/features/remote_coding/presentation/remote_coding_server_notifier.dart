@@ -1485,13 +1485,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (conversation == null) {
-      client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
-      return;
-    }
+    final conversation = _validatedBoundDestination(client, message);
+    if (conversation == null) return;
     ref.read(chatNotifierProvider.notifier).clearMessages();
     await ref
         .read(conversationsNotifierProvider.notifier)
@@ -1648,7 +1643,6 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
-    if (!await _applyComposerSettings(client, message)) return;
     final attachmentId = _attachmentId(message);
     final conversation = _validatedBoundDestination(client, message);
     if (conversation == null) {
@@ -1664,6 +1658,12 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         code: 'empty_message',
         message: 'Message content is required.',
       );
+      return;
+    }
+    if (!await _applyComposerSettings(client, message)) {
+      if (attachmentId != null) {
+        await client.discardUploadedAttachment(attachmentId);
+      }
       return;
     }
     final prepared = await _prepareRemoteMessage(
