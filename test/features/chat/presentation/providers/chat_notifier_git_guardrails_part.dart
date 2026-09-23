@@ -4,6 +4,20 @@ part of 'chat_notifier_test.dart';
 /// [ProductionReleaseApprovalCoordinator.debugApprovalTokenFactory].
 const String _releaseToken = 'rel-0123456789abcdef';
 
+class _ToolEnabledLoggingNoConfirmSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() => _baseTestSettings().copyWith(
+    assistantMode: AssistantMode.general,
+    mcpEnabled: true,
+    demoMode: false,
+    codingApprovalMode: ToolApprovalMode.fullAccess,
+    confirmFileMutations: false,
+    confirmLocalCommands: false,
+    confirmGitWrites: false,
+    enableLlmSessionLogs: true,
+  );
+}
+
 void registerChatNotifierGitGuardrailTests() {
   test('worktree conversations scope project tools to the worktree root', () {
     final localController = StreamController<String>();
@@ -761,17 +775,41 @@ void registerChatNotifierGitGuardrailTests() {
   test(
     'sendMessage accepts production release after ask-user-question approval',
     () async {
-      ProductionReleaseApprovalCoordinator.debugApprovalTokenFactory =
-          () => _releaseToken;
+      ProductionReleaseApprovalCoordinator.debugApprovalTokenFactory = () =>
+          _releaseToken;
       addTearDown(
-        () => ProductionReleaseApprovalCoordinator
-                .debugApprovalTokenFactory =
+        () => ProductionReleaseApprovalCoordinator.debugApprovalTokenFactory =
             null,
       );
       const dryRunCommand =
           'bash tool/release_ios_macos.sh --dry-run --macos-release-notes docs/releases/caverno-1.3.6.md';
       const productionCommand =
           'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.6.md';
+      final approvalLabel = productionReleaseApprovalOptionLabel(
+        executionIdentity: const ProductionReleaseExecutionIdentity()
+            .forToolCall(
+              ToolCallInfo(
+                id: 'release-approval-label',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': productionCommand,
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ),
+        approvalToken: _releaseToken,
+      );
+      final sessionLogRoot = await Directory.systemTemp.createTemp(
+        'caverno_release_retry_logs_',
+      );
+      final sessionLogStore = LlmSessionLogStore(
+        rootDirectoryProvider: () async => sessionLogRoot,
+      );
+      addTearDown(() async {
+        if (sessionLogRoot.existsSync()) {
+          await sessionLogRoot.delete(recursive: true);
+        }
+      });
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -808,20 +846,24 @@ void registerChatNotifierGitGuardrailTests() {
               ToolCallInfo(
                 id: 'release-approval',
                 name: 'ask_user_question',
-                arguments: const {
+                arguments: {
                   'question':
                       'Approve running the production release command now?',
                   'options': [
-                    // The harness issues the token; the model puts it on
-                    // exactly one option and writes the rest of the label in
-                    // whatever language the user speaks.
-                    {'label': 'Approve production release $_releaseToken'},
+                    // The harness issues both the token and the exact
+                    // execution identity; the model must preserve both.
+                    {'label': approvalLabel},
                     {'label': 'Do not release'},
                   ],
                 },
               ),
             ],
             finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The user approved production release execution. I will report the release now.',
+            finishReason: 'stop',
           ),
           ChatCompletionResult(
             content:
@@ -843,7 +885,9 @@ void registerChatNotifierGitGuardrailTests() {
             finishReason: 'stop',
           ),
         ],
-        finalAnswerChunks: const ['Production release completed.'],
+        finalAnswerChunks: const [
+          'The production release was started after approval.',
+        ],
       );
       final toolService = _FakeMcpToolService(
         results: const {
@@ -874,7 +918,7 @@ void registerChatNotifierGitGuardrailTests() {
       final toolContainer = ProviderContainer(
         overrides: [
           settingsNotifierProvider.overrideWith(
-            _ToolEnabledNoConfirmSettingsNotifier.new,
+            _ToolEnabledLoggingNoConfirmSettingsNotifier.new,
           ),
           conversationsNotifierProvider.overrideWith(
             _TestConversationsNotifier.new,
@@ -884,6 +928,7 @@ void registerChatNotifierGitGuardrailTests() {
             _TestSessionMemoryService(),
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
+          llmSessionLogStoreProvider.overrideWithValue(sessionLogStore),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
           backgroundTaskServiceProvider.overrideWithValue(
             _TestBackgroundTaskService(),
@@ -895,8 +940,9 @@ void registerChatNotifierGitGuardrailTests() {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
         final sendFuture = toolNotifier.sendMessage('continue');
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
+        await _waitForCondition(
+          () => toolNotifier.state.pendingAskUserQuestion != null,
+        );
 
         final pending = toolNotifier.state.pendingAskUserQuestion;
         expect(pending, isNotNull);
@@ -904,10 +950,10 @@ void registerChatNotifierGitGuardrailTests() {
           id: pending!.id,
           answer: AskUserQuestionAnswer(
             question: pending.question,
-            selectedOptions: const [
+            selectedOptions: [
               AskUserQuestionSelection(
                 id: 'approve-production-release',
-                label: 'Approve production release $_releaseToken',
+                label: approvalLabel,
               ),
             ],
           ),
@@ -915,23 +961,36 @@ void registerChatNotifierGitGuardrailTests() {
 
         await sendFuture;
 
-        // Turn one ends with the release still blocked: only the dry run
-        // reached the shell. Approval is recorded, and the retry belongs to
-        // the next turn -- BlockedProductionReleaseRetryPolicy exists because
-        // the answer normally arrives after the blocked turn has ended.
-        expect(toolService.executedToolNames, ['local_execute_command']);
-
-        await toolNotifier.sendMessage('Retry the release.');
-
         expect(toolService.executedToolNames, [
           'local_execute_command',
           'local_execute_command',
         ]);
-        final productionResult = jsonDecode(
-          toolDataSource.toolResultBatches.last.last.result,
-        ) as Map<String, dynamic>;
+        final productionResult =
+            jsonDecode(toolDataSource.toolResultBatches.last.last.result)
+                as Map<String, dynamic>;
         expect(productionResult, containsPair('command', productionCommand));
         expect(productionResult, containsPair('exit_code', 0));
+        final conversation = toolContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation!;
+        final logFile = await sessionLogStore.fileForContext(
+          LlmSessionLogContext(
+            workspaceMode: conversation.workspaceMode,
+            sessionId: conversation.id,
+            conversationId: conversation.id,
+          ),
+          create: false,
+        );
+        final entries = (await logFile.readAsLines())
+            .map((line) => jsonDecode(line) as Map<String, dynamic>)
+            .toList(growable: false);
+        final turnExit = entries.lastWhere(
+          (entry) => entry['operation'] == 'turn_exit',
+        );
+        expect(
+          (turnExit['turnExit'] as Map<String, dynamic>)['reason'],
+          'text_response',
+        );
       } finally {
         toolContainer.dispose();
       }
@@ -1041,10 +1100,7 @@ void registerChatNotifierGitGuardrailTests() {
                 as Map<String, dynamic>;
         expect(
           blocked,
-          containsPair(
-            'code',
-            'production_release_explicit_approval_required',
-          ),
+          containsPair('code', 'production_release_explicit_approval_required'),
         );
         expect(blocked, containsPair('command', productionCommand));
       } finally {

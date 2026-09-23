@@ -261,6 +261,7 @@ import 'tool_argument_json.dart';
 import 'tool_dedupe_keys.dart';
 import 'tool_loop_batch_execution_result.dart';
 import 'turn_coding_project_resolver.dart';
+import 'turn_command_execution_recorder.dart';
 import 'turn_context_retry_coordinator.dart';
 import 'turn_final_message.dart';
 import 'turn_finalization_state_registry.dart';
@@ -388,6 +389,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final _finalAnswerRecoveryPolicy = const FinalAnswerRecoveryPolicy();
   final _fileMutationEvidencePolicy = const FileMutationEvidencePolicy();
   final _pendingActions = const PendingActionLengthRecoveryPolicy();
+
   /// Which skills each thread has loaded, so the one it works from can be
   /// repeated into the turns that follow the load.
   final loadedSkills = LoadedSkillMemory();
@@ -397,6 +399,8 @@ class ChatNotifier extends Notifier<ChatState> {
     activeConversationId: _activeResponseConversationIdForGeneration,
     ownerForGeneration: _turnOwnerForGeneration,
     questionResults: _askUserQuestionTurnCache,
+    resolveExecutionArguments: (toolCall) =>
+        _resolveProjectScopedArguments(toolCall.name, toolCall.arguments),
   );
   final _unexecutedCommandRetries = const UnexecutedCommandActionRetryPolicy();
 
@@ -907,9 +911,10 @@ class ChatNotifier extends Notifier<ChatState> {
     try {
       return const SkippedSkillLoadRecovery().resolve(
         hasToolCalls: result.hasToolCalls,
-        availableToolNames: ToolDefinitionSearchService.toolNamesFromDefinitions(
-          allTools,
-        ).toSet(),
+        availableToolNames:
+            ToolDefinitionSearchService.toolNamesFromDefinitions(
+              allTools,
+            ).toSet(),
         disabledToolNames: _settings.disabledBuiltInToolsSet,
         latestUserContent: _latestUserContentForGeneration(
           interactionGeneration,
@@ -5620,10 +5625,10 @@ class ChatNotifier extends Notifier<ChatState> {
           break;
         }
       }
-
       appLog(
         '[Tool] Retrieved ${batchToolResults.length} tool result(s) in this loop',
       );
+      _turnEnd.clearHintIf(turnOwner, ToolLoopExitReason.allCallsDiscarded);
       lastNonEmptyBatchToolResults = List<ToolResultInfo>.unmodifiable(
         batchToolResults,
       );

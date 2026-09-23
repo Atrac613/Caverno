@@ -194,6 +194,10 @@ const Map<String, int> _lineBudgets = {
       388,
   'lib/features/chat/domain/services/production_release_approval_coordinator.dart':
       170,
+  'lib/features/chat/domain/services/production_release_approval_gate.dart':
+      216,
+  'lib/features/chat/domain/services/production_release_approval_presentation.dart':
+      86,
   'lib/features/chat/domain/services/production_release_approval_evidence_snapshot.dart':
       27,
   'lib/features/chat/domain/services/production_release_approval_token_registry.dart':
@@ -208,6 +212,10 @@ const Map<String, int> _lineBudgets = {
   // satisfy.
   'lib/features/chat/domain/services/production_release_dispatch_evidence.dart':
       98,
+  'lib/features/chat/domain/services/production_release_dispatch_result.dart':
+      30,
+  'lib/features/chat/domain/services/production_release_execution_identity.dart':
+      61,
   'lib/features/chat/domain/services/production_release_prose_shadow.dart': 77,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,
@@ -250,6 +258,8 @@ const Map<String, int> _lineBudgets = {
       283,
   'lib/features/chat/domain/services/blocked_production_release_retry_policy.dart':
       261,
+  'lib/features/chat/domain/services/blocked_production_release_retry_contract.dart':
+      100,
   'lib/features/chat/domain/services/fenced_tool_arguments_detector.dart': 74,
   'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':
       224,
@@ -489,6 +499,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart':
       290,
   'lib/features/chat/presentation/providers/turn_tool_result_ledger.dart': 151,
+  'lib/features/chat/presentation/providers/turn_tool_result_state.dart': 25,
+  'lib/features/chat/presentation/providers/turn_command_execution_recorder.dart':
+      46,
   'lib/features/chat/presentation/providers/content_tool_turn_state_registry.dart':
       187,
   'lib/features/chat/presentation/providers/hidden_assistant_evidence_registry.dart':

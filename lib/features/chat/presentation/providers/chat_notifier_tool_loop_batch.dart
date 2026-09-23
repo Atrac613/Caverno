@@ -750,9 +750,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         owner: owner,
         result: taintSourceResult,
       );
-      _recordTurnCommandLedgerEntry(
-        promptToolResult,
-        interactionGeneration: interactionGeneration,
+      const TurnCommandExecutionRecorder().record(
+        ledger: _turnToolResults,
+        owner: owner,
+        toolResult: promptToolResult,
+        sourceResult: taintSourceResult,
+        resolveArguments: (toolCall) =>
+            _resolveProjectScopedArguments(toolCall.name, toolCall.arguments),
       );
     }
     if (recordBackgroundProcessStart) {
@@ -793,23 +797,5 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       '[BackgroundProcess] Monitoring ${snapshot.jobId} '
       '(${snapshot.status})',
     );
-  }
-
-  /// Accumulates executed commands for the exact turn owner.
-  void _recordTurnCommandLedgerEntry(
-    ToolResultInfo toolResult, {
-    required int interactionGeneration,
-  }) {
-    final owner = _turnOwnerForGeneration(interactionGeneration);
-    if (owner == null) return;
-    if (!_toolCallExecutionPolicy.isCommandExecutionTool(toolResult.name)) {
-      return;
-    }
-    final command = _toolCallExecutionPolicy.toolCommandArgument(
-      toolResult.arguments,
-    );
-    if (command != null) {
-      _turnToolResults.recordCommand(owner, command);
-    }
   }
 }

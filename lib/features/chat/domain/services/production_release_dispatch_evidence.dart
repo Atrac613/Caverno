@@ -1,11 +1,6 @@
-import 'dart:convert';
-
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
-
-import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
-import 'blocked_production_release_retry_policy.dart';
 import 'production_release_approval_policy.dart';
+import 'production_release_execution_identity.dart';
 import 'tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: production-release-dispatch-evidence
@@ -31,9 +26,10 @@ final class ProductionReleaseDispatchEvidence {
   /// so "the same release command" means one thing across the gate and the
   /// retry path. Two spellings of one release must not be able to disagree
   /// about whether it already ran.
-  static const _commandIdentity = BlockedProductionReleaseRetryPolicy();
+  static const _executionIdentity = ProductionReleaseExecutionIdentity();
 
-  /// Whether [command] already ran as a release in [executedToolResults].
+  /// Whether [toolCall] already ran as the same exact release execution in
+  /// [executedToolResults].
   ///
   /// Read from [ToolResultInfo.outcome] rather than remembered, so the fact
   /// cannot desync from what the turn actually did: a gate that recorded its
@@ -46,11 +42,16 @@ final class ProductionReleaseDispatchEvidence {
   /// A launched process reports a process state; a foreground command reports
   /// an exit code. Either is proof the command left the harness.
   bool hasDispatched({
-    required String command,
+    required ToolCallInfo toolCall,
     required List<ToolResultInfo> executedToolResults,
+    Map<String, dynamic> Function(ToolCallInfo toolCall)?
+    resolveExecutionArguments,
   }) {
-    final normalized = _commandIdentity.normalizeCommand(command);
-    if (normalized.isEmpty) return false;
+    final resolver = resolveExecutionArguments ?? _identityArguments;
+    final expectedIdentity = _executionIdentity.forDispatch(
+      toolCall,
+      resolveArguments: resolver,
+    );
     for (final toolResult in executedToolResults) {
       final outcome = toolResult.outcome;
       if (outcome == null) continue;
@@ -60,39 +61,22 @@ final class ProductionReleaseDispatchEvidence {
         toolResult.arguments,
       );
       if (executed == null) continue;
-      if (_commandIdentity.normalizeCommand(executed) != normalized) continue;
       if (!_policy.looksLikeProductionReleaseCommand(executed)) continue;
+      final executedToolCall = ToolCallInfo(
+        id: toolResult.id,
+        name: toolResult.name,
+        arguments: toolResult.arguments,
+      );
+      final executedIdentity = _executionIdentity.forDispatch(
+        executedToolCall,
+        resolveArguments: resolver,
+      );
+      if (executedIdentity != expectedIdentity) continue;
       return true;
     }
     return false;
   }
 
-  /// The refusal a repeated production release reports to the model.
-  ///
-  /// Reporting the real reason ends the approval chase at the first attempt,
-  /// and keeps the release itself un-run: the point is not to make the second
-  /// release grantable, it is to say it already happened.
-  McpToolResult buildAlreadyExecutedResult({
-    required String toolName,
-    required String command,
-  }) {
-    return McpToolResult(
-      toolName: toolName,
-      result: jsonEncode({
-        'ok': false,
-        'code': 'production_release_already_executed',
-        ...ToolResultOrigin.refusal.marker,
-        'error':
-            'This production release command was already approved and '
-            'dispatched earlier in this turn. It was not run again.',
-        'command': command,
-        'required_action':
-            'Do not re-issue this release and do not ask for approval again. '
-            'Report the result of the release that already ran, using the '
-            'tool results already in this turn, and continue with the '
-            'remaining work.',
-      }),
-      isSuccess: true,
-    );
-  }
+  static Map<String, dynamic> _identityArguments(ToolCallInfo toolCall) =>
+      toolCall.arguments;
 }

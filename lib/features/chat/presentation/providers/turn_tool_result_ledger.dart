@@ -1,7 +1,6 @@
-import 'dart:convert';
-
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/tool_call_info.dart';
+import 'turn_tool_result_state.dart';
 
 /// Tool results and commands retained independently by assistant-turn owner.
 class TurnToolResultLedger {
@@ -14,7 +13,7 @@ class TurnToolResultLedger {
 
   final Duration _retention;
   final DateTime Function() _now;
-  final Map<ChatTurnOwner, _TurnToolResultState> _states = {};
+  final Map<ChatTurnOwner, TurnToolResultState> _states = {};
 
   int get length {
     _purgeExpired(_now());
@@ -31,6 +30,11 @@ class TurnToolResultLedger {
 
   List<String> commands(ChatTurnOwner owner) =>
       List.unmodifiable(_stateForRead(owner)?.commands ?? const []);
+
+  List<String> commandExecutionIdentities(ChatTurnOwner owner) =>
+      List.unmodifiable(
+        _stateForRead(owner)?.commandExecutionIdentities ?? const [],
+      );
 
   List<ToolResultInfo> all(ChatTurnOwner owner) {
     final state = _stateForRead(owner);
@@ -75,7 +79,7 @@ class TurnToolResultLedger {
     bool Function(ToolResultInfo) test,
   ) => lastContentResultWhere(
     owner,
-    (result) => test(result) && !_looksFailed(result.result),
+    (result) => test(result) && !toolResultLooksFailed(result.result),
   );
 
   void clearResults(ChatTurnOwner owner) {
@@ -103,6 +107,9 @@ class TurnToolResultLedger {
   void recordCommand(ChatTurnOwner owner, String command) =>
       _stateFor(owner).commands.add(command);
 
+  void recordCommandExecutionIdentity(ChatTurnOwner owner, String identity) =>
+      _stateFor(owner).commandExecutionIdentities.add(identity);
+
   void publish(ChatTurnOwner owner) {
     final state = _stateForRead(owner);
     if (state != null) state.expiresAt = _now().add(_retention);
@@ -115,12 +122,12 @@ class TurnToolResultLedger {
 
   void clear() => _states.clear();
 
-  _TurnToolResultState _stateFor(ChatTurnOwner owner) {
+  TurnToolResultState _stateFor(ChatTurnOwner owner) {
     _purgeExpired(_now());
-    return _states.putIfAbsent(owner, _TurnToolResultState.new);
+    return _states.putIfAbsent(owner, TurnToolResultState.new);
   }
 
-  _TurnToolResultState? _stateForRead(ChatTurnOwner owner) {
+  TurnToolResultState? _stateForRead(ChatTurnOwner owner) {
     _purgeExpired(_now());
     return _states[owner];
   }
@@ -128,24 +135,4 @@ class TurnToolResultLedger {
   void _purgeExpired(DateTime current) => _states.removeWhere(
     (_, state) => state.expiresAt?.isAfter(current) == false,
   );
-
-  bool _looksFailed(String result) {
-    final normalized = result.toLowerCase();
-    if (normalized.contains('"error"') && normalized.contains('"code"')) {
-      return true;
-    }
-    try {
-      final decoded = jsonDecode(result);
-      return decoded is Map && decoded.containsKey('error');
-    } catch (_) {
-      return false;
-    }
-  }
-}
-
-final class _TurnToolResultState {
-  DateTime? expiresAt;
-  List<ToolResultInfo> completed = const <ToolResultInfo>[];
-  final List<ToolResultInfo> content = <ToolResultInfo>[];
-  final List<String> commands = <String>[];
 }

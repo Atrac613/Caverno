@@ -254,15 +254,8 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     );
   }
 
-  /// Revives the tool loop when this turn blocked a production release for
-  /// missing approval, the user granted it, and the turn is ending without the
-  /// command ever being re-issued.
-  ///
-  /// Unlike the transcript repair below, nothing here reads the answer text:
-  /// the trigger is the guard's own structured block payload, the ledger of
-  /// commands this owner executed, and the release-approval evidence. An
-  /// assistant that says nothing and one that says "release started" are
-  /// treated identically, because neither ran anything.
+  /// Re-enters the tool loop after approval when this turn ended without
+  /// re-issuing the blocked production release.
   Future<ChatCompletionResult?> _requestBlockedProductionReleaseRetry({
     required String candidateResponse,
     required List<ToolResultInfo> executedToolResults,
@@ -278,6 +271,8 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
         owner: owner,
         ownerToolResults: executedToolResults,
         ownerExecutedCommands: _turnToolResults.commands(owner),
+        ownerExecutedReleaseIdentities: _turnToolResults
+            .commandExecutionIdentities(owner),
         approvalGranted: _productionReleaseApprovals
             .evidenceFor(interactionGeneration)
             .approved,
@@ -308,11 +303,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       return null;
     }
     if (!_blockedReleaseRetrySignatures.add(plan.signature)) return null;
-    // One prompt is all this block gets. Whether the model issues the call or
-    // not, the conversation stops owing a retry for it.
-    _productionReleaseApprovals.removePendingRelease(plan.owner.conversationId);
-
-    return _requestFinalAnswerRecoveryCompletion(
+    final retryResult = await _requestFinalAnswerRecoveryCompletion(
       owner: plan.owner,
       feedback: plan.feedback,
       transformId: 'blocked_production_release_retry',
@@ -327,6 +318,22 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       interactionGeneration: interactionGeneration,
       onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
     );
+    final reissuedRelease = retryResult?.toolCalls?.any(
+      (toolCall) => _blockedReleaseRetries.matchesToolCall(
+        plan,
+        toolCall,
+        resolvedArguments: _resolveProjectScopedArguments(
+          toolCall.name,
+          toolCall.arguments,
+        ),
+      ),
+    );
+    if (reissuedRelease != true) {
+      _productionReleaseApprovals.removePendingRelease(
+        plan.owner.conversationId,
+      );
+    }
+    return retryResult;
   }
 
   /// Applies the blocked-release retry to a streamed final answer. Returns true
