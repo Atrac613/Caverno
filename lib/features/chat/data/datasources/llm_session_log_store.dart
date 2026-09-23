@@ -848,6 +848,8 @@ class LlmSessionLogStore {
       'result': _decodeJsonStringIfPossible(toolResult.result),
       if (toolResult.outcome?.isNotEmpty ?? false)
         'outcome': toolResult.outcome!.toJson(),
+      if (toolResult.changesSinceCapture.isNotEmpty)
+        'changesSinceCapture': toolResult.changesSinceCapture,
     };
   }
 

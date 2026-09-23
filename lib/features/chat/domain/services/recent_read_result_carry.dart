@@ -79,48 +79,73 @@ final class RecentReadResultCarry {
   }) {
     if (resolved.isEmpty) return resolved;
     final present = resolved.map(_keyFor).toSet();
-    final carried = <ToolResultInfo>[];
+    final carried = <(ToolResultInfo, List<String>)>[];
+    // Newest first, so these are the writes that ran after the result under
+    // inspection.
+    final laterWrites = <String>[];
+    final writtenPaths = <String>{};
     var remaining = budgetBytes;
     for (var index = executedToolResults.length - 1; index >= 0; index--) {
       final result = executedToolResults[index];
-      // A write invalidates everything read before it: those results describe
-      // a workspace that no longer exists, and stating them as current is
-      // worse than the digest line that merely names them. A mutating command
-      // counts -- `isFileMutationToolCall` sees only the file-writing tools,
-      // so a `local_execute_command` that moves a file would otherwise leave
-      // every earlier read being carried as if it still held.
-      if (_changesTheWorkspace(result)) break;
+      final call = _callFor(result);
+      if (_executionPolicy.isFileMutationToolCall(call)) {
+        // A file tool names what it wrote, so only reads of that path are
+        // known stale. Dropping everything older made a release turn lose the
+        // latest tag and the commit list the moment it bumped pubspec.yaml,
+        // and restart its skill from step 1: 7 of 17 capped turns re-ran
+        // pre-write inspections, against 1 of 38 turns that ended normally
+        // (session f76b5251 gen-5 reached the cap on its commit, untagged).
+        final path = _pathOf(result);
+        if (path == null) break;
+        writtenPaths.add(path);
+        laterWrites.insert(0, '${result.name} $path');
+        continue;
+      }
+      // A mutating command has no declared scope -- it can move the branch or
+      // rewrite any file -- so everything read before it may describe a
+      // workspace that no longer exists, and stating that as current is worse
+      // than the digest line that merely names it.
+      if (_executionPolicy.isCommandExecutionTool(result.name) &&
+          !_executionPolicy.isReadOnlyCommandExecutionToolCall(call)) {
+        break;
+      }
       if (!present.add(_keyFor(result))) continue;
       if (!_isCarryable(result)) continue;
+      if (writtenPaths.contains(_pathOf(result))) continue;
       final bytes = utf8.encode(result.result).length;
       if (bytes > maxResultBytes) continue;
       if (bytes > remaining) break;
       remaining -= bytes;
-      carried.add(result);
+      carried.add((result, List<String>.unmodifiable(laterWrites)));
     }
     if (carried.isEmpty) return resolved;
     return <ToolResultInfo>[
-      for (final result in carried.reversed) _asHistory(result),
+      for (final (result, changes) in carried.reversed)
+        _asHistory(result, changesSinceCapture: changes),
       ...resolved,
     ];
   }
 
   /// Marks a result as re-sent rather than newly arrived, so the request
   /// formatter can place it as its own earlier exchange.
-  ToolResultInfo _asHistory(ToolResultInfo result) => ToolResultInfo(
+  ToolResultInfo _asHistory(
+    ToolResultInfo result, {
+    List<String> changesSinceCapture = const <String>[],
+  }) => ToolResultInfo(
     id: result.id,
     name: result.name,
     arguments: result.arguments,
     result: result.result,
     outcome: result.outcome,
     fromEarlierLoop: true,
+    changesSinceCapture: changesSinceCapture,
   );
 
-  bool _changesTheWorkspace(ToolResultInfo result) {
-    final call = _callFor(result);
-    if (_executionPolicy.isFileMutationToolCall(call)) return true;
-    return _executionPolicy.isCommandExecutionTool(result.name) &&
-        !_executionPolicy.isReadOnlyCommandExecutionToolCall(call);
+  String? _pathOf(ToolResultInfo result) {
+    final path = result.arguments['path'];
+    if (path is! String) return null;
+    final trimmed = path.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   bool _isCarryable(ToolResultInfo result) {

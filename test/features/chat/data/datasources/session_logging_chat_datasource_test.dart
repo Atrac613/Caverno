@@ -1208,6 +1208,14 @@ void main() {
               diagnosticWarningCount: 1,
             ),
           ),
+          ToolResultInfo(
+            id: 'carried-tag',
+            name: 'git_execute_command',
+            arguments: const {'command': 'tag --list'},
+            result: '1.3.43+57',
+            fromEarlierLoop: true,
+            changesSinceCapture: const ['edit_file pubspec.yaml'],
+          ),
         ];
 
         final answer = await LlmSessionLogContext.run(context, () {
@@ -1241,6 +1249,13 @@ void main() {
           decoded['request']['toolResults'][0]['outcome'],
           containsPair('diagnostic_warning_count', 1),
         );
+        expect(
+          decoded['request']['toolResults'][0],
+          isNot(contains('changesSinceCapture')),
+        );
+        expect(decoded['request']['toolResults'][1]['changesSinceCapture'], [
+          'edit_file pubspec.yaml',
+        ]);
       },
     );
 

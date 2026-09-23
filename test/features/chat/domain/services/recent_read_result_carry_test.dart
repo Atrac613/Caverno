@@ -80,19 +80,90 @@ void main() {
       expect(augmented, [spec]);
     });
 
-    test('stops at a file mutation, which invalidates earlier reads', () {
-      final before = _read('a.dart', id: 'before');
+    test('drops only the reads of the path a file tool wrote', () {
+      final stale = _read('a.dart', id: 'stale');
+      final other = _read('c.dart', id: 'other');
       final after = _read('b.dart', id: 'after');
       final batch = _gitCommand('status --short', id: 'batch');
 
       final augmented = _carry.augment(
         resolved: [batch],
-        executedToolResults: [before, _write('a.dart'), after, batch],
+        executedToolResults: [stale, other, _write('a.dart'), after, batch],
       );
 
-      // `after` was read against the current workspace; `before` describes one
-      // that no longer exists.
-      expect(augmented.map((result) => result.id), ['after', 'batch']);
+      // `stale` describes a file that no longer exists in that form; `other`
+      // was not written and still holds.
+      expect(augmented.map((result) => result.id), ['other', 'after', 'batch']);
+    });
+
+    test('keeps the release facts across a version bump', () {
+      final tag = _gitCommand('tag --list --sort=-version:refname', id: 'tag');
+      final log = _gitCommand('log 1.3.43+57..HEAD --oneline', id: 'log');
+      final notes = _read('docs/releases/caverno-1.3.43.md', id: 'notes');
+      final batch = ToolResultInfo(
+        id: 'batch',
+        name: 'write_file',
+        arguments: {'path': 'docs/releases/caverno-1.3.44.md'},
+        result: '{"ok":true}',
+      );
+
+      final augmented = _carry.augment(
+        resolved: [batch],
+        executedToolResults: [tag, log, notes, _write('pubspec.yaml'), batch],
+      );
+
+      // Session f76b5251: losing these at the bump sent the model back to
+      // step 1 of its skill until the turn hit the loop cap.
+      expect(augmented.map((result) => result.id), [
+        'tag',
+        'log',
+        'notes',
+        'batch',
+      ]);
+    });
+
+    test('names the writes a carried result predates', () {
+      final tag = _gitCommand('tag --list', id: 'tag');
+      final log = _gitCommand('log --oneline', id: 'log');
+      final batch = _read('batch.dart', id: 'batch');
+
+      final augmented = _carry.augment(
+        resolved: [batch],
+        executedToolResults: [
+          tag,
+          _write('pubspec.yaml'),
+          log,
+          _write('notes.md'),
+          batch,
+        ],
+      );
+
+      final byId = {for (final result in augmented) result.id: result};
+      expect(byId['tag']!.changesSinceCapture, [
+        'write_file pubspec.yaml',
+        'write_file notes.md',
+      ]);
+      expect(byId['log']!.changesSinceCapture, ['write_file notes.md']);
+      expect(byId['batch']!.changesSinceCapture, isEmpty);
+    });
+
+    test('stops at a file write that names no path', () {
+      final before = _read('a.dart', id: 'before');
+      final pathless = ToolResultInfo(
+        id: 'w',
+        name: 'write_file',
+        arguments: const <String, dynamic>{},
+        result: '{"ok":true}',
+      );
+      final batch = _read('batch.dart', id: 'batch');
+
+      final augmented = _carry.augment(
+        resolved: [batch],
+        executedToolResults: [before, pathless, batch],
+      );
+
+      // With no target there is nothing to scope the invalidation to.
+      expect(augmented.map((result) => result.id), ['batch']);
     });
 
     test('spends the budget on the newest results and then stops', () {

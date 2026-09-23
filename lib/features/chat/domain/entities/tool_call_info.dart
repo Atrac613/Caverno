@@ -18,6 +18,7 @@ class ToolResultInfo {
     required this.result,
     this.outcome,
     this.fromEarlierLoop = false,
+    this.changesSinceCapture = const <String>[],
   });
 
   final String id;
@@ -50,4 +51,12 @@ class ToolResultInfo {
   /// that growth was reasoning rather than output. History has to look like
   /// history, so the formatter emits these as their own earlier exchanges.
   final bool fromEarlierLoop;
+
+  /// File writes this turn executed after this result was captured, oldest
+  /// first, each as `<tool> <path>`.
+  ///
+  /// Set only on a result `RecentReadResultCarry` re-sends across a write. The
+  /// formatter states them next to the result, so the model decides what the
+  /// write may have made stale instead of the harness guessing it.
+  final List<String> changesSinceCapture;
 }
