@@ -706,7 +706,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/widgets/composer_macos_paste_hint.dart': 34,
   // -15: the submenu value and check icon are chip-level presentation, so
   // they sit beside buildComposerControlChip instead.
-  'lib/features/chat/presentation/widgets/composer_model_selector.dart': 253,
+  // -4, to 249: 8b987de59's remote selection took this to 367. The selection
+  // value type, the model submenu and the local catalog fetch each left for a
+  // composer_model_* file of their own.
+  'lib/features/chat/presentation/widgets/composer_model_selector.dart': 249,
   'lib/features/chat/presentation/widgets/composer_control_chip.dart': 65,
   // +37 for the two video entries and the flag that hides them. This file is
   // the attachments menu; a menu entry is not extractable from the menu.

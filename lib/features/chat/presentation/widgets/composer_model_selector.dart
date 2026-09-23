@@ -4,51 +4,18 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/model_capability_auto_probe_notifier.dart';
-import '../../../settings/presentation/providers/model_list_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'composer_control_chip.dart';
 import 'composer_menu_rows.dart';
+import 'composer_model_catalog.dart';
+import 'composer_model_selection.dart';
+import 'composer_model_submenu.dart';
 import 'message_input_control_labels.dart';
 
-typedef ComposerModelListLoader = Future<List<String>> Function();
-typedef ComposerModelSelectionChanged =
-    FutureOr<void> Function(ComposerModelSelection selection);
-
-/// The model-related values shown by the composer chip.
-///
-/// A normal chat composer reads these values from local settings. Remote Coding
-/// supplies the desktop's values instead, while keeping the same menu and
-/// visual control on the phone.
-class ComposerModelSelection {
-  const ComposerModelSelection({
-    required this.model,
-    required this.reasoningEffort,
-    required this.enableThinking,
-  });
-
-  final String model;
-  final ReasoningEffortPreference reasoningEffort;
-  final bool? enableThinking;
-
-  ComposerModelSelection copyWith({
-    String? model,
-    ReasoningEffortPreference? reasoningEffort,
-    bool? enableThinking,
-    bool clearEnableThinking = false,
-  }) {
-    return ComposerModelSelection(
-      model: model ?? this.model,
-      reasoningEffort: reasoningEffort ?? this.reasoningEffort,
-      enableThinking: clearEnableThinking
-          ? null
-          : enableThinking ?? this.enableThinking,
-    );
-  }
-}
+export 'composer_model_selection.dart';
 
 /// Composer chip for model selection, reasoning effort, and template thinking.
 /// The chip shows the model and effort; its menu also exposes the independent
@@ -109,12 +76,7 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     final theme = Theme.of(context);
     final settings = ref.watch(settingsNotifierProvider);
     final selection =
-        widget.selection ??
-        ComposerModelSelection(
-          model: settings.effectiveModel,
-          reasoningEffort: settings.reasoningEffort,
-          enableThinking: settings.enableThinking,
-        );
+        widget.selection ?? ComposerModelSelection.fromSettings(settings);
     final selectedModel = selection.model.trim();
     final modelLabel = selectedModel.isEmpty
         ? 'message.model_unset'.tr()
@@ -133,7 +95,17 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
           controller: _menuController,
           onOpen: () => unawaited(_loadModels(settings)),
           menuChildren: [
-            _buildModelSubmenu(theme, settings, selectedModel),
+            ComposerModelSubmenu(
+              selectedModel: selectedModel,
+              models: _models,
+              isLoading: _isLoadingModels,
+              loadFailed: _modelsFailed,
+              isInert:
+                  widget.modelLoader == null &&
+                  settings.llmProvider == LlmProvider.appleFoundationModels,
+              onSelected: (model) => unawaited(_selectModel(model, settings)),
+              onRefresh: () => unawaited(_reloadModels(settings)),
+            ),
             ComposerChoiceSubmenu<ReasoningEffortPreference>(
               title: Text('message.reasoning_effort_menu_label'.tr()),
               values: ReasoningEffortPreference.values,
@@ -171,79 +143,6 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     );
   }
 
-  Widget _buildModelSubmenu(
-    ThemeData theme,
-    AppSettings settings,
-    String selectedModel,
-  ) {
-    final isApple =
-        widget.modelLoader == null &&
-        settings.llmProvider == LlmProvider.appleFoundationModels;
-    final options = [..._models];
-    if (selectedModel.isNotEmpty && !options.contains(selectedModel)) {
-      options.insert(0, selectedModel);
-    }
-    return SubmenuButton(
-      trailingIcon: buildComposerSubmenuValue(
-        theme,
-        selectedModel.isEmpty ? 'message.model_unset'.tr() : selectedModel,
-      ),
-      // Apple's provider has exactly one model; leave the row inert rather than
-      // opening a submenu whose only entry is the current value.
-      menuChildren: isApple
-          ? const <Widget>[]
-          : [
-              if (_isLoadingModels)
-                MenuItemButton(
-                  onPressed: null,
-                  child: Text('message.model_loading'.tr()),
-                )
-              else if (_modelsFailed)
-                MenuItemButton(
-                  onPressed: null,
-                  child: Text(
-                    'message.model_load_failed'.tr(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ),
-              for (final model in options)
-                MenuItemButton(
-                  leadingIcon: buildComposerMenuCheckIcon(
-                    theme,
-                    model == selectedModel,
-                  ),
-                  onPressed: () => unawaited(_selectModel(model, settings)),
-                  child: Text(model, overflow: TextOverflow.ellipsis),
-                ),
-              MenuItemButton(
-                leadingIcon: const Icon(Icons.refresh, size: 18),
-                onPressed: () => unawaited(_reloadModels(settings)),
-                child: Text('message.model_refresh'.tr()),
-              ),
-            ],
-      child: Text('message.model_menu_label'.tr()),
-    );
-  }
-
-  /// Model list config for the picker.
-  ///
-  /// Keyed identically to the one the chat header uses for the token-usage
-  /// indicator, so the two share a cached `/v1/models` fetch rather than
-  /// issuing separate ones.
-  ModelListConfig _modelListConfig(AppSettings settings) {
-    return ModelListConfig(
-      baseUrl: settings.baseUrl.trim().isEmpty
-          ? ApiConstants.defaultBaseUrl
-          : settings.baseUrl.trim(),
-      apiKey: settings.apiKey.trim().isEmpty
-          ? ApiConstants.defaultApiKey
-          : settings.apiKey.trim(),
-      selectedModelId: settings.model.trim(),
-    );
-  }
-
   /// Loads the endpoint's model list into [_models]. A failure leaves the menu
   /// open carrying the current model plus the retry entry, so an unreachable
   /// endpoint never turns the picker into a dead control.
@@ -259,25 +158,13 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     });
     var models = const <String>[];
     var failed = false;
-    final config = _modelListConfig(settings);
-    ProviderSubscription<AsyncValue<List<String>>>? subscription;
     try {
-      if (widget.modelLoader != null) {
-        models = await widget.modelLoader!();
-      } else {
-        // Hold a listener while the request is in flight: the catalog provider
-        // is autoDispose, and a bare read would let it drop mid-fetch.
-        subscription = ref.listenManual<AsyncValue<List<String>>>(
-          modelListProvider(config),
-          (_, _) {},
-        );
-        models = await ref.read(modelListProvider(config).future);
-      }
+      models = widget.modelLoader != null
+          ? await widget.modelLoader!()
+          : await ComposerModelCatalog.load(ref, settings);
     } on Object catch (error) {
       failed = true;
       appDebugPrint('Composer model list failed to load: $error');
-    } finally {
-      subscription?.close();
     }
     if (!mounted) return;
     setState(() {
@@ -289,7 +176,7 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
 
   Future<void> _reloadModels(AppSettings settings) async {
     if (widget.modelLoader == null) {
-      ref.invalidate(modelCatalogProvider(_modelListConfig(settings)));
+      ComposerModelCatalog.invalidate(ref, settings);
     }
     await _loadModels(settings);
   }
@@ -299,12 +186,7 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
     final selected = model.trim();
     if (selected.isEmpty) return;
     final currentSelection =
-        widget.selection ??
-        ComposerModelSelection(
-          model: settings.effectiveModel,
-          reasoningEffort: settings.reasoningEffort,
-          enableThinking: settings.enableThinking,
-        );
+        widget.selection ?? ComposerModelSelection.fromSettings(settings);
     if (selected == currentSelection.model.trim()) return;
     if (widget.onSelectionChanged != null) {
       await widget.onSelectionChanged!(
