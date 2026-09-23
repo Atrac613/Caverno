@@ -1,6 +1,8 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierPendingBatchTests() {
+  // Both suites pin how the loop spends its iteration cap.
+  registerChatNotifierBackgroundWaitRefundTests();
   test(
     'pending mutation executes once after bounded recovery is spent',
     () async {

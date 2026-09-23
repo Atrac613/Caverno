@@ -35,6 +35,7 @@ import '../../../settings/domain/services/local_command_permission_service.dart'
 import '../../../settings/presentation/providers/local_model_lifecycle_provider.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../application/runtime/background_wait_iteration_refund.dart';
 import '../../application/runtime/duplicate_command_answer_policy.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
 import '../../application/runtime/read_only_command_repeat_budget.dart';
@@ -5278,6 +5279,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var attemptedSkippedPythonAttachmentRepair = false;
     var attemptedPythonAttachmentPathRepair = false;
     var forcedBackgroundProcessFollowUpCount = 0;
+    final backgroundWaitRefund = BackgroundWaitIterationRefund();
     var attemptedCodingContinuationRecovery = false;
     var savedValidationSucceededInLoop = false;
     final attemptedCompletionVerificationMutationSignatures = <String>{};
@@ -5361,6 +5363,10 @@ class ChatNotifier extends Notifier<ChatState> {
       stateChangeGeneration = batchResult.stateChangeGeneration;
       final batchToolResults = batchResult.batchToolResults;
       final pendingBatchCalls = batchResult.pendingBatchCalls;
+      maxIterations += backgroundWaitRefund.iterationsFor(
+        batchToolResults,
+        cap: maxIterations,
+      );
       final terminalSuccessMessage = batchResult.terminalSuccessMessage;
       if (await _finishExplicitTerminalSuccess(
         terminalSuccessMessage,

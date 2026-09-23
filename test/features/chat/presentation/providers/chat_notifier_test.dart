@@ -88,6 +88,7 @@ part 'chat_notifier_approval_cache_part.dart';
 part 'chat_notifier_ask_user_question_part.dart';
 part 'chat_notifier_assumption_confirmation_part.dart';
 part 'chat_notifier_auto_review_escalation_part.dart';
+part 'chat_notifier_background_wait_refund_part.dart';
 part 'chat_notifier_coding_verification_feedback_part.dart';
 part 'chat_notifier_command_dedup_part.dart';
 part 'chat_notifier_context_surgery_part.dart';
