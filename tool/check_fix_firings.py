@@ -361,6 +361,15 @@ SIGNATURES = {
         # wiring, which is what makes the row reachable at all.
         "match": lambda s: "here because a tool result" in s,
     },
+    "read_carry_across_file_write": {
+        "commit": "67009e4c7",
+        "what": "earlier reads carried across a file write, labelled with it",
+        # The key exists only on a carried result that predates a write. Unlike
+        # prose it is matched as a real JSON key: json.dumps escapes the quotes
+        # of the same text inside a tool result, so reading this repository
+        # cannot fire it.
+        "match": lambda s: '"changesSinceCapture": [' in s,
+    },
 }
 
 for _name, _signature in SIGNATURES.items():
