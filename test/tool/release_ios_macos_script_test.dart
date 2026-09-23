@@ -243,6 +243,160 @@ void main() {
       contains('${fixture.root.path}/docs/releases/caverno-9.8.7.md'),
     );
   });
+
+  group('release provenance guards', () {
+    const iosDryRun = ['--only', 'ios', '--dry-run', '--no-pub-get'];
+
+    test('refuses to publish a version with no release tag', () async {
+      final fixture = _ReleaseScriptFixture.create();
+      final repo = fixture.createReleaseRepo();
+
+      final result = await fixture.runReleaseScriptIn(
+        repo,
+        arguments: iosDryRun,
+      );
+
+      expect(result.exitCode, 65);
+      expect(result.stderr, contains('Release tag 1.2.3+4 does not exist'));
+    });
+
+    test('refuses to publish commits the release tag does not hold', () async {
+      final fixture = _ReleaseScriptFixture.create();
+      final repo = fixture.createReleaseRepo(tag: '1.2.3+4');
+      File('${repo.path}/later.txt').writeAsStringSync('after the tag');
+      Process.runSync('git', ['add', '.'], workingDirectory: repo.path);
+      Process.runSync('git', [
+        '-c',
+        'user.name=test',
+        '-c',
+        'user.email=test@example.com',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '-q',
+        '-m',
+        'later',
+      ], workingDirectory: repo.path);
+
+      final result = await fixture.runReleaseScriptIn(
+        repo,
+        arguments: iosDryRun,
+      );
+
+      // The 1.3.44+58 incident: two commits past the tag, same version.
+      expect(result.exitCode, 65);
+      expect(result.stderr, contains('Release tag 1.2.3+4 points at'));
+    });
+
+    test('refuses to publish uncommitted changes', () async {
+      final fixture = _ReleaseScriptFixture.create();
+      final repo = fixture.createReleaseRepo(tag: '1.2.3+4');
+      File(
+        '${repo.path}/tool/release_ios_macos.sh',
+      ).writeAsStringSync('\n# edited', mode: FileMode.append);
+
+      final result = await fixture.runReleaseScriptIn(
+        repo,
+        arguments: iosDryRun,
+      );
+
+      expect(result.exitCode, 65);
+      expect(result.stderr, contains('uncommitted changes'));
+    });
+
+    test('allows a tagged, clean HEAD', () async {
+      final fixture = _ReleaseScriptFixture.create();
+      final repo = fixture.createReleaseRepo(tag: '1.2.3+4');
+
+      final result = await fixture.runReleaseScriptIn(
+        repo,
+        arguments: iosDryRun,
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, contains('Version: 1.2.3+4'));
+    });
+
+    test('does not require a tag for a local iOS export', () async {
+      final fixture = _ReleaseScriptFixture.create();
+      final repo = fixture.createReleaseRepo();
+
+      final result = await fixture.runReleaseScriptIn(
+        repo,
+        arguments: [...iosDryRun, '--ios-destination', 'export'],
+      );
+
+      // Nothing leaves the machine, so there is no public version to protect.
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+    });
+
+    for (final published in [4, 5]) {
+      test(
+        'refuses a macOS build the appcast already has at $published',
+        () async {
+          final fixture = _ReleaseScriptFixture.create();
+          final repo = fixture.createReleaseRepo(tag: '1.2.3+4');
+
+          final result = await fixture.runReleaseScriptIn(
+            repo,
+            arguments: [
+              '--only',
+              'macos',
+              '--dry-run',
+              '--no-pub-get',
+              '--macos-download-url-prefix',
+              fixture.writeAppcast([3, published]),
+            ],
+          );
+
+          expect(result.exitCode, 65);
+          expect(
+            result.stderr,
+            contains('already publishes build $published; build 4'),
+          );
+        },
+      );
+    }
+
+    test('allows a macOS build newer than every published one', () async {
+      final fixture = _ReleaseScriptFixture.create();
+      final repo = fixture.createReleaseRepo(tag: '1.2.3+4');
+
+      final result = await fixture.runReleaseScriptIn(
+        repo,
+        arguments: [
+          '--only',
+          'macos',
+          '--dry-run',
+          '--no-pub-get',
+          '--macos-download-url-prefix',
+          fixture.writeAppcast([2, 3]),
+        ],
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+    });
+
+    test('fails closed when the appcast cannot be read', () async {
+      final fixture = _ReleaseScriptFixture.create();
+      final repo = fixture.createReleaseRepo(tag: '1.2.3+4');
+
+      final result = await fixture.runReleaseScriptIn(
+        repo,
+        arguments: [
+          '--only',
+          'macos',
+          '--dry-run',
+          '--no-pub-get',
+          '--macos-download-url-prefix',
+          'file://${fixture.root.path}/missing',
+        ],
+      );
+
+      expect(result.exitCode, 69);
+      expect(result.stderr, contains('Could not read the published appcast'));
+    });
+  });
 }
 
 final class _ReleaseScriptFixture {
@@ -322,8 +476,83 @@ printf '%s\n' "$@"
         logDirectory.path,
       ],
       workingDirectory: Directory.current.path,
+      environment: {
+        'PATH': '${bin.path}:$path',
+        // These tests exercise lanes against this checkout, whose HEAD is not
+        // a release tag; the guards have their own tests on a scratch repo.
+        'CAVERNO_ALLOW_UNTAGGED_RELEASE': 'yes',
+        'CAVERNO_ALLOW_SPARKLE_REPUBLISH': 'yes',
+        ...environment,
+      },
+    );
+  }
+
+  /// A git repository holding a copy of `tool/` and a pubspec at [version],
+  /// so the provenance guards see a HEAD and tags this test controls.
+  Directory createReleaseRepo({String version = '1.2.3+4', String? tag}) {
+    final repo = Directory('${root.path}/repo')..createSync();
+    final tool = Directory('${repo.path}/tool')..createSync();
+    for (final entity in Directory('tool').listSync()) {
+      if (entity is File && entity.path.endsWith('.sh')) {
+        entity.copySync('${tool.path}/${entity.uri.pathSegments.last}');
+      }
+    }
+    File('${repo.path}/pubspec.yaml').writeAsStringSync('version: $version\n');
+    void git(List<String> args) {
+      final result = Process.runSync('git', [
+        '-c',
+        'user.name=test',
+        '-c',
+        'user.email=test@example.com',
+        '-c',
+        'commit.gpgsign=false',
+        '-c',
+        'tag.gpgsign=false',
+        ...args,
+      ], workingDirectory: repo.path);
+      if (result.exitCode != 0) {
+        throw StateError('git ${args.join(' ')} failed: ${result.stderr}');
+      }
+    }
+
+    git(['init', '-q']);
+    git(['add', '.']);
+    git(['commit', '-q', '-m', 'release']);
+    if (tag != null) git(['tag', tag]);
+    return repo;
+  }
+
+  Future<ProcessResult> runReleaseScriptIn(
+    Directory repo, {
+    required List<String> arguments,
+    Map<String, String> environment = const {},
+  }) {
+    final path = Platform.environment['PATH'] ?? '';
+    return Process.run(
+      'bash',
+      [
+        '${repo.path}/tool/release_ios_macos.sh',
+        ...arguments,
+        '--release-log-dir',
+        logDirectory.path,
+      ],
+      workingDirectory: repo.path,
       environment: {'PATH': '${bin.path}:$path', ...environment},
     );
+  }
+
+  /// A local appcast listing [builds], served by `curl` over file://.
+  String writeAppcast(List<int> builds) {
+    final feed = Directory('${root.path}/feed')..createSync();
+    File('${feed.path}/appcast.xml').writeAsStringSync(
+      [
+        '<rss><channel>',
+        for (final build in builds)
+          '<item><sparkle:version>$build</sparkle:version></item>',
+        '</channel></rss>',
+      ].join('\n'),
+    );
+    return 'file://${feed.path}';
   }
 
   void _writeExecutable(String name, String content) {
