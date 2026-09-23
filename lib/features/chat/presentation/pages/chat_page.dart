@@ -66,6 +66,7 @@ import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/approval/approval_dialog_route.dart';
+import '../widgets/background_process_panel.dart';
 import '../widgets/chat_error_banner.dart';
 import '../widgets/chat_page_scaffold.dart';
 import '../widgets/chat_right_sidebar.dart';
@@ -1033,6 +1034,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 ?.buildViewer(
                                   onClose: _closeFileWorkspaceViewer,
                                 ),
+                            processPanel: BackgroundProcessPanel.of(
+                              sidebarConversation.id,
+                            ),
                             selectedTab: _rightSidebarTab,
                             onSelected: (selection) {
                               setState(() {

@@ -710,7 +710,9 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     await tester.pumpAndSettle();
 
     // The companion toggle is offered in chat too.
-    expect(find.byIcon(Icons.view_sidebar_outlined), findsOneWidget);
+    expect(find.byTooltip('Toggle companion panel'), findsOneWidget);
+    // Desktop adds the background-process tab beside the companion.
+    expect(find.text('Processes'), findsOneWidget);
     // The chat companion panel surfaces only the session log section.
     expect(find.text('Session log'), findsOneWidget);
     expect(find.text('Progress'), findsNothing);

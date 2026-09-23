@@ -7,6 +7,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/chat_turn_owner.dart';
+import 'background_process_monitor_snapshot.dart';
 import 'background_process_tools_legacy_api.dart';
 import 'background_process_types.dart';
 import 'carried_background_job_retention.dart';
@@ -18,6 +19,7 @@ export 'background_process_types.dart'
     show BackgroundProcessRuntimeIdentity, BackgroundProcessStarter;
 
 part 'background_process_carry_over.dart';
+part 'background_process_conversation_view.dart';
 part 'background_process_job.dart';
 part 'background_process_launch_recovery.dart';
 part 'background_process_recovery_registry.dart';

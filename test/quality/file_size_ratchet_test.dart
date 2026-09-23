@@ -739,7 +739,10 @@ const Map<String, int> _lineBudgets = {
       356,
   'lib/features/chat/presentation/widgets/slash_command_help_sheet.dart': 42,
   'lib/features/chat/presentation/widgets/chat_page_scaffold.dart': 87,
-  'lib/features/chat/presentation/widgets/chat_right_sidebar.dart': 114,
+  // +36, to 150: the third tab (background processes). Choosing which tabs
+  // exist and falling back when a selected tab's body is gone is the panel's
+  // own job; the process list itself is BackgroundProcessPanel.
+  'lib/features/chat/presentation/widgets/chat_right_sidebar.dart': 150,
   'lib/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart':
       1559,
   'lib/features/chat/presentation/widgets/file_workspace_diff_parser.dart': 97,
@@ -768,7 +771,9 @@ const Map<String, int> _lineBudgets = {
       19,
   // Carry-over (background_process_carry_over.dart) extracted alongside the
   // public recovery API, which moved next to the registry internals it settles.
-  'lib/features/chat/data/datasources/background_process_tools.dart': 415,
+  // +2, to 417: the part directive and the snapshot import for the sidebar's
+  // read-only conversation view (background_process_conversation_view.dart).
+  'lib/features/chat/data/datasources/background_process_tools.dart': 417,
   'lib/features/chat/data/datasources/background_process_carry_over.dart': 141,
   // Carried-job retention is one policy read by two pools -- the tools registry
   // and the monitor service -- so it lives beside them rather than twice inside
