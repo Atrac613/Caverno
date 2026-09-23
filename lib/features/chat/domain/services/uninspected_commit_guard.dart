@@ -4,6 +4,7 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'immutable_json_snapshot.dart';
+import 'proposal_parsing_text_utils.dart';
 import 'tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: uninspected-commit-guard
@@ -35,8 +36,9 @@ final class UninspectedCommitInput {
 /// the changes itself, since a model that just wrote the files knows what it
 /// is committing; it fires only when a turn commits work it inherited without
 /// reading a content diff. `--stat`, `--name-only`, `--numstat` and
-/// `--name-status` do not count: those are exactly the forms that report file
-/// names while hiding what changed.
+/// `--name-status` do not count: they report file names and hide the change.
+/// Nor does an empty diff, such as session 23d19ede's bare `git diff` run
+/// after staging everything.
 final class UninspectedCommitGuard {
   const UninspectedCommitGuard();
 
@@ -102,20 +104,18 @@ final class UninspectedCommitGuard {
       _mutationPolicy.isMutationToolName(result.name);
 
   bool _revealsContent(ToolResultInfo result) {
-    if (result.name.trim().toLowerCase() != 'git_execute_command') {
-      return false;
-    }
-    final command = _executionPolicy.toolCommandArgument(result.arguments);
-    if (command == null) {
-      return false;
-    }
-    final args = _argumentsOf(command);
+    final command = result.name.trim().toLowerCase() == 'git_execute_command'
+        ? _executionPolicy.toolCommandArgument(result.arguments)
+        : null;
+    final args = command == null ? const <String>[] : _argumentsOf(command);
     if (args.isEmpty || (args.first != 'diff' && args.first != 'show')) {
       return false;
     }
-    return !args
-        .skip(1)
-        .any((arg) => _summaryOnlyFlags.contains(arg.split('=').first));
+    final output = ProposalParsingTextUtils.tryDecodeMap(result.result);
+    return '${output?['stdout'] ?? ''}'.trim().isNotEmpty &&
+        !args
+            .skip(1)
+            .any((arg) => _summaryOnlyFlags.contains(arg.split('=').first));
   }
 
   List<String> _argumentsOf(String command) {

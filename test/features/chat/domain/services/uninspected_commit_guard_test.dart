@@ -13,11 +13,14 @@ void main() {
     arguments: {'command': command},
   );
 
-  ToolResultInfo gitResult(String command) => ToolResultInfo(
+  ToolResultInfo gitResult(
+    String command, {
+    String stdout = 'diff --git a/lib/app.dart b/lib/app.dart',
+  }) => ToolResultInfo(
     id: 'result-$command',
     name: 'git_execute_command',
     arguments: {'command': command},
-    result: '{"exit_code":0}',
+    result: jsonEncode({'exit_code': 0, 'stdout': stdout, 'stderr': ''}),
   );
 
   ToolResultInfo mutation(String name) => ToolResultInfo(
@@ -71,6 +74,38 @@ void main() {
       evaluate(
         command: 'commit -m "fix: x"',
         results: [gitResult('show HEAD')],
+      ),
+      isNull,
+    );
+  });
+
+  test('an empty diff is not a look at the content', () {
+    // Session 23d19ede: after `git add`, a bare `git diff` printed nothing
+    // because every change was staged, and it still unlocked the commit.
+    expect(
+      evaluate(
+        command: 'commit -m "chore: release 1.3.43+57"',
+        results: [
+          gitResult('add pubspec.yaml'),
+          gitResult('diff', stdout: ''),
+        ],
+      ),
+      isNotNull,
+    );
+    expect(
+      evaluate(
+        command: 'commit -m "x"',
+        results: [gitResult('diff --cached', stdout: '  \n')],
+      ),
+      isNotNull,
+    );
+    expect(
+      evaluate(
+        command: 'commit -m "x"',
+        results: [
+          gitResult('diff', stdout: ''),
+          gitResult('diff --cached'),
+        ],
       ),
       isNull,
     );
