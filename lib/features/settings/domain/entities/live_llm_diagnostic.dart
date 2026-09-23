@@ -482,6 +482,52 @@ class LiveLlmDiagnosticToolDepthMetrics {
   };
 }
 
+/// Whether the model actually reasoned during the run, next to what the
+/// requests asked for.
+///
+/// The request side alone is not evidence: on 2026-09-23 every probe against
+/// qwen3.8-27b-exl3 sent `enable_thinking: true` while a router in front of the
+/// server forced thinking off, so no response carried any reasoning and the
+/// report still read as a thinking-on measurement. Counting the reasoning the
+/// responses returned is what lets two runs be compared as thinking on vs off.
+class LiveLlmDiagnosticThinkingMetrics {
+  const LiveLlmDiagnosticThinkingMetrics({
+    this.requested,
+    required this.responseCount,
+    required this.reasoningResponseCount,
+    required this.reasoningChars,
+  });
+
+  /// The `enable_thinking` value the requests carried, or null when the
+  /// request left thinking to the server default.
+  final bool? requested;
+
+  /// Model responses the probes received.
+  final int responseCount;
+
+  /// Responses that carried any reasoning, closed or cut off by the token cap.
+  final int reasoningResponseCount;
+
+  final int reasoningChars;
+
+  bool get observed => reasoningResponseCount > 0;
+
+  /// True when the responses contradict the request: thinking was asked for
+  /// and none came back, or it was switched off and some came back anyway.
+  /// Partial reasoning under `requested: true` is not a mismatch, since a model
+  /// may legitimately answer a trivial prompt without deliberating.
+  bool get mismatch =>
+      responseCount > 0 && requested != null && requested != observed;
+
+  Map<String, dynamic> toJson() => {
+    if (requested != null) 'requested': requested,
+    'responseCount': responseCount,
+    'reasoningResponseCount': reasoningResponseCount,
+    'reasoningChars': reasoningChars,
+    'mismatch': mismatch,
+  };
+}
+
 class LiveLlmDiagnosticReport {
   const LiveLlmDiagnosticReport({
     required this.startedAt,
@@ -499,6 +545,7 @@ class LiveLlmDiagnosticReport {
     this.embeddingMetrics,
     this.effectiveContextMetrics,
     this.toolDepthMetrics,
+    this.thinkingMetrics,
   });
 
   final DateTime startedAt;
@@ -537,6 +584,9 @@ class LiveLlmDiagnosticReport {
   /// a run that cleared no rung: that one reports a zero depth.
   final LiveLlmDiagnosticToolDepthMetrics? toolDepthMetrics;
 
+  /// Null until the run finishes, and for demo runs that send no request.
+  final LiveLlmDiagnosticThinkingMetrics? thinkingMetrics;
+
   LiveLlmDiagnosticReport copyWith({
     DateTime? finishedAt,
     LiveLlmDiagnosticToolCatalog? toolCatalog,
@@ -548,6 +598,7 @@ class LiveLlmDiagnosticReport {
     LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics,
     LiveLlmDiagnosticEffectiveContextMetrics? effectiveContextMetrics,
     LiveLlmDiagnosticToolDepthMetrics? toolDepthMetrics,
+    LiveLlmDiagnosticThinkingMetrics? thinkingMetrics,
   }) {
     return LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -570,6 +621,7 @@ class LiveLlmDiagnosticReport {
       effectiveContextMetrics:
           effectiveContextMetrics ?? this.effectiveContextMetrics,
       toolDepthMetrics: toolDepthMetrics ?? this.toolDepthMetrics,
+      thinkingMetrics: thinkingMetrics ?? this.thinkingMetrics,
     );
   }
 
@@ -663,6 +715,7 @@ class LiveLlmDiagnosticReport {
     if (effectiveContextMetrics != null)
       'effectiveContext': effectiveContextMetrics!.toJson(),
     if (toolDepthMetrics != null) 'toolDepth': toolDepthMetrics!.toJson(),
+    if (thinkingMetrics != null) 'thinking': thinkingMetrics!.toJson(),
     'results': results.map((result) => result.toJson()).toList(),
     if (samplerCalibrationTrials.isNotEmpty)
       'samplerCalibrationTrials': samplerCalibrationTrials

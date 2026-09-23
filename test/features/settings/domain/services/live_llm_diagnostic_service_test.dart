@@ -515,6 +515,44 @@ void main() {
     },
   );
 
+  test('counts the reasoning the probe responses actually carried', () async {
+    const probeIds = {
+      'streaming_response',
+      'exact_preservation',
+      'edit_format_fidelity',
+    };
+    final reasoning = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _ReasoningWrappedDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+    ).run(probeIds: probeIds);
+    final plain = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+    ).run(probeIds: probeIds);
+
+    final observed = reasoning.thinkingMetrics!;
+    // One streamed answer, three exact-preservation arms, three edit formats.
+    expect(observed.responseCount, 7);
+    expect(observed.reasoningResponseCount, 7);
+    expect(observed.reasoningChars, 7 * 'diagnostic reasoning'.length);
+    // A fake datasource sends no thinking control, so nothing to contradict.
+    expect(observed.requested, isNull);
+    expect(observed.mismatch, isFalse);
+
+    final absent = plain.thinkingMetrics!;
+    expect(absent.responseCount, 7);
+    expect(absent.reasoningResponseCount, 0);
+    expect(absent.observed, isFalse);
+    expect(plain.toJson()['thinking'], {
+      'responseCount': 7,
+      'reasoningResponseCount': 0,
+      'reasoningChars': 0,
+      'mismatch': false,
+    });
+  });
+
   test('keeps update_goal string boolean failures explicit', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: true),

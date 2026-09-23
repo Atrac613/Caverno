@@ -48,6 +48,12 @@ void main() {
           ),
         ],
       ),
+      thinkingMetrics: const LiveLlmDiagnosticThinkingMetrics(
+        requested: true,
+        responseCount: 12,
+        reasoningResponseCount: 0,
+        reasoningChars: 0,
+      ),
     );
 
     await repository.append(report);
@@ -59,6 +65,9 @@ void main() {
     expect(restored.multiRoundToolLoopMetrics?.totalTokens, 140);
     expect(restored.embeddingMetrics?.semanticMargin, closeTo(0.7, 0.000001));
     expect(restored.effectiveContextMetrics?.maxSuccessfulPromptTokens, 2050);
+    expect(restored.thinkingMetrics?.requested, isTrue);
+    expect(restored.thinkingMetrics?.responseCount, 12);
+    expect(restored.thinkingMetrics?.mismatch, isTrue);
   });
 
   test('keeps only the newest ten reports for each model', () async {

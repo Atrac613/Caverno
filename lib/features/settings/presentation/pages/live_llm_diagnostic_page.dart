@@ -174,13 +174,15 @@ List<Widget> _reportDetailSections(LiveLlmDiagnosticReport report) {
     if (report.streamingMetrics != null ||
         report.multiRoundToolLoopMetrics != null ||
         report.embeddingMetrics != null ||
-        report.effectiveContextMetrics != null) ...[
+        report.effectiveContextMetrics != null ||
+        report.thinkingMetrics != null) ...[
       const SizedBox(height: 16),
       _CapabilitySection(
         streamingMetrics: report.streamingMetrics,
         multiRoundMetrics: report.multiRoundToolLoopMetrics,
         embeddingMetrics: report.embeddingMetrics,
         effectiveContextMetrics: report.effectiveContextMetrics,
+        thinkingMetrics: report.thinkingMetrics,
       ),
     ],
     const SizedBox(height: 16),
@@ -831,12 +833,14 @@ class _CapabilitySection extends StatelessWidget {
     this.multiRoundMetrics,
     this.embeddingMetrics,
     this.effectiveContextMetrics,
+    this.thinkingMetrics,
   });
 
   final LiveLlmDiagnosticStreamingMetrics? streamingMetrics;
   final LiveLlmDiagnosticMultiRoundToolLoopMetrics? multiRoundMetrics;
   final LiveLlmDiagnosticEmbeddingMetrics? embeddingMetrics;
   final LiveLlmDiagnosticEffectiveContextMetrics? effectiveContextMetrics;
+  final LiveLlmDiagnosticThinkingMetrics? thinkingMetrics;
 
   @override
   Widget build(BuildContext context) {
@@ -1009,8 +1013,38 @@ class _CapabilitySection extends StatelessWidget {
                     : 'settings.live_llm_diag_no'.tr(),
               ),
             ],
+            if (thinkingMetrics case final metrics?) ...[
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-thinking-requested-tile'),
+                icon: Icons.psychology_outlined,
+                label: 'settings.live_llm_diag_thinking_requested'.tr(),
+                value: switch (metrics.requested) {
+                  true => 'settings.live_llm_diag_yes'.tr(),
+                  false => 'settings.live_llm_diag_no'.tr(),
+                  null => 'settings.live_llm_diag_thinking_server_default'.tr(),
+                },
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-thinking-observed-tile'),
+                icon: Icons.psychology_alt_outlined,
+                label: 'settings.live_llm_diag_thinking_observed'.tr(),
+                value:
+                    '${metrics.reasoningResponseCount} / '
+                    '${metrics.responseCount}',
+              ),
+            ],
           ],
         ),
+        if (thinkingMetrics?.mismatch ?? false) ...[
+          const SizedBox(height: 8),
+          Text(
+            key: const ValueKey('live-llm-diag-thinking-mismatch'),
+            'settings.live_llm_diag_thinking_mismatch'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ],
         if (streamingMetrics?.isLikelyBuffered ?? false) ...[
           const SizedBox(height: 8),
           Text(

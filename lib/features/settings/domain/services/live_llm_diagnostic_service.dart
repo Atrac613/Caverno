@@ -55,6 +55,13 @@ class LiveLlmDiagnosticService {
   final int effectiveContextMaxTokens;
   final RunEffectiveContextTrial? runEffectiveContextTrial;
 
+  final _thinking = _ThinkingObserver();
+
+  /// Every probe request goes through here so its response is counted by
+  /// [_thinking]. [chatDataSource] stays the datasource itself, because probes
+  /// type-test it for opt-in capabilities a wrapper would hide.
+  late final _chat = _ObservedChatCalls(chatDataSource, _thinking);
+
   static const probeDefinitions = <LiveLlmDiagnosticProbeDefinition>[
     LiveLlmDiagnosticProbeDefinition(
       id: _instructionProbeId,
@@ -437,6 +444,7 @@ class LiveLlmDiagnosticService {
     Set<String>? probeIds,
   }) async {
     final selectedProbeIds = probeIds == null ? null : Set<String>.of(probeIds);
+    _thinking.reset();
     final startedAt = DateTime.now();
     var report = LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -461,7 +469,7 @@ class LiveLlmDiagnosticService {
 
     if (settings.demoMode) {
       report = _skipRemainingAfterLiveRequirement(report);
-      report = report.copyWith(finishedAt: DateTime.now());
+      report = _finishReport(report);
       onReport?.call(report);
       return report;
     }
@@ -550,7 +558,7 @@ class LiveLlmDiagnosticService {
         _toolBridgeProbeDefinitions(),
         selectedProbeIds: selectedProbeIds,
       );
-      report = report.copyWith(finishedAt: DateTime.now());
+      report = _finishReport(report);
       onReport?.call(report);
       return report;
     }
@@ -581,7 +589,7 @@ class LiveLlmDiagnosticService {
         _probeDefinitionsAfter(_narrowToolCallProbeId),
         selectedProbeIds: selectedProbeIds,
       );
-      report = report.copyWith(finishedAt: DateTime.now());
+      report = _finishReport(report);
       onReport?.call(report);
       return report;
     }
@@ -639,7 +647,7 @@ class LiveLlmDiagnosticService {
       run: _runToolRecoveryProbe,
     );
 
-    report = report.copyWith(finishedAt: DateTime.now());
+    report = _finishReport(report);
     onReport?.call(report);
     return report;
   }
@@ -712,6 +720,28 @@ class LiveLlmDiagnosticService {
   };
 
   String get _diagnosticModel => settings.effectiveModel;
+
+  LiveLlmDiagnosticReport _finishReport(LiveLlmDiagnosticReport report) {
+    return report.copyWith(
+      finishedAt: DateTime.now(),
+      thinkingMetrics: _thinking.metrics(requested: _requestedThinking()),
+    );
+  }
+
+  /// The `enable_thinking` value the probe requests carried.
+  ///
+  /// Resolved the same way the policy client resolves it on the wire. The
+  /// probes set no [ModelUsageRole], so no role suppression applies and the
+  /// value follows the person's reasoning settings.
+  bool? _requestedThinking() {
+    final remote = chatDataSource;
+    if (remote is! ChatRemoteDataSource) return null;
+    final overrides = remote.qwen38RequestOverrides(
+      model: _diagnosticModel,
+      maxTokens: _diagnosticMaxTokens,
+    );
+    return overrides?.chatTemplateKwargs['enable_thinking'] as bool?;
+  }
 
   LiveLlmDiagnosticReport _skipRemainingAfterLiveRequirement(
     LiveLlmDiagnosticReport report,
@@ -910,7 +940,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runInstructionProbe() async {
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Return exactly this JSON object and no markdown:\n'
@@ -1044,6 +1074,7 @@ class LiveLlmDiagnosticService {
             temperature: _diagnosticTemperature,
             maxTokens: _reasoningProbeMaxTokens,
           );
+      _thinking.record(schemaResult.content);
       completed.add(schemaResult);
       final decoded = _tryDecodeJsonObject(schemaResult.content);
       final schemaPassed =
@@ -1179,7 +1210,7 @@ class LiveLlmDiagnosticService {
     for (var turn = 0; turn < maxTurns; turn++) {
       final ChatCompletionResult result;
       try {
-        result = await chatDataSource.createChatCompletion(
+        result = await _chat.createChatCompletion(
           messages: messages,
           tools: probeCase.tools,
           model: _diagnosticModel,
@@ -1404,7 +1435,7 @@ class LiveLlmDiagnosticService {
     for (final step in rung.steps) {
       final ChatCompletionResult result;
       try {
-        result = await chatDataSource.createChatCompletion(
+        result = await _chat.createChatCompletion(
           messages: messages,
           tools: LiveLlmToolDepthStaircase.toolDefinitions,
           model: _diagnosticModel,
@@ -1482,7 +1513,7 @@ class LiveLlmDiagnosticService {
 
     final ChatCompletionResult finalResult;
     try {
-      finalResult = await chatDataSource.createChatCompletion(
+      finalResult = await _chat.createChatCompletion(
         messages: messages,
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
@@ -1587,6 +1618,7 @@ class LiveLlmDiagnosticService {
             temperature: _diagnosticTemperature,
             maxTokens: _diagnosticMaxTokens,
           );
+      _thinking.record(objectResult.content);
       completed.add(objectResult);
       final decoded = _tryDecodeJsonObject(objectResult.content);
       final objectPassed =
@@ -1724,6 +1756,7 @@ class LiveLlmDiagnosticService {
     final terminal = await streamed.terminal;
 
     final content = buffer.toString();
+    _thinking.record(content);
     final visibleContent = _visibleDiagnosticContent(content);
     final matched = _matchedIntegerSequence(visibleContent);
     final metrics = LiveLlmDiagnosticStreamingMetrics(
@@ -1797,7 +1830,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runExactPreservationProbe() async {
-    final directResult = await chatDataSource.createChatCompletion(
+    final directResult = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Reply with exactly this text and no extra characters:\n'
@@ -1836,14 +1869,14 @@ class LiveLlmDiagnosticService {
         timestamp: DateTime.now(),
       ),
     );
-    final toolResult = await chatDataSource.createChatCompletion(
+    final toolResult = await _chat.createChatCompletion(
       messages: toolResultMessages,
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
 
-    final urlResult = await chatDataSource.createChatCompletion(
+    final urlResult = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Reply with exactly this URL and no extra characters:\n'
@@ -1932,7 +1965,7 @@ class LiveLlmDiagnosticService {
     ];
     final outcomes = <_EditFormatProbeOutcome>[];
     for (final testCase in cases) {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(
           user:
               'Update the greeting from Hello to Welcome without changing any '
@@ -2441,7 +2474,7 @@ class LiveLlmDiagnosticService {
     final messages = _effectiveContextMessages(target);
     final injected = runEffectiveContextTrial;
     if (injected != null) return injected(target, messages);
-    return chatDataSource.createChatCompletion(
+    return _chat.createChatCompletion(
       messages: messages,
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
@@ -2548,7 +2581,7 @@ class LiveLlmDiagnosticService {
     _FoundationModelsLanguageProbeCase testCase,
   ) async {
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(user: testCase.userPrompt),
         tools: testCase.tools,
         model: _diagnosticModel,
@@ -2813,7 +2846,7 @@ class LiveLlmDiagnosticService {
     }
 
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: messages,
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
@@ -2939,7 +2972,7 @@ class LiveLlmDiagnosticService {
           );
 
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: messages,
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
@@ -3044,7 +3077,7 @@ class LiveLlmDiagnosticService {
       user: 'A screen observation tool returned an image. $_visionProbePrompt',
     );
     try {
-      final result = await chatDataSource.createChatCompletionWithToolResults(
+      final result = await _chat.createChatCompletionWithToolResults(
         messages: messages,
         toolResults: [
           ToolResultInfo(
@@ -3126,7 +3159,7 @@ class LiveLlmDiagnosticService {
       return _toolProbeUnavailable(_narrowToolCallProbeId);
     }
 
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Call the get_current_datetime tool now. Do not answer in text '
@@ -3163,7 +3196,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runGoalUpdateFidelityProbe() async {
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'The active goal is complete. Report that state by calling '
@@ -3306,7 +3339,7 @@ class LiveLlmDiagnosticService {
     required double temperature,
   }) async {
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(
           user:
               'Call the get_current_datetime tool now. Do not answer in text '
@@ -3380,7 +3413,7 @@ class LiveLlmDiagnosticService {
     required double temperature,
   }) async {
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(
           user:
               'Return exactly this routine sampler JSON object and no markdown:\n'
@@ -3460,7 +3493,7 @@ class LiveLlmDiagnosticService {
     required double temperature,
   }) async {
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(
           user:
               'Return exactly this coding sampler JSON object and no markdown:\n'
@@ -3507,7 +3540,7 @@ class LiveLlmDiagnosticService {
     required double temperature,
   }) async {
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(
           user:
               'Return exactly this plan sampler JSON object and no markdown:\n'
@@ -3560,7 +3593,7 @@ class LiveLlmDiagnosticService {
           'today copied from relative_dates.today, and timezone copied from the '
           'tool result.',
     );
-    final firstResult = await chatDataSource.createChatCompletion(
+    final firstResult = await _chat.createChatCompletion(
       messages: messages,
       tools: [dateTool],
       model: _diagnosticModel,
@@ -3605,7 +3638,7 @@ class LiveLlmDiagnosticService {
         ? relativeDates['today'] as String?
         : null;
     final timezone = expected?['timezone'] as String?;
-    final followUp = await chatDataSource.createChatCompletionWithToolResults(
+    final followUp = await _chat.createChatCompletionWithToolResults(
       messages: messages,
       toolResults: [
         ToolResultInfo(
@@ -3770,7 +3803,7 @@ class LiveLlmDiagnosticService {
           'today copied from relative_dates.today, and timezone copied from '
           'the datetime result.',
     );
-    final searchRequest = await chatDataSource.createChatCompletion(
+    final searchRequest = await _chat.createChatCompletion(
       messages: messages,
       // The datetime tool is intentionally absent, so the model has to
       // discover it before it can call it.
@@ -3843,7 +3876,7 @@ class LiveLlmDiagnosticService {
       );
     }
 
-    final dateRequest = await chatDataSource
+    final dateRequest = await _chat
         .createChatCompletionWithToolResults(
           messages: messages,
           toolResults: searchResults,
@@ -3893,7 +3926,7 @@ class LiveLlmDiagnosticService {
       result: dateExecution.result,
     );
 
-    final finalRequest = await chatDataSource
+    final finalRequest = await _chat
         .createChatCompletionWithToolResults(
           messages: messages,
           toolResults: [dateResult],
@@ -3953,7 +3986,7 @@ class LiveLlmDiagnosticService {
     if (!catalog.catalog.hasTools) {
       return _toolProbeUnavailable(_initialHarnessProbeId);
     }
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Using the currently exposed Caverno initial tool set, call '
@@ -4016,7 +4049,7 @@ class LiveLlmDiagnosticService {
       return _toolProbeUnavailable(_toolSearchProbeId);
     }
 
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Use the tool catalog search tool to find a tool for delegating a '
@@ -4085,7 +4118,7 @@ class LiveLlmDiagnosticService {
     // and the same meta-framing with `get_current_datetime` also produces one.
     // The probe was measuring its own wording. Nothing is executed either way —
     // the result is only inspected — so the natural phrasing costs no safety.
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Delegate a sub-task to a subagent and run it in the background so '
@@ -4589,4 +4622,100 @@ class _ToolRecoveryCaseOutcome {
   final bool passed;
   final String detail;
   final String finalContent;
+}
+
+/// Counts the reasoning the probe responses carried. See
+/// [LiveLlmDiagnosticThinkingMetrics].
+///
+/// Reads the reasoning out of the response content: the datasource folds a
+/// separate `reasoning_content` field into a leading `<think>` block, so one
+/// parse covers both the field and inline tags. A block the token cap cut off
+/// before its closing tag still counts, since the model did reason.
+final class _ThinkingObserver {
+  var _responseCount = 0;
+  var _reasoningResponseCount = 0;
+  var _reasoningChars = 0;
+
+  void reset() {
+    _responseCount = 0;
+    _reasoningResponseCount = 0;
+    _reasoningChars = 0;
+  }
+
+  void record(String content) {
+    _responseCount += 1;
+    final parsed = ContentParser.parse(content);
+    var chars = 0;
+    for (final segment in parsed.segments) {
+      if (segment.type == ContentType.thinking) {
+        chars += segment.content.trim().length;
+      }
+    }
+    if (parsed.incompleteTagType == 'thinking') {
+      chars += parsed.incompleteTagContent?.trim().length ?? 0;
+    }
+    if (chars > 0) {
+      _reasoningResponseCount += 1;
+      _reasoningChars += chars;
+    }
+  }
+
+  LiveLlmDiagnosticThinkingMetrics? metrics({required bool? requested}) {
+    if (_responseCount == 0) return null;
+    return LiveLlmDiagnosticThinkingMetrics(
+      requested: requested,
+      responseCount: _responseCount,
+      reasoningResponseCount: _reasoningResponseCount,
+      reasoningChars: _reasoningChars,
+    );
+  }
+}
+
+/// The request methods the probes call, each recording its response with
+/// [_ThinkingObserver] before returning it unchanged.
+final class _ObservedChatCalls {
+  _ObservedChatCalls(this._dataSource, this._observer);
+
+  final ChatDataSource _dataSource;
+  final _ThinkingObserver _observer;
+
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final result = await _dataSource.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    _observer.record(result.content);
+    return result;
+  }
+
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final result = await _dataSource.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    _observer.record(result.content);
+    return result;
+  }
 }

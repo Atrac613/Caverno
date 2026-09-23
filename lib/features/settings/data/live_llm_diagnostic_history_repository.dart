@@ -112,6 +112,20 @@ LiveLlmDiagnosticReport _reportFromJson(Map<String, dynamic> json) {
     effectiveContextMetrics: json['effectiveContext'] == null
         ? null
         : _effectiveContextMetricsFromJson(_map(json['effectiveContext'])),
+    thinkingMetrics: json['thinking'] == null
+        ? null
+        : _thinkingMetricsFromJson(_map(json['thinking'])),
+  );
+}
+
+LiveLlmDiagnosticThinkingMetrics _thinkingMetricsFromJson(
+  Map<String, dynamic> json,
+) {
+  return LiveLlmDiagnosticThinkingMetrics(
+    requested: json['requested'] as bool?,
+    responseCount: _int(json['responseCount']),
+    reasoningResponseCount: _int(json['reasoningResponseCount']),
+    reasoningChars: _int(json['reasoningChars']),
   );
 }
 
