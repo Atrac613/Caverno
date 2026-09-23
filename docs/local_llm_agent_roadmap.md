@@ -180,7 +180,7 @@ structurally unmotivated to build:
 | Local LLM | LL29 | later | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort). Demoted 2026-07-21: its LL31 evidence gate came back negative (`tool_failure_abort` 1.6% of 377 turns), so it waits for a triage that shows the abort path rising. **The demotion's basis is withdrawn (2026-08-06):** that 1.6% was measured on a corpus that is mostly chat, while the never-read canary tree — 452 coding turns — puts `tool_failure_abort` at **14.2%** (`docs/canary_evidence_outside_the_corpus_2026-08-06.md`). Canary fixtures are deliberately hard, so this does not re-promote the item on its own; it means the gate was answered on the population where the abort path would be rarest, and needs re-asking. Scope, unchanged: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
 | Local LLM | LL30 | done | M | LL14, LL6, LL31 | Compaction structural pre-pass, gated on LL31 triage evidence: before summarization, run a no-LLM tool-result prune — dedupe identical tool outputs, replace old ones with informative one-line summaries that keep *what happened* (`[run_command] \`flutter test\` → exit 0, 47 lines`), truncate oversized tool-call arguments inside parsed JSON so the payload stays valid, and strip stale image payloads; switch the protected tail from a fixed message count to a token budget and add an anti-thrashing back-off. Extends LL14 with the Hermes `context_compressor._prune_old_tool_results` / `_summarize_tool_result` pattern. |
 | Local LLM | LL31 | done | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
-| Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
+| Local LLM | LL33 | done | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
 | Local LLM | LL32 | later | S-M | LL4, F6 | Deferred subdirectory instruction and skill discovery: when a tool touches a path outside the startup discovery chain, walk up to the repo root for `CLAUDE.md` / `AGENTS.md` / rules and skill directories, and surface newly found files as **paths only**, once per session (or once per compaction cycle), leaving the read decision to the model. Parked pending corroboration; corroborated 2026-07-21 by Grok Build's `agents_md_tracker.rs` / `skill_discovery.rs` shipping the same design. |
 | Local LLM | LL34 | done | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` carries producer-owned command, filesystem, diagnostic, process, and verification facts from direct first-party producers; typed-first consumers retain a measured lexical fallback for outcome-free third-party MCP results. Current-turn mutations back file claims, replay paths preserve outcomes, and LL23 supplies deterministic summary-first rendering. Fresh grounded coding canaries on the configured LAN model produced five typed shadow comparisons across raw-first and summary-first runs: three exit 1 and two exit 0, all `agree`, with no missing or disagreeing verdicts. The measured model completed the summary-first MVP canary while the application default remains off. |
 | Local LLM | LL35 | done | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: lexical completion and blocker prose remain observable in shadow but cannot set terminal goal state; `update_goal(completed:/blocked_reason:/message:)` carries the harness's final mechanically reconciled verdict (accepted / still-open gaps / paused at cap), and structured saved-task completion remains authoritative. The bounded continuation selector prefers the typed active task, then the first unchecked `## Task checklist` item. `update_goal` fidelity is stored by the LL3 capability probe, LL23 declares a per-model `tool` / `tool_or_ask` / `ask` policy, and user confirmation resolves no-work or budget boundaries for models that cannot reliably close through the tool. |
@@ -4363,11 +4363,12 @@ to add the turn-exit producer is superseded by the shipped implementation.
 
 ### LL33: Turn Provenance (session-log ↔ on-screen conversation)
 
-Status: `current`
+Status: `done` (2026-09-23)
 
-The correlation and guard-notice baseline plus the remaining finalization
-transform coverage are complete. Live triage coverage for the file-save labels
-is the remaining evidence slice; Level 3 event sourcing remains deferred.
+Level 1 correlation and Level 2 transform recording are complete, including the
+file-save labels, and live triage coverage joined every file-save firing back
+to the message the user saw (evidence below). Level 3 event sourcing stays
+deferred: Level 2 answered the question it was gated on.
 
 Problem:
 - The LLM session log (`*.jsonl`) records the raw LLM request/response; the
@@ -4409,10 +4410,27 @@ Source: the verification-guard investigation (the `git_execute_command`
 false-positive fix). The notice-prose detection method it relied on is exactly
 what `transforms[]` replaces with a first-class signal.
 
-Next action: run live triage coverage for the file-save transform labels and,
-for flagged turns, join the `assistantMessageId` back to the saved message
-content. Do not start Level 3 event sourcing unless this Level 2 evidence is
-insufficient.
+Live triage coverage (2026-09-23, real sessions under
+`~/.caverno/session_logs`, builds `f15f723f7` through `275fbb496`):
+
+| Transform | Firings | `assistantMessageId` found in `conversations` | Notice text present in the stored message |
+|---|---|---|---|
+| `unwritten_file_claim_notice` | 11 (2026-09-05 to 2026-09-23) | 11/11 | 11/11 |
+| `unexecuted_file_side_effect_notice` | 1 (2026-09-05) | 1/1 | not checked; the notice is service-worded |
+
+The join ran read-only against `caverno.sqlite`: each `turnExit` record's
+`assistantMessageId` resolved to exactly one stored message, and that message
+carried the guard's own sentence ("... was listed as created or updated but
+... "). So a logged transform now names the on-screen text it changed without
+inferring it from leaked prose, which is the gap this milestone was opened for.
+
+Observed but out of scope: all eleven unwritten-file notices were the
+"was not modified in this turn" branch and none the "does not exist" branch.
+Whether those firings are precise is an LL36/HEU3 question about the guard,
+not a provenance gap; it was not investigated here.
+
+Next action: none for LL33. Reopen Level 3 only if a triage question arises
+that a correlated `turn_exit` record plus the stored message cannot answer.
 
 ## Grounded Verification Track (LL34-LL37)
 
