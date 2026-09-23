@@ -7,10 +7,40 @@ import '../../data/live_llm_benchmark_artifact_file_service.dart';
 import '../../data/live_llm_diagnostic_history_repository.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
+import '../../domain/services/live_llm_diagnostic_request_shape.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import '../../domain/services/model_capability_profile_builder.dart';
 import 'model_context_window_resolver.dart';
 import 'settings_notifier.dart';
+
+/// Builds the diagnostic service on its own datasource, with the reasoning
+/// controls pinned by [LiveLlmDiagnosticRequestShape] instead of inherited from
+/// the chat composer. See that class for why.
+LiveLlmDiagnosticService createLiveLlmDiagnosticService(
+  Ref ref,
+  AppSettings settings,
+) {
+  final diagnosticSettings = LiveLlmDiagnosticRequestShape.settingsFor(
+    settings,
+    LiveLlmDiagnosticRequestShape.defaultMode,
+  );
+  if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+    return LiveLlmDiagnosticService(
+      settings: diagnosticSettings,
+      chatDataSource: AppleFoundationModelsDataSource(),
+      mcpToolService: ref.read(mcpToolServiceProvider),
+    );
+  }
+  final createDataSource = ref.read(chatDataSourceFactoryProvider);
+  return LiveLlmDiagnosticService(
+    settings: diagnosticSettings,
+    chatDataSource: createDataSource(diagnosticSettings),
+    mcpToolService: ref.read(mcpToolServiceProvider),
+    thinkingModeDataSource: (mode) => createDataSource(
+      LiveLlmDiagnosticRequestShape.settingsFor(settings, mode),
+    ),
+  );
+}
 
 final liveLlmDiagnosticNotifierProvider =
     NotifierProvider<LiveLlmDiagnosticNotifier, LiveLlmDiagnosticState>(
@@ -38,13 +68,7 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
     final generation = ++_generation;
     state = state.copyWith(isRunning: true, clearError: true);
     final settings = ref.read(settingsNotifierProvider);
-    final service = LiveLlmDiagnosticService(
-      settings: settings,
-      chatDataSource: settings.llmProvider == LlmProvider.appleFoundationModels
-          ? AppleFoundationModelsDataSource()
-          : ref.read(chatRemoteDataSourceProvider),
-      mcpToolService: ref.read(mcpToolServiceProvider),
-    );
+    final service = createLiveLlmDiagnosticService(ref, settings);
 
     try {
       final report = await service.run(

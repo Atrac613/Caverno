@@ -25,6 +25,7 @@ import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_chart_probe_image.dart';
+import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_tool_depth_staircase.dart';
 import 'live_llm_tool_recovery_cases.dart';
 import 'llm_provider_capabilities.dart';
@@ -46,6 +47,7 @@ class LiveLlmDiagnosticService {
     this.embedTexts,
     this.effectiveContextMaxTokens = 0,
     this.runEffectiveContextTrial,
+    this.thinkingModeDataSource,
   });
 
   final AppSettings settings;
@@ -54,6 +56,12 @@ class LiveLlmDiagnosticService {
   final EmbedTexts? embedTexts;
   final int effectiveContextMaxTokens;
   final RunEffectiveContextTrial? runEffectiveContextTrial;
+
+  /// A datasource pinned to one thinking mode, for the probe that switches
+  /// thinking deliberately. Null skips that probe: [chatDataSource] holds a
+  /// single mode fixed at construction and cannot send the other one.
+  final ChatDataSource Function(LiveLlmDiagnosticThinkingMode mode)?
+  thinkingModeDataSource;
 
   final _thinking = _ThinkingObserver();
 
@@ -67,6 +75,11 @@ class LiveLlmDiagnosticService {
       id: _instructionProbeId,
       titleKey: 'settings.live_llm_diag_probe_instruction_title',
       descriptionKey: 'settings.live_llm_diag_probe_instruction_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _thinkingControlProbeId,
+      titleKey: 'settings.live_llm_diag_probe_thinking_control_title',
+      descriptionKey: 'settings.live_llm_diag_probe_thinking_control_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _structuredOutputProbeId,
@@ -178,6 +191,7 @@ class LiveLlmDiagnosticService {
   static const _instructionProbeId = 'instruction_echo';
   static const _structuredOutputProbeId = 'structured_output';
   static const _streamingProbeId = 'streaming_response';
+  static const _thinkingControlProbeId = 'thinking_control';
   static const _exactPreservationProbeId = 'exact_preservation';
   static const _editFormatProbeId = 'edit_format_fidelity';
   static const _embeddingsProbeId = 'embeddings_capability';
@@ -212,6 +226,7 @@ class LiveLlmDiagnosticService {
 
   static const modelCapabilityProbeIds = <String>{
     _instructionProbeId,
+    _thinkingControlProbeId,
     _structuredOutputProbeId,
     _streamingProbeId,
     _editFormatProbeId,
@@ -481,6 +496,13 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: _runInstructionProbe,
+    );
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _thinkingControlProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runThinkingControlProbe,
     );
     report = await _runStructuredOutputProbe(
       report: report,
@@ -2697,6 +2719,103 @@ class LiveLlmDiagnosticService {
     return updated;
   }
 
+  static const thinkingControlMetadataKey = 'thinkingControl';
+  static const _thinkingControlled = 'controllable';
+  static const _thinkingAlwaysOn = 'always_on';
+  static const _thinkingNeverObserved = 'never_reasoned';
+  static const _thinkingInverted = 'inverted';
+  static const _thinkingControlPrompt =
+      'Reply with exactly CAVERNO_THINKING_CONTROL and no other text.';
+
+  /// Whether `enable_thinking` actually reaches the model, in both directions.
+  ///
+  /// Sends one trivial prompt with thinking switched on and one with it
+  /// switched off, and reads whether each answer carried reasoning. Until
+  /// 2026-09-23 a router in front of qwen3.8-27b-exl3 forced thinking off
+  /// whatever the request said, and nothing in the report could show it: the
+  /// request side read "on" and the scores quietly measured "off".
+  ///
+  /// Scores nothing. Like the video probe, it reports what the serving path
+  /// does with a request, not what the model can do. Its responses stay out of
+  /// the run's thinking metrics too, since they vary the mode on purpose.
+  Future<LiveLlmDiagnosticProbeResult> _runThinkingControlProbe() async {
+    final createDataSource = thinkingModeDataSource;
+    if (createDataSource == null) {
+      return const LiveLlmDiagnosticProbeResult(
+        id: _thinkingControlProbeId,
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary: 'Skipped because this run cannot switch the thinking mode.',
+      );
+    }
+    if (!LiveLlmDiagnosticRequestShape.canControlThinking(settings)) {
+      return const LiveLlmDiagnosticProbeResult(
+        id: _thinkingControlProbeId,
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary:
+            'Skipped because this endpoint cannot be sent enable_thinking.',
+        details:
+            'The model is not a Qwen3.8 build and the endpoint is not opted '
+            'into chat_template_kwargs, so both modes would send the same '
+            'request.',
+      );
+    }
+
+    Future<ChatCompletionResult> arm(LiveLlmDiagnosticThinkingMode mode) {
+      return createDataSource(mode).createChatCompletion(
+        messages: _messages(user: _thinkingControlPrompt),
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+    }
+
+    final on = await arm(LiveLlmDiagnosticThinkingMode.on);
+    final off = await arm(LiveLlmDiagnosticThinkingMode.off);
+    final onChars = _ThinkingObserver.reasoningChars(on.content);
+    final offChars = _ThinkingObserver.reasoningChars(off.content);
+    final (classification, status, summary) = switch ((
+      onChars > 0,
+      offChars > 0,
+    )) {
+      (true, false) => (
+        _thinkingControlled,
+        LiveLlmDiagnosticStatus.passed,
+        'The endpoint honours enable_thinking in both directions.',
+      ),
+      (true, true) => (
+        _thinkingAlwaysOn,
+        LiveLlmDiagnosticStatus.warning,
+        'The model reasoned with thinking switched off; something on the way '
+            'ignores enable_thinking: false.',
+      ),
+      (false, false) => (
+        _thinkingNeverObserved,
+        LiveLlmDiagnosticStatus.warning,
+        'No reasoning came back with thinking switched on. A router or server '
+            'default may force thinking off, or the model does not reason.',
+      ),
+      (false, true) => (
+        _thinkingInverted,
+        LiveLlmDiagnosticStatus.warning,
+        'Reasoning came back only with thinking switched off, the reverse of '
+            'the request.',
+      ),
+    };
+    return LiveLlmDiagnosticProbeResult(
+      id: _thinkingControlProbeId,
+      status: status,
+      summary: summary,
+      details:
+          'Classification: $classification\n'
+          'Thinking on: $onChars reasoning chars '
+          '(finish_reason: ${on.finishReason})\n'
+          'Thinking off: $offChars reasoning chars '
+          '(finish_reason: ${off.finishReason})',
+      usage: _totalUsage([on, off]),
+      metadata: {thinkingControlMetadataKey: classification},
+    );
+  }
+
   /// Asks the endpoint whether it accepts video, rather than sending one.
   ///
   /// Every other probe here spends a generation to find out what a model does.
@@ -3876,15 +3995,14 @@ class LiveLlmDiagnosticService {
       );
     }
 
-    final dateRequest = await _chat
-        .createChatCompletionWithToolResults(
-          messages: messages,
-          toolResults: searchResults,
-          tools: [searchTool, dateTool],
-          model: _diagnosticModel,
-          temperature: _diagnosticTemperature,
-          maxTokens: _diagnosticMaxTokens,
-        );
+    final dateRequest = await _chat.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: searchResults,
+      tools: [searchTool, dateTool],
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    );
     modelResults.add(dateRequest);
     final dateCalls = _toolCallsFromResult(dateRequest);
     toolCallCount += dateCalls.length;
@@ -3926,15 +4044,14 @@ class LiveLlmDiagnosticService {
       result: dateExecution.result,
     );
 
-    final finalRequest = await _chat
-        .createChatCompletionWithToolResults(
-          messages: messages,
-          toolResults: [dateResult],
-          tools: const <Map<String, dynamic>>[],
-          model: _diagnosticModel,
-          temperature: _diagnosticTemperature,
-          maxTokens: _diagnosticMaxTokens,
-        );
+    final finalRequest = await _chat.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: [dateResult],
+      tools: const <Map<String, dynamic>>[],
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    );
     modelResults.add(finalRequest);
     final finalCalls = _toolCallsFromResult(finalRequest);
     toolCallCount += finalCalls.length;
@@ -4642,8 +4759,7 @@ final class _ThinkingObserver {
     _reasoningChars = 0;
   }
 
-  void record(String content) {
-    _responseCount += 1;
+  static int reasoningChars(String content) {
     final parsed = ContentParser.parse(content);
     var chars = 0;
     for (final segment in parsed.segments) {
@@ -4654,6 +4770,12 @@ final class _ThinkingObserver {
     if (parsed.incompleteTagType == 'thinking') {
       chars += parsed.incompleteTagContent?.trim().length ?? 0;
     }
+    return chars;
+  }
+
+  void record(String content) {
+    _responseCount += 1;
+    final chars = reasoningChars(content);
     if (chars > 0) {
       _reasoningResponseCount += 1;
       _reasoningChars += chars;

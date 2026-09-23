@@ -68,6 +68,9 @@ class LiveLlmDiagnosticSuite {
     // model's score. Keeping it weightless also leaves probePointsTotal and
     // the suite version alone, so existing score history stays comparable.
     'video_input_modality': 0,
+    // Weightless for the same reason: whether enable_thinking survives the
+    // trip to the model is a property of the serving path, not the model.
+    'thinking_control': 0,
     'narrow_tool_call': 25,
     'update_goal_fidelity': 60,
     'tool_result_integration': 75,

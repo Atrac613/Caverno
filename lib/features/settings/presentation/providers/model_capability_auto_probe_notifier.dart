@@ -5,14 +5,12 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/api_constants.dart';
 
-import '../../../chat/data/datasources/apple_foundation_models_datasource.dart';
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
-import '../../../chat/presentation/providers/chat_notifier.dart';
-import '../../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import '../../domain/services/model_capability_profile_builder.dart';
+import 'live_llm_diagnostic_notifier.dart';
 import 'model_context_window_resolver.dart';
 import 'settings_notifier.dart';
 
@@ -118,13 +116,7 @@ class ModelCapabilityAutoProbeNotifier
       status: ModelCapabilityAutoProbeStatus.running,
       profileId: profileId,
     );
-    final service = LiveLlmDiagnosticService(
-      settings: settings,
-      chatDataSource: settings.llmProvider == LlmProvider.appleFoundationModels
-          ? AppleFoundationModelsDataSource()
-          : ref.read(chatRemoteDataSourceProvider),
-      mcpToolService: ref.read(mcpToolServiceProvider),
-    );
+    final service = createLiveLlmDiagnosticService(ref, settings);
 
     try {
       final report = await service

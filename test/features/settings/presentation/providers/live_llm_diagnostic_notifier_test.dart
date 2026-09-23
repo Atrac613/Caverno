@@ -22,13 +22,17 @@ import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
   test('run persists a model capability profile from the report', () async {
+    // Chat reasoning controls that must not reach the diagnostic requests.
     final initialSettings = AppSettings.defaults().copyWith(
       model: 'diagnostic-model',
+      reasoningEffort: ReasoningEffortPreference.high,
+      enableThinking: true,
       mcpEnabled: false,
       mcpUrl: '',
       mcpUrls: const <String>[],
       mcpServers: const <McpServerConfig>[],
     );
+    final requestedShapes = <AppSettings>[];
     SharedPreferences.setMockInitialValues({
       'app_settings': jsonEncode(initialSettings.toJson()),
     });
@@ -36,9 +40,10 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _TextOnlyDiagnosticDataSource(),
-        ),
+        chatDataSourceFactoryProvider.overrideWithValue((shaped) {
+          requestedShapes.add(shaped);
+          return _TextOnlyDiagnosticDataSource();
+        }),
         mcpToolServiceProvider.overrideWithValue(null),
       ],
     );
@@ -69,6 +74,13 @@ void main() {
     expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
     // Both vision shapes read the image, and the no-image control arm did not.
     expect(profile.visionSupport, ModelVisionSupport.reliable);
+    // An endpoint that cannot be sent enable_thinking runs at the server
+    // default, whatever the chat composer asked for.
+    expect(requestedShapes, isNotEmpty);
+    for (final shaped in requestedShapes) {
+      expect(shaped.enableThinking, isNull);
+      expect(shaped.reasoningEffort, ReasoningEffortPreference.automatic);
+    }
     final history = LiveLlmDiagnosticHistoryRepository(prefs).load();
     expect(history, hasLength(1));
     expect(history.single.report.model, 'diagnostic-model');
@@ -90,8 +102,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _NativeToolDiagnosticDataSource(),
+        chatDataSourceFactoryProvider.overrideWithValue(
+          (_) => _NativeToolDiagnosticDataSource(),
         ),
         mcpToolServiceProvider.overrideWithValue(McpToolService()),
       ],

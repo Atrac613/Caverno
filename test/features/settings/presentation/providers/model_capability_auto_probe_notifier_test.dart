@@ -37,7 +37,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
-          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
           mcpToolServiceProvider.overrideWithValue(null),
         ],
       );
@@ -113,7 +113,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modelCatalogProvider(
           ModelListConfig(
@@ -155,7 +155,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modelCatalogProvider(
           ModelListConfig(
@@ -221,7 +221,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modalitiesProbeClientProvider.overrideWithValue(
           () => MockClient((request) async {
@@ -286,7 +286,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modalitiesProbeClientProvider.overrideWithValue(
           () => MockClient((_) async {
@@ -341,8 +341,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _InstructionOnlyDataSource(),
+        chatDataSourceFactoryProvider.overrideWithValue(
+          (_) => _InstructionOnlyDataSource(),
         ),
         mcpToolServiceProvider.overrideWithValue(null),
         modalitiesProbeClientProvider.overrideWithValue(

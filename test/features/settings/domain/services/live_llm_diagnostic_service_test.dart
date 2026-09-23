@@ -10,6 +10,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_chart_probe_image.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_request_shape.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_scoring.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_service.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_tool_depth_ladder.dart';
@@ -122,14 +123,15 @@ void main() {
       _result(report, 'vision_tool_observation').status,
       LiveLlmDiagnosticStatus.passed,
     );
-    // Five, not four: video_input_modality skips as well. The fake endpoint
+    // Six, not four: video_input_modality skips as well. The fake endpoint
     // answers no /props, which is the same silence a proxy or a cloud provider
-    // gives, and silence is "not measured" rather than "refused".
+    // gives, and silence is "not measured" rather than "refused". And
+    // thinking_control skips because this run has no per-mode datasource.
     expect(
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.skipped)
           .length,
-      5,
+      6,
     );
   });
 
@@ -550,6 +552,85 @@ void main() {
       'reasoningResponseCount': 0,
       'reasoningChars': 0,
       'mismatch': false,
+    });
+  });
+
+  group('thinking_control', () {
+    Future<LiveLlmDiagnosticProbeResult> runProbe({
+      required bool reasonsWhenOn,
+      required bool reasonsWhenOff,
+      String model = 'qwen3.8-27b-exl3',
+    }) async {
+      final requestedModes = <LiveLlmDiagnosticThinkingMode>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: model),
+        chatDataSource: _FakeDiagnosticDataSource(),
+        mcpToolService: McpToolService(),
+        thinkingModeDataSource: (mode) {
+          requestedModes.add(mode);
+          final reasons = mode == LiveLlmDiagnosticThinkingMode.on
+              ? reasonsWhenOn
+              : reasonsWhenOff;
+          return reasons
+              ? _ReasoningWrappedDiagnosticDataSource()
+              : _FakeDiagnosticDataSource();
+        },
+      ).run(probeIds: const {'thinking_control'});
+      final result = _result(report, 'thinking_control');
+      if (result.status != LiveLlmDiagnosticStatus.skipped) {
+        expect(requestedModes, LiveLlmDiagnosticThinkingMode.values);
+      }
+      // The deliberate mode switch must not count as the run's own thinking.
+      expect(report.thinkingMetrics, isNull);
+      return result;
+    }
+
+    test('passes when reasoning follows the request both ways', () async {
+      final result = await runProbe(reasonsWhenOn: true, reasonsWhenOff: false);
+
+      expect(result.status, LiveLlmDiagnosticStatus.passed);
+      expect(result.metadata['thinkingControl'], 'controllable');
+    });
+
+    test('warns when the serving path forces thinking off', () async {
+      final result = await runProbe(
+        reasonsWhenOn: false,
+        reasonsWhenOff: false,
+      );
+
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.metadata['thinkingControl'], 'never_reasoned');
+    });
+
+    test('warns when the serving path forces thinking on', () async {
+      final result = await runProbe(reasonsWhenOn: true, reasonsWhenOff: true);
+
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.metadata['thinkingControl'], 'always_on');
+    });
+
+    test('skips an endpoint that cannot be sent enable_thinking', () async {
+      final result = await runProbe(
+        reasonsWhenOn: true,
+        reasonsWhenOff: false,
+        model: 'test-model',
+      );
+
+      expect(result.status, LiveLlmDiagnosticStatus.skipped);
+      expect(result.metadata, isEmpty);
+    });
+
+    test('skips when the run has no per-mode datasource', () async {
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'qwen3.8-27b-exl3'),
+        chatDataSource: _FakeDiagnosticDataSource(),
+        mcpToolService: McpToolService(),
+      ).run(probeIds: const {'thinking_control'});
+
+      expect(
+        _result(report, 'thinking_control').status,
+        LiveLlmDiagnosticStatus.skipped,
+      );
     });
   });
 
