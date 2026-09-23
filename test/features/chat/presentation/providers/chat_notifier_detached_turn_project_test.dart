@@ -10475,6 +10475,7 @@ void main() {
               id: 'block-current-goal',
               name: 'update_goal',
               arguments: const {
+                'completed': false,
                 'blocked_reason': 'The signing credential is unavailable.',
               },
             ),
