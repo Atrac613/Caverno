@@ -301,7 +301,9 @@ Acceptance criteria:
   authoritative dependency list; `unverifiable` never becomes an exact claim.
 - Byte-identical block across two consecutive turns in the same project.
 - A paired KC1 re-run reports the change in class 2/3 stale-claim rate and
-  unsupported-claim rate. If neither moves, that is recorded as a negative
+  unsupported-claim rate, and the class 1 stale rate as a non-regression check
+  (added 2026-09-24: the installed block can steer a new-project dependency
+  choice to the lockfile line). If neither moves, that is recorded as a negative
   result — not a reason to keep tuning the wording.
 
 Known risk (must be handled, not deferred): **the block carries authority.** If
