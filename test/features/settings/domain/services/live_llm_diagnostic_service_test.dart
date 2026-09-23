@@ -133,6 +133,71 @@ void main() {
     );
   });
 
+  test('tool-result probe asks for a final answer without tools', () async {
+    final dataSource = _ToolResultFollowUpDataSource();
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(
+      probeIds: const {'tool_result_integration'},
+    );
+
+    expect(dataSource.followUpTools, isEmpty);
+    expect(
+      _result(report, 'tool_result_integration').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+  });
+
+  test(
+    'tool-result probe identifies an unexpected repeated tool call',
+    () async {
+      final dataSource = _ToolResultFollowUpDataSource(repeatDatetime: true);
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true),
+        chatDataSource: dataSource,
+        mcpToolService: McpToolService(),
+      );
+
+      final report = await service.run(
+        probeIds: const {'tool_result_integration'},
+      );
+      final result = _result(report, 'tool_result_integration');
+
+      expect(dataSource.followUpTools, isEmpty);
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.summary, contains('requested another tool'));
+      expect(result.details, contains('get_current_datetime'));
+      expect(result.details, contains('tool_calls'));
+      expect(result.toolCalls, [
+        'get_current_datetime',
+        'get_current_datetime',
+      ]);
+    },
+  );
+
+  test('tool-result probe reports an empty final response', () async {
+    final dataSource = _ToolResultFollowUpDataSource(emptyFinalAnswer: true);
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(
+      probeIds: const {'tool_result_integration'},
+    );
+    final result = _result(report, 'tool_result_integration');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.summary, contains('no final answer'));
+    expect(result.details, contains('Finish reason: stop'));
+    expect(result.toolCalls, ['get_current_datetime']);
+  });
+
   test(
     'reports the sampler sweep as unmeasured when temperature is dropped',
     () async {
@@ -1491,6 +1556,61 @@ class _TemperatureIgnoringDataSource extends _FakeDiagnosticDataSource
     }
     return super.createChatCompletion(
       messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _ToolResultFollowUpDataSource extends _FakeDiagnosticDataSource {
+  _ToolResultFollowUpDataSource({
+    this.repeatDatetime = false,
+    this.emptyFinalAnswer = false,
+  });
+
+  final bool repeatDatetime;
+  final bool emptyFinalAnswer;
+  List<Map<String, dynamic>>? followUpTools;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    if (toolResults.single.name == 'get_current_datetime') {
+      followUpTools = tools;
+      if (repeatDatetime) {
+        return Future.value(
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'repeated-datetime',
+                name: 'get_current_datetime',
+                arguments: const <String, dynamic>{},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        );
+      }
+      if (emptyFinalAnswer) {
+        return Future.value(
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        );
+      }
+    }
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
       tools: tools,
       model: model,
       temperature: temperature,

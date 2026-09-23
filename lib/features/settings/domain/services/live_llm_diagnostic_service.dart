@@ -3615,19 +3615,23 @@ class LiveLlmDiagnosticService {
           result: toolExecution.result,
         ),
       ],
-      tools: [dateTool],
+      // This probe measures whether the model uses the returned value in its
+      // answer. The multi-round probe separately measures further tool calls.
+      tools: const <Map<String, dynamic>>[],
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
     final content = followUp.content.trim();
+    final followUpCalls = _toolCallsFromResult(followUp);
     final decoded = _tryDecodeJsonObject(content);
     final markerOk =
         decoded?['marker'] == _toolResultMarker ||
         content.contains(_toolResultMarker);
     final todayOk = today == null || content.contains(today);
     final timezoneOk = timezone == null || content.contains(timezone);
-    final passed = markerOk && todayOk && timezoneOk;
+    final passed = followUpCalls.isEmpty && markerOk && todayOk && timezoneOk;
+    final unexpectedCalls = followUpCalls.map((call) => call.name).toList();
     return LiveLlmDiagnosticProbeResult(
       id: _toolResultProbeId,
       status: passed
@@ -3635,13 +3639,20 @@ class LiveLlmDiagnosticService {
           : LiveLlmDiagnosticStatus.warning,
       summary: passed
           ? 'The model integrated the tool result into its final answer.'
-          : 'The model answered, but did not clearly copy all tool-result fields.',
+          : unexpectedCalls.isNotEmpty
+          ? 'The model requested another tool instead of completing the answer.'
+          : content.isEmpty
+          ? 'The model returned no final answer after the tool result.'
+          : 'The model did not clearly copy all tool-result fields.',
       details: [
         if (today != null) 'Expected today: $today',
         if (timezone != null) 'Expected timezone: $timezone',
+        if (unexpectedCalls.isNotEmpty)
+          'Unexpected follow-up tool calls: ${unexpectedCalls.join(", ")}',
+        if (content.isEmpty) 'Finish reason: ${followUp.finishReason}',
       ].join('\n'),
       modelContent: _preview(content),
-      toolCalls: [call.name],
+      toolCalls: [call.name, ...unexpectedCalls],
       usage: _usage(followUp),
     );
   }

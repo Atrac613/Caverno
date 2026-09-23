@@ -38,7 +38,10 @@ class LiveLlmDiagnosticSuite {
   /// `multi_round_tool_loop`, while nothing measured what the model does when
   /// a tool refuses or half succeeds -- which is where Caverno's own defects
   /// have been.
-  static const version = 11;
+  /// v12 makes the tool-result integration probe request a final answer
+  /// without re-advertising the completed tool, so it measures result use
+  /// independently of the multi-round tool-loop probe.
+  static const version = 12;
 
   /// Points per probe. Weighted by how much of Caverno's agent loop the probe
   /// actually stands for: the tool-result round trip and the first tool call
