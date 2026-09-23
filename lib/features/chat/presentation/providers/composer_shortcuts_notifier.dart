@@ -254,7 +254,12 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
         .trim();
     if (rootPath == null || rootPath.isEmpty) return null;
     try {
-      final snapshot = await ref.read(
+      // Refresh rather than read: while the companion panel is open it keeps
+      // this provider alive, and a read returned the git state from whenever
+      // the panel first loaded. A release turn that left pubspec.yaml and its
+      // notes uncommitted was drafted against "uncommitted files: 0", which
+      // the prompt reads as "no git shortcuts".
+      final snapshot = await ref.refresh(
         codingEnvironmentSnapshotProvider(rootPath).future,
       );
       if (!snapshot.isGitRepository) return null;
