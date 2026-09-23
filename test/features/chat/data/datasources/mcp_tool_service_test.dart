@@ -1208,14 +1208,15 @@ void main() {
       // prompt prefix. Updated when read_file gained start_page / next_page
       // for long PDFs and inspect_file began sampling ends instead of the
       // whole document, and again when search_files' `query` began saying it
-      // is literal text rather than a regular expression. A description edit
+      // is literal text rather than a regular expression, and when find_files
+      // began stating its matching, exclusion and result contract. A description edit
       // moves the prefix once and then holds; a per-request edit would not,
       // which is what this pin is here to catch.
       expect(
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-        '76f7b1abee8d26b33e01915cfdeff32e6a340566a4cf8c55ed0390e43fa8e3a8',
+        '5ef3b01c8158433ace7755a8ea75c59d6390f2320ba3a07cd79e19e2dd35b572',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(

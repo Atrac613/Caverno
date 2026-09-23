@@ -118,7 +118,14 @@ abstract final class BuiltInFilesystemToolDefinitions {
     'function': {
       'name': 'find_files',
       'description':
-          'Find files in the local project by wildcard pattern such as "*.dart" or "*test*".',
+          'Find files in the local project by wildcard pattern such as '
+          '"*.dart" or "*test*". The pattern is matched against both the file '
+          'name and the path relative to path, so "lib/*_test.dart" also '
+          'works. Searches subdirectories unless recursive is false, and '
+          'skips tool and build directories such as .git, .dart_tool, build, '
+          'Pods, and node_modules. Returns sorted relative paths (at most 200 '
+          'by default) with truncated: true when the limit was hit. It '
+          'matches names only; use search_files to find text inside files.',
       'parameters': {
         'type': 'object',
         'properties': {
