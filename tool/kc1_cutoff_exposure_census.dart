@@ -1078,7 +1078,7 @@ class CensusSummary {
           ? '-'
           : '${(unsupported * 100).toStringAsFixed(0).padLeft(3)}%';
       buffer.writeln(
-        '  ${arm.name.padRight(16)} '
+        '  ${arm.name.padRight(18)} '
         '$staleText  '
         'stale  $unsupportedText '
         'unsupported  (${unscorable(arm)} unscorable)',
@@ -1088,14 +1088,14 @@ class CensusSummary {
           .map((entry) => '${entry.key.name}=${entry.value}')
           .join(', ');
       if (environment.isNotEmpty) {
-        buffer.writeln('  ${arm.name.padRight(16)} environment $environment');
+        buffer.writeln('  ${arm.name.padRight(18)} environment $environment');
       }
       final worldFact = worldFactVerdicts(arm).entries
           .where((entry) => entry.value > 0)
           .map((entry) => '${entry.key.name}=${entry.value}')
           .join(', ');
       if (worldFact.isNotEmpty) {
-        buffer.writeln('  ${arm.name.padRight(16)} world fact $worldFact');
+        buffer.writeln('  ${arm.name.padRight(18)} world fact $worldFact');
       }
     }
     buffer
