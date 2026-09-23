@@ -14,6 +14,7 @@ import 'package:caverno/features/remote_coding/presentation/remote_coding_client
 import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_page.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_platform.dart';
+import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +45,7 @@ void main() {
     final preferences = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
         remoteCodingRepositoryProvider.overrideWithValue(
           RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
         ),
@@ -98,6 +100,7 @@ void main() {
     final preferences = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
         remoteCodingRepositoryProvider.overrideWithValue(
           RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
         ),
@@ -167,6 +170,7 @@ void main() {
     final preferences = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
         remoteCodingRepositoryProvider.overrideWithValue(
           RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
         ),
@@ -213,6 +217,7 @@ void main() {
     final preferences = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
         remoteCodingRepositoryProvider.overrideWithValue(
           RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
         ),
@@ -257,6 +262,7 @@ void main() {
     final preferences = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
         remoteCodingRepositoryProvider.overrideWithValue(
           RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
         ),
