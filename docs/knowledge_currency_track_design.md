@@ -537,6 +537,30 @@ Two consequences outside KC3:
   unmeasured; that is the question to answer before any class 1 milestone is
   proposed. Nothing in `lib/` currently steers toward `pub add`.
 
+**Answered the same day, from the real-session corpus.** 2,872 distinct tool
+calls (deduplicated by call id from logged responses, not grepped) across 131
+session logs, 2026-06-26 to 2026-09-23:
+
+| manifest activity | calls |
+|---|---:|
+| package-manager commands (`pub add`, `npm install`, `pip install`, ...) | **0** |
+| `pubspec.yaml` edits | 25 |
+| ... of which release version bumps (`version: 1.3.x+n`) | 24 |
+| ... of which a dependency added | **1** |
+
+The one addition (session `64b978ca`, 2026-09-11) was hand-written:
+`shared_preferences: ^2.5.3`, when pub.dev's latest was 2.5.5. By this
+instrument's release-line rule that is `current`, because shared_preferences
+has stayed on 2.x since 2021.
+
+So the only entry path observed is the hand-written version, which confirms
+where class 1 staleness would enter, and it was observed once in three months
+on a package that had not moved. Real exposure is too rare to justify a class 1
+milestone on current evidence, and none is proposed. Reopen it if dependency
+additions become a regular part of coding turns. The canary corpus was not
+checked: `build/integration_test_reports` currently holds only
+`flutter test` reporter output, not session logs.
+
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
 Status: `later`. Re-scoped 2026-09-24 by the §4 gate (see the KC1 decision
