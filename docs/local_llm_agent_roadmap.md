@@ -973,9 +973,13 @@ one bare response was unscorable. The environment fact fixed grounding
 attribution but did not change behavior, a preserved negative result rather
 than a prompt-tuning trigger. The class 1 oracle landed the same day: pub.dev's
 latest stable release scores the release line a new-project pubspec constraint
-names, against a snapshot recorded with the run. Its first live measurement is
-blocked on the macOS Local Network grant for the `dart` binary, so the full
-acceptance gate remains open. See
+names, against a snapshot recorded with the run. Its first measurement
+(2026-09-24, 60 claims) found every bare answer stale for the three packages
+that moved a major in the last year (15/15) and the control current (5/5); the
+installed-version block fixed one package only because installed equals latest
+and anchored freezed to the lockfile's older line. Class 2 therefore does not
+dominate the measured stale claims, which by the promotion gate means KC3 is
+re-scoped or dropped rather than promoted; that decision is still open. See
 [the track design](knowledge_currency_track_design.md) for the measurements
 and [the cross-track index](roadmap.md#active-focus) for the current next action.
 

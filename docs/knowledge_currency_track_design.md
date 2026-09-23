@@ -446,15 +446,55 @@ different snapshots are not paired; `--world-facts` replays a frozen one and
 kept as [evidence](evidence/kc1_class1_world_facts_2026-09-23.json) for the
 first paired measurement. `--offline` leaves class 1 out entirely.
 
-**Measurement status: not yet run.** The live run on 2026-09-23 failed before
-any request reached the model: `fvm dart` (Flutter 3.47.4's
-`bin/cache/dart-sdk/bin/dart`) gets `errno = 65 / No route to host` for
-`192.168.100.241:1234` while `curl` gets 200 at the same instant, and a
-standalone `Socket.connect` probe fails the same way on repeated attempts. That
-is the macOS Local Network grant for this `dart` binary, not a transient
-failure, and the managed loopback relay is itself a Dart process with the same
-denial. Class 1 is sized once the grant is restored; until then the §4
-promotion gate stays open.
+The first live attempt on 2026-09-23 never reached the model: the `dart`
+binary had lost its macOS Local Network grant. It was restored and the
+measurement ran the next day.
+
+#### Fifth measurement (2026-09-24): class 1 world facts
+
+Four registry-backed fixtures, three arms, five repeats: 60 claims,
+`qwen3.8-27b-vision`, temperature 0.7, no tools, clean build `0b29c6b3f`,
+scored against the frozen 2026-09-23 snapshot. The
+[evidence record](evidence/kc1_class1_world_facts_2026-09-24.json) holds all
+sixty raw answers plus SHA-256 hashes of the
+[census output](evidence/kc1_class1_world_facts_2026-09-24_census.json) and
+the snapshot. No request failed.
+
+| case (latest) | bare | +installed block | +registry block |
+|---|---|---|---|
+| freezed (4.0.2; installed 3.2.5) | 5/5 behind (`^2.5.x` ×4, `^3.2.0`) | 5/5 behind (`^3.2.5` ×5) | 0/5 |
+| go_router (18.0.1; not installed) | 5/5 behind (`^14.x`) | 5/5 behind (`^14.x`) | 0/5 |
+| flutter_riverpod (3.4.3; installed 3.4.3) | 5/5 behind (`^2.x`) | 0/5 | 0/5 |
+| dio (5.11.1; control) | 0/5 | 0/4, 1 empty response | 0/5 |
+| **stale rate** | **75%** | **53%** | **0%** |
+
+**Every package that moved a major in the last year was stale in every bare
+answer: 15 of 15.** The control, whose major has not moved, was current 5 of
+5, so the fixtures discriminate rather than failing every answer. The bare
+answers are not random either: freezed was written as `^2.5.2` in three of
+five, which is a remembered version, not a guess.
+
+**The installed-toolchain block helps only where installed equals latest, and
+drags the answer to the lockfile where it does not.** flutter_riverpod went
+from 5/5 stale to 0/5 because the block's `3.4.3` happens to be the latest
+release. freezed moved from the 2.x line to the installed `^3.2.5` in all five
+answers, still one major behind, for a task that says *a new app, created
+today*. go_router, which the block does not list, did not move. This is the
+lockfile drag the grounded arm was kept to measure: a KC2 block improves a
+new-project claim only by coincidence, and can anchor it to the wrong line.
+
+**The registry block reads as attribution, not knowledge.** 20 of 20 answers
+repeated the block's exact version. That proves the claim is groundable in
+prompt context and that provenance is attributed correctly; it says nothing
+about what the model knows, because the block names the answer.
+
+**Read against the §4 gate.** The first measurement put class 2's bare stale
+rate at 58% over its fixtures; class 1's is 75% here, and 100% on the
+packages that moved. At n = 5 per cell, and with different fixtures, these do
+not rank the two classes. They do show that class 2 does **not** dominate the
+measured stale claims, and the gate's rule for that outcome is that KC3 is
+re-scoped or dropped rather than promoted. That re-scoping is a decision, not a
+measurement, and is not taken here.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
