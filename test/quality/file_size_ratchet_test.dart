@@ -605,7 +605,9 @@ const Map<String, int> _lineBudgets = {
       74,
   // +1 blank line, not code: directives_ordering separates the `package:`
   // imports from the relative ones. See docs/lint_policy.md.
-  'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 288,
+  // -2, to 286: baebb517b's button visibility became
+  // ThreadScrollToBottomVisibility and the anchor type its own file.
+  'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 286,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
   // a stream, a timeout and a drain.

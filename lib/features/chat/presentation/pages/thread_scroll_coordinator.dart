@@ -2,21 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../providers/chat_state.dart';
+import 'thread_scroll_anchor.dart';
 import 'thread_scroll_to_bottom_visibility.dart';
-
-/// Where the user left a thread.
-///
-/// [atBottom] is tracked apart from [offset] because a thread that keeps
-/// streaming while it is off screen grows past the pixel offset that used to be
-/// its end: restoring the raw offset would drop the user mid-history when they
-/// were in fact following the newest message.
-@immutable
-class ThreadScrollAnchor {
-  const ThreadScrollAnchor({required this.offset, required this.atBottom});
-
-  final double offset;
-  final bool atBottom;
-}
 
 /// Owns the chat message list's scroll position.
 ///
