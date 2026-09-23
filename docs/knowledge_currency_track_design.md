@@ -197,8 +197,9 @@ point: every one of them would have been published as a fact about the model.
    The model answered `const Color(0x80FF0000)` in eight of ten runs — neither
    idiom. Reworded to name an existing colour, the fixture scores 10 of 10.
 
-**Scope, stated rather than implied.** Class 1 is still absent because it has
-no offline oracle by definition; sizing it needs a networked run. Class 3 now
+**Scope, stated rather than implied.** Class 1 had no offline oracle by
+definition; its registry-backed oracle landed 2026-09-23 (below), and sizing it
+still needs a networked run. Class 3 now
 has a separate oracle-backed verdict shape in the census tool: `required`,
 `inherited`, `unnecessary`, `wrong`, or `unscorable`. The environment fixture
 asks for a minimal Material 3 configuration without prescribing the
@@ -404,6 +405,56 @@ the environment verdict.
 This closes the class 3 measurement gap for the present fixture without
 claiming population-level dominance. The remaining KC1 implementation slice is
 the class 1 network oracle.
+
+#### Class 1 instrument (2026-09-23): the registry is the oracle
+
+Class 1's correct ground is the network, but for the world facts a coding
+answer actually asserts, the network has a deterministic answer: the package
+registry. `tool/kc1_world_fact_oracle.dart` reads pub.dev's
+`/api/packages/<name>` for the latest stable release, and the census scores the
+release line a pubspec constraint names against it:
+
+- `current` — the constraint names the latest line (`^4.0.0` when 4.0.2 is
+  latest, or a range that admits it);
+- `behind` — an older line: the expired belief KC1 measures;
+- `ahead` — a version newer than anything published. Counted as not correct,
+  but kept apart so a fabrication is never read as a cutoff effect;
+- `unscorable` — no entry, `any`, conflicting entries, or an unparsed form.
+
+Truth maps `current` to `correct` and the other two to `stale`; grounding and
+provenance keep their shared meaning. Four fixtures ask for the dependency
+entries of **a new app, created today**, on the package's current stable
+release: freezed, go_router, and flutter_riverpod moved a major within the
+last year, and dio has not and is the control. The fixture names no version;
+the snapshot decides every expected value, and a stale snapshot flips the
+verdict on the same response (the negative control, tested).
+
+**The two oracles disagree, and that is kept as a measurement.** This
+repository locks freezed 3.2.5 while pub.dev's latest is 4.0.2, and Flutter
+3.47.4 against a 3.47.5 stable. A new-project answer that copies the lockfile
+is correct about this project and stale about the world. So class 1 runs its
+own arms — bare, the unchanged installed-toolchain block, and a
+`worldFactGrounded` block carrying the registry versions — and the middle arm
+measures whether the installed block drags a new-project answer back to the
+installed line. The idiom and environment fixtures keep their three arms, so
+their replay baseline is unchanged.
+
+**A world fact expires.** Each run records the snapshot it was scored against
+(source URL, publish date, fetch time) in `run.worldFacts`. Runs against
+different snapshots are not paired; `--world-facts` replays a frozen one and
+`--save-world-facts` freezes it. The snapshot fetched at build `86bf4e28c` is
+kept as [evidence](evidence/kc1_class1_world_facts_2026-09-23.json) for the
+first paired measurement. `--offline` leaves class 1 out entirely.
+
+**Measurement status: not yet run.** The live run on 2026-09-23 failed before
+any request reached the model: `fvm dart` (Flutter 3.47.4's
+`bin/cache/dart-sdk/bin/dart`) gets `errno = 65 / No route to host` for
+`192.168.100.241:1234` while `curl` gets 200 at the same instant, and a
+standalone `Socket.connect` probe fails the same way on repeated attempts. That
+is the macOS Local Network grant for this `dart` binary, not a transient
+failure, and the managed loopback relay is itself a Dart process with the same
+denial. Class 1 is sized once the grant is restored; until then the §4
+promotion gate stays open.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 

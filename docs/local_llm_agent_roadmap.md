@@ -971,8 +971,11 @@ fourteen scorable responses redundantly asserted `useMaterial3: true`, so
 environment exposure was 100% in the bare, grounded, and delta-grounded arms;
 one bare response was unscorable. The environment fact fixed grounding
 attribution but did not change behavior, a preserved negative result rather
-than a prompt-tuning trigger. Class 1 still needs a networked oracle, so the
-full acceptance gate remains open. See
+than a prompt-tuning trigger. The class 1 oracle landed the same day: pub.dev's
+latest stable release scores the release line a new-project pubspec constraint
+names, against a snapshot recorded with the run. Its first live measurement is
+blocked on the macOS Local Network grant for the `dart` binary, so the full
+acceptance gate remains open. See
 [the track design](knowledge_currency_track_design.md) for the measurements
 and [the cross-track index](roadmap.md#active-focus) for the current next action.
 
