@@ -89,11 +89,7 @@ final class ProductionReleaseApprovalGate {
                 assistantIntent: currentAssistantContent ?? '',
                 approvalToken: _tokens.issueFor(conversationId),
               )
-            : buildProductionReleaseApprovalConflictResult(
-                toolName: toolCall.name,
-                command: command,
-                pendingCommand: pending.command,
-              );
+            : _conflictResult(toolCall, command, pending);
       }
       if (conversationId != null) removePendingRelease(conversationId);
       return null;
@@ -107,11 +103,7 @@ final class ProductionReleaseApprovalGate {
         resolvedArguments: resolved,
       );
       if (existing != null && existing.executionIdentity != executionIdentity) {
-        return buildProductionReleaseApprovalConflictResult(
-          toolName: toolCall.name,
-          command: command,
-          pendingCommand: existing.command,
-        );
+        return _conflictResult(toolCall, command, existing);
       }
       _pending.putIfAbsent(
         conversationId,
@@ -188,6 +180,19 @@ final class ProductionReleaseApprovalGate {
     _pending.clear();
     _tokens.clear();
   }
+
+  McpToolResult _conflictResult(
+    ToolCallInfo toolCall,
+    String command,
+    PendingBlockedRelease pending,
+  ) => buildProductionReleaseApprovalConflictResult(
+    toolName: toolCall.name,
+    command: command,
+    pendingCommand: pending.command,
+    pendingToolName: pending.toolName,
+    pendingWorkingDirectory: pending.workingDirectory,
+    pendingBackground: pending.background,
+  );
 
   String _executionIdentityFor(ToolCallInfo toolCall) => _identity.forToolCall(
     toolCall,

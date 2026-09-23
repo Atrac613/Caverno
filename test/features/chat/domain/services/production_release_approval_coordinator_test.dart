@@ -413,6 +413,88 @@ void main() {
     },
   );
 
+  test(
+    'a reworded label or explicit background still matches the approval',
+    () {
+      // Session 99bdd62c: the blocked call omitted `background`, every retry
+      // reworded `label`, and each one was refused as a conflicting release.
+      const command = 'bash tool/release_ios_macos.sh';
+      final blockedCall = ToolCallInfo(
+        id: 'release-call',
+        name: 'process_start',
+        arguments: const {
+          'command': command,
+          'label': 'iOS macOS release 1.3.42+56',
+          'reason': 'Run the production release.',
+        },
+      );
+      final retryCall = ToolCallInfo(
+        id: 'release-retry',
+        name: 'process_start',
+        arguments: const {
+          'command': command,
+          'label': 'Caverno 1.3.42+56 production release',
+          'background': true,
+          'reason': 'The user approved it.',
+        },
+      );
+
+      coordinator.buildGuardResult(
+        blockedCall,
+        currentAssistantContent: null,
+        evidence: coordinator.evidenceFor(7),
+      );
+      selectTokenOption();
+
+      expect(
+        coordinator.buildGuardResult(
+          retryCall,
+          currentAssistantContent: null,
+          evidence: coordinator.evidenceFor(7),
+        ),
+        isNull,
+      );
+      expect(coordinator.pendingRelease('conversation-a'), isNull);
+    },
+  );
+
+  test('a conflict names the exact pending execution arguments', () {
+    final releaseCall = ToolCallInfo(
+      id: 'release-call',
+      name: 'process_start',
+      arguments: const {
+        'command': './release_ios_macos.sh',
+        'working_directory': '/tmp/project',
+      },
+    );
+    final otherDirectoryCall = ToolCallInfo(
+      id: 'other-directory-call',
+      name: 'process_start',
+      arguments: const {
+        'command': './release_ios_macos.sh',
+        'working_directory': '/tmp/other',
+      },
+    );
+
+    coordinator.buildGuardResult(
+      releaseCall,
+      currentAssistantContent: null,
+      evidence: coordinator.evidenceFor(7),
+    );
+    selectTokenOption();
+    final conflict = coordinator.buildGuardResult(
+      otherDirectoryCall,
+      currentAssistantContent: null,
+      evidence: coordinator.evidenceFor(7),
+    );
+
+    final payload = jsonDecode(conflict!.result) as Map<String, dynamic>;
+    expect(payload['code'], productionReleaseApprovalConflictCode);
+    expect(payload['pending_tool'], 'process_start');
+    expect(payload['pending_working_directory'], '/tmp/project');
+    expect(payload['pending_background'], isTrue);
+  });
+
   test('an approval cannot change the release working directory', () {
     final releaseCall = ToolCallInfo(
       id: 'release-call',

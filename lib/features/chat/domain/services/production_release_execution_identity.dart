@@ -33,10 +33,20 @@ final class ProductionReleaseExecutionIdentity {
     }
     // The source alias adds no semantics after path resolution.
     arguments.remove('cwd');
-    if (arguments.containsKey('background')) {
-      arguments['background'] = argumentIsTruthy(arguments['background']);
-    }
-    arguments.remove('reason');
+    // process_start always runs in the background, so an omitted flag and an
+    // explicit `true` are one execution. Keying on the raw argument made the
+    // harness's own retry instruction (which spells `background=true`) miss
+    // an approval recorded for a call that omitted it.
+    arguments['background'] =
+        toolCall.name.trim().toLowerCase() == 'process_start' ||
+        argumentIsTruthy(arguments['background']);
+    // `label` only names the background job in the UI, and the model rewords
+    // it on every retry; `reason` is narration. Neither changes what runs.
+    // Session 99bdd62c (2026-09-23) spent nine refused retries on an approved
+    // release whose only difference was a reworded label.
+    arguments
+      ..remove('reason')
+      ..remove('label');
     return _executionPolicy.toolCallDedupKey(
       toolCall.name,
       arguments,
