@@ -319,13 +319,30 @@ class GitTools {
 
   /// `git tag` is read-only when listing (no -a, -d, -s, -f flags and no
   /// positional tag name that would create a tag).
+  ///
+  /// git-tag(1) documents the filters below as "implies --list", so the
+  /// operand after them is a commit or a pattern, never a new tag name.
+  /// Missing them made `tag --points-at HEAD` read as creating a tag named
+  /// HEAD, and the tag-format guard blocked a pure lookup (session 7a24caab).
   static bool _isTagReadOnly(List<String> args) {
     const writeFlags = {'-a', '-d', '-s', '-f', '--delete', '--sign', '-u'};
+    const listImplyingFilters = {
+      '--contains',
+      '--no-contains',
+      '--points-at',
+      '--merged',
+      '--no-merged',
+    };
     var hasListFlag = false;
     for (var i = 1; i < args.length; i++) {
       final arg = args[i];
       if (writeFlags.contains(arg)) return false;
       if (arg == '-l' || arg == '--list' || arg.startsWith('--list=')) {
+        hasListFlag = true;
+      }
+      final flagName = arg.split('=').first;
+      if (listImplyingFilters.contains(flagName) ||
+          RegExp(r'^-n\d*$').hasMatch(arg)) {
         hasListFlag = true;
       }
     }
@@ -512,7 +529,9 @@ class GitTools {
 
     // Parsed before the operator check so a trailing head/tail is applied
     // rather than refused; anything else still falls through to the refusal.
-    final lineLimit = GitTools.parseTrailingLineLimit(normalizeCommand(command));
+    final lineLimit = GitTools.parseTrailingLineLimit(
+      normalizeCommand(command),
+    );
     final shellOperator = lineLimit == null
         ? firstShellControlOperator(command)
         : null;
@@ -668,9 +687,7 @@ class GitTools {
       ).timeout(_kTimeout);
 
       final rawStdout = result.stdout as String;
-      final stdout = lineLimit == null
-          ? rawStdout
-          : lineLimit.apply(rawStdout);
+      final stdout = lineLimit == null ? rawStdout : lineLimit.apply(rawStdout);
       final stderr = result.stderr as String;
       final stdoutTruncated = stdout.length > _kMaxOutputChars;
       final stderrTruncated = stderr.length > _kMaxOutputChars;

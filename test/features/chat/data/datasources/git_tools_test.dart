@@ -58,6 +58,30 @@ void main() {
       );
       expect(GitTools.isReadOnly('tag 1.3.4+15'), isFalse);
     });
+
+    test('classifies list-implying tag filters as read-only', () {
+      // git-tag(1): each of these "implies --list", so the operand is a
+      // commit or pattern. Session 7a24caab had `tag --points-at HEAD`
+      // blocked as creating a tag named HEAD.
+      for (final command in [
+        'tag --points-at HEAD',
+        'tag --points-at=HEAD',
+        'tag --contains 12f2b00ec',
+        'tag --no-contains HEAD',
+        'tag --merged main',
+        'tag --no-merged',
+        'tag -n',
+        'tag -n5 1.3.*',
+      ]) {
+        expect(GitTools.isReadOnly(command), isTrue, reason: command);
+      }
+    });
+
+    test('still treats a filter plus a write flag as a write', () {
+      expect(GitTools.isReadOnly('tag -a 1.3.45+59 --points-at HEAD'), isFalse);
+      expect(GitTools.isReadOnly('tag -d 1.3.44+58'), isFalse);
+      expect(GitTools.isReadOnly('tag -f 1.3.44+58 HEAD'), isFalse);
+    });
   });
 
   group('GitTools.parseTrailingLineLimit', () {
@@ -76,9 +100,18 @@ void main() {
     });
 
     test('accepts tail and the -n spellings', () {
-      expect(GitTools.parseTrailingLineLimit('log --oneline | tail -3')!.fromEnd, isTrue);
-      expect(GitTools.parseTrailingLineLimit('log --oneline | head -n 3')!.lines, 3);
-      expect(GitTools.parseTrailingLineLimit('log --oneline | head -n3')!.lines, 3);
+      expect(
+        GitTools.parseTrailingLineLimit('log --oneline | tail -3')!.fromEnd,
+        isTrue,
+      );
+      expect(
+        GitTools.parseTrailingLineLimit('log --oneline | head -n 3')!.lines,
+        3,
+      );
+      expect(
+        GitTools.parseTrailingLineLimit('log --oneline | head -n3')!.lines,
+        3,
+      );
     });
 
     test('refuses anything that needs a real shell', () {
@@ -310,7 +343,11 @@ void main() {
         if (tempDir.existsSync()) await tempDir.delete(recursive: true);
       });
       Future<void> git(List<String> args) async {
-        final r = await Process.run('git', args, workingDirectory: tempDir.path);
+        final r = await Process.run(
+          'git',
+          args,
+          workingDirectory: tempDir.path,
+        );
         expect(r.exitCode, 0, reason: '${args.join(' ')}: ${r.stderr}');
       }
 
@@ -335,10 +372,10 @@ void main() {
       expect(decoded['code'], isNull);
       expect(decoded['output_limit'], 'head -2');
       expect(decoded['command'], 'git tag --list --sort=-v:refname');
-      expect(
-        (decoded['stdout'] as String).trim().split('\n'),
-        ['1.0.4', '1.0.3'],
-      );
+      expect((decoded['stdout'] as String).trim().split('\n'), [
+        '1.0.4',
+        '1.0.3',
+      ]);
     });
 
     test('rejects commit when unstaged changes would be omitted', () async {
