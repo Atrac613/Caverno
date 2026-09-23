@@ -3,6 +3,7 @@ import '../entities/tool_call_info.dart';
 import 'ask_user_question_text_normalization.dart';
 import 'blocked_production_release_retry_contract.dart';
 import 'local_command_tool_contract.dart';
+import 'production_release_approval_conflict_result.dart';
 import 'production_release_approval_evidence_snapshot.dart';
 import 'production_release_approval_token_registry.dart';
 import 'production_release_blocked_result.dart';
@@ -89,7 +90,11 @@ final class ProductionReleaseApprovalGate {
                 assistantIntent: currentAssistantContent ?? '',
                 approvalToken: _tokens.issueFor(conversationId),
               )
-            : _conflictResult(toolCall, command, pending);
+            : buildProductionReleaseApprovalConflictResult(
+                toolName: toolCall.name,
+                command: command,
+                pending: pending,
+              );
       }
       if (conversationId != null) removePendingRelease(conversationId);
       return null;
@@ -103,7 +108,11 @@ final class ProductionReleaseApprovalGate {
         resolvedArguments: resolved,
       );
       if (existing != null && existing.executionIdentity != executionIdentity) {
-        return _conflictResult(toolCall, command, existing);
+        return buildProductionReleaseApprovalConflictResult(
+          toolName: toolCall.name,
+          command: command,
+          pending: existing,
+        );
       }
       _pending.putIfAbsent(
         conversationId,
@@ -180,19 +189,6 @@ final class ProductionReleaseApprovalGate {
     _pending.clear();
     _tokens.clear();
   }
-
-  McpToolResult _conflictResult(
-    ToolCallInfo toolCall,
-    String command,
-    PendingBlockedRelease pending,
-  ) => buildProductionReleaseApprovalConflictResult(
-    toolName: toolCall.name,
-    command: command,
-    pendingCommand: pending.command,
-    pendingToolName: pending.toolName,
-    pendingWorkingDirectory: pending.workingDirectory,
-    pendingBackground: pending.background,
-  );
 
   String _executionIdentityFor(ToolCallInfo toolCall) => _identity.forToolCall(
     toolCall,

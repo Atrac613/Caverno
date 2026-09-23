@@ -1,9 +1,6 @@
 import 'dart:convert';
 
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:crypto/crypto.dart';
-
-import '../entities/mcp_tool_entity.dart';
 
 /// Compact machine binding for the exact pending execution.
 String productionReleaseApprovalOptionLabel({
@@ -56,43 +53,3 @@ String productionReleaseApprovalRequiredActionFor(
 }
 
 const int productionReleaseApprovalTokenLength = 16;
-const String productionReleaseApprovalConflictCode =
-    'production_release_approval_conflict';
-
-/// Refuses B while pending release A owns the conversation's approval token.
-McpToolResult buildProductionReleaseApprovalConflictResult({
-  required String toolName,
-  required String command,
-  required String pendingCommand,
-  String? pendingToolName,
-  String? pendingWorkingDirectory,
-  bool? pendingBackground,
-}) {
-  final pendingDirectory = pendingWorkingDirectory?.trim();
-  return McpToolResult(
-    toolName: toolName,
-    result: jsonEncode({
-      'ok': false,
-      'code': productionReleaseApprovalConflictCode,
-      ...ToolResultOrigin.refusal.marker,
-      'error':
-          'Another production release command is already awaiting approval '
-          'in this conversation.',
-      'command': command,
-      'pending_command': pendingCommand,
-      // The exact arguments, so a retry can reproduce the pending execution
-      // instead of guessing which argument made this one differ.
-      'pending_tool': ?pendingToolName,
-      if (pendingDirectory != null && pendingDirectory.isNotEmpty)
-        'pending_working_directory': pendingDirectory,
-      'pending_background': ?pendingBackground,
-      'required_action':
-          'Do not ask for approval for this command. Continue only with the '
-          'pending production release command, issued with exactly the '
-          'pending tool, command, working directory and background values '
-          'shown here, or wait for that approval flow to finish before '
-          'proposing another release.',
-    }),
-    isSuccess: true,
-  );
-}

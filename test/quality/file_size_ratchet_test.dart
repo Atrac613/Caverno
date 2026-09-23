@@ -196,8 +196,11 @@ const Map<String, int> _lineBudgets = {
       170,
   'lib/features/chat/domain/services/production_release_approval_gate.dart':
       216,
+  // -31, to 55: the approval-conflict refusal left for
+  // production_release_approval_conflict_result.dart, taking the pending
+  // release it describes instead of its fields one by one.
   'lib/features/chat/domain/services/production_release_approval_presentation.dart':
-      86,
+      55,
   'lib/features/chat/domain/services/production_release_approval_evidence_snapshot.dart':
       27,
   'lib/features/chat/domain/services/production_release_approval_token_registry.dart':

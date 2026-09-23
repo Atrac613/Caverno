@@ -13,6 +13,7 @@ import 'production_release_approval_gate.dart';
 import 'production_release_approval_policy.dart';
 import 'production_release_prose_shadow.dart';
 
+export 'production_release_approval_conflict_result.dart';
 export 'production_release_approval_evidence_snapshot.dart';
 export 'production_release_approval_presentation.dart';
 export 'production_release_execution_identity.dart';
