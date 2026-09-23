@@ -31,6 +31,14 @@ Set `CAVERNO_EMBEDDINGS_MODEL` to a model served by the same endpoint when the
 run should include the LL5 production embeddings path. If it is unset, the
 embeddings probe is skipped without reducing the score or coverage.
 
+Set `CAVERNO_BENCHMARK_CANARY_THINKING=on` to score the run with thinking on,
+the mode the in-app diagnostic pins for Qwen3.8. It defaults to `off`, which
+sends exactly what the canary sent before the mode was selectable, so earlier
+artifacts stay comparable. The two modes score differently on the same model
+(qwen3.8-27b-exl3: 980 on, 952 off), so compare only artifacts whose
+`thinkingMode` matches. The `thinking_control` probe runs in either mode and
+reports whether the endpoint honours `enable_thinking` at all.
+
 Set `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to an explicit positive ceiling to
 run the context ladder. Leave it unset for routine benchmark runs: the probe is
 intentionally expensive, allocates long prompts, and otherwise skips without
