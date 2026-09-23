@@ -214,8 +214,10 @@ const Map<String, int> _lineBudgets = {
       98,
   'lib/features/chat/domain/services/production_release_dispatch_result.dart':
       30,
+  // -18, to 43: argument canonicalization left for
+  // production_release_canonical_arguments.dart after 8d7c19ba9 overran this.
   'lib/features/chat/domain/services/production_release_execution_identity.dart':
-      61,
+      43,
   'lib/features/chat/domain/services/production_release_prose_shadow.dart': 77,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,
