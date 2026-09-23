@@ -91,7 +91,7 @@ import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
-import '../widgets/thread_scroll_to_bottom_button.dart';
+import '../widgets/thread_message_list_view.dart';
 import '../widgets/token_usage_indicator.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/turn_rollback_confirmation_dialog.dart';
@@ -207,8 +207,45 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     });
   }
 
-  void _scrollThreadToBottom() {
-    _threadScroll.scrollToBottom();
+  Widget _buildThreadMessageItem(
+    BuildContext context,
+    int index, {
+    required ChatState chatState,
+    required ConversationsState conversationsState,
+    required bool isCodingWorkspace,
+  }) {
+    final onReselect = isCodingWorkspace ? _pickAndActivateProject : null;
+    if (index >= chatState.messages.length) {
+      return MessageBubble(
+        key: const ValueKey('plan-status-message'),
+        message: _buildPlanStatusMessage(context, chatState: chatState),
+        onOpenFileWorkspaceViewer: _openFileWorkspaceViewer,
+        onReselectProject: onReselect,
+      );
+    }
+    final message = chatState.messages[index];
+    final turnDiff = conversationsState.currentConversation
+        ?.turnDiffForAssistantMessage(message.id);
+    final canRewind =
+        !chatState.isLoading &&
+        !message.isStreaming &&
+        index < chatState.messages.length - 1;
+    return MessageBubble(
+      key: ValueKey(message.id),
+      message: message,
+      conversationId: conversationsState.currentConversationId,
+      turnDiff: turnDiff,
+      onOpenTurnDiff: turnDiff == null
+          ? null
+          : () =>
+                _openFileWorkspaceViewer(_buildTurnDiffViewerRequest(turnDiff)),
+      onOpenFileWorkspaceViewer: _openFileWorkspaceViewer,
+      canRewind: canRewind,
+      onRewindToHere: canRewind
+          ? () => _rewindConversationToMessage(context, message)
+          : null,
+      onReselectProject: onReselect,
+    );
   }
 
   void _openDashboard() {
@@ -893,103 +930,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 context,
                                 isCodingWorkspace: isCodingWorkspace,
                               )
-                            : NotificationListener<ScrollNotification>(
-                                onNotification:
+                            : ThreadMessageListView(
+                                controller: _threadScroll.controller,
+                                onScrollNotification:
                                     _threadScroll.handleScrollNotification,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    ListView.builder(
-                                      key: const ValueKey('chat-message-list'),
-                                      controller: _threadScroll.controller,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 8,
-                                      ),
-                                      itemCount:
-                                          chatState.messages.length +
-                                          (shouldShowPlanStatusMessage ? 1 : 0),
-                                      itemBuilder: (context, index) {
-                                        if (index >=
-                                            chatState.messages.length) {
-                                          return MessageBubble(
-                                            key: const ValueKey(
-                                              'plan-status-message',
-                                            ),
-                                            message: _buildPlanStatusMessage(
-                                              context,
-                                              chatState: chatState,
-                                            ),
-                                            onOpenFileWorkspaceViewer:
-                                                _openFileWorkspaceViewer,
-                                            onReselectProject: isCodingWorkspace
-                                                ? _pickAndActivateProject
-                                                : null,
-                                          );
-                                        }
-                                        final message =
-                                            chatState.messages[index];
-                                        final turnDiff = currentConversation
-                                            ?.turnDiffForAssistantMessage(
-                                              message.id,
-                                            );
-                                        final canRewind =
-                                            !chatState.isLoading &&
-                                            !message.isStreaming &&
-                                            index <
-                                                chatState.messages.length - 1;
-                                        return MessageBubble(
-                                          key: ValueKey(message.id),
-                                          message: message,
-                                          conversationId: conversationsState
-                                              .currentConversationId,
-                                          turnDiff: turnDiff,
-                                          onOpenTurnDiff: turnDiff == null
-                                              ? null
-                                              : () => _openFileWorkspaceViewer(
-                                                  _buildTurnDiffViewerRequest(
-                                                    turnDiff,
-                                                  ),
-                                                ),
-                                          onOpenFileWorkspaceViewer:
-                                              _openFileWorkspaceViewer,
-                                          canRewind: canRewind,
-                                          onRewindToHere: canRewind
-                                              ? () =>
-                                                    _rewindConversationToMessage(
-                                                      context,
-                                                      message,
-                                                    )
-                                              : null,
-                                          onReselectProject: isCodingWorkspace
-                                              ? _pickAndActivateProject
-                                              : null,
-                                        );
-                                      },
+                                itemCount:
+                                    chatState.messages.length +
+                                    (shouldShowPlanStatusMessage ? 1 : 0),
+                                itemBuilder: (context, index) =>
+                                    _buildThreadMessageItem(
+                                      context,
+                                      index,
+                                      chatState: chatState,
+                                      conversationsState: conversationsState,
+                                      isCodingWorkspace: isCodingWorkspace,
                                     ),
-                                    if (isCodingWorkspace)
-                                      ValueListenableBuilder<bool>(
-                                        valueListenable: _threadScroll
-                                            .showScrollToBottomButton,
-                                        builder: (context, visible, child) {
-                                          if (!visible) {
-                                            return const SizedBox.shrink();
-                                          }
-                                          return Align(
-                                            alignment: Alignment.bottomCenter,
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                bottom: 12,
-                                              ),
-                                              child: child,
-                                            ),
-                                          );
-                                        },
-                                        child: ThreadScrollToBottomButton(
-                                          onPressed: _scrollThreadToBottom,
-                                        ),
-                                      ),
-                                  ],
-                                ),
+                                scrollToBottomVisibility: isCodingWorkspace
+                                    ? _threadScroll.showScrollToBottomButton
+                                    : null,
+                                onScrollToBottom: _threadScroll.scrollToBottom,
                               ),
                       ),
                       if (!shouldShowCodingDraftComposer &&

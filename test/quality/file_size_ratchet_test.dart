@@ -580,7 +580,10 @@ const Map<String, int> _lineBudgets = {
   // editors behind them -- had been unreachable for five months. The two
   // worth keeping were moved to AwaitingYouSheet first; the +1 this budget
   // took to wire that is repaid here many times over.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1323,
+  // -2, to 1,321: baebb517b's Stack pushed this to 1,362. The list shell and
+  // its scroll-to-latest overlay became ThreadMessageListView, and the item
+  // builder left the build method's twelve levels of nesting.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1321,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
   'lib/features/chat/presentation/widgets/plan/contract_item_list_section.dart':
       131,
@@ -1215,7 +1218,8 @@ const Map<String, int> _libraryLineBudgets = {
   // chat_page_workflow_builders.dart is gone entirely: it ended up holding
   // one method that builds nothing, which now sits with the other two actions
   // the awaiting-you opener calls.
-  'lib/features/chat/presentation/pages/chat_page.dart': 5343,
+  // -1, to 5,342, matching the primary file's ThreadMessageListView slice.
+  'lib/features/chat/presentation/pages/chat_page.dart': 5342,
   // +4, to 1,147, matching the primary file: the accept_task reservation and
   // offer are four lines in the primary, not a new part.
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1147,
