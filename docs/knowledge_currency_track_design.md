@@ -493,12 +493,54 @@ rate at 58% over its fixtures; class 1's is 75% here, and 100% on the
 packages that moved. At n = 5 per cell, and with different fixtures, these do
 not rank the two classes. They do show that class 2 does **not** dominate the
 measured stale claims, and the gate's rule for that outcome is that KC3 is
-re-scoped or dropped rather than promoted. That re-scoping is a decision, not a
-measurement, and is not taken here.
+re-scoped or dropped rather than promoted.
+
+#### Decision (2026-09-24): re-scope KC3, do not drop it
+
+The gate exists so KC3 is not built on assertion frequency or on the §3.1
+argument alone. Neither is what now supports it. The second measurement
+showed the mechanism KC3 serves, installed-version change evidence, cutting
+covered class 2 claims from 9/15 stale to 3/15, while the case the digest did
+not cover stayed stale (4/5). What it did not show is that class 2 is *the*
+problem, and the fifth measurement shows it is not the only one. So KC3 keeps
+its mechanism and loses its priority claim:
+
+1. **KC3 is the pull side of KC2's delta content, scoped to coverage.** KC2
+   pushes a recency-capped digest of what the installed versions changed; the
+   measured weakness is what that window leaves out (`WillPopScope`). KC3's
+   job is the on-demand lookup for a package or symbol outside the pushed
+   window, from the same inventory and the same oracle logic, not a second
+   channel for what KC2 already carries.
+2. **KC3 is not a class 1 remedy and must not be presented as one.** It
+   answers "what did the installed version change". It cannot answer "what
+   is the current release", and the fifth measurement shows installed-version
+   evidence is at best neutral for that question: it anchored freezed to the
+   lockfile line.
+3. **Status stays `later`.** Promotion needs KC2 shipped and a paired re-run
+   showing which class 2 claims remain stale because the push window missed
+   them. That number is what KC3 would be built to reduce.
+
+Two consequences outside KC3:
+
+- **KC2 gains a class 1 non-regression check.** Its paired re-run reports the
+  class 1 stale rate alongside classes 2 and 3. The installed block did not
+  raise it here (75% bare, 53% with the block), but freezed shows the block
+  can steer a new-project choice, and the block's scope, "installed for this
+  project", is not something the model reliably respected.
+- **Class 1 has no owning milestone.** For dependency choices the ground truth
+  already exists in the toolchain: `dart pub add <package>` resolves the
+  current compatible release itself, so a version written by hand is the only
+  place this staleness can enter. Whether Caverno's coding turns add
+  dependencies by editing `pubspec.yaml` or through the package manager is
+  unmeasured; that is the question to answer before any class 1 milestone is
+  proposed. Nothing in `lib/` currently steers toward `pub add`.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
-Status: `later`. Gated on KC1 attribution.
+Status: `later`. Re-scoped 2026-09-24 by the §4 gate (see the KC1 decision
+above): the on-demand lookup for what KC2's pushed delta window does not
+cover. Promotion needs KC2 shipped and a paired re-run that counts the class 2
+claims left stale by that window.
 
 Closes §3.1 by extending `resolve_installed_dependency` through the shared KC2
 inventory and resolver rather than creating a second package-resolution path.
@@ -594,7 +636,9 @@ can measure a cutoff empirically well enough to beat a static table. Recording
 2. Freeze the KC1 baseline artifact, then implement KC2 while the remaining KC1
    analysis continues. KC2 needs no promotion permission, but must not erase the
    before arm.
-3. KC3 only if KC1 shows class 2 dominates.
+3. KC3 only as the coverage complement to KC2's delta window, and only once
+   a paired re-run counts what that window misses (re-scoped 2026-09-24,
+   because KC1 did not show class 2 dominating).
 4. KC4 in shadow, deleted if imprecise.
 5. KC5 when a second model family is in regular production use; until then a
    static table for the one endpoint in use is not worth the schema change.
