@@ -824,7 +824,9 @@ const Map<String, int> _lineBudgets = {
   // generating, measured at 36.7 minutes in session c138c465.
   // -5: OpenAIClient construction moved to ChatDataSourceClientFactory.client,
   // which already owned the two wrapped http clients it hands that constructor.
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1124,
+  // -11, to 1,113: 9dcdd264c's tool_choice pushed this to 1,137; the SDK tool
+  // and tool_choice mapping moved to ChatRequestToolDeclarations.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1113,
   // +32, and the only budget raised here rather than lowered. 20 of it is the
   // client construction that left chat_remote_datasource.dart just above,
   // offset there; the rest is the endpoint's chat_template_kwargs opt-in and
