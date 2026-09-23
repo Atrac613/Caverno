@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'kc1_cutoff_oracle.dart';
+import 'kc1_world_fact_oracle.dart';
 
 /// KC1 — cutoff exposure census, first slice: the paired replay.
 ///
@@ -34,22 +35,25 @@ import 'kc1_cutoff_oracle.dart';
 /// neither is `unscorable`, reported as itself rather than folded into either
 /// side.
 ///
-/// Scope limit, stated rather than implied. The paired idiom arms cover
-/// classes 2 (API drift) and 4 (this repository), and the separate environment
-/// arm covers class 3. Class 1 is not covered, and that is not an oversight:
+/// Scope, stated rather than implied. The paired idiom arms cover classes 2
+/// (API drift) and 4 (this repository); classes 1 and 3 need verdict shapes of
+/// their own:
 ///
-/// - **Class 1, world facts**, has no offline oracle by definition — its
-///   correct ground is web search, per §2. Sizing it needs a networked run, not
-///   a fixture here.
+/// - **Class 1, world facts**, has no offline oracle by definition. Its oracle
+///   is the registry's API (`kc1_world_fact_oracle.dart`), fetched once per
+///   run and recorded with the run, and its verdict is the release line a
+///   pubspec constraint names. It is the only part of this instrument that
+///   touches the network; `--offline` leaves it out and `--world-facts`
+///   replays a frozen snapshot.
 /// - **Class 3, environment facts**, does not decompose into a two-idiom pair.
 ///   Its failure is usually an *unnecessary* line rather than a wrong one — a
 ///   model setting `useMaterial3: true` on an SDK where it is already the
 ///   default. Scoring "wrote something superfluous" needs a different verdict
 ///   shape than "used the expired idiom of two".
 ///
-/// So the §4 promotion gate, which asks whether class 2 *dominates*, is not yet
-/// answered by this fixture set. The class 3 replay was measured on 2026-09-23;
-/// class 1 remains absent. See `docs/knowledge_currency_track_design.md`.
+/// One fixture per class does not size a class, so the §4 promotion gate,
+/// which asks whether class 2 *dominates*, is answered only as far as the
+/// fixture set reaches. See `docs/knowledge_currency_track_design.md`.
 Future<void> main(List<String> args) async {
   final options = CensusOptions.parse(args, Platform.environment);
   if (options == null) {
@@ -59,25 +63,78 @@ Future<void> main(List<String> args) async {
   }
 
   final oracle = CutoffOracle.resolve(projectRoot: options.projectRoot);
+  final client = HttpClient();
+  try {
+    await _runMain(options, oracle, client);
+  } finally {
+    client.close(force: true);
+  }
+}
+
+Future<void> _runMain(
+  CensusOptions options,
+  CutoffOracle oracle,
+  HttpClient client,
+) async {
+  final WorldFactSnapshot? worldFacts;
+  if (options.offline) {
+    worldFacts = null;
+  } else if (options.worldFactsPath case final path?) {
+    worldFacts = WorldFactSnapshot.load(path);
+  } else {
+    try {
+      worldFacts = await WorldFactSnapshot.fetch(
+        client: client,
+        packages: worldFactCases.map((testCase) => testCase.package).toSet(),
+      );
+    } on Object catch (error) {
+      stderr.writeln(
+        'Could not read class 1 world facts ($error). '
+        'Pass --offline to measure without class 1, or --world-facts to '
+        'replay a frozen snapshot.',
+      );
+      exitCode = 69;
+      return;
+    }
+  }
+  if (worldFacts != null && options.saveWorldFactsPath != null) {
+    final file = File(options.saveWorldFactsPath!);
+    await file.parent.create(recursive: true);
+    await file.writeAsString(
+      '${const JsonEncoder.withIndent('  ').convert(worldFacts.toJson())}\n',
+    );
+  }
+
   final fixtureProblems = verifyFixtures(cutoffCases, oracle);
   final environmentProblems = verifyEnvironmentFixtures(
     environmentCases,
     oracle,
   );
-  if (fixtureProblems.isNotEmpty || environmentProblems.isNotEmpty) {
+  final worldFactProblems = worldFacts == null
+      ? const <String>[]
+      : verifyWorldFactFixtures(worldFactCases, worldFacts);
+  if (fixtureProblems.isNotEmpty ||
+      environmentProblems.isNotEmpty ||
+      worldFactProblems.isNotEmpty) {
     stderr.writeln(
-      'Fixture verification failed against the installed toolchain:',
+      'Fixture verification failed against the installed toolchain or the '
+      'world-fact snapshot:',
     );
-    for (final problem in [...fixtureProblems, ...environmentProblems]) {
+    for (final problem in [
+      ...fixtureProblems,
+      ...environmentProblems,
+      ...worldFactProblems,
+    ]) {
       stderr.writeln('  - $problem');
     }
     exitCode = 65;
     return;
   }
   if (options.verifyOnly) {
+    final worldFactCount = worldFacts == null ? 0 : worldFactCases.length;
     stdout.writeln(
-      'All ${cutoffCases.length + environmentCases.length} fixtures '
-      'confirmed by the oracle.',
+      'All ${cutoffCases.length + environmentCases.length + worldFactCount} '
+      'fixtures confirmed by the oracle.',
     );
     stdout.writeln(groundTruthBlock(oracle));
     final material3Default = oracle.flutterThemeDataUseMaterial3Default();
@@ -87,39 +144,35 @@ Future<void> main(List<String> args) async {
         '$material3Default',
       );
     }
+    if (worldFacts != null) stdout.writeln(worldFactBlock(worldFacts));
     return;
   }
 
-  final client = HttpClient();
-  try {
-    final summary = await runCutoffCensus(
-      options: options,
-      oracle: oracle,
-      send: (system, user) => postChatCompletion(
-        client: client,
-        endpoint: options.endpoint,
-        model: options.model,
-        apiKey: options.apiKey,
-        temperature: options.temperature,
-        timeout: options.timeout,
-        systemPrompt: system,
-        userPrompt: user,
-      ),
-      onProgress: (line) => stderr.writeln(line),
-      environmentCases: environmentCases,
-    );
-    final encoded = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(summary.toJson());
-    if (options.outputPath != null) {
-      final file = File(options.outputPath!);
-      await file.parent.create(recursive: true);
-      await file.writeAsString('$encoded\n');
-    }
-    stdout.writeln(options.json ? encoded : summary.report());
-  } finally {
-    client.close(force: true);
+  final summary = await runCutoffCensus(
+    options: options,
+    oracle: oracle,
+    send: (system, user) => postChatCompletion(
+      client: client,
+      endpoint: options.endpoint,
+      model: options.model,
+      apiKey: options.apiKey,
+      temperature: options.temperature,
+      timeout: options.timeout,
+      systemPrompt: system,
+      userPrompt: user,
+    ),
+    onProgress: (line) => stderr.writeln(line),
+    environmentCases: environmentCases,
+    worldFactCases: worldFacts == null ? const [] : worldFactCases,
+    worldFacts: worldFacts,
+  );
+  final encoded = const JsonEncoder.withIndent('  ').convert(summary.toJson());
+  if (options.outputPath != null) {
+    final file = File(options.outputPath!);
+    await file.parent.create(recursive: true);
+    await file.writeAsString('$encoded\n');
   }
+  stdout.writeln(options.json ? encoded : summary.report());
 }
 
 typedef ChatCompletionSender =
@@ -196,7 +249,6 @@ class CutoffCase {
   /// Matching the code pattern against the digest reported every case as
   /// uncovered, which would have read as a digest that reaches nothing.
   final List<String> coverageSymbols;
-
 }
 
 final cutoffCases = <CutoffCase>[
@@ -341,6 +393,91 @@ final environmentCases = <EnvironmentCase>[
   ),
 ];
 
+/// A class 1 fixture: start a new app on a package's current release.
+///
+/// The task asks for the current release explicitly, because without that
+/// there is no world-fact claim to score -- any published line is a valid
+/// constraint for *some* project. It asks for a new app so the lockfile of
+/// this repository is not the right answer, and a caret constraint so the
+/// claim lands in a form the scorer parses.
+class WorldFactCase {
+  const WorldFactCase({
+    required this.id,
+    required this.package,
+    required this.description,
+  });
+
+  final String id;
+  final String package;
+  final String description;
+
+  String get task =>
+      'Write the pubspec.yaml dependency entries for a new Flutter app, '
+      'created today, that uses the $package package. Depend on the current '
+      'stable release of $package with a caret constraint. Return only YAML.';
+}
+
+/// Packages chosen for where their current release line sits relative to a
+/// model trained some months ago, not for which answer the author expects:
+/// the snapshot decides that. dio has stayed on one major for years and is the
+/// control; the others moved a major within the last year, and freezed is
+/// also locked below its latest here.
+const worldFactCases = <WorldFactCase>[
+  WorldFactCase(
+    id: 'pub-latest-freezed',
+    package: 'freezed',
+    description: 'freezed latest release line on pub.dev',
+  ),
+  WorldFactCase(
+    id: 'pub-latest-go-router',
+    package: 'go_router',
+    description: 'go_router latest release line on pub.dev',
+  ),
+  WorldFactCase(
+    id: 'pub-latest-flutter-riverpod',
+    package: 'flutter_riverpod',
+    description: 'flutter_riverpod latest release line on pub.dev',
+  ),
+  WorldFactCase(
+    id: 'pub-latest-dio',
+    package: 'dio',
+    description: 'dio latest release line on pub.dev (control)',
+  ),
+];
+
+/// Fixture problems for class 1, empty when the snapshot holds a parseable
+/// latest release for every case's package.
+List<String> verifyWorldFactFixtures(
+  List<WorldFactCase> cases,
+  WorldFactSnapshot snapshot,
+) => [
+  for (final testCase in cases)
+    if (_worldFactProblem(testCase, snapshot) case final problem?)
+      '${testCase.id}: $problem',
+];
+
+String? _worldFactProblem(WorldFactCase testCase, WorldFactSnapshot snapshot) {
+  final fact = snapshot[testCase.package];
+  if (fact == null) return 'the snapshot has no fact for ${testCase.package}';
+  if (ReleaseVersion.tryParse(fact.latestVersion) == null) {
+    return 'latest ${fact.latestVersion} is not a release version';
+  }
+  return null;
+}
+
+/// The world-fact block the `worldFactGrounded` arm carries: what the registry
+/// reported, with when, and nothing about which answer is expected.
+String worldFactBlock(WorldFactSnapshot snapshot) {
+  final buffer = StringBuffer('Latest stable releases on pub.dev:');
+  for (final fact in snapshot.facts.values) {
+    buffer.write('\n- ${fact.package}: ${fact.latestVersion}');
+    if (fact.publishedAt case final published?) {
+      buffer.write(' (published ${published.split('T').first})');
+    }
+  }
+  return buffer.toString();
+}
+
 /// Fixture problems, empty when the installed toolchain confirms every case.
 ///
 /// Runs before any request. A fixture the toolchain does not back is not a
@@ -401,7 +538,31 @@ enum CensusArm {
   /// around it, and it is an increment over [grounded] so the delta's own
   /// contribution is what is measured.
   deltaGrounded,
+
+  /// Class 1 only: the task plus the registry's latest release for the
+  /// package it names, as a fetched web result would carry it.
+  ///
+  /// Carried in the prompt so the replay stays fixed; its provenance is
+  /// therefore `promptContext`, the same honest label the grounded arm uses
+  /// for its KC2 preview. In production this ground would be a tool result.
+  worldFactGrounded,
 }
+
+/// The arms the idiom and environment fixtures run. Their replay baseline
+/// predates class 1 and must not change when it is added.
+const idiomArms = [CensusArm.bare, CensusArm.grounded, CensusArm.deltaGrounded];
+
+/// The arms the class 1 fixtures run.
+///
+/// The grounded arm is kept even though the installed-toolchain block says
+/// nothing about the world: it is the one place the two oracles disagree.
+/// This repository locks freezed below pub.dev's latest, so a new-project
+/// answer that copies the lockfile is measured here as what it is.
+const worldFactArms = [
+  CensusArm.bare,
+  CensusArm.grounded,
+  CensusArm.worldFactGrounded,
+];
 
 /// What the installed toolchain changed, as a prompt block.
 ///
@@ -454,6 +615,8 @@ bool promptSupportsClaimFor({
     CensusArm.bare => false,
     CensusArm.grounded => false,
     CensusArm.deltaGrounded => digestCovers(testCase, oracle),
+    // Carries registry versions only, and idiom fixtures never run it.
+    CensusArm.worldFactGrounded => false,
   };
 }
 
@@ -673,6 +836,7 @@ class ClaimRecord {
     required this.expectedValue,
     required this.truthSource,
     this.environmentVerdict,
+    this.worldFactVerdict,
     this.failure,
   });
 
@@ -694,6 +858,7 @@ class ClaimRecord {
   /// What on disk said so.
   final String truthSource;
   final EnvironmentVerdict? environmentVerdict;
+  final WorldFactVerdict? worldFactVerdict;
   final String? failure;
 
   Map<String, dynamic> toJson() => {
@@ -710,6 +875,8 @@ class ClaimRecord {
     'truth_source': truthSource,
     if (environmentVerdict case final verdict?)
       'environment_verdict': verdict.name,
+    if (worldFactVerdict case final verdict?)
+      'world_fact_verdict': verdict.name,
     if (failure != null) 'failure': failure,
   };
 }
@@ -837,11 +1004,22 @@ class CensusSummary {
     return counts;
   }
 
+  Map<WorldFactVerdict, int> worldFactVerdicts(CensusArm arm) {
+    final counts = {for (final verdict in WorldFactVerdict.values) verdict: 0};
+    for (final claim in claims) {
+      if (claim.arm == arm && claim.failure == null) {
+        final verdict = claim.worldFactVerdict;
+        if (verdict != null) counts[verdict] = counts[verdict]! + 1;
+      }
+    }
+    return counts;
+  }
+
   Set<CutoffClass> get classes => claims.map((c) => c.cutoffClass).toSet();
 
   Map<String, dynamic> toJson() => {
     'schema': 'caverno_kc1_cutoff_exposure_census',
-    'schemaVersion': 3,
+    'schemaVersion': 4,
     'run': runIdentity,
     'claims': claims.length,
     'failures': failures(),
@@ -866,6 +1044,10 @@ class CensusSummary {
           'environmentExposureRate': environmentExposureRateFor(arm),
           'environmentVerdicts': {
             for (final entry in environmentVerdicts(arm).entries)
+              entry.key.name: entry.value,
+          },
+          'worldFactVerdicts': {
+            for (final entry in worldFactVerdicts(arm).entries)
               entry.key.name: entry.value,
           },
         },
@@ -908,10 +1090,17 @@ class CensusSummary {
       if (environment.isNotEmpty) {
         buffer.writeln('  ${arm.name.padRight(16)} environment $environment');
       }
+      final worldFact = worldFactVerdicts(arm).entries
+          .where((entry) => entry.value > 0)
+          .map((entry) => '${entry.key.name}=${entry.value}')
+          .join(', ');
+      if (worldFact.isNotEmpty) {
+        buffer.writeln('  ${arm.name.padRight(16)} world fact $worldFact');
+      }
     }
     buffer
       ..writeln()
-      ..writeln('per class stale-claim rate (bare / grounded / delta)');
+      ..writeln('per class stale-claim rate (bare / grounded / delta / world)');
     for (final cutoffClass in classes) {
       String rate(CensusArm arm) {
         final value = staleRateFor(cutoffClass, arm);
@@ -922,7 +1111,8 @@ class CensusSummary {
         '  ${cutoffClass.name.padRight(22)} '
         '${rate(CensusArm.bare).padLeft(5)} / '
         '${rate(CensusArm.grounded).padLeft(5)} / '
-        '${rate(CensusArm.deltaGrounded).padLeft(5)}',
+        '${rate(CensusArm.deltaGrounded).padLeft(5)} / '
+        '${rate(CensusArm.worldFactGrounded).padLeft(5)}',
       );
       if (cutoffClass == CutoffClass.environment) {
         String exposure(CensusArm arm) {
@@ -940,7 +1130,9 @@ class CensusSummary {
     }
     buffer
       ..writeln()
-      ..writeln('per class unsupported-claim rate (bare / grounded / delta)');
+      ..writeln(
+        'per class unsupported-claim rate (bare / grounded / delta / world)',
+      );
     for (final cutoffClass in classes) {
       String rate(CensusArm arm) {
         final value = unsupportedRateFor(cutoffClass, arm);
@@ -951,12 +1143,15 @@ class CensusSummary {
         '  ${cutoffClass.name.padRight(22)} '
         '${rate(CensusArm.bare).padLeft(5)} / '
         '${rate(CensusArm.grounded).padLeft(5)} / '
-        '${rate(CensusArm.deltaGrounded).padLeft(5)}',
+        '${rate(CensusArm.deltaGrounded).padLeft(5)} / '
+        '${rate(CensusArm.worldFactGrounded).padLeft(5)}',
       );
     }
     buffer
       ..writeln()
-      ..writeln('per case (bare / grounded / delta stale, digest coverage)');
+      ..writeln(
+        'per case (bare / grounded / delta / world stale, digest coverage)',
+      );
     for (final caseId in claims.map((c) => c.caseId).toSet()) {
       String rate(CensusArm arm) {
         final scored = claims
@@ -976,7 +1171,8 @@ class CensusSummary {
       buffer.writeln(
         '  ${caseId.padRight(22)} ${rate(CensusArm.bare).padLeft(5)} / '
         '${rate(CensusArm.grounded).padLeft(5)} / '
-        '${rate(CensusArm.deltaGrounded).padLeft(5)}   '
+        '${rate(CensusArm.deltaGrounded).padLeft(5)} / '
+        '${rate(CensusArm.worldFactGrounded).padLeft(5)}   '
         '${digestCoverage[caseId] == true ? 'in digest' : 'not in digest'}',
       );
     }
@@ -1073,6 +1269,56 @@ ClaimRecord scoreEnvironmentResponse({
   );
 }
 
+/// Scores one class 1 response against the snapshot's latest release.
+///
+/// Truth collapses the four-way verdict onto the shared axis: a constraint on
+/// the latest line is correct, and one on an older line is stale. A version
+/// newer than anything published is also counted as not correct, but it keeps
+/// its own `ahead` verdict so a fabrication is never read as a cutoff effect.
+ClaimRecord scoreWorldFactClaim({
+  required WorldFactCase testCase,
+  required CensusArm arm,
+  required int repeat,
+  required String response,
+  required WorldFact fact,
+  required String truthSource,
+}) {
+  final latest = ReleaseVersion.tryParse(fact.latestVersion)!;
+  final scored = scoreWorldFactResponse(
+    response: response,
+    package: testCase.package,
+    latest: latest,
+  );
+  final truth = switch (scored.verdict) {
+    WorldFactVerdict.current => TruthVerdict.correct,
+    WorldFactVerdict.behind || WorldFactVerdict.ahead => TruthVerdict.stale,
+    WorldFactVerdict.unscorable => TruthVerdict.unscorable,
+  };
+  final promptSupportsClaim = arm == CensusArm.worldFactGrounded;
+  final grounding = switch ((promptSupportsClaim, truth)) {
+    (false, _) => GroundingVerdict.absent,
+    (_, TruthVerdict.correct) => GroundingVerdict.supported,
+    (_, TruthVerdict.stale) => GroundingVerdict.contradicted,
+    (_, TruthVerdict.unscorable) => GroundingVerdict.absent,
+  };
+  return ClaimRecord(
+    claimId: '${testCase.id}:${arm.name}:$repeat',
+    caseId: testCase.id,
+    cutoffClass: CutoffClass.worldFact,
+    arm: arm,
+    repeat: repeat,
+    truth: truth,
+    grounding: grounding,
+    provenance: promptSupportsClaim && truth != TruthVerdict.unscorable
+        ? GroundingProvenance.promptContext
+        : GroundingProvenance.none,
+    assertedValue: scored.asserted,
+    expectedValue: '^${fact.latestVersion}',
+    truthSource: truthSource,
+    worldFactVerdict: scored.verdict,
+  );
+}
+
 Future<CensusSummary> runCutoffCensus({
   required CensusOptions options,
   required CutoffOracle oracle,
@@ -1080,7 +1326,12 @@ Future<CensusSummary> runCutoffCensus({
   void Function(String line)? onProgress,
   List<CutoffCase> cases = const [],
   List<EnvironmentCase> environmentCases = const [],
+  List<WorldFactCase> worldFactCases = const [],
+  WorldFactSnapshot? worldFacts,
 }) async {
+  if (worldFactCases.isNotEmpty && worldFacts == null) {
+    throw ArgumentError('class 1 fixtures need a world-fact snapshot');
+  }
   final all = cases.isEmpty ? cutoffCases : cases;
   final selected = options.caseFilter.isEmpty
       ? all
@@ -1092,6 +1343,11 @@ Future<CensusSummary> runCutoffCensus({
       : environmentCases
             .where((testCase) => options.caseFilter.contains(testCase.id))
             .toList(growable: false);
+  final selectedWorldFacts = options.caseFilter.isEmpty
+      ? worldFactCases
+      : worldFactCases
+            .where((testCase) => options.caseFilter.contains(testCase.id))
+            .toList(growable: false);
   final ground = groundTruthBlock(oracle);
   final delta = deltaBlock(oracle);
   final environmentGround = environmentGroundTruthBlock(oracle);
@@ -1100,12 +1356,13 @@ Future<CensusSummary> runCutoffCensus({
     final truthSource =
         testCase.confirmStale(oracle) ?? _truthSourceFor(testCase, oracle);
     for (var repeat = 1; repeat <= options.repeats; repeat++) {
-      for (final arm in CensusArm.values) {
+      for (final arm in idiomArms) {
         onProgress?.call('${testCase.id} ${arm.name} #$repeat');
         final prompt = switch (arm) {
           CensusArm.bare => testCase.task,
           CensusArm.grounded => '$ground\n\n${testCase.task}',
           CensusArm.deltaGrounded => '$ground\n\n$delta\n\n${testCase.task}',
+          CensusArm.worldFactGrounded => throw StateError('not an idiom arm'),
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1162,13 +1419,14 @@ Future<CensusSummary> runCutoffCensus({
         'Flutter ${oracle.flutterVersion}: '
         'ThemeData.useMaterial3 default: $defaultValue';
     for (var repeat = 1; repeat <= options.repeats; repeat++) {
-      for (final arm in CensusArm.values) {
+      for (final arm in idiomArms) {
         onProgress?.call('${testCase.id} ${arm.name} #$repeat');
         final prompt = switch (arm) {
           CensusArm.bare => testCase.task,
           CensusArm.grounded => '$environmentGround\n\n${testCase.task}',
           CensusArm.deltaGrounded =>
             '$environmentGround\n\n$delta\n\n${testCase.task}',
+          CensusArm.worldFactGrounded => throw StateError('not an idiom arm'),
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1215,9 +1473,73 @@ Future<CensusSummary> runCutoffCensus({
       }
     }
   }
+  for (final testCase in selectedWorldFacts) {
+    final fact = worldFacts![testCase.package];
+    if (fact == null) {
+      throw StateError('${testCase.id}: the snapshot has no fact');
+    }
+    final installed = oracle.packageVersion(testCase.package);
+    final truthSource =
+        '${fact.source}: latest ${fact.latestVersion}'
+        '${fact.publishedAt == null ? '' : ', published ${fact.publishedAt}'}'
+        ', fetched ${fact.fetchedAt}; installed here: ${installed ?? 'none'}';
+    final worldGround = worldFactBlock(worldFacts);
+    for (var repeat = 1; repeat <= options.repeats; repeat++) {
+      for (final arm in worldFactArms) {
+        onProgress?.call('${testCase.id} ${arm.name} #$repeat');
+        final prompt = switch (arm) {
+          CensusArm.bare => testCase.task,
+          CensusArm.grounded => '$ground\n\n${testCase.task}',
+          CensusArm.worldFactGrounded => '$worldGround\n\n${testCase.task}',
+          CensusArm.deltaGrounded => throw StateError('not a class 1 arm'),
+        };
+        try {
+          final response = await send(_systemPrompt, prompt);
+          if (options.dumpDir case final dumpDir?) {
+            final file = File(
+              '$dumpDir/${testCase.id}.${arm.name}.$repeat.txt',
+            );
+            await file.parent.create(recursive: true);
+            await file.writeAsString(response);
+          }
+          claims.add(
+            scoreWorldFactClaim(
+              testCase: testCase,
+              arm: arm,
+              repeat: repeat,
+              response: response,
+              fact: fact,
+              truthSource: truthSource,
+            ),
+          );
+        } on Object catch (error) {
+          claims.add(
+            ClaimRecord(
+              claimId: '${testCase.id}:${arm.name}:$repeat',
+              caseId: testCase.id,
+              cutoffClass: CutoffClass.worldFact,
+              arm: arm,
+              repeat: repeat,
+              truth: TruthVerdict.unscorable,
+              grounding: GroundingVerdict.absent,
+              provenance: GroundingProvenance.none,
+              assertedValue: 'none',
+              expectedValue: '^${fact.latestVersion}',
+              truthSource: truthSource,
+              failure: 'request failed: $error',
+            ),
+          );
+        }
+      }
+    }
+  }
   return CensusSummary(
     claims: claims,
-    runIdentity: _runIdentity(options: options, oracle: oracle),
+    runIdentity: _runIdentity(
+      options: options,
+      oracle: oracle,
+      worldFacts: selectedWorldFacts.isEmpty ? null : worldFacts,
+    ),
     digestCoverage: {
       for (final testCase in selected)
         testCase.id: digestCovers(testCase, oracle),
@@ -1248,6 +1570,7 @@ String _truthSourceFor(
 Map<String, dynamic> _runIdentity({
   required CensusOptions options,
   required CutoffOracle oracle,
+  WorldFactSnapshot? worldFacts,
 }) {
   final head = Process.runSync('git', [
     'rev-parse',
@@ -1268,6 +1591,9 @@ Map<String, dynamic> _runIdentity({
     'freezed': oracle.packageVersion('freezed'),
     'buildCommit': (head.stdout as String).trim(),
     'buildDirty': (status.stdout as String).trim().isNotEmpty,
+    // A world fact expires, so the snapshot a class 1 verdict was scored
+    // against is part of what the run was.
+    if (worldFacts != null) 'worldFacts': worldFacts.toJson(),
   };
 }
 
@@ -1329,6 +1655,9 @@ class CensusOptions {
     required this.verifyOnly,
     required this.dumpDir,
     required this.caseFilter,
+    this.offline = false,
+    this.worldFactsPath,
+    this.saveWorldFactsPath,
   });
 
   static const usage =
@@ -1336,9 +1665,12 @@ class CensusOptions {
       '  --endpoint http://host:1234/v1/chat/completions --model <id> \\\n'
       '  [--repeats 3] [--temperature 0.7] [--timeout 180] [--json] \\\n'
       '  [--out build/kc1/census.json] [--dump-dir build/kc1/raw] \\\n'
-      '  [--case <id>]... [--verify-only]\n'
+      '  [--case <id>]... [--verify-only] \\\n'
+      '  [--offline | --world-facts snapshot.json] [--save-world-facts <path>]\n'
       '--verify-only checks every fixture against the installed toolchain and '
-      'sends nothing.';
+      'the world-fact snapshot, and sends nothing to the model.\n'
+      'Class 1 reads pub.dev unless --offline leaves it out or --world-facts '
+      'replays a frozen snapshot.';
 
   final String endpoint;
   final String model;
@@ -1361,6 +1693,15 @@ class CensusOptions {
   /// Run only these case ids, for spot-checking one fixture's wording.
   final Set<String> caseFilter;
 
+  /// Leave class 1 out, so the run touches no network but the model endpoint.
+  final bool offline;
+
+  /// A frozen class 1 snapshot to replay instead of fetching one.
+  final String? worldFactsPath;
+
+  /// Where to write the class 1 snapshot this run used, to freeze it.
+  final String? saveWorldFactsPath;
+
   static CensusOptions? parse(
     List<String> args,
     Map<String, String> environment,
@@ -1373,6 +1714,9 @@ class CensusOptions {
     var timeoutSeconds = 180;
     var json = false;
     var verifyOnly = false;
+    var offline = false;
+    String? worldFactsPath;
+    String? saveWorldFactsPath;
     String? outputPath;
     String? dumpDir;
     final caseFilter = <String>{};
@@ -1417,11 +1761,20 @@ class CensusOptions {
           json = true;
         case '--verify-only':
           verifyOnly = true;
+        case '--offline':
+          offline = true;
+        case '--world-facts':
+          worldFactsPath = value(i);
+          i++;
+        case '--save-world-facts':
+          saveWorldFactsPath = value(i);
+          i++;
         case '--help':
           return null;
       }
     }
     if (repeats < 1) return null;
+    if (offline && worldFactsPath != null) return null;
     if (!verifyOnly && (endpoint.isEmpty || model.isEmpty)) return null;
     return CensusOptions(
       endpoint: endpoint,
@@ -1436,6 +1789,9 @@ class CensusOptions {
       verifyOnly: verifyOnly,
       dumpDir: dumpDir,
       caseFilter: caseFilter,
+      offline: offline,
+      worldFactsPath: worldFactsPath,
+      saveWorldFactsPath: saveWorldFactsPath,
     );
   }
 }

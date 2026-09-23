@@ -320,7 +320,7 @@ void main() {
         send: (system, user) async => 'ThemeData(useMaterial3: true)',
       );
 
-      expect(summary.claims, hasLength(CensusArm.values.length));
+      expect(summary.claims, hasLength(idiomArms.length));
       expect(
         summary.environmentVerdicts(CensusArm.grounded),
         containsPair(EnvironmentVerdict.unnecessary, 1),
@@ -510,7 +510,7 @@ void main() {
         0.5,
       );
       final json = summary.toJson();
-      expect(json['schemaVersion'], 3);
+      expect(json['schemaVersion'], 4);
       expect(
         (json['arms'] as Map)['deltaGrounded']['unsupportedRate'],
         0.5,
@@ -741,7 +741,7 @@ void main() {
           send: (system, user) async => throw StateError('endpoint down'),
         );
 
-        expect(summary.failures(), CensusArm.values.length);
+        expect(summary.failures(), idiomArms.length);
         expect(summary.staleRate(CensusArm.bare), isNull);
         expect(summary.unsupportedRate(CensusArm.bare), isNull);
         expect(summary.report(), contains('stale  - unsupported'));
