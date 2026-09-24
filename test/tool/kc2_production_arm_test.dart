@@ -85,6 +85,16 @@ void main() {
   test('--production is parsed', () {
     expect(options(const ['--production']).production, isTrue);
     expect(options(const []).production, isFalse);
+    expect(
+      options(const [
+        '--production',
+        '--arm',
+        'productionVersionsOnly',
+        '--arm',
+        'productionDefault',
+      ]).armFilter,
+      {'productionVersionsOnly', 'productionDefault'},
+    );
   });
 
   test('this repository yields a block per budget, growing with context', () {
@@ -96,5 +106,15 @@ void main() {
     );
     expect(blocks[CensusArm.production64k], contains('withOpacity'));
     expect(blocks[CensusArm.productionDefault], isNot(contains('withOpacity')));
+    expect(
+      blocks[CensusArm.productionVersionsOnly],
+      isNot(contains('What the installed versions changed')),
+      reason: 'the versions-only arm carries no change digest',
+    );
+    expect(
+      blocks[CensusArm.productionDefault],
+      startsWith(blocks[CensusArm.productionVersionsOnly]!),
+      reason: 'it is the same version list the default arm opens with',
+    );
   });
 }

@@ -168,7 +168,12 @@ Future<void> _runMain(
     worldFactCases: worldFacts == null ? const [] : worldFactCases,
     worldFacts: worldFacts,
     production: options.production
-        ? productionBlocks(options.projectRoot)
+        ? {
+            for (final entry in productionBlocks(options.projectRoot).entries)
+              if (options.armFilter.isEmpty ||
+                  options.armFilter.contains(entry.key.name))
+                entry.key: entry.value,
+          }
         : const {},
   );
   final encoded = const JsonEncoder.withIndent('  ').convert(summary.toJson());
@@ -563,6 +568,11 @@ enum CensusArm {
   /// The production block at the 64k-token budget, the only one whose digest
   /// covers every measured idiom on this repository.
   production64k,
+
+  /// The production version list alone, with no change digest: the
+  /// configuration a window under 16k tokens gets, measured after the full
+  /// block regressed class 4 by listing legacy names.
+  productionVersionsOnly,
 }
 
 /// The production arms and the usable context each one stands for. Reported
@@ -571,6 +581,7 @@ const productionArmContext = <CensusArm, int?>{
   CensusArm.productionDefault: null,
   CensusArm.production32k: 32768,
   CensusArm.production64k: 65536,
+  CensusArm.productionVersionsOnly: null,
 };
 
 /// Builds each production arm's block from the production builder.
@@ -583,10 +594,11 @@ Map<CensusArm, String> productionBlocks(String projectRoot) {
         maxChars: EnvironmentGroundingContextBuilder.maxCharsForUsableContext(
           entry.value,
         ),
-        digestMaxChars:
-            EnvironmentGroundingContextBuilder.digestMaxCharsForUsableContext(
-              entry.value,
-            ),
+        digestMaxChars: entry.key == CensusArm.productionVersionsOnly
+            ? 0
+            : EnvironmentGroundingContextBuilder.digestMaxCharsForUsableContext(
+                entry.value,
+              ),
       ),
   };
 }
@@ -663,7 +675,8 @@ bool promptSupportsClaimFor({
     // Production arms are scored in [runCutoffCensus] against their block.
     CensusArm.productionDefault ||
     CensusArm.production32k ||
-    CensusArm.production64k => false,
+    CensusArm.production64k ||
+    CensusArm.productionVersionsOnly => false,
   };
 }
 
@@ -1444,7 +1457,9 @@ Future<CensusSummary> runCutoffCensus({
           CensusArm.worldFactGrounded => throw StateError('not an idiom arm'),
           CensusArm.productionDefault ||
           CensusArm.production32k ||
-          CensusArm.production64k => '${production[arm]}\n\n${testCase.task}',
+          CensusArm.production64k ||
+          CensusArm.productionVersionsOnly =>
+            '${production[arm]}\n\n${testCase.task}',
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1513,7 +1528,9 @@ Future<CensusSummary> runCutoffCensus({
           CensusArm.worldFactGrounded => throw StateError('not an idiom arm'),
           CensusArm.productionDefault ||
           CensusArm.production32k ||
-          CensusArm.production64k => '${production[arm]}\n\n${testCase.task}',
+          CensusArm.production64k ||
+          CensusArm.productionVersionsOnly =>
+            '${production[arm]}\n\n${testCase.task}',
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1581,7 +1598,9 @@ Future<CensusSummary> runCutoffCensus({
           CensusArm.deltaGrounded => throw StateError('not a class 1 arm'),
           CensusArm.productionDefault ||
           CensusArm.production32k ||
-          CensusArm.production64k => '${production[arm]}\n\n${testCase.task}',
+          CensusArm.production64k ||
+          CensusArm.productionVersionsOnly =>
+            '${production[arm]}\n\n${testCase.task}',
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1764,6 +1783,7 @@ class CensusOptions {
     this.worldFactsPath,
     this.saveWorldFactsPath,
     this.production = false,
+    this.armFilter = const {},
   });
 
   static const usage =
@@ -1773,7 +1793,7 @@ class CensusOptions {
       '  [--out build/kc1/census.json] [--dump-dir build/kc1/raw] \\\n'
       '  [--case <id>]... [--verify-only] \\\n'
       '  [--offline | --world-facts snapshot.json] [--save-world-facts <path>] \\\n'
-      '  [--production]\n'
+      '  [--production [--arm <productionArm>]...]\n'
       '--production replaces the prototype arms with the KC2 production block '
       'at each usable-context budget.\n'
       '--verify-only checks every fixture against the installed toolchain and '
@@ -1814,6 +1834,9 @@ class CensusOptions {
   /// Run the KC2 production arms instead of the prototype arms.
   final bool production;
 
+  /// With [production], run only these production arms (by name).
+  final Set<String> armFilter;
+
   static CensusOptions? parse(
     List<String> args,
     Map<String, String> environment,
@@ -1828,6 +1851,7 @@ class CensusOptions {
     var verifyOnly = false;
     var offline = false;
     var production = false;
+    final armFilter = <String>{};
     String? worldFactsPath;
     String? saveWorldFactsPath;
     String? outputPath;
@@ -1878,6 +1902,10 @@ class CensusOptions {
           offline = true;
         case '--production':
           production = true;
+        case '--arm':
+          final arm = value(i);
+          if (arm != null) armFilter.add(arm);
+          i++;
         case '--world-facts':
           worldFactsPath = value(i);
           i++;
@@ -1908,6 +1936,7 @@ class CensusOptions {
       worldFactsPath: worldFactsPath,
       saveWorldFactsPath: saveWorldFactsPath,
       production: production,
+      armFilter: armFilter,
     );
   }
 }
