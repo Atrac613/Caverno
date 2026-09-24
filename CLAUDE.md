@@ -84,7 +84,7 @@ user asks for Japanese comments, explain this rule and write them in English.
 
 ```bash
 # Flutter version (managed via FVM)
-fvm use 3.47.4
+fvm use 3.47.5
 
 # Install dependencies
 flutter pub get
