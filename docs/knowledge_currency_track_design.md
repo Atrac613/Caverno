@@ -279,7 +279,7 @@ Status: `current`. **Deliberately not gated on KC1**: it is deterministic, offli
 and introduces no heuristic, so there is nothing for a measurement to authorize.
 KC1 measures its effect; it does not grant it permission.
 
-Progress (2026-09-24): slices 1-4 of 5 are done. `PubDependencyResolver`
+Progress (2026-09-24): all five slices are done, and slice 5 is negative. `PubDependencyResolver`
 (`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
 LL10's pub lockfile parser and root resolution, shared rather than duplicated,
 and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
@@ -302,8 +302,14 @@ newest deprecations of an attested Flutter SDK. The SDK scanner moved from
 the KC1 oracle into `InstalledChangeDigest`, and the oracle delegates to it.
 Breaking entries must open with the marker ("Non-breaking updates" and
 "Revert the breaking change" are not entries), and link targets, issue
-numbers, and commit hashes are stripped. Remaining: (5) the paired KC1
-re-run through the production builder.
+numbers, and commit hashes are stripped. Slice 5 (`50c3b7a3e`, the seventh
+KC1 measurement) ran the production block: class 2 stale 68/56/50% at the
+default/32k/64k budgets against 60% bare and 30% for the prototype digest,
+and class 4 **100% at every budget** against 75% bare and 0% for the
+prototype, because every class 4 answer used the legacy providers the
+digest's legacy line names. The block is live in coding prompts as of
+`a07b951fa`/`749eb84d0`, so the keep-or-remove decision is open and
+pressing.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
@@ -699,6 +705,51 @@ riverpod's legacy `StateProvider`, both off-convention for this repository.
 Recorded, not retuned: widening a pattern after reading the result is the
 tuning the acceptance rule forbids. The other two used neither idiom
 (`@riverpod` code generation; a `PopScope`-free confirm flow).
+
+#### Seventh measurement (2026-09-24): the KC2 production block (slice 5)
+
+The paired re-run through the production builder: all ten fixtures, the
+block `EnvironmentGroundingContextBuilder` emits at three usable-context
+budgets, five repeats, 150 claims, `qwen3.8-27b-vision`, temperature 0.7, no
+tools, clean build `50c3b7a3e`, no request failures, class 1 against the
+frozen 2026-09-23 snapshot. Raw answers and the exact block bytes per arm are
+frozen in [`kc2_production_rerun_2026-09-24.json`](evidence/kc2_production_rerun_2026-09-24.json)
+and [its census](evidence/kc2_production_rerun_2026-09-24_census.json).
+Compared against the frozen baselines of the sixth, fourth, and fifth
+measurements (same model and sampler).
+
+| stale rate | bare | prototype versions | prototype deltas | production default | production 32k | production 64k |
+|---|---|---|---|---|---|---|
+| class 2 (API drift) | 60% | 58% | **30%** | 68% | 56% | 50% |
+| class 4 (this repository) | 75% | 25% | **0%** | **100%** | **100%** | **100%** |
+| class 3 exposure | 100% | 100% | 100% | 75% | 60% | 40% |
+| class 1 (world facts) | 75% | 53% | - | 50% | 50% | 50% |
+
+**The production block is a negative result, and on class 4 a regression.**
+All fifteen class 4 answers reached for riverpod, which is the part the
+dependency list gets right, and all fifteen wrote the legacy
+`StateNotifierProvider` or `StateProvider`. The baseline arms did that in one
+answer of five each. Those are exactly the names the digest's legacy line
+lists ("flutter_riverpod 3.4.3 keeps these only in its legacy library: ...").
+The prototype delta block also listed them ("riverpod moved these to legacy:
+...") and scored class 4 at 0/4, so the difference lies in what changed
+between prototype and production, and two things did at once: the legacy
+line's wording, and the context around it (three packages in the prototype,
+59-66 dependencies plus 31 packages' changelog entries in production). This
+run cannot separate them.
+
+Class 2 improves with budget (68%, 56%, 50%) but never approaches the
+prototype's 30%. freezed-abstract stayed 5/5 stale even at 64k, where its
+entry is present: coverage did not translate into behavior there. Class 3
+exposure fell from 100% to 40-75% although no production arm states the
+`useMaterial3` default; that is unexplained and, at n = 5, not a finding to
+build on. Class 1 did not regress (50% against 75% bare), for the reason the
+fifth measurement gave: flutter_riverpod's installed version happens to be
+the latest.
+
+Per the KC2 acceptance rule this is recorded as a negative result, not a cue
+to tune the wording until the numbers move. The keep-or-remove decision it
+feeds is recorded with KC2's status.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 

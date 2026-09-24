@@ -1036,7 +1036,7 @@ Promotion gate:
 
 Status: `current`
 
-Progress (2026-09-24): slices 1-4 of 5 are done. `PubDependencyResolver`
+Progress (2026-09-24): all five slices are done, and slice 5 is negative. `PubDependencyResolver`
 (`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
 LL10's pub lockfile parser and root resolution, shared rather than duplicated,
 and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
@@ -1059,8 +1059,14 @@ newest deprecations of an attested Flutter SDK. The SDK scanner moved from
 the KC1 oracle into `InstalledChangeDigest`, and the oracle delegates to it.
 Breaking entries must open with the marker ("Non-breaking updates" and
 "Revert the breaking change" are not entries), and link targets, issue
-numbers, and commit hashes are stripped. Remaining: (5) the paired KC1
-re-run through the production builder.
+numbers, and commit hashes are stripped. Slice 5 (`50c3b7a3e`, the seventh
+KC1 measurement) ran the production block: class 2 stale 68/56/50% at the
+default/32k/64k budgets against 60% bare and 30% for the prototype digest,
+and class 4 **100% at every budget** against 75% bare and 0% for the
+prototype, because every class 4 answer used the legacy providers the
+digest's legacy line names. The block is live in coding prompts as of
+`a07b951fa`/`749eb84d0`, so the keep-or-remove decision is open and
+pressing.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
