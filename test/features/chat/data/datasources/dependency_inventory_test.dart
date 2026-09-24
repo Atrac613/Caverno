@@ -83,6 +83,21 @@ void main() {
       endsWith('pkgs/kc2_sample/pubspec.yaml'),
     );
     expect(record.lockfilePath, endsWith('app/pubspec.lock'));
+    expect(record.manifestPath, isNull, reason: 'no pubspec.yaml was written');
+  });
+
+  test('records the manifest that declares the dependency', () {
+    final app = project();
+    File.fromUri(
+      app.uri.resolve('pubspec.yaml'),
+    ).writeAsStringSync('name: app\n');
+    writeLock(app, lockEntry('kc2_sample', '1.2.3'));
+    install(app, {'kc2_sample': '1.2.3'});
+
+    expect(
+      service.collect(app)!.records.single.manifestPath,
+      endsWith('app/pubspec.yaml'),
+    );
   });
 
   test('a lockfile that disagrees with the installed package is a mismatch, '

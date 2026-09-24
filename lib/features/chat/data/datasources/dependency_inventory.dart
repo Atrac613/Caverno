@@ -26,6 +26,7 @@ class DependencyRecord {
     required this.name,
     required this.ecosystem,
     required this.dependencyKind,
+    required this.manifestPath,
     required this.lockedVersion,
     required this.lockfilePath,
     required this.installedVersion,
@@ -39,6 +40,10 @@ class DependencyRecord {
 
   /// pub's lockfile classification, e.g. `direct main` or `direct dev`.
   final String? dependencyKind;
+
+  /// The manifest that declares the dependency, or null when the project has
+  /// a lockfile without one.
+  final String? manifestPath;
   final String? lockedVersion;
   final String lockfilePath;
   final String? installedVersion;
@@ -52,6 +57,7 @@ class DependencyRecord {
     'name': name,
     'ecosystem': ecosystem,
     'dependency': dependencyKind,
+    'manifest': manifestPath,
     'locked_version': lockedVersion,
     'lockfile': lockfilePath,
     'installed_version': installedVersion,
@@ -92,12 +98,14 @@ class DependencyInventoryService {
     final lockfile = File.fromUri(root.uri.resolve('pubspec.lock'));
     if (!lockfile.existsSync()) return null;
 
+    final manifest = File.fromUri(root.uri.resolve('pubspec.yaml'));
+    final manifestPath = manifest.existsSync() ? manifest.path : null;
     final records = <DependencyRecord>[];
     for (final package in PubDependencyResolver.parseLockfile(lockfile)) {
       // SDK packages (flutter, flutter_test) lock as 0.0.0; their version is
       // the toolchain's and belongs to the toolchain line, not this list.
       if (!package.isDirect || package.source == 'sdk') continue;
-      records.add(_attest(root, lockfile, package));
+      records.add(_attest(root, lockfile, manifestPath, package));
     }
     records.sort((a, b) => a.name.compareTo(b.name));
     return DependencyInventory(
@@ -109,6 +117,7 @@ class DependencyInventoryService {
   DependencyRecord _attest(
     Directory root,
     File lockfile,
+    String? manifestPath,
     LockedPackage package,
   ) {
     final resolvedRoot = PubDependencyResolver.resolvePackageRoot(
@@ -131,6 +140,7 @@ class DependencyInventoryService {
       name: package.name,
       ecosystem: 'dart',
       dependencyKind: package.dependency,
+      manifestPath: manifestPath,
       lockedVersion: locked,
       lockfilePath: lockfile.path,
       installedVersion: installedVersion,
