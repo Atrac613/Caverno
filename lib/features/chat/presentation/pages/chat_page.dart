@@ -964,10 +964,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           canCompose &&
                           (chatState.queuedMessages.isNotEmpty ||
                               chatState.steeringMessages.isNotEmpty))
-                        QueuedMessagesStrip(
-                          messages: chatState.queuedMessages,
-                          steeringMessages: chatState.steeringMessages,
+                        QueuedMessagesStrip.forChat(
+                          chatState,
                           onRemove: chatNotifier.removeQueuedMessage,
+                          onInterrupt: chatNotifier.interruptWithQueuedMessage,
                         ),
                       if (canCompose && !shouldShowCodingDraftComposer)
                         buildMessageInput(),
