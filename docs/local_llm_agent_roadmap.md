@@ -1036,7 +1036,7 @@ Promotion gate:
 
 Status: `current`
 
-Progress (2026-09-24): slices 1 and 2 of 5 are done. `PubDependencyResolver`
+Progress (2026-09-24): slices 1-3 of 5 are done. `PubDependencyResolver`
 (`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
 LL10's pub lockfile parser and root resolution, shared rather than duplicated,
 and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
@@ -1047,17 +1047,20 @@ On this repository all 66 direct dependencies attest `exact`.
 versions only when `package_config.json` and the SDK's own
 `flutter.version.json` agree, attested dependencies with versions,
 unattested ones named with versions withheld, a stated cut at 1,600
-characters, and a cache keyed on file size and mtime. No prompt change yet.
-Remaining slices: (3) tail wiring for a selected coding project; (4) the change
-digest; (5) the paired KC1 re-run.
+characters, and a cache keyed on file size and mtime. Slice 3 (`a07b951fa`)
+puts the block in the dynamic tail directly after the datetime anchor, for a
+coding-capable mode with a selected project; the stable prefix is unchanged
+(tested). The gate lives in `ProjectPromptContextSource`, together with the
+repo map's, because the ChatNotifier library had one line of ratchet slack.
+Remaining slices: (4) the change digest; (5) the paired KC1 re-run.
 
-Open for slice 3: on this repository the cut drops 7 of 66 dependencies,
-dev dependencies alphabetically last, and `freezed`, a KC1 fixture package,
-is one of them. Sorted-and-capped is what the scope says, but a cut that
-hides the package a measured failure is about is a coverage decision, not a
-formatting detail. Candidates: a larger cap where LL39 usable context allows,
-or ordering by whether the project imports the package. Import presence must
-be checked for byte stability, since the model's own edits change imports.
+Decided for slice 3 (2026-09-24): the cut on this repository dropped 7 of 66
+dependencies at the default cap, `freezed` among them, a KC1 fixture package.
+Rather than order by project imports, which the model's own edits would
+change and so thrash the tail, the cap steps with LL39 usable context: 400
+characters below 16k tokens (toolchain kept, dependencies dropped first, as
+scoped), 1,600 by default and up to 32k, and 3,200 from 32k, which lists all
+66 here. A step function, so profile noise does not move the bytes.
 
 Review of this plan against the roadmap, 2026-09-24:
 
