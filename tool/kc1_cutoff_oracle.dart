@@ -262,6 +262,88 @@ class CutoffOracle {
   /// code, and it is the one class where a model can be current about the
   /// ecosystem and still wrong here. Generated files are excluded: what
   /// `build_runner` emitted is not a convention anyone chose.
+  /// The `@Deprecated` message on the declaration of [symbol] in the installed
+  /// Flutter SDK, including typedefs and getters.
+  ///
+  /// Separate from [flutterDeprecation] and the shared digest scanner on
+  /// purpose: those skip typedefs (`typedef MaterialState = WidgetState`), and
+  /// widening them would change the digest the frozen KC1 measurements were
+  /// taken with. This one only confirms fixtures.
+  String? flutterDeprecatedDeclaration(String symbol) =>
+      _deprecatedDeclaration(_flutterSourceRoots(), symbol);
+
+  /// The same, for [package]'s installed `lib/`.
+  String? packageDeprecatedDeclaration(String package, String symbol) =>
+      _deprecatedDeclaration([_packageLib(package)], symbol);
+
+  static String? _deprecatedDeclaration(Iterable<String> roots, String symbol) {
+    final declares = RegExp(
+      '(?:typedef|class|get|enum|mixin)\\s+$symbol\\b'
+      '|\\b$symbol\\s*[({;=,]',
+    );
+    for (final root in roots) {
+      final directory = Directory(root);
+      if (!directory.existsSync()) continue;
+      for (final file
+          in directory
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((file) => file.path.endsWith('.dart'))) {
+        final lines = file.readAsLinesSync();
+        for (var i = 0; i < lines.length; i++) {
+          if (!lines[i].contains('@Deprecated(')) continue;
+          final annotation = StringBuffer();
+          var j = i;
+          while (j < lines.length && !lines[j].trimRight().endsWith(')')) {
+            annotation.write('${lines[j].trim()} ');
+            j++;
+          }
+          if (j >= lines.length) continue;
+          annotation.write(lines[j].trim());
+          var k = j + 1;
+          while (k < lines.length &&
+              (lines[k].trim().isEmpty ||
+                  lines[k].trim().startsWith('//') ||
+                  lines[k].trim().startsWith('@'))) {
+            k++;
+          }
+          if (k < lines.length && declares.hasMatch(lines[k])) {
+            return annotation.toString();
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Whether [package]'s installed `lib/` contains [pattern] anywhere.
+  bool packageSourceMatches(String package, RegExp pattern) {
+    final lib = Directory(_packageLib(package));
+    if (!lib.existsSync()) return false;
+    return lib
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .any((file) => pattern.hasMatch(file.readAsStringSync()));
+  }
+
+  /// How many non-generated files under `lib/` match [pattern].
+  int repoFilesMatching(RegExp pattern) {
+    final lib = Directory('$projectRoot/lib');
+    if (!lib.existsSync()) return 0;
+    return lib
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .where(
+          (file) =>
+              !file.path.endsWith('.g.dart') &&
+              !file.path.endsWith('.freezed.dart'),
+        )
+        .where((file) => pattern.hasMatch(file.readAsStringSync()))
+        .length;
+  }
+
   Map<String, int> repoUsage(Iterable<String> symbols) {
     final counts = {for (final symbol in symbols) symbol: 0};
     final lib = Directory('$projectRoot/lib');

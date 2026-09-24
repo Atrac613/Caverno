@@ -368,7 +368,228 @@ final cutoffCases = <CutoffCase>[
           : 'lib/ also uses ${alternatives.join(', ')}';
     },
   ),
+  // Broadened 2026-09-24: five fixtures made each arm's result one prompt's
+  // flip (the ninth measurement), so classes 2 and 4 gained cases. Each is
+  // confirmed from the installed SDK, pub cache, or lib/ like the originals,
+  // and each task names the work, never the idiom.
+  CutoffCase(
+    id: 'flutter-button-bar',
+    coverageSymbols: const ['ButtonBar'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'ButtonBar superseded by OverflowBar',
+    task:
+        'In Flutter, lay out two TextButtons, Cancel and OK, aligned to the '
+        'end of a card, wrapping onto a new line when they do not fit. '
+        'Return only Dart code.',
+    stale: RegExp(r'\bButtonBar\b'),
+    current: RegExp(r'\bOverflowBar\b'),
+    confirmStale: (oracle) => _deprecatedIn(oracle, 'ButtonBar'),
+  ),
+  CutoffCase(
+    id: 'flutter-dialog-background',
+    coverageSymbols: const ['dialogBackgroundColor'],
+    cutoffClass: CutoffClass.apiDrift,
+    description:
+        'ThemeData.dialogBackgroundColor superseded by DialogThemeData',
+    task:
+        'In Flutter, make every dialog in the app use Colors.grey.shade100 as '
+        'its background, configured once in the app theme. Return only Dart '
+        'code.',
+    stale: RegExp(r'\bdialogBackgroundColor\s*:'),
+    current: RegExp(r'\bDialogThemeData\s*\('),
+    confirmStale: (oracle) => _deprecatedIn(oracle, 'dialogBackgroundColor'),
+  ),
+  CutoffCase(
+    id: 'flutter-raw-keyboard',
+    coverageSymbols: const ['RawKeyboardListener'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'RawKeyboardListener superseded by KeyboardListener',
+    task:
+        'In Flutter, write a widget that listens for hardware key presses and '
+        'prints the logical key of every key-down event. Return only Dart code.',
+    stale: RegExp(
+      r'\bRawKeyboardListener\b|\bRawKeyDownEvent\b|\bRawKeyEvent\b',
+    ),
+    current: RegExp(
+      r'(?<!Raw)\bKeyboardListener\b|\bKeyDownEvent\b|\bonKeyEvent\b',
+    ),
+    confirmStale: (oracle) => _deprecatedIn(oracle, 'RawKeyboardListener'),
+  ),
+  CutoffCase(
+    id: 'flutter-material-state',
+    coverageSymbols: const ['MaterialState', 'MaterialStateProperty'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'MaterialState(Property) superseded by WidgetState(Property)',
+    task:
+        'In Flutter, give an ElevatedButton a background colour that is red '
+        'while it is pressed and blue otherwise, resolved from the button\'s '
+        'interaction state. Return only Dart code.',
+    stale: RegExp(r'\bMaterialState(?:Property)?\b'),
+    current: RegExp(r'\bWidgetState(?:Property)?\b'),
+    confirmStale: (oracle) => _deprecatedIn(oracle, 'MaterialStateProperty'),
+  ),
+  CutoffCase(
+    id: 'flutter-text-scale',
+    coverageSymbols: const ['textScaleFactor'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'textScaleFactor superseded by textScaler',
+    task:
+        'In Flutter, read the user\'s text size setting from the build context '
+        'and compute the scaled size of a 14-point label with it. Return only '
+        'Dart code.',
+    stale: RegExp(r'\btextScaleFactor\b'),
+    current: RegExp(r'\btextScaler(?:Of)?\b'),
+    confirmStale: (oracle) => _deprecatedIn(oracle, 'textScaleFactor'),
+  ),
+  CutoffCase(
+    id: 'file-picker-static',
+    coverageSymbols: const ['FilePicker'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'file_picker 11 made FilePicker methods static',
+    task:
+        'Using the file_picker package, let the user choose one PDF file and '
+        'return its path. Return only Dart code.',
+    stale: RegExp(r'FilePicker\.platform\b'),
+    current: RegExp(r'FilePicker\.pickFiles\('),
+    confirmStale: (oracle) =>
+        oracle.packageBreakingChange('file_picker', 'static') == null
+        ? 'the installed file_picker changelog records no static refactor'
+        : oracle.packageSourceMatches(
+            'file_picker',
+            RegExp(r'\bget\s+platform\b'),
+          )
+        ? 'the installed file_picker still exposes FilePicker.platform'
+        : null,
+  ),
+  CutoffCase(
+    id: 'share-plus-instance',
+    coverageSymbols: const ['SharePlus'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'share_plus deprecated Share in favour of SharePlus.instance',
+    task:
+        'Using the share_plus package, share the text "Hello" through the '
+        'platform share sheet. Return only Dart code.',
+    stale: RegExp(r'\bShare\.share(?:Uri|XFiles)?\('),
+    current: RegExp(r'\bSharePlus\.instance\.share\('),
+    confirmStale: (oracle) =>
+        oracle.packageDeprecatedDeclaration('share_plus', 'Share') == null
+        ? 'the installed share_plus does not deprecate Share'
+        : null,
+  ),
+  CutoffCase(
+    id: 'qr-image-view',
+    coverageSymbols: const ['QrImageView'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'qr_flutter 4 renamed QrImage to QrImageView',
+    task:
+        'Using the qr_flutter package, render the string '
+        '"https://example.com" as a 200-pixel QR code widget. Return only Dart '
+        'code.',
+    stale: RegExp(r'\bQrImage\('),
+    current: RegExp(r'\bQrImageView\('),
+    confirmStale: (oracle) =>
+        oracle.packageBreakingChange('qr_flutter', 'QrImageView') == null
+        ? 'the installed qr_flutter changelog records no QrImage rename'
+        : oracle.packageSourceMatches(
+            'qr_flutter',
+            RegExp(r'class\s+QrImage\b'),
+          )
+        ? 'the installed qr_flutter still declares QrImage'
+        : null,
+  ),
+  CutoffCase(
+    id: 'freezed-pattern-matching',
+    coverageSymbols: const ['map/when', 'when'],
+    cutoffClass: CutoffClass.apiDrift,
+    description: 'Freezed 3 removed when/map in favour of pattern matching',
+    task:
+        'Given this freezed union: `@freezed sealed class Result with _\$Result '
+        '{ const factory Result.ok(int value) = Ok; const factory '
+        'Result.error(String message) = Err; }`, write a function that returns '
+        'a display string for a Result. Return only Dart code.',
+    stale: RegExp(r'\.(?:maybe)?(?:when|map)\s*\('),
+    current: RegExp(r'\bswitch\s*\('),
+    confirmStale: (oracle) =>
+        oracle.packageBreakingChange('freezed', 'map/when') == null
+        ? 'the installed freezed changelog does not record removing map/when'
+        : null,
+  ),
+  CutoffCase(
+    id: 'repo-localization',
+    cutoffClass: CutoffClass.thisRepository,
+    description: 'this project localizes strings with easy_localization .tr()',
+    task:
+        'In this Flutter project, add a button labelled Save whose label is '
+        'localized, following the project\'s existing conventions. Return only '
+        'Dart code.',
+    stale: RegExp(
+      r'AppLocalizations\.of|Intl\.message|\bS\.of\(|context\.l10n',
+    ),
+    current: RegExp(r'\.tr\('),
+    confirmStale: (oracle) => _conventionOnly(
+      oracle,
+      convention: RegExp(r'\.tr\('),
+      alternatives: RegExp(r'AppLocalizations\.of|Intl\.message|\bS\.of\('),
+      name: '.tr()',
+    ),
+  ),
+  CutoffCase(
+    id: 'repo-unique-id',
+    cutoffClass: CutoffClass.thisRepository,
+    description: 'this project creates record ids with the uuid package',
+    task:
+        'In this Flutter project, add a function that creates a new note '
+        'record with a unique id, following the project\'s existing '
+        'conventions. Return only Dart code.',
+    stale: RegExp(
+      r'(?:id|Id)\b[^;\n]*(?:millisecondsSinceEpoch|microsecondsSinceEpoch)'
+      r'|UniqueKey\(\)|\bRandom\(\)',
+    ),
+    current: RegExp(r'\bUuid\(\)'),
+    confirmStale: (oracle) => _conventionOnly(
+      oracle,
+      convention: RegExp(r'\bUuid\(\)'),
+      alternatives: RegExp(r'UniqueKey\(\)\.toString|\bnanoid\b'),
+      name: 'Uuid()',
+    ),
+  ),
+  CutoffCase(
+    id: 'repo-data-class',
+    cutoffClass: CutoffClass.thisRepository,
+    description: 'this project declares immutable data classes with freezed',
+    task:
+        'In this Flutter project, add an immutable data class for a Bookmark '
+        'with a title and a url, supporting copyWith and value equality, '
+        'following the project\'s existing conventions. Return only Dart code.',
+    stale: RegExp(r'\boperator\s*==|\bextends\s+Equatable\b'),
+    current: RegExp(r'@freezed\b'),
+    confirmStale: (oracle) => _conventionOnly(
+      oracle,
+      convention: RegExp(r'@freezed\b'),
+      alternatives: RegExp(r'\bEquatable\b|\bbuilt_value\b'),
+      name: '@freezed',
+    ),
+  ),
 ];
+
+String? _deprecatedIn(CutoffOracle oracle, String symbol) =>
+    oracle.flutterDeprecatedDeclaration(symbol) == null
+    ? 'the installed SDK does not deprecate $symbol'
+    : null;
+
+/// Confirms a class 4 convention: established in at least five files under
+/// lib/, with no alternative in use.
+String? _conventionOnly(
+  CutoffOracle oracle, {
+  required RegExp convention,
+  required RegExp alternatives,
+  required String name,
+}) {
+  final uses = oracle.repoFilesMatching(convention);
+  if (uses < 5) return 'lib/ does not establish $name ($uses files)';
+  final others = oracle.repoFilesMatching(alternatives);
+  return others == 0 ? null : 'lib/ also uses an alternative in $others files';
+}
 
 class EnvironmentCase {
   const EnvironmentCase({
