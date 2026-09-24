@@ -198,7 +198,7 @@ structurally unmotivated to build:
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
 | Knowledge Currency | KC1 | done | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
-| Knowledge Currency | KC2 | next | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions and direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact. Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
+| Knowledge Currency | KC2 | current | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions, direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact, and a digest of what those versions changed (the content KC1's second measurement settled). Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
 | Knowledge Currency | KC3 | later | S-M | KC1, KC2, LL10 | Installed version-delta evidence as an LL10 extension: return bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store; add a public tool name only if discovery evaluation rejects an LL10 query mode. Re-scoped 2026-09-24 (KC1 gate: class 2 does not dominate): the pull-side complement to KC2's pushed delta window, promoted only after a paired re-run counts what that window misses. Not a class 1 remedy. |
 | Knowledge Currency | KC4 | later | M | KC1, KC3, LL11, LL36 | Cutoff-sensitive guard over visible prose, response code blocks, changed dependency-using code, and LL11 deprecation diagnostics. Heuristics and cutoff metadata nominate verification; only KC3/LL10, structured diagnostics, compile/test output, or web evidence renders a verdict. Reuse existing recovery plumbing with a bounded artifact evidence adapter, degrade to annotation when unverifiable, and promote only on measured precision and recall. |
 | Knowledge Currency | KC5 | later | S | KC2, LL39, MLIB2 | Model cutoff registry: a `knowledgeCutoff` date plus its source (`static_table` / `user_override` / `unknown`) on the capability profile, so KC2 can state the gap as context and KC4 can nominate verification. Never from self-report and never use the date as a correctness verdict. Whether an LL39-style dated-fact probe can beat a static table is an open question. |
@@ -1034,7 +1034,48 @@ Promotion gate:
 
 ### KC2: Environment And Dependency Ground Truth Block
 
-Status: `next`
+Status: `current`
+
+Progress (2026-09-24): slice 1 of 5 is done. `PubDependencyResolver`
+(`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
+LL10's pub lockfile parser and root resolution, shared rather than duplicated,
+and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
+as `exact` only when the lockfile version equals the version the installed
+package declares, naming manifest, lockfile, and installed-metadata sources.
+On this repository all 66 direct dependencies attest `exact`. No prompt change
+yet. Remaining slices: (2) the block builder with toolchain versions, the
+≤400-token cap, byte stability, and fingerprint caching; (3) tail wiring for a
+selected coding project; (4) the change digest; (5) the paired KC1 re-run.
+
+Review of this plan against the roadmap, 2026-09-24:
+
+- **The measured content had not reached this scope.** KC1's second
+  measurement settled that the block must carry *what changed*, not only which
+  version (76% to 28% stale over 75 claims), and the cross-track index already
+  said so, but this scope and its acceptance listed versions only. Built as
+  written, KC2 would ship the arm that measured no class 2 improvement
+  (73%). The change digest is now in scope below, and the KC3 re-scope depends
+  on it.
+- **The paired re-run must measure the production block.** The census builds
+  its grounded arm from `groundTruthBlock` in `tool/kc1_cutoff_exposure_census.dart`,
+  not from the KC2 builder, and uses its own one-line system prompt. A re-run
+  that does not consume the builder's output measures the prototype again.
+- **The class 2/4 baseline is not frozen as an artifact.** The 2026-09-03
+  measurements survive only as tables in the design doc; classes 1 and 3 have
+  raw answers in `docs/evidence/`. Because the census never used Caverno's
+  production prompt, KC2 landing does not erase its before arm, but the build
+  order's "freeze the baseline" step is unmet. Re-run classes 2 and 4 on a
+  clean build and freeze the result before slice 3 wires anything.
+- **"The existing prompt data-perimeter policy" does not exist by that name.**
+  SEC1's classifiers cover tool content, not system-prompt blocks. The working
+  precedent is the repo map: `ChatNotifierPromptContext._repoMap` emits only
+  in coding mode for a selected project root. Slice 3 follows that gate and
+  says so, rather than citing a policy that is not there.
+- **Real-session value is unproven.** Replay is the only evidence: the
+  real-session corpus holds two post-edit analyzer payloads and no
+  deprecation diagnostic. The block costs up to ~400 tail tokens on every
+  coding request, so the slice 5 re-run is a keep-or-remove decision, not a
+  formality.
 
 Deliberately **not** gated on KC1: deterministic, offline, and heuristic-free,
 so there is nothing for a measurement to authorize. KC1 measures its effect
@@ -1064,6 +1105,13 @@ Scope:
   dependency trees on every request.
 - Emit dependency details only for an explicitly selected coding project and
   through the existing prompt data-perimeter policy.
+- A recency-capped digest of what the attested installed versions changed,
+  assembled from the installed sources rather than written by hand: SDK
+  `@Deprecated` annotations, packages' `legacy/` exports, and changelog
+  breaking entries (prototype: `tool/kc1_cutoff_oracle.dart`). Deliberately
+  general rather than per-symbol. Which changes enter the window (recency,
+  project imports, or symbols a draft used) is the open design question; what
+  the window misses is KC3's to serve on demand.
 
 Why this works where prose does not: "your knowledge may be outdated" is
 unactionable — acting on it requires already knowing what changed.
@@ -1077,9 +1125,10 @@ Acceptance criteria:
   authoritative dependency list; `unverifiable` never becomes an exact claim.
 - Byte-identical block across two consecutive turns in the same project.
 - A paired KC1 re-run reports the API-drift stale/unsupported rates and the
-  environment stale, unsupported, and redundant-default exposure rates. If
-  none moves, that is a negative result, not a reason to keep tuning the
-  wording.
+  environment stale, unsupported, and redundant-default exposure rates, plus
+  the class 1 stale rate as a non-regression check. Its grounded arm consumes
+  the production builder's output, not the census's prototype block. If none
+  moves, that is a negative result, not a reason to keep tuning the wording.
 
 Known risk, handled rather than deferred: **the block carries authority.** A
 `pubspec.lock` that is stale relative to what is actually installed makes the

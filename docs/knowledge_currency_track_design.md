@@ -72,7 +72,8 @@ of scope here.
 - `knowledgeCutoffHumilityInstruction` says "the current date above", although
   the dynamic datetime block is appended later in the prompt. That wording is a
   small prompt-order defect, not a missing-grounding mechanism, and should be
-  corrected independently from KC2.
+  corrected independently from KC2. Fixed in `1b05243fb`: the instruction now
+  follows the datetime block in the dynamic tail.
 - **LL10 `resolve_installed_dependency`** (`done`) is the one real ground-truth
   mechanism, and it is pull-only.
 
@@ -274,16 +275,59 @@ So KC2's content is settled by measurement rather than by argument:
 
 ### KC2: Environment And Dependency Ground Truth Block
 
-Status: `next`. **Deliberately not gated on KC1**: it is deterministic, offline,
+Status: `current`. **Deliberately not gated on KC1**: it is deterministic, offline,
 and introduces no heuristic, so there is nothing for a measurement to authorize.
 KC1 measures its effect; it does not grant it permission.
+
+Progress (2026-09-24): slice 1 of 5 is done. `PubDependencyResolver`
+(`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
+LL10's pub lockfile parser and root resolution, shared rather than duplicated,
+and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
+as `exact` only when the lockfile version equals the version the installed
+package declares, naming manifest, lockfile, and installed-metadata sources.
+On this repository all 66 direct dependencies attest `exact`. No prompt change
+yet. Remaining slices: (2) the block builder with toolchain versions, the
+≤400-token cap, byte stability, and fingerprint caching; (3) tail wiring for a
+selected coding project; (4) the change digest; (5) the paired KC1 re-run.
+
+Review of this plan against the roadmap, 2026-09-24:
+
+- **The measured content had not reached this scope.** KC1's second
+  measurement settled that the block must carry *what changed*, not only which
+  version (76% to 28% stale over 75 claims), and the cross-track index already
+  said so, but this scope and its acceptance listed versions only. Built as
+  written, KC2 would ship the arm that measured no class 2 improvement
+  (73%). The change digest is now in scope below, and the KC3 re-scope depends
+  on it.
+- **The paired re-run must measure the production block.** The census builds
+  its grounded arm from `groundTruthBlock` in `tool/kc1_cutoff_exposure_census.dart`,
+  not from the KC2 builder, and uses its own one-line system prompt. A re-run
+  that does not consume the builder's output measures the prototype again.
+- **The class 2/4 baseline is not frozen as an artifact.** The 2026-09-03
+  measurements survive only as tables in the design doc; classes 1 and 3 have
+  raw answers in `docs/evidence/`. Because the census never used Caverno's
+  production prompt, KC2 landing does not erase its before arm, but the build
+  order's "freeze the baseline" step is unmet. Re-run classes 2 and 4 on a
+  clean build and freeze the result before slice 3 wires anything.
+- **"The existing prompt data-perimeter policy" does not exist by that name.**
+  SEC1's classifiers cover tool content, not system-prompt blocks. The working
+  precedent is the repo map: `ChatNotifierPromptContext._repoMap` emits only
+  in coding mode for a selected project root. Slice 3 follows that gate and
+  says so, rather than citing a policy that is not there.
+- **Real-session value is unproven.** Replay is the only evidence: the
+  real-session corpus holds two post-edit analyzer payloads and no
+  deprecation diagnostic. The block costs up to ~400 tail tokens on every
+  coding request, so the slice 5 re-run is a keep-or-remove decision, not a
+  formality.
 
 Scope:
 - An `EnvironmentGroundingContextBuilder` that emits *measured* facts rather
   than a warning:
   - detected toolchain versions (Flutter/Dart, Node, Python) for class 3;
   - direct dependencies with attested installed versions and locked-version
-    provenance for class 2.
+    provenance for class 2;
+  - a digest of what those versions changed, for class 2 (added 2026-09-24;
+    see the review above).
 - Preserve the existing unconditional datetime anchor and the conditional
   relative-date expansion unchanged. KC2 starts immediately after that dynamic
   datetime block; it does not add a second timestamp.
@@ -318,7 +362,9 @@ Acceptance criteria:
   authoritative dependency list; `unverifiable` never becomes an exact claim.
 - Byte-identical block across two consecutive turns in the same project.
 - A paired KC1 re-run reports the change in class 2/3 stale-claim rate and
-  unsupported-claim rate, and the class 1 stale rate as a non-regression check
+  unsupported-claim rate, and the class 1 stale rate as a non-regression check.
+  The re-run's grounded arm consumes the production builder's output, not the
+  census's prototype block
   (added 2026-09-24: the installed block can steer a new-project dependency
   choice to the lockfile line). If neither moves, that is recorded as a negative
   result — not a reason to keep tuning the wording.
@@ -678,7 +724,8 @@ can measure a cutoff empirically well enough to beat a static table. Recording
    constraint in the track.
 2. Freeze the KC1 baseline artifact, then implement KC2 while the remaining KC1
    analysis continues. KC2 needs no promotion permission, but must not erase the
-   before arm.
+   before arm. As of 2026-09-24 classes 1 and 3 are frozen in `docs/evidence/`;
+   classes 2 and 4 must be re-run and frozen before KC2's prompt wiring.
 3. KC3 only as the coverage complement to KC2's delta window, and only once
    a paired re-run counts what that window misses (re-scoped 2026-09-24,
    because KC1 did not show class 2 dominating).
