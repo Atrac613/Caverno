@@ -93,7 +93,19 @@ belief*. KC3 exists for exactly this gap.
 
 ### KC1: Cutoff Exposure Census
 
-Status: `next`. Measurement instrument; ships no production behavior.
+Status: `done` (2026-09-24). Measurement instrument; ships no production
+behavior.
+
+Closed 2026-09-24 with one scope item cut: classifying real answers from both
+corpora for classes 2-4. The paired replays answered the question KC1 exists
+for (the §4 gate: class 2 does not dominate, so KC3 was re-scoped), and every
+acceptance criterion is met. The cut item was not worth its cost: the
+real-session corpus is dominated by this repository's own release work (24 of
+25 `pubspec.yaml` edits were version bumps), so a frequency drawn from it would
+describe that workload rather than coding in general, and judging API use in
+free-form answers would rebuild KC4's nomination stage. Real-use frequency is
+better read from ground truth when KC2 is evaluated: LL11
+`deprecated_member_use` diagnostics raised on code the model just edited.
 
 Following the LL31/LL36 precedent — build the instrument before the mechanism,
 and never implement a fix whose target has not been counted.

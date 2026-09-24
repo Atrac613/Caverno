@@ -197,7 +197,7 @@ structurally unmotivated to build:
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
-| Knowledge Currency | KC1 | current | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
+| Knowledge Currency | KC1 | done | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
 | Knowledge Currency | KC2 | next | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions and direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact. Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
 | Knowledge Currency | KC3 | later | S-M | KC1, KC2, LL10 | Installed version-delta evidence as an LL10 extension: return bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store; add a public tool name only if discovery evaluation rejects an LL10 query mode. Re-scoped 2026-09-24 (KC1 gate: class 2 does not dominate): the pull-side complement to KC2's pushed delta window, promoted only after a paired re-run counts what that window misses. Not a class 1 remedy. |
 | Knowledge Currency | KC4 | later | M | KC1, KC3, LL11, LL36 | Cutoff-sensitive guard over visible prose, response code blocks, changed dependency-using code, and LL11 deprecation diagnostics. Heuristics and cutoff metadata nominate verification; only KC3/LL10, structured diagnostics, compile/test output, or web evidence renders a verdict. Reuse existing recovery plumbing with a bounded artifact evidence adapter, degrade to annotation when unverifiable, and promote only on measured precision and recall. |
@@ -963,7 +963,18 @@ is gone.
 
 ### KC1: Cutoff Exposure Census
 
-Status: `current`
+Status: `done` (2026-09-24)
+
+Closed 2026-09-24 with one scope item cut: classifying real answers from both
+corpora for classes 2-4. The paired replays answered the question KC1 exists
+for (the §4 gate: class 2 does not dominate, so KC3 was re-scoped), and every
+acceptance criterion is met. The cut item was not worth its cost: the
+real-session corpus is dominated by this repository's own release work (24 of
+25 `pubspec.yaml` edits were version bumps), so a frequency drawn from it would
+describe that workload rather than coding in general, and judging API use in
+free-form answers would rebuild KC4's nomination stage. Real-use frequency is
+better read from ground truth when KC2 is evaluated: LL11
+`deprecated_member_use` diagnostics raised on code the model just edited.
 
 Progress as of 2026-09-23: three measurements cover classes 2 and 4, and the
 fourth covers the oracle-backed class 3 `ThemeData.useMaterial3` fixture. All
@@ -979,8 +990,7 @@ that moved a major in the last year (15/15) and the control current (5/5); the
 installed-version block fixed one package only because installed equals latest
 and anchored freezed to the lockfile's older line. Class 2 therefore does not
 dominate the measured stale claims, and KC3 was re-scoped on 2026-09-24 rather
-than dropped: it becomes the on-demand complement to KC2's delta window. The
-remaining KC1 scope is the corpus classification of real answers. See
+than dropped: it becomes the on-demand complement to KC2's delta window. See
 [the track design](knowledge_currency_track_design.md) for the measurements
 and [the cross-track index](roadmap.md#active-focus) for the current next action.
 
