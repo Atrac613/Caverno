@@ -312,9 +312,13 @@ from coding prompts (`e038f1dcc`, guarded by a test); the builder, digest,
 and census arms stay. The eighth measurement, on `qwen3.8-27b-exl3`, then
 showed the version list alone reproduces the class 4 regression (5/5 stale,
 against 0/5 for the prototype's four-entry list), so the cause is which
-dependencies the block names, not the legacy line's wording. Next design
-question, not started: select dependencies by what the project imports,
-weighed against the tail churn that argument was set aside for.
+dependencies the block names, not the legacy line's wording. The ninth
+measurement then tried that selection (top 8 by import breadth, `42838cda3`):
+it fixed class 4 and broke the generic riverpod case, and adding the digest
+reversed both. Cells flip 0/5 or 5/5 per prompt, so neither causal reading
+holds and five repeats are close to one observation. The block stays
+withdrawn; re-promotion needs a broader fixture set first (more prompts per
+class), not another arm designed against these five.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
@@ -804,6 +808,52 @@ obvious candidate, and it was set aside for slice 3 because the model's own
 edits change imports and would churn the prompt tail. That trade-off now has
 evidence on the other side of it. It is recorded here as the next design
 question, not started.
+
+#### Ninth measurement (2026-09-24): import-selected lists, and what the repeats are worth
+
+The eighth measurement's reading pointed at list length, so the builder
+gained a selection by import breadth (`42838cda3`): the eight direct
+dependencies imported by the most files under `lib/`, in name order, with
+the count fixed before measuring. Two arms on `qwen3.8-27b-exl3`, clean build
+`5db403812`, five repeats, 100 claims, no failures, frozen in
+[`kc2_exl3_imported_2026-09-24.json`](evidence/kc2_exl3_imported_2026-09-24.json).
+All exl3 arms together:
+
+| exl3 | bare | prototype versions | prototype digest | production, 59 versions | production default | top 8, versions | top 8 + digest |
+|---|---|---|---|---|---|---|---|
+| class 2 stale | 75% | 50% | 35% | 55% | 50% | 75% | 40% |
+| class 4 stale | 100% | 0% | 0% | 100% | 100% | **0%** | 100% |
+| riverpod-notifier | 0/5 | 0/5 | 0/5 | 1/5 | 0/5 | **5/5** | 0/5 |
+
+The top-8 list fixed class 4 (five `NotifierProvider`), which fits the
+dilution reading. The same list *broke* the generic riverpod-notifier case,
+which the bare prompt gets right (five `StateNotifierProvider`). Adding the
+digest reversed both. Nearly every cell is 0/5 or 5/5.
+
+**What this says about the instrument, and about the two readings before
+it.** At temperature 0.7 this model returns the same idiom for the same
+prompt almost every time, so five repeats of one fixture are close to one
+observation, not five. Each cell is a single prompt flipping one way or the
+other, and small changes to the surrounding context flip it. Neither the
+seventh measurement's "the legacy names primed it" nor the eighth's "the list
+diluted it" is established; each explained one flip and the next arm flipped
+something else. Both are withdrawn as mechanisms and kept as the observations
+they are.
+
+Consequences:
+
+- The block stays withdrawn. No production variant matches the prototype,
+  which is the only arm that is not worse than bare on any riverpod case, and
+  the prototype is a hand-picked four-entry list, not something the product
+  can compute.
+- Import-based selection (`42838cda3`) stays in the builder, unwired. It is
+  deterministic and cheap (19 ms per cached call here), but it did not
+  improve the fixture set as a whole.
+- Further arm design against these five fixtures would be fitting to them.
+  What would make a KC2 result generalize is breadth: more fixtures per class,
+  so an arm's effect is a rate over many prompts rather than one prompt's
+  flip. That is a KC1 instrument change and is recorded as the prerequisite
+  for any re-promotion of KC2.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 

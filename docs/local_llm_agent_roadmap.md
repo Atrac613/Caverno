@@ -1069,9 +1069,13 @@ from coding prompts (`e038f1dcc`, guarded by a test); the builder, digest,
 and census arms stay. The eighth measurement, on `qwen3.8-27b-exl3`, then
 showed the version list alone reproduces the class 4 regression (5/5 stale,
 against 0/5 for the prototype's four-entry list), so the cause is which
-dependencies the block names, not the legacy line's wording. Next design
-question, not started: select dependencies by what the project imports,
-weighed against the tail churn that argument was set aside for.
+dependencies the block names, not the legacy line's wording. The ninth
+measurement then tried that selection (top 8 by import breadth, `42838cda3`):
+it fixed class 4 and broke the generic riverpod case, and adding the digest
+reversed both. Cells flip 0/5 or 5/5 per prompt, so neither causal reading
+holds and five repeats are close to one observation. The block stays
+withdrawn; re-promotion needs a broader fixture set first (more prompts per
+class), not another arm designed against these five.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
