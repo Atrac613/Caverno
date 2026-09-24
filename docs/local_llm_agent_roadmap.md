@@ -975,6 +975,11 @@ describe that workload rather than coding in general, and judging API use in
 free-form answers would rebuild KC4's nomination stage. Real-use frequency is
 better read from ground truth when KC2 is evaluated: LL11
 `deprecated_member_use` diagnostics raised on code the model just edited.
+Checked the same day: the real-session corpus holds only two post-edit analyze
+feedback payloads (`caverno_dart_analyze_feedback`, deduplicated by message
+id), both `undefined_method` from one session on 2026-09-19, and no
+`deprecated_member_use`. That is too little to read a rate from, so KC2's
+evaluation rests on the paired replay until post-edit feedback accumulates.
 
 Progress as of 2026-09-23: three measurements cover classes 2 and 4, and the
 fourth covers the oracle-backed class 3 `ThemeData.useMaterial3` fixture. All
