@@ -37,7 +37,7 @@ enum LocalCommandPermissionMatch { exact, prefix }
 
 enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 
-enum ReasoningEffortPreference { automatic, low, medium, high }
+enum ReasoningEffortPreference { automatic, low, medium, high, xhigh }
 
 enum ProReasoningDepth { standard, deep, max }
 
@@ -96,6 +96,7 @@ extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
     ReasoningEffortPreference.low => 'low',
     ReasoningEffortPreference.medium => 'medium',
     ReasoningEffortPreference.high => 'high',
+    ReasoningEffortPreference.xhigh => 'xhigh',
   };
 }
 

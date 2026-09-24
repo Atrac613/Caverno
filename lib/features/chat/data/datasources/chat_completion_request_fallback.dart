@@ -34,6 +34,7 @@ final class ChatCompletionRequestFallback {
       'low' => ReasoningEffort.low,
       'medium' => ReasoningEffort.medium,
       'high' => ReasoningEffort.high,
+      'xhigh' => ReasoningEffort.xhigh,
       _ => null,
     };
   }
@@ -199,7 +200,7 @@ final class ChatCompletionRequestFallback {
   static String? _normalizeReasoningEffort(String? value) {
     final normalized = value?.trim().toLowerCase();
     return switch (normalized) {
-      'low' || 'medium' || 'high' => normalized,
+      'low' || 'medium' || 'high' || 'xhigh' => normalized,
       _ => null,
     };
   }

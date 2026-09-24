@@ -940,6 +940,7 @@
     "reasoning_effort_low": "Low",
     "reasoning_effort_medium": "Medium",
     "reasoning_effort_high": "High",
+    "reasoning_effort_xhigh": "Extra high",
     "enable_thinking_automatic": "Model default",
     "enable_thinking_on": "On",
     "enable_thinking_off": "Off",
