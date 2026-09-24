@@ -128,4 +128,33 @@ void _runQwen38RequestPolicyClient() {
       expect(body.containsKey('reasoning_effort'), isFalse);
     },
   );
+
+  test('the reasoning log line reports the controls as sent', () {
+    expect(
+      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+        'enable_thinking': true,
+        'max_tokens': 1536,
+        'chat_template_kwargs': {
+          'enable_thinking': true,
+          'reasoning_effort': 'xhigh',
+        },
+      }),
+      '[LLM] reasoning: thinking=on, effort=xhigh (chat_template_kwargs), '
+      'max_tokens=1536',
+    );
+    expect(
+      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+        'reasoning_effort': 'high',
+      }),
+      '[LLM] reasoning: thinking=default, effort=high (top-level), '
+      'max_tokens=default',
+    );
+    expect(
+      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+        'max_tokens': 512,
+        'chat_template_kwargs': {'enable_thinking': false},
+      }),
+      '[LLM] reasoning: thinking=off, effort=default, max_tokens=512',
+    );
+  });
 }

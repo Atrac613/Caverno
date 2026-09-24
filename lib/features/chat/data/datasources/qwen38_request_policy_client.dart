@@ -21,6 +21,7 @@ final class Qwen38RequestPolicyClient extends http.BaseClient {
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     if (request is http.Request && _isChatCompletion(request)) {
       _applyPolicy(request);
+      _logReasoningControls(request);
       _logStrictToolRequest(request);
     }
     return _delegate.send(request);
@@ -61,6 +62,37 @@ final class Qwen38RequestPolicyClient extends http.BaseClient {
     return _policy.withReasoningEffort(
       wireEffort is String ? wireEffort : null,
     );
+  }
+
+  /// Logs the thinking and effort controls as they go on the wire.
+  ///
+  /// Read from the body after the policy ran, not from settings, because the
+  /// two differ: the policy moves the effort into `chat_template_kwargs`,
+  /// suppresses thinking for utility roles, and a 400 retry drops the effort.
+  /// Logged per HTTP request, so a retry shows up as a second line.
+  void _logReasoningControls(http.Request request) {
+    final decoded = jsonDecode(request.body);
+    if (decoded is! Map) return;
+    appLog(reasoningControlsLogLine(decoded));
+  }
+
+  static String reasoningControlsLogLine(Map<dynamic, dynamic> body) {
+    final kwargs = body['chat_template_kwargs'];
+    final templateThinking = kwargs is Map ? kwargs['enable_thinking'] : null;
+    final templateEffort = kwargs is Map ? kwargs['reasoning_effort'] : null;
+    final thinking = switch (templateThinking ?? body['enable_thinking']) {
+      true => 'on',
+      false => 'off',
+      _ => 'default',
+    };
+    final topLevelEffort = body['reasoning_effort'];
+    final effort = templateEffort != null
+        ? '$templateEffort (chat_template_kwargs)'
+        : topLevelEffort != null
+        ? '$topLevelEffort (top-level)'
+        : 'default';
+    return '[LLM] reasoning: thinking=$thinking, effort=$effort, '
+        'max_tokens=${body['max_tokens'] ?? 'default'}';
   }
 
   /// Records the exact post-policy control request immediately before send.
