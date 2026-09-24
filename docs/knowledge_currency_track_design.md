@@ -279,16 +279,28 @@ Status: `current`. **Deliberately not gated on KC1**: it is deterministic, offli
 and introduces no heuristic, so there is nothing for a measurement to authorize.
 KC1 measures its effect; it does not grant it permission.
 
-Progress (2026-09-24): slice 1 of 5 is done. `PubDependencyResolver`
+Progress (2026-09-24): slices 1 and 2 of 5 are done. `PubDependencyResolver`
 (`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
 LL10's pub lockfile parser and root resolution, shared rather than duplicated,
 and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
 as `exact` only when the lockfile version equals the version the installed
 package declares, naming manifest, lockfile, and installed-metadata sources.
-On this repository all 66 direct dependencies attest `exact`. No prompt change
-yet. Remaining slices: (2) the block builder with toolchain versions, the
-≤400-token cap, byte stability, and fingerprint caching; (3) tail wiring for a
-selected coding project; (4) the change digest; (5) the paired KC1 re-run.
+On this repository all 66 direct dependencies attest `exact`.
+`EnvironmentGroundingContextBuilder` renders the block: Flutter and Dart
+versions only when `package_config.json` and the SDK's own
+`flutter.version.json` agree, attested dependencies with versions,
+unattested ones named with versions withheld, a stated cut at 1,600
+characters, and a cache keyed on file size and mtime. No prompt change yet.
+Remaining slices: (3) tail wiring for a selected coding project; (4) the change
+digest; (5) the paired KC1 re-run.
+
+Open for slice 3: on this repository the cut drops 7 of 66 dependencies,
+dev dependencies alphabetically last, and `freezed`, a KC1 fixture package,
+is one of them. Sorted-and-capped is what the scope says, but a cut that
+hides the package a measured failure is about is a coverage decision, not a
+formatting detail. Candidates: a larger cap where LL39 usable context allows,
+or ordering by whether the project imports the package. Import presence must
+be checked for byte stability, since the model's own edits change imports.
 
 Review of this plan against the roadmap, 2026-09-24:
 
@@ -303,12 +315,10 @@ Review of this plan against the roadmap, 2026-09-24:
   its grounded arm from `groundTruthBlock` in `tool/kc1_cutoff_exposure_census.dart`,
   not from the KC2 builder, and uses its own one-line system prompt. A re-run
   that does not consume the builder's output measures the prototype again.
-- **The class 2/4 baseline is not frozen as an artifact.** The 2026-09-03
-  measurements survive only as tables in the design doc; classes 1 and 3 have
-  raw answers in `docs/evidence/`. Because the census never used Caverno's
-  production prompt, KC2 landing does not erase its before arm, but the build
-  order's "freeze the baseline" step is unmet. Re-run classes 2 and 4 on a
-  clean build and freeze the result before slice 3 wires anything.
+- **The class 2/4 baseline was not frozen as an artifact.** The 2026-09-03
+  measurements survived only as tables. Resolved the same day: re-run on a
+  clean build and frozen in `docs/evidence/` (sixth KC1 measurement), with the
+  earlier findings reproduced.
 - **"The existing prompt data-perimeter policy" does not exist by that name.**
   SEC1's classifiers cover tool content, not system-prompt blocks. The working
   precedent is the repo map: `ChatNotifierPromptContext._repoMap` emits only
@@ -624,6 +634,40 @@ additions become a regular part of coding turns. The canary corpus was not
 checked: `build/integration_test_reports` currently holds only
 `flutter test` reporter output, not session logs.
 
+#### Sixth measurement (2026-09-24): class 2 and 4 baseline, frozen
+
+The first two measurements survived only as tables, so the build order's
+"freeze the baseline before KC2 lands" step was unmet. Re-run on clean build
+`25907eb35`, before any KC2 prompt wiring: five idiom fixtures, three arms,
+five repeats, 75 claims, `qwen3.8-27b-vision`, temperature 0.7, no tools, no
+request failures. Raw answers and the census output are frozen in
+[`kc1_class24_baseline_2026-09-24.json`](evidence/kc1_class24_baseline_2026-09-24.json)
+and [its census](evidence/kc1_class24_baseline_2026-09-24_census.json).
+
+| case | in digest | bare | +versions | +deltas |
+|---|---|---|---|---|
+| flutter-pop-scope | no | 4/5 | 3/4 | 4/5 |
+| color-with-values | yes | 4/5 | 1/5 | 0/5 |
+| riverpod-notifier | yes | 2/5 | 2/5 | 1/5 |
+| freezed-abstract | yes | 2/5 | **5/5** | 1/5 |
+| repo-state-management (class 4) | no | 3/4 | 1/4 | 0/4 |
+| **class 2** | | **60%** | **58%** | **30%** |
+| **class 4** | | **75%** | **25%** | **0%** |
+
+It reproduces the 2026-09-03 findings rather than revising them: the delta
+block halves class 2 staleness and does nothing for the uncovered
+`WillPopScope`; the version list fixes class 4; and naming `freezed: 3.2.5`
+alone again made the freezed case *worse* (5/5 stale, as on 2026-09-03). One
+cell moved: color-with-values improved with versions alone (1/5), where it had
+not before, which is inside the variance recorded for the first measurement.
+
+Four answers were unscorable, and two expose a fixture gap rather than a
+model property: the class 4 patterns do not recognize `ValueNotifier` or
+riverpod's legacy `StateProvider`, both off-convention for this repository.
+Recorded, not retuned: widening a pattern after reading the result is the
+tuning the acceptance rule forbids. The other two used neither idiom
+(`@riverpod` code generation; a `PopScope`-free confirm flow).
+
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
 Status: `later`. Re-scoped 2026-09-24 by the §4 gate (see the KC1 decision
@@ -724,8 +768,8 @@ can measure a cutoff empirically well enough to beat a static table. Recording
    constraint in the track.
 2. Freeze the KC1 baseline artifact, then implement KC2 while the remaining KC1
    analysis continues. KC2 needs no promotion permission, but must not erase the
-   before arm. As of 2026-09-24 classes 1 and 3 are frozen in `docs/evidence/`;
-   classes 2 and 4 must be re-run and frozen before KC2's prompt wiring.
+   before arm. All four classes are frozen in `docs/evidence/` as of
+   2026-09-24 (classes 2 and 4 in the sixth measurement).
 3. KC3 only as the coverage complement to KC2's delta window, and only once
    a paired re-run counts what that window misses (re-scoped 2026-09-24,
    because KC1 did not show class 2 dominating).

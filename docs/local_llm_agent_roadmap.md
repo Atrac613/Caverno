@@ -1036,16 +1036,28 @@ Promotion gate:
 
 Status: `current`
 
-Progress (2026-09-24): slice 1 of 5 is done. `PubDependencyResolver`
+Progress (2026-09-24): slices 1 and 2 of 5 are done. `PubDependencyResolver`
 (`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
 LL10's pub lockfile parser and root resolution, shared rather than duplicated,
 and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
 as `exact` only when the lockfile version equals the version the installed
 package declares, naming manifest, lockfile, and installed-metadata sources.
-On this repository all 66 direct dependencies attest `exact`. No prompt change
-yet. Remaining slices: (2) the block builder with toolchain versions, the
-≤400-token cap, byte stability, and fingerprint caching; (3) tail wiring for a
-selected coding project; (4) the change digest; (5) the paired KC1 re-run.
+On this repository all 66 direct dependencies attest `exact`.
+`EnvironmentGroundingContextBuilder` renders the block: Flutter and Dart
+versions only when `package_config.json` and the SDK's own
+`flutter.version.json` agree, attested dependencies with versions,
+unattested ones named with versions withheld, a stated cut at 1,600
+characters, and a cache keyed on file size and mtime. No prompt change yet.
+Remaining slices: (3) tail wiring for a selected coding project; (4) the change
+digest; (5) the paired KC1 re-run.
+
+Open for slice 3: on this repository the cut drops 7 of 66 dependencies,
+dev dependencies alphabetically last, and `freezed`, a KC1 fixture package,
+is one of them. Sorted-and-capped is what the scope says, but a cut that
+hides the package a measured failure is about is a coverage decision, not a
+formatting detail. Candidates: a larger cap where LL39 usable context allows,
+or ordering by whether the project imports the package. Import presence must
+be checked for byte stability, since the model's own edits change imports.
 
 Review of this plan against the roadmap, 2026-09-24:
 
@@ -1060,12 +1072,10 @@ Review of this plan against the roadmap, 2026-09-24:
   its grounded arm from `groundTruthBlock` in `tool/kc1_cutoff_exposure_census.dart`,
   not from the KC2 builder, and uses its own one-line system prompt. A re-run
   that does not consume the builder's output measures the prototype again.
-- **The class 2/4 baseline is not frozen as an artifact.** The 2026-09-03
-  measurements survive only as tables in the design doc; classes 1 and 3 have
-  raw answers in `docs/evidence/`. Because the census never used Caverno's
-  production prompt, KC2 landing does not erase its before arm, but the build
-  order's "freeze the baseline" step is unmet. Re-run classes 2 and 4 on a
-  clean build and freeze the result before slice 3 wires anything.
+- **The class 2/4 baseline was not frozen as an artifact.** The 2026-09-03
+  measurements survived only as tables. Resolved the same day: re-run on a
+  clean build and frozen in `docs/evidence/` (sixth KC1 measurement), with the
+  earlier findings reproduced.
 - **"The existing prompt data-perimeter policy" does not exist by that name.**
   SEC1's classifiers cover tool content, not system-prompt blocks. The working
   precedent is the repo map: `ChatNotifierPromptContext._repoMap` emits only
