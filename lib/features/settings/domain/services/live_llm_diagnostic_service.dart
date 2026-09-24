@@ -24,13 +24,13 @@ import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
-import 'live_llm_chart_probe_image.dart';
 import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_tool_depth_staircase.dart';
 import 'live_llm_tool_recovery_cases.dart';
+import 'live_llm_vision_probes.dart';
 import 'llm_provider_capabilities.dart';
 
 typedef LiveLlmDiagnosticReportCallback =
@@ -71,6 +71,26 @@ class LiveLlmDiagnosticService {
   /// [_thinking]. [chatDataSource] stays the datasource itself, because probes
   /// type-test it for opt-in capabilities a wrapper would hide.
   late final _chat = _ObservedChatCalls(chatDataSource, _thinking);
+  late final _visionProbes = LiveLlmVisionProbes(
+    complete: ({required messages, required maxTokens}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: maxTokens,
+        ),
+    completeWithToolResults: ({required messages, required toolResults}) =>
+        _chat.createChatCompletionWithToolResults(
+          messages: messages,
+          toolResults: toolResults,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    messages: (user) => _messages(user: user),
+    answerMaxTokens: _diagnosticMaxTokens,
+    reasoningMaxTokens: _reasoningProbeMaxTokens,
+  );
   late final _samplerTrials = LiveLlmSamplerCalibrationTrials(
     complete: ({required messages, tools, required temperature}) =>
         _chat.createChatCompletion(
@@ -211,10 +231,11 @@ class LiveLlmDiagnosticService {
   static const _effectiveContextProbeId = 'effective_context';
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
-  static const _visionAttachmentProbeId = 'vision_attachment';
-  static const _chartReadingProbeId = 'chart_reading';
+  static const _visionAttachmentProbeId = LiveLlmVisionProbes.attachmentProbeId;
+  static const _chartReadingProbeId = LiveLlmVisionProbes.chartReadingProbeId;
   static const _videoInputModalityProbeId = 'video_input_modality';
-  static const _visionToolObservationProbeId = 'vision_tool_observation';
+  static const _visionToolObservationProbeId =
+      LiveLlmVisionProbes.toolObservationProbeId;
   static const _narrowToolCallProbeId = 'narrow_tool_call';
   static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
   static const _toolResultProbeId = 'tool_result_integration';
@@ -270,57 +291,7 @@ class LiveLlmDiagnosticService {
   /// geometry is lost. Do not shrink this to save tokens without re-measuring:
   /// the probe would report the harness's own limit as a model failure.
   @visibleForTesting
-  static const visionProbeImageBase64 = _visionProbeImageBase64;
-
-  static const _visionProbeImageBase64 =
-      'iVBORw0KGgoAAAANSUhEUgAAAYAAAAGACAIAAAArpSLoAAAEpElEQVR42u3UwQkAMAwDMe'
-      '+/tLtD8glFoAkMvrSBsaQw50IIEAKEACFAIEAIEAKEAIEAIUAIEAIEAoQAIUAIEAIEAoQA'
-      'IUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAhQAgQAgQChAAhQAgQCBAChAAhQCBACB'
-      'AChAAhQCBACBAChACBACFACBACBAKEACFACBC4EAKEACFACBAIEAKEACFAIEAIEAKEAIEA'
-      'IUAIEAKEAHkRAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAhQAgQAgQChAAhQA'
-      'gQCBAChAAhQCBACBAChAAhQCBACBAChACBACFACBACBAKEACFACBAIEAKEACFACBAIEAKE'
-      'ACFAIEAIEAKEAIEAIUAIEAIELoQAIUAIEAIEAoQAIUAIEAgQAoQAIUAgQAgQAoQAIUAgQA'
-      'gQAoQAgQAhQAgQAgQChAAhQAgQCBAChAAhQAgQCBAChAAhQCBACBAChACBACFACBACBAKE'
-      'ACFACBACBAKEACFACBAIEAKEACFAIEAIEAKEAIEAIUAIEAKEAIEAIUAIEAIEAoQAIUAIEA'
-      'gQAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAgQChAAhQAgQAgQChAAhQAgQCBAChAAh'
-      'QCBACBAChACBACFACBAChACBACFACBACBAKEACFACBAIEAKEACFAIEAIEAKEACFAIEAIEA'
-      'KEAIEAIUAIEAIEAoQAIUAIELgQAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAh'
-      'QAgQAgQChAAhQAgQCBAChAAhQCBACBAChAAhQCBACBAChACBACFACBACBAKEACFACBAIEA'
-      'KEACFACBAIEAKEACFAIEAIEAKEAIEAIUAIEAIEAoQAIUAIEAIEAoQAIUAIEAgQAoQAIUAg'
-      'QAgQAoQAIUAuhAAhQAgQAgQChAAhQAgQCBACxM0A2YAFEwACBAgQgAABAgQgQIAAAQgQIE'
-      'AAAgQIEIAAAQIEIECAAAEIECBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIEIAA'
-      'AQIEIECAAAECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIECBAAAIECBCAAA'
-      'ECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIECAAAEIECBAAAIECBCAAAECBCBAgAAB'
-      'CBAgQAACBAgQgAABAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABCBAgQAACBA'
-      'gQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABAmQCQIAAAQIQIECAAAQI'
-      'ECAAAQIECECAAAECECBAgAAECBAgAAECBAgQIAABAgQIQIAAAQIQIECAAAQIECAAAQIECE'
-      'CAAAECECBAgABMAAgQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABAgQg'
-      'QIAAAQgQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBAgQgAABAgQgQIAAAQgQIE'
-      'AAAgQIEIAAAQIEIECAAPGdB+I3WgSaUHuyAAAAAElFTkSuQmCC';
-  static const _visionProbeImageMimeType = 'image/png';
-  static const _visionProbeExpectedColors = <String>[
-    'yellow',
-    'blue',
-    'red',
-    'green',
-  ];
-  static const _visionProbePrompt =
-      'The attached image is split into four equal quadrants, each a single '
-      'solid color. Reply with exactly the four color names in reading order '
-      '(top-left, top-right, bottom-left, bottom-right), lowercase, separated '
-      'by commas, and no other text.';
-
-  /// Asks for all four readings in one turn.
-  ///
-  /// One request per arm rather than one per question: the probe runs on every
-  /// diagnostic pass and a chart image is not cheap, and asking separately
-  /// measured nothing extra when it was tried against a live endpoint.
-  static const _chartProbePrompt =
-      'The attached image is a bar chart with a labelled y axis. Reply with '
-      'exactly four comma-separated items and no other text: the numeric '
-      'height of the bar labelled Briar, the numeric height of the bar '
-      'labelled Aster, the label of the tallest bar, the label of the '
-      'shortest bar.';
+  static const visionProbeImageBase64 = LiveLlmVisionProbes.imageBase64;
 
   /// A larger budget for the probes whose answer follows a reasoning preamble.
   ///
@@ -344,12 +315,6 @@ class LiveLlmDiagnosticService {
   /// each retry costs ~50 s of wall clock for zero points. Bounding the
   /// reasoning is the remaining lever, not enlarging it.
   static const _reasoningProbeMaxTokens = 2048;
-
-  static const _chartClassificationRejected = 'endpoint_rejected';
-  static const _chartClassificationNoAnswer = 'no_answer_within_budget';
-  static const _chartClassificationGuessed = 'model_guessed_without_reading';
-  static const _chartClassificationPartial = 'partially_read';
-  static const _chartClassificationRead = 'read_correctly';
 
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
   static const structuredOutputSupportMetadataKey = 'structuredOutputSupport';
@@ -416,10 +381,6 @@ class LiveLlmDiagnosticService {
   static const _videoModalityUnsupported = 'video_input_unsupported';
   static const _videoModalityUnknown = 'video_input_unknown';
 
-  static const _visionClassificationRejected = 'endpoint_rejected';
-  static const _visionClassificationIgnored = 'model_ignored_the_image';
-  static const _visionClassificationPartial = 'partially_read';
-  static const _visionClassificationRead = 'read_correctly';
   static const _diagnosticTemperature = 0.0;
   static const _diagnosticMaxTokens = 512;
   static const _samplerCalibrationTemperatures = <double>[0.0, 0.2, 0.4, 0.7];
@@ -2641,21 +2602,21 @@ class LiveLlmDiagnosticService {
       probeId: _visionAttachmentProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runVisionAttachmentProbe,
+      run: _visionProbes.attachment,
     );
     updated = await _runSelectedProbe(
       report: updated,
       probeId: _chartReadingProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runChartReadingProbe,
+      run: _visionProbes.chartReading,
     );
     updated = await _runSelectedProbe(
       report: updated,
       probeId: _visionToolObservationProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runVisionToolObservationProbe,
+      run: _visionProbes.toolObservation,
     );
     updated = await _runSelectedProbe(
       report: updated,
@@ -2820,260 +2781,6 @@ class LiveLlmDiagnosticService {
     };
   }
 
-  /// Reads the image through the user-attachment path: a user message carrying
-  /// `imageBase64`, which `_formatMessages` turns into an image content part.
-  ///
-  /// Runs a no-image control arm as well. Without it a model that ignores image
-  /// content but guesses a plausible color list is indistinguishable from one
-  /// that actually looked; with it, "the control scored the same" is direct
-  /// evidence the image did not inform the answer.
-  Future<LiveLlmDiagnosticProbeResult> _runVisionAttachmentProbe() async {
-    final withImage = await _runVisionColorArm(attachImage: true);
-    final control = await _runVisionColorArm(attachImage: false);
-
-    if (withImage.rejected) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _visionAttachmentProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The endpoint rejected a request carrying image content.',
-        details:
-            'Classification: $_visionClassificationRejected\n${withImage.error}',
-        modelContent: LiveLlmDiagnosticEvidence.preview(
-          withImage.content,
-          maxChars: 400,
-        ),
-      );
-    }
-
-    final matched = withImage.matchedColors;
-    final controlMatched = control.matchedColors;
-    // The control arm outranks the score. A model that answers just as well
-    // with no image did not read one, and a correct answer it could produce
-    // blind is not evidence of vision -- so this is checked before the
-    // all-four-colors pass.
-    final ignored = controlMatched >= matched;
-    final passed = !ignored && matched == _visionProbeExpectedColors.length;
-    final status = passed
-        ? LiveLlmDiagnosticStatus.passed
-        : ignored
-        ? LiveLlmDiagnosticStatus.failed
-        : LiveLlmDiagnosticStatus.warning;
-
-    return LiveLlmDiagnosticProbeResult(
-      id: _visionAttachmentProbeId,
-      status: status,
-      summary: passed
-          ? 'The model read every quadrant color from the attached image.'
-          : ignored
-          ? 'The no-image control arm scored the same, so the image was not used.'
-          : 'The model read the image only partially.',
-      details: [
-        'Classification: ${passed
-            ? _visionClassificationRead
-            : ignored
-            ? _visionClassificationIgnored
-            : _visionClassificationPartial}',
-        'Expected: ${_visionProbeExpectedColors.join(', ')}',
-        'With image: $matched/${_visionProbeExpectedColors.length} colors in order',
-        'No-image control: $controlMatched/${_visionProbeExpectedColors.length}',
-      ].join('\n'),
-      modelContent: [
-        // The visible answer, not the reasoning: a think block filled the whole
-        // preview and left the actual reading -- the evidence for the verdict
-        // above -- invisible in the report.
-        'with_image: ${LiveLlmDiagnosticEvidence.preview(LiveLlmResponseScoring.visibleContent(withImage.content), maxChars: 240)}',
-        'control: ${LiveLlmDiagnosticEvidence.preview(LiveLlmResponseScoring.visibleContent(control.content), maxChars: 240)}',
-      ].join('\n'),
-      usage: LiveLlmDiagnosticEvidence.totalUsage([
-        if (withImage.result != null) withImage.result!,
-        if (control.result != null) control.result!,
-      ]),
-      passedChecks: matched,
-      totalChecks: _visionProbeExpectedColors.length,
-    );
-  }
-
-  Future<_VisionProbeArm> _runVisionColorArm({
-    required bool attachImage,
-  }) async {
-    final now = DateTime.now();
-    final messages = _messages(user: _visionProbePrompt);
-    if (attachImage) {
-      messages[messages.length - 1] = messages.last.copyWith(
-        imageBase64: _visionProbeImageBase64,
-        imageMimeType: _visionProbeImageMimeType,
-      );
-    } else {
-      // The control arm must ask the same question with no image, so a model
-      // that guesses is measured on the guess.
-      messages[messages.length - 1] = messages.last.copyWith(
-        content:
-            '$_visionProbePrompt\n'
-            '(No image is attached in this control request. Answer with your '
-            'best guess and no explanation.)',
-        timestamp: now,
-      );
-    }
-
-    try {
-      final result = await _chat.createChatCompletion(
-        messages: messages,
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      return _VisionProbeArm(
-        result: result,
-        content: result.content.trim(),
-        matchedColors: LiveLlmResponseScoring.matchedQuadrantColors(
-          result.content,
-          _visionProbeExpectedColors,
-        ),
-      );
-    } catch (error) {
-      return _VisionProbeArm(
-        rejected: attachImage,
-        error: error.toString(),
-        content: '',
-        matchedColors: 0,
-      );
-    }
-  }
-
-  /// Reads quantitative detail off a chart, which is what a document with a
-  /// figure in it actually asks of a model.
-  ///
-  /// Separate from the quadrant probe on purpose: four solid colors say the
-  /// vision path is wired, not that the model can read a value off an axis.
-  /// Whether a chart is legible decides whether rendering PDF pages is worth
-  /// building at all, so it is measured rather than assumed.
-  Future<LiveLlmDiagnosticProbeResult> _runChartReadingProbe() async {
-    final withImage = await _runChartArm(attachImage: true);
-    final control = await _runChartArm(attachImage: false);
-
-    if (withImage.rejected) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _chartReadingProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The endpoint rejected a request carrying image content.',
-        details:
-            'Classification: $_chartClassificationRejected\n${withImage.error}',
-        modelContent: LiveLlmDiagnosticEvidence.preview(
-          withImage.content,
-          maxChars: 400,
-        ),
-      );
-    }
-
-    // An answer that never arrived is not a reading the model got wrong. A
-    // reasoning model can spend the whole budget narrating the axis, and
-    // scoring that as blindness would report the harness's limit as the
-    // model's -- the same mistake the quadrant probe's image size once made.
-    if (LiveLlmResponseScoring.visibleContent(withImage.content).isEmpty) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _chartReadingProbeId,
-        status: LiveLlmDiagnosticStatus.warning,
-        summary: 'The model did not finish reasoning within the token budget.',
-        details:
-            'Classification: $_chartClassificationNoAnswer\n'
-            'Nothing was measured: the response carried reasoning and no '
-            'readings. Raising the budget was tried on 2026-09-18 and changed '
-            'nothing -- the reasoning grew to fill it. Read a repeat as the '
-            'model failing to bound itself, not as a probe that needs room.',
-        modelContent: LiveLlmDiagnosticEvidence.preview(
-          withImage.content,
-          maxChars: 400,
-        ),
-        usage: LiveLlmDiagnosticEvidence.totalUsage([
-          if (withImage.result != null) withImage.result!,
-        ]),
-        totalChecks: LiveLlmChartProbeImage.expectedAnswers.length,
-      );
-    }
-
-    final expected = LiveLlmChartProbeImage.expectedAnswers;
-    final matched = withImage.matchedColors;
-    final controlMatched = control.matchedColors;
-    // Same rule the quadrant probe follows: a model that scores as well with
-    // no chart in front of it did not read one. Chart questions are guessable
-    // enough that this outranks the score.
-    final guessed = controlMatched >= matched;
-    final passed = !guessed && matched == expected.length;
-    final status = passed
-        ? LiveLlmDiagnosticStatus.passed
-        : guessed
-        ? LiveLlmDiagnosticStatus.failed
-        : LiveLlmDiagnosticStatus.warning;
-
-    return LiveLlmDiagnosticProbeResult(
-      id: _chartReadingProbeId,
-      status: status,
-      summary: passed
-          ? 'The model read every value off the chart.'
-          : guessed
-          ? 'The no-image control arm scored the same, so the chart was not read.'
-          : 'The model read the chart only partially.',
-      details: [
-        'Classification: ${passed
-            ? _chartClassificationRead
-            : guessed
-            ? _chartClassificationGuessed
-            : _chartClassificationPartial}',
-        'Expected: ${expected.join(', ')}',
-        'With chart: $matched/${expected.length}',
-        'No-image control: $controlMatched/${expected.length}',
-      ].join('\n'),
-      modelContent: [
-        // The visible answer, not the reasoning: a think block filled the
-        // whole preview and left the actual reading invisible in the report.
-        'with_chart: ${LiveLlmDiagnosticEvidence.preview(LiveLlmResponseScoring.visibleContent(withImage.content), maxChars: 240)}',
-        'control: ${LiveLlmDiagnosticEvidence.preview(LiveLlmResponseScoring.visibleContent(control.content), maxChars: 240)}',
-      ].join('\n'),
-      usage: LiveLlmDiagnosticEvidence.totalUsage([
-        if (withImage.result != null) withImage.result!,
-        if (control.result != null) control.result!,
-      ]),
-      passedChecks: matched,
-      totalChecks: expected.length,
-    );
-  }
-
-  Future<_VisionProbeArm> _runChartArm({required bool attachImage}) async {
-    final messages = _messages(user: _chartProbePrompt);
-    messages[messages.length - 1] = attachImage
-        ? messages.last.copyWith(
-            imageBase64: LiveLlmChartProbeImage.base64,
-            imageMimeType: LiveLlmChartProbeImage.mimeType,
-          )
-        : messages.last.copyWith(
-            content:
-                '$_chartProbePrompt\n'
-                '(No image is attached in this control request. Answer with '
-                'your best guess and no explanation.)',
-          );
-
-    try {
-      final result = await _chat.createChatCompletion(
-        messages: messages,
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _reasoningProbeMaxTokens,
-      );
-      return _VisionProbeArm(
-        result: result,
-        content: result.content.trim(),
-        matchedColors: matchedChartAnswers(result.content),
-      );
-    } catch (error) {
-      return _VisionProbeArm(
-        rejected: attachImage,
-        error: error.toString(),
-        content: '',
-        matchedColors: 0,
-      );
-    }
-  }
-
   /// How close a numeric reading may be and still count.
   ///
   /// Measured, not guessed. Asked for all four readings in one turn against
@@ -3107,70 +2814,6 @@ class LiveLlmDiagnosticService {
   @visibleForTesting
   static int matchedChartAnswers(String content) =>
       LiveLlmResponseScoring.matchedChartAnswers(content);
-
-  /// Reads the image through the computer-use path: a tool result whose JSON
-  /// carries `imageBase64`, which the datasource lifts into its own observation
-  /// message. Same picture, different message shape — an endpoint can support
-  /// one and not the other.
-  Future<LiveLlmDiagnosticProbeResult> _runVisionToolObservationProbe() async {
-    final messages = _messages(
-      user: 'A screen observation tool returned an image. $_visionProbePrompt',
-    );
-    try {
-      final result = await _chat.createChatCompletionWithToolResults(
-        messages: messages,
-        toolResults: [
-          ToolResultInfo(
-            id: 'diagnostic-vision-observe-call',
-            name: 'diagnostic_vision_observe',
-            arguments: const {'region': 'full'},
-            result: jsonEncode({
-              'ok': true,
-              'coordinateSpace': 'screenshot_pixels',
-              'imageMimeType': _visionProbeImageMimeType,
-              'imageBase64': _visionProbeImageBase64,
-            }),
-          ),
-        ],
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final matched = LiveLlmResponseScoring.matchedQuadrantColors(
-        result.content,
-        _visionProbeExpectedColors,
-      );
-      final passed = matched == _visionProbeExpectedColors.length;
-      return LiveLlmDiagnosticProbeResult(
-        id: _visionToolObservationProbeId,
-        status: passed
-            ? LiveLlmDiagnosticStatus.passed
-            : matched > 0
-            ? LiveLlmDiagnosticStatus.warning
-            : LiveLlmDiagnosticStatus.failed,
-        summary: passed
-            ? 'The model read the image delivered as a tool observation.'
-            : 'The model did not read the tool-observation image correctly.',
-        details:
-            'Expected: ${_visionProbeExpectedColors.join(', ')}\n'
-            'Matched in order: $matched/${_visionProbeExpectedColors.length}',
-        modelContent: LiveLlmDiagnosticEvidence.preview(
-          result.content,
-          maxChars: 400,
-        ),
-        usage: LiveLlmDiagnosticEvidence.usage(result),
-        passedChecks: matched,
-        totalChecks: _visionProbeExpectedColors.length,
-      );
-    } catch (error) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _visionToolObservationProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The endpoint rejected the tool-observation image request.',
-        details: 'Classification: $_visionClassificationRejected\n$error',
-      );
-    }
-  }
 
   Future<LiveLlmDiagnosticProbeResult> _runNarrowToolCallProbe(
     _ToolCatalogContext catalog,
@@ -4182,22 +3825,6 @@ class _MultiRoundToolLoopProbeOutcome {
 
   final LiveLlmDiagnosticProbeResult result;
   final LiveLlmDiagnosticMultiRoundToolLoopMetrics metrics;
-}
-
-class _VisionProbeArm {
-  const _VisionProbeArm({
-    required this.content,
-    required this.matchedColors,
-    this.result,
-    this.rejected = false,
-    this.error = '',
-  });
-
-  final ChatCompletionResult? result;
-  final String content;
-  final int matchedColors;
-  final bool rejected;
-  final String error;
 }
 
 class _ToolCatalogContext {
