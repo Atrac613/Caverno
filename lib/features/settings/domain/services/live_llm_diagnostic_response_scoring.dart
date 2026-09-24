@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
+import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import 'live_llm_chart_probe_image.dart';
 
 /// Pure response scoring for the live LLM diagnostic probes.
@@ -203,5 +204,51 @@ abstract final class LiveLlmResponseScoring {
       }
     }
     return true;
+  }
+
+  /// Tool calls the reply made, native or embedded in the text.
+  static List<ToolCallInfo> toolCallsFrom(ChatCompletionResult result) {
+    final nativeCalls = result.toolCalls;
+    if (nativeCalls != null && nativeCalls.isNotEmpty) {
+      return nativeCalls;
+    }
+    return ContentParser.extractCompletedToolCalls(result.content)
+        .map(
+          (toolCall) => ToolCallInfo(
+            id: toolCall.occurrenceId ?? 'text-${toolCall.name}',
+            name: toolCall.name,
+            arguments: toolCall.arguments,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Whether a four-word window recurs three times: a sampler stuck in a
+  /// loop rather than a model answering.
+  static bool looksRepetitive(String value) {
+    final normalized = value
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (normalized.length < 24) {
+      return false;
+    }
+    final words = normalized
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .toList(growable: false);
+    if (words.length < 8) {
+      return false;
+    }
+    final windowCounts = <String, int>{};
+    for (var index = 0; index <= words.length - 4; index += 1) {
+      final window = words.sublist(index, index + 4).join(' ');
+      final count = (windowCounts[window] ?? 0) + 1;
+      if (count >= 3) {
+        return true;
+      }
+      windowCounts[window] = count;
+    }
+    return false;
   }
 }

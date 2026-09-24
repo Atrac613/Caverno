@@ -1024,8 +1024,9 @@ const Map<String, int> _lineBudgets = {
   // scoring moved to live_llm_diagnostic_response_scoring.dart. The Remote
   // Coding notifiers and page are deliberately not listed: RC1 is changing
   // them weekly, and a budget there would block that work, not decompose it.
+  // Lowered from 4688 when the sampler-calibration trials moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      4688,
+      4470,
   'lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart':
       1742,
   'lib/features/chat/domain/services/tool_result_prompt_builder.dart': 2064,
