@@ -56,6 +56,7 @@ void _runQwen38RequestPolicyClient() {
           ..body = jsonEncode({
             'model': ApiConstants.qwen38VisionModel,
             'max_tokens': 1200,
+            'reasoning_effort': 'medium',
           });
 
     await role.runWith(() => client.send(request));
@@ -83,6 +84,77 @@ void _runQwen38RequestPolicyClient() {
     expect(
       body['max_tokens'],
       Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens,
+    );
+  });
+
+  Future<Map<String, dynamic>> sendEffortRequest(String? wireEffort) async {
+    final delegate = _RecordingClient();
+    final client = Qwen38RequestPolicyClient(
+      delegate: delegate,
+      policy: const Qwen38RequestThinkingPolicy(reasoningEffort: 'high'),
+    );
+    final request =
+        http.Request(
+            'POST',
+            Uri.parse('http://192.168.100.241:1234/v1/chat/completions'),
+          )
+          ..body = jsonEncode({
+            'model': 'qwen3.8-27b-exl3',
+            'reasoning_effort': ?wireEffort,
+          });
+    await client.send(request);
+    client.close();
+    return jsonDecode(delegate.sentBody!) as Map<String, dynamic>;
+  }
+
+  test('the template effort follows the effort the request carries', () async {
+    final body = await sendEffortRequest('high');
+
+    expect((body['chat_template_kwargs'] as Map)['reasoning_effort'], 'high');
+  });
+
+  test(
+    'a retry without reasoning_effort drops it from the template too',
+    () async {
+      // qwen3.8-27b-exl3's template 400s on `high`. The datasource retries
+      // without the top-level field; had the kwargs kept the configured
+      // effort, the retry would have been rejected identically.
+      final body = await sendEffortRequest(null);
+
+      expect(
+        (body['chat_template_kwargs'] as Map).containsKey('reasoning_effort'),
+        isFalse,
+      );
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    },
+  );
+
+  test('the reasoning log line reports the controls as sent', () {
+    expect(
+      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+        'enable_thinking': true,
+        'max_tokens': 1536,
+        'chat_template_kwargs': {
+          'enable_thinking': true,
+          'reasoning_effort': 'xhigh',
+        },
+      }),
+      '[LLM] reasoning: thinking=on, effort=xhigh (chat_template_kwargs), '
+      'max_tokens=1536',
+    );
+    expect(
+      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+        'reasoning_effort': 'high',
+      }),
+      '[LLM] reasoning: thinking=default, effort=high (top-level), '
+      'max_tokens=default',
+    );
+    expect(
+      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+        'max_tokens': 512,
+        'chat_template_kwargs': {'enable_thinking': false},
+      }),
+      '[LLM] reasoning: thinking=off, effort=default, max_tokens=512',
     );
   });
 }

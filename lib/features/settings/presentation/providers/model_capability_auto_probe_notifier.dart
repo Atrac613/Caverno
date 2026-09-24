@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants/api_constants.dart';
 
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
+import '../../../chat/data/datasources/reasoning_effort_probe.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
@@ -62,6 +63,15 @@ class ModelCapabilityAutoProbeState {
 
 /// HTTP client used for the token-free modality read, overridable in tests.
 final modalitiesProbeClientProvider = Provider<http.Client Function()>(
+  (ref) => http.Client.new,
+);
+
+/// HTTP client used for the reasoning-effort probe, overridable in tests.
+///
+/// Separate from [modalitiesProbeClientProvider] because this one reaches
+/// `/chat/completions`: a test that stubs `/props` must not have its stub
+/// answer generation requests as well.
+final reasoningEffortProbeClientProvider = Provider<http.Client Function()>(
   (ref) => http.Client.new,
 );
 
@@ -146,6 +156,11 @@ class ModelCapabilityAutoProbeNotifier
         profileId: profileId,
         report: report,
       );
+      await _probeReasoningEfforts(
+        settings,
+        profileId: profileId,
+        previous: storedProfile?.supportedReasoningEfforts,
+      );
     } catch (error) {
       if (!ref.mounted) {
         return;
@@ -157,6 +172,66 @@ class ModelCapabilityAutoProbeNotifier
       );
     }
   }
+
+  /// Measures which reasoning efforts the endpoint accepts for this model.
+  ///
+  /// Runs only on this path, after a full probe, because it spends real
+  /// completions (one baseline plus one per effort, each capped at a single
+  /// token). Profiles that predate it are measured at the next model switch or
+  /// idle re-probe. The profile was just rebuilt from the diagnostic report, so
+  /// an inconclusive run restores [previous] rather than erasing a vocabulary
+  /// an earlier probe did establish.
+  Future<void> _probeReasoningEfforts(
+    AppSettings settings, {
+    required String profileId,
+    required List<String>? previous,
+  }) async {
+    if (settings.llmProvider != LlmProvider.openAiCompatible) return;
+    final client = ref.read(reasoningEffortProbeClientProvider)();
+    final ReasoningEffortProbeResult result;
+    try {
+      result = await const ReasoningEffortProbe().run(
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        model: settings.effectiveModel,
+        acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+          settings.baseUrl,
+        ),
+        candidates: reasoningEffortProbeCandidates,
+        client: client,
+      );
+    } finally {
+      client.close();
+    }
+    if (!ref.mounted) return;
+    // By id, not the effective profile: the person may have switched models
+    // while the probe ran, and this result belongs to the one it measured.
+    final stored = ref
+        .read(settingsNotifierProvider)
+        .modelCapabilityProfiles
+        .where((profile) => profile.id == profileId)
+        .firstOrNull;
+    if (stored == null) return;
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .upsertModelCapabilityProfile(
+          stored.copyWith(
+            supportedReasoningEfforts: result.isConclusive
+                ? result.accepted
+                : previous,
+            probeMetadata: {
+              ...stored.probeMetadata,
+              'reasoningEffortProbe': result.outcome,
+            },
+          ),
+          source: 'reasoning_effort_probe',
+        );
+  }
+
+  /// Every effort the app can send, in the order the composer lists them.
+  static final List<String> reasoningEffortProbeCandidates = [
+    for (final effort in ReasoningEffortPreference.values) ?effort.apiValue,
+  ];
 
   /// Fills in a stored profile's context window when it was never measured.
   /// A profile that already carries one is left alone: re-measuring belongs to

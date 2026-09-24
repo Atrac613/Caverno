@@ -138,6 +138,23 @@ void main() {
       expect(body.containsKey('reasoning_effort'), isFalse);
     });
 
+    test('passes xhigh through with the thinking budget floor', () {
+      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'xhigh');
+      final overrides = policy.resolve(
+        model: 'qwen3.8-27b-exl3',
+        maxTokens: 512,
+      )!;
+
+      expect(overrides.chatTemplateKwargs, {
+        'enable_thinking': true,
+        'reasoning_effort': 'xhigh',
+      });
+      expect(
+        overrides.maxTokens,
+        Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens,
+      );
+    });
+
     test('structured utility roles never think, whatever the chat effort', () {
       const policy = Qwen38RequestThinkingPolicy(
         reasoningEffort: 'high',

@@ -37,7 +37,7 @@ enum LocalCommandPermissionMatch { exact, prefix }
 
 enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 
-enum ReasoningEffortPreference { automatic, low, medium, high }
+enum ReasoningEffortPreference { automatic, low, medium, high, xhigh }
 
 enum ProReasoningDepth { standard, deep, max }
 
@@ -96,6 +96,7 @@ extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
     ReasoningEffortPreference.low => 'low',
     ReasoningEffortPreference.medium => 'medium',
     ReasoningEffortPreference.high => 'high',
+    ReasoningEffortPreference.xhigh => 'xhigh',
   };
 }
 
@@ -339,6 +340,12 @@ abstract class ModelCapabilityProfile with _$ModelCapabilityProfile {
     @Default(ModelVideoInputSupport.unknown)
     ModelVideoInputSupport videoInputSupport,
     @Default(0) int usableContextTokens,
+
+    /// The `reasoning_effort` values the endpoint accepted for this model, as
+    /// measured by `ReasoningEffortProbe`. Null when never measured or when the
+    /// endpoint refused none of them, which cannot tell "accepts all" from
+    /// "ignores the field"; the composer then offers every effort.
+    List<String>? supportedReasoningEfforts,
     DateTime? probedAt,
     @Default('') String probeSummary,
     @Default(<String, String>{}) Map<String, String> probeMetadata,

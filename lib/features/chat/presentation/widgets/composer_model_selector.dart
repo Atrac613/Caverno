@@ -108,7 +108,7 @@ class _ComposerModelSelectorState extends ConsumerState<ComposerModelSelector> {
             ),
             ComposerChoiceSubmenu<ReasoningEffortPreference>(
               title: Text('message.reasoning_effort_menu_label'.tr()),
-              values: ReasoningEffortPreference.values,
+              values: selection.reasoningEffortChoices,
               selected: selection.reasoningEffort,
               labelOf: messageInputReasoningEffortLabel,
               onSelected: (value) =>

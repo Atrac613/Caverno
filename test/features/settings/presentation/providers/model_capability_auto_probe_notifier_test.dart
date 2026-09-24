@@ -39,6 +39,15 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(prefs),
           chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
           mcpToolServiceProvider.overrideWithValue(null),
+          reasoningEffortProbeClientProvider.overrideWithValue(
+            () => MockClient((request) async {
+              final body = jsonDecode(request.body) as Map<String, dynamic>;
+              return http.Response(
+                '{}',
+                body['reasoning_effort'] == 'high' ? 400 : 200,
+              );
+            }),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -66,6 +75,8 @@ void main() {
       final profile = settings.effectiveModelCapabilityProfile;
       expect(profile, isNotNull);
       expect(profile!.model, 'auto-probed-model');
+      expect(profile.supportedReasoningEfforts, ['low', 'medium', 'xhigh']);
+      expect(profile.probeMetadata['reasoningEffortProbe'], 'validated');
       expect(
         profile.structuredOutputSupport,
         ModelStructuredOutputSupport.jsonObject,
