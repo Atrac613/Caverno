@@ -9,17 +9,13 @@ import '../../tool/kc1_cutoff_oracle.dart';
 /// idiom it is scored on.
 void main() {
   const samples = <String, (String stale, String current)>{
-    'flutter-button-bar': (
-      'ButtonBar(children: [a, b])',
-      'OverflowBar(alignment: MainAxisAlignment.end, children: [a, b])',
-    ),
     'flutter-dialog-background': (
       'ThemeData(dialogBackgroundColor: Colors.grey.shade100)',
       'ThemeData(dialogTheme: DialogThemeData(backgroundColor: c))',
     ),
     'flutter-raw-keyboard': (
       'RawKeyboardListener(onKey: (RawKeyEvent e) {})',
-      'KeyboardListener(onKeyEvent: (KeyEvent e) { if (e is KeyDownEvent) {} })',
+      'HardwareKeyboard.instance.addHandler((KeyEvent e) => false)',
     ),
     'flutter-material-state': (
       'MaterialStateProperty.resolveWith((s) => s.contains(MaterialState.pressed) ? r : b)',
@@ -45,12 +41,9 @@ void main() {
       "result.when(ok: (v) => '\$v', error: (m) => m)",
       "switch (result) { Ok(:final value) => '\$value', Err(:final message) => message }",
     ),
-    'repo-localization': (
-      'Text(AppLocalizations.of(context)!.save)',
-      "Text('save'.tr())",
-    ),
+    'repo-localization': ("Text('save'.intl(context))", "Text('save'.tr())"),
     'repo-unique-id': (
-      'final id = DateTime.now().millisecondsSinceEpoch.toString();',
+      'final ts = DateTime.now().millisecondsSinceEpoch;',
       'final id = const Uuid().v4();',
     ),
     'repo-data-class': (

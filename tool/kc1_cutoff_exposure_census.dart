@@ -371,20 +371,10 @@ final cutoffCases = <CutoffCase>[
   // Broadened 2026-09-24: five fixtures made each arm's result one prompt's
   // flip (the ninth measurement), so classes 2 and 4 gained cases. Each is
   // confirmed from the installed SDK, pub cache, or lib/ like the originals,
-  // and each task names the work, never the idiom.
-  CutoffCase(
-    id: 'flutter-button-bar',
-    coverageSymbols: const ['ButtonBar'],
-    cutoffClass: CutoffClass.apiDrift,
-    description: 'ButtonBar superseded by OverflowBar',
-    task:
-        'In Flutter, lay out two TextButtons, Cancel and OK, aligned to the '
-        'end of a card, wrapping onto a new line when they do not fit. '
-        'Return only Dart code.',
-    stale: RegExp(r'\bButtonBar\b'),
-    current: RegExp(r'\bOverflowBar\b'),
-    confirmStale: (oracle) => _deprecatedIn(oracle, 'ButtonBar'),
-  ),
+  // and each task names the work, never the idiom. A one-repeat calibration
+  // pass read every raw answer before any measurement: a ButtonBar fixture
+  // was dropped because the model answered with Wrap, which is current and
+  // neither idiom, and three patterns were widened as noted on each case.
   CutoffCase(
     id: 'flutter-dialog-background',
     coverageSymbols: const ['dialogBackgroundColor'],
@@ -410,8 +400,11 @@ final cutoffCases = <CutoffCase>[
     stale: RegExp(
       r'\bRawKeyboardListener\b|\bRawKeyDownEvent\b|\bRawKeyEvent\b',
     ),
+    // Calibration: HardwareKeyboard.instance.addHandler with KeyEvent is the
+    // current API too, and the model answered with it.
     current: RegExp(
-      r'(?<!Raw)\bKeyboardListener\b|\bKeyDownEvent\b|\bonKeyEvent\b',
+      r'(?<!Raw)\bKeyboardListener\b|\bKeyDownEvent\b|\bonKeyEvent\b'
+      r'|\bHardwareKeyboard\b|(?<!Raw)\bKeyEvent\b',
     ),
     confirmStale: (oracle) => _deprecatedIn(oracle, 'RawKeyboardListener'),
   ),
@@ -522,9 +515,9 @@ final cutoffCases = <CutoffCase>[
         'In this Flutter project, add a button labelled Save whose label is '
         'localized, following the project\'s existing conventions. Return only '
         'Dart code.',
-    stale: RegExp(
-      r'AppLocalizations\.of|Intl\.message|\bS\.of\(|context\.l10n',
-    ),
+    // Calibration: the model also invented `'save'.intl(context)`, which is
+    // off-convention and matched neither pattern.
+    stale: RegExp(r'AppLocalizations\.of|\bIntl\.|\bS\.of\(|\bl10n\b|\.intl\('),
     current: RegExp(r'\.tr\('),
     confirmStale: (oracle) => _conventionOnly(
       oracle,
@@ -541,9 +534,13 @@ final cutoffCases = <CutoffCase>[
         'In this Flutter project, add a function that creates a new note '
         'record with a unique id, following the project\'s existing '
         'conventions. Return only Dart code.',
+    // Calibration: the model generated ids with Random.secure() and with a
+    // timestamp on its own line. An answer using Uuid and a createdAt
+    // timestamp therefore scores unscorable (both), a cost accepted so that a
+    // hand-rolled id is not read as having asserted nothing.
     stale: RegExp(
-      r'(?:id|Id)\b[^;\n]*(?:millisecondsSinceEpoch|microsecondsSinceEpoch)'
-      r'|UniqueKey\(\)|\bRandom\(\)',
+      r'millisecondsSinceEpoch|microsecondsSinceEpoch'
+      r'|\bRandom(?:\.secure)?\(\)|UniqueKey\(\)',
     ),
     current: RegExp(r'\bUuid\(\)'),
     confirmStale: (oracle) => _conventionOnly(
