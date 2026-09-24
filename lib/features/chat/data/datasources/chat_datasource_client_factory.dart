@@ -3,8 +3,8 @@ import 'package:openai_dart/openai_dart.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/security/llm_endpoint_transport_policy.dart';
-import '../../domain/services/qwen38_request_thinking_policy.dart';
-import 'qwen38_request_policy_client.dart';
+import '../../domain/services/chat_request_thinking_policy.dart';
+import 'chat_request_policy_client.dart';
 import 'video_content_part_client.dart';
 
 /// The request-shaping inputs every chat client path needs.
@@ -28,8 +28,8 @@ typedef ChatRequestShape = ({
 /// three are built here rather than repeated at three call sites that can
 /// drift apart one parameter at a time.
 abstract final class ChatDataSourceClientFactory {
-  static Qwen38RequestThinkingPolicy thinkingPolicy(ChatRequestShape shape) =>
-      Qwen38RequestThinkingPolicy(
+  static ChatRequestThinkingPolicy thinkingPolicy(ChatRequestShape shape) =>
+      ChatRequestThinkingPolicy(
         reasoningEffort: shape.reasoningEffort,
         enableThinking: shape.enableThinking,
         acceptsChatTemplateKwargs: shape.acceptsChatTemplateKwargs,
@@ -37,7 +37,7 @@ abstract final class ChatDataSourceClientFactory {
 
   static http.Client wrap(http.Client delegate, ChatRequestShape shape) =>
       VideoContentPartClient(
-        delegate: Qwen38RequestPolicyClient(
+        delegate: ChatRequestPolicyClient(
           delegate: delegate,
           policy: thinkingPolicy(shape),
         ),

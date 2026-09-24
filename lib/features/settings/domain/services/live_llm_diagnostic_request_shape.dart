@@ -1,4 +1,4 @@
-import '../../../chat/domain/services/qwen38_request_thinking_policy.dart';
+import '../../../chat/domain/services/chat_request_thinking_policy.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 
@@ -30,13 +30,13 @@ abstract final class LiveLlmDiagnosticRequestShape {
   /// false both modes leave thinking to the server, so there is only one mode
   /// to measure.
   static bool canControlThinking(AppSettings settings) =>
-      Qwen38RequestThinkingPolicy.isQwen38Model(settings.effectiveModel) ||
+      ChatRequestThinkingPolicy.isQwen38Model(settings.effectiveModel) ||
       settings.acceptsChatTemplateKwargsFor(settings.baseUrl);
 
   /// The effort a run in [mode] sends when the person has not picked one.
   ///
   /// Qwen3.8 thinking runs at medium effort, which is also what raises the
-  /// policy's token floor to [Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens]
+  /// policy's token floor to [ChatRequestThinkingPolicy.mediumMinimumMaxTokens]
   /// so a 512-token probe is not cut off inside its own reasoning. Every other
   /// case sends no effort at all, so a hosted model is measured at its default
   /// rather than at whatever the chat composer last asked for.
@@ -44,7 +44,7 @@ abstract final class LiveLlmDiagnosticRequestShape {
     AppSettings settings,
     LiveLlmDiagnosticThinkingMode mode,
   ) {
-    final qwen38 = Qwen38RequestThinkingPolicy.isQwen38Model(
+    final qwen38 = ChatRequestThinkingPolicy.isQwen38Model(
       settings.effectiveModel,
     );
     return canControlThinking(settings) &&
