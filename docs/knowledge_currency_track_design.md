@@ -316,9 +316,12 @@ dependencies the block names, not the legacy line's wording. The ninth
 measurement then tried that selection (top 8 by import breadth, `42838cda3`):
 it fixed class 4 and broke the generic riverpod case, and adding the digest
 reversed both. Cells flip 0/5 or 5/5 per prompt, so neither causal reading
-holds and five repeats are close to one observation. The block stays
-withdrawn; re-promotion needs a broader fixture set first (more prompts per
-class), not another arm designed against these five.
+holds and five repeats are close to one observation. The tenth measurement
+broadened the set to twelve class 2 and four class 4 fixtures: no production
+arm is worse than bare in any class (class 2 59% bare against 36-46% for the
+digest-carrying arms; class 4 71% against 25%), but at these counts the
+difference is not established. The block stays withdrawn; re-promotion is a
+decision on weak, favourable evidence, or needs more fixtures still.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
@@ -854,6 +857,49 @@ Consequences:
   so an arm's effect is a rate over many prompts rather than one prompt's
   flip. That is a KC1 instrument change and is recorded as the prerequisite
   for any re-promotion of KC2.
+
+#### Tenth measurement (2026-09-24): the broadened fixture set
+
+The ninth measurement's prerequisite: more prompts per class. Class 2 grew
+from 4 to 12 fixtures (SDK deprecations including typedef-level ones such as
+`MaterialState`, and breaking changes in file_picker, share_plus,
+qr_flutter, and freezed) and class 4 from 1 to 4 (`.tr()`, `Uuid()`,
+`@freezed`), each confirmed from the installed SDK, pub cache, or `lib/`
+(`cb2f0da69`). A one-repeat calibration pass read every raw answer before
+measuring and dropped one fixture and widened three patterns
+(`a3ba0ddb7`, reasons on each case). Then every arm ran on
+`qwen3.8-27b-exl3`, clean build `a3ba0ddb7`, two repeats (repeats add little,
+fixtures add much), 378 claims, no failures, frozen in
+[`kc1_wide_exl3_baseline_2026-09-24.json`](evidence/kc1_wide_exl3_baseline_2026-09-24.json)
+and [`kc2_wide_exl3_production_2026-09-24.json`](evidence/kc2_wide_exl3_production_2026-09-24.json).
+
+| stale rate | class 2 (12 cases) | class 4 (4 cases) | class 1 |
+|---|---|---|---|
+| bare | 59% (13/22) | 71% (5/7) | 75% |
+| prototype versions | 50% (11/22) | 43% (3/7) | 50% |
+| prototype digest | 30% (7/23) | 33% (2/6) | - |
+| production, versions only | 50% (12/24) | 25% (2/8) | 50% |
+| production default | 46% (11/24) | 25% (2/8) | 50% |
+| production 32k | 45% (10/22) | 25% (2/8) | 50% |
+| production 64k | 41% (9/22) | 25% (2/8) | 50% |
+| production, top 8 by imports | 55% (12/22) | 0% (0/8) | 50% |
+| production, top 8 + digest | 36% (8/22) | 25% (2/8) | 50% |
+
+**Over sixteen fixtures, no production arm is worse than bare in any class.**
+The seventh measurement's class 4 regression was one fixture: repo-state-
+management still goes stale under most production arms (2/2), while the
+three new conventions go current under all of them, so over four fixtures
+production is at 25% against 71% bare and 43% for the prototype. Class 2
+falls from 59% bare to 36-46% under the digest-carrying production arms, the
+direction the prototype showed, not its full size. Class 1 does not regress.
+
+**Not established.** The differences are counts out of 22 and 8: 13/22 bare
+against 8/22 for the top-8 digest arm, or 5/7 against 2/8, are not
+distinguishable from chance at these sizes. Per-fixture rows still flip
+whole (share-plus-instance 2/2 or 0/2 by arm; raw-keyboard 0/2 bare, 2/2
+under the full version list). The broadened set turned "the block
+regresses" into "the block helps a little, unproven", which is a change in
+what is known and not a result to promote on.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
