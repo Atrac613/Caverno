@@ -573,7 +573,19 @@ enum CensusArm {
   /// configuration a window under 16k tokens gets, measured after the full
   /// block regressed class 4 by listing legacy names.
   productionVersionsOnly,
+
+  /// The eight direct dependencies most imported under `lib/`, versions
+  /// only: the selection the eighth measurement pointed at, after the full
+  /// 59-entry list diluted the one library class 4 is about.
+  productionImported,
+
+  /// The same eight, with the change digest restricted to them.
+  productionImportedDigest,
 }
+
+/// How many most-imported dependencies the import-selected arms list. Fixed
+/// before measuring, so the count is not fitted to the result.
+const productionImportedCount = 8;
 
 /// The production arms and the usable context each one stands for. Reported
 /// per budget, because the largest budget was chosen with a fixture in view.
@@ -582,6 +594,8 @@ const productionArmContext = <CensusArm, int?>{
   CensusArm.production32k: 32768,
   CensusArm.production64k: 65536,
   CensusArm.productionVersionsOnly: null,
+  CensusArm.productionImported: null,
+  CensusArm.productionImportedDigest: null,
 };
 
 /// Builds each production arm's block from the production builder.
@@ -594,11 +608,18 @@ Map<CensusArm, String> productionBlocks(String projectRoot) {
         maxChars: EnvironmentGroundingContextBuilder.maxCharsForUsableContext(
           entry.value,
         ),
-        digestMaxChars: entry.key == CensusArm.productionVersionsOnly
+        digestMaxChars:
+            entry.key == CensusArm.productionVersionsOnly ||
+                entry.key == CensusArm.productionImported
             ? 0
             : EnvironmentGroundingContextBuilder.digestMaxCharsForUsableContext(
                 entry.value,
               ),
+        mostImported:
+            entry.key == CensusArm.productionImported ||
+                entry.key == CensusArm.productionImportedDigest
+            ? productionImportedCount
+            : null,
       ),
   };
 }
@@ -676,7 +697,9 @@ bool promptSupportsClaimFor({
     CensusArm.productionDefault ||
     CensusArm.production32k ||
     CensusArm.production64k ||
-    CensusArm.productionVersionsOnly => false,
+    CensusArm.productionVersionsOnly ||
+    CensusArm.productionImported ||
+    CensusArm.productionImportedDigest => false,
   };
 }
 
@@ -1458,7 +1481,9 @@ Future<CensusSummary> runCutoffCensus({
           CensusArm.productionDefault ||
           CensusArm.production32k ||
           CensusArm.production64k ||
-          CensusArm.productionVersionsOnly =>
+          CensusArm.productionVersionsOnly ||
+          CensusArm.productionImported ||
+          CensusArm.productionImportedDigest =>
             '${production[arm]}\n\n${testCase.task}',
         };
         try {
@@ -1529,7 +1554,9 @@ Future<CensusSummary> runCutoffCensus({
           CensusArm.productionDefault ||
           CensusArm.production32k ||
           CensusArm.production64k ||
-          CensusArm.productionVersionsOnly =>
+          CensusArm.productionVersionsOnly ||
+          CensusArm.productionImported ||
+          CensusArm.productionImportedDigest =>
             '${production[arm]}\n\n${testCase.task}',
         };
         try {
@@ -1599,7 +1626,9 @@ Future<CensusSummary> runCutoffCensus({
           CensusArm.productionDefault ||
           CensusArm.production32k ||
           CensusArm.production64k ||
-          CensusArm.productionVersionsOnly =>
+          CensusArm.productionVersionsOnly ||
+          CensusArm.productionImported ||
+          CensusArm.productionImportedDigest =>
             '${production[arm]}\n\n${testCase.task}',
         };
         try {

@@ -111,6 +111,21 @@ void main() {
       isNot(contains('What the installed versions changed')),
       reason: 'the versions-only arm carries no change digest',
     );
+    final imported = blocks[CensusArm.productionImported]!;
+    expect(imported, contains('flutter_riverpod'));
+    expect(
+      RegExp(
+        r'^- Dependencies: (.*)$',
+        multiLine: true,
+      ).firstMatch(imported)!.group(1)!.split(', ').length,
+      lessThanOrEqualTo(productionImportedCount),
+    );
+    expect(imported, isNot(contains('What the installed versions changed')));
+    expect(
+      blocks[CensusArm.productionImportedDigest],
+      startsWith(imported),
+      reason: 'the digest arm is the same selection with the digest added',
+    );
     expect(
       blocks[CensusArm.productionDefault],
       startsWith(blocks[CensusArm.productionVersionsOnly]!),
