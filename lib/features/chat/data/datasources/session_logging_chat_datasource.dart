@@ -47,7 +47,7 @@ class SessionLoggingChatDataSource
     final delegate = _delegate;
     if (delegate is! ChatRemoteDataSource) return requested;
     return delegate
-            .qwen38RequestOverrides(model: model, maxTokens: requested)
+            .thinkingOverrides(model: model, maxTokens: requested)
             ?.maxTokens ??
         requested;
   }
@@ -67,7 +67,7 @@ class SessionLoggingChatDataSource
     final delegate = _delegate;
     if (delegate is! ChatRemoteDataSource) return null;
     return delegate
-        .qwen38RequestOverrides(
+        .thinkingOverrides(
           model: model,
           maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
         )
@@ -78,7 +78,7 @@ class SessionLoggingChatDataSource
     final delegate = _delegate;
     if (delegate is! ChatRemoteDataSource) return null;
     return delegate
-        .qwen38RequestOverrides(
+        .thinkingOverrides(
           model: model,
           maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
         )

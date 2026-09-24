@@ -15,7 +15,7 @@ import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/entities/video_delivery.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
-import '../../domain/services/qwen38_request_thinking_policy.dart';
+import '../../domain/services/chat_request_thinking_policy.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
@@ -67,7 +67,7 @@ class ChatRemoteDataSource
     VideoAttachmentResolver? videoAttachmentResolver,
     this.defaultTopP,
   }) : _videoAttachmentResolver = videoAttachmentResolver,
-       _qwen38RequestPolicy = ChatDataSourceClientFactory.thinkingPolicy((
+       _thinkingPolicy = ChatDataSourceClientFactory.thinkingPolicy((
          reasoningEffort: reasoningEffort,
          enableThinking: enableThinking,
          acceptsChatTemplateKwargs: acceptsChatTemplateKwargs,
@@ -92,7 +92,7 @@ class ChatRemoteDataSource
 
   final OpenAIClient _client;
   final VideoAttachmentResolver? _videoAttachmentResolver;
-  final Qwen38RequestThinkingPolicy _qwen38RequestPolicy;
+  final ChatRequestThinkingPolicy _thinkingPolicy;
   final ChatCompletionRequestFallback _requestFallback;
   final ChatResponseTelemetry _telemetry;
   final double? defaultTopP;
@@ -102,10 +102,10 @@ class ChatRemoteDataSource
   /// Reads the ambient [ModelUsageRole] for the same reason the client does:
   /// the role decides whether the request may think, so a caller mirroring the
   /// effective request (session logging) has to resolve it in the same zone.
-  Qwen38RequestOverrides? qwen38RequestOverrides({
+  ChatRequestThinkingOverrides? thinkingOverrides({
     required String model,
     required int? maxTokens,
-  }) => _qwen38RequestPolicy.resolve(
+  }) => _thinkingPolicy.resolve(
     model: model,
     maxTokens: maxTokens,
     role: ModelUsageRole.current,

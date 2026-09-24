@@ -4,18 +4,22 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/model_usage_role.dart';
-import '../../domain/services/qwen38_request_thinking_policy.dart';
+import '../../domain/services/chat_request_thinking_policy.dart';
 
-/// Adds Qwen3.8 llama.cpp template controls without changing proxy behavior.
-final class Qwen38RequestPolicyClient extends http.BaseClient {
-  Qwen38RequestPolicyClient({
+/// Applies [ChatRequestThinkingPolicy] to every outgoing chat completion.
+///
+/// Every `ChatRemoteDataSource` request passes through here whatever the
+/// model, which makes it the one place that sees the body as it goes on the
+/// wire: after the policy and after a 400 retry has dropped the effort.
+final class ChatRequestPolicyClient extends http.BaseClient {
+  ChatRequestPolicyClient({
     required http.Client delegate,
-    required Qwen38RequestThinkingPolicy policy,
+    required ChatRequestThinkingPolicy policy,
   }) : _delegate = delegate,
        _policy = policy;
 
   final http.Client _delegate;
-  final Qwen38RequestThinkingPolicy _policy;
+  final ChatRequestThinkingPolicy _policy;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
@@ -56,7 +60,7 @@ final class Qwen38RequestPolicyClient extends http.BaseClient {
   /// `Unexpected reasoning effort high` (it accepts only low, medium and
   /// xhigh), so the retry failed identically and every turn at that effort
   /// died. Following the wire value lets the retry fall back as intended.
-  Qwen38RequestThinkingPolicy _policyFor(Map<String, dynamic> body) {
+  ChatRequestThinkingPolicy _policyFor(Map<String, dynamic> body) {
     if (_policy.reasoningEffort == null) return _policy;
     final wireEffort = body['reasoning_effort'];
     return _policy.withReasoningEffort(

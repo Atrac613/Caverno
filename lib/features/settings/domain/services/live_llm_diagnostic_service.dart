@@ -2935,7 +2935,7 @@ class LiveLlmDiagnosticService {
     };
     final remote = chatDataSource;
     if (remote is ChatRemoteDataSource) {
-      final overrides = remote.qwen38RequestOverrides(
+      final overrides = remote.thinkingOverrides(
         model: _diagnosticModel,
         maxTokens: _diagnosticMaxTokens,
       );

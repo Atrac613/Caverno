@@ -11,16 +11,16 @@ class _RecordingClient extends http.BaseClient {
   }
 }
 
-void _runQwen38RequestPolicyClient() {
+void _runChatRequestPolicyClient() {
   test(
     'explicit thinking reaches streaming and non-streaming requests',
     () async {
       for (final stream in [true, false]) {
         for (final enabled in [true, false]) {
           final delegate = _RecordingClient();
-          final client = Qwen38RequestPolicyClient(
+          final client = ChatRequestPolicyClient(
             delegate: delegate,
-            policy: Qwen38RequestThinkingPolicy(enableThinking: enabled),
+            policy: ChatRequestThinkingPolicy(enableThinking: enabled),
           );
           final request = http.Request(
             'POST',
@@ -38,12 +38,12 @@ void _runQwen38RequestPolicyClient() {
 
   Future<Map<String, dynamic>> sendUnder(ModelUsageRole role) async {
     final delegate = _RecordingClient();
-    final client = Qwen38RequestPolicyClient(
+    final client = ChatRequestPolicyClient(
       delegate: delegate,
       // Opted in because suppression is now decided by the role plus the
       // endpoint's opt-in, with no model name in it. What this case proves is
       // unchanged: that the role survives the zone hop into the http client.
-      policy: const Qwen38RequestThinkingPolicy(
+      policy: const ChatRequestThinkingPolicy(
         reasoningEffort: 'medium',
         acceptsChatTemplateKwargs: true,
       ),
@@ -83,15 +83,15 @@ void _runQwen38RequestPolicyClient() {
     expect((body['chat_template_kwargs'] as Map)['enable_thinking'], isTrue);
     expect(
       body['max_tokens'],
-      Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens,
+      ChatRequestThinkingPolicy.mediumMinimumMaxTokens,
     );
   });
 
   Future<Map<String, dynamic>> sendEffortRequest(String? wireEffort) async {
     final delegate = _RecordingClient();
-    final client = Qwen38RequestPolicyClient(
+    final client = ChatRequestPolicyClient(
       delegate: delegate,
-      policy: const Qwen38RequestThinkingPolicy(reasoningEffort: 'high'),
+      policy: const ChatRequestThinkingPolicy(reasoningEffort: 'high'),
     );
     final request =
         http.Request(
@@ -131,7 +131,7 @@ void _runQwen38RequestPolicyClient() {
 
   test('the reasoning log line reports the controls as sent', () {
     expect(
-      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+      ChatRequestPolicyClient.reasoningControlsLogLine({
         'enable_thinking': true,
         'max_tokens': 1536,
         'chat_template_kwargs': {
@@ -143,14 +143,14 @@ void _runQwen38RequestPolicyClient() {
       'max_tokens=1536',
     );
     expect(
-      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+      ChatRequestPolicyClient.reasoningControlsLogLine({
         'reasoning_effort': 'high',
       }),
       '[LLM] reasoning: thinking=default, effort=high (top-level), '
       'max_tokens=default',
     );
     expect(
-      Qwen38RequestPolicyClient.reasoningControlsLogLine({
+      ChatRequestPolicyClient.reasoningControlsLogLine({
         'max_tokens': 512,
         'chat_template_kwargs': {'enable_thinking': false},
       }),

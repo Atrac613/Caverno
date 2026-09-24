@@ -1,8 +1,12 @@
 import '../entities/model_usage_role.dart';
 
-/// Applies explicit template thinking preferences and Qwen3.8 defaults.
-final class Qwen38RequestThinkingPolicy {
-  const Qwen38RequestThinkingPolicy({
+/// Decides the thinking and effort controls a chat request carries.
+///
+/// Suppression for structured utility roles and an explicit thinking choice
+/// apply to any model; only the reasoning-effort mapping into
+/// `chat_template_kwargs` is specific to Qwen3.8 builds ([isQwen38Model]).
+final class ChatRequestThinkingPolicy {
+  const ChatRequestThinkingPolicy({
     this.reasoningEffort,
     this.enableThinking,
     this.acceptsChatTemplateKwargs = false,
@@ -54,8 +58,8 @@ final class Qwen38RequestThinkingPolicy {
   final String? reasoningEffort;
 
   /// This policy with [reasoningEffort] replaced by [value].
-  Qwen38RequestThinkingPolicy withReasoningEffort(String? value) =>
-      Qwen38RequestThinkingPolicy(
+  ChatRequestThinkingPolicy withReasoningEffort(String? value) =>
+      ChatRequestThinkingPolicy(
         reasoningEffort: value,
         enableThinking: enableThinking,
         acceptsChatTemplateKwargs: acceptsChatTemplateKwargs,
@@ -104,7 +108,7 @@ final class Qwen38RequestThinkingPolicy {
   static bool isExl3Model(String model) =>
       isQwen38Model(model) && model.trim().toLowerCase().contains('exl3');
 
-  Qwen38RequestOverrides? resolve({
+  ChatRequestThinkingOverrides? resolve({
     required String model,
     required int? maxTokens,
     ModelUsageRole role = ModelUsageRole.unknown,
@@ -118,7 +122,7 @@ final class Qwen38RequestThinkingPolicy {
     // the one it is named after. `reasoning_effort` is dropped with it, because
     // a call that must not reason should not be carrying an effort either.
     if (acceptsChatTemplateKwargs && suppressesThinking(role)) {
-      return Qwen38RequestOverrides(
+      return ChatRequestThinkingOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: const {'enable_thinking': false},
         includeTopLevelEnableThinking: isExl3Model(model),
@@ -130,7 +134,7 @@ final class Qwen38RequestThinkingPolicy {
       // honoured on any model, as it was before the opt-in existed.
       return enableThinking == null
           ? null
-          : Qwen38RequestOverrides(
+          : ChatRequestThinkingOverrides(
               maxTokens: maxTokens,
               chatTemplateKwargs: {'enable_thinking': enableThinking!},
               preserveReasoningEffort: true,
@@ -139,7 +143,7 @@ final class Qwen38RequestThinkingPolicy {
     }
 
     if (enableThinking == false) {
-      return Qwen38RequestOverrides(
+      return ChatRequestThinkingOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: const {'enable_thinking': false},
         includeTopLevelEnableThinking: isExl3Model(model),
@@ -148,7 +152,7 @@ final class Qwen38RequestThinkingPolicy {
 
     final normalizedEffort = reasoningEffort?.trim().toLowerCase();
     return switch (normalizedEffort) {
-      'low' => Qwen38RequestOverrides(
+      'low' => ChatRequestThinkingOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: const {
           'enable_thinking': true,
@@ -156,7 +160,7 @@ final class Qwen38RequestThinkingPolicy {
         },
         includeTopLevelEnableThinking: isExl3Model(model),
       ),
-      'medium' => Qwen38RequestOverrides(
+      'medium' => ChatRequestThinkingOverrides(
         maxTokens: _atLeastMediumBudget(maxTokens),
         chatTemplateKwargs: const {
           'enable_thinking': true,
@@ -164,7 +168,7 @@ final class Qwen38RequestThinkingPolicy {
         },
         includeTopLevelEnableThinking: isExl3Model(model),
       ),
-      'high' => Qwen38RequestOverrides(
+      'high' => ChatRequestThinkingOverrides(
         maxTokens: _atLeastMediumBudget(maxTokens),
         chatTemplateKwargs: const {
           'enable_thinking': true,
@@ -172,7 +176,7 @@ final class Qwen38RequestThinkingPolicy {
         },
         includeTopLevelEnableThinking: isExl3Model(model),
       ),
-      'xhigh' => Qwen38RequestOverrides(
+      'xhigh' => ChatRequestThinkingOverrides(
         maxTokens: _atLeastMediumBudget(maxTokens),
         chatTemplateKwargs: const {
           'enable_thinking': true,
@@ -180,7 +184,7 @@ final class Qwen38RequestThinkingPolicy {
         },
         includeTopLevelEnableThinking: isExl3Model(model),
       ),
-      _ => Qwen38RequestOverrides(
+      _ => ChatRequestThinkingOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: {'enable_thinking': enableThinking ?? false},
         includeTopLevelEnableThinking: isExl3Model(model),
@@ -196,8 +200,8 @@ final class Qwen38RequestThinkingPolicy {
   }
 }
 
-final class Qwen38RequestOverrides {
-  const Qwen38RequestOverrides({
+final class ChatRequestThinkingOverrides {
+  const ChatRequestThinkingOverrides({
     required this.maxTokens,
     required this.chatTemplateKwargs,
     this.preserveReasoningEffort = false,

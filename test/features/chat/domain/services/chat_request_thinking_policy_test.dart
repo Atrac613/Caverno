@@ -1,14 +1,14 @@
 import 'package:caverno/core/constants/api_constants.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
-import 'package:caverno/features/chat/domain/services/qwen38_request_thinking_policy.dart';
+import 'package:caverno/features/chat/domain/services/chat_request_thinking_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const model = ApiConstants.qwen38VisionModel;
 
-  group('Qwen38RequestThinkingPolicy', () {
+  group('ChatRequestThinkingPolicy', () {
     test('explicit off overrides high effort without inflating the budget', () {
-      final result = const Qwen38RequestThinkingPolicy(
+      final result = const ChatRequestThinkingPolicy(
         reasoningEffort: 'high',
         enableThinking: false,
       ).resolve(model: model, maxTokens: 100)!;
@@ -19,7 +19,7 @@ void main() {
     test(
       'explicit on enables automatic effort but preserves utility suppression',
       () {
-        const policy = Qwen38RequestThinkingPolicy(
+        const policy = ChatRequestThinkingPolicy(
           enableThinking: true,
           acceptsChatTemplateKwargs: true,
         );
@@ -42,7 +42,7 @@ void main() {
 
     test('explicit preferences preserve other models request fields', () {
       for (final enabled in [true, false]) {
-        final result = Qwen38RequestThinkingPolicy(enableThinking: enabled)
+        final result = ChatRequestThinkingPolicy(enableThinking: enabled)
             .resolve(model: 'custom-model', maxTokens: 100)!
             .applyTo({
               'model': 'custom-model',
@@ -58,7 +58,7 @@ void main() {
     });
 
     test('leaves other models untouched', () {
-      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'medium');
+      const policy = ChatRequestThinkingPolicy(reasoningEffort: 'medium');
       expect(policy.resolve(model: 'gpt-5.6-luna', maxTokens: 1200), isNull);
       // `chat_template_kwargs` is a llama.cpp template control; a hosted
       // endpoint must keep receiving requests without it, utility role or not.
@@ -78,7 +78,7 @@ void main() {
       // utility call on that endpoint was ever told not to think. Observed
       // 2026-09-17: a 400-token goalSuggestion spent all 400 reasoning and
       // returned nothing.
-      const policy = Qwen38RequestThinkingPolicy(
+      const policy = ChatRequestThinkingPolicy(
         reasoningEffort: 'high',
         acceptsChatTemplateKwargs: true,
       );
@@ -101,28 +101,28 @@ void main() {
         isTrue,
       );
       expect(
-        Qwen38RequestThinkingPolicy.isQwen38Model(' qwen3.8-27b-vision '),
+        ChatRequestThinkingPolicy.isQwen38Model(' qwen3.8-27b-vision '),
         isTrue,
       );
       expect(
-        Qwen38RequestThinkingPolicy.isQwen38Model('qwen3.6-27b-mtp-vision'),
+        ChatRequestThinkingPolicy.isQwen38Model('qwen3.6-27b-mtp-vision'),
         isFalse,
       );
     });
 
     test('medium effort enables thinking and raises a small chat budget', () {
-      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'medium');
+      const policy = ChatRequestThinkingPolicy(reasoningEffort: 'medium');
       final overrides = policy.resolve(model: model, maxTokens: 1200)!;
 
       expect(overrides.chatTemplateKwargs['enable_thinking'], isTrue);
       expect(
         overrides.maxTokens,
-        Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens,
+        ChatRequestThinkingPolicy.mediumMinimumMaxTokens,
       );
     });
 
     test('preserves high reasoning effort without remapping it', () {
-      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'high');
+      const policy = ChatRequestThinkingPolicy(reasoningEffort: 'high');
       final overrides = policy.resolve(
         model: 'qwen3.8-27b-exl3',
         maxTokens: 4096,
@@ -139,7 +139,7 @@ void main() {
     });
 
     test('passes xhigh through with the thinking budget floor', () {
-      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'xhigh');
+      const policy = ChatRequestThinkingPolicy(reasoningEffort: 'xhigh');
       final overrides = policy.resolve(
         model: 'qwen3.8-27b-exl3',
         maxTokens: 512,
@@ -151,12 +151,12 @@ void main() {
       });
       expect(
         overrides.maxTokens,
-        Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens,
+        ChatRequestThinkingPolicy.mediumMinimumMaxTokens,
       );
     });
 
     test('structured utility roles never think, whatever the chat effort', () {
-      const policy = Qwen38RequestThinkingPolicy(
+      const policy = ChatRequestThinkingPolicy(
         reasoningEffort: 'high',
         acceptsChatTemplateKwargs: true,
       );
@@ -199,7 +199,7 @@ void main() {
       // and the same model in the same session ran a competent 19-call
       // investigation -- the capability was never missing, only the ability to
       // say it in that shape inside that budget.
-      const policy = Qwen38RequestThinkingPolicy(reasoningEffort: 'medium');
+      const policy = ChatRequestThinkingPolicy(reasoningEffort: 'medium');
 
       for (final role in const [
         ModelUsageRole.chat,
@@ -218,7 +218,7 @@ void main() {
     });
 
     test('no reasoning effort disables thinking for every role', () {
-      const policy = Qwen38RequestThinkingPolicy();
+      const policy = ChatRequestThinkingPolicy();
       final overrides = policy.resolve(
         model: model,
         maxTokens: 4096,
@@ -246,7 +246,7 @@ void main() {
         ModelUsageRole.memoryExtraction,
         ModelUsageRole.approvalAutoReview,
       ]) {
-        const policy = Qwen38RequestThinkingPolicy(
+        const policy = ChatRequestThinkingPolicy(
           acceptsChatTemplateKwargs: true,
         );
         final overrides = policy.resolve(
@@ -264,7 +264,7 @@ void main() {
     test('sends nothing without the opt-in', () {
       // The field is the outcome worth avoiding on an endpoint that has never
       // heard of it, so an unmarked endpoint keeps its old request shape.
-      const policy = Qwen38RequestThinkingPolicy();
+      const policy = ChatRequestThinkingPolicy();
 
       expect(
         policy.resolve(
@@ -279,9 +279,7 @@ void main() {
     test('leaves a prose role alone', () {
       // Only the structured utility roles are suppressed; the opt-in is not a
       // switch that turns thinking off for the whole endpoint.
-      const policy = Qwen38RequestThinkingPolicy(
-        acceptsChatTemplateKwargs: true,
-      );
+      const policy = ChatRequestThinkingPolicy(acceptsChatTemplateKwargs: true);
 
       expect(
         policy.resolve(
@@ -296,7 +294,7 @@ void main() {
     test('does not apply the Qwen3.8 effort mapping to another family', () {
       // Those branches are tuned to one template and mean nothing elsewhere,
       // so the opt-in opens suppression only.
-      const policy = Qwen38RequestThinkingPolicy(
+      const policy = ChatRequestThinkingPolicy(
         reasoningEffort: 'medium',
         acceptsChatTemplateKwargs: true,
       );
@@ -314,7 +312,7 @@ void main() {
     test('an unrecognised family is suppressed exactly like qwen3.8', () {
       // The point of the opt-in: two models with nothing in common produce the
       // same overrides for the same role, because neither name is consulted.
-      const policy = Qwen38RequestThinkingPolicy(
+      const policy = ChatRequestThinkingPolicy(
         reasoningEffort: 'high',
         acceptsChatTemplateKwargs: true,
       );

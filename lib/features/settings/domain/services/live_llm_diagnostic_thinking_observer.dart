@@ -3,7 +3,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/domain/entities/message.dart';
-import '../../../chat/domain/services/qwen38_request_thinking_policy.dart';
+import '../../../chat/domain/services/chat_request_thinking_policy.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 
@@ -58,7 +58,7 @@ final class LiveLlmDiagnosticThinkingObserver {
   }) {
     if (_responseCount == 0) return null;
     final overrides = dataSource is ChatRemoteDataSource
-        ? dataSource.qwen38RequestOverrides(model: model, maxTokens: maxTokens)
+        ? dataSource.thinkingOverrides(model: model, maxTokens: maxTokens)
         : null;
     return LiveLlmDiagnosticThinkingMetrics(
       requested: overrides?.chatTemplateKwargs['enable_thinking'] as bool?,
@@ -76,7 +76,7 @@ final class LiveLlmDiagnosticThinkingObserver {
   /// override carries the effort in the template kwargs and strips the
   /// top-level field unless it preserves it.
   static String? _requestedEffort(
-    Qwen38RequestOverrides? overrides,
+    ChatRequestThinkingOverrides? overrides,
     ReasoningEffortPreference effort,
   ) {
     if (overrides != null) {

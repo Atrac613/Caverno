@@ -1409,7 +1409,7 @@ abstract class AppSettings with _$AppSettings {
   /// Whether a build before the endpoint opt-in would have suppressed thinking
   /// for this model, by name alone.
   ///
-  /// Spelled out rather than read from `Qwen38RequestThinkingPolicy` on
+  /// Spelled out rather than read from `ChatRequestThinkingPolicy` on
   /// purpose. This records what the old build did, so it has to stay frozen
   /// even if that predicate later widens, narrows or disappears -- and
   /// settings does not otherwise depend on the chat feature.
