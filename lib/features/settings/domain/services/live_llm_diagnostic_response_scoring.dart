@@ -143,6 +143,16 @@ abstract final class LiveLlmResponseScoring {
     return (actualValue - expectedValue).abs() <= chartValueTolerance;
   }
 
+  /// Counts leading quadrant colors named in the expected order. Order matters:
+  /// naming the right four colors in the wrong arrangement means the layout was
+  /// not actually read.
+  ///
+  /// Grades the visible answer rather than the raw response, for the reason the
+  /// chart probe already does: a reasoning model enumerates candidate colors on
+  /// its way to an answer, and scanning that text scores the thinking instead of
+  /// the reading. Scoring the raw response made the no-image control arm match
+  /// all four colors out of its own think block, which classified a
+  /// demonstrably sighted model as `model_ignored_the_image`.
   static int matchedQuadrantColors(
     String content,
     List<String> expectedColors,
