@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/data/datasources/environment_grounding_context_builder.dart';
+
 import 'kc1_cutoff_oracle.dart';
 import 'kc1_world_fact_oracle.dart';
 
@@ -165,6 +167,9 @@ Future<void> _runMain(
     environmentCases: environmentCases,
     worldFactCases: worldFacts == null ? const [] : worldFactCases,
     worldFacts: worldFacts,
+    production: options.production
+        ? productionBlocks(options.projectRoot)
+        : const {},
   );
   final encoded = const JsonEncoder.withIndent('  ').convert(summary.toJson());
   if (options.outputPath != null) {
@@ -546,6 +551,44 @@ enum CensusArm {
   /// therefore `promptContext`, the same honest label the grounded arm uses
   /// for its KC2 preview. In production this ground would be a tool result.
   worldFactGrounded,
+
+  /// KC2 slice 5: the task plus the block the production prompt carries, from
+  /// `EnvironmentGroundingContextBuilder` rather than this file's prototype,
+  /// at the budget a model with unknown usable context gets.
+  productionDefault,
+
+  /// The production block at the 32k-token budget.
+  production32k,
+
+  /// The production block at the 64k-token budget, the only one whose digest
+  /// covers every measured idiom on this repository.
+  production64k,
+}
+
+/// The production arms and the usable context each one stands for. Reported
+/// per budget, because the largest budget was chosen with a fixture in view.
+const productionArmContext = <CensusArm, int?>{
+  CensusArm.productionDefault: null,
+  CensusArm.production32k: 32768,
+  CensusArm.production64k: 65536,
+};
+
+/// Builds each production arm's block from the production builder.
+Map<CensusArm, String> productionBlocks(String projectRoot) {
+  final builder = EnvironmentGroundingContextBuilder();
+  return {
+    for (final entry in productionArmContext.entries)
+      entry.key: ?builder.build(
+        projectRoot,
+        maxChars: EnvironmentGroundingContextBuilder.maxCharsForUsableContext(
+          entry.value,
+        ),
+        digestMaxChars:
+            EnvironmentGroundingContextBuilder.digestMaxCharsForUsableContext(
+              entry.value,
+            ),
+      ),
+  };
 }
 
 /// The arms the idiom and environment fixtures run. Their replay baseline
@@ -617,6 +660,10 @@ bool promptSupportsClaimFor({
     CensusArm.deltaGrounded => digestCovers(testCase, oracle),
     // Carries registry versions only, and idiom fixtures never run it.
     CensusArm.worldFactGrounded => false,
+    // Production arms are scored in [runCutoffCensus] against their block.
+    CensusArm.productionDefault ||
+    CensusArm.production32k ||
+    CensusArm.production64k => false,
   };
 }
 
@@ -626,7 +673,10 @@ bool promptSupportsEnvironmentClaimFor({
   required EnvironmentCase testCase,
   required CensusArm arm,
   required CutoffOracle oracle,
-}) => arm != CensusArm.bare && testCase.readDefault(oracle) != null;
+}) =>
+    !productionArmContext.containsKey(arm) &&
+    arm != CensusArm.bare &&
+    testCase.readDefault(oracle) != null;
 
 class _EnvironmentAssertion {
   const _EnvironmentAssertion({
@@ -886,6 +936,7 @@ class CensusSummary {
     required this.claims,
     required this.runIdentity,
     this.digestCoverage = const {},
+    this.productionCoverage = const {},
   });
 
   final List<ClaimRecord> claims;
@@ -897,6 +948,17 @@ class CensusSummary {
   /// the second bounds the first. A case the digest never mentioned is a
   /// control, not a failure of the idea.
   final Map<String, bool> digestCoverage;
+
+  /// Per case and production arm, whether that arm's block names the idiom.
+  final Map<String, Map<String, bool>> productionCoverage;
+
+  List<CensusArm> get _presentArms {
+    final present = claims.map((c) => c.arm).toSet();
+    return [
+      for (final arm in CensusArm.values)
+        if (present.contains(arm)) arm,
+    ];
+  }
 
   Iterable<ClaimRecord> _scored(CensusArm arm) =>
       claims.where((c) => c.arm == arm && c.failure == null);
@@ -1053,6 +1115,8 @@ class CensusSummary {
         },
     },
     'digestCoverage': digestCoverage,
+    if (productionCoverage.values.any((arms) => arms.isNotEmpty))
+      'productionCoverage': productionCoverage,
     'records': claims.map((c) => c.toJson()).toList(growable: false),
   };
 
@@ -1068,7 +1132,7 @@ class CensusSummary {
       ..writeln('claims: ${claims.length}  failures: ${failures()}')
       ..writeln()
       ..writeln('stale-claim and unsupported-claim rate');
-    for (final arm in CensusArm.values) {
+    for (final arm in _presentArms) {
       final stale = staleRate(arm);
       final staleText = stale == null
           ? '-'
@@ -1100,7 +1164,10 @@ class CensusSummary {
     }
     buffer
       ..writeln()
-      ..writeln('per class stale-claim rate (bare / grounded / delta / world)');
+      ..writeln(
+        'per class stale-claim rate '
+        '(${_presentArms.map((a) => a.name).join(' / ')})',
+      );
     for (final cutoffClass in classes) {
       String rate(CensusArm arm) {
         final value = staleRateFor(cutoffClass, arm);
@@ -1109,10 +1176,7 @@ class CensusSummary {
 
       buffer.writeln(
         '  ${cutoffClass.name.padRight(22)} '
-        '${rate(CensusArm.bare).padLeft(5)} / '
-        '${rate(CensusArm.grounded).padLeft(5)} / '
-        '${rate(CensusArm.deltaGrounded).padLeft(5)} / '
-        '${rate(CensusArm.worldFactGrounded).padLeft(5)}',
+        '${_presentArms.map((arm) => rate(arm).padLeft(5)).join(' / ')}',
       );
       if (cutoffClass == CutoffClass.environment) {
         String exposure(CensusArm arm) {
@@ -1122,16 +1186,16 @@ class CensusSummary {
 
         buffer.writeln(
           '  ${cutoffClass.name.padRight(22)} '
-          'environment exposure ${exposure(CensusArm.bare).padLeft(5)} / '
-          '${exposure(CensusArm.grounded).padLeft(5)} / '
-          '${exposure(CensusArm.deltaGrounded).padLeft(5)}',
+          'environment exposure '
+          '${_presentArms.map((arm) => exposure(arm).padLeft(5)).join(' / ')}',
         );
       }
     }
     buffer
       ..writeln()
       ..writeln(
-        'per class unsupported-claim rate (bare / grounded / delta / world)',
+        'per class unsupported-claim rate '
+        '(${_presentArms.map((a) => a.name).join(' / ')})',
       );
     for (final cutoffClass in classes) {
       String rate(CensusArm arm) {
@@ -1141,16 +1205,14 @@ class CensusSummary {
 
       buffer.writeln(
         '  ${cutoffClass.name.padRight(22)} '
-        '${rate(CensusArm.bare).padLeft(5)} / '
-        '${rate(CensusArm.grounded).padLeft(5)} / '
-        '${rate(CensusArm.deltaGrounded).padLeft(5)} / '
-        '${rate(CensusArm.worldFactGrounded).padLeft(5)}',
+        '${_presentArms.map((arm) => rate(arm).padLeft(5)).join(' / ')}',
       );
     }
     buffer
       ..writeln()
       ..writeln(
-        'per case (bare / grounded / delta / world stale, digest coverage)',
+        'per case (${_presentArms.map((a) => a.name).join(' / ')} stale, '
+        'coverage)',
       );
     for (final caseId in claims.map((c) => c.caseId).toSet()) {
       String rate(CensusArm arm) {
@@ -1169,14 +1231,22 @@ class CensusSummary {
       }
 
       buffer.writeln(
-        '  ${caseId.padRight(22)} ${rate(CensusArm.bare).padLeft(5)} / '
-        '${rate(CensusArm.grounded).padLeft(5)} / '
-        '${rate(CensusArm.deltaGrounded).padLeft(5)} / '
-        '${rate(CensusArm.worldFactGrounded).padLeft(5)}   '
-        '${digestCoverage[caseId] == true ? 'in digest' : 'not in digest'}',
+        '  ${caseId.padRight(22)} '
+        '${_presentArms.map((arm) => rate(arm).padLeft(5)).join(' / ')}   '
+        '${_coverageLabel(caseId)}',
       );
     }
     return buffer.toString();
+  }
+
+  String _coverageLabel(String caseId) {
+    final production = productionCoverage[caseId];
+    if (production != null && production.isNotEmpty) {
+      return production.entries
+          .map((e) => '${e.key}:${e.value ? 'covered' : 'not covered'}')
+          .join(' ');
+    }
+    return digestCoverage[caseId] == true ? 'in digest' : 'not in digest';
   }
 }
 
@@ -1328,7 +1398,16 @@ Future<CensusSummary> runCutoffCensus({
   List<EnvironmentCase> environmentCases = const [],
   List<WorldFactCase> worldFactCases = const [],
   WorldFactSnapshot? worldFacts,
+  Map<CensusArm, String> production = const {},
 }) async {
+  // A production run replaces the prototype arms in every class; the frozen
+  // baseline in docs/evidence is what it is compared against.
+  final idiomRunArms = production.isEmpty
+      ? idiomArms
+      : production.keys.toList();
+  final worldRunArms = production.isEmpty
+      ? worldFactArms
+      : production.keys.toList();
   if (worldFactCases.isNotEmpty && worldFacts == null) {
     throw ArgumentError('class 1 fixtures need a world-fact snapshot');
   }
@@ -1356,13 +1435,16 @@ Future<CensusSummary> runCutoffCensus({
     final truthSource =
         testCase.confirmStale(oracle) ?? _truthSourceFor(testCase, oracle);
     for (var repeat = 1; repeat <= options.repeats; repeat++) {
-      for (final arm in idiomArms) {
+      for (final arm in idiomRunArms) {
         onProgress?.call('${testCase.id} ${arm.name} #$repeat');
         final prompt = switch (arm) {
           CensusArm.bare => testCase.task,
           CensusArm.grounded => '$ground\n\n${testCase.task}',
           CensusArm.deltaGrounded => '$ground\n\n$delta\n\n${testCase.task}',
           CensusArm.worldFactGrounded => throw StateError('not an idiom arm'),
+          CensusArm.productionDefault ||
+          CensusArm.production32k ||
+          CensusArm.production64k => '${production[arm]}\n\n${testCase.task}',
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1380,11 +1462,13 @@ Future<CensusSummary> runCutoffCensus({
               repeat: repeat,
               response: response,
               truthSource: truthSource,
-              promptSupportsClaim: promptSupportsClaimFor(
-                testCase: testCase,
-                arm: arm,
-                oracle: oracle,
-              ),
+              promptSupportsClaim: production.containsKey(arm)
+                  ? testCase.coverageSymbols.any(production[arm]!.contains)
+                  : promptSupportsClaimFor(
+                      testCase: testCase,
+                      arm: arm,
+                      oracle: oracle,
+                    ),
             ),
           );
         } on Object catch (error) {
@@ -1419,7 +1503,7 @@ Future<CensusSummary> runCutoffCensus({
         'Flutter ${oracle.flutterVersion}: '
         'ThemeData.useMaterial3 default: $defaultValue';
     for (var repeat = 1; repeat <= options.repeats; repeat++) {
-      for (final arm in idiomArms) {
+      for (final arm in idiomRunArms) {
         onProgress?.call('${testCase.id} ${arm.name} #$repeat');
         final prompt = switch (arm) {
           CensusArm.bare => testCase.task,
@@ -1427,6 +1511,9 @@ Future<CensusSummary> runCutoffCensus({
           CensusArm.deltaGrounded =>
             '$environmentGround\n\n$delta\n\n${testCase.task}',
           CensusArm.worldFactGrounded => throw StateError('not an idiom arm'),
+          CensusArm.productionDefault ||
+          CensusArm.production32k ||
+          CensusArm.production64k => '${production[arm]}\n\n${testCase.task}',
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1485,13 +1572,16 @@ Future<CensusSummary> runCutoffCensus({
         ', fetched ${fact.fetchedAt}; installed here: ${installed ?? 'none'}';
     final worldGround = worldFactBlock(worldFacts);
     for (var repeat = 1; repeat <= options.repeats; repeat++) {
-      for (final arm in worldFactArms) {
+      for (final arm in worldRunArms) {
         onProgress?.call('${testCase.id} ${arm.name} #$repeat');
         final prompt = switch (arm) {
           CensusArm.bare => testCase.task,
           CensusArm.grounded => '$ground\n\n${testCase.task}',
           CensusArm.worldFactGrounded => '$worldGround\n\n${testCase.task}',
           CensusArm.deltaGrounded => throw StateError('not a class 1 arm'),
+          CensusArm.productionDefault ||
+          CensusArm.production32k ||
+          CensusArm.production64k => '${production[arm]}\n\n${testCase.task}',
         };
         try {
           final response = await send(_systemPrompt, prompt);
@@ -1535,11 +1625,26 @@ Future<CensusSummary> runCutoffCensus({
   }
   return CensusSummary(
     claims: claims,
-    runIdentity: _runIdentity(
-      options: options,
-      oracle: oracle,
-      worldFacts: selectedWorldFacts.isEmpty ? null : worldFacts,
-    ),
+    runIdentity: {
+      ..._runIdentity(
+        options: options,
+        oracle: oracle,
+        worldFacts: selectedWorldFacts.isEmpty ? null : worldFacts,
+      ),
+      // The exact bytes each production arm carried, so the verdicts can be
+      // tied to the block rather than to the builder's later behavior.
+      if (production.isNotEmpty)
+        'productionBlocks': {
+          for (final entry in production.entries) entry.key.name: entry.value,
+        },
+    },
+    productionCoverage: {
+      for (final testCase in selected)
+        testCase.id: {
+          for (final entry in production.entries)
+            entry.key.name: testCase.coverageSymbols.any(entry.value.contains),
+        },
+    },
     digestCoverage: {
       for (final testCase in selected)
         testCase.id: digestCovers(testCase, oracle),
@@ -1658,6 +1763,7 @@ class CensusOptions {
     this.offline = false,
     this.worldFactsPath,
     this.saveWorldFactsPath,
+    this.production = false,
   });
 
   static const usage =
@@ -1666,7 +1772,10 @@ class CensusOptions {
       '  [--repeats 3] [--temperature 0.7] [--timeout 180] [--json] \\\n'
       '  [--out build/kc1/census.json] [--dump-dir build/kc1/raw] \\\n'
       '  [--case <id>]... [--verify-only] \\\n'
-      '  [--offline | --world-facts snapshot.json] [--save-world-facts <path>]\n'
+      '  [--offline | --world-facts snapshot.json] [--save-world-facts <path>] \\\n'
+      '  [--production]\n'
+      '--production replaces the prototype arms with the KC2 production block '
+      'at each usable-context budget.\n'
       '--verify-only checks every fixture against the installed toolchain and '
       'the world-fact snapshot, and sends nothing to the model.\n'
       'Class 1 reads pub.dev unless --offline leaves it out or --world-facts '
@@ -1702,6 +1811,9 @@ class CensusOptions {
   /// Where to write the class 1 snapshot this run used, to freeze it.
   final String? saveWorldFactsPath;
 
+  /// Run the KC2 production arms instead of the prototype arms.
+  final bool production;
+
   static CensusOptions? parse(
     List<String> args,
     Map<String, String> environment,
@@ -1715,6 +1827,7 @@ class CensusOptions {
     var json = false;
     var verifyOnly = false;
     var offline = false;
+    var production = false;
     String? worldFactsPath;
     String? saveWorldFactsPath;
     String? outputPath;
@@ -1763,6 +1876,8 @@ class CensusOptions {
           verifyOnly = true;
         case '--offline':
           offline = true;
+        case '--production':
+          production = true;
         case '--world-facts':
           worldFactsPath = value(i);
           i++;
@@ -1792,6 +1907,7 @@ class CensusOptions {
       offline: offline,
       worldFactsPath: worldFactsPath,
       saveWorldFactsPath: saveWorldFactsPath,
+      production: production,
     );
   }
 }
