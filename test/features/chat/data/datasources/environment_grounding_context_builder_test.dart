@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/dependency_inventory.dart';
 import 'package:caverno/features/chat/data/datasources/environment_grounding_context_builder.dart';
+import 'package:caverno/features/chat/data/datasources/installed_change_digest.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// KC2 slice 2: the block a coding prompt will carry. Defended here: every
@@ -261,7 +262,10 @@ void main() {
     final block = EnvironmentGroundingContextBuilder().build(
       Directory.current.path,
     )!;
-    expect(block.length, lessThanOrEqualTo(1600));
+    final digestAt = block.indexOf(ChangeDigestRenderer.heading);
+    final versions = digestAt < 0 ? block : block.substring(0, digestAt - 1);
+    expect(versions.length, lessThanOrEqualTo(1600));
+    expect(block.length - versions.length, lessThanOrEqualTo(1601));
     expect(block, contains('Flutter SDK ${config['flutterVersion']}'));
     expect(block, isNot(contains('Versions withheld')));
   });

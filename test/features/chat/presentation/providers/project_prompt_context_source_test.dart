@@ -38,7 +38,8 @@ void main() {
     for (final mode in [AssistantMode.coding, AssistantMode.plan]) {
       final block = source.environmentGrounding(mode, root, null);
       expect(block, startsWith('Project toolchain and dependencies'));
-      expect(block!.length, lessThanOrEqualTo(1600));
+      // 1,600 for the versions plus 1,600 for the change digest by default.
+      expect(block!.length, lessThanOrEqualTo(3201));
     }
   });
 

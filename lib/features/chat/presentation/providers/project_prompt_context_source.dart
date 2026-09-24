@@ -54,6 +54,10 @@ class ProjectPromptContextSource {
       maxChars: EnvironmentGroundingContextBuilder.maxCharsForUsableContext(
         usableContextTokens,
       ),
+      digestMaxChars:
+          EnvironmentGroundingContextBuilder.digestMaxCharsForUsableContext(
+            usableContextTokens,
+          ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'dependency_inventory.dart';
+import 'installed_change_digest.dart';
 
 /// KC2 slice 2: the environment and dependency ground-truth block.
 ///
@@ -50,6 +51,24 @@ class EnvironmentGroundingContextBuilder {
     return 3200;
   }
 
+  /// The change digest's own budget (KC2 slice 4), stepped the same way.
+  ///
+  /// The digest is what KC1 measured to move API-drift claims, so it gets more
+  /// room than the version list where the window allows; below 16k tokens it
+  /// is dropped entirely, before the toolchain line.
+  static int digestMaxCharsForUsableContext(int? usableContextTokens) {
+    if (usableContextTokens == null || usableContextTokens <= 0) {
+      return defaultMaxChars;
+    }
+    if (usableContextTokens < 16384) return 0;
+    if (usableContextTokens < 32768) return defaultMaxChars;
+    // The measured prototype carried ~3.8k characters for three hand-picked
+    // packages; generalized to every attested package it needs more, and a
+    // 64k window affords ~2.5k tokens (under 4%).
+    if (usableContextTokens < 65536) return 6000;
+    return 10000;
+  }
+
   static const heading =
       'Project toolchain and dependencies, read from this project\'s lockfile '
       'and installed packages. These are the versions installed here, not '
@@ -63,10 +82,14 @@ class EnvironmentGroundingContextBuilder {
   /// attest against. A missing or unreadable lockfile omits the block; it
   /// never falls back to a guessed version. [maxChars] overrides the
   /// builder's cap for this call.
-  String? build(String projectRootPath, {int? maxChars}) {
+  String? build(
+    String projectRootPath, {
+    int? maxChars,
+    int digestMaxChars = defaultMaxChars,
+  }) {
     final cap = maxChars ?? this.maxChars;
     final root = Directory(projectRootPath).absolute;
-    final key = '${_canonicalPath(root)}|$cap';
+    final key = '${_canonicalPath(root)}|$cap|$digestMaxChars';
     final cached = _cache[key];
     if (cached != null && cached.isFresh()) return cached.block;
 
@@ -82,6 +105,8 @@ class EnvironmentGroundingContextBuilder {
         final toolchain = _readToolchain(watched.last);
         if (toolchain.versionFile != null) watched.add(toolchain.versionFile!);
         block = _render(inventory, toolchain, cap);
+        final digest = _digest(inventory, toolchain, digestMaxChars);
+        if (digest != null) block = '$block\n$digest';
       }
     } on FileSystemException {
       block = null;
@@ -155,23 +180,52 @@ class EnvironmentGroundingContextBuilder {
     return render(kept, withheldLine);
   }
 
+  String? _digest(
+    DependencyInventory inventory,
+    _Toolchain toolchain,
+    int maxChars,
+  ) {
+    if (maxChars <= 0) return null;
+    final sdkRoot = toolchain.sdkRoot;
+    return ChangeDigestRenderer.render(
+      packages: [
+        for (final record in inventory.exact)
+          if (InstalledChangeDigest.packageChange(record) case final change?
+              when !change.isEmpty)
+            change,
+      ],
+      // Only an attested SDK speaks for its deprecations.
+      sdkDeprecations: toolchain.flutter == null || sdkRoot == null
+          ? const []
+          : InstalledChangeDigest.recentSdkDeprecations(
+              InstalledChangeDigest.flutterSourceRoots(sdkRoot),
+            ),
+      flutterVersion: toolchain.flutter,
+      maxChars: maxChars,
+    );
+  }
+
   _Toolchain _readToolchain(File packageConfig) {
     if (!packageConfig.existsSync()) return const _Toolchain();
     final config = jsonDecode(packageConfig.readAsStringSync());
     if (config is! Map<String, dynamic>) return const _Toolchain();
     final flutterRoot = config['flutterRoot'];
     if (flutterRoot is! String) return const _Toolchain();
+    final sdkUri = Uri.parse(
+      flutterRoot.endsWith('/') ? flutterRoot : '$flutterRoot/',
+    );
+    final sdkRoot = Directory.fromUri(
+      sdkUri,
+    ).path.replaceFirst(RegExp(r'/$'), '');
     final versionFile = File.fromUri(
-      Uri.parse(
-        flutterRoot.endsWith('/') ? flutterRoot : '$flutterRoot/',
-      ).resolve('bin/cache/flutter.version.json'),
+      sdkUri.resolve('bin/cache/flutter.version.json'),
     );
     if (!versionFile.existsSync()) {
-      return _Toolchain(versionFile: versionFile);
+      return _Toolchain(versionFile: versionFile, sdkRoot: sdkRoot);
     }
     final sdk = jsonDecode(versionFile.readAsStringSync());
     if (sdk is! Map<String, dynamic>) {
-      return _Toolchain(versionFile: versionFile);
+      return _Toolchain(versionFile: versionFile, sdkRoot: sdkRoot);
     }
     String? agreed(Object? resolvedWith, Object? installed) =>
         resolvedWith is String &&
@@ -183,6 +237,7 @@ class EnvironmentGroundingContextBuilder {
       flutter: agreed(config['flutterVersion'], sdk['frameworkVersion']),
       dart: agreed(config['generatorVersion'], sdk['dartSdkVersion']),
       versionFile: versionFile,
+      sdkRoot: sdkRoot,
     );
   }
 
@@ -205,11 +260,12 @@ class EnvironmentGroundingContextBuilder {
 }
 
 class _Toolchain {
-  const _Toolchain({this.flutter, this.dart, this.versionFile});
+  const _Toolchain({this.flutter, this.dart, this.versionFile, this.sdkRoot});
 
   final String? flutter;
   final String? dart;
   final File? versionFile;
+  final String? sdkRoot;
 }
 
 class _CachedBlock {
