@@ -37,13 +37,30 @@ final class Qwen38RequestPolicyClient extends http.BaseClient {
     final body = Map<String, dynamic>.from(decoded);
     final model = body['model'];
     if (model is! String) return;
-    final overrides = _policy.resolve(
+    final overrides = _policyFor(body).resolve(
       model: model,
       maxTokens: _asInt(body['max_tokens']),
       role: ModelUsageRole.current,
     );
     if (overrides == null) return;
     request.body = jsonEncode(overrides.applyTo(body));
+  }
+
+  /// The policy for the effort this request actually carries.
+  ///
+  /// The configured effort is fixed at construction, but the datasource drops
+  /// `reasoning_effort` when retrying after an HTTP 400. Resolving from the
+  /// configured value re-sent the rejected effort inside
+  /// `chat_template_kwargs`, where qwen3.8-27b-exl3's template raises
+  /// `Unexpected reasoning effort high` (it accepts only low, medium and
+  /// xhigh), so the retry failed identically and every turn at that effort
+  /// died. Following the wire value lets the retry fall back as intended.
+  Qwen38RequestThinkingPolicy _policyFor(Map<String, dynamic> body) {
+    if (_policy.reasoningEffort == null) return _policy;
+    final wireEffort = body['reasoning_effort'];
+    return _policy.withReasoningEffort(
+      wireEffort is String ? wireEffort : null,
+    );
   }
 
   /// Records the exact post-policy control request immediately before send.

@@ -56,6 +56,7 @@ void _runQwen38RequestPolicyClient() {
           ..body = jsonEncode({
             'model': ApiConstants.qwen38VisionModel,
             'max_tokens': 1200,
+            'reasoning_effort': 'medium',
           });
 
     await role.runWith(() => client.send(request));
@@ -85,4 +86,46 @@ void _runQwen38RequestPolicyClient() {
       Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens,
     );
   });
+
+  Future<Map<String, dynamic>> sendEffortRequest(String? wireEffort) async {
+    final delegate = _RecordingClient();
+    final client = Qwen38RequestPolicyClient(
+      delegate: delegate,
+      policy: const Qwen38RequestThinkingPolicy(reasoningEffort: 'high'),
+    );
+    final request =
+        http.Request(
+            'POST',
+            Uri.parse('http://192.168.100.241:1234/v1/chat/completions'),
+          )
+          ..body = jsonEncode({
+            'model': 'qwen3.8-27b-exl3',
+            'reasoning_effort': ?wireEffort,
+          });
+    await client.send(request);
+    client.close();
+    return jsonDecode(delegate.sentBody!) as Map<String, dynamic>;
+  }
+
+  test('the template effort follows the effort the request carries', () async {
+    final body = await sendEffortRequest('high');
+
+    expect((body['chat_template_kwargs'] as Map)['reasoning_effort'], 'high');
+  });
+
+  test(
+    'a retry without reasoning_effort drops it from the template too',
+    () async {
+      // qwen3.8-27b-exl3's template 400s on `high`. The datasource retries
+      // without the top-level field; had the kwargs kept the configured
+      // effort, the retry would have been rejected identically.
+      final body = await sendEffortRequest(null);
+
+      expect(
+        (body['chat_template_kwargs'] as Map).containsKey('reasoning_effort'),
+        isFalse,
+      );
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    },
+  );
 }

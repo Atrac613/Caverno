@@ -53,6 +53,14 @@ final class Qwen38RequestThinkingPolicy {
 
   final String? reasoningEffort;
 
+  /// This policy with [reasoningEffort] replaced by [value].
+  Qwen38RequestThinkingPolicy withReasoningEffort(String? value) =>
+      Qwen38RequestThinkingPolicy(
+        reasoningEffort: value,
+        enableThinking: enableThinking,
+        acceptsChatTemplateKwargs: acceptsChatTemplateKwargs,
+      );
+
   /// Null preserves the model-specific automatic behavior.
   final bool? enableThinking;
 
@@ -161,6 +169,14 @@ final class Qwen38RequestThinkingPolicy {
         chatTemplateKwargs: const {
           'enable_thinking': true,
           'reasoning_effort': 'high',
+        },
+        includeTopLevelEnableThinking: isExl3Model(model),
+      ),
+      'xhigh' => Qwen38RequestOverrides(
+        maxTokens: _atLeastMediumBudget(maxTokens),
+        chatTemplateKwargs: const {
+          'enable_thinking': true,
+          'reasoning_effort': 'xhigh',
         },
         includeTopLevelEnableThinking: isExl3Model(model),
       ),
