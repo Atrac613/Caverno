@@ -199,10 +199,18 @@ equality) moved to `live_llm_diagnostic_response_scoring.dart`. The service
 keeps `matchedChartAnswers` and `chartValueTolerance` as forwarding members,
 so its public surface is unchanged. The service fell from 4,843 to 4,688
 lines; the 83-line scoring module reached 100.00% coverage (83/83), and the
-service is at 87.40% (1,387/1,587) under its own tests. Next candidates in
-the same file are the probe families that share no state with the rest (the
-vision probes, the sampler-calibration trials), each behind the service's
-request port.
+service is at 87.40% (1,387/1,587) under its own tests.
+
+The second slice moved the four sampler-calibration trials (tool loop,
+routine, coding, plan) into `live_llm_sampler_calibration_trials.dart`,
+behind a completion port the service binds to its model, token cap, and
+thinking observer; deciding which trials run and folding them into the report
+stays with the service. The two pure helpers the trials shared with the rest
+(`toolCallsFrom`, `looksRepetitive`) joined the response scoring module. The
+service fell from 4,688 to 4,470 lines and its budget was lowered to match;
+the 216-line trials module and the scoring module are both at 100.00% coverage
+(70/70 and 108/108), and the service is at 87.58% (1,312/1,498). The vision
+probes are the next self-contained family.
 
 
 ## Refactor Rules

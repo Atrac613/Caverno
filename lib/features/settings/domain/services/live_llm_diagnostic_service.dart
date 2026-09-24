@@ -27,10 +27,10 @@ import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_chart_probe_image.dart';
 import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
+import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_tool_depth_staircase.dart';
 import 'live_llm_tool_recovery_cases.dart';
 import 'llm_provider_capabilities.dart';
-import 'llm_sampler_preset_profile.dart';
 
 typedef LiveLlmDiagnosticReportCallback =
     void Function(LiveLlmDiagnosticReport report);
@@ -70,6 +70,17 @@ class LiveLlmDiagnosticService {
   /// [_thinking]. [chatDataSource] stays the datasource itself, because probes
   /// type-test it for opt-in capabilities a wrapper would hide.
   late final _chat = _ObservedChatCalls(chatDataSource, _thinking);
+  late final _samplerTrials = LiveLlmSamplerCalibrationTrials(
+    complete: ({required messages, tools, required temperature}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          tools: tools,
+          model: _diagnosticModel,
+          temperature: temperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    messages: (user) => _messages(user: user),
+  );
 
   static const probeDefinitions = <LiveLlmDiagnosticProbeDefinition>[
     LiveLlmDiagnosticProbeDefinition(
@@ -360,17 +371,6 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
   static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
-  static const _routineSamplerMarker = 'CAVERNO_ROUTINE_SAMPLER_OK';
-  static const _codingSamplerMarker = 'CAVERNO_CODING_SAMPLER_OK';
-  static const _planSamplerMarker = 'CAVERNO_PLAN_SAMPLER_OK';
-  static const _codingSamplerEditBlock = <String>[
-    '<<<<<<< SEARCH',
-    'return oldValue;',
-    '=======',
-    'return newValue;',
-    '>>>>>>> REPLACE',
-  ];
-  static const _planSamplerTasks = <String>['inspect', 'edit', 'verify'];
   static const _exactDirectEchoValue = '12 GiB, \u00a53,980';
   static const _exactToolResultValue = 'ZX-900_\u03b1 2026-06-12';
   static const _exactUrlValue =
@@ -3172,7 +3172,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final toolCalls = _toolCallsFromResult(result);
+    final toolCalls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = toolCalls.map((call) => call.name).toList(growable: false);
     if (toolCalls.any((call) => call.name == 'get_current_datetime')) {
       return LiveLlmDiagnosticProbeResult(
@@ -3211,7 +3211,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = _toolCallsFromResult(result);
+    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = calls.map((call) => call.name).toList(growable: false);
     final argumentValidationError =
         calls.length == 1 && calls.single.name == 'update_goal'
@@ -3315,7 +3315,7 @@ class LiveLlmDiagnosticService {
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
       for (final temperature in _samplerCalibrationTemperatures) {
         trials.add(
-          await _runToolLoopSamplerCalibrationTrial(
+          await _samplerTrials.toolLoop(
             dateTool: dateTool,
             temperature: temperature,
           ),
@@ -3336,43 +3336,6 @@ class LiveLlmDiagnosticService {
     return updated;
   }
 
-  Future<LiveLlmDiagnosticSamplerTrial> _runToolLoopSamplerCalibrationTrial({
-    required Map<String, dynamic> dateTool,
-    required double temperature,
-  }) async {
-    try {
-      final result = await _chat.createChatCompletion(
-        messages: _messages(
-          user:
-              'Call the get_current_datetime tool now. Do not answer in text '
-              'before using the tool.',
-        ),
-        tools: [dateTool],
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final toolCalls = _toolCallsFromResult(result);
-      final passed = toolCalls.any(
-        (call) => call.name == 'get_current_datetime',
-      );
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.toolLoop.metadataName,
-        temperature: temperature,
-        passed: passed,
-        malformedToolCallCount: passed ? 0 : 1,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.toolLoop.metadataName,
-        temperature: temperature,
-        passed: false,
-        malformedToolCallCount: 1,
-      );
-    }
-  }
-
   Future<LiveLlmDiagnosticReport> _appendRoutineSamplerCalibrationTrials({
     required LiveLlmDiagnosticReport report,
     required LlmProviderCapabilities capabilities,
@@ -3390,9 +3353,7 @@ class LiveLlmDiagnosticService {
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
       for (final temperature in _samplerCalibrationTemperatures) {
-        trials.add(
-          await _runRoutineSamplerCalibrationTrial(temperature: temperature),
-        );
+        trials.add(await _samplerTrials.routine(temperature: temperature));
       }
     }
     // The first trials can be what teaches the endpoint's 400 to the fallback,
@@ -3409,47 +3370,6 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<LiveLlmDiagnosticSamplerTrial> _runRoutineSamplerCalibrationTrial({
-    required double temperature,
-  }) async {
-    try {
-      final result = await _chat.createChatCompletion(
-        messages: _messages(
-          user:
-              'Return exactly this routine sampler JSON object and no markdown:\n'
-              '{"routine":"sampler_calibration","status":"ok","marker":"$_routineSamplerMarker","nextAction":"post_summary"}',
-        ),
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final content = result.content.trim();
-      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
-      final passed =
-          decoded?['routine'] == 'sampler_calibration' &&
-          decoded?['status'] == 'ok' &&
-          decoded?['marker'] == _routineSamplerMarker &&
-          decoded?['nextAction'] == 'post_summary';
-      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
-      final hasMarker = content.contains(_routineSamplerMarker);
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.routine.metadataName,
-        temperature: temperature,
-        passed: passed && !hasUnexpectedToolCalls,
-        jsonRepairEventCount: !passed && hasMarker ? 1 : 0,
-        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.routine.metadataName,
-        temperature: temperature,
-        passed: false,
-        jsonRepairEventCount: 1,
-      );
-    }
   }
 
   Future<LiveLlmDiagnosticReport> _appendCodingPlanSamplerCalibrationTrials({
@@ -3469,12 +3389,8 @@ class LiveLlmDiagnosticService {
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
       for (final temperature in _samplerCalibrationTemperatures) {
-        trials.add(
-          await _runCodingSamplerCalibrationTrial(temperature: temperature),
-        );
-        trials.add(
-          await _runPlanSamplerCalibrationTrial(temperature: temperature),
-        );
+        trials.add(await _samplerTrials.coding(temperature: temperature));
+        trials.add(await _samplerTrials.plan(temperature: temperature));
       }
     }
     if (_temperatureSweepIsMeaningless) {
@@ -3489,97 +3405,6 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<LiveLlmDiagnosticSamplerTrial> _runCodingSamplerCalibrationTrial({
-    required double temperature,
-  }) async {
-    try {
-      final result = await _chat.createChatCompletion(
-        messages: _messages(
-          user:
-              'Return exactly this coding sampler JSON object and no markdown:\n'
-              '{"coding":"sampler_calibration","status":"ok","marker":"$_codingSamplerMarker","edit":["<<<<<<< SEARCH","return oldValue;","=======","return newValue;",">>>>>>> REPLACE"]}',
-        ),
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final content = result.content.trim();
-      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
-      final editBlockMatches = LiveLlmResponseScoring.stringListEquals(
-        decoded?['edit'],
-        _codingSamplerEditBlock,
-      );
-      final hasCodingEnvelope =
-          decoded?['coding'] == 'sampler_calibration' &&
-          decoded?['marker'] == _codingSamplerMarker;
-      final passed =
-          hasCodingEnvelope && decoded?['status'] == 'ok' && editBlockMatches;
-      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
-      final hasMarker = content.contains(_codingSamplerMarker);
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.coding.metadataName,
-        temperature: temperature,
-        passed: passed && !hasUnexpectedToolCalls,
-        jsonRepairEventCount: decoded == null && hasMarker ? 1 : 0,
-        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
-        editApplyFailureCount: hasCodingEnvelope && !editBlockMatches ? 1 : 0,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.coding.metadataName,
-        temperature: temperature,
-        passed: false,
-        jsonRepairEventCount: 1,
-        editApplyFailureCount: 1,
-      );
-    }
-  }
-
-  Future<LiveLlmDiagnosticSamplerTrial> _runPlanSamplerCalibrationTrial({
-    required double temperature,
-  }) async {
-    try {
-      final result = await _chat.createChatCompletion(
-        messages: _messages(
-          user:
-              'Return exactly this plan sampler JSON object and no markdown:\n'
-              '{"plan":"sampler_calibration","status":"ok","marker":"$_planSamplerMarker","tasks":["inspect","edit","verify"]}',
-        ),
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final content = result.content.trim();
-      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
-      final passed =
-          decoded?['plan'] == 'sampler_calibration' &&
-          decoded?['status'] == 'ok' &&
-          decoded?['marker'] == _planSamplerMarker &&
-          LiveLlmResponseScoring.stringListEquals(
-            decoded?['tasks'],
-            _planSamplerTasks,
-          );
-      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
-      final hasMarker = content.contains(_planSamplerMarker);
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.plan.metadataName,
-        temperature: temperature,
-        passed: passed && !hasUnexpectedToolCalls,
-        jsonRepairEventCount: decoded == null && hasMarker ? 1 : 0,
-        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.plan.metadataName,
-        temperature: temperature,
-        passed: false,
-        jsonRepairEventCount: 1,
-      );
-    }
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runToolResultProbe(
@@ -3605,7 +3430,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final firstToolCalls = _toolCallsFromResult(firstResult);
+    final firstToolCalls = LiveLlmResponseScoring.toolCallsFrom(firstResult);
     final call = firstToolCalls
         .where((item) => item.name == 'get_current_datetime')
         .firstOrNull;
@@ -3663,7 +3488,7 @@ class LiveLlmDiagnosticService {
       maxTokens: _diagnosticMaxTokens,
     );
     final content = followUp.content.trim();
-    final followUpCalls = _toolCallsFromResult(followUp);
+    final followUpCalls = LiveLlmResponseScoring.toolCallsFrom(followUp);
     final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
     final markerOk =
         decoded?['marker'] == _toolResultMarker ||
@@ -3820,7 +3645,7 @@ class LiveLlmDiagnosticService {
       maxTokens: _diagnosticMaxTokens,
     );
     modelResults.add(searchRequest);
-    final searchCalls = _toolCallsFromResult(searchRequest);
+    final searchCalls = LiveLlmResponseScoring.toolCallsFrom(searchRequest);
     toolCallCount += searchCalls.length;
     observedToolNames.addAll(searchCalls.map((call) => call.name));
     // Judged by name, not by count. `tool_search` is the only tool attached
@@ -3892,7 +3717,7 @@ class LiveLlmDiagnosticService {
       maxTokens: _diagnosticMaxTokens,
     );
     modelResults.add(dateRequest);
-    final dateCalls = _toolCallsFromResult(dateRequest);
+    final dateCalls = LiveLlmResponseScoring.toolCallsFrom(dateRequest);
     toolCallCount += dateCalls.length;
     observedToolNames.addAll(dateCalls.map((call) => call.name));
     // Same rule as the first turn. Both tools are attached by now, so a call
@@ -3941,7 +3766,7 @@ class LiveLlmDiagnosticService {
       maxTokens: _diagnosticMaxTokens,
     );
     modelResults.add(finalRequest);
-    final finalCalls = _toolCallsFromResult(finalRequest);
+    final finalCalls = LiveLlmResponseScoring.toolCallsFrom(finalRequest);
     toolCallCount += finalCalls.length;
     observedToolNames.addAll(finalCalls.map((call) => call.name));
 
@@ -4004,7 +3829,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final names = _toolCallsFromResult(
+    final names = LiveLlmResponseScoring.toolCallsFrom(
       result,
     ).map((call) => call.name).toList(growable: false);
     if (names.contains('get_current_datetime')) {
@@ -4067,7 +3892,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = _toolCallsFromResult(result);
+    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = calls.map((call) => call.name).toList(growable: false);
     final searchCall = calls
         .where((call) => call.name == ToolDefinitionSearchService.toolName)
@@ -4137,7 +3962,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = _toolCallsFromResult(result);
+    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = calls.map((call) => call.name).toList(growable: false);
     final spawnCall = calls
         .where((call) => call.name == 'spawn_subagent')
@@ -4280,22 +4105,6 @@ class LiveLlmDiagnosticService {
     return _singleTool(definitions, name) != null;
   }
 
-  List<ToolCallInfo> _toolCallsFromResult(ChatCompletionResult result) {
-    final nativeCalls = result.toolCalls;
-    if (nativeCalls != null && nativeCalls.isNotEmpty) {
-      return nativeCalls;
-    }
-    return ContentParser.extractCompletedToolCalls(result.content)
-        .map(
-          (toolCall) => ToolCallInfo(
-            id: toolCall.occurrenceId ?? 'text-${toolCall.name}',
-            name: toolCall.name,
-            arguments: toolCall.arguments,
-          ),
-        )
-        .toList(growable: false);
-  }
-
   List<String> _toolNamesFromDefinitions(
     Iterable<Map<String, dynamic>> definitions,
   ) {
@@ -4385,33 +4194,6 @@ class LiveLlmDiagnosticService {
       return trimmed;
     }
     return '${trimmed.substring(0, maxChars)}...';
-  }
-
-  bool _looksRepetitive(String value) {
-    final normalized = value
-        .toLowerCase()
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (normalized.length < 24) {
-      return false;
-    }
-    final words = normalized
-        .split(' ')
-        .where((word) => word.isNotEmpty)
-        .toList(growable: false);
-    if (words.length < 8) {
-      return false;
-    }
-    final windowCounts = <String, int>{};
-    for (var index = 0; index <= words.length - 4; index += 1) {
-      final window = words.sublist(index, index + 4).join(' ');
-      final count = (windowCounts[window] ?? 0) + 1;
-      if (count >= 3) {
-        return true;
-      }
-      windowCounts[window] = count;
-    }
-    return false;
   }
 }
 
