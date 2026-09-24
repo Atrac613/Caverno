@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'dependency_inventory.dart';
 import 'installed_change_digest.dart';
+import 'project_import_census.dart';
+import 'pub_dependency_resolver.dart';
 
 /// KC2 slice 2: the environment and dependency ground-truth block.
 ///
@@ -77,19 +79,32 @@ class EnvironmentGroundingContextBuilder {
   final DependencyInventory? Function(Directory projectRoot) _collect;
   final int maxChars;
   final Map<String, _CachedBlock> _cache = {};
+  final ProjectImportCensus _imports = ProjectImportCensus();
+  final Map<String, (String, Set<String>)> _directNames = {};
 
   /// The block for [projectRootPath], or null when there is no lockfile to
   /// attest against. A missing or unreadable lockfile omits the block; it
   /// never falls back to a guessed version. [maxChars] overrides the
   /// builder's cap for this call.
+  ///
+  /// [mostImported] lists only the direct dependencies imported by the most
+  /// files under `lib/` (ties by name), in name order, and restricts the
+  /// digest to them. The selection is part of the cache key, so the bytes
+  /// change only when its membership does, not on every edit.
   String? build(
     String projectRootPath, {
     int? maxChars,
     int digestMaxChars = defaultMaxChars,
+    int? mostImported,
   }) {
     final cap = maxChars ?? this.maxChars;
     final root = Directory(projectRootPath).absolute;
-    final key = '${_canonicalPath(root)}|$cap|$digestMaxChars';
+    final selected = mostImported == null
+        ? null
+        : _mostImported(root, mostImported);
+    final key =
+        '${_canonicalPath(root)}|$cap|$digestMaxChars|'
+        '${selected == null ? '*' : (selected.toList()..sort()).join(',')}';
     final cached = _cache[key];
     if (cached != null && cached.isFresh()) return cached.block;
 
@@ -104,8 +119,22 @@ class EnvironmentGroundingContextBuilder {
       if (inventory != null) {
         final toolchain = _readToolchain(watched.last);
         if (toolchain.versionFile != null) watched.add(toolchain.versionFile!);
-        block = _render(inventory, toolchain, cap);
-        final digest = _digest(inventory, toolchain, digestMaxChars);
+        final shown = selected == null
+            ? inventory
+            : DependencyInventory(
+                projectRoot: inventory.projectRoot,
+                records: [
+                  for (final record in inventory.records)
+                    if (selected.contains(record.name)) record,
+                ],
+              );
+        block = _render(
+          shown,
+          toolchain,
+          cap,
+          unselected: inventory.records.length - shown.records.length,
+        );
+        final digest = _digest(shown, toolchain, digestMaxChars);
         if (digest != null) block = '$block\n$digest';
       }
     } on FileSystemException {
@@ -117,11 +146,41 @@ class EnvironmentGroundingContextBuilder {
     return block;
   }
 
+  /// The [count] direct dependencies most imported under `lib/`.
+  Set<String> _mostImported(Directory root, int count) {
+    final lockfile = File.fromUri(root.uri.resolve('pubspec.lock'));
+    if (!lockfile.existsSync()) return const {};
+    final stat = lockfile.statSync();
+    final stamp = '${stat.size}:${stat.modified.microsecondsSinceEpoch}';
+    var direct = _directNames[lockfile.path];
+    if (direct == null || direct.$1 != stamp) {
+      direct = (
+        stamp,
+        {
+          for (final package in PubDependencyResolver.parseLockfile(lockfile))
+            if (package.isDirect && package.source != 'sdk') package.name,
+        },
+      );
+      _directNames[lockfile.path] = direct;
+    }
+    final counts = _imports.count(root.path);
+    final ranked =
+        [
+          for (final name in direct.$2)
+            if ((counts[name] ?? 0) > 0) name,
+        ]..sort((a, b) {
+          final byCount = counts[b]!.compareTo(counts[a]!);
+          return byCount != 0 ? byCount : a.compareTo(b);
+        });
+    return ranked.take(count).toSet();
+  }
+
   String _render(
     DependencyInventory inventory,
     _Toolchain toolchain,
-    int maxChars,
-  ) {
+    int maxChars, {
+    int unselected = 0,
+  }) {
     final main = <String>[];
     final dev = <String>[];
     final withheld = <String>[];
@@ -163,6 +222,12 @@ class EnvironmentGroundingContextBuilder {
       final omitted = ordered.length - kept;
       if (omitted > 0) {
         buffer.write('\n- ($omitted more direct dependencies not listed)');
+      }
+      if (unselected > 0) {
+        buffer.write(
+          '\n- ($unselected more direct dependencies, imported by fewer of '
+          'this project\'s files, not listed)',
+        );
       }
       buffer.write(withheldPart);
       return buffer.toString();

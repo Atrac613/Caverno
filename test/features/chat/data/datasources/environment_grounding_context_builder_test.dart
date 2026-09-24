@@ -255,6 +255,93 @@ void main() {
     );
   });
 
+  group('most-imported selection', () {
+    void imports(Map<String, int> counts) {
+      final lib = Directory.fromUri(app.uri.resolve('lib/'));
+      if (lib.existsSync()) lib.deleteSync(recursive: true);
+      var file = 0;
+      counts.forEach((package, files) {
+        for (var i = 0; i < files; i++) {
+          File.fromUri(lib.uri.resolve('f${file++}.dart'))
+            ..createSync(recursive: true)
+            ..writeAsStringSync("import 'package:$package/$package.dart';\n");
+        }
+      });
+    }
+
+    setUp(() {
+      project(
+        packages: {
+          'alpha': ('1.0.0', '1.0.0', 'direct main'),
+          'beta': ('1.0.0', '1.0.0', 'direct main'),
+          'gamma': ('1.0.0', '1.0.0', 'direct main'),
+          'unused': ('1.0.0', '1.0.0', 'direct main'),
+        },
+      );
+    });
+
+    test('lists the most imported, in name order, and says what it left', () {
+      imports({'gamma': 5, 'alpha': 1, 'beta': 3});
+      final block = EnvironmentGroundingContextBuilder().build(
+        app.path,
+        digestMaxChars: 0,
+        mostImported: 2,
+      )!;
+      expect(block, contains('- Dependencies: beta 1.0.0, gamma 1.0.0\n'));
+      expect(block, isNot(contains('alpha')));
+      expect(block, isNot(contains('unused')));
+      expect(
+        block,
+        contains(
+          '(2 more direct dependencies, imported by fewer of this '
+          "project's files, not listed)",
+        ),
+      );
+    });
+
+    test(
+      'ties break by name, and a package nobody imports is never chosen',
+      () {
+        imports({'beta': 2, 'alpha': 2});
+        final block = EnvironmentGroundingContextBuilder().build(
+          app.path,
+          digestMaxChars: 0,
+          mostImported: 3,
+        )!;
+        expect(block, contains('- Dependencies: alpha 1.0.0, beta 1.0.0\n'));
+      },
+    );
+
+    test('an edit that keeps the membership keeps the bytes and the cache', () {
+      imports({'gamma': 5, 'beta': 3, 'alpha': 1});
+      var collected = 0;
+      final builder = EnvironmentGroundingContextBuilder(
+        collect: (dir) {
+          collected++;
+          return const DependencyInventoryService().collect(dir);
+        },
+      );
+      final before = builder.build(
+        app.path,
+        digestMaxChars: 0,
+        mostImported: 2,
+      );
+      imports({'gamma': 6, 'beta': 4, 'alpha': 1});
+      final same = builder.build(app.path, digestMaxChars: 0, mostImported: 2);
+      expect(same, before);
+      expect(collected, 1);
+
+      imports({'alpha': 9, 'gamma': 5, 'beta': 1});
+      final changed = builder.build(
+        app.path,
+        digestMaxChars: 0,
+        mostImported: 2,
+      )!;
+      expect(changed, contains('alpha 1.0.0, gamma 1.0.0'));
+      expect(collected, 2);
+    });
+  });
+
   test('this repository fits the budget and names its resolved SDK', () {
     final config =
         jsonDecode(File('.dart_tool/package_config.json').readAsStringSync())
