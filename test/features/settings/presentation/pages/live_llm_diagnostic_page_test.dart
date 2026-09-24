@@ -108,6 +108,80 @@ void main() {
     expect(find.text('Diagnostic History'), findsOneWidget);
   });
 
+  testWidgets('picks the thinking mode and effort for the next run', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(model: 'qwen3.8-27b-exl3');
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(settings),
+        ),
+        liveLlmDiagnosticNotifierProvider.overrideWith(
+          () => _FixedLiveLlmDiagnosticNotifier(const LiveLlmDiagnosticState()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpPageWithContainer(tester, container);
+
+    // Qwen3.8 thinking defaults to medium effort.
+    expect(find.text('Default (Medium)'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-thinking-uncontrollable')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('live-llm-diag-thinking-mode')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Off').last);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(liveLlmDiagnosticNotifierProvider).thinkingMode,
+      LiveLlmDiagnosticThinkingMode.off,
+    );
+    expect(find.text('Default (API default)'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('live-llm-diag-reasoning-effort')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('High').last);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(liveLlmDiagnosticNotifierProvider).reasoningEffort,
+      ReasoningEffortPreference.high,
+    );
+  });
+
+  testWidgets('explains why thinking is fixed on an uncontrollable endpoint', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(model: 'gpt-5.6-luna');
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(settings),
+        ),
+        liveLlmDiagnosticNotifierProvider.overrideWith(
+          () => _FixedLiveLlmDiagnosticNotifier(const LiveLlmDiagnosticState()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpPageWithContainer(tester, container);
+
+    expect(
+      find.byKey(const ValueKey('live-llm-diag-thinking-uncontrollable')),
+      findsOneWidget,
+    );
+    // Disabled: both modes would send the same request.
+    final field = tester.widget<DropdownButtonFormField<Object?>>(
+      find.byKey(const ValueKey('live-llm-diag-thinking-mode')),
+    );
+    expect(field.onChanged, isNull);
+  });
+
   testWidgets('keeps a saved run labelled with the model that produced it', (
     tester,
   ) async {
@@ -179,6 +253,10 @@ void main() {
       reason: 'the list must name the model each run measured',
     );
 
+    // Twice: the lazy ListView underestimates its extent until the later
+    // children lay out, so the first call can stop short of the card.
+    await tester.ensureVisible(pastCard);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(pastCard);
     await tester.tap(
       find.descendant(of: pastCard, matching: find.byType(ListTile)),

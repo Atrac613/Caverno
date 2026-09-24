@@ -1,3 +1,5 @@
+import 'app_settings.dart';
+
 enum LiveLlmDiagnosticStatus {
   pending,
   running,
@@ -493,6 +495,7 @@ class LiveLlmDiagnosticToolDepthMetrics {
 class LiveLlmDiagnosticThinkingMetrics {
   const LiveLlmDiagnosticThinkingMetrics({
     this.requested,
+    this.requestedEffort,
     required this.responseCount,
     required this.reasoningResponseCount,
     required this.reasoningChars,
@@ -501,6 +504,11 @@ class LiveLlmDiagnosticThinkingMetrics {
   /// The `enable_thinking` value the requests carried, or null when the
   /// request left thinking to the server default.
   final bool? requested;
+
+  /// The `reasoning_effort` the requests carried (`low`, `medium`, `high`), or
+  /// null when none was sent. Recorded because the page lets the person pick
+  /// it, and two runs at different efforts are not the same measurement.
+  final String? requestedEffort;
 
   /// Model responses the probes received.
   final int responseCount;
@@ -521,6 +529,7 @@ class LiveLlmDiagnosticThinkingMetrics {
 
   Map<String, dynamic> toJson() => {
     if (requested != null) 'requested': requested,
+    if (requestedEffort != null) 'requestedEffort': requestedEffort,
     'responseCount': responseCount,
     'reasoningResponseCount': reasoningResponseCount,
     'reasoningChars': reasoningChars,
@@ -788,18 +797,30 @@ class LiveLlmDiagnosticSamplerTrialSummary {
   int _positiveCount(int value) => value < 0 ? 0 : value;
 }
 
+/// Which thinking mode a diagnostic run measures in.
+enum LiveLlmDiagnosticThinkingMode { on, off }
+
 class LiveLlmDiagnosticState {
   const LiveLlmDiagnosticState({
     this.isRunning = false,
     this.report,
     this.history = const <LiveLlmDiagnosticReport>[],
     this.error,
+    this.thinkingMode = LiveLlmDiagnosticThinkingMode.on,
+    this.reasoningEffort,
   });
 
   final bool isRunning;
   final LiveLlmDiagnosticReport? report;
   final List<LiveLlmDiagnosticReport> history;
   final String? error;
+
+  /// The thinking mode the next run measures in.
+  final LiveLlmDiagnosticThinkingMode thinkingMode;
+
+  /// The effort the next run sends, or null for the request shape's default
+  /// for [thinkingMode] and the configured model.
+  final ReasoningEffortPreference? reasoningEffort;
 
   static const initial = LiveLlmDiagnosticState();
 
@@ -809,12 +830,19 @@ class LiveLlmDiagnosticState {
     List<LiveLlmDiagnosticReport>? history,
     String? error,
     bool clearError = false,
+    LiveLlmDiagnosticThinkingMode? thinkingMode,
+    ReasoningEffortPreference? reasoningEffort,
+    bool clearReasoningEffort = false,
   }) {
     return LiveLlmDiagnosticState(
       isRunning: isRunning ?? this.isRunning,
       report: report ?? this.report,
       history: history ?? this.history,
       error: clearError ? null : error ?? this.error,
+      thinkingMode: thinkingMode ?? this.thinkingMode,
+      reasoningEffort: clearReasoningEffort
+          ? null
+          : reasoningEffort ?? this.reasoningEffort,
     );
   }
 }

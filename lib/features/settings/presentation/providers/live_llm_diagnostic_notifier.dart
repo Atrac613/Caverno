@@ -16,13 +16,20 @@ import 'settings_notifier.dart';
 /// Builds the diagnostic service on its own datasource, with the reasoning
 /// controls pinned by [LiveLlmDiagnosticRequestShape] instead of inherited from
 /// the chat composer. See that class for why.
+///
+/// [thinkingMode] and [effort] are the diagnostic page's own picks; the
+/// defaults reproduce the pinned shape the auto-probe measures in.
 LiveLlmDiagnosticService createLiveLlmDiagnosticService(
   Ref ref,
-  AppSettings settings,
-) {
+  AppSettings settings, {
+  LiveLlmDiagnosticThinkingMode thinkingMode =
+      LiveLlmDiagnosticRequestShape.defaultMode,
+  ReasoningEffortPreference? effort,
+}) {
   final diagnosticSettings = LiveLlmDiagnosticRequestShape.settingsFor(
     settings,
-    LiveLlmDiagnosticRequestShape.defaultMode,
+    thinkingMode,
+    effort: effort,
   );
   if (settings.llmProvider == LlmProvider.appleFoundationModels) {
     return LiveLlmDiagnosticService(
@@ -37,7 +44,7 @@ LiveLlmDiagnosticService createLiveLlmDiagnosticService(
     chatDataSource: createDataSource(diagnosticSettings),
     mcpToolService: ref.read(mcpToolServiceProvider),
     thinkingModeDataSource: (mode) => createDataSource(
-      LiveLlmDiagnosticRequestShape.settingsFor(settings, mode),
+      LiveLlmDiagnosticRequestShape.settingsFor(settings, mode, effort: effort),
     ),
   );
 }
@@ -64,11 +71,28 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
     );
   }
 
+  void setThinkingMode(LiveLlmDiagnosticThinkingMode mode) {
+    state = state.copyWith(thinkingMode: mode);
+  }
+
+  /// Null restores the request shape's default effort.
+  void setReasoningEffort(ReasoningEffortPreference? effort) {
+    state = state.copyWith(
+      reasoningEffort: effort,
+      clearReasoningEffort: effort == null,
+    );
+  }
+
   Future<void> run() async {
     final generation = ++_generation;
     state = state.copyWith(isRunning: true, clearError: true);
     final settings = ref.read(settingsNotifierProvider);
-    final service = createLiveLlmDiagnosticService(ref, settings);
+    final service = createLiveLlmDiagnosticService(
+      ref,
+      settings,
+      thinkingMode: state.thinkingMode,
+      effort: state.reasoningEffort,
+    );
 
     try {
       final report = await service.run(

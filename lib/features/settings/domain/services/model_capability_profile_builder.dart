@@ -82,6 +82,7 @@ class ModelCapabilityProfileBuilder {
           ?.toString(),
       'diagnosticThinkingObserved': ?report.thinkingMetrics?.observed
           .toString(),
+      'diagnosticReasoningEffort': ?report.thinkingMetrics?.requestedEffort,
       'thinkingControl': ?_result(
         report,
         'thinking_control',

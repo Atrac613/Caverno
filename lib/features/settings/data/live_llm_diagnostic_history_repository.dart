@@ -123,6 +123,7 @@ LiveLlmDiagnosticThinkingMetrics _thinkingMetricsFromJson(
 ) {
   return LiveLlmDiagnosticThinkingMetrics(
     requested: json['requested'] as bool?,
+    requestedEffort: json['requestedEffort'] as String?,
     responseCount: _int(json['responseCount']),
     reasoningResponseCount: _int(json['reasoningResponseCount']),
     reasoningChars: _int(json['reasoningChars']),
