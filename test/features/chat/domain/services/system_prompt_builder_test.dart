@@ -57,6 +57,35 @@ void main() {
     );
   });
 
+  test('places the KC2 environment block right after the datetime anchor', () {
+    const block =
+        'Project toolchain and dependencies, read from this project\'s '
+        'lockfile and installed packages.\n- Flutter SDK 3.47.4';
+    String build(String? environment) => SystemPromptBuilder.build(
+      now: DateTime.utc(2026, 9, 24, 1),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      projectRootPath: '/workspace/caverno',
+      environmentGroundingContext: environment,
+      sessionMemoryContext: 'Morning memory.',
+    );
+
+    final withBlock = build(block);
+    final datetime = withBlock.indexOf('Current local date and time');
+    final environment = withBlock.indexOf(block);
+    final memory = withBlock.indexOf('Morning memory.');
+    expect(datetime, isNonNegative);
+    expect(environment, greaterThan(datetime));
+    expect(memory, greaterThan(environment));
+    expect(
+      withBlock.substring(0, datetime),
+      build(null).substring(0, datetime),
+      reason: 'the block must stay out of the LL6/LL22 stable prefix',
+    );
+    expect(build(null), isNot(contains('Project toolchain')));
+    expect(build('   '), build(null));
+  });
+
   test('includes selected project context in coding mode prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),

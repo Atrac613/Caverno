@@ -244,6 +244,7 @@ import 'model_edit_apply_telemetry_runtime_adapter.dart';
 import 'participant_turn_control_registry.dart';
 import 'pending_approval_resolution.dart';
 import 'primary_turn_route_runtime.dart';
+import 'project_prompt_context_source.dart';
 import 'prompt_token_budget_coordinator.dart';
 import 'python_script_approval_cache_runtime_adapter.dart';
 import 'repo_map_precompute_cache_provider.dart';

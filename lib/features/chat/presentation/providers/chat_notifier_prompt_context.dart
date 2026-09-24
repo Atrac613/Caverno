@@ -84,6 +84,10 @@ extension ChatNotifierPromptContext on ChatNotifier {
       executionSnapshot,
       ownerSnapshot,
     );
+    final capability = _primaryCapabilityProfileForGeneration(
+      ownerSnapshot?.owner.interactionGeneration,
+    );
+    final projectContext = ref.read(projectPromptContextSourceProvider);
     final content = SystemPromptBuilder.build(
       now: now,
       assistantMode: resolvedAssistantMode,
@@ -93,10 +97,15 @@ extension ChatNotifierPromptContext on ChatNotifier {
       participantRolePrompt: participantRolePrompt,
       projectName: activeCodingProject?.name,
       projectRootPath: projectRoot,
-      repoMapContext: _repoMap(
+      repoMapContext: projectContext.repoMap(
         resolvedAssistantMode,
         projectRoot,
-        ownerSnapshot?.owner.interactionGeneration,
+        capability?.usableContextTokens,
+      ),
+      environmentGroundingContext: projectContext.environmentGrounding(
+        resolvedAssistantMode,
+        projectRoot,
+        capability?.usableContextTokens,
       ),
       goal: currentConversation?.goal,
       workflowStage:
@@ -121,9 +130,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
       hasPythonInputAttachment:
           toolNames.contains('run_python_script') &&
           (ownerSnapshot?.hasAttachments ?? false),
-      modelCapabilityProfile: _primaryCapabilityProfileForGeneration(
-        ownerSnapshot?.owner.interactionGeneration,
-      ),
+      modelCapabilityProfile: capability,
       modelHarnessConfig: _primaryHarnessConfigForGeneration(
         ownerSnapshot?.owner.interactionGeneration,
       ),
@@ -286,27 +293,5 @@ extension ChatNotifierPromptContext on ChatNotifier {
       return null;
     }
     return ref.read(agentsMdLoaderProvider).loadForProject(projectRoot);
-  }
-
-  String? _repoMap(
-    AssistantMode assistantMode,
-    String? projectRoot,
-    int? interactionGeneration,
-  ) {
-    if (assistantMode == AssistantMode.general) return null;
-    final lspSymbolEntries = ref
-        .read(repoMapLspSymbolCacheProvider)
-        .entriesForRoot(projectRoot);
-    // LL22: serve from the precompute cache when the project signature is
-    // unchanged; otherwise this rebuilds and stores it (a cold first turn).
-    return ref
-        .read(repoMapPrecomputeCacheProvider)
-        .getOrBuild(
-          rootPath: projectRoot,
-          usableContextTokens: _primaryCapabilityProfileForGeneration(
-            interactionGeneration,
-          )?.usableContextTokens,
-          lspSymbolEntries: lspSymbolEntries,
-        );
   }
 }

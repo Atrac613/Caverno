@@ -32,6 +32,7 @@ class SystemPromptBuilder {
     String? projectName,
     String? projectRootPath,
     String? repoMapContext,
+    String? environmentGroundingContext,
     ConversationGoal? goal,
     ConversationWorkflowStage workflowStage = ConversationWorkflowStage.idle,
     ConversationWorkflowSpec? workflowSpec,
@@ -891,6 +892,15 @@ class SystemPromptBuilder {
         'When responding to time-relative questions, include exact dates '
         '(YYYY-MM-DD) to avoid ambiguity.',
       );
+    }
+
+    // KC2: attested toolchain and dependency versions for the selected coding
+    // project. Directly after the datetime anchor, in the dynamic tail rather
+    // than the LL6/LL22 stable prefix, because it changes per project and per
+    // lockfile edit; within a project its bytes are stable turn to turn.
+    final environmentGrounding = environmentGroundingContext?.trim();
+    if (environmentGrounding != null && environmentGrounding.isNotEmpty) {
+      buffer.writeln(environmentGrounding);
     }
 
     final memoryContext = sessionMemoryContext?.trim();

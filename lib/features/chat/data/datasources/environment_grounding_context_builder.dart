@@ -33,6 +33,23 @@ class EnvironmentGroundingContextBuilder {
   /// About 400 tokens at four characters per token, the KC2 target.
   static const defaultMaxChars = 1600;
 
+  /// The cap for a model with [usableContextTokens] (LL39), or the default
+  /// when that is unknown.
+  ///
+  /// A step function rather than a proportion, so small profile noise does not
+  /// move the cap and with it the block's bytes. A small window keeps the
+  /// toolchain line and drops the dependency list first, as the KC2 scope
+  /// requires; a large one lifts the cut that otherwise drops dev
+  /// dependencies such as freezed on a 66-dependency project.
+  static int maxCharsForUsableContext(int? usableContextTokens) {
+    if (usableContextTokens == null || usableContextTokens <= 0) {
+      return defaultMaxChars;
+    }
+    if (usableContextTokens < 16384) return 400;
+    if (usableContextTokens < 32768) return defaultMaxChars;
+    return 3200;
+  }
+
   static const heading =
       'Project toolchain and dependencies, read from this project\'s lockfile '
       'and installed packages. These are the versions installed here, not '
@@ -44,10 +61,12 @@ class EnvironmentGroundingContextBuilder {
 
   /// The block for [projectRootPath], or null when there is no lockfile to
   /// attest against. A missing or unreadable lockfile omits the block; it
-  /// never falls back to a guessed version.
-  String? build(String projectRootPath) {
+  /// never falls back to a guessed version. [maxChars] overrides the
+  /// builder's cap for this call.
+  String? build(String projectRootPath, {int? maxChars}) {
+    final cap = maxChars ?? this.maxChars;
     final root = Directory(projectRootPath).absolute;
-    final key = _canonicalPath(root);
+    final key = '${_canonicalPath(root)}|$cap';
     final cached = _cache[key];
     if (cached != null && cached.isFresh()) return cached.block;
 
@@ -62,7 +81,7 @@ class EnvironmentGroundingContextBuilder {
       if (inventory != null) {
         final toolchain = _readToolchain(watched.last);
         if (toolchain.versionFile != null) watched.add(toolchain.versionFile!);
-        block = _render(inventory, toolchain);
+        block = _render(inventory, toolchain, cap);
       }
     } on FileSystemException {
       block = null;
@@ -73,7 +92,11 @@ class EnvironmentGroundingContextBuilder {
     return block;
   }
 
-  String _render(DependencyInventory inventory, _Toolchain toolchain) {
+  String _render(
+    DependencyInventory inventory,
+    _Toolchain toolchain,
+    int maxChars,
+  ) {
     final main = <String>[];
     final dev = <String>[];
     final withheld = <String>[];

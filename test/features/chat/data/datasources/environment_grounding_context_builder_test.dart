@@ -205,6 +205,55 @@ void main() {
     );
   });
 
+  test('the cap follows usable context in steps, default when unknown', () {
+    int cap(int? tokens) =>
+        EnvironmentGroundingContextBuilder.maxCharsForUsableContext(tokens);
+    expect(cap(null), 1600);
+    expect(cap(0), 1600);
+    expect(cap(8192), 400);
+    expect(cap(16384), 1600);
+    expect(cap(32768), 3200);
+    expect(cap(131072), 3200);
+  });
+
+  test('a small window keeps the toolchain and drops dependencies first', () {
+    project(
+      packages: {
+        for (var i = 0; i < 30; i++)
+          'package_number_${i.toString().padLeft(3, '0')}': (
+            '1.0.0',
+            '1.0.0',
+            'direct main',
+          ),
+      },
+    );
+    final builder = EnvironmentGroundingContextBuilder();
+    final small = builder.build(app.path, maxChars: 400)!;
+    expect(small.length, lessThanOrEqualTo(400));
+    expect(small, contains('- Flutter SDK 3.47.4, Dart SDK 3.13.3'));
+    expect(small, contains('more direct dependencies not listed'));
+    expect(
+      builder.build(app.path, maxChars: 3200),
+      isNot(contains('not listed')),
+      reason: 'each cap is cached separately',
+    );
+  });
+
+  test('a large window lists every dependency of this repository', () {
+    final block = EnvironmentGroundingContextBuilder().build(
+      Directory.current.path,
+      maxChars: EnvironmentGroundingContextBuilder.maxCharsForUsableContext(
+        32768,
+      ),
+    )!;
+    expect(block, isNot(contains('not listed')));
+    expect(
+      block,
+      contains(RegExp(r'freezed \d+\.\d+\.\d+')),
+      reason: 'the default cap drops freezed here; this is what option A buys',
+    );
+  });
+
   test('this repository fits the budget and names its resolved SDK', () {
     final config =
         jsonDecode(File('.dart_tool/package_config.json').readAsStringSync())
