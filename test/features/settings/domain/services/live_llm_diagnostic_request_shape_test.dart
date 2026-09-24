@@ -50,4 +50,60 @@ void main() {
       expect(shaped.reasoningEffort, ReasoningEffortPreference.automatic);
     }
   });
+
+  test('an explicit effort replaces the default in either mode', () {
+    final settings = chat(model: 'qwen3.8-27b-exl3');
+
+    for (final mode in LiveLlmDiagnosticThinkingMode.values) {
+      final shaped = LiveLlmDiagnosticRequestShape.settingsFor(
+        settings,
+        mode,
+        effort: ReasoningEffortPreference.low,
+      );
+      expect(shaped.reasoningEffort, ReasoningEffortPreference.low);
+      expect(shaped.enableThinking, mode == LiveLlmDiagnosticThinkingMode.on);
+    }
+  });
+
+  test('an explicit effort reaches an uncontrollable endpoint', () {
+    // A hosted model cannot be sent enable_thinking, but reasoning_effort is
+    // an OpenAI-compatible field it may honour.
+    final settings = chat(model: 'gpt-5.6-luna');
+
+    final shaped = LiveLlmDiagnosticRequestShape.settingsFor(
+      settings,
+      LiveLlmDiagnosticThinkingMode.on,
+      effort: ReasoningEffortPreference.high,
+    );
+
+    expect(shaped.enableThinking, isNull);
+    expect(shaped.reasoningEffort, ReasoningEffortPreference.high);
+  });
+
+  test('the default effort follows the mode and the model', () {
+    final qwen = chat(model: 'qwen3.8-27b-exl3');
+    final hosted = chat(model: 'gpt-5.6-luna');
+
+    expect(
+      LiveLlmDiagnosticRequestShape.defaultEffortFor(
+        qwen,
+        LiveLlmDiagnosticThinkingMode.on,
+      ),
+      ReasoningEffortPreference.medium,
+    );
+    expect(
+      LiveLlmDiagnosticRequestShape.defaultEffortFor(
+        qwen,
+        LiveLlmDiagnosticThinkingMode.off,
+      ),
+      ReasoningEffortPreference.automatic,
+    );
+    expect(
+      LiveLlmDiagnosticRequestShape.defaultEffortFor(
+        hosted,
+        LiveLlmDiagnosticThinkingMode.on,
+      ),
+      ReasoningEffortPreference.automatic,
+    );
+  });
 }

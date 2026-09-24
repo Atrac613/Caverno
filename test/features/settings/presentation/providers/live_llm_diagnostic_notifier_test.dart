@@ -87,6 +87,53 @@ void main() {
     expect(history.single.report.finishedAt, isNotNull);
   });
 
+  test('run sends the thinking mode and effort picked on the page', () async {
+    final initialSettings = AppSettings.defaults().copyWith(
+      model: 'qwen3.8-27b-exl3',
+      reasoningEffort: ReasoningEffortPreference.low,
+      enableThinking: true,
+      mcpEnabled: false,
+      mcpUrl: '',
+      mcpUrls: const <String>[],
+      mcpServers: const <McpServerConfig>[],
+    );
+    final requestedShapes = <AppSettings>[];
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        chatDataSourceFactoryProvider.overrideWithValue((shaped) {
+          requestedShapes.add(shaped);
+          return _TextOnlyDiagnosticDataSource();
+        }),
+        mcpToolServiceProvider.overrideWithValue(null),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(liveLlmDiagnosticNotifierProvider.notifier)
+      ..setThinkingMode(LiveLlmDiagnosticThinkingMode.off)
+      ..setReasoningEffort(ReasoningEffortPreference.high);
+
+    await notifier.run();
+
+    // The first datasource is the one every scored probe goes through; the
+    // rest belong to the thinking-control probe, which varies only the mode.
+    expect(requestedShapes, isNotEmpty);
+    expect(requestedShapes.first.enableThinking, isFalse);
+    for (final shaped in requestedShapes) {
+      expect(shaped.reasoningEffort, ReasoningEffortPreference.high);
+    }
+
+    notifier.setReasoningEffort(null);
+    expect(
+      container.read(liveLlmDiagnosticNotifierProvider).reasoningEffort,
+      isNull,
+    );
+  });
+
   test('run persists sampler metadata from diagnostic trials', () async {
     final initialSettings = AppSettings.defaults().copyWith(
       model: 'sampler-diagnostic-model',

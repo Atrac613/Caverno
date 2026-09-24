@@ -17,6 +17,7 @@ import '../../domain/services/model_capability_comparison.dart';
 import '../../domain/services/model_capability_physical_metrics.dart';
 import '../providers/live_llm_diagnostic_notifier.dart';
 import '../providers/settings_notifier.dart';
+import '../widgets/live_llm_diagnostic_header.dart';
 
 /// Gap between stacked cards in this page's lists.
 ///
@@ -78,7 +79,7 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _DiagnosticHeader(
+          LiveLlmDiagnosticHeader(
             isRunning: state.isRunning,
             report: report,
             onRun: () =>
@@ -609,83 +610,6 @@ class _CopyableDiagnosticText extends StatelessWidget {
   }
 }
 
-class _DiagnosticHeader extends StatelessWidget {
-  const _DiagnosticHeader({
-    required this.isRunning,
-    required this.report,
-    required this.onRun,
-  });
-
-  final bool isRunning;
-  final LiveLlmDiagnosticReport? report;
-  final VoidCallback onRun;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final currentReport = report;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.monitor_heart_outlined,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'settings.live_llm_diagnostics'.tr(),
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'settings.live_llm_diagnostics_desc'.tr(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (currentReport != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      '${'settings.live_llm_diag_endpoint'.tr()}: ${currentReport.baseUrl}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    Text(
-                      '${'settings.live_llm_diag_model'.tr()}: ${currentReport.model}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            FilledButton.icon(
-              onPressed: isRunning ? null : onRun,
-              icon: isRunning
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.play_arrow_outlined),
-              label: Text(
-                isRunning
-                    ? 'settings.live_llm_diag_running'.tr()
-                    : 'settings.live_llm_diag_run'.tr(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.isRunning});
 
@@ -1022,6 +946,15 @@ class _CapabilitySection extends StatelessWidget {
                   true => 'settings.live_llm_diag_yes'.tr(),
                   false => 'settings.live_llm_diag_no'.tr(),
                   null => 'settings.live_llm_diag_thinking_server_default'.tr(),
+                },
+              ),
+              _MetricTile(
+                key: const ValueKey('live-llm-diag-reasoning-effort-tile'),
+                icon: Icons.speed_outlined,
+                label: 'settings.reasoning_effort_label'.tr(),
+                value: switch (metrics.requestedEffort) {
+                  final effort? => 'settings.reasoning_effort_$effort'.tr(),
+                  null => 'settings.reasoning_effort_automatic'.tr(),
                 },
               ),
               _MetricTile(

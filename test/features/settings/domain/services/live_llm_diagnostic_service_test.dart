@@ -10,7 +10,6 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_chart_probe_image.dart';
-import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_request_shape.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_scoring.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_service.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_tool_depth_ladder.dart';

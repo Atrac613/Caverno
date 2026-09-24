@@ -1,8 +1,9 @@
 import '../../../chat/domain/services/qwen38_request_thinking_policy.dart';
 import '../entities/app_settings.dart';
+import '../entities/live_llm_diagnostic.dart';
 
-/// Which thinking mode a diagnostic run measures in.
-enum LiveLlmDiagnosticThinkingMode { on, off }
+export '../entities/live_llm_diagnostic.dart'
+    show LiveLlmDiagnosticThinkingMode;
 
 /// The reasoning controls a diagnostic run sends, fixed rather than read from
 /// the chat composer.
@@ -32,27 +33,44 @@ abstract final class LiveLlmDiagnosticRequestShape {
       Qwen38RequestThinkingPolicy.isQwen38Model(settings.effectiveModel) ||
       settings.acceptsChatTemplateKwargsFor(settings.baseUrl);
 
-  /// [settings] with the chat reasoning controls replaced by [mode]'s.
+  /// The effort a run in [mode] sends when the person has not picked one.
   ///
   /// Qwen3.8 thinking runs at medium effort, which is also what raises the
   /// policy's token floor to [Qwen38RequestThinkingPolicy.mediumMinimumMaxTokens]
   /// so a 512-token probe is not cut off inside its own reasoning. Every other
   /// case sends no effort at all, so a hosted model is measured at its default
   /// rather than at whatever the chat composer last asked for.
-  static AppSettings settingsFor(
+  static ReasoningEffortPreference defaultEffortFor(
     AppSettings settings,
     LiveLlmDiagnosticThinkingMode mode,
   ) {
-    final controllable = canControlThinking(settings);
-    final thinking = mode == LiveLlmDiagnosticThinkingMode.on;
     final qwen38 = Qwen38RequestThinkingPolicy.isQwen38Model(
       settings.effectiveModel,
     );
+    return canControlThinking(settings) &&
+            mode == LiveLlmDiagnosticThinkingMode.on &&
+            qwen38
+        ? ReasoningEffortPreference.medium
+        : ReasoningEffortPreference.automatic;
+  }
+
+  /// [settings] with the chat reasoning controls replaced by [mode]'s.
+  ///
+  /// [effort] is the person's explicit pick on the diagnostic page; null
+  /// falls back to [defaultEffortFor]. Either way the chat composer's effort
+  /// never reaches the run. An explicit effort is still subject to the request
+  /// policy, which drops it on Qwen3.8 when thinking is off.
+  static AppSettings settingsFor(
+    AppSettings settings,
+    LiveLlmDiagnosticThinkingMode mode, {
+    ReasoningEffortPreference? effort,
+  }) {
+    final controllable = canControlThinking(settings);
     return settings.copyWith(
-      reasoningEffort: controllable && thinking && qwen38
-          ? ReasoningEffortPreference.medium
-          : ReasoningEffortPreference.automatic,
-      enableThinking: controllable ? thinking : null,
+      reasoningEffort: effort ?? defaultEffortFor(settings, mode),
+      enableThinking: controllable
+          ? mode == LiveLlmDiagnosticThinkingMode.on
+          : null,
     );
   }
 }

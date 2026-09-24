@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -27,6 +26,7 @@ import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
+import 'live_llm_diagnostic_thinking_observer.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_tool_depth_staircase.dart';
 import 'live_llm_tool_recovery_cases.dart';
@@ -65,12 +65,15 @@ class LiveLlmDiagnosticService {
   final ChatDataSource Function(LiveLlmDiagnosticThinkingMode mode)?
   thinkingModeDataSource;
 
-  final _thinking = _ThinkingObserver();
+  final _thinking = LiveLlmDiagnosticThinkingObserver();
 
   /// Every probe request goes through here so its response is counted by
   /// [_thinking]. [chatDataSource] stays the datasource itself, because probes
   /// type-test it for opt-in capabilities a wrapper would hide.
-  late final _chat = _ObservedChatCalls(chatDataSource, _thinking);
+  late final _chat = LiveLlmDiagnosticObservedChatCalls(
+    chatDataSource,
+    _thinking,
+  );
   late final _visionProbes = LiveLlmVisionProbes(
     complete: ({required messages, required maxTokens}) =>
         _chat.createChatCompletion(
@@ -709,23 +712,13 @@ class LiveLlmDiagnosticService {
   LiveLlmDiagnosticReport _finishReport(LiveLlmDiagnosticReport report) {
     return report.copyWith(
       finishedAt: DateTime.now(),
-      thinkingMetrics: _thinking.metrics(requested: _requestedThinking()),
+      thinkingMetrics: _thinking.metrics(
+        chatDataSource,
+        model: _diagnosticModel,
+        maxTokens: _diagnosticMaxTokens,
+        effort: settings.reasoningEffort,
+      ),
     );
-  }
-
-  /// The `enable_thinking` value the probe requests carried.
-  ///
-  /// Resolved the same way the policy client resolves it on the wire. The
-  /// probes set no [ModelUsageRole], so no role suppression applies and the
-  /// value follows the person's reasoning settings.
-  bool? _requestedThinking() {
-    final remote = chatDataSource;
-    if (remote is! ChatRemoteDataSource) return null;
-    final overrides = remote.qwen38RequestOverrides(
-      model: _diagnosticModel,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    return overrides?.chatTemplateKwargs['enable_thinking'] as bool?;
   }
 
   LiveLlmDiagnosticReport _skipRemainingAfterLiveRequirement(
@@ -2680,8 +2673,12 @@ class LiveLlmDiagnosticService {
 
     final on = await arm(LiveLlmDiagnosticThinkingMode.on);
     final off = await arm(LiveLlmDiagnosticThinkingMode.off);
-    final onChars = _ThinkingObserver.reasoningChars(on.content);
-    final offChars = _ThinkingObserver.reasoningChars(off.content);
+    final onChars = LiveLlmDiagnosticThinkingObserver.reasoningChars(
+      on.content,
+    );
+    final offChars = LiveLlmDiagnosticThinkingObserver.reasoningChars(
+      off.content,
+    );
     final (classification, status, summary) = switch ((
       onChars > 0,
       offChars > 0,
@@ -3963,105 +3960,4 @@ class _ToolRecoveryCaseOutcome {
   final bool passed;
   final String detail;
   final String finalContent;
-}
-
-/// Counts the reasoning the probe responses carried. See
-/// [LiveLlmDiagnosticThinkingMetrics].
-///
-/// Reads the reasoning out of the response content: the datasource folds a
-/// separate `reasoning_content` field into a leading `<think>` block, so one
-/// parse covers both the field and inline tags. A block the token cap cut off
-/// before its closing tag still counts, since the model did reason.
-final class _ThinkingObserver {
-  var _responseCount = 0;
-  var _reasoningResponseCount = 0;
-  var _reasoningChars = 0;
-
-  void reset() {
-    _responseCount = 0;
-    _reasoningResponseCount = 0;
-    _reasoningChars = 0;
-  }
-
-  static int reasoningChars(String content) {
-    final parsed = ContentParser.parse(content);
-    var chars = 0;
-    for (final segment in parsed.segments) {
-      if (segment.type == ContentType.thinking) {
-        chars += segment.content.trim().length;
-      }
-    }
-    if (parsed.incompleteTagType == 'thinking') {
-      chars += parsed.incompleteTagContent?.trim().length ?? 0;
-    }
-    return chars;
-  }
-
-  void record(String content) {
-    _responseCount += 1;
-    final chars = reasoningChars(content);
-    if (chars > 0) {
-      _reasoningResponseCount += 1;
-      _reasoningChars += chars;
-    }
-  }
-
-  LiveLlmDiagnosticThinkingMetrics? metrics({required bool? requested}) {
-    if (_responseCount == 0) return null;
-    return LiveLlmDiagnosticThinkingMetrics(
-      requested: requested,
-      responseCount: _responseCount,
-      reasoningResponseCount: _reasoningResponseCount,
-      reasoningChars: _reasoningChars,
-    );
-  }
-}
-
-/// The request methods the probes call, each recording its response with
-/// [_ThinkingObserver] before returning it unchanged.
-final class _ObservedChatCalls {
-  _ObservedChatCalls(this._dataSource, this._observer);
-
-  final ChatDataSource _dataSource;
-  final _ThinkingObserver _observer;
-
-  Future<ChatCompletionResult> createChatCompletion({
-    required List<Message> messages,
-    List<Map<String, dynamic>>? tools,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) async {
-    final result = await _dataSource.createChatCompletion(
-      messages: messages,
-      tools: tools,
-      model: model,
-      temperature: temperature,
-      maxTokens: maxTokens,
-    );
-    _observer.record(result.content);
-    return result;
-  }
-
-  Future<ChatCompletionResult> createChatCompletionWithToolResults({
-    required List<Message> messages,
-    required List<ToolResultInfo> toolResults,
-    String? assistantContent,
-    List<Map<String, dynamic>>? tools,
-    String? model,
-    double? temperature,
-    int? maxTokens,
-  }) async {
-    final result = await _dataSource.createChatCompletionWithToolResults(
-      messages: messages,
-      toolResults: toolResults,
-      assistantContent: assistantContent,
-      tools: tools,
-      model: model,
-      temperature: temperature,
-      maxTokens: maxTokens,
-    );
-    _observer.record(result.content);
-    return result;
-  }
 }

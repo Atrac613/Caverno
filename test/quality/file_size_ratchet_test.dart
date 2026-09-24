@@ -1025,12 +1025,13 @@ const Map<String, int> _lineBudgets = {
   // Coding notifiers and page are deliberately not listed: RC1 is changing
   // them weekly, and a budget there would block that work, not decompose it.
   // Lowered from 4688 when the sampler-calibration trials moved out, and
-  // from 4470 when the report-evidence helpers did, and from 4440 when the
-  // vision probes did.
+  // from 4470 when the report-evidence helpers did, from 4440 when the
+  // vision probes did, and from 4067 when the thinking observer did. The page
+  // was lowered from 1742 when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      4067,
+      3963,
   'lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart':
-      1742,
+      1675,
   'lib/features/chat/domain/services/tool_result_prompt_builder.dart': 2064,
   'lib/features/chat/data/datasources/git_tools.dart': 2047,
   'lib/features/chat/data/datasources/local_shell_tools.dart': 1932,
