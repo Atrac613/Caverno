@@ -9,6 +9,11 @@ import 'repo_map_precompute_cache_provider.dart';
 /// The project-scoped system-prompt blocks: the LL22 repo map and the KC2
 /// environment block.
 ///
+/// The KC2 block is not wired into ChatNotifier's prompt: its 2026-09-24
+/// paired re-run was negative (class 4 regressed to 100% stale), so it was
+/// withdrawn. [environmentGrounding] stays for measurement and a later
+/// re-promotion that clears the same re-run.
+///
 /// Kept out of ChatNotifier, whose library is at its size ratchet; the
 /// notifier resolves the mode, project root, and usable context, and this
 /// decides what each block contains. Both share one gate: a coding-capable

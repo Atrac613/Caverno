@@ -64,4 +64,18 @@ void main() {
       isTrue,
     );
   });
+
+  test('the KC2 block stays withdrawn from the notifier prompt', () {
+    final source = File(
+      'lib/features/chat/presentation/providers/'
+      'chat_notifier_prompt_context.dart',
+    ).readAsStringSync();
+    expect(
+      source,
+      isNot(contains('environmentGroundingContext:')),
+      reason:
+          'The 2026-09-24 paired re-run regressed class 4 to 100% stale. '
+          'Re-promote only with a KC1 re-run that clears the frozen baseline.',
+    );
+  });
 }

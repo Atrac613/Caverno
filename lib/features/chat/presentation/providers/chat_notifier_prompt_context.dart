@@ -102,11 +102,8 @@ extension ChatNotifierPromptContext on ChatNotifier {
         projectRoot,
         capability?.usableContextTokens,
       ),
-      environmentGroundingContext: projectContext.environmentGrounding(
-        resolvedAssistantMode,
-        projectRoot,
-        capability?.usableContextTokens,
-      ),
+      // KC2's environment block is withdrawn: its paired re-run regressed
+      // class 4 to 100% stale (docs/knowledge_currency_track_design.md).
       goal: currentConversation?.goal,
       workflowStage:
           currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
