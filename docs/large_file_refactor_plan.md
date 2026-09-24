@@ -162,6 +162,49 @@ line coverage (53,400/71,190). The recently reduced Computer Use pages remain
 paused because their coverage is above 94% and their remaining code is
 orchestration-heavy, not because of worktree ownership.
 
+### Ranking refresh (2026-09-24)
+
+The route/interface/path-MTU cluster and the seven slices after it are
+complete, so the ranking was refreshed from current `wc -l` (generated files
+excluded), 30-day commit churn, and whether `file_size_ratchet_test.dart`
+budgets the file:
+
+| File | Lines | Commits in 30 days | Budgeted |
+|------|------:|------:|:--:|
+| `lib/features/chat/presentation/providers/chat_notifier.dart` | 8,687 | 45 | yes |
+| `lib/features/settings/domain/services/live_llm_diagnostic_service.dart` | 4,843 → 4,688 | 18 | now |
+| `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart` | 3,246 | 21 | no |
+| `lib/features/remote_coding/presentation/remote_coding_page.dart` | 2,644 | 22 | no |
+| `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2,375 | 0 | yes |
+| `lib/features/chat/domain/services/tool_result_prompt_builder.dart` | 2,064 | 5 | now |
+| `lib/features/chat/data/datasources/git_tools.dart` | 2,047 | 4 | now |
+| `lib/features/chat/presentation/widgets/message_input.dart` | 2,001 | 8 | yes |
+| `lib/features/chat/data/datasources/local_shell_tools.dart` | 1,932 | 3 | now |
+| `lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart` | 1,742 | 3 | now |
+| `lib/features/remote_coding/presentation/remote_coding_client_notifier.dart` | 1,731 | 14 | no |
+
+Four of the eleven largest files had no budget, and none of them appeared in
+the tracked inventory above: they grew after the 2026-07-18 baseline. Budgets
+were added at current size for the five low-churn ones. The three Remote
+Coding files are deliberately left unbudgeted: RC1 changes them weekly, and a
+budget there would block that work rather than decompose it; rank them again
+once RC1 settles.
+
+Selected slice: the live LLM diagnostic service, the largest file after
+ChatNotifier, with no budget and moderate churn. It holds more than thirty
+probes, so the first slice took only what is pure: response scoring (integer
+sequences, code fences, unified-diff headers, the first edit-format
+mismatch, chart and quadrant grading, visible-content JSON decoding, and list
+equality) moved to `live_llm_diagnostic_response_scoring.dart`. The service
+keeps `matchedChartAnswers` and `chartValueTolerance` as forwarding members,
+so its public surface is unchanged. The service fell from 4,843 to 4,688
+lines; the 83-line scoring module reached 100.00% coverage (83/83), and the
+service is at 87.40% (1,387/1,587) under its own tests. Next candidates in
+the same file are the probe families that share no state with the rest (the
+vision probes, the sampler-calibration trials), each behind the service's
+request port.
+
+
 ## Refactor Rules
 
 - Start with a plan that names the target concern, destination file, risk, and
