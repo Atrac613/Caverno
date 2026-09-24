@@ -307,9 +307,14 @@ KC1 measurement) ran the production block: class 2 stale 68/56/50% at the
 default/32k/64k budgets against 60% bare and 30% for the prototype digest,
 and class 4 **100% at every budget** against 75% bare and 0% for the
 prototype, because every class 4 answer used the legacy providers the
-digest's legacy line names. The block is live in coding prompts as of
-`a07b951fa`/`749eb84d0`, so the keep-or-remove decision is open and
-pressing.
+digest's legacy line names. Decided 2026-09-24: the block is **withdrawn**
+from coding prompts (`e038f1dcc`, guarded by a test); the builder, digest,
+and census arms stay. The eighth measurement, on `qwen3.8-27b-exl3`, then
+showed the version list alone reproduces the class 4 regression (5/5 stale,
+against 0/5 for the prototype's four-entry list), so the cause is which
+dependencies the block names, not the legacy line's wording. Next design
+question, not started: select dependencies by what the project imports,
+weighed against the tail churn that argument was set aside for.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
@@ -749,7 +754,56 @@ the latest.
 
 Per the KC2 acceptance rule this is recorded as a negative result, not a cue
 to tune the wording until the numbers move. The keep-or-remove decision it
-feeds is recorded with KC2's status.
+feeds is recorded with KC2's status. (Corrected by the eighth measurement: on
+`qwen3.8-27b-exl3` the version list alone, with no legacy line, reproduces
+the class 4 regression, so the legacy-name reading above is not the cause.)
+
+#### Eighth measurement (2026-09-24): versions only, on `qwen3.8-27b-exl3`
+
+After the seventh measurement the block was withdrawn from the prompt
+(`e038f1dcc`) and the version list was measured alone: the production block
+with no change digest, the configuration a window under 16k tokens already
+gets. The model moved to `qwen3.8-27b-exl3`, the canary model from now on
+(thinking off: `reasoning_content` empty in a smoke request), so both a fresh
+prototype baseline and the production arms ran on it, clean build
+`0ad3b6040`, five repeats, no request failures. Frozen in
+[`kc2_exl3_baseline_2026-09-24.json`](evidence/kc2_exl3_baseline_2026-09-24.json)
+(150 claims) and
+[`kc2_exl3_production_2026-09-24.json`](evidence/kc2_exl3_production_2026-09-24.json)
+(100 claims), each with its census.
+
+| stale rate (exl3) | bare | prototype versions | prototype deltas | production versions only | production default |
+|---|---|---|---|---|---|
+| class 2 (API drift) | 75% | 50% | 35% | 55% | 50% |
+| class 4 (this repository) | 100% | **0%** | **0%** | **100%** | **100%** |
+| class 1 (world facts) | 75% | 50% | - | 50% | 50% |
+
+**The version list alone reproduces the class 4 regression, so the legacy
+line is not what caused it.** All five versions-only answers wrote
+`StateNotifierProvider`; the block contains no legacy name to copy. All five
+prototype-versions answers wrote `NotifierProvider`. The seventh measurement's
+reading, that the model copied the names the legacy line lists, fitted its
+data but is not needed to explain this one, and the difference that remains
+is the list itself. The prototype names four things (Flutter,
+`flutter_riverpod`, `riverpod`, `freezed`); production names 59 dependencies
+with `flutter_riverpod` among them and `riverpod` absent, because it is
+transitive. A state library that is one entry in sixty stops signalling "this
+project holds state in riverpod 3", which is the only reason the version list
+ever fixed class 4. This is a hypothesis about salience, not a measured
+mechanism, and it is a different model from the seventh measurement's.
+
+For class 2 the versions-only list behaves like the prototype's (55% against
+50%), and the digest adds little on this model (50%). Class 1 does not
+regress. **So B does not rescue the block, and it stays withdrawn.**
+
+What the two negative runs point at is the question the KC2 review left open:
+*which* dependencies the block names, not how the lines are worded. The
+prototype's win came from a short list whose entries were the libraries the
+fixtures are about. Selecting by what the project's code imports is the
+obvious candidate, and it was set aside for slice 3 because the model's own
+edits change imports and would churn the prompt tail. That trade-off now has
+evidence on the other side of it. It is recorded here as the next design
+question, not started.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 

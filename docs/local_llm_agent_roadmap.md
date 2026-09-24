@@ -1064,9 +1064,14 @@ KC1 measurement) ran the production block: class 2 stale 68/56/50% at the
 default/32k/64k budgets against 60% bare and 30% for the prototype digest,
 and class 4 **100% at every budget** against 75% bare and 0% for the
 prototype, because every class 4 answer used the legacy providers the
-digest's legacy line names. The block is live in coding prompts as of
-`a07b951fa`/`749eb84d0`, so the keep-or-remove decision is open and
-pressing.
+digest's legacy line names. Decided 2026-09-24: the block is **withdrawn**
+from coding prompts (`e038f1dcc`, guarded by a test); the builder, digest,
+and census arms stay. The eighth measurement, on `qwen3.8-27b-exl3`, then
+showed the version list alone reproduces the class 4 regression (5/5 stale,
+against 0/5 for the prototype's four-entry list), so the cause is which
+dependencies the block names, not the legacy line's wording. Next design
+question, not started: select dependencies by what the project imports,
+weighed against the tail churn that argument was set aside for.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
