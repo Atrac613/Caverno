@@ -275,7 +275,7 @@ So KC2's content is settled by measurement rather than by argument:
 
 ### KC2: Environment And Dependency Ground Truth Block
 
-Status: `current`. **Deliberately not gated on KC1**: it is deterministic, offline,
+Status: `later` (parked 2026-09-24, block withdrawn). **Deliberately not gated on KC1**: it is deterministic, offline,
 and introduces no heuristic, so there is nothing for a measurement to authorize.
 KC1 measures its effect; it does not grant it permission.
 
@@ -322,6 +322,13 @@ arm is worse than bare in any class (class 2 59% bare against 36-46% for the
 digest-carrying arms; class 4 71% against 25%), but at these counts the
 difference is not established. The block stays withdrawn; re-promotion is a
 decision on weak, favourable evidence, or needs more fixtures still.
+
+Decision (2026-09-24): KC2 is parked at `later` with the block withdrawn.
+The broadened evidence is favourable but not established, and widening the
+fixtures far enough to establish it (20+ per class) costs more than the
+measured gain is likely to be worth. Re-promotion needs that wider set, or
+real-session evidence that stale API claims matter, which the corpus does not
+yet show.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across

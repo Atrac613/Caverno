@@ -198,7 +198,7 @@ structurally unmotivated to build:
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
 | Knowledge Currency | KC1 | done | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
-| Knowledge Currency | KC2 | current | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions, direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact, and a digest of what those versions changed (the content KC1's second measurement settled). Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
+| Knowledge Currency | KC2 | later | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions, direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact, and a digest of what those versions changed (the content KC1's second measurement settled). Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
 | Knowledge Currency | KC3 | later | S-M | KC1, KC2, LL10 | Installed version-delta evidence as an LL10 extension: return bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store; add a public tool name only if discovery evaluation rejects an LL10 query mode. Re-scoped 2026-09-24 (KC1 gate: class 2 does not dominate): the pull-side complement to KC2's pushed delta window, promoted only after a paired re-run counts what that window misses. Not a class 1 remedy. |
 | Knowledge Currency | KC4 | later | M | KC1, KC3, LL11, LL36 | Cutoff-sensitive guard over visible prose, response code blocks, changed dependency-using code, and LL11 deprecation diagnostics. Heuristics and cutoff metadata nominate verification; only KC3/LL10, structured diagnostics, compile/test output, or web evidence renders a verdict. Reuse existing recovery plumbing with a bounded artifact evidence adapter, degrade to annotation when unverifiable, and promote only on measured precision and recall. |
 | Knowledge Currency | KC5 | later | S | KC2, LL39, MLIB2 | Model cutoff registry: a `knowledgeCutoff` date plus its source (`static_table` / `user_override` / `unknown`) on the capability profile, so KC2 can state the gap as context and KC4 can nominate verification. Never from self-report and never use the date as a correctness verdict. Whether an LL39-style dated-fact probe can beat a static table is an open question. |
@@ -1034,7 +1034,7 @@ Promotion gate:
 
 ### KC2: Environment And Dependency Ground Truth Block
 
-Status: `current`
+Status: `later` (parked 2026-09-24, block withdrawn)
 
 Progress (2026-09-24): all five slices are done, and slice 5 is negative. `PubDependencyResolver`
 (`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
@@ -1079,6 +1079,13 @@ arm is worse than bare in any class (class 2 59% bare against 36-46% for the
 digest-carrying arms; class 4 71% against 25%), but at these counts the
 difference is not established. The block stays withdrawn; re-promotion is a
 decision on weak, favourable evidence, or needs more fixtures still.
+
+Decision (2026-09-24): KC2 is parked at `later` with the block withdrawn.
+The broadened evidence is favourable but not established, and widening the
+fixtures far enough to establish it (20+ per class) costs more than the
+measured gain is likely to be worth. Re-promotion needs that wider set, or
+real-session evidence that stale API claims matter, which the corpus does not
+yet show.
 
 The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
 allowance of 1,600 characters, then breaking entries round-robin across
