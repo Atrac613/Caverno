@@ -356,7 +356,7 @@ void main() {
       // fact, so downstream consumers stop parsing stdout to find it.
       final handler = BuiltInLocalCommandToolHandler(
         foregroundCommandResultRunner:
-            ({required command, required workingDirectory}) async =>
+            ({required command, required workingDirectory, observationRoot}) async =>
                 const FirstPartyToolExecutionResult(
                   result: '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
                   outcome: ToolOutcome(exitCode: 2),
@@ -380,7 +380,7 @@ void main() {
     test('reports no exit status when the command never reached one', () async {
       final handler = BuiltInLocalCommandToolHandler(
         foregroundCommandRunner:
-            ({required command, required workingDirectory}) async =>
+            ({required command, required workingDirectory, observationRoot}) async =>
                 'command runner unavailable',
       );
 
@@ -662,7 +662,7 @@ void main() {
       final handler = BuiltInLocalCommandToolHandler(
         backgroundProcessTools: tools,
         foregroundCommandRunner:
-            ({required command, required workingDirectory}) async => failure,
+            ({required command, required workingDirectory, observationRoot}) async => failure,
       );
       final calls = <(String, Map<String, dynamic>)>[
         (

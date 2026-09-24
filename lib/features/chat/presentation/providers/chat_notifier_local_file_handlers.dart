@@ -395,19 +395,22 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         );
       },
       requestManualApproval: (candidate, request, gate) async {
+        final prompt = LocalCommandApprovalPrompt.compose(
+          command: request.execution.command,
+          decisionSource: request.requiredManualDecisionSource,
+          gateTitle: gate.approvalPromptTitle,
+          gateRationale: gate.approvalPromptRationale,
+          riskTitle: request.warningTitle,
+          riskMessage: request.warningMessage,
+        );
         final approval = await requestLocalCommand(
           owner: candidate,
           command: request.execution.command,
           workingDirectory: request.execution.workingDirectory,
           reason: request.reason,
-          warningTitle: _escalatedApprovalWarningTitle(
-            gate,
-            request.warningTitle,
-          ),
-          warningMessage: _escalatedApprovalWarningMessage(
-            gate,
-            request.warningMessage,
-          ),
+          warningTitle: prompt.title,
+          warningMessage: prompt.message,
+          canRememberAllow: !request.requiresFreshManualApproval,
         );
         return LocalCommandManualApproval(
           approved: approval.approved,
@@ -606,16 +609,22 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
     if (gate.needsManual) {
+      final prompt = LocalCommandApprovalPrompt.compose(
+        command: command,
+        decisionSource: approvalScope.requiredManualDecisionSource,
+        gateTitle: gate.approvalPromptTitle,
+        gateRationale: gate.approvalPromptRationale,
+        riskTitle: riskWarning?.title,
+        riskMessage: riskWarning?.message,
+      );
       final approval = await requestLocalCommand(
         owner: approvalCache.owner,
         command: command,
         workingDirectory: workingDirectory,
         reason: reason,
-        warningTitle: _escalatedApprovalWarningTitle(gate, riskWarning?.title),
-        warningMessage: _escalatedApprovalWarningMessage(
-          gate,
-          riskWarning?.message,
-        ),
+        warningTitle: prompt.title,
+        warningMessage: prompt.message,
+        canRememberAllow: approvalScope.requiredManualDecision == null,
       );
       final manualExpired = _expiredApproval(toolCall.name, approvalCache);
       if (manualExpired != null) return manualExpired;
@@ -894,6 +903,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     String? reason,
     String? warningTitle,
     String? warningMessage,
+    bool canRememberAllow = true,
   }) {
     final completer = Completer<LocalCommandApproval>();
     final pending = PendingLocalCommand(
@@ -904,6 +914,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       reason: reason,
       warningTitle: warningTitle,
       warningMessage: warningMessage,
+      canRememberAllow: canRememberAllow,
       completer: completer,
       origin: _activeInteractionOrigin,
       remoteDeviceId: _activeRemoteDeviceId,

@@ -61,6 +61,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -76,6 +77,13 @@ import sys
 #                direct signal instead of an inference from leaked notice
 #                prose, and it cannot be fired by a log that merely quotes the
 #                notice -- including one produced by reading this repo.
+_JSON_STRING = r'"(?:[^"\\]|\\.)*"'
+_INTERNAL_GREP_RESULT = re.compile(
+    r'\{"command": "grep (?:[^"\\]|\\.)*", "working_directory": ' + _JSON_STRING
+    + r', "exit_code": -?\d+, "stdout": ' + _JSON_STRING
+    + r', "stderr": ' + _JSON_STRING + r', "executed_internally": true'
+)
+
 SIGNATURES = {
     "failed_read_digest": {
         "commit": "5e7f8ebb",
@@ -369,6 +377,16 @@ SIGNATURES = {
         # of the same text inside a tool result, so reading this repository
         # cannot fire it.
         "match": lambda s: '"changesSinceCapture": [' in s,
+    },
+    "internal_grep": {
+        "commit": "b9efc404c",
+        "what": "grep answered by the internal executor, not a SEC4.4g prompt",
+        # Before this commit a grep result could only come from the shell, so
+        # a structured tool result pairing a grep command with
+        # executed_internally is the change itself. Matched on the decoded
+        # result object: the same text inside a tool-result string is
+        # escaped by json.dumps, so quoting it cannot fire the row.
+        "match": lambda s: _INTERNAL_GREP_RESULT.search(s) is not None,
     },
 }
 

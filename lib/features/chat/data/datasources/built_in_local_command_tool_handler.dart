@@ -140,6 +140,7 @@ class BuiltInLocalCommandToolHandler {
         final execution = await _foregroundCommandResultRunner(
           command: command,
           workingDirectory: workingDirectory,
+          observationRoot: args['allowed_read_root'] as String?,
         );
         // A non-zero exit is the command's outcome, not a tool failure, so the
         // result stays successful and only carries the reported exit status.

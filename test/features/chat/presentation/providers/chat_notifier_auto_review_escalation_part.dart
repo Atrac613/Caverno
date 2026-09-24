@@ -93,10 +93,12 @@ void registerChatNotifierAutoReviewEscalationTests() {
       final pending = toolNotifier.state.pendingLocalCommand;
       expect(pending, isNotNull);
       expect(pending!.command, 'rm -rf build');
-      expect(
-        pending.warningTitle,
-        'This command has host-wide filesystem access',
-      );
+      // The command-specific risk heads the prompt; the SEC4.4g reason for
+      // asking stays in the body, and no remembered allow is offered because
+      // the handler would discard it.
+      expect(pending.warningTitle, 'Recursive file deletion');
+      expect(pending.warningMessage, startsWith('It runs through the native'));
+      expect(pending.canRememberAllow, isFalse);
       expect(toolDataSource.autoReviewRequestMessages, isEmpty);
       expect(toolService.executedToolNames, isEmpty);
 

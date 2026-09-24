@@ -43,6 +43,29 @@ void _runLocalCommandApprovalSheet() {
     expect(result!.rememberedRuleMatch, LocalCommandPermissionMatch.exact);
   });
 
+  testWidgets('offers always allow only when an allow can be remembered', (
+    tester,
+  ) async {
+    await _pumpHarnessLocalCommandApprovalSheet(tester, onResult: (_) {});
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+    expect(find.text('Always Allow'), findsOneWidget);
+    await tester.tap(find.text('Deny'));
+    await tester.pumpAndSettle();
+
+    // SEC4.4g approvals are fresh every time; the handler discards an allow.
+    await _pumpHarnessLocalCommandApprovalSheet(
+      tester,
+      canRememberAllow: false,
+      onResult: (_) {},
+    );
+    await tester.tap(find.text('Open Sheet'));
+    await tester.pumpAndSettle();
+    expect(find.text('Always Allow'), findsNothing);
+    expect(find.text('Always Deny'), findsOneWidget);
+    expect(find.text('Approve & Run'), findsOneWidget);
+  });
+
   testWidgets('keeps action buttons visible for a long command', (
     tester,
   ) async {
@@ -79,6 +102,7 @@ Future<void> _pumpHarnessLocalCommandApprovalSheet(
   WidgetTester tester, {
   required ValueChanged<LocalCommandApproval?> onResult,
   String command = 'rm -rf build',
+  bool canRememberAllow = true,
 }) {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1000, 900);
@@ -107,6 +131,7 @@ Future<void> _pumpHarnessLocalCommandApprovalSheet(
                         reason: 'Run verification',
                         warningTitle: null,
                         warningMessage: null,
+                        canRememberAllow: canRememberAllow,
                         completer: Completer<LocalCommandApproval>(),
                       ),
                     ),

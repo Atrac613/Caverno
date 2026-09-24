@@ -186,6 +186,8 @@ void main() {
           'wc ${inside.path}',
           'find ${project.path} -name *.txt',
           'rg needle ${project.path}',
+          'grep needle ${inside.path}',
+          'grep -rn needle ${project.path}',
         ]) {
           expect(
             await LocalShellTools.projectReadDenial(
@@ -206,6 +208,9 @@ void main() {
           'wc ${outside.path}',
           'find ${sandbox.path}',
           'rg secret ${sandbox.path}',
+          'grep secret ${outside.path}',
+          'grep -r secret ${sandbox.path}',
+          'grep needle ${inside.path} ${outside.path}',
         ]) {
           final denial = await LocalShellTools.projectReadDenial(
             command: command,
@@ -274,11 +279,20 @@ void main() {
       );
       expect(LocalShellTools.isReadOnly('rg ChatPage lib'), isTrue);
       expect(LocalShellTools.isReadOnly('find lib -name *.dart'), isTrue);
+      expect(
+        LocalShellTools.isReadOnly("grep -E '^version:' pubspec.yaml"),
+        isTrue,
+      );
+      expect(LocalShellTools.isReadOnly('grep -rn needle lib'), isTrue);
     });
 
     test('rejects every shell-backed inspection command', () {
       expect(LocalShellTools.isReadOnly('git status --short'), isFalse);
-      expect(LocalShellTools.isReadOnly('grep needle pubspec.yaml'), isFalse);
+      // grep forms the bounded implementation does not reproduce.
+      expect(LocalShellTools.isReadOnly('grep -R needle lib'), isFalse);
+      expect(LocalShellTools.isReadOnly('grep needle'), isFalse);
+      expect(LocalShellTools.isReadOnly('grep needle lib/*.dart'), isFalse);
+      expect(LocalShellTools.isReadOnly("grep -P '\\d' a.txt"), isFalse);
       expect(LocalShellTools.isReadOnly('stat pubspec.yaml'), isFalse);
       expect(LocalShellTools.isReadOnly('file pubspec.yaml'), isFalse);
       expect(
@@ -305,6 +319,29 @@ void main() {
         LocalShellTools.isReadOnly(r'echo $CAVERNO_SESSION_LOG_DIR'),
         isFalse,
       );
+      expect(
+        LocalShellTools.isReadOnly(r'echo "$CAVERNO_SESSION_LOG_DIR"'),
+        isFalse,
+      );
+      expect(LocalShellTools.isReadOnly(r'cat a\|b'), isFalse);
+      expect(LocalShellTools.isReadOnly("cat 'unterminated"), isFalse);
+    });
+
+    test('reads shell operators inside quotes as literal text', () async {
+      expect(LocalShellTools.isReadOnly(r"echo 'a|b;c$d'"), isTrue);
+      expect(LocalShellTools.isReadOnly('echo "a|b;c"'), isTrue);
+      expect(LocalShellTools.isReadOnly("rg 'alpha|beta' lib"), isTrue);
+
+      final result =
+          jsonDecode(
+                await LocalShellTools.execute(
+                  command: r"echo 'a|b;c$d' && echo done",
+                  workingDirectory: Directory.systemTemp.path,
+                ),
+              )
+              as Map<String, dynamic>;
+      expect(result['executed_internally'], isTrue);
+      expect(result['stdout'], 'a|b;c\$d\ndone\n');
     });
 
     test(

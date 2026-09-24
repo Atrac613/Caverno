@@ -11,6 +11,7 @@ typedef BuiltInLocalCommandResultRunner =
     Future<FirstPartyToolExecutionResult> Function({
       required String command,
       required String workingDirectory,
+      String? observationRoot,
     });
 
 BuiltInLocalCommandResultRunner resolveBuiltInLocalCommandResultRunner({
@@ -20,10 +21,13 @@ BuiltInLocalCommandResultRunner resolveBuiltInLocalCommandResultRunner({
     resultRunner ??
     (legacyRunner == null
         ? LocalShellTools.executeResult
-        : ({required command, required workingDirectory}) async =>
-              FirstPartyToolExecutionResult.payloadOnly(
-                await legacyRunner(
-                  command: command,
-                  workingDirectory: workingDirectory,
-                ),
-              ));
+        : ({
+            required command,
+            required workingDirectory,
+            observationRoot,
+          }) async => FirstPartyToolExecutionResult.payloadOnly(
+            await legacyRunner(
+              command: command,
+              workingDirectory: workingDirectory,
+            ),
+          ));

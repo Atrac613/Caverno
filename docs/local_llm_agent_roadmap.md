@@ -6341,7 +6341,9 @@ Slice plan:
    operands with the same mutation fence when a project is selected; and
    **SEC4.4g (P0 follow-up, completed 2026-08-24)** routes opaque native-shell
    commands through a distinct fresh, non-cacheable host-write authority before
-   auto-review or Full Access. Any restored
+   auto-review or Full Access; **SEC4.4h (completed 2026-09-24)** moves
+   supported `grep` onto the bounded internal executor instead of narrowing
+   SEC4.4g. Any restored
    routine grant binds server identity, tool name, schema digest, and reviewed
    intent.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:

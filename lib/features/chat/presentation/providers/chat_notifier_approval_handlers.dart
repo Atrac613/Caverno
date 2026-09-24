@@ -425,28 +425,6 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     return domain == ToolApprovalAutoReviewDomain.coding;
   }
 
-  /// The heading for a manual prompt: whatever the gate says, else [fallback].
-  String? _escalatedApprovalWarningTitle(
-    ToolApprovalGateDecision gate,
-    String? fallback,
-  ) {
-    return gate.approvalPromptTitle ?? fallback;
-  }
-
-  /// Prepends the gate's reason for asking, whatever route sent it here.
-  String? _escalatedApprovalWarningMessage(
-    ToolApprovalGateDecision gate,
-    String? fallback,
-  ) {
-    final rationale = gate.approvalPromptRationale;
-    if (rationale == null) {
-      return fallback;
-    }
-    return fallback == null || fallback.isEmpty
-        ? rationale
-        : '$rationale\n\n$fallback';
-  }
-
   /// Asks the user to confirm one material contract assumption (ANA0).
   ///
   /// `false` covers both a decline and a turn that ended before it was

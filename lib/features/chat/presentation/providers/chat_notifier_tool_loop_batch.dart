@@ -470,6 +470,16 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolCallId: toolCall.id,
         loopIndex: iteration,
       );
+      unawaited(
+        observeShellWrites(
+          store: ref.read(llmSessionLogStoreProvider),
+          settingsEnabled: _settings.enableLlmSessionLogs,
+          context: _llmSessionLogContextForGeneration(interactionGeneration),
+          toolName: toolCall.name,
+          renderedPayload: toolResult,
+          toolCallId: toolCall.id,
+        ),
+      );
 
       if (result.isSuccess && toolCall.name == 'load_skill') {
         loadedSkills.record(

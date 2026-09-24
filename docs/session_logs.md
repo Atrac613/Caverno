@@ -85,8 +85,8 @@ Each line is one JSON object with schema name
   caller's.
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`,
-  `primary_model_route`, `goal_completion_shadow`, `execution_shadow`, and
-  `tool_outcome_shadow`,
+  `primary_model_route`, `goal_completion_shadow`, `execution_shadow`,
+  `tool_outcome_shadow`, and `shell_write_observation`,
   which make non-request decisions visible in the same JSONL timeline as model
   calls.
   `turn_exit.guardDecisions` records metadata-
@@ -99,6 +99,13 @@ Each line is one JSON object with schema name
   identifiers, and diagnostic text. `tool_outcome_shadow` records the tool
   name, typed-versus-legacy exit-code agreement, both optional exit codes, and
   correlation keys. It deliberately excludes the rendered tool payload.
+  `shell_write_observation` exists only when
+  `CAVERNO_SHELL_WRITE_OBSERVATION=1` (macOS, SEC4.4i-a). It lists the paths
+  outside the project that one `local_execute_command` shell command wrote,
+  read back from seatbelt reports after the tool result, so it lands later in
+  the file than the call it names (`toolCallId`, `tag`). The kernel can drop
+  reports, so the list is a lower bound. It stores paths only, never the
+  command or its output.
   `goal_completion_shadow` records one explicit-tool-versus-lexical comparison
   for every turn that started with an active goal. Its `agreement` is `agree`
   or `disagree`; disagreement records also carry a stable `label`. Optional

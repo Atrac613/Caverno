@@ -484,7 +484,11 @@ const Map<String, int> _lineBudgets = {
   // device that started it unable to see or answer it (SA-26). The four
   // subclass copies come out, seven `super.` forwards go in, and the residue
   // is that forwarding: it is the fix, and it does not extract.
-  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 464,
+  // -8 net: LocalCommandApproval left for its own file (re-exported), which
+  // paid for PendingLocalCommand.canRememberAllow. SEC4.4g discards a
+  // remembered allow, so the sheet must know not to offer one.
+  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 456,
+  'lib/features/chat/presentation/providers/local_command_approval.dart': 17,
   'lib/features/chat/presentation/providers/pending_tool_approval_registry.dart':
       144,
   'lib/features/chat/presentation/providers/pending_ask_user_question.dart': 46,

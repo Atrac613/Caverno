@@ -618,6 +618,46 @@ class LlmSessionLogStore {
     }
   }
 
+  /// Append where one native-shell command wrote outside the project
+  /// (SEC4.4i-a observe mode). Recorded after the command's tool result,
+  /// because the kernel reports are read back from the unified log.
+  ///
+  /// Only the paths are stored, never the command or its output: the entry
+  /// sits beside the tool call it names, which already carries both.
+  Future<void> recordShellWriteObservation({
+    required LlmSessionLogContext? context,
+    required DateTime at,
+    required String toolName,
+    required String tag,
+    required List<String> paths,
+    required bool truncated,
+    String? toolCallId,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': _utcTimestamp(at),
+        'build': BuildInfo.toJson(),
+        'context': effectiveContext.toJson(),
+        'operation': 'shell_write_observation',
+        'shellWriteObservation': {
+          'toolName': toolName,
+          if (toolCallId != null && toolCallId.isNotEmpty)
+            'toolCallId': toolCallId,
+          'tag': tag,
+          'outsideProjectWrites': paths,
+          if (truncated) 'truncated': true,
+        },
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _appendLine(context: effectiveContext, line: line, at: at);
+    } catch (error) {
+      appLog('[SessionLog] Failed to write shell-write observation: $error');
+    }
+  }
+
   /// Append a redacted execution-snapshot decision produced in shadow mode.
   ///
   /// The marker intentionally stores only hashes, enum names, counts, and

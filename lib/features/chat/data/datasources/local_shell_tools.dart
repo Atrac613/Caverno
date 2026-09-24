@@ -9,8 +9,10 @@ import 'filesystem_tools.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
 import 'local_command_mutation_guard.dart';
+import 'local_shell_grep.dart';
 import 'project_mutation_path_fence.dart';
 import 'project_read_path_fence.dart';
+import 'shell_write_observation.dart';
 
 class LocalShellTools {
   LocalShellTools._();
@@ -113,6 +115,9 @@ class LocalShellTools {
           '.',
       ],
       'rg' => [_rgSearchRoot(operands)],
+      // Classification already proved the parse succeeds; fencing every
+      // operand is the fail-closed answer if it somehow did not.
+      'grep' => LocalShellGrep.parse(operands)?.readPaths ?? operands,
       _ => const <String>[],
     };
   }
@@ -149,6 +154,7 @@ class LocalShellTools {
     required String workingDirectory,
     Duration timeout = _timeout,
     String? projectRoot,
+    String? observationRoot,
   }) async {
     final authorized = await _authorizeMutation(
       command: command,
@@ -198,13 +204,20 @@ class LocalShellTools {
             normalizedCommand,
           ];
 
+    final observed = ShellWriteObservation.wrap(
+      command: normalizedCommand,
+      shellExecutable: shellExecutable,
+      shellArgs: shellArgs,
+      root: observationRoot,
+    );
     try {
       return await _executeWithProcessHandle(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
-        shellExecutable: shellExecutable,
-        shellArgs: shellArgs,
+        shellExecutable: observed?.executable ?? shellExecutable,
+        shellArgs: observed?.args ?? shellArgs,
         timeout: timeout,
+        observationTag: observed?.tag,
       );
     } catch (e) {
       return FirstPartyToolExecutionResult.payloadOnly(
@@ -278,6 +291,7 @@ class LocalShellTools {
     required String shellExecutable,
     required List<String> shellArgs,
     required Duration timeout,
+    String? observationTag,
   }) async {
     final process = await Process.start(
       shellExecutable,
@@ -306,6 +320,7 @@ class LocalShellTools {
         exitCode: exitCode,
         stdout: stdout,
         stderr: stderr,
+        observationTag: observationTag,
       );
     } on TimeoutException {
       final processTerminated = await _terminateTimedOutProcess(process);
@@ -326,6 +341,7 @@ class LocalShellTools {
         timedOut: true,
         timeout: timeout,
         processTerminated: processTerminated,
+        observationTag: observationTag,
       );
     }
   }
@@ -358,6 +374,7 @@ class LocalShellTools {
     bool timedOut = false,
     Duration? timeout,
     bool? processTerminated,
+    String? observationTag,
   }) {
     final diagnostics = timedOut || exitCode == null || exitCode == 0
         ? const <Map<String, dynamic>>[]
@@ -381,6 +398,7 @@ class LocalShellTools {
         'timeout_ms': timeout.inMilliseconds,
         'process_terminated': processTerminated ?? false,
       },
+      ShellWriteObservation.payloadKey: ?observationTag,
     });
     return FirstPartyToolExecutionResult(
       result: result,
@@ -536,10 +554,54 @@ class LocalShellTools {
     return RegExp(r'[\s;&|()<>]').hasMatch(command[index - 1]);
   }
 
+  /// Whether [command] carries syntax the internal executors cannot honour.
+  ///
+  /// Quote-aware because grep patterns routinely hold `$` and `\|`, and inside
+  /// single quotes `sh` gives no character a meaning; inside double quotes
+  /// only `$`, the backtick and the backslash keep one. Getting this wrong
+  /// cannot run anything -- a command accepted here is executed by Caverno,
+  /// never by `sh` -- it can only make the internal answer differ from the
+  /// shell's, so an unterminated quote or a newline still refuses outright.
   static bool _hasUnsafeShellSyntax(String command) {
-    const blockedTokens = ['|', '||', '&', ';', '>', '<', '`', r'$', '#', '\n'];
-    return blockedTokens.any(command.contains);
+    String? quoteChar;
+    for (var index = 0; index < command.length; index++) {
+      final char = command[index];
+      if (char == '\n') return true;
+      if (quoteChar == "'") {
+        if (char == "'") quoteChar = null;
+        continue;
+      }
+      if (quoteChar == '"') {
+        if (char == '"') {
+          quoteChar = null;
+        } else if (char == r'$' || char == '`') {
+          return true;
+        } else if (char == r'\') {
+          index += 1;
+          if (index < command.length && command[index] == '\n') return true;
+        }
+        continue;
+      }
+      if (char == r'\') {
+        // An escaped operator stays refused, as it was before quotes counted:
+        // `_splitArgs` keeps the backslash that `sh` would remove.
+        index += 1;
+        if (index < command.length &&
+            '\n$_shellOperatorChars'.contains(command[index])) {
+          return true;
+        }
+        continue;
+      }
+      if (char == "'" || char == '"') {
+        quoteChar = char;
+        continue;
+      }
+      if (_shellOperatorChars.contains(char)) return true;
+    }
+    return quoteChar != null;
   }
+
+  static const String _shellOperatorChars = '|&;<>`\$#';
 
   static bool _canExecuteInternally(String command) {
     final segments = _splitConditionalCommands(command);
@@ -563,8 +625,71 @@ class LocalShellTools {
       'wc' ||
       'find' ||
       'rg' => true,
+      'grep' =>
+        !_hasUnquotedShellExpansion(command) &&
+            LocalShellGrep.parse(args.skip(1).toList()) != null,
       _ => false,
     };
+  }
+
+  /// Whether `sh` would build a word of [command] differently from
+  /// [_splitArgs]: pathname globbing, brace or tilde expansion, backslash
+  /// removal, or an empty quoted word (`''`), which [_splitArgs] drops.
+  ///
+  /// The internal executors take their argv from [_splitArgs], which only
+  /// strips quotes. For `grep` that difference decides what is searched --
+  /// `grep foo lib/*.dart` names a literal file here and a list of files in
+  /// the shell, and `grep '' a b` would search for `a` -- so such a command
+  /// stays on the shell path instead of silently answering a different
+  /// question. Glob characters inside option words (`--include=*.dart`) are
+  /// left alone: expanding those needs a file literally named like the option.
+  static bool _hasUnquotedShellExpansion(String command) {
+    String? quoteChar;
+    var inWord = false;
+    var wordHasChars = false;
+    var optionWord = false;
+    for (var index = 0; index < command.length; index++) {
+      final char = command[index];
+      if (quoteChar == "'") {
+        if (char == "'") {
+          quoteChar = null;
+        } else {
+          wordHasChars = true;
+        }
+        continue;
+      }
+      if (quoteChar == '"') {
+        if (char == '"') {
+          quoteChar = null;
+        } else if (char == r'\' &&
+            index + 1 < command.length &&
+            (command[index + 1] == '"' || command[index + 1] == r'\')) {
+          return true;
+        } else {
+          wordHasChars = true;
+        }
+        continue;
+      }
+      if (char == ' ' || char == '\t') {
+        if (inWord && !wordHasChars) return true;
+        inWord = false;
+        continue;
+      }
+      if (!inWord) {
+        inWord = true;
+        wordHasChars = false;
+        optionWord = char == '-';
+        if (char == '~') return true;
+      }
+      if (char == "'" || char == '"') {
+        quoteChar = char;
+        continue;
+      }
+      wordHasChars = true;
+      if (char == r'\') return true;
+      if (!optionWord && '*?[{'.contains(char)) return true;
+    }
+    return inWord && !wordHasChars;
   }
 
   static List<String> _splitConditionalCommands(String command) {
@@ -842,6 +967,7 @@ class LocalShellTools {
       'wc' => await _executeWc(args.skip(1).toList(), workingDirectory),
       'find' => await _executeFind(args.skip(1).toList(), workingDirectory),
       'rg' => await _executeRg(args.skip(1).toList(), workingDirectory),
+      'grep' => await _executeGrep(args.skip(1).toList(), workingDirectory),
       _ => _LocalCommandResult(
         exitCode: 1,
         stderr: 'Unsupported internal command: ${args.first}\n',
@@ -1674,6 +1800,28 @@ class LocalShellTools {
     return _LocalCommandResult(
       exitCode: matches.isEmpty ? 1 : 0,
       stdout: matches.isEmpty ? '' : '${matches.join('\n')}\n',
+    );
+  }
+
+  static Future<_LocalCommandResult> _executeGrep(
+    List<String> args,
+    String workingDirectory,
+  ) async {
+    final grep = LocalShellGrep.parse(args);
+    if (grep == null) {
+      return const _LocalCommandResult(
+        exitCode: 2,
+        stderr: 'grep: unsupported invocation\n',
+      );
+    }
+    final result = await grep.execute(
+      workingDirectory: workingDirectory,
+      outputLimit: _maxOutputChars,
+    );
+    return _LocalCommandResult(
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
     );
   }
 

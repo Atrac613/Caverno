@@ -267,5 +267,52 @@ class CheckFixFiringsTransformChannelTest(unittest.TestCase):
                 )
 
 
+
+class InternalGrepSignatureTest(unittest.TestCase):
+    """The internal_grep row fires on a decoded result object, never on text.
+
+    The payload shape is what LocalShellTools._executeInternally encodes and
+    the session log stores decoded under request.toolResults[].result.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(_load_tool().SIGNATURES["internal_grep"]["match"])
+
+    @staticmethod
+    def _result(command):
+        return {
+            "command": command,
+            "working_directory": "/repo",
+            "exit_code": 0,
+            "stdout": 'version: "1.3.44+58"\n',
+            "stderr": "",
+            "executed_internally": True,
+        }
+
+    def _blob(self, request):
+        return json.dumps([{"request": request}], ensure_ascii=False)
+
+    def test_a_structured_internal_grep_result_fires(self):
+        for command in ["grep -E '^version:' pubspec.yaml",
+                        'grep -n "^version:" pubspec.yaml']:
+            with self.subTest(command=command):
+                blob = self._blob(
+                    {"toolResults": [{"result": self._result(command)}]}
+                )
+                self.assertTrue(self.match(blob))
+
+    def test_the_same_result_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps(self._result("grep x a.txt"))
+        blob = self._blob({"messages": [{"role": "tool", "content": quoted}]})
+        self.assertFalse(self.match(blob))
+
+    def test_another_internal_command_does_not_fire(self):
+        blob = self._blob(
+            {"toolResults": [{"result": self._result("rg x lib")}]}
+        )
+        self.assertFalse(self.match(blob))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
