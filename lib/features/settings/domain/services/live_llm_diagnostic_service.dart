@@ -26,6 +26,7 @@ import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_chart_probe_image.dart';
 import 'live_llm_diagnostic_request_shape.dart';
+import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_tool_depth_staircase.dart';
 import 'live_llm_tool_recovery_cases.dart';
 import 'llm_provider_capabilities.dart';
@@ -973,7 +974,7 @@ class LiveLlmDiagnosticService {
       maxTokens: _diagnosticMaxTokens,
     );
     final content = result.content.trim();
-    final decoded = _tryDecodeJsonObject(content);
+    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
     final jsonPassed =
         decoded?['probe'] == 'instruction_echo' &&
         decoded?['status'] == 'ok' &&
@@ -1098,7 +1099,9 @@ class LiveLlmDiagnosticService {
           );
       _thinking.record(schemaResult.content);
       completed.add(schemaResult);
-      final decoded = _tryDecodeJsonObject(schemaResult.content);
+      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(
+        schemaResult.content,
+      );
       final schemaPassed =
           decoded?.length == 2 &&
           decoded?['marker'] == _structuredOutputSchemaMarker &&
@@ -1191,7 +1194,7 @@ class LiveLlmDiagnosticService {
         details.add('${probeCase.id}: ${outcome.detail}');
       }
       previews.add(
-        '${probeCase.id}: ${_preview(_visibleDiagnosticContent(outcome.finalContent), maxChars: 120)}',
+        '${probeCase.id}: ${_preview(LiveLlmResponseScoring.visibleContent(outcome.finalContent), maxChars: 120)}',
       );
     }
 
@@ -1257,7 +1260,9 @@ class LiveLlmDiagnosticService {
             finalContent: result.content,
           );
         }
-        final visible = _visibleDiagnosticContent(result.content).toLowerCase();
+        final visible = LiveLlmResponseScoring.visibleContent(
+          result.content,
+        ).toLowerCase();
         final missing = probeCase.expectedFinalValues
             .where((value) => !visible.contains(value.toLowerCase()))
             .toList();
@@ -1432,7 +1437,7 @@ class LiveLlmDiagnosticService {
               if (failureDetail.isNotEmpty) failureDetail,
             ].join('\n'),
             modelContent: _preview(
-              _visibleDiagnosticContent(lastContent),
+              LiveLlmResponseScoring.visibleContent(lastContent),
               maxChars: 240,
             ),
             usage: _totalUsage(completed),
@@ -1552,7 +1557,7 @@ class LiveLlmDiagnosticService {
 
     // The visible answer, not the reasoning: a think block that names the
     // carried id on the way to losing it is not the model carrying it.
-    final visible = _visibleDiagnosticContent(finalResult.content);
+    final visible = LiveLlmResponseScoring.visibleContent(finalResult.content);
     final missing = rung.expectedFinalValues
         .where((value) => !visible.contains(value))
         .toList();
@@ -1602,7 +1607,7 @@ class LiveLlmDiagnosticService {
   }
 
   String _schemaArmDetail(ChatCompletionResult result) {
-    final visible = _visibleDiagnosticContent(result.content);
+    final visible = LiveLlmResponseScoring.visibleContent(result.content);
     if (result.finishReason == 'length') {
       return visible.isEmpty
           ? 'json_schema: the model reasoned to the token cap and returned no '
@@ -1642,7 +1647,9 @@ class LiveLlmDiagnosticService {
           );
       _thinking.record(objectResult.content);
       completed.add(objectResult);
-      final decoded = _tryDecodeJsonObject(objectResult.content);
+      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(
+        objectResult.content,
+      );
       final objectPassed =
           decoded?.length == 2 &&
           decoded?['marker'] == _structuredOutputObjectMarker &&
@@ -1779,8 +1786,11 @@ class LiveLlmDiagnosticService {
 
     final content = buffer.toString();
     _thinking.record(content);
-    final visibleContent = _visibleDiagnosticContent(content);
-    final matched = _matchedIntegerSequence(visibleContent);
+    final visibleContent = LiveLlmResponseScoring.visibleContent(content);
+    final matched = LiveLlmResponseScoring.matchedIntegerSequence(
+      visibleContent,
+      length: _streamingSequenceLength,
+    );
     final metrics = LiveLlmDiagnosticStreamingMetrics(
       timeToFirstToken: timeToFirstToken ?? totalElapsed,
       totalElapsed: totalElapsed,
@@ -1829,26 +1839,6 @@ class LiveLlmDiagnosticService {
         totalChecks: _streamingSequenceLength,
       ),
     );
-  }
-
-  /// Counts how many of 1..N appear as their own line, in order. Line-scoped on
-  /// purpose: a substring search would count the "1" inside "10".
-  int _matchedIntegerSequence(String content) {
-    var expected = 1;
-    for (final line in const LineSplitter().convert(content)) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) {
-        continue;
-      }
-      if (int.tryParse(trimmed) != expected) {
-        continue;
-      }
-      expected += 1;
-      if (expected > _streamingSequenceLength) {
-        break;
-      }
-    }
-    return expected - 1;
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runExactPreservationProbe() async {
@@ -1913,19 +1903,19 @@ class LiveLlmDiagnosticService {
       _ExactPreservationProbeOutcome(
         label: 'direct_echo_money_unit',
         expected: _exactDirectEchoValue,
-        actual: _visibleDiagnosticContent(directResult.content),
+        actual: LiveLlmResponseScoring.visibleContent(directResult.content),
         rawActual: directResult.content.trim(),
       ),
       _ExactPreservationProbeOutcome(
         label: 'tool_result_raw_value',
         expected: _exactToolResultValue,
-        actual: _visibleDiagnosticContent(toolResult.content),
+        actual: LiveLlmResponseScoring.visibleContent(toolResult.content),
         rawActual: toolResult.content.trim(),
       ),
       _ExactPreservationProbeOutcome(
         label: 'url_preservation',
         expected: _exactUrlValue,
-        actual: _visibleDiagnosticContent(urlResult.content),
+        actual: LiveLlmResponseScoring.visibleContent(urlResult.content),
         rawActual: urlResult.content.trim(),
       ),
     ];
@@ -1982,7 +1972,7 @@ class LiveLlmDiagnosticService {
             'context, and ensure each hunk header count matches the old and '
             'new lines in that hunk. Return no markdown fence or explanation.',
         expected: _editFormatUnifiedDiff,
-        normalize: _normalizeUnifiedDiffFileHeaders,
+        normalize: LiveLlmResponseScoring.normalizeUnifiedDiffFileHeaders,
       ),
     ];
     final outcomes = <_EditFormatProbeOutcome>[];
@@ -1998,10 +1988,10 @@ class LiveLlmDiagnosticService {
         temperature: _diagnosticTemperature,
         maxTokens: _reasoningProbeMaxTokens,
       );
-      final normalized = _stripSingleCodeFence(
-        _visibleDiagnosticContent(result.content),
+      final normalized = LiveLlmResponseScoring.stripSingleCodeFence(
+        LiveLlmResponseScoring.visibleContent(result.content),
       );
-      final mismatch = _firstEditFormatMismatch(
+      final mismatch = LiveLlmResponseScoring.firstEditFormatMismatch(
         expected: testCase.prepare(testCase.expected),
         actual: testCase.prepare(normalized),
       );
@@ -2069,65 +2059,6 @@ class LiveLlmDiagnosticService {
       }
     }
     return ModelEditFormatPreference.unknown;
-  }
-
-  String _stripSingleCodeFence(String content) {
-    final normalized = content.replaceAll('\r\n', '\n').trim();
-    final match = RegExp(
-      r'^```(?:dart|diff)?\s*\n([\s\S]*?)\n```$',
-      caseSensitive: false,
-    ).firstMatch(normalized);
-    return (match?.group(1) ?? normalized).trim();
-  }
-
-  /// Drops the `a/` and `b/` prefixes from a unified diff's file headers.
-  ///
-  /// The prefixes are a git convention, not part of the format: `diff -u` and
-  /// `patch -p0` write and expect the bare path, and Caverno never consumes the
-  /// header at all -- the preference only picks a sentence for the system
-  /// prompt. Comparing them verbatim scored a model that produced a perfectly
-  /// applicable diff as an edit-format failure, and cost it 18 of 55 points on
-  /// a spelling difference. Everything below the header is still compared
-  /// exactly, including hunk headers and context lines.
-  static String _normalizeUnifiedDiffFileHeaders(String diff) {
-    return diff
-        .split('\n')
-        .map((line) {
-          for (final marker in const ['--- ', '+++ ']) {
-            if (!line.startsWith(marker)) continue;
-            final path = line.substring(marker.length);
-            for (final prefix in const ['a/', 'b/']) {
-              if (path.startsWith(prefix)) {
-                return '$marker${path.substring(prefix.length)}';
-              }
-            }
-            return line;
-          }
-          return line;
-        })
-        .join('\n');
-  }
-
-  String? _firstEditFormatMismatch({
-    required String expected,
-    required String actual,
-  }) {
-    if (expected == actual) return null;
-    final expectedLines = const LineSplitter().convert(expected);
-    final actualLines = const LineSplitter().convert(actual);
-    final sharedLength = math.min(expectedLines.length, actualLines.length);
-    for (var index = 0; index < sharedLength; index += 1) {
-      if (expectedLines[index] != actualLines[index]) {
-        return 'line ${index + 1}: expected `${expectedLines[index]}`, '
-            'received `${actualLines[index]}`';
-      }
-    }
-    if (expectedLines.length > actualLines.length) {
-      return 'line ${actualLines.length + 1}: expected '
-          '`${expectedLines[actualLines.length]}`, received end of output';
-    }
-    return 'line ${expectedLines.length + 1}: expected end of output, '
-        'received `${actualLines[expectedLines.length]}`';
   }
 
   Future<LiveLlmDiagnosticReport> _runEmbeddingsProbe({
@@ -2387,7 +2318,9 @@ class LiveLlmDiagnosticService {
         completed.add(result);
         stopwatch.stop();
         final expected = _effectiveContextExpectedReply(target);
-        final visibleContent = _visibleDiagnosticContent(result.content);
+        final visibleContent = LiveLlmResponseScoring.visibleContent(
+          result.content,
+        );
         final recallPassed = visibleContent == expected;
         final usageReported = result.usage.promptTokens > 0;
         final failureKind = !recallPassed
@@ -2930,8 +2863,8 @@ class LiveLlmDiagnosticService {
         // The visible answer, not the reasoning: a think block filled the whole
         // preview and left the actual reading -- the evidence for the verdict
         // above -- invisible in the report.
-        'with_image: ${_preview(_visibleDiagnosticContent(withImage.content), maxChars: 240)}',
-        'control: ${_preview(_visibleDiagnosticContent(control.content), maxChars: 240)}',
+        'with_image: ${_preview(LiveLlmResponseScoring.visibleContent(withImage.content), maxChars: 240)}',
+        'control: ${_preview(LiveLlmResponseScoring.visibleContent(control.content), maxChars: 240)}',
       ].join('\n'),
       usage: _totalUsage([
         if (withImage.result != null) withImage.result!,
@@ -2974,7 +2907,10 @@ class LiveLlmDiagnosticService {
       return _VisionProbeArm(
         result: result,
         content: result.content.trim(),
-        matchedColors: _matchedQuadrantColors(result.content),
+        matchedColors: LiveLlmResponseScoring.matchedQuadrantColors(
+          result.content,
+          _visionProbeExpectedColors,
+        ),
       );
     } catch (error) {
       return _VisionProbeArm(
@@ -3012,7 +2948,7 @@ class LiveLlmDiagnosticService {
     // reasoning model can spend the whole budget narrating the axis, and
     // scoring that as blindness would report the harness's limit as the
     // model's -- the same mistake the quadrant probe's image size once made.
-    if (_visibleDiagnosticContent(withImage.content).isEmpty) {
+    if (LiveLlmResponseScoring.visibleContent(withImage.content).isEmpty) {
       return LiveLlmDiagnosticProbeResult(
         id: _chartReadingProbeId,
         status: LiveLlmDiagnosticStatus.warning,
@@ -3064,8 +3000,8 @@ class LiveLlmDiagnosticService {
       modelContent: [
         // The visible answer, not the reasoning: a think block filled the
         // whole preview and left the actual reading invisible in the report.
-        'with_chart: ${_preview(_visibleDiagnosticContent(withImage.content), maxChars: 240)}',
-        'control: ${_preview(_visibleDiagnosticContent(control.content), maxChars: 240)}',
+        'with_chart: ${_preview(LiveLlmResponseScoring.visibleContent(withImage.content), maxChars: 240)}',
+        'control: ${_preview(LiveLlmResponseScoring.visibleContent(control.content), maxChars: 240)}',
       ].join('\n'),
       usage: _totalUsage([
         if (withImage.result != null) withImage.result!,
@@ -3125,7 +3061,8 @@ class LiveLlmDiagnosticService {
   /// That is the intended floor: reading a chart to the nearest gridline is
   /// reading it, and a model that never looked still cannot land within two
   /// units of both 78 and 41 by chance.
-  static const int chartValueTolerance = 2;
+  static const int chartValueTolerance =
+      LiveLlmResponseScoring.chartValueTolerance;
 
   /// How many of the chart's readings the model got right, position by
   /// position.
@@ -3142,50 +3079,8 @@ class LiveLlmDiagnosticService {
   /// wrong reading swallow the rest, which is how a 3-of-4 answer was first
   /// reported as 1/4.
   @visibleForTesting
-  static int matchedChartAnswers(String content) {
-    final expected = LiveLlmChartProbeImage.expectedAnswers;
-    final fields = _chartAnswerFields(ContentParser.parse(content).text.trim());
-    var matched = 0;
-    for (
-      var index = 0;
-      index < expected.length && index < fields.length;
-      index++
-    ) {
-      if (_chartFieldMatches(fields[index], expected[index])) matched += 1;
-    }
-    return matched;
-  }
-
-  /// The four answers out of whatever the model wrapped them in.
-  ///
-  /// Read from the last line that carries enough commas, so a model that
-  /// prefaces the list with a sentence is still graded on the list.
-  static List<String> _chartAnswerFields(String answer) {
-    final expectedCount = LiveLlmChartProbeImage.expectedAnswers.length;
-    final lines = const LineSplitter()
-        .convert(answer)
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    for (final line in lines.reversed) {
-      final fields = line.split(',');
-      if (fields.length >= expectedCount) {
-        return fields.map(_normalizeChartField).toList();
-      }
-    }
-    return answer.split(',').map(_normalizeChartField).toList();
-  }
-
-  static String _normalizeChartField(String field) =>
-      field.toLowerCase().replaceAll(RegExp(r'[^a-z0-9.]'), '');
-
-  static bool _chartFieldMatches(String actual, String expected) {
-    final expectedValue = num.tryParse(expected);
-    if (expectedValue == null) return actual == expected;
-    final actualValue = num.tryParse(actual);
-    if (actualValue == null) return false;
-    return (actualValue - expectedValue).abs() <= chartValueTolerance;
-  }
+  static int matchedChartAnswers(String content) =>
+      LiveLlmResponseScoring.matchedChartAnswers(content);
 
   /// Reads the image through the computer-use path: a tool result whose JSON
   /// carries `imageBase64`, which the datasource lifts into its own observation
@@ -3215,7 +3110,10 @@ class LiveLlmDiagnosticService {
         temperature: _diagnosticTemperature,
         maxTokens: _diagnosticMaxTokens,
       );
-      final matched = _matchedQuadrantColors(result.content);
+      final matched = LiveLlmResponseScoring.matchedQuadrantColors(
+        result.content,
+        _visionProbeExpectedColors,
+      );
       final passed = matched == _visionProbeExpectedColors.length;
       return LiveLlmDiagnosticProbeResult(
         id: _visionToolObservationProbeId,
@@ -3255,21 +3153,6 @@ class LiveLlmDiagnosticService {
   /// the reading. Scoring the raw response made the no-image control arm match
   /// all four colors out of its own think block, which classified a
   /// demonstrably sighted model as `model_ignored_the_image`.
-  int _matchedQuadrantColors(String content) {
-    final normalized = _visibleDiagnosticContent(content).toLowerCase();
-    var cursor = 0;
-    var matched = 0;
-    for (final color in _visionProbeExpectedColors) {
-      final index = normalized.indexOf(color, cursor);
-      if (index < 0) {
-        break;
-      }
-      cursor = index + color.length;
-      matched += 1;
-    }
-    return matched;
-  }
-
   Future<LiveLlmDiagnosticProbeResult> _runNarrowToolCallProbe(
     _ToolCatalogContext catalog,
   ) async {
@@ -3543,7 +3426,7 @@ class LiveLlmDiagnosticService {
         maxTokens: _diagnosticMaxTokens,
       );
       final content = result.content.trim();
-      final decoded = _tryDecodeJsonObject(content);
+      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
       final passed =
           decoded?['routine'] == 'sampler_calibration' &&
           decoded?['status'] == 'ok' &&
@@ -3623,8 +3506,8 @@ class LiveLlmDiagnosticService {
         maxTokens: _diagnosticMaxTokens,
       );
       final content = result.content.trim();
-      final decoded = _tryDecodeJsonObject(content);
-      final editBlockMatches = _stringListEquals(
+      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
+      final editBlockMatches = LiveLlmResponseScoring.stringListEquals(
         decoded?['edit'],
         _codingSamplerEditBlock,
       );
@@ -3670,12 +3553,15 @@ class LiveLlmDiagnosticService {
         maxTokens: _diagnosticMaxTokens,
       );
       final content = result.content.trim();
-      final decoded = _tryDecodeJsonObject(content);
+      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
       final passed =
           decoded?['plan'] == 'sampler_calibration' &&
           decoded?['status'] == 'ok' &&
           decoded?['marker'] == _planSamplerMarker &&
-          _stringListEquals(decoded?['tasks'], _planSamplerTasks);
+          LiveLlmResponseScoring.stringListEquals(
+            decoded?['tasks'],
+            _planSamplerTasks,
+          );
       final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
       final hasMarker = content.contains(_planSamplerMarker);
       return LiveLlmDiagnosticSamplerTrial(
@@ -3751,7 +3637,9 @@ class LiveLlmDiagnosticService {
       );
     }
 
-    final expected = _tryDecodeJsonObject(toolExecution.result);
+    final expected = LiveLlmResponseScoring.tryDecodeJsonObject(
+      toolExecution.result,
+    );
     final relativeDates = expected?['relative_dates'];
     final today = relativeDates is Map
         ? relativeDates['today'] as String?
@@ -3776,7 +3664,7 @@ class LiveLlmDiagnosticService {
     );
     final content = followUp.content.trim();
     final followUpCalls = _toolCallsFromResult(followUp);
-    final decoded = _tryDecodeJsonObject(content);
+    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
     final markerOk =
         decoded?['marker'] == _toolResultMarker ||
         content.contains(_toolResultMarker);
@@ -4057,14 +3945,16 @@ class LiveLlmDiagnosticService {
     toolCallCount += finalCalls.length;
     observedToolNames.addAll(finalCalls.map((call) => call.name));
 
-    final expected = _tryDecodeJsonObject(dateExecution.result);
+    final expected = LiveLlmResponseScoring.tryDecodeJsonObject(
+      dateExecution.result,
+    );
     final relativeDates = expected?['relative_dates'];
     final today = relativeDates is Map
         ? relativeDates['today'] as String?
         : null;
     final timezone = expected?['timezone'] as String?;
     final content = finalRequest.content.trim();
-    final decoded = _tryDecodeJsonObject(content);
+    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
     final markerOk = decoded?['marker'] == _multiRoundToolLoopMarker;
     final todayOk = today != null && decoded?['today'] == today;
     final timezoneOk = timezone != null && decoded?['timezone'] == timezone;
@@ -4487,51 +4377,6 @@ class LiveLlmDiagnosticService {
       'Expected: ${outcome.expected}',
       'Actual: ${_preview(outcome.actual, maxChars: 800)}',
     ].join('\n');
-  }
-
-  Map<String, dynamic>? _tryDecodeJsonObject(String value) {
-    // Reasoning models hand back their chain of thought merged into the
-    // content as a <think> block, and that prose routinely contains braces.
-    // Slicing the raw text from its first brace would start inside the
-    // thought and end at the answer's closing brace, so the decode fails and
-    // a schema-perfect reply gets scored as a contract violation. Decode the
-    // same visible text a production consumer would parse.
-    final trimmed = _visibleDiagnosticContent(value);
-    final candidates = <String>[trimmed];
-    final firstBrace = trimmed.indexOf('{');
-    final lastBrace = trimmed.lastIndexOf('}');
-    if (firstBrace != -1 && lastBrace > firstBrace) {
-      candidates.add(trimmed.substring(firstBrace, lastBrace + 1));
-    }
-    for (final candidate in candidates) {
-      try {
-        final decoded = jsonDecode(candidate);
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        }
-      } catch (_) {
-        continue;
-      }
-    }
-    return null;
-  }
-
-  /// Scores the same text that production consumers display or parse while
-  /// retaining the raw response separately for evidence and physical metrics.
-  String _visibleDiagnosticContent(String content) {
-    return ContentParser.parse(content).text.trim();
-  }
-
-  bool _stringListEquals(Object? actual, List<String> expected) {
-    if (actual is! List || actual.length != expected.length) {
-      return false;
-    }
-    for (var index = 0; index < expected.length; index += 1) {
-      if (actual[index] != expected[index]) {
-        return false;
-      }
-    }
-    return true;
   }
 
   String _preview(String value, {int maxChars = 2000}) {

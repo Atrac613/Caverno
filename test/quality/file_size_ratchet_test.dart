@@ -320,8 +320,7 @@ const Map<String, int> _lineBudgets = {
   // request, resolved through the saved task's own authored fields. Two
   // fall-throughs carry most of the body: an empty task, and the synthetic
   // request wrapper whose placeholder title carries none of the request.
-  'lib/features/chat/domain/services/saved_task_authored_request_text.dart':
-      63,
+  'lib/features/chat/domain/services/saved_task_authored_request_text.dart': 63,
   'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 113,
   'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
   'lib/features/chat/domain/services/uninspected_commit_guard.dart': 144,
@@ -1020,6 +1019,18 @@ const Map<String, int> _lineBudgets = {
       57,
   'lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart':
       82,
+  // F5 ranking refresh (2026-09-24): the largest production files with no
+  // budget at all. The diagnostic service is recorded after its pure response
+  // scoring moved to live_llm_diagnostic_response_scoring.dart. The Remote
+  // Coding notifiers and page are deliberately not listed: RC1 is changing
+  // them weekly, and a budget there would block that work, not decompose it.
+  'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
+      4688,
+  'lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart':
+      1742,
+  'lib/features/chat/domain/services/tool_result_prompt_builder.dart': 2064,
+  'lib/features/chat/data/datasources/git_tools.dart': 2047,
+  'lib/features/chat/data/datasources/local_shell_tools.dart': 1932,
 };
 
 const Map<String, int> _libraryLineBudgets = {
