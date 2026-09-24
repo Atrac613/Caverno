@@ -1193,7 +1193,11 @@ as DateTime?,
 /// @nodoc
 mixin _$ModelCapabilityProfile {
 
- String get id;@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get provider; String get baseUrl; String get model;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport;@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport get videoInputSupport; int get usableContextTokens; DateTime? get probedAt; String get probeSummary; Map<String, String> get probeMetadata;
+ String get id;@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get provider; String get baseUrl; String get model;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity get goalUpdateFidelity;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference;@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport get visionSupport;@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport get videoInputSupport; int get usableContextTokens;/// The `reasoning_effort` values the endpoint accepted for this model, as
+/// measured by `ReasoningEffortProbe`. Null when never measured or when the
+/// endpoint refused none of them, which cannot tell "accepts all" from
+/// "ignores the field"; the composer then offers every effort.
+ List<String>? get supportedReasoningEfforts; DateTime? get probedAt; String get probeSummary; Map<String, String> get probeMetadata;
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1206,16 +1210,16 @@ $ModelCapabilityProfileCopyWith<ModelCapabilityProfile> get copyWith => _$ModelC
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other.probeMetadata, probeMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&const DeepCollectionEquality().equals(other.supportedReasoningEfforts, supportedReasoningEfforts)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other.probeMetadata, probeMetadata));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(probeMetadata));
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,const DeepCollectionEquality().hash(supportedReasoningEfforts),probedAt,probeSummary,const DeepCollectionEquality().hash(probeMetadata));
 
 @override
 String toString() {
-  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, supportedReasoningEfforts: $supportedReasoningEfforts, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
 }
 
 
@@ -1226,7 +1230,7 @@ abstract mixin class $ModelCapabilityProfileCopyWith<$Res>  {
   factory $ModelCapabilityProfileCopyWith(ModelCapabilityProfile value, $Res Function(ModelCapabilityProfile) _then) = _$ModelCapabilityProfileCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, List<String>? supportedReasoningEfforts, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
 });
 
 
@@ -1243,7 +1247,7 @@ class _$ModelCapabilityProfileCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? supportedReasoningEfforts = freezed,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1256,7 +1260,8 @@ as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? 
 as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
 as ModelVisionSupport,videoInputSupport: null == videoInputSupport ? _self.videoInputSupport : videoInputSupport // ignore: cast_nullable_to_non_nullable
 as ModelVideoInputSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
-as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
+as int,supportedReasoningEfforts: freezed == supportedReasoningEfforts ? _self.supportedReasoningEfforts : supportedReasoningEfforts // ignore: cast_nullable_to_non_nullable
+as List<String>?,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,probeMetadata: null == probeMetadata ? _self.probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,
@@ -1344,10 +1349,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  List<String>? supportedReasoningEfforts,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.supportedReasoningEfforts,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   return orElse();
 
 }
@@ -1365,10 +1370,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  List<String>? supportedReasoningEfforts,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile():
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.supportedReasoningEfforts,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1385,10 +1390,10 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown)  ModelGoalUpdateFidelity goalUpdateFidelity, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown)  ModelVisionSupport visionSupport, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown)  ModelVideoInputSupport videoInputSupport,  int usableContextTokens,  List<String>? supportedReasoningEfforts,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,) {final _that = this;
 switch (_that) {
 case _ModelCapabilityProfile() when $default != null:
-return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.goalUpdateFidelity,_that.editFormatPreference,_that.visionSupport,_that.videoInputSupport,_that.usableContextTokens,_that.supportedReasoningEfforts,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
   return null;
 
 }
@@ -1400,7 +1405,7 @@ return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCall
 @JsonSerializable()
 
 class _ModelCapabilityProfile extends ModelCapabilityProfile {
-  const _ModelCapabilityProfile({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) this.toolCallStyle = ModelToolCallStyle.unknown, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) this.structuredOutputSupport = ModelStructuredOutputSupport.unknown, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) this.editFormatPreference = ModelEditFormatPreference.unknown, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) this.videoInputSupport = ModelVideoInputSupport.unknown, this.usableContextTokens = 0, this.probedAt, this.probeSummary = '', final  Map<String, String> probeMetadata = const <String, String>{}}): _probeMetadata = probeMetadata,super._();
+  const _ModelCapabilityProfile({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) this.toolCallStyle = ModelToolCallStyle.unknown, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) this.structuredOutputSupport = ModelStructuredOutputSupport.unknown, @JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) this.goalUpdateFidelity = ModelGoalUpdateFidelity.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) this.editFormatPreference = ModelEditFormatPreference.unknown, @JsonKey(unknownEnumValue: ModelVisionSupport.unknown) this.visionSupport = ModelVisionSupport.unknown, @JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) this.videoInputSupport = ModelVideoInputSupport.unknown, this.usableContextTokens = 0, final  List<String>? supportedReasoningEfforts, this.probedAt, this.probeSummary = '', final  Map<String, String> probeMetadata = const <String, String>{}}): _supportedReasoningEfforts = supportedReasoningEfforts,_probeMetadata = probeMetadata,super._();
   factory _ModelCapabilityProfile.fromJson(Map<String, dynamic> json) => _$ModelCapabilityProfileFromJson(json);
 
 @override final  String id;
@@ -1414,6 +1419,23 @@ class _ModelCapabilityProfile extends ModelCapabilityProfile {
 @override@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) final  ModelVisionSupport visionSupport;
 @override@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) final  ModelVideoInputSupport videoInputSupport;
 @override@JsonKey() final  int usableContextTokens;
+/// The `reasoning_effort` values the endpoint accepted for this model, as
+/// measured by `ReasoningEffortProbe`. Null when never measured or when the
+/// endpoint refused none of them, which cannot tell "accepts all" from
+/// "ignores the field"; the composer then offers every effort.
+ final  List<String>? _supportedReasoningEfforts;
+/// The `reasoning_effort` values the endpoint accepted for this model, as
+/// measured by `ReasoningEffortProbe`. Null when never measured or when the
+/// endpoint refused none of them, which cannot tell "accepts all" from
+/// "ignores the field"; the composer then offers every effort.
+@override List<String>? get supportedReasoningEfforts {
+  final value = _supportedReasoningEfforts;
+  if (value == null) return null;
+  if (_supportedReasoningEfforts is EqualUnmodifiableListView) return _supportedReasoningEfforts;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(value);
+}
+
 @override final  DateTime? probedAt;
 @override@JsonKey() final  String probeSummary;
  final  Map<String, String> _probeMetadata;
@@ -1437,16 +1459,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other._probeMetadata, _probeMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.goalUpdateFidelity, goalUpdateFidelity) || other.goalUpdateFidelity == goalUpdateFidelity)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.visionSupport, visionSupport) || other.visionSupport == visionSupport)&&(identical(other.videoInputSupport, videoInputSupport) || other.videoInputSupport == videoInputSupport)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&const DeepCollectionEquality().equals(other._supportedReasoningEfforts, _supportedReasoningEfforts)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other._probeMetadata, _probeMetadata));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(_probeMetadata));
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,goalUpdateFidelity,editFormatPreference,visionSupport,videoInputSupport,usableContextTokens,const DeepCollectionEquality().hash(_supportedReasoningEfforts),probedAt,probeSummary,const DeepCollectionEquality().hash(_probeMetadata));
 
 @override
 String toString() {
-  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, goalUpdateFidelity: $goalUpdateFidelity, editFormatPreference: $editFormatPreference, visionSupport: $visionSupport, videoInputSupport: $videoInputSupport, usableContextTokens: $usableContextTokens, supportedReasoningEfforts: $supportedReasoningEfforts, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
 }
 
 
@@ -1457,7 +1479,7 @@ abstract mixin class _$ModelCapabilityProfileCopyWith<$Res> implements $ModelCap
   factory _$ModelCapabilityProfileCopyWith(_ModelCapabilityProfile value, $Res Function(_ModelCapabilityProfile) _then) = __$ModelCapabilityProfileCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelGoalUpdateFidelity.unknown) ModelGoalUpdateFidelity goalUpdateFidelity,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference,@JsonKey(unknownEnumValue: ModelVisionSupport.unknown) ModelVisionSupport visionSupport,@JsonKey(unknownEnumValue: ModelVideoInputSupport.unknown) ModelVideoInputSupport videoInputSupport, int usableContextTokens, List<String>? supportedReasoningEfforts, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
 });
 
 
@@ -1474,7 +1496,7 @@ class __$ModelCapabilityProfileCopyWithImpl<$Res>
 
 /// Create a copy of ModelCapabilityProfile
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? goalUpdateFidelity = null,Object? editFormatPreference = null,Object? visionSupport = null,Object? videoInputSupport = null,Object? usableContextTokens = null,Object? supportedReasoningEfforts = freezed,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
   return _then(_ModelCapabilityProfile(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -1487,7 +1509,8 @@ as ModelGoalUpdateFidelity,editFormatPreference: null == editFormatPreference ? 
 as ModelEditFormatPreference,visionSupport: null == visionSupport ? _self.visionSupport : visionSupport // ignore: cast_nullable_to_non_nullable
 as ModelVisionSupport,videoInputSupport: null == videoInputSupport ? _self.videoInputSupport : videoInputSupport // ignore: cast_nullable_to_non_nullable
 as ModelVideoInputSupport,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
-as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
+as int,supportedReasoningEfforts: freezed == supportedReasoningEfforts ? _self._supportedReasoningEfforts : supportedReasoningEfforts // ignore: cast_nullable_to_non_nullable
+as List<String>?,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
 as String,probeMetadata: null == probeMetadata ? _self._probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,

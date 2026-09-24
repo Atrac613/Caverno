@@ -238,6 +238,10 @@ _ModelCapabilityProfile _$ModelCapabilityProfileFromJson(
       ) ??
       ModelVideoInputSupport.unknown,
   usableContextTokens: (json['usableContextTokens'] as num?)?.toInt() ?? 0,
+  supportedReasoningEfforts:
+      (json['supportedReasoningEfforts'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
   probedAt: json['probedAt'] == null
       ? null
       : DateTime.parse(json['probedAt'] as String),
@@ -267,6 +271,7 @@ Map<String, dynamic> _$ModelCapabilityProfileToJson(
   'videoInputSupport':
       _$ModelVideoInputSupportEnumMap[instance.videoInputSupport]!,
   'usableContextTokens': instance.usableContextTokens,
+  'supportedReasoningEfforts': instance.supportedReasoningEfforts,
   'probedAt': instance.probedAt?.toIso8601String(),
   'probeSummary': instance.probeSummary,
   'probeMetadata': instance.probeMetadata,
@@ -831,6 +836,7 @@ const _$ReasoningEffortPreferenceEnumMap = {
   ReasoningEffortPreference.low: 'low',
   ReasoningEffortPreference.medium: 'medium',
   ReasoningEffortPreference.high: 'high',
+  ReasoningEffortPreference.xhigh: 'xhigh',
 };
 
 const _$ProReasoningDepthEnumMap = {
