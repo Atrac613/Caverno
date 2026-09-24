@@ -209,8 +209,20 @@ stays with the service. The two pure helpers the trials shared with the rest
 (`toolCallsFrom`, `looksRepetitive`) joined the response scoring module. The
 service fell from 4,688 to 4,470 lines and its budget was lowered to match;
 the 216-line trials module and the scoring module are both at 100.00% coverage
-(70/70 and 108/108), and the service is at 87.58% (1,312/1,498). The vision
-probes are the next self-contained family.
+(70/70 and 108/108), and the service is at 87.58% (1,312/1,498).
+
+The third slice took the report-evidence helpers first (token usage and
+bounded previews, used by every probe) into `live_llm_diagnostic_evidence.dart`
+(21/21 covered), and returned a doc comment the first slice had left above an
+unrelated probe. Then the quadrant, chart-reading, and tool-observation probes
+moved into `live_llm_vision_probes.dart` with their image, prompts, and
+classification labels, behind a completion port and a tool-result port; which
+probes run for which provider, and the video-modality probe (a metadata GET,
+not a generation), stay with the service. Probe ids keep their values. The
+service fell from 4,470 to 4,067 lines (budget lowered each time); the
+446-line vision module is at 91.74% (100/109) and the service at 87.81%
+(1,217/1,386). Remaining large families in the service are the tool-loop
+probes (tool depth, recovery, multi-round) and structured output.
 
 
 ## Refactor Rules
