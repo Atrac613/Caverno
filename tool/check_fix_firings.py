@@ -379,7 +379,7 @@ SIGNATURES = {
         "match": lambda s: '"changesSinceCapture": [' in s,
     },
     "internal_grep": {
-        "commit": "b9efc404c",
+        "commit": "da23ce7b4",
         "what": "grep answered by the internal executor, not a SEC4.4g prompt",
         # Before this commit a grep result could only come from the shell, so
         # a structured tool result pairing a grep command with
