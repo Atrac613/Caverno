@@ -45,4 +45,51 @@ void _runQueuedMessagesStrip() {
 
     expect(removedIds, ['queued-1']);
   });
+
+  testWidgets('offers interrupt only for steerable messages while running', (
+    tester,
+  ) async {
+    const messages = [
+      QueuedChatMessage(
+        id: 'queued-text',
+        content: 'Use beta instead',
+        imageBase64: null,
+        imageMimeType: null,
+        languageCode: 'en',
+        isVoiceMode: false,
+        bypassPlanMode: false,
+      ),
+      QueuedChatMessage(
+        id: 'queued-image',
+        content: 'Look at this',
+        imageBase64: 'base64-image',
+        imageMimeType: 'image/png',
+        languageCode: 'en',
+        isVoiceMode: false,
+        bypassPlanMode: false,
+      ),
+    ];
+    final interruptedIds = <String>[];
+
+    Widget strip({ValueChanged<String>? onInterrupt}) => MaterialApp(
+      home: Scaffold(
+        body: QueuedMessagesStrip(
+          messages: messages,
+          onRemove: (_) {},
+          onInterrupt: onInterrupt,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(strip());
+    expect(find.byTooltip('Interrupt with this message'), findsNothing);
+
+    await tester.pumpWidget(strip(onInterrupt: interruptedIds.add));
+    // An image cannot ride a continuation request, so only the text row can.
+    expect(find.byTooltip('Interrupt with this message'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Interrupt with this message'));
+    await tester.pump();
+    expect(interruptedIds, ['queued-text']);
+  });
 }
