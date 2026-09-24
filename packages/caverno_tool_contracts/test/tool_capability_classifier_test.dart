@@ -253,6 +253,10 @@ void main() {
         ToolCommandEffect.inspection,
       );
       expect(
+        effectOf('git_execute_command', 'ls-remote origin'),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
         effectOf('git_execute_command', 'tag --list --sort=-v:refname'),
         ToolCommandEffect.inspection,
       );

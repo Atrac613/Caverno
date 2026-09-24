@@ -7,6 +7,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../../../../core/services/login_shell_environment.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_command_path_escape_guard.dart';
+import 'git_read_only_option_allowlist.dart';
 import 'project_mutation_path_fence.dart';
 import 'turn_project_root.dart';
 
@@ -60,11 +61,9 @@ class GitTools {
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
-  // -------------------------------------------------------------------------
   // Read-only detection
-  // -------------------------------------------------------------------------
 
-  /// Subcommands that are always read-only.
+  /// Inspection subcommands whose accepted option shapes are read-only.
   ///
   /// Keep [ToolCapabilityClassifier] git inspection verbs in lockstep with
   /// this set. A read-only verb missing there is recorded as produced work.
@@ -89,7 +88,6 @@ class GitTools {
     'diff-tree',
     'diff-files',
     'diff-index',
-    'ls-remote',
   };
 
   /// Subcommands that are read-only only with specific argument patterns.
@@ -112,7 +110,9 @@ class GitTools {
 
     final subcommand = args.first;
 
-    if (_readOnlySubcommands.contains(subcommand)) return true;
+    if (_readOnlySubcommands.contains(subcommand)) {
+      return GitReadOnlyOptionAllowlist.accepts(subcommand, args);
+    }
 
     if (!_conditionalSubcommands.contains(subcommand)) return false;
 

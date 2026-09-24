@@ -2,6 +2,48 @@ import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('GitTools.isReadOnly inspection option allowlist', () {
+    test('keeps observed inspection shapes read-only', () {
+      for (final command in [
+        'log --oneline -20',
+        'log --format=%h%x09%s -1',
+        'log --pretty=oneline --decorate --stat --no-merges',
+        'log --date=short --name-only --skip=2 --all --count',
+        'log -n 5 -- lib/',
+        'show --stat --oneline HEAD',
+        'show -s --format=%h HEAD',
+        'diff --cached --stat',
+        'diff --check',
+        'status --short --branch',
+        'cat-file -t HEAD',
+        'rev-list --count A..B',
+      ]) {
+        expect(GitTools.isReadOnly(command), isTrue, reason: command);
+      }
+    });
+
+    test('routes unvetted options and remote access through approval', () {
+      for (final command in [
+        'log --output=out.txt',
+        'diff --output=out.txt',
+        'show --output=out.txt',
+        'log --ext-diff',
+        'log --made-up-flag',
+        'log -sp',
+        'log -n',
+        'log -n --output=out.txt',
+        'ls-remote origin',
+        'ls-remote --upload-pack=helper .',
+      ]) {
+        expect(GitTools.isReadOnly(command), isFalse, reason: command);
+      }
+    });
+
+    test('treats tokens after the pathspec separator as operands', () {
+      expect(GitTools.isReadOnly('log -- --output=out.txt'), isTrue);
+    });
+  });
+
   group('GitTools.isReadOnly remote classification', () {
     test('allows explicit inspection forms', () {
       expect(GitTools.isReadOnly('remote'), isTrue);

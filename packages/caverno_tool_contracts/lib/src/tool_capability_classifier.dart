@@ -282,9 +282,9 @@ class ToolCapabilityClassifier {
     return ToolCommandEffect.workspaceMutation;
   }
 
-  /// Always-read-only git verbs, plus `branch` and `remote`.
+  /// Git inspection verbs, plus `branch` and `remote`.
   ///
-  /// Always-read-only names match `GitTools._readOnlySubcommands`. `branch`
+  /// The inspection names match `GitTools._readOnlySubcommands`. `branch`
   /// and `remote` stay inspection here even when GitTools would treat some
   /// argument patterns as writes. `tag` is classified separately. `rev-list`
   /// used to fall through to workspaceMutation, so a count of commits was
@@ -310,7 +310,6 @@ class ToolCapabilityClassifier {
     'diff-tree',
     'diff-files',
     'diff-index',
-    'ls-remote',
     'branch',
     'remote',
   };
