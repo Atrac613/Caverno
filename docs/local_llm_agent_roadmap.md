@@ -1036,7 +1036,7 @@ Promotion gate:
 
 Status: `current`
 
-Progress (2026-09-24): slices 1-3 of 5 are done. `PubDependencyResolver`
+Progress (2026-09-24): slices 1-4 of 5 are done. `PubDependencyResolver`
 (`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
 LL10's pub lockfile parser and root resolution, shared rather than duplicated,
 and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
@@ -1052,7 +1052,36 @@ puts the block in the dynamic tail directly after the datetime anchor, for a
 coding-capable mode with a selected project; the stable prefix is unchanged
 (tested). The gate lives in `ProjectPromptContextSource`, together with the
 repo map's, because the ChatNotifier library had one line of ratchet slack.
-Remaining slices: (4) the change digest; (5) the paired KC1 re-run.
+Slice 4 (`749eb84d0`) appends the change digest: each attested package's
+legacy library (`lib/legacy.dart` `show` lists and `legacy/` classes) and
+its changelog's breaking entries within the installed release line, plus the
+newest deprecations of an attested Flutter SDK. The SDK scanner moved from
+the KC1 oracle into `InstalledChangeDigest`, and the oracle delegates to it.
+Breaking entries must open with the marker ("Non-breaking updates" and
+"Revert the breaking change" are not entries), and link targets, issue
+numbers, and commit hashes are stripped. Remaining: (5) the paired KC1
+re-run through the production builder.
+
+The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
+allowance of 1,600 characters, then breaking entries round-robin across
+packages) and steps with usable context. Coverage of the measured idioms on
+this repository, with `WillPopScope` (deprecated at v3.12) as the uncovered
+control at every budget:
+
+| usable context | digest cap | `withOpacity` | riverpod legacy | freezed `abstract` |
+|---|---|---|---|---|
+| < 16k | none | no | no | no |
+| unknown / 16k-32k | 1,600 | no | yes | no |
+| 32k-64k | 6,000 | yes | yes | no |
+| ≥ 64k | 10,000 | yes | yes | yes |
+
+Stated plainly: the 10,000 step was added after the 6,000 budget was seen to
+miss freezed's second breaking entry, so it is a coverage adjustment made
+with a KC1 fixture in view. The general argument for it stands on its own
+(the prototype spent ~3.8k characters on three hand-picked packages; all 31
+packages here with entries need more, and 2.5k tokens is under 4% of a 64k
+window), but slice 5 must report coverage per budget rather than only at the
+most generous one.
 
 Decided for slice 3 (2026-09-24): the cut on this repository dropped 7 of 66
 dependencies at the default cap, `freezed` among them, a KC1 fixture package.
