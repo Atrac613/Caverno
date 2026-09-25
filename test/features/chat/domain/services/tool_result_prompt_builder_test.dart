@@ -55,6 +55,62 @@ void main() {
         expect(blockers, isEmpty);
       });
 
+      test('a budget-truncated exit still clears the blocker', () {
+        // Session 4ceebb57: the answer prompt reads budgeted results, and the
+        // final poll's long stdout_tail was middle-truncated into text that no
+        // longer decodes, so an earlier "running" won and a release that had
+        // exited 0 was reported as still running.
+        const jobId = 'proc_1789476972434521_1';
+        ToolResultInfo poll(String id, String status, {String tail = ''}) =>
+            ToolResultInfo(
+              id: id,
+              name: 'process_wait',
+              arguments: const {'job_id': jobId, 'wait_ms': 120000},
+              result: jsonEncode({
+                'job_id': jobId,
+                'status': status,
+                'stdout_tail': tail,
+              }),
+              outcome: ToolOutcome(
+                processState: status == 'running'
+                    ? ToolProcessState.running
+                    : ToolProcessState.exited,
+                exitCode: status == 'running' ? null : 0,
+              ),
+            );
+        ToolResultInfo logTail(int index) => ToolResultInfo(
+          id: 'tail-$index',
+          name: 'local_execute_command',
+          arguments: {'command': 'tail -n 60 build/release_logs/$index.log'},
+          result: jsonEncode({'exit_code': 0, 'stdout': 'log line\n' * 400}),
+          outcome: const ToolOutcome(exitCode: 0),
+        );
+        // Seventeen results over the total budget, the 4ceebb57 shape: the
+        // second budgeting pass cuts every result longer than the per-result
+        // share mid-JSON, while the short early polls still decode.
+        final budgeted = ToolResultPromptBuilder.budgetToolResults([
+          poll('call-1', 'running'),
+          poll('call-2', 'running'),
+          poll('call-3', 'exited', tail: 'Release workflow line\n' * 200),
+          for (var index = 0; index < 14; index += 1) logTail(index),
+        ]);
+        final exitIndex = budgeted.indexWhere((r) => r.id == 'call-3');
+        expect(
+          () => jsonDecode(budgeted[exitIndex].result),
+          throwsFormatException,
+          reason: 'the scenario needs the exit payload to stop decoding',
+        );
+
+        expect(
+          ToolResultPromptBuilder.unfinishedBackgroundJobIds(budgeted),
+          isEmpty,
+        );
+        expect(
+          ToolResultPromptBuilder.completionBlockerInstructions(budgeted),
+          isEmpty,
+        );
+      });
+
       test('reports each job whose latest status is still running', () {
         final ids = ToolResultPromptBuilder.unfinishedBackgroundJobIds([
           processResult('process_wait', {
@@ -2144,7 +2200,10 @@ void main() {
       test('the raw result keeps its provenance for the session log', () {
         // Budgeting must not mutate the stored result: the log and the
         // degraded-bridge signal are read from it.
-        expect(analyzeFeedback().result, contains('language_diagnostics_bridge'));
+        expect(
+          analyzeFeedback().result,
+          contains('language_diagnostics_bridge'),
+        );
       });
 
       test('trimming does not disturb the completion guard', () {
@@ -2153,10 +2212,7 @@ void main() {
         final blockers = ToolResultPromptBuilder.completionBlockerInstructions([
           analyzeFeedback(),
         ]);
-        expect(
-          blockers.any((b) => b.contains('TASK NOT COMPLETE')),
-          isTrue,
-        );
+        expect(blockers.any((b) => b.contains('TASK NOT COMPLETE')), isTrue);
       });
     });
   });
