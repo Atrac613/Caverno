@@ -412,6 +412,18 @@ void main() {
     expect(blockedResult, isNull);
   });
 
+  test('routes git commands with unvetted flags to the git tool', () {
+    final blockedResult = LocalShellTools.gitWriteCommandBlockedResult(
+      command: 'git log --output=out.txt',
+      workingDirectory: Directory.systemTemp.path,
+    );
+
+    expect(blockedResult, isNotNull);
+    final result = jsonDecode(blockedResult!) as Map<String, dynamic>;
+    expect(result['code'], 'local_shell_git_write_blocked');
+    expect(result['required_action'], contains('git_execute_command'));
+  });
+
   test('detects direct git writes after background separators', () {
     final blockedResult = LocalShellTools.gitWriteCommandBlockedResult(
       command: 'grep needle pubspec.yaml & git reset --hard',
