@@ -380,6 +380,41 @@ void main() {
       );
     });
 
+    test('reads only future forms of check as a continuation', () {
+      // Session 4ceebb57: a finished report that asked the user to verify the
+      // upload was sent back to work because the bare stem matched it.
+      const script = [0x30b9, 0x30af, 0x30ea, 0x30d7, 0x30c8];
+      const check = [0x78ba, 0x8a8d, 0x3057];
+      String reportWith(List<int> ending) =>
+          String.fromCharCodes([...script, 0x3092, ...check, ...ending]);
+
+      // Imperative to the user ("please check") and past ("checked").
+      expect(
+        _policy.looksLikeProseOnlyCodingContinuation(
+          reportWith(const [0x3066, 0x304f, 0x3060, 0x3055, 0x3044]),
+        ),
+        isFalse,
+      );
+      expect(
+        _policy.looksLikeProseOnlyCodingContinuation(
+          reportWith(const [0x307e, 0x3057, 0x305f]),
+        ),
+        isFalse,
+      );
+      // Plain future, and the progressive and tentative futures.
+      for (final ending in const [
+        [0x307e, 0x3059],
+        [0x3066, 0x3044, 0x304d, 0x307e, 0x3059],
+        [0x3066, 0x307f, 0x307e, 0x3059],
+      ]) {
+        expect(
+          _policy.looksLikeProseOnlyCodingContinuation(reportWith(ending)),
+          isTrue,
+          reason: String.fromCharCodes(ending),
+        );
+      }
+    });
+
     test('rejects empty, blocked, incomplete, and oversized prose', () {
       expect(_policy.looksLikeProseOnlyCodingContinuation(''), isFalse);
       expect(
