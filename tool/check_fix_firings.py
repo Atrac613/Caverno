@@ -88,6 +88,13 @@ _GIT_NATIVE_PIPELINE_REFUSAL = re.compile(
     r'subcommand per call and runs without a shell'
 )
 
+_TOOL_ARGUMENT_TYPE_REJECTION = re.compile(
+    r'"code": "invalid_tool_argument_type"'
+)
+_ANCHORED_SEARCH_HIT = re.compile(
+    r'"query": "\^(?:[^"\\]|\\.)*", "matches": \["'
+)
+
 SIGNATURES = {
     "failed_read_digest": {
         "commit": "5e7f8ebb",
@@ -402,6 +409,24 @@ SIGNATURES = {
         # where the text is a single-quoted Dart literal split across lines,
         # cannot fire it.
         "match": lambda s: _GIT_NATIVE_PIPELINE_REFUSAL.search(s) is not None,
+    },
+    "tool_argument_type_guard": {
+        "commit": "e2ccdcfb4",
+        "what": "mistyped built-in tool argument returned as a failure, not a throw",
+        # Before this commit the same call threw and ended the turn, leaving
+        # no tool result at all, so the structured code is the change itself.
+        # Matched as a real JSON key on the decoded result; the Dart source
+        # spells it with single quotes and quoted text is escaped.
+        "match": lambda s: _TOOL_ARGUMENT_TYPE_REJECTION.search(s) is not None,
+    },
+    "search_files_line_anchor": {
+        "commit": "a92ece3e3",
+        "what": "anchored search_files query (e.g. ^version:) finds its line",
+        # Before this commit an anchored query matched only lines containing
+        # the caret literally, which no corpus query ever did (66 of 66 came
+        # back empty), so a decoded result pairing a ^-query with a non-empty
+        # match list is the change firing.
+        "match": lambda s: _ANCHORED_SEARCH_HIT.search(s) is not None,
     },
 }
 

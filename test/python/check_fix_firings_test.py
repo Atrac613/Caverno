@@ -360,5 +360,67 @@ class GitNativePipelineRefusalSignatureTest(unittest.TestCase):
         self.assertFalse(self.match(blob))
 
 
+class ToolArgumentTypeGuardSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["tool_argument_type_guard"]["match"]
+        )
+
+    @staticmethod
+    def _blob(request):
+        return json.dumps([{"request": request}], ensure_ascii=False)
+
+    _RESULT = {"ok": False, "code": "invalid_tool_argument_type", "argument": "content"}
+
+    def test_the_decoded_rejection_fires(self):
+        blob = self._blob({"toolResults": [{"result": self._RESULT}]})
+        self.assertTrue(self.match(blob))
+
+    def test_the_rejection_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps(self._RESULT)
+        blob = self._blob({"messages": [{"role": "tool", "content": quoted}]})
+        self.assertFalse(self.match(blob))
+
+
+class SearchFilesLineAnchorSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["search_files_line_anchor"]["match"]
+        )
+
+    @staticmethod
+    def _blob(result):
+        return json.dumps(
+            [{"request": {"toolResults": [{"result": result}]}}],
+            ensure_ascii=False,
+        )
+
+    @staticmethod
+    def _result(query, matches):
+        return {
+            "path": "/repo",
+            "query": query,
+            "matches": matches,
+            "match_count": len(matches),
+        }
+
+    def test_an_anchored_hit_fires(self):
+        blob = self._blob(
+            self._result("^version:", ["pubspec.yaml:19: version: 1.3.48+62"])
+        )
+        self.assertTrue(self.match(blob))
+
+    def test_an_anchored_miss_does_not_fire(self):
+        self.assertFalse(self.match(self._blob(self._result("^version:", []))))
+
+    def test_an_unanchored_hit_does_not_fire(self):
+        blob = self._blob(
+            self._result("version:", ["pubspec.yaml:19: version: 1.3.48+62"])
+        )
+        self.assertFalse(self.match(blob))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
