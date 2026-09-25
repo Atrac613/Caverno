@@ -94,6 +94,39 @@ _TOOL_ARGUMENT_TYPE_REJECTION = re.compile(
 _ANCHORED_SEARCH_HIT = re.compile(
     r'"query": "\^(?:[^"\\]|\\.)*", "matches": \["'
 )
+_GIT_ADD_CHANGE_LABEL = re.compile(
+    r'"changesSinceCapture": \[(?:"(?:[^"\\]|\\.)*", )*"git add '
+)
+
+
+def _recovery_carries_earlier_results(blob):
+    """Whether a loop-limit recovery request held more than the last batch.
+
+    Before 0070aff8f the recovery request carried exactly the batch that had
+    just run, so any result id outside the last two responses' tool calls
+    (the batch that ran, and the calls left pending at the limit) is the
+    carry. Edit-mismatch recovery could already attach an older read_file,
+    so a pre-fix build matching this reads as a coincidence, not a firing.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    recent_calls = []
+    for entry in entries:
+        request = entry.get("request") or {}
+        messages = request.get("messages") or []
+        last = messages[-1].get("content") if messages else None
+        if isinstance(last, str) and "bounded tool loop limit" in last:
+            sent = {result.get("id") for result in request.get("toolResults") or []}
+            ran = set().union(*recent_calls)
+            if sent - ran - {None}:
+                return True
+        calls = (entry.get("response") or {}).get("toolCalls") or []
+        if calls:
+            recent_calls = (recent_calls + [{call.get("id") for call in calls}])[-2:]
+    return False
+
 
 SIGNATURES = {
     "failed_read_digest": {
@@ -427,6 +460,19 @@ SIGNATURES = {
         # back empty), so a decoded result pairing a ^-query with a non-empty
         # match list is the change firing.
         "match": lambda s: _ANCHORED_SEARCH_HIT.search(s) is not None,
+    },
+    "carry_across_git_add": {
+        "commit": "93819b505",
+        "what": "reads carried past git add, labelled with it",
+        # The label exists only because of this change: before it, git add
+        # ended the carry, so no carried result could name one. Matched as the
+        # real JSON key on a logged tool result, so quoted text cannot fire it.
+        "match": lambda s: _GIT_ADD_CHANGE_LABEL.search(s) is not None,
+    },
+    "loop_limit_recovery_carry": {
+        "commit": "0070aff8f",
+        "what": "loop-limit recovery request carries earlier results, not the last batch alone",
+        "match": _recovery_carries_earlier_results,
     },
 }
 

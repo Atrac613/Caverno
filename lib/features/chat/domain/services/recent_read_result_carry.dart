@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../data/datasources/git_tools.dart';
 import '../entities/tool_call_info.dart';
 import 'sticky_tool_result_policy.dart';
 import 'tool_call_execution_policy.dart';
@@ -84,6 +85,7 @@ final class RecentReadResultCarry {
     // inspection.
     final laterWrites = <String>[];
     final writtenPaths = <String>{};
+    var indexChanged = false;
     var remaining = budgetBytes;
     for (var index = executedToolResults.length - 1; index >= 0; index--) {
       final result = executedToolResults[index];
@@ -101,6 +103,18 @@ final class RecentReadResultCarry {
         laterWrites.insert(0, '${result.name} $path');
         continue;
       }
+      // `git add` only stages: no file, branch, tag or HEAD moves, so what it
+      // makes stale is what reads the index. Treating it as a scope-less
+      // mutation dropped the version and tag facts at exactly the step that
+      // writes the commit message from them -- sessions d84f819b and
+      // e6b3d03c re-read both right after staging, and e6b3d03c's
+      // loop-limit recovery committed "1.3.50+62" for a 1.3.50+64 bump.
+      final stagedPaths = _stagedPathsOf(result);
+      if (stagedPaths != null) {
+        indexChanged = true;
+        laterWrites.insert(0, 'git add $stagedPaths');
+        continue;
+      }
       // A mutating command has no declared scope -- it can move the branch or
       // rewrite any file -- so everything read before it may describe a
       // workspace that no longer exists, and stating that as current is worse
@@ -112,6 +126,7 @@ final class RecentReadResultCarry {
       if (!present.add(_keyFor(result))) continue;
       if (!_isCarryable(result)) continue;
       if (writtenPaths.contains(_pathOf(result))) continue;
+      if (indexChanged && _readsIndex(result)) continue;
       final bytes = utf8.encode(result.result).length;
       if (bytes > maxResultBytes) continue;
       if (bytes > remaining) break;
@@ -158,6 +173,29 @@ final class RecentReadResultCarry {
     if (!_executionPolicy.isReadOnlyInspectionTool(result.name)) return false;
     // A reuse payload is a pointer to content, not the content.
     return !result.result.contains('"duplicate_tool_call_result_reused"');
+  }
+
+  /// The pathspec of a `git add` run through the git tool (empty when none was
+  /// given), or null for any other result.
+  String? _stagedPathsOf(ToolResultInfo result) {
+    final args = _gitArgs(result);
+    if (args == null || args.isEmpty || args.first != 'add') return null;
+    return args.skip(1).join(' ');
+  }
+
+  /// Whether [result] reported index state that a later `git add` changes.
+  bool _readsIndex(ToolResultInfo result) {
+    final args = _gitArgs(result);
+    return args != null &&
+        args.isNotEmpty &&
+        (args.first == 'status' || args.first == 'diff');
+  }
+
+  List<String>? _gitArgs(ToolResultInfo result) {
+    if (result.name != 'git_execute_command') return null;
+    final command = result.arguments['command'];
+    if (command is! String) return null;
+    return GitTools.splitArgs(GitTools.normalizeCommand(command));
   }
 
   ToolCallInfo _callFor(ToolResultInfo result) => ToolCallInfo(

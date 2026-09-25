@@ -67,6 +67,62 @@ void registerChatNotifierPendingBatchTests() {
     },
   );
 
+  test('loop-limit recovery request carries the earlier reads', () async {
+    // Sessions 50e3f486, d84f819b and e6b3d03c: the recovery request held
+    // the last batch alone, so the model finished without the facts it had
+    // already gathered -- re-listing tags, or committing a guessed version.
+    final projectRoot = await Directory.systemTemp.createTemp(
+      'caverno_recovery_context_',
+    );
+    addTearDown(() => projectRoot.delete(recursive: true));
+    final finalCall = ToolCallInfo(
+      id: 'final-write',
+      name: 'write_file',
+      arguments: {
+        'path': '${projectRoot.path}/lib/generated.dart',
+        'content': 'const generated = true;\n',
+      },
+    );
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [_pendingBatchReadCall(0, projectRoot.path)],
+      toolLoopResponses: _pendingBatchResponses(
+        projectRoot: projectRoot.path,
+        finalCall: finalCall,
+      ),
+      finalAnswerChunks: const ['Done.'],
+    );
+    final toolService = _PendingBatchMcpToolService(projectRoot);
+    final project = _pendingBatchProject(projectRoot.path);
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _pendingBatchContainer(
+      project: project,
+      dataSource: dataSource,
+      toolService: toolService,
+      appLifecycleService: appLifecycleService,
+      settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+    );
+    addTearDown(container.dispose);
+    _activatePendingBatchProject(container, project);
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage('Finish the declared file write');
+
+    final recoveryIndex = dataSource.toolResultRequestMessages.indexWhere(
+      (messages) => messages.any(
+        (message) => message.content.contains('bounded tool loop limit'),
+      ),
+    );
+    expect(recoveryIndex, isNonNegative);
+    final recoveryIds = dataSource.toolResultBatches[recoveryIndex]
+        .map((result) => result.id)
+        .toList();
+    // The batch that just ran is read-11; everything before it is carried.
+    expect(recoveryIds.last, 'read-11');
+    expect(recoveryIds, containsAll(<String>['read-0', 'read-10']));
+  });
+
   test('edit mismatch follow-up executes before exhaustion recovery', () async {
     final projectRoot = await Directory.systemTemp.createTemp(
       'caverno_pending_edit_recovery_',
