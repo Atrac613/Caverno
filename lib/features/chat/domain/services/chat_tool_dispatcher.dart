@@ -4,11 +4,14 @@ import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'tool_argument_type_guard.dart';
 
 typedef ChatToolHandler = Future<McpToolResult> Function(ToolCallInfo toolCall);
 typedef ChatToolPlanningPolicy = McpToolResult? Function(ToolCallInfo toolCall);
 typedef ChatToolPreflightPolicy =
     Future<McpToolResult?> Function(ToolCallInfo toolCall);
+typedef ChatToolArgumentCheck =
+    ToolArgumentCheck Function(ToolCallInfo toolCall);
 
 abstract interface class ChatToolHandlerModule {
   Map<String, ChatToolHandler> get handlers;
@@ -61,14 +64,16 @@ final class ChatToolDispatcher {
   final ChatToolHandler executeFallbackTool;
 
   /// Runs before every other policy: handlers cast their arguments, and a
-  /// mistyped one would otherwise throw and end the turn.
-  final ChatToolPlanningPolicy? validateArguments;
+  /// mistyped one would otherwise throw and end the turn. Everything after
+  /// it sees the call with any losslessly decoded arguments.
+  final ChatToolArgumentCheck? validateArguments;
 
-  Future<McpToolResult> dispatch(ToolCallInfo toolCall) async {
-    final argumentFailure = validateArguments?.call(toolCall);
-    if (argumentFailure != null) {
-      return argumentFailure;
+  Future<McpToolResult> dispatch(ToolCallInfo requestedCall) async {
+    final argumentCheck = validateArguments?.call(requestedCall);
+    if (argumentCheck?.failure case final failure?) {
+      return failure;
     }
+    final toolCall = argumentCheck?.toolCall ?? requestedCall;
 
     final planningPolicyResult = enforcePlanningPolicy(toolCall);
     if (planningPolicyResult != null) {
