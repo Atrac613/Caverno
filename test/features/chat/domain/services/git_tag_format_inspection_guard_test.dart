@@ -156,6 +156,8 @@ void main() {
       'tag',
       'tag --list',
       'tag -l "v1.*"',
+      // Session 50e3f486: the listing the version-bump skill issues.
+      "tag --list '[0-9]*' --sort=-version:refname | head -3",
       'git for-each-ref refs/tags --format=%(refname:short)',
       'for-each-ref refs/tags/releases --format=%(refname:short)',
       'show-ref --tags',

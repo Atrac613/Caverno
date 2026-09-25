@@ -106,7 +106,17 @@ class GitTools {
   /// Returns `true` when [command] is a read-only git operation that can
   /// run without user confirmation.
   static bool isReadOnly(String command) {
-    final args = splitArgs(command);
+    // Classify what actually runs: executeResult strips a trailing
+    // `| head -N` / `| tail -N` before spawning git. Left in place, the pipe
+    // and its count read as unvetted arguments, so `tag --list | head -3`
+    // fell to approval and never counted as a tag-format inspection
+    // (session 50e3f486). Any other operator means the command is refused.
+    final normalized = normalizeCommand(command);
+    final lineLimit = parseTrailingLineLimit(normalized);
+    final target = lineLimit?.command ?? normalized;
+    if (firstShellControlOperator(target) != null) return false;
+
+    final args = splitArgs(target);
     if (args.isEmpty) return false;
 
     final subcommand = args.first;

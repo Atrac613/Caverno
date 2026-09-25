@@ -2,6 +2,26 @@ import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('a trailing head or tail is stripped before classification', () {
+    for (final command in [
+      "tag --list '[0-9]*' --sort=-version:refname | head -3",
+      'show --stat HEAD | tail -2',
+      'branch -a | head -3',
+      'log --oneline | head -n 5',
+    ]) {
+      expect(GitTools.isReadOnly(command), isTrue, reason: command);
+    }
+    for (final command in [
+      'log --oneline | grep fix',
+      'log --oneline | wc -l',
+      'log --output=out.txt | head -3',
+      'tag -a 1.0.0 -m release | head -1',
+      'log --oneline | head -3 | tail -1',
+    ]) {
+      expect(GitTools.isReadOnly(command), isFalse, reason: command);
+    }
+  });
+
   test('unknown flags on conditional verbs require approval', () {
     for (final command in [
       'branch --made-up-flag',
