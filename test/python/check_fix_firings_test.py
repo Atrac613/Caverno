@@ -422,5 +422,76 @@ class SearchFilesLineAnchorSignatureTest(unittest.TestCase):
         self.assertFalse(self.match(blob))
 
 
+class CarryAcrossGitAddSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["carry_across_git_add"]["match"]
+        )
+
+    @staticmethod
+    def _blob(result):
+        return json.dumps(
+            [{"request": {"toolResults": [result]}}], ensure_ascii=False
+        )
+
+    def test_a_git_add_label_fires(self):
+        result = {
+            "id": "tag",
+            "name": "git_execute_command",
+            "changesSinceCapture": ["edit_file a.md", "git add a.md pubspec.yaml"],
+        }
+        self.assertTrue(self.match(self._blob(result)))
+
+    def test_a_file_write_label_does_not_fire(self):
+        result = {"id": "tag", "changesSinceCapture": ["edit_file pubspec.yaml"]}
+        self.assertFalse(self.match(self._blob(result)))
+
+    def test_the_label_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps({"changesSinceCapture": ["git add a.md"]})
+        blob = json.dumps([{"request": {"messages": [{"content": quoted}]}}])
+        self.assertFalse(self.match(blob))
+
+
+class LoopLimitRecoveryCarrySignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["loop_limit_recovery_carry"]["match"]
+        )
+
+    @staticmethod
+    def _log(recovery_result_ids):
+        return json.dumps(
+            [
+                {"request": {}, "response": {"toolCalls": [{"id": "read-1"}]}},
+                {"request": {}, "response": {"toolCalls": [{"id": "read-2"}]}},
+                {"request": {}, "response": {"toolCalls": [{"id": "read-3"}]}},
+                {
+                    "request": {
+                        "messages": [
+                            {"role": "user", "content": "task"},
+                            {
+                                "role": "user",
+                                "content": "You hit the bounded tool loop limit ...",
+                            },
+                        ],
+                        "toolResults": [{"id": i} for i in recovery_result_ids],
+                    },
+                    "response": {"content": "done"},
+                },
+            ]
+        )
+
+    def test_a_carried_earlier_result_fires(self):
+        self.assertTrue(self.match(self._log(["read-1", "read-2"])))
+
+    def test_the_last_batch_alone_does_not_fire(self):
+        self.assertFalse(self.match(self._log(["read-2"])))
+
+    def test_a_log_without_recovery_does_not_fire(self):
+        self.assertFalse(self.match(json.dumps([{"request": {}, "response": {}}])))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
