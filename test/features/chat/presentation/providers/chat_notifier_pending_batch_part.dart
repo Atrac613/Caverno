@@ -121,6 +121,16 @@ void registerChatNotifierPendingBatchTests() {
     // The batch that just ran is read-11; everything before it is carried.
     expect(recoveryIds.last, 'read-11');
     expect(recoveryIds, containsAll(<String>['read-0', 'read-10']));
+    // And it reaches the datasource marked as history, which prompt budgeting
+    // used to strip before the request formatter could see it.
+    final recoveryResults = dataSource.toolResultBatches[recoveryIndex];
+    expect(
+      recoveryResults
+          .where((result) => result.id != 'read-11')
+          .every((result) => result.fromEarlierLoop),
+      isTrue,
+    );
+    expect(recoveryResults.last.fromEarlierLoop, isFalse);
   });
 
   test('edit mismatch follow-up executes before exhaustion recovery', () async {

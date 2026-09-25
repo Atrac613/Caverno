@@ -145,6 +145,41 @@ void main() {
       });
     });
 
+    test('budgeting keeps where a carried result sits in the turn', () {
+      // Budgeting rebuilt each result and kept only its outcome, so no carried
+      // result reached the request formatter marked as history or labelled
+      // with a later write.
+      ToolResultInfo carried(int index) => ToolResultInfo(
+        id: 'carried-$index',
+        name: 'read_file',
+        arguments: {'path': 'lib/file_$index.dart'},
+        result: jsonEncode({'content': 'x' * 30000}),
+        fromEarlierLoop: true,
+        changesSinceCapture: const ['write_file pubspec.yaml'],
+      );
+      final input = [for (var index = 0; index < 4; index += 1) carried(index)];
+
+      for (final mode in ToolResultPromptBudgetMode.values) {
+        final budgeted = ToolResultPromptBuilder.budgetToolResults(
+          input,
+          mode: mode,
+        );
+        expect(
+          budgeted.every((result) => result.fromEarlierLoop),
+          isTrue,
+          reason: '$mode',
+        );
+        expect(budgeted.map((result) => result.changesSinceCapture).toSet(), {
+          ['write_file pubspec.yaml'],
+        }, reason: '$mode');
+        expect(
+          budgeted.first.result,
+          contains(ToolResultPromptBuilder.promptBudgetReductionMarker),
+          reason: 'the case must exercise truncation, $mode',
+        );
+      }
+    });
+
     test('reports which tools the prompt budget shortened', () {
       // Six large files, exactly the a0ca65b7 shape: the per-result share of
       // the total budget cuts every one of them, and the model is then told to

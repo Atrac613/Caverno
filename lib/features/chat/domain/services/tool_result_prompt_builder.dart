@@ -405,18 +405,14 @@ class ToolResultPromptBuilder {
         keepImagePayload: keptImageIndexes.contains(index),
       );
       budgeted.add(
-        ToolResultInfo(
-          id: toolResult.id,
-          name: toolResult.name,
-          arguments: toolResult.arguments,
-          result: summaryFirst
+        // Budgeting shortens the payload text; it does not change what the
+        // tool reported about its own execution or where the result sits in
+        // the turn. Dropping the outcome here is what forced downstream
+        // consumers to parse an exit status back out of truncated text.
+        toolResult.withResult(
+          summaryFirst
               ? _renderSummaryFirst(toolResult, budgetedResult)
               : budgetedResult,
-          // Budgeting shortens the payload text; it does not change what the
-          // tool reported about its own execution. Dropping the outcome here
-          // is what forced downstream consumers to parse an exit status back
-          // out of a string that budgeting may since have truncated.
-          outcome: toolResult.outcome,
         ),
       );
     }
@@ -435,12 +431,8 @@ class ToolResultPromptBuilder {
     );
     return budgeted
         .map(
-          (toolResult) => ToolResultInfo(
-            id: toolResult.id,
-            name: toolResult.name,
-            arguments: toolResult.arguments,
-            outcome: toolResult.outcome,
-            result: _truncateTextWithMiddle(
+          (toolResult) => toolResult.withResult(
+            _truncateTextWithMiddle(
               toolResult.result,
               maxChars: perResultTarget,
               // The per-result pass hands back a read_more_hint; this whole-list
@@ -1771,11 +1763,8 @@ class ToolResultPromptBuilder {
         countKey: 'match_count',
         noMatchHint: _findFilesNoMatchHint,
       ),
-      'dart_analyze_feedback' ||
-      'dart_test_feedback' => _budgetDiagnosticFeedbackResult(
-        decoded,
-        budget: budget,
-      ),
+      'dart_analyze_feedback' || 'dart_test_feedback' =>
+        _budgetDiagnosticFeedbackResult(decoded, budget: budget),
       _ => _budgetJsonMap(decoded, budget: budget),
     };
 
