@@ -103,25 +103,45 @@ class GitReadOnlyOptionAllowlist {
     'rev-list': {'--max-count', '--skip'},
   };
 
+  static final RegExp _digits = RegExp(r'^[0-9]+$');
+  static final RegExp _attachedLogCount = RegExp(r'^-n?[0-9]+$');
+  static const Set<String> _numericValueFlags = {
+    '-n',
+    '--skip',
+    '--max-count',
+    '--count',
+  };
+
   static bool accepts(String subcommand, List<String> args) {
-    final flags = _readOnlyFlags[subcommand]!;
+    final flags = _readOnlyFlags[subcommand];
+    if (flags == null) return false;
     final valueFlags = _readOnlyValueFlags[subcommand] ?? const <String>{};
     for (var i = 1; i < args.length; i++) {
       final arg = args[i];
       if (arg == '--') return true; // Remaining tokens are fenced pathspecs.
       if (!arg.startsWith('-')) continue; // Revision, range, or path.
-      if (subcommand == 'log' && RegExp(r'^-[0-9]+$').hasMatch(arg)) continue;
+      if (subcommand == 'log' && _attachedLogCount.hasMatch(arg)) continue;
       if (flags.contains(arg)) continue;
 
+      // `-n` is the only option read with a detached value. Long options must
+      // carry theirs after `=`: git does not take a detached value for
+      // `--format` or `--pretty`, so consuming the next token here would skip
+      // checking an option git still parses.
+      if (arg == '-n' && valueFlags.contains('-n')) {
+        if (i + 1 >= args.length || !_digits.hasMatch(args[i + 1])) {
+          return false;
+        }
+        i += 1;
+        continue;
+      }
+
       final equals = arg.indexOf('=');
-      final option = equals < 0 ? arg : arg.substring(0, equals);
+      if (equals < 0 || !arg.startsWith('--')) return false;
+      final option = arg.substring(0, equals);
       if (!valueFlags.contains(option)) return false;
-      final value = equals < 0
-          ? (i + 1 < args.length ? args[++i] : '')
-          : arg.substring(equals + 1);
+      final value = arg.substring(equals + 1);
       if (value.isEmpty) return false;
-      if ({'-n', '--skip', '--max-count', '--count'}.contains(option) &&
-          !RegExp(r'^[0-9]+$').hasMatch(value)) {
+      if (_numericValueFlags.contains(option) && !_digits.hasMatch(value)) {
         return false;
       }
     }
