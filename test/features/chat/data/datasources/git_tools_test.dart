@@ -323,17 +323,19 @@ void main() {
 
         expect(decoded.containsKey('exit_code'), isFalse);
         expect(decoded['code'], 'command_rejected_before_execution');
-        // The model must learn to filter with git's own arguments rather than
-        // blindly retrying the unfiltered command, which is what caused the
-        // observed `tag --list` inspection loop. The old wording offered
-        // `tag --list "1.3.*"` as the example, which is a filter and not the
-        // count limit the model was asking for -- that is why it kept
-        // retrying. It now names an option git actually has, and sends a real
-        // pipeline to the tool that can run one.
+        expect(decoded['executed'], isFalse);
         expect(error, contains('Do not retry the same command'));
-        expect(error, contains('log -n 5 --oneline'));
+        expect(error, contains('rev-list --count <range>'));
+        expect(error, contains('log -n 5'));
+        expect(error, contains('--max-count=5'));
+        expect(error, contains('--format=...'));
         expect(error, contains('local_execute_command'));
         expect(error, contains('| head -N'));
+        expect(error, contains('approval every time'));
+        expect(
+          error.indexOf('rev-list --count'),
+          lessThan(error.indexOf('local_execute_command')),
+        );
       },
     );
 

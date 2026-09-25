@@ -208,6 +208,16 @@ class GitTools {
     return null;
   }
 
+  static String shellOperatorRefusalMessage(String shellOperator) =>
+      'git_execute_command accepts one git subcommand per call and runs '
+      'without a shell; operator "$shellOperator" is unsupported. Use Git '
+      'options first: `rev-list --count <range>` for commit counts, '
+      '`log -n 5` or `--max-count=5` for limits, and `--format=...` to shape '
+      'output where supported. A trailing `| head -N` or `| tail -N` is '
+      'applied by this tool. Do not retry the same command unfiltered. '
+      'If a real pipeline or redirect is required, use '
+      'local_execute_command; it asks the user for approval every time.';
+
   /// A trailing `| head -N` or `| tail -N` this tool applies to its own
   /// output instead of refusing.
   ///
@@ -440,16 +450,7 @@ class GitTools {
         ...ToolResultOrigin.malformed.marker,
         'executed': false,
         'code': 'command_rejected_before_execution',
-        'error':
-            'git_execute_command accepts one git subcommand per tool call and '
-            'runs it without a shell, so the operator "$shellOperator" (pipes, '
-            'redirects, &&/;) is not supported. A trailing `| head -N` or '
-            '`| tail -N` is the exception and is applied for you. Do not retry '
-            'the same command unfiltered. Filter with git\'s own arguments '
-            'where git has one, e.g. `log -n 5 --oneline` or '
-            '`branch --list "feature/*"`. For anything else that needs a real '
-            'shell — a pipeline, a redirect, several commands — use '
-            'local_execute_command, which runs one.',
+        'error': shellOperatorRefusalMessage(shellOperator),
       });
     }
 
