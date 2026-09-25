@@ -5,6 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ChatToolDispatcher', () {
+    test('returns an argument failure before every other policy', () async {
+      final events = <String>[];
+      final dispatcher = _buildDispatcher(
+        events: events,
+        planningPolicy: (_) {
+          events.add('planning_policy');
+          return null;
+        },
+        validateArguments: (_) => _result('argument_type'),
+      );
+
+      final result = await dispatcher.dispatch(_toolCall('write_file'));
+
+      expect(result.toolName, 'argument_type');
+      expect(events, isEmpty);
+    });
+
     test('returns planning policy result before other handlers', () async {
       final events = <String>[];
       final dispatcher = _buildDispatcher(
@@ -209,6 +226,7 @@ ChatToolDispatcher _buildDispatcher({
   ChatToolPlanningPolicy? planningPolicy,
   ChatToolPreflightPolicy? networkReadTaintPolicy,
   ChatToolHandlerRegistry registry = const ChatToolHandlerRegistry({}),
+  ChatToolPlanningPolicy? validateArguments,
 }) {
   return ChatToolDispatcher(
     enforcePlanningPolicy: planningPolicy ?? (_) => null,
@@ -238,6 +256,7 @@ ChatToolDispatcher _buildDispatcher({
       events.add('fallback');
       return _result('fallback');
     },
+    validateArguments: validateArguments,
   );
 }
 

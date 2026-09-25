@@ -273,6 +273,23 @@ class McpToolService extends McpToolServiceFacadeBase {
   ///
   /// Returns dynamically fetched tools when MCP is connected.
   /// Otherwise returns the fallback `web_search` tool for SearXNG.
+  /// The JSON-schema `parameters` of a built-in tool, or null for a remote
+  /// MCP tool or a name this service does not offer.
+  ///
+  /// Remote tools are left out on purpose: their servers validate their own
+  /// arguments, and some accept looser types than they declare.
+  Map<String, dynamic>? builtInToolParameters(String name) {
+    if (!_reservedToolNames.contains(name)) return null;
+    for (final definition in getOpenAiToolDefinitions()) {
+      final function = definition['function'];
+      if (function is Map && function['name'] == name) {
+        final parameters = function['parameters'];
+        return parameters is Map<String, dynamic> ? parameters : null;
+      }
+    }
+    return null;
+  }
+
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     final toolDefinitions = <Map<String, dynamic>>[];
 

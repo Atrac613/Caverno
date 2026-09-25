@@ -47,6 +47,7 @@ final class ChatToolDispatcher {
     required this.handleNetworkMutation,
     required this.handlerRegistry,
     required this.executeFallbackTool,
+    this.validateArguments,
   });
 
   final ChatToolPlanningPolicy enforcePlanningPolicy;
@@ -59,7 +60,16 @@ final class ChatToolDispatcher {
   final ChatToolHandlerRegistry handlerRegistry;
   final ChatToolHandler executeFallbackTool;
 
+  /// Runs before every other policy: handlers cast their arguments, and a
+  /// mistyped one would otherwise throw and end the turn.
+  final ChatToolPlanningPolicy? validateArguments;
+
   Future<McpToolResult> dispatch(ToolCallInfo toolCall) async {
+    final argumentFailure = validateArguments?.call(toolCall);
+    if (argumentFailure != null) {
+      return argumentFailure;
+    }
+
     final planningPolicyResult = enforcePlanningPolicy(toolCall);
     if (planningPolicyResult != null) {
       return planningPolicyResult;

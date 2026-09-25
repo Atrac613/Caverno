@@ -193,6 +193,7 @@ import '../../domain/services/task_proposal_quality_gate_fallback.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/timed_out_command_retry_guard.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
+import '../../domain/services/tool_argument_type_guard.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
@@ -7624,6 +7625,11 @@ class ChatNotifier extends Notifier<ChatState> {
               name: toolCall.name,
               arguments: toolCall.arguments,
             ),
+            validateArguments: (toolCall) =>
+                const ToolArgumentTypeGuard().check(
+                  toolCall,
+                  _mcpToolService?.builtInToolParameters(toolCall.name),
+                ),
           ).dispatch(toolCall),
         ),
       ),
