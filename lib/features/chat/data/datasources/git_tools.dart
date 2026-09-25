@@ -7,6 +7,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../../../../core/services/login_shell_environment.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_command_path_escape_guard.dart';
+import 'git_conditional_read_only_allowlist.dart';
 import 'git_read_only_option_allowlist.dart';
 import 'project_mutation_path_fence.dart';
 import 'turn_project_root.dart';
@@ -119,21 +120,21 @@ class GitTools {
     // Conditional checks per subcommand.
     switch (subcommand) {
       case 'branch':
-        return _isBranchReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.branch(args);
       case 'tag':
-        return _isTagReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.tag(args);
       case 'stash':
-        return _isStashReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.stash(args);
       case 'config':
-        return _isConfigReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.config(args);
       case 'remote':
         return _isRemoteReadOnly(args);
       case 'symbolic-ref':
         return _isSymbolicRefReadOnly(args);
       case 'reflog':
-        return _isReflogReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.reflog(args);
       case 'fsck':
-        return _isFsckReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.fsck(args);
       default:
         return false;
     }
@@ -283,101 +284,6 @@ class GitTools {
     return null;
   }
 
-  /// `git branch` is read-only when listing (no create/delete/rename flags
-  /// and no positional branch-name argument that would create a branch).
-  static bool _isBranchReadOnly(List<String> args) {
-    const writeFlags = {
-      '-d',
-      '-D',
-      '--delete',
-      '-m',
-      '-M',
-      '--move',
-      '-c',
-      '-C',
-      '--copy',
-      '--set-upstream-to',
-      '-u',
-      '--unset-upstream',
-      '--edit-description',
-    };
-    for (var i = 1; i < args.length; i++) {
-      final arg = args[i];
-      if (writeFlags.contains(arg)) return false;
-      if (arg.startsWith('--set-upstream-to=')) return false;
-      // A positional argument (not a flag) after `branch` means create.
-      if (!arg.startsWith('-') && i > 1) {
-        // Allow known list flags: -r, -a, -v, -vv, --list, etc.
-        continue;
-      }
-    }
-    // Check if there's a bare positional that creates a new branch.
-    final positionals = args.skip(1).where((a) => !a.startsWith('-')).toList();
-    if (positionals.isNotEmpty) return false;
-    return true;
-  }
-
-  /// `git tag` is read-only when listing (no -a, -d, -s, -f flags and no
-  /// positional tag name that would create a tag).
-  ///
-  /// git-tag(1) documents the filters below as "implies --list", so the
-  /// operand after them is a commit or a pattern, never a new tag name.
-  /// Missing them made `tag --points-at HEAD` read as creating a tag named
-  /// HEAD, and the tag-format guard blocked a pure lookup (session 7a24caab).
-  static bool _isTagReadOnly(List<String> args) {
-    const writeFlags = {'-a', '-d', '-s', '-f', '--delete', '--sign', '-u'};
-    const listImplyingFilters = {
-      '--contains',
-      '--no-contains',
-      '--points-at',
-      '--merged',
-      '--no-merged',
-    };
-    var hasListFlag = false;
-    for (var i = 1; i < args.length; i++) {
-      final arg = args[i];
-      if (writeFlags.contains(arg)) return false;
-      if (arg == '-l' || arg == '--list' || arg.startsWith('--list=')) {
-        hasListFlag = true;
-      }
-      final flagName = arg.split('=').first;
-      if (listImplyingFilters.contains(flagName) ||
-          RegExp(r'^-n\d*$').hasMatch(arg)) {
-        hasListFlag = true;
-      }
-    }
-    if (hasListFlag) return true;
-    final positionals = args.skip(1).where((a) => !a.startsWith('-')).toList();
-    if (positionals.isNotEmpty) return false;
-    return true;
-  }
-
-  /// `git stash` is read-only for `list` and `show` sub-subcommands only.
-  static bool _isStashReadOnly(List<String> args) {
-    if (args.length < 2) return false;
-    const readOnlyStashActions = {'list', 'show'};
-    return readOnlyStashActions.contains(args[1]);
-  }
-
-  /// `git config` is read-only for get/list operations only.
-  static bool _isConfigReadOnly(List<String> args) {
-    const readFlags = {
-      '--get',
-      '--get-all',
-      '--get-regexp',
-      '--list',
-      '-l',
-      '--get-urlmatch',
-    };
-    for (var i = 1; i < args.length; i++) {
-      if (readFlags.contains(args[i])) return true;
-    }
-    // Bare `git config` with just a key is a read.
-    // But `git config key value` (2 positionals) is a write.
-    final positionals = args.skip(1).where((a) => !a.startsWith('-')).toList();
-    return positionals.length <= 1;
-  }
-
   /// `git remote` is read-only when listing remotes, inspecting a remote, or
   /// resolving its URL. Pruning is read-only only in dry-run mode.
   static bool _isRemoteReadOnly(List<String> args) {
@@ -435,35 +341,6 @@ class GitTools {
       },
     );
     return positionals?.length == 1;
-  }
-
-  /// `git reflog` defaults to `show`; its explicit maintenance actions write
-  /// reflog state and therefore require approval.
-  static bool _isReflogReadOnly(List<String> args) {
-    if (args.length == 1) {
-      return true;
-    }
-    const writeActions = {'expire', 'delete', 'drop', 'write'};
-    return !writeActions.contains(args[1]);
-  }
-
-  /// `git fsck` is observational except when `--lost-found` asks Git to write
-  /// dangling objects into `.git/lost-found`.
-  static bool _isFsckReadOnly(List<String> args) {
-    for (final arg in args.skip(1)) {
-      if (_enablesFsckLostFound(arg)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  static bool _enablesFsckLostFound(String arg) {
-    if (arg == '--' || arg.startsWith('--no-')) {
-      return false;
-    }
-    final optionName = arg.split('=').first;
-    return optionName.length > 2 && '--lost-found'.startsWith(optionName);
   }
 
   static List<String>? _readOnlyPositionals(

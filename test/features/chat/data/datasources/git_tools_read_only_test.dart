@@ -2,6 +2,46 @@ import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('unknown flags on conditional verbs require approval', () {
+    for (final command in [
+      'branch --made-up-flag',
+      'tag --list --made-up-flag',
+      'stash list --made-up-flag',
+      'config --get user.name --made-up-flag',
+      'remote show --made-up-flag origin',
+      'symbolic-ref --made-up-flag HEAD',
+      'reflog show --made-up-flag HEAD',
+      'fsck --made-up-flag',
+      'branch --list --edit-description feature/test',
+      'tag --list --create-reflog',
+      'stash show --output=out.txt',
+      'config --get user.name --file=out.txt',
+      'reflog show --output=out.txt',
+    ]) {
+      expect(GitTools.isReadOnly(command), isFalse, reason: command);
+    }
+  });
+
+  test('conditional inspection keeps vetted shapes', () {
+    for (final command in [
+      'branch',
+      'branch -a -vv',
+      'branch --list "feature/*"',
+      'tag --list --sort=-version:refname',
+      'tag --points-at HEAD',
+      'tag -n1 --list',
+      'stash list --oneline',
+      'stash show --stat stash@{0}',
+      'config --get user.name',
+      'config --get-regexp user.*',
+      'config --list',
+      'reflog show --all HEAD',
+      'fsck --strict --no-lost-found',
+    ]) {
+      expect(GitTools.isReadOnly(command), isTrue, reason: command);
+    }
+  });
+
   group('GitTools.isReadOnly inspection option allowlist', () {
     test('keeps observed inspection shapes read-only', () {
       for (final command in [
