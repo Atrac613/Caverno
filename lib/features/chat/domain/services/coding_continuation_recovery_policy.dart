@@ -231,9 +231,16 @@ final class CodingContinuationRecoveryPolicy {
       [0x30a8, 0x30e9, 0x30fc],
       [0x8a3a, 0x65ad],
     ]);
+    // Future and volitional forms only, like the English list. The bare
+    // three-unit stem for "check" (U+78BA U+8A8D U+3057) also matched the past
+    // ("checked") and the imperative addressed to the user ("please check"),
+    // so a finished release report asking the user to verify the upload read
+    // as the model promising to check, and turn finalization sent it back to
+    // work (session 4ceebb57: a dry run re-run and a 67 MB download attempt).
     final hasCjkAction = _containsAnyCodeUnitSequence(text, const [
-      [0x78ba, 0x8a8d, 0x3057],
       [0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059],
+      [0x78ba, 0x8a8d, 0x3057, 0x3066, 0x3044, 0x304d, 0x307e, 0x3059],
+      [0x78ba, 0x8a8d, 0x3057, 0x3066, 0x307f, 0x307e, 0x3059],
       [0x8abf, 0x67fb, 0x3057, 0x307e, 0x3059],
       [0x8aad, 0x307f, 0x307e, 0x3059],
       [0x30dd, 0x30fc, 0x30c6, 0x30a3, 0x30f3, 0x30b0, 0x3057, 0x307e, 0x3059],
