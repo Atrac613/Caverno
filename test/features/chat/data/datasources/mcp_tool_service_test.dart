@@ -1209,14 +1209,16 @@ void main() {
       // for long PDFs and inspect_file began sampling ends instead of the
       // whole document, and again when search_files' `query` began saying it
       // is literal text rather than a regular expression, and when find_files
-      // began stating its matching, exclusion and result contract. A description edit
+      // began stating its matching, exclusion and result contract, and when
+      // search_files' `query` began honoring a leading "^" / trailing "$" as a
+      // line anchor. A description edit
       // moves the prefix once and then holds; a per-request edit would not,
       // which is what this pin is here to catch.
       expect(
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-        '5ef3b01c8158433ace7755a8ea75c59d6390f2320ba3a07cd79e19e2dd35b572',
+        'c1fbc5951af3ca55e90f00ff623ef78b0e9ca9d5252c8d80df7e48adcacd7fc1',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(

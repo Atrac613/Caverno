@@ -582,9 +582,45 @@ void main() {
     },
   );
 
+  test('searchFiles honors a leading or trailing line anchor', () async {
+    // Every anchored query in the corpus was `^version:` and, matched
+    // literally, found nothing (six reissues in session a40d48a8).
+    await File(
+      '${tempDir.path}${Platform.pathSeparator}pubspec.yaml',
+    ).writeAsString(
+      'name: caverno\n'
+      'version: 1.3.34+47\n'
+      '# the version: comment\n'
+      'dependencies:\n'
+      '  dio: ^5.4.0\n',
+    );
+
+    Future<Map<String, dynamic>> search(String query) async =>
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: query,
+              ),
+            )
+            as Map<String, dynamic>;
+
+    final anchored = await search('^version:');
+    expect(anchored['match_count'], 1);
+    expect(anchored['matches'], ['pubspec.yaml:2: version: 1.3.34+47']);
+    expect(anchored.containsKey('query_hint'), isFalse);
+
+    final trailing = await search(r'comment$');
+    expect(trailing['matches'], ['pubspec.yaml:3: # the version: comment']);
+
+    final whole = await search(r'^dependencies:$');
+    expect(whole['matches'], ['pubspec.yaml:4: dependencies:']);
+
+    // A caret version constraint is still found as literal text.
+    final caret = await search('^5.4.0');
+    expect(caret['matches'], ['pubspec.yaml:5:   dio: ^5.4.0']);
+  });
+
   test('searchFiles names the anchor behind an empty result', () async {
-    // `query` is literal, so `^version:` can never match. The same anchored
-    // query was reissued six times in session a40d48a8 because nothing said so.
     await File(
       '${tempDir.path}${Platform.pathSeparator}pubspec.yaml',
     ).writeAsString('name: caverno\nversion: 1.3.34+47\n');
@@ -593,13 +629,13 @@ void main() {
         jsonDecode(
               await FilesystemTools.searchFiles(
                 path: tempDir.path,
-                query: '^version:',
+                query: '^build:',
               ),
             )
             as Map<String, dynamic>;
     expect(anchored['match_count'], 0);
-    expect(anchored['query_hint'], contains('literal text'));
-    expect(anchored['query_hint'], contains('^'));
+    expect(anchored['query_hint'], contains('line anchor'));
+    expect(anchored['query_hint'], contains('do not reissue'));
 
     final plain =
         jsonDecode(

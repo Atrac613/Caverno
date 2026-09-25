@@ -172,8 +172,9 @@ abstract final class BuiltInFilesystemToolDefinitions {
             'type': 'string',
             'description':
                 'Literal text to search for, matched as a plain substring. '
-                'Not a regular expression: "^" and "\$" are searched for as '
-                'characters, so an anchored query matches nothing.',
+                'Not a regular expression, except that a leading "^" or '
+                'trailing "\$" also matches as a line anchor, e.g. '
+                '"^version:".',
           },
           'file_pattern': {
             'type': 'string',
