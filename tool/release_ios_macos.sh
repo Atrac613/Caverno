@@ -515,7 +515,13 @@ run_release_lane() {
   # this known post-upload crash as success.
   if [[ "${command_status}" -ne 0 && -n "${benign_crash_pattern}" ]] &&
     grep -Eiq "${benign_crash_pattern}" "${log_path}"; then
-    echo "Ignoring known post-upload tooling crash in ${lane} lane; the App Store Connect upload already completed. Verify the build in App Store Connect." >&2
+    local benign_note="Ignoring known post-upload tooling crash in ${lane} lane; the App Store Connect upload already completed. Verify the build in App Store Connect."
+    # Also close the lane log with the verdict. Left ending on the crash, the
+    # log reads as a failed export, and an agent that opened it in session
+    # d84f819b reported a successful upload as failed and advised a rerun.
+    printf '\n[release_ios_macos] %s\n[release_ios_macos] %s lane status: succeeded\n' \
+      "${benign_note}" "${lane}" >>"${log_path}"
+    echo "${benign_note}" >&2
     return 0
   fi
   return "${command_status}"
