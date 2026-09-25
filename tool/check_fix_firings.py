@@ -83,6 +83,10 @@ _INTERNAL_GREP_RESULT = re.compile(
     + r', "exit_code": -?\d+, "stdout": ' + _JSON_STRING
     + r', "stderr": ' + _JSON_STRING + r', "executed_internally": true'
 )
+_GIT_NATIVE_PIPELINE_REFUSAL = re.compile(
+    r'"(?:error|errorMessage)": "git_execute_command accepts one git '
+    r'subcommand per call and runs without a shell'
+)
 
 SIGNATURES = {
     "failed_read_digest": {
@@ -387,6 +391,17 @@ SIGNATURES = {
         # result object: the same text inside a tool-result string is
         # escaped by json.dumps, so quoting it cannot fire the row.
         "match": lambda s: _INTERNAL_GREP_RESULT.search(s) is not None,
+    },
+    "git_native_pipeline_refusal": {
+        "commit": "44f774e71",
+        "what": "git pipeline refusal leads with git-native options, not a shell",
+        # Whether this matters is the follow-up question: after the refusal,
+        # did the model switch to rev-list --count / -n / --format, or fall
+        # through to local_execute_command and a SEC4.4g prompt? Matched as a
+        # real JSON key on the decoded result, so reading git_tools.dart,
+        # where the text is a single-quoted Dart literal split across lines,
+        # cannot fire it.
+        "match": lambda s: _GIT_NATIVE_PIPELINE_REFUSAL.search(s) is not None,
     },
 }
 

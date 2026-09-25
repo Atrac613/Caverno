@@ -314,5 +314,51 @@ class InternalGrepSignatureTest(unittest.TestCase):
         self.assertFalse(self.match(blob))
 
 
+class GitNativePipelineRefusalSignatureTest(unittest.TestCase):
+    """The row fires on the decoded refusal payload, never on quoted text."""
+
+    _ERROR = (
+        "git_execute_command accepts one git subcommand per call and runs "
+        'without a shell; operator "|" is unsupported. Use Git options first: '
+        "`rev-list --count <range>` for commit counts."
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["git_native_pipeline_refusal"]["match"]
+        )
+
+    @staticmethod
+    def _blob(request):
+        return json.dumps([{"request": request}], ensure_ascii=False)
+
+    def _result(self, error):
+        return {
+            "command": "git log --oneline | wc -l",
+            "working_directory": "/repo",
+            "executed": False,
+            "code": "command_rejected_before_execution",
+            "error": error,
+        }
+
+    def test_the_new_refusal_fires(self):
+        blob = self._blob({"toolResults": [{"result": self._result(self._ERROR)}]})
+        self.assertTrue(self.match(blob))
+
+    def test_the_previous_refusal_does_not_fire(self):
+        old = (
+            "git_execute_command accepts one git subcommand per tool call and "
+            "runs it without a shell"
+        )
+        blob = self._blob({"toolResults": [{"result": self._result(old)}]})
+        self.assertFalse(self.match(blob))
+
+    def test_the_same_result_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps(self._result(self._ERROR))
+        blob = self._blob({"messages": [{"role": "tool", "content": quoted}]})
+        self.assertFalse(self.match(blob))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
