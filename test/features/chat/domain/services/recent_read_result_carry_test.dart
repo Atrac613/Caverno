@@ -246,6 +246,47 @@ void main() {
       expect(augmented.map((result) => result.id), ['after', 'batch']);
     });
 
+    test('keeps the version facts across git add', () {
+      // Sessions d84f819b and e6b3d03c: staging used to drop the tag and the
+      // bumped version, right before the commit message that names them.
+      final tag = _gitCommand('tag --list --sort=-version:refname', id: 'tag');
+      final spec = _read('pubspec.yaml', id: 'spec');
+      final status = _gitCommand('status --short', id: 'status');
+      final diff = _gitCommand('diff HEAD -- pubspec.yaml', id: 'diff');
+      final add = _gitCommand(
+        'add docs/releases/caverno-1.3.50.md pubspec.yaml',
+        stdout: '',
+        id: 'add',
+      );
+
+      final augmented = _carry.augment(
+        resolved: [add],
+        executedToolResults: [tag, spec, status, diff, add],
+      );
+
+      // status and diff report the index the add just changed.
+      expect(augmented.map((result) => result.id), ['tag', 'spec', 'add']);
+      final byId = {for (final result in augmented) result.id: result};
+      expect(byId['tag']!.changesSinceCapture, [
+        'git add docs/releases/caverno-1.3.50.md pubspec.yaml',
+      ]);
+      expect(byId['add']!.changesSinceCapture, isEmpty);
+    });
+
+    test('still stops at a commit after git add', () {
+      final tag = _gitCommand('tag --list', id: 'tag');
+      final add = _gitCommand('add pubspec.yaml', stdout: '', id: 'add');
+      final commit = _gitCommand('commit -m "x"', id: 'commit');
+      final batch = _read('batch.dart', id: 'batch');
+
+      final augmented = _carry.augment(
+        resolved: [batch],
+        executedToolResults: [tag, add, commit, batch],
+      );
+
+      expect(augmented.map((result) => result.id), ['batch']);
+    });
+
     test('does not carry a duplicate-reuse pointer', () {
       final pointer = ToolResultInfo(
         id: 'pointer',
