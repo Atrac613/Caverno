@@ -5865,6 +5865,23 @@ class ChatNotifier extends Notifier<ChatState> {
             pendingToolCalls: currentToolCalls,
             projectRoot: _projectRootForGeneration(interactionGeneration),
           );
+          // The recovery request is told to "use the latest tool results and
+          // finish", so it must carry what an ordinary follow-up does: the
+          // sticky skill, the recent reads and the turn digest. It used to
+          // send the last batch alone, and in sessions 50e3f486, d84f819b and
+          // e6b3d03c the model finished blind -- re-listing tags instead of
+          // tagging, or committing a guessed build number. The prompt still
+          // reads [recoveryToolResults]: its edit-mismatch wording claims a
+          // matching read_file is attached, which only that list guarantees.
+          final recoveryRequestToolResults = _recentReadResultCarry.resolve(
+            batchToolResults: recoveryToolResults,
+            executedToolResults: executedToolResults,
+          );
+          final recoveryAssistantContent = _followUpAssistantContent.build(
+            assistantContent: currentAssistantContent,
+            executedToolResults: executedToolResults,
+            carried: recoveryRequestToolResults,
+          );
           List<Message> buildRecoveryMessages(bool forceCompaction) {
             final messages = _prepareMessagesForLLM(
               forceCompaction: forceCompaction,
@@ -5890,8 +5907,8 @@ class ChatNotifier extends Notifier<ChatState> {
                 logLabel: 'tool-loop exhaustion recovery',
                 interactionGeneration: interactionGeneration,
                 buildMessages: buildRecoveryMessages,
-                toolResults: recoveryToolResults,
-                assistantContent: currentAssistantContent,
+                toolResults: recoveryRequestToolResults,
+                assistantContent: recoveryAssistantContent,
                 tools: tools,
               );
           if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
