@@ -128,6 +128,83 @@ def _recovery_carries_earlier_results(blob):
     return False
 
 
+def _decoded_result(result):
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, str):
+        try:
+            decoded = json.loads(result)
+        except ValueError:
+            return None
+        return decoded if isinstance(decoded, dict) else None
+    return None
+
+
+def _refused_commit_then_ran(blob):
+    """Whether a commit refused for an unread diff later ran in the same log.
+
+    Before 6ab0621de the refusal was filed as an executed commit, so the
+    identical commit re-issued after `diff --cached` was deduplicated and the
+    refusal replayed (session dd50d110). Only the declared refusal names its
+    origin, and only a later result for the same command carrying an exit
+    code is the retry actually running.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    refused = set()
+    seen = set()
+    for entry in entries:
+        for result in (entry.get("request") or {}).get("toolResults") or []:
+            if result.get("id") in seen or result.get("name") != "git_execute_command":
+                continue
+            seen.add(result.get("id"))
+            command = (result.get("arguments") or {}).get("command")
+            payload = _decoded_result(result.get("result")) or {}
+            if (
+                payload.get("code") == "commit_without_diff_inspection_blocked"
+                and payload.get("result_origin") == "refusal"
+            ):
+                refused.add(command)
+            elif command in refused and "exit_code" in payload:
+                return True
+    return False
+
+
+def _pending_question_put_to_user(blob):
+    """Whether an ask_user_question left at the loop limit reached the user.
+
+    Before 4e482cb4b the limit sent a recovery prompt telling the model not to
+    ask for confirmation. Now the pending question runs before finalization,
+    so the next streamed request is the tool-less final answer, with no
+    loop-limit recovery prompt in between.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    streamed = [
+        entry
+        for entry in entries
+        if str(entry.get("operation", "")).startswith("stream")
+        and "request" in entry
+    ]
+    for current, following in zip(streamed, streamed[1:]):
+        calls = (current.get("response") or {}).get("toolCalls") or []
+        if not any(call.get("name") == "ask_user_question" for call in calls):
+            continue
+        if following.get("operation") != "streamChatCompletion":
+            continue
+        messages = (following.get("request") or {}).get("messages") or []
+        if not any(
+            "bounded tool loop limit" in str(message.get("content", ""))
+            for message in messages
+        ):
+            return True
+    return False
+
+
 SIGNATURES = {
     "failed_read_digest": {
         "commit": "5e7f8ebb",
@@ -473,6 +550,16 @@ SIGNATURES = {
         "commit": "0070aff8f",
         "what": "loop-limit recovery request carries earlier results, not the last batch alone",
         "match": _recovery_carries_earlier_results,
+    },
+    "guard_refusal_not_executed": {
+        "commit": "6ab0621de",
+        "what": "commit refused for an unread diff runs once the diff is read",
+        "match": _refused_commit_then_ran,
+    },
+    "loop_limit_question_to_user": {
+        "commit": "4e482cb4b",
+        "what": "ask_user_question pending at the loop limit reaches the user",
+        "match": _pending_question_put_to_user,
     },
 }
 

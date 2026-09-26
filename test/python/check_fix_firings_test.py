@@ -493,5 +493,98 @@ class LoopLimitRecoveryCarrySignatureTest(unittest.TestCase):
         self.assertFalse(self.match(json.dumps([{"request": {}, "response": {}}])))
 
 
+class GuardRefusalNotExecutedSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["guard_refusal_not_executed"]["match"]
+        )
+
+    COMMIT = 'commit -m "chore: bump"'
+
+    @classmethod
+    def _result(cls, rid, command, payload):
+        return {
+            "id": rid,
+            "name": "git_execute_command",
+            "arguments": {"command": command},
+            "result": json.dumps(payload),
+        }
+
+    @classmethod
+    def _log(cls, refusal, retry):
+        results = [cls._result("c1", cls.COMMIT, refusal)]
+        if retry is not None:
+            results.append(cls._result("c2", cls.COMMIT, retry))
+        return json.dumps([{"request": {"toolResults": results}, "response": {}}])
+
+    REFUSAL = {
+        "ok": False,
+        "result_origin": "refusal",
+        "code": "commit_without_diff_inspection_blocked",
+    }
+
+    def test_a_declared_refusal_then_a_run_fires(self):
+        self.assertTrue(self.match(self._log(self.REFUSAL, {"exit_code": 0})))
+
+    def test_the_old_undeclared_refusal_does_not_fire(self):
+        old = {"code": "commit_without_diff_inspection_blocked"}
+        self.assertFalse(self.match(self._log(old, {"exit_code": 0})))
+
+    def test_a_refusal_never_retried_does_not_fire(self):
+        self.assertFalse(self.match(self._log(self.REFUSAL, None)))
+
+    def test_a_replayed_refusal_does_not_fire(self):
+        replay = dict(self.REFUSAL, code="duplicate_tool_call_result_reused")
+        self.assertFalse(self.match(self._log(self.REFUSAL, replay)))
+
+
+class LoopLimitQuestionToUserSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["loop_limit_question_to_user"]["match"]
+        )
+
+    @staticmethod
+    def _log(next_operation, next_prompt):
+        return json.dumps(
+            [
+                {
+                    "operation": "streamChatCompletionWithToolResults",
+                    "request": {},
+                    "response": {"toolCalls": [{"name": "ask_user_question"}]},
+                },
+                {
+                    "operation": next_operation,
+                    "request": {"messages": [{"role": "user", "content": next_prompt}]},
+                    "response": {"content": "done"},
+                },
+            ]
+        )
+
+    def test_a_question_followed_by_the_final_answer_fires(self):
+        self.assertTrue(
+            self.match(self._log("streamChatCompletion", "Please answer ..."))
+        )
+
+    def test_a_loop_limit_recovery_does_not_fire(self):
+        self.assertFalse(
+            self.match(
+                self._log(
+                    "streamChatCompletion",
+                    "You hit the bounded tool loop limit ...",
+                )
+            )
+        )
+
+    def test_an_ordinary_follow_up_does_not_fire(self):
+        self.assertFalse(
+            self.match(
+                self._log("streamChatCompletionWithToolResults", "tool results")
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
