@@ -628,6 +628,7 @@
     "project_delete_action": "Remove Project",
     "project_actions_tooltip": "Project actions",
     "open_in_finder": "Open in Finder",
+    "open_project_dashboard": "Open dashboard",
     "open_in_finder_failed": "Could not open the project in Finder",
     "delete_tooltip": "Delete",
     "sort_tooltip": "Sort projects",
@@ -1898,5 +1899,40 @@
   "notification": {
     "response_title": "Caverno",
     "response_body": "Response ready"
+  },
+  "project_dashboard": {
+    "project_missing": "This project no longer exists.",
+    "refresh": "Refresh",
+    "open_console": "Open console",
+    "next_task": "Next task",
+    "extracting": "Reading the roadmap…",
+    "no_roadmap": "No roadmap found. Add docs/roadmap.md, ROADMAP.md, or roadmap.md to the project.",
+    "extraction_failed": "Couldn't read the roadmap. Try refreshing.",
+    "no_recommendation": "The roadmap doesn't name a next task.",
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "start_work": "Start work",
+    "in_progress": "In progress",
+    "blocked": "Blocked",
+    "none": "None",
+    "threads": "Threads",
+    "no_threads": "No threads yet.",
+    "thread_running": "Running",
+    "thread_needs_approval": "Needs approval",
+    "thread_idle": "Idle",
+    "goal_status": "Goal: {}",
+    "goal": {
+      "active": "active",
+      "completed": "completed",
+      "blocked": "blocked",
+      "awaitingConfirmation": "awaiting confirmation"
+    },
+    "worktree_agents": "Worktree agents",
+    "agents_summary": "{} running · {} review-ready",
+    "git": "Git",
+    "git_unavailable": "Not a git repository",
+    "ahead": "{} ahead",
+    "clean": "Clean",
+    "changed": "{} changed"
   }
 }

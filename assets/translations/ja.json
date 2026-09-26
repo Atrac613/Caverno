@@ -628,6 +628,7 @@
     "project_delete_action": "プロジェクトを削除",
     "project_actions_tooltip": "プロジェクトの操作",
     "open_in_finder": "Finderで開く",
+    "open_project_dashboard": "ダッシュボードを開く",
     "open_in_finder_failed": "プロジェクトをFinderで開けませんでした",
     "delete_tooltip": "削除",
     "sort_tooltip": "プロジェクトを並べ替え",
@@ -1898,5 +1899,40 @@
   "notification": {
     "response_title": "Caverno",
     "response_body": "応答が完了しました"
+  },
+  "project_dashboard": {
+    "project_missing": "このプロジェクトはもう存在しません。",
+    "refresh": "更新",
+    "open_console": "コンソールを開く",
+    "next_task": "次のタスク",
+    "extracting": "ロードマップを読み取っています…",
+    "no_roadmap": "ロードマップが見つかりません。docs/roadmap.md、ROADMAP.md、roadmap.md のいずれかを追加してください。",
+    "extraction_failed": "ロードマップを読み取れませんでした。更新してください。",
+    "no_recommendation": "ロードマップに次のタスクが書かれていません。",
+    "verified": "検証済み",
+    "unverified": "未検証",
+    "start_work": "作業を開始",
+    "in_progress": "進行中",
+    "blocked": "ブロック中",
+    "none": "なし",
+    "threads": "スレッド",
+    "no_threads": "スレッドはまだありません。",
+    "thread_running": "実行中",
+    "thread_needs_approval": "承認が必要",
+    "thread_idle": "待機中",
+    "goal_status": "ゴール: {}",
+    "goal": {
+      "active": "進行中",
+      "completed": "完了",
+      "blocked": "ブロック中",
+      "awaitingConfirmation": "確認待ち"
+    },
+    "worktree_agents": "Worktree エージェント",
+    "agents_summary": "実行中 {} · レビュー可能 {}",
+    "git": "Git",
+    "git_unavailable": "Git リポジトリではありません",
+    "ahead": "{} 件先行",
+    "clean": "変更なし",
+    "changed": "{} 件変更"
   }
 }

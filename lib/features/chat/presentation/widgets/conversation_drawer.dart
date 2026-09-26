@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
+import '../../../project_farm/presentation/pages/project_dashboard_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/domain/services/routine_schedule_service.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
@@ -202,6 +203,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                                   ),
                               onOpenProject: (project) =>
                                   _openProjectInFinder(context, project),
+                              onOpenProjectDashboard: (project) =>
+                                  _openProjectDashboard(context, project),
                               onToggleProjectExpanded: (projectId) {
                                 setState(() {
                                   if (!_expandedProjectIds.add(projectId)) {
@@ -294,8 +297,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
       final result = await service.search(query);
       final conversations = <Conversation>[];
       for (final id in result.conversationIds) {
-      final loaded =
-          await repository.refresh(id) ?? repository.getById(id);
+        final loaded = await repository.refresh(id) ?? repository.getById(id);
         if (loaded != null) {
           conversations.add(loaded);
         }
@@ -445,6 +447,15 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     }
 
     await widget.onCodingProjectSelected(fallbackProjectId);
+  }
+
+  Future<void> _openProjectDashboard(
+    BuildContext context,
+    CodingProject project,
+  ) async {
+    final conversationId = await openProjectDashboard(context, project.id);
+    if (conversationId == null || !context.mounted) return;
+    await _selectConversation(context, conversationId);
   }
 
   Future<void> _openProjectInFinder(
@@ -734,6 +745,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.onDeleteAllThreads,
     required this.onDeleteProject,
     required this.onOpenProject,
+    required this.onOpenProjectDashboard,
     required this.onToggleProjectExpanded,
     required this.onToggleProjectCollapsed,
     required this.projectSortOrder,
@@ -755,6 +767,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final VoidCallback onDeleteAllThreads;
   final ValueChanged<CodingProject> onDeleteProject;
   final ValueChanged<CodingProject> onOpenProject;
+  final ValueChanged<CodingProject> onOpenProjectDashboard;
   final ValueChanged<String> onToggleProjectExpanded;
   final ValueChanged<String> onToggleProjectCollapsed;
   final CodingProjectSortOrder projectSortOrder;
@@ -829,6 +842,8 @@ class _CodingProjectsSection extends StatelessWidget {
                       onCreateThread: () => onCreateThread(project.id),
                       onDeleteProject: () => onDeleteProject(project),
                       onOpenProject: () => onOpenProject(project),
+                      onOpenProjectDashboard: () =>
+                          onOpenProjectDashboard(project),
                       onConversationSelected: onConversationSelected,
                       onDeleteConversation: onDeleteConversation,
                       onToggleExpanded: () =>
@@ -875,6 +890,7 @@ class _ProjectThreadGroup extends StatelessWidget {
     required this.onCreateThread,
     required this.onDeleteProject,
     required this.onOpenProject,
+    required this.onOpenProjectDashboard,
     required this.onConversationSelected,
     required this.onDeleteConversation,
     required this.onToggleExpanded,
@@ -894,6 +910,7 @@ class _ProjectThreadGroup extends StatelessWidget {
   final VoidCallback onCreateThread;
   final VoidCallback onDeleteProject;
   final VoidCallback onOpenProject;
+  final VoidCallback onOpenProjectDashboard;
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onToggleExpanded;
@@ -920,6 +937,7 @@ class _ProjectThreadGroup extends StatelessWidget {
           onCreateThread: onCreateThread,
           onDelete: onDeleteProject,
           onOpenProject: onOpenProject,
+          onOpenProjectDashboard: onOpenProjectDashboard,
           onToggleCollapsed: onToggleCollapsed,
         ),
         for (final thread in visibleThreads)
@@ -1244,6 +1262,7 @@ class _ProjectTile extends StatefulWidget {
     required this.onCreateThread,
     required this.onDelete,
     required this.onOpenProject,
+    required this.onOpenProjectDashboard,
     required this.onToggleCollapsed,
   });
 
@@ -1254,6 +1273,7 @@ class _ProjectTile extends StatefulWidget {
   final VoidCallback onCreateThread;
   final VoidCallback onDelete;
   final VoidCallback onOpenProject;
+  final VoidCallback onOpenProjectDashboard;
   final VoidCallback onToggleCollapsed;
 
   @override
@@ -1336,6 +1356,9 @@ class _ProjectTileState extends State<_ProjectTile> {
                     onSelected: (action) {
                       setState(() => _isMenuOpen = false);
                       switch (action) {
+                        case _ProjectMenuAction.openDashboard:
+                          widget.onOpenProjectDashboard();
+                          return;
                         case _ProjectMenuAction.openInFinder:
                           widget.onOpenProject();
                           return;
@@ -1345,6 +1368,15 @@ class _ProjectTileState extends State<_ProjectTile> {
                       }
                     },
                     itemBuilder: (context) => [
+                      PopupMenuItem(
+                        key: ValueKey('drawer-project-${project.id}-dashboard'),
+                        value: _ProjectMenuAction.openDashboard,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.dashboard_outlined),
+                          title: Text('drawer.open_project_dashboard'.tr()),
+                        ),
+                      ),
                       PopupMenuItem(
                         value: _ProjectMenuAction.openInFinder,
                         child: ListTile(
@@ -1378,7 +1410,7 @@ class _ProjectTileState extends State<_ProjectTile> {
   }
 }
 
-enum _ProjectMenuAction { openInFinder, delete }
+enum _ProjectMenuAction { openDashboard, openInFinder, delete }
 
 class _ProjectThreadTile extends StatefulWidget {
   const _ProjectThreadTile({

@@ -407,7 +407,18 @@ Progress:
   - Roadmap paths are confined to the project root.
   - Concurrent refreshes share one run.
   - A live smoke on three fixtures, covering both routes, matched the spike.
-- **Next: slice 3,** the dashboard page and **Start work**.
+- **Slice 3 (2026-09-26).** Added `ProjectDashboardPage`, opened from the
+  project tile's menu in the coding drawer.
+  - It shows the next task with its verification label and citation, the
+    roadmap items in progress and blocked, the project's threads with their
+    run and goal state, worktree agents, and git state read by the app.
+  - **Start work** runs `startProjectTask`, the command FARM2's tool will
+    share. It creates a coding thread whose goal cites the source and sends
+    nothing.
+  - Rendering reads the cached snapshot and refreshes in the background.
+  - The full suite passes apart from the six file-size ratchet failures
+    already on main.
+- **Next:** a visual check in the macOS app, then FARM2.
 
 ### FARM2: Control Plane And Built-in Tools
 
