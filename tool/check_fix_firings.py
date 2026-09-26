@@ -91,6 +91,45 @@ _GIT_NATIVE_PIPELINE_REFUSAL = re.compile(
 _TOOL_ARGUMENT_TYPE_REJECTION = re.compile(
     r'"code": "invalid_tool_argument_type"'
 )
+_ARGUMENT_TRAILING_TEXT_REJECTION = re.compile(r'"trailing_text": "')
+
+
+def _closer_only_argument_dispatched(blob):
+    """Whether a logged tool result ran with an argument that was a JSON
+    array or object followed only by closing brackets.
+
+    The decode leaves no marker of its own: the tool result keeps the call's
+    original arguments, so the stringified value is still there. A result for
+    such a call that is not the type guard's rejection means it was decoded
+    and dispatched.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    decoder = json.JSONDecoder()
+    for entry in entries if isinstance(entries, list) else []:
+        request = entry.get("request") if isinstance(entry, dict) else None
+        for result in (request or {}).get("toolResults") or []:
+            payload = _decoded_result(result.get("result")) or {}
+            if payload.get("code") == "invalid_tool_argument_type":
+                continue
+            for value in (result.get("arguments") or {}).values():
+                if not isinstance(value, str):
+                    continue
+                text = value.strip()
+                if not text.startswith(("[", "{")):
+                    continue
+                try:
+                    _, end = decoder.raw_decode(text)
+                except ValueError:
+                    continue
+                rest = text[end:].strip()
+                if rest and set(rest) <= set("}] \n\t"):
+                    return True
+    return False
+
+
 _ANCHORED_SEARCH_HIT = re.compile(
     r'"query": "\^(?:[^"\\]|\\.)*", "matches": \["'
 )
@@ -528,6 +567,23 @@ SIGNATURES = {
         # Matched as a real JSON key on the decoded result; the Dart source
         # spells it with single quotes and quoted text is escaped.
         "match": lambda s: _TOOL_ARGUMENT_TYPE_REJECTION.search(s) is not None,
+    },
+    "argument_trailing_closer_decode": {
+        "commit": "8e38cc36e",
+        "what": "stringified array/object ending in a stray closer is decoded and dispatched",
+        # Session b41b57fa: options as "[...]}" was rejected three times and
+        # the turn aborted. The success branch has no marker, so it is read
+        # structurally from the tool result's original arguments.
+        "match": _closer_only_argument_dispatched,
+    },
+    "argument_trailing_text_rejection": {
+        "commit": "8e38cc36e",
+        "what": "type-guard rejection names the text after a complete JSON value",
+        # The rejection branch of the same change: the rest of the arguments
+        # object written inside options. Matched as a real JSON key on the
+        # decoded result; the Dart source spells it with single quotes.
+        "match": lambda s: _ARGUMENT_TRAILING_TEXT_REJECTION.search(s)
+        is not None,
     },
     "search_files_line_anchor": {
         "commit": "a92ece3e3",

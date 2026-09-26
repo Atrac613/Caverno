@@ -492,6 +492,42 @@ The takeaway: "never executed", "ran and failed" and "ran" are three states.
 Any piece of the loop that squeezes them into two will eventually convict an
 innocent call, or clear a guilty one.
 
+### Lesson 12: the fix that was tested on a dish nobody ordered
+
+Session b41b57fa asked for a roadmap. The model wanted to ask the user which
+direction to take, and the question never arrived. Three times it sent
+`ask_user_question` with its `options` as a string, three times the argument
+guard said "must be array, but a string was sent", and the second identical
+attempt ended the turn.
+
+We had "fixed" this a day earlier. The guard decoded a string that was exactly
+the JSON text of an array. Its test fed it `'[{"id": "a", "label": "A"}]'`,
+labelled with the session that motivated it. But that session's real value was
+`[...], "allow_other": true}`, which isn't JSON at all. Counting the whole
+corpus afterwards: 8 stringified `options`, and **none** was valid JSON. Five
+had the rest of the arguments written inside the array's string, three had a
+lone stray `}`. The decode had never fired on a real call. The earlier session
+had actually been rescued by the other half of the fix, `"True"` becoming
+`true`.
+
+The stray `}` was also why the model couldn't recover. The error told it "you
+sent a string". It reasoned "retry with a proper array" and, at temperature
+0.2, produced the same bytes. You can't fix a typo you've been told is a
+different typo.
+
+The repair:
+
+- A complete array or object followed only by closing brackets is decoded.
+  Nothing is lost: the value is whole and the `}` holds nothing.
+- When real text follows, the call is still rejected, but the error now quotes
+  that text. Both sessions that hit this shape corrected themselves after one
+  plain rejection, so guessing where those extra keys belong isn't needed.
+- A question rejected before it ran no longer counts as the latest answer. It
+  had been evicting the user's real reply from the next requests.
+
+The takeaway: a fixture for a log-driven fix is copied out of the log, never
+retyped from memory of it. The retyped one tests the bug you imagined.
+
 ## Where to start reading
 
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its

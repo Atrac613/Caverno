@@ -360,6 +360,57 @@ class GitNativePipelineRefusalSignatureTest(unittest.TestCase):
         self.assertFalse(self.match(blob))
 
 
+class ArgumentTrailingTextSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        signatures = _load_tool().SIGNATURES
+        cls.decoded = staticmethod(
+            signatures["argument_trailing_closer_decode"]["match"]
+        )
+        cls.rejected = staticmethod(
+            signatures["argument_trailing_text_rejection"]["match"]
+        )
+
+    @staticmethod
+    def _blob(arguments, result):
+        return json.dumps(
+            [{"request": {"toolResults": [{
+                "name": "ask_user_question",
+                "arguments": arguments,
+                "result": result,
+            }]}}],
+            ensure_ascii=False,
+        )
+
+    # Shape copied from session b41b57fa.
+    _CLOSER = '[{"id": "robustness", "label": "堅牢性"}]}'
+    _REJECTION = {
+        "ok": False,
+        "code": "invalid_tool_argument_type",
+        "argument": "options",
+    }
+
+    def test_a_dispatched_closer_argument_fires(self):
+        blob = self._blob({"options": self._CLOSER}, {"status": "answered"})
+        self.assertTrue(self.decoded(blob))
+
+    def test_the_same_argument_rejected_does_not_fire(self):
+        blob = self._blob({"options": self._CLOSER}, self._REJECTION)
+        self.assertFalse(self.decoded(blob))
+
+    def test_trailing_arguments_are_not_a_closer_decode(self):
+        options = '[{"id": "a"}], "allow_other": true}'
+        blob = self._blob({"options": options}, {"status": "answered"})
+        self.assertFalse(self.decoded(blob))
+
+    def test_the_named_trailing_text_fires(self):
+        result = {**self._REJECTION, "trailing_text": ', "allow_other": true}'}
+        self.assertTrue(self.rejected(self._blob({}, result)))
+
+    def test_the_older_rejection_does_not_fire(self):
+        self.assertFalse(self.rejected(self._blob({}, self._REJECTION)))
+
+
 class ToolArgumentTypeGuardSignatureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
