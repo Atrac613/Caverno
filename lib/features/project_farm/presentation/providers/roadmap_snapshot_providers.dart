@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/domain/entities/message.dart';
-import '../../../chat/presentation/providers/chat_data_source_provider.dart';
+import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
+import '../../../chat/presentation/providers/conversations_notifier.dart';
+import '../../../chat/presentation/providers/turn_thread_scope.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/roadmap_snapshot_service.dart';
+import '../../application/workspace_control_tools.dart';
 import '../../data/roadmap_snapshot_repository.dart';
 import '../../domain/roadmap_next_task_extractor.dart';
 
@@ -92,3 +95,21 @@ RoadmapCompletionPort structuredRoadmapCompletion(
     );
   };
 }
+
+/// The FARM2 read-only control-plane tools, offered to the model through
+/// `McpToolService`. Every dependency is read at call time: this provider sits
+/// under `mcpToolServiceProvider`, which the chat notifier itself depends on.
+final workspaceControlToolsProvider = Provider<WorkspaceControlTools>((ref) {
+  return WorkspaceControlTools(
+    projects: () => ref.read(codingProjectsNotifierProvider).projects,
+    conversations: () => ref.read(conversationsNotifierProvider).conversations,
+    snapshotFor: (projectId) =>
+        ref.read(roadmapSnapshotServiceProvider).cachedSnapshot(projectId),
+    isBusy: (id) =>
+        ref.read(chatNotifierProvider.notifier).isConversationBusy(id),
+    needsApproval: (id) => ref
+        .read(chatNotifierProvider.notifier)
+        .isConversationAwaitingApproval(id),
+    callerConversationId: () => TurnThread.currentId,
+  );
+});

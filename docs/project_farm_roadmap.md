@@ -454,6 +454,24 @@ Acceptance criteria:
 
 Dependencies: FARM1.
 
+Progress:
+- **Slice 1 (2026-09-26).** The four read-only tools are
+  `WorkspaceControlTools`.
+  - They reach the model through a new first-party seam,
+    `BuiltInToolExtension` on `McpToolService`, so `chat` does not depend on
+    `project_farm` and `chat_notifier` is untouched.
+  - The caller's thread comes from the `TurnThread` zone. A coding thread sees
+    only its own project, a chat thread sees every project, and a call with no
+    identifiable thread is refused.
+  - The tools are registered in `BuiltInToolRegistry` under a new `workspace`
+    category, deferred behind `tool_search`, and classified by SEC1 like
+    `search_past_conversations`: read-only inspection and project source.
+  - To make room, `ConversationSearchTool.candidates` moved out of
+    `mcp_tool_service.dart`, which brought that file back under its ratchet.
+  - **Next:** `start_project_task`. It mutates, so it needs the approval
+    surface and taint check that live in the chat notifier library, which is
+    over its size budget. Land the ratchet repair first.
+
 ### FARM3: Suggest Mode
 
 Status: `later`

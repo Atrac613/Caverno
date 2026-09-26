@@ -12,7 +12,6 @@ import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../settings/domain/entities/app_settings.dart';
-import '../../domain/entities/conversation.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/services/subagent_tool_definitions.dart';
@@ -31,6 +30,7 @@ import 'built_in_local_command_tool_handler.dart';
 import 'built_in_network_tool_handler.dart';
 import 'built_in_serial_tool_handler.dart';
 import 'built_in_ssh_tool_handler.dart';
+import 'built_in_tool_extension.dart';
 import 'built_in_wifi_tool_handler.dart';
 import 'chat_turn_owner_required_tool_result.dart';
 import 'conversation_search_tool.dart';
@@ -116,6 +116,7 @@ class McpToolService extends McpToolServiceFacadeBase {
     InstalledDependencyGroundingService? dependencyGroundingService,
     this.semanticConversationRanker,
     this.disabledBuiltInTools = const {},
+    this.builtInExtensions = const [],
   }) : networkToolHandler = networkToolHandler ?? BuiltInNetworkToolHandler(),
        assert(
          fileRollbackCheckpointStore == null || filesystemToolHandler == null,
@@ -196,6 +197,7 @@ class McpToolService extends McpToolServiceFacadeBase {
   /// which case the tool falls back to a keyword scan.
   final SemanticConversationRanker? semanticConversationRanker;
   final Set<String> disabledBuiltInTools;
+  final List<BuiltInToolExtension> builtInExtensions;
   bool get ownsBuiltInFilesystemEffects => true;
 
   McpConnectionStatus get status => _remoteMcpConnectionManager.status;
@@ -228,45 +230,6 @@ class McpToolService extends McpToolServiceFacadeBase {
   /// Refreshes the tool list.
   Future<void> refresh() async {
     await connect();
-  }
-
-  Future<List<Conversation>> _conversationsForHistorySearch({
-    required ConversationRepositoryApi repository,
-    required Map<String, dynamic> arguments,
-  }) async {
-    final query = (arguments['query'] as String?)?.trim() ?? '';
-    if (query.isEmpty) {
-      return const [];
-    }
-    final searched = await repository.search(query);
-    final ranker = semanticConversationRanker;
-    if (ranker == null) {
-      return searched;
-    }
-    final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 5).clamp(
-      1,
-      10,
-    );
-    final rankedIds = await ranker(query, maxResults);
-    if (rankedIds.isEmpty) {
-      return searched;
-    }
-    final byId = {
-      for (final conversation in searched) conversation.id: conversation,
-    };
-    for (final id in rankedIds) {
-      if (byId.containsKey(id)) {
-        continue;
-      }
-      final loaded = await repository.refresh(id);
-      if (loaded != null) {
-        byId[id] = loaded;
-      }
-    }
-    return [
-      for (final id in rankedIds) ?byId[id],
-      ...searched.where((conversation) => !rankedIds.contains(conversation.id)),
-    ];
   }
 
   /// Returns tool definitions for the LLM.
@@ -434,6 +397,12 @@ class McpToolService extends McpToolServiceFacadeBase {
       }
     }
 
+    for (final extension in builtInExtensions) {
+      for (final tool in extension.definitions) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
+    }
+
     // Use MCP tools when connected.
     if (status == McpConnectionStatus.connected && tools.isNotEmpty) {
       toolDefinitions.addAll(tools.map((tool) => tool.toOpenAiTool()));
@@ -458,6 +427,10 @@ class McpToolService extends McpToolServiceFacadeBase {
     required Map<String, dynamic> arguments,
   }) async {
     appLog('[McpToolService] Executing tool: $name');
+    for (final extension in builtInExtensions) {
+      if (extension.toolNames.contains(name))
+        return extension.execute(name, arguments);
+    }
     appLog('[McpToolService] Arguments: $arguments');
 
     // 0. Built-in local tools.
@@ -485,9 +458,10 @@ class McpToolService extends McpToolServiceFacadeBase {
     if (name == ConversationSearchTool.toolName &&
         conversationRepository != null) {
       final repository = conversationRepository!;
-      final conversations = await _conversationsForHistorySearch(
+      final conversations = await ConversationSearchTool.candidates(
         repository: repository,
         arguments: arguments,
+        semanticRanker: semanticConversationRanker,
       );
       final result = await const ConversationSearchTool().run(
         arguments: arguments,

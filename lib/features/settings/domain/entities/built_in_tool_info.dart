@@ -31,6 +31,7 @@ class BuiltInToolRegistry {
   static const String categoryLanScan = 'lan_scan';
   static const String categorySerial = 'serial';
   static const String categoryBrowser = 'browser';
+  static const String categoryWorkspace = 'workspace';
 
   static const List<String> categories = [
     categoryDatetime,
@@ -49,6 +50,7 @@ class BuiltInToolRegistry {
     categoryLanScan,
     categorySerial,
     categoryBrowser,
+    categoryWorkspace,
   ];
 
   /// Built-in tool categories deferred from the initial tool-search selection
@@ -58,6 +60,8 @@ class BuiltInToolRegistry {
   static const Set<String> toolSearchDeferredCategories = {
     categoryComputerUse,
     categoryBrowser,
+    // FARM2: only useful when the user asks about their projects.
+    categoryWorkspace,
     categorySsh,
     categorySerial,
     categoryBle,
@@ -112,6 +116,27 @@ class BuiltInToolRegistry {
   };
 
   static const List<BuiltInToolInfo> tools = [
+    // Workspace (FARM2)
+    BuiltInToolInfo(
+      name: 'list_coding_projects',
+      descriptionKey: 'settings.tool_list_coding_projects',
+      category: categoryWorkspace,
+    ),
+    BuiltInToolInfo(
+      name: 'list_coding_threads',
+      descriptionKey: 'settings.tool_list_coding_threads',
+      category: categoryWorkspace,
+    ),
+    BuiltInToolInfo(
+      name: 'get_project_state',
+      descriptionKey: 'settings.tool_get_project_state',
+      category: categoryWorkspace,
+    ),
+    BuiltInToolInfo(
+      name: 'read_coding_thread',
+      descriptionKey: 'settings.tool_read_coding_thread',
+      category: categoryWorkspace,
+    ),
     // DateTime
     BuiltInToolInfo(
       name: 'get_current_datetime',

@@ -601,5 +601,9 @@ class ToolCapabilityClassifier {
     'get_current_datetime',
     'recall_memory',
     'search_past_conversations',
+    'list_coding_projects',
+    'list_coding_threads',
+    'get_project_state',
+    'read_coding_thread',
   };
 }

@@ -10,6 +10,7 @@ import '../../../../core/services/script_runtime/script_runtime_provider.dart';
 import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
+import '../../../project_farm/presentation/providers/roadmap_snapshot_providers.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
@@ -157,5 +158,6 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
         : (query, topK) async =>
               (await semanticSearch!.search(query, topK: topK)).conversationIds,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
+    builtInExtensions: [ref.watch(workspaceControlToolsProvider)],
   );
 });
