@@ -2,7 +2,7 @@
 
 Date: 2026-09-26
 
-Status: FARM0 `done` (2026-09-26); FARM1 `next`. Promoted from the
+Status: FARM0, FARM1, and FARM2 `done` (2026-09-26); FARM3 `current`. Promoted from the
 [Anabasis Project Vision](anabasis_project_vision.md) by user decision on
 2026-09-26. [Roadmap](roadmap.md) owns cross-track selection; this document
 owns FARM scope, acceptance criteria, and evidence.
@@ -361,7 +361,7 @@ Next action: start FARM1 by promoting the measured extractor into `lib/`.
 
 ### FARM1: Project State And Dashboard v1
 
-Status: `next`
+Status: `done`
 
 Scope:
 - A Project State projection and its repository, built behind an interface
@@ -422,7 +422,7 @@ Progress:
 
 ### FARM2: Control Plane And Built-in Tools
 
-Status: `next`
+Status: `done`
 
 Scope:
 - **The service.** `WorkspaceControlService`, with commands for listing
@@ -501,7 +501,7 @@ Progress:
 
 ### FARM3: Suggest Mode
 
-Status: `later`
+Status: `current`
 
 Scope:
 - The orchestrator proposes the next step for each project, with a cited
@@ -515,6 +515,16 @@ Scope:
 Acceptance criteria:
 - Every proposal cites its sources.
 - Items that need a human, such as physical devices, are labeled as such.
+
+Progress:
+- **Slice 1 (2026-09-26).** Added `ProjectsOverviewPage`, opened from the
+  projects header in the coding drawer.
+  - Each row shows a project's cached next task, how many of its threads are
+    running or need approval, and Start work for a verified task.
+  - **Refresh all** re-reads roadmaps one project at a time, so the model never
+    gets concurrent extractions.
+  - There are no proposals yet. The next slice adds the orchestrator's cited
+    rationale and the automatability label.
 
 ### FARM4: Background Execution
 

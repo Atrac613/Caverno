@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../project_farm/presentation/pages/project_dashboard_page.dart';
+import '../../../project_farm/presentation/pages/projects_overview_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/domain/services/routine_schedule_service.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
@@ -170,6 +171,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                               collapsedThreadLimit:
                                   _collapsedProjectThreadLimit,
                               onAddProject: widget.onAddCodingProject,
+                              onOpenOverview: () =>
+                                  _openProjectsOverview(context),
                               onProjectSelected: (projectId) async {
                                 setState(() {
                                   _collapsedProjectIds.remove(projectId);
@@ -447,6 +450,12 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     }
 
     await widget.onCodingProjectSelected(fallbackProjectId);
+  }
+
+  Future<void> _openProjectsOverview(BuildContext context) async {
+    final conversationId = await openProjectsOverview(context);
+    if (conversationId == null || !context.mounted) return;
+    await _selectConversation(context, conversationId);
   }
 
   Future<void> _openProjectDashboard(
@@ -738,6 +747,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.collapsedProjectIds,
     required this.collapsedThreadLimit,
     required this.onAddProject,
+    required this.onOpenOverview,
     required this.onProjectSelected,
     required this.onCreateThread,
     required this.onConversationSelected,
@@ -760,6 +770,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final Set<String> collapsedProjectIds;
   final int collapsedThreadLimit;
   final Future<void> Function() onAddProject;
+  final VoidCallback onOpenOverview;
   final Future<void> Function(String projectId) onProjectSelected;
   final ValueChanged<String> onCreateThread;
   final Future<void> Function(String conversationId) onConversationSelected;
@@ -790,6 +801,12 @@ class _CodingProjectsSection extends StatelessWidget {
             _CodingSortMenuButton(
               projectSortOrder: projectSortOrder,
               onSelected: onSortSelected,
+            ),
+            _HeaderIconButton(
+              key: const ValueKey('drawer-projects-overview'),
+              icon: Icons.space_dashboard_outlined,
+              tooltip: 'project_overview.title'.tr(),
+              onPressed: onOpenOverview,
             ),
             _HeaderIconButton(
               icon: Icons.create_new_folder_outlined,
@@ -1168,6 +1185,7 @@ class _DrawerSectionHeader extends StatelessWidget {
 
 class _HeaderIconButton extends StatelessWidget {
   const _HeaderIconButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onPressed,

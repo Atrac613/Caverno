@@ -1940,5 +1940,11 @@
     "ahead": "{} ahead",
     "clean": "Clean",
     "changed": "{} changed"
+  },
+  "project_overview": {
+    "title": "Projects overview",
+    "refresh_all": "Refresh all",
+    "not_read": "Roadmap not read yet. Refresh or open the dashboard.",
+    "thread_counts": "{} running · {} need approval"
   }
 }
