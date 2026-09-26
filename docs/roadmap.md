@@ -86,7 +86,8 @@ become implementation milestones only through an explicit promotion decision.
 
 Structural review: 2026-09-13, against local main `70466c022` and the
 owning roadmap documents; the recommendation below and the LL33 row were
-refreshed 2026-09-20 against local main `0fd1276ab`. This aligns status
+refreshed 2026-09-20 against local main `0fd1276ab`, and the Project Farm rows
+and recommendation on 2026-09-26 against local main `af45d9084`. This aligns status
 placement and current summaries; it does not rerun historical release, device,
 or live-model gates.
 `current` means unfinished track scope, not simultaneous implementation.
@@ -94,23 +95,25 @@ or live-model gates.
 
 ### Recommended Next Slice
 
-**Selected 2026-09-26 by user decision: FARM0, the project farm design and its
-two feasibility spikes.** The user promoted the project dashboard and
-software-farm direction from the Anabasis Project Vision and asked to start it
-now. RC1 stays `current`, but what it still needs is signed-device evidence,
-not implementation, so it does not compete with FARM0 for the single active
-implementation slice. See [Project Farm roadmap](project_farm_roadmap.md).
+**Project Farm FARM0–FARM5 completed 2026-09-26.** The user promoted the
+project dashboard and software-farm direction and it was built in one day:
+- the dashboard;
+- the control-plane tools;
+- suggest mode;
+- background runs on LL13;
+- bounded unattended runs in the LL18 idle window.
 
-The previous selection was refreshed on 2026-09-21 against local main
-`cf1c0b162`, which is 24 commits beyond the previous `0fd1276ab` review. The
-previous ANA4 cleanup and Widget reachability instrument are complete. The F5
-route, interface, and path-MTU extraction is also complete; its owner document
-says to refresh the boundary ranking before selecting another slice.
+Two follow-ups come before any further FARM work, and neither is a new
+milestone:
+- a check of every FARM surface in the running macOS app;
+- a review of the unreviewed diff that was merged locally (`a33200f14..af45d9084`).
 
-**Previous recommendation: RC1 signed-device evidence.** The latest main-side
-work remains concentrated on Remote Coding — attachments, project ordering, and
-mobile Plan Mode review — while the implementation fixes already have focused
-tests. The remaining roadmap gate is external evidence: an iOS/Android LAN
+FARM6 waits on a token-storage decision. See
+[Project Farm roadmap](project_farm_roadmap.md).
+
+**Recommended next slice: RC1 signed-device evidence** (unchanged since
+2026-09-21). Remote Coding's implementation fixes (attachments, project
+ordering, mobile Plan Mode review) already have focused tests. The remaining roadmap gate is external evidence: an iOS/Android LAN
 soak, reconnect after background or desktop wake, support-packet review, and a
 multi-device household check. Record build identities, transport mode, device
 ownership, reconnect outcomes, attachment behavior, and any cross-device
@@ -139,8 +142,6 @@ implementation slice active.
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
 | Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | The awaiting-you surface and the dead workflow-panel deletion shipped on 2026-09-20. The remaining product question is whether the model-visible `workflowStage` deserves a user-facing display; hold that decision until there is evidence that the current plan/review surfaces leave users unable to understand the stage. |
 | Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Push delivery, lock-screen approval, and native withdrawal have hardware evidence dated 2026-09-09/10. Complete the remaining device matrix; see [WATCH5](apple_watch_roadmap.md#watch5-push-originated-notification-actions). |
-| Project Farm | FARM0 | done | Design the project dashboard, the control-plane tools, and the software farm, and measure the two feasibility questions that decide FARM1 and FARM4. | Done 2026-09-26. Spike A met both thresholds twice (6/7 historical, 3/3 synthetic, 0 fabricated quotes). Spike B chose LL13 worktree agents for FARM4. FARM1 (dashboard) and FARM2 (control-plane tools) were done the same day. See [FARM0](project_farm_roadmap.md#farm0-design-and-feasibility-spikes). |
-| Project Farm | FARM3–FARM5 | done | Suggest mode, background execution on LL13, and bounded unattended runs in the LL18 idle window (opt-in per project, daily limit, commands declared as not executing project code, run ledger). | Done 2026-09-26. FARM5's OBS1/SEC1 gate was replaced by a FARM-local minimum by user decision; see [FARM5](project_farm_roadmap.md#farm5-bounded-autonomous-operation). FARM6 (pull requests) needs a token-storage decision. |
 | Watch | WATCH14 | current | Browse the iPhone's paired host projects and existing threads, read a compact conversation, and dictate instructions into the selected remote thread. | Slices 1-3 provide paged browsing, compact transcripts, and destination-bound Dictation/Stop. A background-woken iPhone now reconnects the saved host, retires the old epoch, and offers an explicit Send again only after the same destination is freshly confirmed. Next: prove this on a signed locked/backgrounded iPhone/Watch pair and real desktop, plus concurrent thread changes, accessibility, and hidden tool traffic. See [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads). |
 
 ### Ready Candidates
@@ -170,6 +171,7 @@ implementation slice active.
 | Heuristic Removal | HEU5 | later | Replace the tool-role acceptance carve-outs. | Blocked on the tool-role regeneration measurement; do not change on current evidence. First measured misfire 2026-09-11 (session 9174dbd1): `looksLikeBackgroundProcessCompletionClaim` has CJK positive markers but CJK negatives only for failure, so a Japanese answer denying completion matched on its own denial and cost a full regeneration (24.8k prompt tokens) per poll of a ten-minute release, while the same answer in English cost nothing. Patched with the negated completion words only -- bare negation suffixes would trade the cost bug for a safety hole. |
 | Heuristic Removal | HEU6 | later | Reduce proposal, goal-suggestion, and memory-extraction prose parsing. | Largest surface, lowest stakes; may stay best-effort by decision. |
 | Caverno CLI | CLI4 | later | Package and release the terminal client with automation-grade diagnostics. | The F5 dependency is satisfied; resume with macOS archive, launcher, checksum, and packaged-process gates, and require the signed packaged doctor for promotion. |
+| Project Farm | FARM6 | later | Show pull request and CI status on the project dashboard; later let the farm open pull requests (approval-gated). | Decide where the GitHub token is stored and review the egress first. See [FARM6](project_farm_roadmap.md#farm6-pull-requests). |
 | Retrieval | RAG5 | later | Evaluate deterministic `none`/local/agent-kb/both routing in shadow before automatic retrieval changes prompts or cost. | Activate routes only after precision, recall, unnecessary-retrieval, answer-quality, latency, and token gates pass. |
 | Retrieval | RAG6 | later | Decide whether optional local reranking or ANN vector search is justified by measured quality and scale. | A documented No-Go is successful completion when 20k latency/RSS or reranker quality/VRAM gates do not justify new dependencies. |
 | Knowledge Currency | KC2 | later | Push measured toolchain and dependency ground truth, and what those versions changed, into the prompt tail. | Parked 2026-09-24 with the block withdrawn from coding prompts (`e038f1dcc`). On sixteen KC1 fixtures (`qwen3.8-27b-exl3`) no production arm is worse than bare and the digest-carrying arms lower class 2 staleness from 59% to 36-46% and class 4 from 71% to 25%, but at 22 and 8 claims per arm the gain is not established. Re-promote only with a wider fixture set (20+ per class) or real-session evidence that stale API claims matter. The inventory, block builder, digest, import-based selection, and census production arms remain for that. |

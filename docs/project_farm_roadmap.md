@@ -357,7 +357,7 @@ Spike B findings, 2026-09-26, against main `a33200f14`:
 The first product value is therefore suggest, start, and carry work to the next
 human decision, not unattended completion.
 
-Next action: start FARM1 by promoting the measured extractor into `lib/`.
+Closed 2026-09-26: FARM1 promoted the measured extractor into `lib/` unchanged.
 
 ### FARM1: Project State And Dashboard v1
 
@@ -418,7 +418,8 @@ Progress:
   - Rendering reads the cached snapshot and refreshes in the background.
   - The full suite passes apart from the six file-size ratchet failures
     already on main.
-- **Next:** a visual check in the macOS app, then FARM2.
+- **Still open:** a check in the real macOS app. Only widget tests cover the
+  dashboard so far.
 - **Pin and roadmap file (2026-09-26).** This delivers the 2026-09-26 decision
   that the user can pin or override the extracted next task.
   - The next-task menu can change the roadmap file (project-relative, refused
@@ -640,7 +641,8 @@ decides to run it.
   by the user in a dialog. Writing one there would break the audit's
   charter.
 
-Dependencies: FARM3, and the user's review of this design.
+Dependencies: FARM3. The user reviewed the design and said to continue on
+2026-09-26.
 
 Progress:
 - **Slice 4a (2026-09-26).** Added `ProjectFarmPolicy`: allowed verification
@@ -774,9 +776,25 @@ Open: token storage and the egress review.
 
 ## Open Questions
 
-- Where the per-project roadmap path and farm policy live: a new
-  `CodingProject` field, which needs a Freezed regeneration, or a separate
-  per-project settings record.
-- Where automatability comes from: the Plan Mode task contract, an explicit
-  project policy, or both (FARM3).
-- Where the cross-project overview is placed (FARM3).
+Resolved 2026-09-26:
+- **Roadmap path and farm policy storage.** Both live in a separate
+  per-project record in the project-farm repository, not in a `CodingProject`
+  field.
+- **Automatability.** The proposal's label is advice only. Background work
+  also needs a verified task, a user-declared policy, and, when unattended, a
+  command the user declared as not executing project code.
+- **The cross-project overview** opens from the projects header of the coding
+  drawer.
+
+Open:
+- **Real-app check.** Every FARM surface is covered by widget and unit tests
+  and live canaries, but none has been exercised in the running macOS app,
+  including sandbox file access and app-issued `git`.
+- **Review.** The FARM diff (`a33200f14..af45d9084`) was merged into local
+  main without a human code review.
+- **Storage.** Policies, pins, proposals, and the run ledger are JSON in
+  SharedPreferences. If the ledger or project count grows, move them to the
+  drift store.
+- **SEC1 classification.** `start_project_task` is not yet classified; it is
+  approval-gated at the tool.
+- **FARM6.** Where the GitHub token is stored, and the egress review.
