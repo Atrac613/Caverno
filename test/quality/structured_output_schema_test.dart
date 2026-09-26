@@ -1,4 +1,5 @@
 import 'package:caverno/features/chat/domain/services/flutter_run_issue_request.dart';
+import 'package:caverno/features/project_farm/domain/roadmap_next_task_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Strict structured output rejects a schema whose `required` omits any key in
@@ -9,6 +10,8 @@ void main() {
   test('every response-format schema requires all of its properties', () {
     const schemas = <String, Map<String, dynamic>>{
       'caverno_run_issue': FlutterRunIssueRequest.schema,
+      'caverno_roadmap_next_task': extractionSchema,
+      'caverno_roadmap_sections': outlineSchema,
     };
 
     for (final entry in schemas.entries) {
