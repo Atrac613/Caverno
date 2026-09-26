@@ -25,9 +25,18 @@ import 'worktree_agent_task_registry_notifier.dart';
 import 'worktree_agent_verification_runner.dart';
 
 class WorktreeAgentTaskExecutionContext {
-  const WorktreeAgentTaskExecutionContext({required this.task});
+  const WorktreeAgentTaskExecutionContext({
+    required this.task,
+    this.isCancelled = _neverCancelled,
+  });
 
   final WorktreeAgentTask task;
+
+  /// Whether the user cancelled this task since it started. Read before every
+  /// tool call and before verification, so a cancel stops further edits.
+  final bool Function() isCancelled;
+
+  static bool _neverCancelled() => false;
 
   String get taskId => task.id;
 
@@ -162,6 +171,7 @@ class WorktreeAgentLlmExecutionDelegate {
       toolService: toolService,
       worktreePath: context.worktreePath,
       evidenceRecorder: evidenceRecorder,
+      isCancelled: context.isCancelled,
     );
     final service = SubagentExecutionService(dataSource: resolved.dataSource);
     final task = await service.run(
@@ -195,6 +205,14 @@ class WorktreeAgentLlmExecutionDelegate {
           ? 'Worktree agent completed without a summary.'
           : task.resultSummary.trim();
       final evidence = await evidenceRecorder.capture();
+      if (context.isCancelled()) {
+        return WorktreeAgentTaskExecutionOutcome(
+          resultSummary: summary,
+          verificationSummary: 'Cancelled before verification.',
+          changedFiles: evidence.changedFiles,
+          changedFileEvidenceTruncated: evidence.truncated,
+        );
+      }
       final verification = await verificationRunner.run(
         verificationCommand: context.verificationCommand,
         worktreePath: context.worktreePath,
@@ -283,9 +301,11 @@ class WorktreeAgentScopedToolDispatcher {
     required McpToolService? toolService,
     required String worktreePath,
     WorktreeAgentExecutionEvidenceRecorder? evidenceRecorder,
+    bool Function()? isCancelled,
   }) : _toolService = toolService,
        _worktreePath = _normalizeAbsolutePath(worktreePath),
-       _evidenceRecorder = evidenceRecorder;
+       _evidenceRecorder = evidenceRecorder,
+       _isCancelled = isCancelled ?? (() => false);
 
   static const Set<String> _allowedToolNames = {
     'list_directory',
@@ -318,6 +338,7 @@ class WorktreeAgentScopedToolDispatcher {
   final McpToolService? _toolService;
   final String _worktreePath;
   final WorktreeAgentExecutionEvidenceRecorder? _evidenceRecorder;
+  final bool Function() _isCancelled;
 
   List<String> get toolNames => toolDefinitions
       .map(_toolName)
@@ -338,6 +359,13 @@ class WorktreeAgentScopedToolDispatcher {
   }
 
   Future<McpToolResult> dispatch(ToolCallInfo toolCall) async {
+    if (_isCancelled()) {
+      return _blockedResult(
+        toolCall.name,
+        code: 'task_cancelled',
+        message: 'The user cancelled this task. Stop and summarize.',
+      );
+    }
     final service = _toolService;
     if (service == null) {
       return _blockedResult(
@@ -505,7 +533,17 @@ class WorktreeAgentTaskExecutor {
     try {
       final outcome = await _ref
           .read(worktreeAgentTaskExecutionDelegateProvider)
-          .call(WorktreeAgentTaskExecutionContext(task: task));
+          .call(
+            WorktreeAgentTaskExecutionContext(
+              task: task,
+              isCancelled: () =>
+                  _ref
+                      .read(worktreeAgentTaskRegistryNotifierProvider)
+                      .byId(task.id)
+                      ?.status ==
+                  WorktreeAgentTaskStatus.cancelled,
+            ),
+          );
       await notifier.markCompleted(
         task.id,
         resultSummary: outcome.resultSummary,

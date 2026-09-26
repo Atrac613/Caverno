@@ -179,31 +179,37 @@ class WorktreeAgentTaskRegistryNotifier
     List<WorktreeAgentChangedFileEvidence> changedFiles = const [],
     bool changedFileEvidenceTruncated = false,
   }) {
+    // A cancel wins over a run that finishes afterwards: the user's stop must
+    // not be overwritten by the result of work they already abandoned.
     return _updateTask(
       id,
-      (task, now) => task.copyWith(
-        status: WorktreeAgentTaskStatus.completed,
-        resultSummary: resultSummary.trim(),
-        verifiedGreen: verifiedGreen,
-        verificationSummary: verificationSummary.trim(),
-        changedFiles: List.unmodifiable(changedFiles),
-        changedFileEvidenceTruncated: changedFileEvidenceTruncated,
-        error: '',
-        finishedAt: now,
-        updatedAt: now,
-      ),
+      (task, now) => task.status == WorktreeAgentTaskStatus.cancelled
+          ? task
+          : task.copyWith(
+              status: WorktreeAgentTaskStatus.completed,
+              resultSummary: resultSummary.trim(),
+              verifiedGreen: verifiedGreen,
+              verificationSummary: verificationSummary.trim(),
+              changedFiles: List.unmodifiable(changedFiles),
+              changedFileEvidenceTruncated: changedFileEvidenceTruncated,
+              error: '',
+              finishedAt: now,
+              updatedAt: now,
+            ),
     );
   }
 
   Future<void> markFailed(String id, String error) {
     return _updateTask(
       id,
-      (task, now) => task.copyWith(
-        status: WorktreeAgentTaskStatus.failed,
-        error: error.trim(),
-        finishedAt: now,
-        updatedAt: now,
-      ),
+      (task, now) => task.status == WorktreeAgentTaskStatus.cancelled
+          ? task
+          : task.copyWith(
+              status: WorktreeAgentTaskStatus.failed,
+              error: error.trim(),
+              finishedAt: now,
+              updatedAt: now,
+            ),
     );
   }
 
