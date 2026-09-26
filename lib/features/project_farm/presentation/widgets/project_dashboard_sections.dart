@@ -182,6 +182,43 @@ class NextTaskCard extends StatelessWidget {
   }
 }
 
+/// Lays [leading] (roadmap progress) and [trailing] (threads) side by side on
+/// a wide window and stacks them on a narrow one. Without [leading], the
+/// trailing card takes the full width.
+class DashboardSplit extends StatelessWidget {
+  const DashboardSplit({super.key, required this.trailing, this.leading});
+
+  /// Below this width the two cards stack.
+  static const double sideBySideMinWidth = 720;
+
+  final Widget? leading;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = leading;
+    if (first == null) return trailing;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < sideBySideMinWidth) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [first, const SizedBox(height: 12), trailing],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 2, child: first),
+            const SizedBox(width: 12),
+            Expanded(flex: 3, child: trailing),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Current and blocked items the verifier kept.
 class RoadmapItemsCard extends StatelessWidget {
   const RoadmapItemsCard({super.key, required this.snapshot});

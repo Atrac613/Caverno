@@ -374,6 +374,47 @@ void main() {
       );
     });
   });
+
+  testWidgets(
+    'puts roadmap progress beside threads when wide, stacked when narrow',
+    (tester) async {
+      const left = ValueKey('left');
+      const right = ValueKey('right');
+      Future<void> pumpAt(double width) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: width,
+                  child: const DashboardSplit(
+                    leading: SizedBox(key: left, height: 40),
+                    trailing: SizedBox(key: right, height: 40),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      await pumpAt(1000);
+      expect(
+        tester.getTopLeft(find.byKey(right)).dy,
+        tester.getTopLeft(find.byKey(left)).dy,
+      );
+      expect(
+        tester.getTopLeft(find.byKey(right)).dx,
+        greaterThan(tester.getTopLeft(find.byKey(left)).dx),
+      );
+
+      await pumpAt(500);
+      expect(
+        tester.getTopLeft(find.byKey(right)).dy,
+        greaterThan(tester.getTopLeft(find.byKey(left)).dy),
+      );
+    },
+  );
 }
 
 class _InMemoryConversationRepository implements ConversationRepositoryApi {

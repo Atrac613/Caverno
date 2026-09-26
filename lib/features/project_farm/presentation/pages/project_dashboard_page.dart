@@ -226,15 +226,16 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
             onClearPin: () => _setPin(null),
           ),
           const SizedBox(height: 12),
-          if (_snapshot != null) ...[
-            RoadmapItemsCard(snapshot: _snapshot!),
-            const SizedBox(height: 12),
-          ],
-          ProjectThreadsCard(
-            threads: threads,
-            isBusy: chat.isConversationBusy,
-            needsApproval: chat.isConversationAwaitingApproval,
-            onOpen: (id) => Navigator.of(context).pop(id),
+          DashboardSplit(
+            leading: _snapshot == null
+                ? null
+                : RoadmapItemsCard(snapshot: _snapshot!),
+            trailing: ProjectThreadsCard(
+              threads: threads,
+              isBusy: chat.isConversationBusy,
+              needsApproval: chat.isConversationAwaitingApproval,
+              onOpen: (id) => Navigator.of(context).pop(id),
+            ),
           ),
           const SizedBox(height: 12),
           ProjectStatusRow(agents: agents, git: _git),
