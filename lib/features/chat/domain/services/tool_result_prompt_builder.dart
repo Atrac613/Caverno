@@ -796,12 +796,10 @@ class ToolResultPromptBuilder {
       )) {
         continue;
       }
-      // Read the state from the structured outcome first. The answer prompt
-      // passes budgeted results, and budgeting middle-truncates a long payload
-      // into text that no longer decodes: in session 4ceebb57 the final
-      // process_wait (status exited, a long stdout_tail) was skipped, an
-      // earlier "running" won, and a finished release was reported as still
-      // running. Budgeting keeps [ToolResultInfo.outcome] intact.
+      // Read the state from the structured outcome first: budgeting can
+      // middle-truncate a long payload into text that no longer decodes, so
+      // session 4ceebb57 reported a finished release as still running. The
+      // outcome survives budgeting ([ToolResultInfo.outcome]).
       final decoded = _tryDecodeJsonMap(toolResult.result);
       final jobId = (decoded?['job_id'] ?? toolResult.arguments['job_id'])
           ?.toString()

@@ -15,6 +15,14 @@ import 'chat_remote_datasource.dart';
 const Object _llmSessionLogContextZoneKey = Object();
 
 class LlmSessionLogContext {
+  /// The context for a request whose turn owner is no longer known.
+  static const unassignedTurn = LlmSessionLogContext(
+    workspaceMode: WorkspaceMode.chat,
+    sessionId: 'unassigned',
+    conversationId: 'unassigned',
+    phase: 'unassigned_turn',
+  );
+
   const LlmSessionLogContext({
     required this.workspaceMode,
     required this.sessionId,
