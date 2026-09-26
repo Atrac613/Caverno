@@ -27,6 +27,11 @@ abstract interface class RoadmapSnapshotRepositoryApi {
   ProjectFarmPolicy? policyFor(String projectId);
 
   Future<void> savePolicy(ProjectFarmPolicy policy);
+
+  /// The roadmap item id the user pinned as next, if any.
+  String? pinnedTaskFor(String projectId);
+
+  Future<void> savePinnedTask(String projectId, String? taskId);
 }
 
 class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
@@ -36,6 +41,7 @@ class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
   static const _snapshotsKey = 'project_farm_roadmap_snapshots';
   static const _proposalsKey = 'project_farm_proposals';
   static const _policiesKey = 'project_farm_policies';
+  static const _pinsKey = 'project_farm_pinned_tasks';
 
   final SharedPreferences _prefs;
 
@@ -110,6 +116,24 @@ class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
     final policies = _readMap(_policiesKey);
     policies[policy.projectId] = policy.toJson();
     return _prefs.setString(_policiesKey, jsonEncode(policies));
+  }
+
+  @override
+  String? pinnedTaskFor(String projectId) {
+    final value = _readMap(_pinsKey)[projectId];
+    return value is String && value.trim().isNotEmpty ? value.trim() : null;
+  }
+
+  @override
+  Future<void> savePinnedTask(String projectId, String? taskId) {
+    final pins = _readMap(_pinsKey);
+    final trimmed = taskId?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      pins.remove(projectId);
+    } else {
+      pins[projectId] = trimmed;
+    }
+    return _prefs.setString(_pinsKey, jsonEncode(pins));
   }
 
   Map<String, dynamic> _readMap(String key) {

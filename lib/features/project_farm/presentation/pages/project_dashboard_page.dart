@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
+import '../../../chat/domain/entities/coding_project.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../../chat/presentation/providers/conversations_notifier.dart';
@@ -15,6 +16,7 @@ import '../../domain/entities/roadmap_snapshot.dart';
 import '../providers/roadmap_snapshot_providers.dart';
 import '../widgets/project_dashboard_sections.dart';
 import '../widgets/project_farm_policy_card.dart';
+import '../widgets/roadmap_path_dialog.dart';
 
 /// Pushes the dashboard for [projectId]. Completes with the id of a thread the
 /// user opened or started from it, for the caller to select.
@@ -97,6 +99,54 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
     Navigator.of(context).pop(conversationId);
   }
 
+  Future<void> _changeRoadmap(CodingProject project) async {
+    final service = ref.read(roadmapSnapshotServiceProvider);
+    final path = await showDialog<String>(
+      context: context,
+      builder: (_) => RoadmapPathDialog(
+        projectRoot: project.rootPath,
+        initialPath: service.roadmapPathFor(project.id) ?? '',
+      ),
+    );
+    if (path == null || !mounted) return;
+    await service.setRoadmapPath(project.id, path.isEmpty ? null : path);
+    await _refresh(force: true);
+  }
+
+  Future<void> _pinTask() async {
+    final snapshot = _snapshot;
+    if (snapshot == null) return;
+    final items = [
+      ?snapshot.recommended,
+      ...snapshot.current,
+      ...snapshot.blocked,
+    ].where((item) => item.verified && item.id.isNotEmpty).toList();
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('project_dashboard.pin_task'.tr()),
+        children: [
+          for (final item in items)
+            SimpleDialogOption(
+              key: ValueKey('project-dashboard-pin-${item.id}'),
+              onPressed: () => Navigator.of(context).pop(item.id),
+              child: Text(
+                [item.id, item.title].where((p) => p.isNotEmpty).join(' · '),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (chosen != null) await _setPin(chosen);
+  }
+
+  Future<void> _setPin(String? taskId) async {
+    final service = ref.read(roadmapSnapshotServiceProvider);
+    await service.setPinnedTask(widget.projectId, taskId);
+    if (!mounted) return;
+    setState(() => _snapshot = service.cachedSnapshot(widget.projectId));
+  }
+
   void _openConsole() {
     ref
         .read(conversationsNotifierProvider.notifier)
@@ -171,6 +221,9 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
             hasRoadmap: _hasRoadmap,
             refreshing: _refreshing,
             onStartWork: _startWork,
+            onChangeRoadmap: () => _changeRoadmap(project),
+            onPinTask: _snapshot == null ? null : _pinTask,
+            onClearPin: () => _setPin(null),
           ),
           const SizedBox(height: 12),
           if (_snapshot != null) ...[

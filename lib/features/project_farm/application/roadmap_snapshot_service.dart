@@ -46,10 +46,42 @@ final class RoadmapSnapshotService {
   final Map<String, Future<RoadmapSnapshot?>> _inFlight = {};
 
   RoadmapSnapshot? cachedSnapshot(String projectId) =>
-      _repository.snapshotFor(projectId);
+      _withPin(_repository.snapshotFor(projectId));
+
+  String? roadmapPathFor(String projectId) =>
+      _repository.roadmapPathFor(projectId);
 
   Future<void> setRoadmapPath(String projectId, String? roadmapPath) =>
       _repository.saveRoadmapPath(projectId, roadmapPath);
+
+  String? pinnedTaskFor(String projectId) =>
+      _repository.pinnedTaskFor(projectId);
+
+  /// Pins a verified roadmap item as the next task, or clears the pin.
+  Future<void> setPinnedTask(String projectId, String? taskId) =>
+      _repository.savePinnedTask(projectId, taskId);
+
+  /// Applies the user's pin: a pinned id that names a verified item of the
+  /// snapshot becomes its next task. A pin the roadmap no longer contains is
+  /// ignored rather than shown, so it never points at a stale line.
+  RoadmapSnapshot? _withPin(RoadmapSnapshot? snapshot) {
+    if (snapshot == null) return null;
+    final pinnedId = _repository.pinnedTaskFor(snapshot.projectId);
+    if (pinnedId == null || snapshot.status == RoadmapSnapshotStatus.failed) {
+      return snapshot;
+    }
+    final item = [
+      ?snapshot.recommended,
+      ...snapshot.current,
+      ...snapshot.blocked,
+    ].where((item) => item.verified && item.id == pinnedId).firstOrNull;
+    if (item == null) return snapshot;
+    return snapshot.copyWith(
+      recommended: item,
+      status: RoadmapSnapshotStatus.verified,
+      pinned: true,
+    );
+  }
 
   /// Brings the snapshot up to date. Returns null when the project has no
   /// readable roadmap document. Concurrent calls for one project share a run.
@@ -57,6 +89,18 @@ final class RoadmapSnapshotService {
     required String projectId,
     required String projectRoot,
     bool force = false,
+  }) async => _withPin(
+    await _refreshShared(
+      projectId: projectId,
+      projectRoot: projectRoot,
+      force: force,
+    ),
+  );
+
+  Future<RoadmapSnapshot?> _refreshShared({
+    required String projectId,
+    required String projectRoot,
+    required bool force,
   }) {
     final running = _inFlight[projectId];
     if (running != null) return running;

@@ -10,6 +10,7 @@ import 'package:caverno/features/project_farm/application/project_task_starter.d
 import 'package:caverno/features/project_farm/data/project_git_status_reader.dart';
 import 'package:caverno/features/project_farm/domain/entities/roadmap_snapshot.dart';
 import 'package:caverno/features/project_farm/presentation/widgets/project_dashboard_sections.dart';
+import 'package:caverno/features/project_farm/presentation/widgets/roadmap_path_dialog.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -230,6 +231,61 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  testWidgets('labels a pinned next task', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NextTaskCard(
+            snapshot: _snapshot().copyWith(pinned: true),
+            hasRoadmap: true,
+            refreshing: false,
+            onStartWork: (_) {},
+          ),
+        ),
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('project-dashboard-pinned')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the roadmap path dialog refuses paths outside the project', (
+    tester,
+  ) async {
+    String? result = 'unset';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async => result = await showDialog<String>(
+              context: context,
+              builder: (_) => const RoadmapPathDialog(
+                projectRoot: '/repo',
+                initialPath: '',
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('roadmap-path-field'));
+    final save = find.byKey(const ValueKey('roadmap-path-save'));
+
+    await tester.enterText(field, '../secrets.md');
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(result, 'unset', reason: 'the dialog stays open');
+
+    await tester.enterText(field, 'PLAN.md');
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(result, 'PLAN.md');
   });
 }
 

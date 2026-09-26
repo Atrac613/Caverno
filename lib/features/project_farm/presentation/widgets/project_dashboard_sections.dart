@@ -8,10 +8,11 @@ import '../../data/project_git_status_reader.dart';
 import '../../domain/entities/roadmap_snapshot.dart';
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child});
+  const _SectionCard({required this.title, required this.child, this.action});
 
   final String title;
   final Widget child;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +24,12 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: theme.textTheme.labelLarge),
+            Row(
+              children: [
+                Expanded(child: Text(title, style: theme.textTheme.labelLarge)),
+                ?action,
+              ],
+            ),
             const SizedBox(height: 8),
             child,
           ],
@@ -41,7 +47,14 @@ class NextTaskCard extends StatelessWidget {
     required this.hasRoadmap,
     required this.refreshing,
     required this.onStartWork,
+    this.onChangeRoadmap,
+    this.onPinTask,
+    this.onClearPin,
   });
+
+  final VoidCallback? onChangeRoadmap;
+  final VoidCallback? onPinTask;
+  final VoidCallback? onClearPin;
 
   final RoadmapSnapshot? snapshot;
   final bool hasRoadmap;
@@ -76,8 +89,18 @@ class NextTaskCard extends StatelessWidget {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              if (current.pinned)
+                Chip(
+                  key: const ValueKey('project-dashboard-pinned'),
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.push_pin_outlined, size: 16),
+                  label: Text('project_dashboard.pinned'.tr()),
+                ),
               Chip(
                 key: ValueKey(
                   verified
@@ -95,7 +118,6 @@ class NextTaskCard extends StatelessWidget {
                       : 'project_dashboard.unverified'.tr(),
                 ),
               ),
-              const Spacer(),
               Text(
                 item.line == null
                     ? current.roadmapPath
@@ -127,7 +149,36 @@ class NextTaskCard extends StatelessWidget {
         ],
       );
     }
-    return _SectionCard(title: 'project_dashboard.next_task'.tr(), child: body);
+    return _SectionCard(
+      title: 'project_dashboard.next_task'.tr(),
+      action: PopupMenuButton<String>(
+        key: const ValueKey('project-dashboard-next-menu'),
+        icon: const Icon(Icons.more_vert, size: 18),
+        onSelected: (value) => switch (value) {
+          'roadmap' => onChangeRoadmap?.call(),
+          'pin' => onPinTask?.call(),
+          _ => onClearPin?.call(),
+        },
+        itemBuilder: (_) => [
+          if (onChangeRoadmap != null)
+            PopupMenuItem(
+              value: 'roadmap',
+              child: Text('project_dashboard.change_roadmap'.tr()),
+            ),
+          if (onPinTask != null)
+            PopupMenuItem(
+              value: 'pin',
+              child: Text('project_dashboard.pin_task'.tr()),
+            ),
+          if (current?.pinned == true && onClearPin != null)
+            PopupMenuItem(
+              value: 'clear',
+              child: Text('project_dashboard.clear_pin'.tr()),
+            ),
+        ],
+      ),
+      child: body,
+    );
   }
 }
 

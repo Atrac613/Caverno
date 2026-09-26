@@ -57,6 +57,10 @@ abstract class RoadmapSnapshot with _$RoadmapSnapshot {
     @Default(<RoadmapItemSnapshot>[]) List<RoadmapItemSnapshot> blocked,
     @Default(0) int droppedCount,
     String? error,
+
+    /// The user pinned [recommended] over what the extractor chose. Applied
+    /// at read time by the service; the stored snapshot stays as extracted.
+    @Default(false) bool pinned,
   }) = _RoadmapSnapshot;
 
   factory RoadmapSnapshot.fromJson(Map<String, dynamic> json) =>

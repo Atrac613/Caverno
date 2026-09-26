@@ -52,6 +52,7 @@ _RoadmapSnapshot _$RoadmapSnapshotFromJson(
       const <RoadmapItemSnapshot>[],
   droppedCount: (json['droppedCount'] as num?)?.toInt() ?? 0,
   error: json['error'] as String?,
+  pinned: json['pinned'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$RoadmapSnapshotToJson(_RoadmapSnapshot instance) =>
@@ -68,6 +69,7 @@ Map<String, dynamic> _$RoadmapSnapshotToJson(_RoadmapSnapshot instance) =>
       'blocked': instance.blocked,
       'droppedCount': instance.droppedCount,
       'error': instance.error,
+      'pinned': instance.pinned,
     };
 
 const _$RoadmapSnapshotStatusEnumMap = {

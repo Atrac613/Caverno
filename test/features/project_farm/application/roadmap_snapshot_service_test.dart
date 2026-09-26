@@ -177,6 +177,39 @@ void main() {
     },
   );
 
+  test('a pin makes a verified item the next task until cleared', () async {
+    final subject = service();
+    await subject.refresh(projectId: 'p1', projectRoot: '/repo');
+    await subject.setPinnedTask('p1', 'HEU3');
+
+    final pinned = subject.cachedSnapshot('p1')!;
+    expect(pinned.recommended!.id, 'HEU3');
+    expect(pinned.pinned, isTrue);
+    expect(
+      repository.snapshotFor('p1')!.recommended!.id,
+      'RC1',
+      reason: 'the stored snapshot stays as extracted',
+    );
+    expect(
+      (await subject.refresh(
+        projectId: 'p1',
+        projectRoot: '/repo',
+      ))!.recommended!.id,
+      'HEU3',
+    );
+
+    await subject.setPinnedTask('p1', 'RC9');
+    expect(
+      subject.cachedSnapshot('p1')!.recommended!.id,
+      'RC1',
+      reason: 'a pin naming no verified item is ignored',
+    );
+    expect(subject.cachedSnapshot('p1')!.pinned, isFalse);
+
+    await subject.setPinnedTask('p1', null);
+    expect(subject.pinnedTaskFor('p1'), isNull);
+  });
+
   test('refuses a roadmap path outside the project', () {
     expect(containedPath('/repo', '../secrets.md'), isNull);
     expect(containedPath('/repo', '/etc/passwd'), isNull);

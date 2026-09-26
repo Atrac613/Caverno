@@ -290,7 +290,9 @@ as bool,
 /// @nodoc
 mixin _$RoadmapSnapshot {
 
- String get projectId; String get roadmapPath; String get contentSha256; int get extractorVersion; String get model; DateTime get extractedAt; RoadmapSnapshotStatus get status; RoadmapItemSnapshot? get recommended; List<RoadmapItemSnapshot> get current; List<RoadmapItemSnapshot> get blocked; int get droppedCount; String? get error;
+ String get projectId; String get roadmapPath; String get contentSha256; int get extractorVersion; String get model; DateTime get extractedAt; RoadmapSnapshotStatus get status; RoadmapItemSnapshot? get recommended; List<RoadmapItemSnapshot> get current; List<RoadmapItemSnapshot> get blocked; int get droppedCount; String? get error;/// The user pinned [recommended] over what the extractor chose. Applied
+/// at read time by the service; the stored snapshot stays as extracted.
+ bool get pinned;
 /// Create a copy of RoadmapSnapshot
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -303,16 +305,16 @@ $RoadmapSnapshotCopyWith<RoadmapSnapshot> get copyWith => _$RoadmapSnapshotCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoadmapSnapshot&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.roadmapPath, roadmapPath) || other.roadmapPath == roadmapPath)&&(identical(other.contentSha256, contentSha256) || other.contentSha256 == contentSha256)&&(identical(other.extractorVersion, extractorVersion) || other.extractorVersion == extractorVersion)&&(identical(other.model, model) || other.model == model)&&(identical(other.extractedAt, extractedAt) || other.extractedAt == extractedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.recommended, recommended) || other.recommended == recommended)&&const DeepCollectionEquality().equals(other.current, current)&&const DeepCollectionEquality().equals(other.blocked, blocked)&&(identical(other.droppedCount, droppedCount) || other.droppedCount == droppedCount)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoadmapSnapshot&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.roadmapPath, roadmapPath) || other.roadmapPath == roadmapPath)&&(identical(other.contentSha256, contentSha256) || other.contentSha256 == contentSha256)&&(identical(other.extractorVersion, extractorVersion) || other.extractorVersion == extractorVersion)&&(identical(other.model, model) || other.model == model)&&(identical(other.extractedAt, extractedAt) || other.extractedAt == extractedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.recommended, recommended) || other.recommended == recommended)&&const DeepCollectionEquality().equals(other.current, current)&&const DeepCollectionEquality().equals(other.blocked, blocked)&&(identical(other.droppedCount, droppedCount) || other.droppedCount == droppedCount)&&(identical(other.error, error) || other.error == error)&&(identical(other.pinned, pinned) || other.pinned == pinned));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,roadmapPath,contentSha256,extractorVersion,model,extractedAt,status,recommended,const DeepCollectionEquality().hash(current),const DeepCollectionEquality().hash(blocked),droppedCount,error);
+int get hashCode => Object.hash(runtimeType,projectId,roadmapPath,contentSha256,extractorVersion,model,extractedAt,status,recommended,const DeepCollectionEquality().hash(current),const DeepCollectionEquality().hash(blocked),droppedCount,error,pinned);
 
 @override
 String toString() {
-  return 'RoadmapSnapshot(projectId: $projectId, roadmapPath: $roadmapPath, contentSha256: $contentSha256, extractorVersion: $extractorVersion, model: $model, extractedAt: $extractedAt, status: $status, recommended: $recommended, current: $current, blocked: $blocked, droppedCount: $droppedCount, error: $error)';
+  return 'RoadmapSnapshot(projectId: $projectId, roadmapPath: $roadmapPath, contentSha256: $contentSha256, extractorVersion: $extractorVersion, model: $model, extractedAt: $extractedAt, status: $status, recommended: $recommended, current: $current, blocked: $blocked, droppedCount: $droppedCount, error: $error, pinned: $pinned)';
 }
 
 
@@ -323,7 +325,7 @@ abstract mixin class $RoadmapSnapshotCopyWith<$Res>  {
   factory $RoadmapSnapshotCopyWith(RoadmapSnapshot value, $Res Function(RoadmapSnapshot) _then) = _$RoadmapSnapshotCopyWithImpl;
 @useResult
 $Res call({
- String projectId, String roadmapPath, String contentSha256, int extractorVersion, String model, DateTime extractedAt, RoadmapSnapshotStatus status, RoadmapItemSnapshot? recommended, List<RoadmapItemSnapshot> current, List<RoadmapItemSnapshot> blocked, int droppedCount, String? error
+ String projectId, String roadmapPath, String contentSha256, int extractorVersion, String model, DateTime extractedAt, RoadmapSnapshotStatus status, RoadmapItemSnapshot? recommended, List<RoadmapItemSnapshot> current, List<RoadmapItemSnapshot> blocked, int droppedCount, String? error, bool pinned
 });
 
 
@@ -340,7 +342,7 @@ class _$RoadmapSnapshotCopyWithImpl<$Res>
 
 /// Create a copy of RoadmapSnapshot
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? projectId = null,Object? roadmapPath = null,Object? contentSha256 = null,Object? extractorVersion = null,Object? model = null,Object? extractedAt = null,Object? status = null,Object? recommended = freezed,Object? current = null,Object? blocked = null,Object? droppedCount = null,Object? error = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? projectId = null,Object? roadmapPath = null,Object? contentSha256 = null,Object? extractorVersion = null,Object? model = null,Object? extractedAt = null,Object? status = null,Object? recommended = freezed,Object? current = null,Object? blocked = null,Object? droppedCount = null,Object? error = freezed,Object? pinned = null,}) {
   return _then(_self.copyWith(
 projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,roadmapPath: null == roadmapPath ? _self.roadmapPath : roadmapPath // ignore: cast_nullable_to_non_nullable
@@ -354,7 +356,8 @@ as RoadmapItemSnapshot?,current: null == current ? _self.current : current // ig
 as List<RoadmapItemSnapshot>,blocked: null == blocked ? _self.blocked : blocked // ignore: cast_nullable_to_non_nullable
 as List<RoadmapItemSnapshot>,droppedCount: null == droppedCount ? _self.droppedCount : droppedCount // ignore: cast_nullable_to_non_nullable
 as int,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,pinned: null == pinned ? _self.pinned : pinned // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 /// Create a copy of RoadmapSnapshot
@@ -451,10 +454,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String projectId,  String roadmapPath,  String contentSha256,  int extractorVersion,  String model,  DateTime extractedAt,  RoadmapSnapshotStatus status,  RoadmapItemSnapshot? recommended,  List<RoadmapItemSnapshot> current,  List<RoadmapItemSnapshot> blocked,  int droppedCount,  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String projectId,  String roadmapPath,  String contentSha256,  int extractorVersion,  String model,  DateTime extractedAt,  RoadmapSnapshotStatus status,  RoadmapItemSnapshot? recommended,  List<RoadmapItemSnapshot> current,  List<RoadmapItemSnapshot> blocked,  int droppedCount,  String? error,  bool pinned)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _RoadmapSnapshot() when $default != null:
-return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extractorVersion,_that.model,_that.extractedAt,_that.status,_that.recommended,_that.current,_that.blocked,_that.droppedCount,_that.error);case _:
+return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extractorVersion,_that.model,_that.extractedAt,_that.status,_that.recommended,_that.current,_that.blocked,_that.droppedCount,_that.error,_that.pinned);case _:
   return orElse();
 
 }
@@ -472,10 +475,10 @@ return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extr
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String projectId,  String roadmapPath,  String contentSha256,  int extractorVersion,  String model,  DateTime extractedAt,  RoadmapSnapshotStatus status,  RoadmapItemSnapshot? recommended,  List<RoadmapItemSnapshot> current,  List<RoadmapItemSnapshot> blocked,  int droppedCount,  String? error)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String projectId,  String roadmapPath,  String contentSha256,  int extractorVersion,  String model,  DateTime extractedAt,  RoadmapSnapshotStatus status,  RoadmapItemSnapshot? recommended,  List<RoadmapItemSnapshot> current,  List<RoadmapItemSnapshot> blocked,  int droppedCount,  String? error,  bool pinned)  $default,) {final _that = this;
 switch (_that) {
 case _RoadmapSnapshot():
-return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extractorVersion,_that.model,_that.extractedAt,_that.status,_that.recommended,_that.current,_that.blocked,_that.droppedCount,_that.error);case _:
+return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extractorVersion,_that.model,_that.extractedAt,_that.status,_that.recommended,_that.current,_that.blocked,_that.droppedCount,_that.error,_that.pinned);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -492,10 +495,10 @@ return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extr
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String projectId,  String roadmapPath,  String contentSha256,  int extractorVersion,  String model,  DateTime extractedAt,  RoadmapSnapshotStatus status,  RoadmapItemSnapshot? recommended,  List<RoadmapItemSnapshot> current,  List<RoadmapItemSnapshot> blocked,  int droppedCount,  String? error)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String projectId,  String roadmapPath,  String contentSha256,  int extractorVersion,  String model,  DateTime extractedAt,  RoadmapSnapshotStatus status,  RoadmapItemSnapshot? recommended,  List<RoadmapItemSnapshot> current,  List<RoadmapItemSnapshot> blocked,  int droppedCount,  String? error,  bool pinned)?  $default,) {final _that = this;
 switch (_that) {
 case _RoadmapSnapshot() when $default != null:
-return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extractorVersion,_that.model,_that.extractedAt,_that.status,_that.recommended,_that.current,_that.blocked,_that.droppedCount,_that.error);case _:
+return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extractorVersion,_that.model,_that.extractedAt,_that.status,_that.recommended,_that.current,_that.blocked,_that.droppedCount,_that.error,_that.pinned);case _:
   return null;
 
 }
@@ -507,7 +510,7 @@ return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extr
 @JsonSerializable()
 
 class _RoadmapSnapshot extends RoadmapSnapshot {
-  const _RoadmapSnapshot({required this.projectId, required this.roadmapPath, required this.contentSha256, required this.extractorVersion, required this.model, required this.extractedAt, required this.status, this.recommended, final  List<RoadmapItemSnapshot> current = const <RoadmapItemSnapshot>[], final  List<RoadmapItemSnapshot> blocked = const <RoadmapItemSnapshot>[], this.droppedCount = 0, this.error}): _current = current,_blocked = blocked,super._();
+  const _RoadmapSnapshot({required this.projectId, required this.roadmapPath, required this.contentSha256, required this.extractorVersion, required this.model, required this.extractedAt, required this.status, this.recommended, final  List<RoadmapItemSnapshot> current = const <RoadmapItemSnapshot>[], final  List<RoadmapItemSnapshot> blocked = const <RoadmapItemSnapshot>[], this.droppedCount = 0, this.error, this.pinned = false}): _current = current,_blocked = blocked,super._();
   factory _RoadmapSnapshot.fromJson(Map<String, dynamic> json) => _$RoadmapSnapshotFromJson(json);
 
 @override final  String projectId;
@@ -534,6 +537,9 @@ class _RoadmapSnapshot extends RoadmapSnapshot {
 
 @override@JsonKey() final  int droppedCount;
 @override final  String? error;
+/// The user pinned [recommended] over what the extractor chose. Applied
+/// at read time by the service; the stored snapshot stays as extracted.
+@override@JsonKey() final  bool pinned;
 
 /// Create a copy of RoadmapSnapshot
 /// with the given fields replaced by the non-null parameter values.
@@ -548,16 +554,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoadmapSnapshot&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.roadmapPath, roadmapPath) || other.roadmapPath == roadmapPath)&&(identical(other.contentSha256, contentSha256) || other.contentSha256 == contentSha256)&&(identical(other.extractorVersion, extractorVersion) || other.extractorVersion == extractorVersion)&&(identical(other.model, model) || other.model == model)&&(identical(other.extractedAt, extractedAt) || other.extractedAt == extractedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.recommended, recommended) || other.recommended == recommended)&&const DeepCollectionEquality().equals(other._current, _current)&&const DeepCollectionEquality().equals(other._blocked, _blocked)&&(identical(other.droppedCount, droppedCount) || other.droppedCount == droppedCount)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoadmapSnapshot&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.roadmapPath, roadmapPath) || other.roadmapPath == roadmapPath)&&(identical(other.contentSha256, contentSha256) || other.contentSha256 == contentSha256)&&(identical(other.extractorVersion, extractorVersion) || other.extractorVersion == extractorVersion)&&(identical(other.model, model) || other.model == model)&&(identical(other.extractedAt, extractedAt) || other.extractedAt == extractedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.recommended, recommended) || other.recommended == recommended)&&const DeepCollectionEquality().equals(other._current, _current)&&const DeepCollectionEquality().equals(other._blocked, _blocked)&&(identical(other.droppedCount, droppedCount) || other.droppedCount == droppedCount)&&(identical(other.error, error) || other.error == error)&&(identical(other.pinned, pinned) || other.pinned == pinned));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,roadmapPath,contentSha256,extractorVersion,model,extractedAt,status,recommended,const DeepCollectionEquality().hash(_current),const DeepCollectionEquality().hash(_blocked),droppedCount,error);
+int get hashCode => Object.hash(runtimeType,projectId,roadmapPath,contentSha256,extractorVersion,model,extractedAt,status,recommended,const DeepCollectionEquality().hash(_current),const DeepCollectionEquality().hash(_blocked),droppedCount,error,pinned);
 
 @override
 String toString() {
-  return 'RoadmapSnapshot(projectId: $projectId, roadmapPath: $roadmapPath, contentSha256: $contentSha256, extractorVersion: $extractorVersion, model: $model, extractedAt: $extractedAt, status: $status, recommended: $recommended, current: $current, blocked: $blocked, droppedCount: $droppedCount, error: $error)';
+  return 'RoadmapSnapshot(projectId: $projectId, roadmapPath: $roadmapPath, contentSha256: $contentSha256, extractorVersion: $extractorVersion, model: $model, extractedAt: $extractedAt, status: $status, recommended: $recommended, current: $current, blocked: $blocked, droppedCount: $droppedCount, error: $error, pinned: $pinned)';
 }
 
 
@@ -568,7 +574,7 @@ abstract mixin class _$RoadmapSnapshotCopyWith<$Res> implements $RoadmapSnapshot
   factory _$RoadmapSnapshotCopyWith(_RoadmapSnapshot value, $Res Function(_RoadmapSnapshot) _then) = __$RoadmapSnapshotCopyWithImpl;
 @override @useResult
 $Res call({
- String projectId, String roadmapPath, String contentSha256, int extractorVersion, String model, DateTime extractedAt, RoadmapSnapshotStatus status, RoadmapItemSnapshot? recommended, List<RoadmapItemSnapshot> current, List<RoadmapItemSnapshot> blocked, int droppedCount, String? error
+ String projectId, String roadmapPath, String contentSha256, int extractorVersion, String model, DateTime extractedAt, RoadmapSnapshotStatus status, RoadmapItemSnapshot? recommended, List<RoadmapItemSnapshot> current, List<RoadmapItemSnapshot> blocked, int droppedCount, String? error, bool pinned
 });
 
 
@@ -585,7 +591,7 @@ class __$RoadmapSnapshotCopyWithImpl<$Res>
 
 /// Create a copy of RoadmapSnapshot
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? projectId = null,Object? roadmapPath = null,Object? contentSha256 = null,Object? extractorVersion = null,Object? model = null,Object? extractedAt = null,Object? status = null,Object? recommended = freezed,Object? current = null,Object? blocked = null,Object? droppedCount = null,Object? error = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? projectId = null,Object? roadmapPath = null,Object? contentSha256 = null,Object? extractorVersion = null,Object? model = null,Object? extractedAt = null,Object? status = null,Object? recommended = freezed,Object? current = null,Object? blocked = null,Object? droppedCount = null,Object? error = freezed,Object? pinned = null,}) {
   return _then(_RoadmapSnapshot(
 projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,roadmapPath: null == roadmapPath ? _self.roadmapPath : roadmapPath // ignore: cast_nullable_to_non_nullable
@@ -599,7 +605,8 @@ as RoadmapItemSnapshot?,current: null == current ? _self._current : current // i
 as List<RoadmapItemSnapshot>,blocked: null == blocked ? _self._blocked : blocked // ignore: cast_nullable_to_non_nullable
 as List<RoadmapItemSnapshot>,droppedCount: null == droppedCount ? _self.droppedCount : droppedCount // ignore: cast_nullable_to_non_nullable
 as int,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,pinned: null == pinned ? _self.pinned : pinned // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

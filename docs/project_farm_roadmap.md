@@ -419,6 +419,16 @@ Progress:
   - The full suite passes apart from the six file-size ratchet failures
     already on main.
 - **Next:** a visual check in the macOS app, then FARM2.
+- **Pin and roadmap file (2026-09-26).** This delivers the 2026-09-26 decision
+  that the user can pin or override the extracted next task.
+  - The next-task menu can change the roadmap file (project-relative, refused
+    outside the project), pin a verified item, or clear the pin.
+  - `RoadmapSnapshotService` applies the pin whenever a snapshot is read, so
+    the dashboard, overview, proposals, and tools all see the pinned task. The
+    stored snapshot stays as extracted.
+  - A pin naming an item the roadmap no longer has is ignored, never shown
+    stale.
+  - The chip row now wraps, instead of overflowing on narrow widths.
 
 ### FARM2: Control Plane And Built-in Tools
 

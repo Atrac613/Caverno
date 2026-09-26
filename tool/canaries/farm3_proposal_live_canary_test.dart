@@ -176,4 +176,10 @@ final class _MemoryRepository implements RoadmapSnapshotRepositoryApi {
 
   @override
   Future<void> savePolicy(ProjectFarmPolicy policy) async {}
+
+  @override
+  String? pinnedTaskFor(String projectId) => null;
+
+  @override
+  Future<void> savePinnedTask(String projectId, String? taskId) async {}
 }
