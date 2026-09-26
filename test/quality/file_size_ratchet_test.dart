@@ -305,7 +305,9 @@ const Map<String, int> _lineBudgets = {
   // +5: the operator skip had to learn about the trailing line limit. A tag
   // creation carrying one now executes, so skipping on "there is an
   // operator" would let it past this gate ungated.
-  'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 156,
+  // +6: the block declares itself a refusal (`ok: false`, `result_origin`),
+  // so the turn digest stops listing a blocked `tag -a` as run.
+  'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 162,
   'lib/features/chat/domain/services/goal_validation_probe_guard.dart': 53,
   'lib/features/chat/domain/services/material_contract_assumption_arming.dart':
       31,
@@ -323,7 +325,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/saved_task_authored_request_text.dart': 63,
   'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 113,
   'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
-  'lib/features/chat/domain/services/uninspected_commit_guard.dart': 144,
+  // +9: the block declares itself a refusal. Reported as a success it was
+  // filed as an executed commit, so the identical commit re-issued after
+  // `diff --cached` was deduplicated and the refusal replayed (dd50d110).
+  'lib/features/chat/domain/services/uninspected_commit_guard.dart': 153,
   'lib/features/chat/domain/services/git_write_confirmation_policy.dart': 93,
   'lib/features/chat/domain/services/context_surgery_observation_accumulator.dart':
       130,

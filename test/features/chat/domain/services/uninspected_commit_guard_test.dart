@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
 import 'package:caverno/features/chat/domain/services/uninspected_commit_guard.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -154,6 +156,30 @@ void main() {
     expect(
       evaluate(command: 'git commit -m "x"', results: const []),
       isNotNull,
+    );
+  });
+
+  test('declares the block as a refusal, not as a commit that ran', () {
+    // Session dd50d110: reported as a success, the block was filed as an
+    // executed commit, so the same commit re-issued after `diff --cached` was
+    // skipped as a duplicate and this refusal replayed in its place.
+    final toolCall = gitCall('commit -m "chore: bump"');
+    final blocked = guard.evaluate(
+      UninspectedCommitInput(toolCall: toolCall, executedToolResults: const []),
+    )!;
+    final payload = jsonDecode(blocked.result) as Map<String, dynamic>;
+    const classifier = ToolFailureClassifier();
+
+    expect(blocked.isSuccess, isFalse);
+    expect(payload['ok'], isFalse);
+    expect(ToolResultOrigin.fromPayload(payload), ToolResultOrigin.refusal);
+    expect(
+      classifier.classify(toolCall, blocked),
+      ToolResultDisposition.approvalDenied,
+    );
+    expect(
+      classifier.policyRefusal(blocked)?.requiredAction,
+      contains('diff --cached'),
     );
   });
 }

@@ -280,6 +280,9 @@ void main() {
       _input(command: ' git tag   v2.0.0 ', workingDirectory: _ownerRoot),
     )!;
     final expectedPayload = {
+      // Declared, so the loop cannot file the blocked tag as one that ran.
+      'ok': false,
+      'result_origin': 'refusal',
       'error':
           'Git tag creation requires inspecting existing tag names in this '
           'turn before creating a new tag.',
