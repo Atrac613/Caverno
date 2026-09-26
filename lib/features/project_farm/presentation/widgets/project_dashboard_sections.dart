@@ -209,9 +209,9 @@ class DashboardSplit extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 2, child: first),
+            Expanded(child: first),
             const SizedBox(width: 12),
-            Expanded(flex: 3, child: trailing),
+            Expanded(child: trailing),
           ],
         );
       },
