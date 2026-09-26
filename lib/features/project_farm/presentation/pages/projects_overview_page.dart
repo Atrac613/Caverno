@@ -245,6 +245,9 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
                       (task) => task.codingProjectId == project.id,
                     ),
                   ),
+                  onCancelBackground: (task) => ref
+                      .read(worktreeAgentTaskRegistryNotifierProvider.notifier)
+                      .cancel(task.id),
                   onRunInBackground: (snapshot, item) => _runInBackground(
                     project,
                     snapshot,
@@ -274,7 +277,11 @@ class ProjectOverviewTile extends StatelessWidget {
     this.latestBackgroundTask,
     this.backgroundBlocker = BackgroundRunBlocker.noPolicy,
     this.onRunInBackground,
+    this.onCancelBackground,
   });
+
+  /// Cancels only [latestBackgroundTask]; nothing else in the project.
+  final ValueChanged<WorktreeAgentTask>? onCancelBackground;
 
   /// The project's most recent background task, for its status line.
   final WorktreeAgentTask? latestBackgroundTask;
@@ -377,16 +384,33 @@ class ProjectOverviewTile extends StatelessWidget {
                     ],
                     if (latestBackgroundTask case final task?) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        'project_farm_run.status'.tr(
-                          args: [
-                            task.title,
-                            'project_farm_run.state.${task.status.name}'.tr(),
-                            task.branchName,
-                          ],
-                        ),
-                        key: ValueKey('projects-overview-${project.id}-bg'),
-                        style: theme.textTheme.bodySmall,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'project_farm_run.status'.tr(
+                                args: [
+                                  task.title,
+                                  'project_farm_run.state.${task.status.name}'
+                                      .tr(),
+                                  task.branchName,
+                                ],
+                              ),
+                              key: ValueKey(
+                                'projects-overview-${project.id}-bg',
+                              ),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                          if (!task.isTerminal && onCancelBackground != null)
+                            TextButton(
+                              key: ValueKey(
+                                'projects-overview-${project.id}-bg-cancel',
+                              ),
+                              onPressed: () => onCancelBackground!(task),
+                              child: Text('common.cancel'.tr()),
+                            ),
+                        ],
                       ),
                     ],
                     const SizedBox(height: 4),

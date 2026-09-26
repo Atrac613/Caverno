@@ -2,7 +2,7 @@
 
 Date: 2026-09-26
 
-Status: FARM0, FARM1, and FARM2 `done` (2026-09-26); FARM3 `current`. Promoted from the
+Status: FARM0–FARM4 `done` (2026-09-26). FARM5 is gated on OBS1 and SEC1. Promoted from the
 [Anabasis Project Vision](anabasis_project_vision.md) by user decision on
 2026-09-26. [Roadmap](roadmap.md) owns cross-track selection; this document
 owns FARM scope, acceptance criteria, and evidence.
@@ -501,7 +501,7 @@ Progress:
 
 ### FARM3: Suggest Mode
 
-Status: `current`
+Status: `done`
 
 Scope:
 - The orchestrator proposes the next step for each project, with a cited
@@ -555,7 +555,7 @@ Progress:
 
 ### FARM4: Background Execution
 
-Status: `current`. The design below was drafted 2026-09-26 and needs the user's
+Status: `done`. The design below was drafted 2026-09-26 and needs the user's
 review before any code.
 
 Scope: run a started task in the background on an LL13 worktree agent. The
@@ -680,8 +680,16 @@ Progress:
   - On `qwen3.8-27b-exl3` (one run, 19 s) both were verified green, each
     changed only its own `lib/greeting.dart`, and each wrote only its own
     marker. Nothing crossed between projects.
-  - Remaining FARM4 criterion: cancelling reaches only its own work. LL13 owns
-    cancellation; a FARM surface for it is a follow-up.
+- **Cancellation (2026-09-26).** Building the cancel surface found an LL13
+  defect: `markCompleted` and `markFailed` overwrote a cancel, and a running
+  task kept editing until it finished. The existing banner's Cancel button had
+  the same problem.
+  - The registry now keeps `cancelled` when a later completion or failure
+    arrives.
+  - `WorktreeAgentTaskExecutionContext.isCancelled` is read by the scoped
+    dispatcher, which refuses every tool call after a cancel with
+    `task_cancelled`, and by the delegate, which skips verification.
+  - The overview's Cancel acts on the project's latest unfinished task only.
 
 ### FARM5: Bounded Autonomous Operation
 

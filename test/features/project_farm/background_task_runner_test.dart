@@ -245,4 +245,42 @@ void main() {
     await pump(BackgroundRunBlocker.needsHuman);
     expect(find.byKey(key), findsNothing);
   });
+
+  testWidgets('the overview row cancels only a running background task', (
+    tester,
+  ) async {
+    WorktreeAgentTask? cancelled;
+    Future<void> pump(WorktreeAgentTask task) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProjectOverviewTile(
+            project: CodingProject(
+              id: 'p1',
+              name: 'ledger',
+              rootPath: '/repo',
+              createdAt: _t,
+              updatedAt: _t,
+            ),
+            snapshot: null,
+            refreshing: false,
+            running: 0,
+            needsApproval: 0,
+            onOpenDashboard: () {},
+            onStartWork: (_, _) {},
+            latestBackgroundTask: task,
+            onCancelBackground: (task) => cancelled = task,
+          ),
+        ),
+      ),
+    );
+    const key = ValueKey('projects-overview-p1-bg-cancel');
+
+    final running = _task(WorktreeAgentTaskStatus.running);
+    await pump(running);
+    await tester.tap(find.byKey(key));
+    expect(cancelled, running);
+
+    await pump(_task(WorktreeAgentTaskStatus.completed));
+    expect(find.byKey(key), findsNothing);
+  });
 }
