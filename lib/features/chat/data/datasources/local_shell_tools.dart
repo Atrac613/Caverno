@@ -13,6 +13,7 @@ import 'local_shell_grep.dart';
 import 'project_mutation_path_fence.dart';
 import 'project_read_path_fence.dart';
 import 'shell_write_observation.dart';
+import 'turn_project_root.dart';
 
 class LocalShellTools {
   LocalShellTools._();
@@ -70,9 +71,10 @@ class LocalShellTools {
   }) async {
     final normalized = normalizeCommand(command);
     if (!_canExecuteInternally(normalized)) return null;
-    final segments = _splitConditionalCommands(
-      normalized,
-    ).map(_splitArgs).where((args) => args.isNotEmpty).toList(growable: false);
+    final segments = _internalSteps(normalized)!
+        .map((step) => _splitArgs(step.command))
+        .where((args) => args.isNotEmpty)
+        .toList(growable: false);
     if (segments.every((args) => args.first == 'echo')) return null;
     const fence = ProjectReadPathFence();
     final workingDirectoryAuthorization = await fence.authorize(
@@ -192,6 +194,7 @@ class LocalShellTools {
       return _executeInternally(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
+        projectRoot: projectRoot,
       );
     }
 
@@ -604,9 +607,11 @@ class LocalShellTools {
   static const String _shellOperatorChars = '|&;<>`\$#';
 
   static bool _canExecuteInternally(String command) {
-    final segments = _splitConditionalCommands(command);
-    if (segments.isEmpty) return false;
-    return segments.every(_canExecuteSingleCommandInternally);
+    final steps = _internalSteps(command);
+    if (steps == null || steps.isEmpty) return false;
+    return steps.every(
+      (step) => _canExecuteSingleCommandInternally(step.command),
+    );
   }
 
   static bool _canExecuteSingleCommandInternally(String command) {
@@ -628,9 +633,36 @@ class LocalShellTools {
       'grep' =>
         !_hasUnquotedShellExpansion(command) &&
             LocalShellGrep.parse(args.skip(1).toList()) != null,
+      'git' => _readOnlyGitSubcommand(command, args) != null,
       _ => false,
     };
   }
+
+  /// The subcommand of a `git` segment that `git_execute_command` would run
+  /// without approval, or null.
+  ///
+  /// The segment is handed to [GitTools.executeResult], the same executor,
+  /// fences and flag allowlist as that tool, so running it here grants nothing
+  /// that tool does not already. Two shapes it never receives are refused: a
+  /// global option before the subcommand -- `-c core.fsmonitor=<program>`
+  /// makes a plain `git status` run that program, and `-C` / `--git-dir`
+  /// move it out of the fenced directory -- and any word `sh` would expand
+  /// differently from the quote-stripping split, as for grep.
+  ///
+  /// Outside a turn's coding project GitTools refuses every command, so there
+  /// a git segment stays on the shell path, where it can still run once
+  /// approved, rather than skip approval only to be refused.
+  static String? _readOnlyGitSubcommand(String command, List<String> args) {
+    final projectRoot = TurnProjectRoot.current?.rootPath.trim() ?? '';
+    if (projectRoot.isEmpty) return null;
+    if (args.length < 2 || args[1].startsWith('-')) return null;
+    final match = _gitInvocationPattern.firstMatch(command.trim());
+    if (match == null || _hasUnquotedShellExpansion(command)) return null;
+    final subcommand = match.group(1)!;
+    return GitTools.isReadOnly(subcommand) ? subcommand : null;
+  }
+
+  static final RegExp _gitInvocationPattern = RegExp(r'^git\s+(\S.*)$');
 
   /// Whether `sh` would build a word of [command] differently from
   /// [_splitArgs]: pathname globbing, brace or tilde expansion, backslash
@@ -692,19 +724,63 @@ class LocalShellTools {
     return inWord && !wordHasChars;
   }
 
-  static List<String> _splitConditionalCommands(String command) {
-    final segments = <String>[];
+  /// [command] as the chain the internal executors would run, or null when
+  /// its separators cannot be mirrored without `sh`.
+  ///
+  /// `&&` and a newline stop the chain at the first failure; `;` does not.
+  /// A newline only stops it because the shell path adds `-e` to a multi-line
+  /// command -- and drops `-e` as soon as the command also holds a `;`. Rather
+  /// than model that interaction, a command mixing the two stays on the shell
+  /// path. A backslash keeps the character after it inside the segment, so an
+  /// escaped separator such as `find ... \;` is left for
+  /// [_hasUnsafeShellSyntax] to refuse instead of being split on.
+  ///
+  /// Each segment may end in one `| head -N` / `| tail -N`, parsed by
+  /// [GitTools.parseTrailingLineLimit] so both tools accept the same clause.
+  /// Any other pipe stays in the segment and makes it unsafe.
+  static List<_InternalStep>? _internalSteps(String command) {
+    final steps = <_InternalStep>[];
     final buffer = StringBuffer();
     String? quoteChar;
+    var continuesAfterFailure = true;
+    var sawSemicolon = false;
+    var sawNewline = false;
+
+    void flush() {
+      final segment = buffer.toString().trim();
+      buffer.clear();
+      if (segment.isEmpty) return;
+      final lineLimit = GitTools.parseTrailingLineLimit(segment);
+      steps.add(
+        _InternalStep(
+          command: lineLimit?.command ?? segment,
+          lineLimit: lineLimit,
+          continuesAfterFailure: continuesAfterFailure,
+        ),
+      );
+    }
 
     for (var i = 0; i < command.length; i++) {
       final char = command[i];
 
       if (quoteChar != null) {
+        if (quoteChar == '"' && char == r'\' && i + 1 < command.length) {
+          buffer.write(char);
+          i += 1;
+          buffer.write(command[i]);
+          continue;
+        }
         if (char == quoteChar) {
           quoteChar = null;
         }
         buffer.write(char);
+        continue;
+      }
+
+      if (char == r'\' && i + 1 < command.length) {
+        buffer.write(char);
+        i += 1;
+        buffer.write(command[i]);
         continue;
       }
 
@@ -714,28 +790,23 @@ class LocalShellTools {
         continue;
       }
 
-      if ((char == '&' && i + 1 < command.length && command[i + 1] == '&') ||
-          char == '\n') {
-        final segment = buffer.toString().trim();
-        if (segment.isNotEmpty) {
-          segments.add(segment);
-        }
-        buffer.clear();
-        if (char == '&') {
-          i += 1;
-        }
+      final isAndList =
+          char == '&' && i + 1 < command.length && command[i + 1] == '&';
+      if (isAndList || char == '\n' || char == ';') {
+        flush();
+        if (char == ';') sawSemicolon = true;
+        if (char == '\n') sawNewline = true;
+        continuesAfterFailure = char == ';';
+        if (isAndList) i += 1;
         continue;
       }
 
       buffer.write(char);
     }
+    flush();
 
-    final trailing = buffer.toString().trim();
-    if (trailing.isNotEmpty) {
-      segments.add(trailing);
-    }
-
-    return segments;
+    if (sawSemicolon && sawNewline) return null;
+    return steps;
   }
 
   static _DirectGitWriteCommand? _firstDirectGitWriteCommand(String command) {
@@ -894,27 +965,42 @@ class LocalShellTools {
   static Future<FirstPartyToolExecutionResult> _executeInternally({
     required String command,
     required String workingDirectory,
+    required String? projectRoot,
   }) async {
     final stdoutBuffer = StringBuffer();
     final stderrBuffer = StringBuffer();
     var exitCode = 0;
+    var skipping = false;
 
-    for (final segment in _splitConditionalCommands(command)) {
+    for (final step in _internalSteps(command)!) {
+      // A failure skips the rest of its `&&` list; the next `;` resumes, as
+      // `a && b; c` runs `c` in the shell whether or not `a` failed.
+      if (step.continuesAfterFailure) skipping = false;
+      if (skipping) continue;
+
       final result = await _executeInternalSegment(
-        segment,
+        step.command,
         workingDirectory: workingDirectory,
+        projectRoot: projectRoot,
+        lineLimit: step.lineLimit,
       );
+      final lineLimit = step.lineLimit;
+      final stdout = lineLimit == null
+          ? result.stdout
+          : lineLimit.apply(result.stdout);
 
-      if (result.stdout.isNotEmpty) {
-        stdoutBuffer.write(result.stdout);
+      if (stdout.isNotEmpty) {
+        stdoutBuffer.write(stdout);
       }
       if (result.stderr.isNotEmpty) {
         stderrBuffer.write(result.stderr);
       }
 
-      exitCode = result.exitCode;
+      // Without `pipefail` a pipeline reports its last command, and a head or
+      // tail over a stream succeeds whatever the left side returned.
+      exitCode = lineLimit == null ? result.exitCode : 0;
       if (exitCode != 0) {
-        break;
+        skipping = true;
       }
     }
 
@@ -945,6 +1031,8 @@ class LocalShellTools {
   static Future<_LocalCommandResult> _executeInternalSegment(
     String command, {
     required String workingDirectory,
+    required String? projectRoot,
+    required GitOutputLineLimit? lineLimit,
   }) async {
     final args = _splitArgs(command);
     if (args.isEmpty) {
@@ -968,11 +1056,59 @@ class LocalShellTools {
       'find' => await _executeFind(args.skip(1).toList(), workingDirectory),
       'rg' => await _executeRg(args.skip(1).toList(), workingDirectory),
       'grep' => await _executeGrep(args.skip(1).toList(), workingDirectory),
+      'git' => await _executeGit(
+        command,
+        args,
+        workingDirectory: workingDirectory,
+        projectRoot: projectRoot,
+        lineLimit: lineLimit,
+      ),
       _ => _LocalCommandResult(
         exitCode: 1,
         stderr: 'Unsupported internal command: ${args.first}\n',
       ),
     };
+  }
+
+  static Future<_LocalCommandResult> _executeGit(
+    String command,
+    List<String> args, {
+    required String workingDirectory,
+    required String? projectRoot,
+    required GitOutputLineLimit? lineLimit,
+  }) async {
+    final subcommand = _readOnlyGitSubcommand(command, args);
+    if (subcommand == null) {
+      return const _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'git: unsupported internal command\n',
+      );
+    }
+    // GitTools caps stdout, so it must apply the line limit itself: a
+    // `| tail -N` applied here would read the end of an already-cut head.
+    // Applying it again afterwards leaves the lines unchanged.
+    final execution = await GitTools.executeResult(
+      command: lineLimit == null
+          ? subcommand
+          : '$subcommand | ${lineLimit.describe}',
+      workingDirectory: workingDirectory,
+      projectRoot: projectRoot,
+    );
+    final exitCode = execution.outcome?.exitCode;
+    // No exit status means git never ran: a fence, the repository check or
+    // the timeout refused it, and only the error explains why.
+    if (exitCode == null) {
+      return _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'git: ${execution.errorMessage ?? 'command did not run'}\n',
+      );
+    }
+    final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+    return _LocalCommandResult(
+      exitCode: exitCode,
+      stdout: payload['stdout'] as String? ?? '',
+      stderr: payload['stderr'] as String? ?? '',
+    );
   }
 
   static List<String> _splitArgs(String command) {
@@ -1929,4 +2065,21 @@ class _FileCounts {
   final int words;
   final int bytes;
   final String? error;
+}
+
+/// One command of a chain [LocalShellTools] runs without a shell.
+final class _InternalStep {
+  const _InternalStep({
+    required this.command,
+    required this.lineLimit,
+    required this.continuesAfterFailure,
+  });
+
+  /// The command with any trailing `| head -N` / `| tail -N` removed.
+  final String command;
+  final GitOutputLineLimit? lineLimit;
+
+  /// Whether the step runs after an earlier failure: true for the first step
+  /// and for one that follows `;`, false after `&&` or a newline.
+  final bool continuesAfterFailure;
 }

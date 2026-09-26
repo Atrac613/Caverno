@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
+import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -287,7 +288,6 @@ void main() {
     });
 
     test('rejects every shell-backed inspection command', () {
-      expect(LocalShellTools.isReadOnly('git status --short'), isFalse);
       // grep forms the bounded implementation does not reproduce.
       expect(LocalShellTools.isReadOnly('grep -R needle lib'), isFalse);
       expect(LocalShellTools.isReadOnly('grep needle'), isFalse);
@@ -342,6 +342,229 @@ void main() {
               as Map<String, dynamic>;
       expect(result['executed_internally'], isTrue);
       expect(result['stdout'], 'a|b;c\$d\ndone\n');
+    });
+
+    test('accepts `;` and one trailing head/tail per segment', () {
+      expect(
+        LocalShellTools.isReadOnly(
+          "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -3",
+        ),
+        isTrue,
+      );
+      expect(LocalShellTools.isReadOnly('ls | head -n 5 && pwd'), isTrue);
+      expect(LocalShellTools.isReadOnly('ls;'), isTrue);
+
+      expect(LocalShellTools.isReadOnly('ls | sort'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls | head'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls | head -3 | tail -1'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls || head -3'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls | head -3 > out.txt'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls; rm -rf build'), isFalse);
+      expect(LocalShellTools.isReadOnly(r'find . -name x \; pwd'), isFalse);
+      // The shell path drops `-e` once a `;` appears, so a newline would stop
+      // the chain here and not there.
+      expect(LocalShellTools.isReadOnly('ls; pwd\npwd'), isFalse);
+    });
+
+    group('git segments', () {
+      late Directory project;
+      late String root;
+
+      setUp(() {
+        project = Directory.systemTemp.createTempSync('caverno_shell_git_');
+        root = project.resolveSymbolicLinksSync();
+      });
+      tearDown(() {
+        if (project.existsSync()) project.deleteSync(recursive: true);
+      });
+
+      T inProject<T>(T Function() body) =>
+          TurnProjectRoot.runScoped(TurnProjectRoot(root), body);
+
+      Future<Map<String, dynamic>> run(String command) async =>
+          jsonDecode(
+                await inProject(
+                  () => LocalShellTools.execute(
+                    command: command,
+                    workingDirectory: root,
+                  ),
+                ),
+              )
+              as Map<String, dynamic>;
+
+      Future<void> git(List<String> args) async {
+        final result = await Process.run('git', [
+          '-c',
+          'user.name=Test',
+          '-c',
+          'user.email=test@example.com',
+          ...args,
+        ], workingDirectory: root);
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+      }
+
+      test('accepts what git_execute_command runs unapproved', () {
+        inProject(() {
+          expect(LocalShellTools.isReadOnly('git status --short'), isTrue);
+          expect(
+            LocalShellTools.isReadOnly(
+              "git tag --list '[0-9]*' --sort=-version:refname | head -3; "
+              'git log --oneline -1; git status --short; '
+              "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -3",
+            ),
+            isTrue,
+          );
+        });
+      });
+
+      test('stays on the shell path outside a coding project', () {
+        // GitTools refuses there, so skipping approval would only buy a
+        // refusal for a command that can still run once approved.
+        expect(LocalShellTools.isReadOnly('git status --short'), isFalse);
+      });
+
+      test('refuses shapes git_execute_command never receives', () {
+        inProject(() {
+          // A global option can run a program or leave the fenced directory.
+          expect(
+            LocalShellTools.isReadOnly(
+              "git -c core.fsmonitor='touch x' status",
+            ),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('git -C /tmp log -1'), isFalse);
+          expect(
+            LocalShellTools.isReadOnly('git --git-dir=/tmp/x log'),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('/usr/bin/git status'), isFalse);
+          expect(LocalShellTools.isReadOnly('"git" status'), isFalse);
+          // Unvetted flags and writes stay with the git tool's own gate.
+          expect(
+            LocalShellTools.isReadOnly('git log --output=out.txt'),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('git tag 1.0.0'), isFalse);
+          expect(LocalShellTools.isReadOnly('git push'), isFalse);
+          // Words the shell would expand, and pipes other than head/tail.
+          expect(LocalShellTools.isReadOnly('git log -- lib/*.dart'), isFalse);
+          expect(
+            LocalShellTools.isReadOnly('git log --oneline | sort'),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('git'), isFalse);
+        });
+      });
+
+      test('runs the release inspection through GitTools', () async {
+        File(
+          '$root/pubspec.yaml',
+        ).writeAsStringSync('name: sample\nversion: 1.2.3+4\n');
+        Directory('$root/docs/releases').createSync(recursive: true);
+        for (final version in ['1.2.1', '1.2.2', '1.2.3']) {
+          File(
+            '$root/docs/releases/caverno-$version.md',
+          ).writeAsStringSync('# $version\n');
+        }
+        await git(['init', '-q']);
+        await git(['add', '.']);
+        await git(['commit', '-q', '-m', 'Initial release notes']);
+        for (final tag in ['1.2.1', '1.2.2', '1.2.3', '1.2.10']) {
+          await git(['tag', tag]);
+        }
+        File('$root/untracked.txt').writeAsStringSync('x\n');
+
+        final result = await run(
+          "git tag --list '[0-9]*' --sort=-version:refname | head -2; "
+          'git log --oneline -1; git status --short; '
+          "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -1",
+        );
+
+        expect(result['executed_internally'], isTrue);
+        expect(result['exit_code'], 0);
+        final stdout = result['stdout'] as String;
+        expect(stdout, startsWith('1.2.10\n1.2.3\n'));
+        expect(stdout, isNot(contains('1.2.2\n')));
+        expect(stdout, contains('Initial release notes'));
+        expect(stdout, contains('?? untracked.txt'));
+        expect(stdout, contains('version: 1.2.3+4'));
+        expect(stdout, contains('caverno-1.2.3.md'));
+        expect(stdout, isNot(contains('caverno-1.2.2.md')));
+      });
+
+      test(
+        'takes a tail from the whole git output, not a capped head',
+        () async {
+          await git(['init', '-q']);
+          // Enough commits that `log --oneline` passes GitTools' stdout cap.
+          for (var index = 0; index < 250; index++) {
+            await git([
+              'commit',
+              '-q',
+              '--allow-empty',
+              '-m',
+              'Commit number $index with a subject long enough to add up',
+            ]);
+          }
+
+          final result = await run('git log --oneline | tail -1');
+
+          expect(result['executed_internally'], isTrue);
+          expect(result['stdout'], contains('Commit number 0 '));
+          expect((result['stdout'] as String).trim().split('\n'), hasLength(1));
+        },
+      );
+
+      test('reports a refused git segment as a failed step', () async {
+        final result = await run(
+          'git status --short && echo skipped; echo resumed',
+        );
+
+        expect(result['executed_internally'], isTrue);
+        expect(result['stdout'], 'resumed\n');
+        expect(result['stderr'], contains('Not a git repository'));
+      });
+    });
+
+    test('mirrors the shell across `;`, `&&` and a trailing tail', () async {
+      final tempDir = Directory.systemTemp.createTempSync('caverno_shell_');
+      addTearDown(() {
+        if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+      });
+      for (final name in ['a.txt', 'b.txt', 'c.txt']) {
+        File('${tempDir.path}/$name').writeAsStringSync('$name\n');
+      }
+
+      Future<Map<String, dynamic>> run(String command) async =>
+          jsonDecode(
+                await LocalShellTools.execute(
+                  command: command,
+                  workingDirectory: tempDir.path,
+                ),
+              )
+              as Map<String, dynamic>;
+
+      final resumed = await run(
+        'cat missing.txt && echo skipped; echo resumed',
+      );
+      expect(resumed['executed_internally'], isTrue);
+      expect(resumed['stdout'], 'resumed\n');
+      expect(resumed['exit_code'], 0);
+
+      final stopped = await run('echo first; cat missing.txt && echo skipped');
+      expect(stopped['stdout'], 'first\n');
+      expect(stopped['exit_code'], isNot(0));
+
+      final tailed = await run('ls | tail -2');
+      expect(tailed['executed_internally'], isTrue);
+      expect(tailed['stdout'], isNot(contains('a.txt')));
+      expect(tailed['stdout'], contains('b.txt'));
+      expect(tailed['stdout'], contains('c.txt'));
+
+      // Without pipefail the pipeline reports tail's status, not cat's.
+      final piped = await run('cat missing.txt | tail -1 && echo continued');
+      expect(piped['exit_code'], 0);
+      expect(piped['stdout'], 'continued\n');
     });
 
     test(
