@@ -407,6 +407,52 @@ think it answers**, and when you write a fixture, ask what assumption it
 shares with the code. Three fixtures produced by three different tools still
 agreed on one property, and the bug lived in exactly that gap.
 
+### Lesson 10: the head chef who proposes but never plates (the project farm)
+
+In September 2026 the kitchen grew a pass for *several* restaurants at once:
+a per-project dashboard that reads each repository's roadmap and says "next:
+RC1", a set of tools so the in-app model can look across projects, and the
+first steps of a "software farm" that advances each project's next task in the
+background. It all lives in `lib/features/project_farm/`, and the track is
+`docs/project_farm_roadmap.md` (FARM0–FARM4). Five moments are worth keeping.
+
+**The model knew the answer and still failed the test.** The first
+measurement of roadmap extraction scored zero on every real roadmap. Not
+because the model misread them: it had the right milestone in hand, but it
+copied whole roadmap table rows (some hundreds of words) as its "quote", ran
+out of output budget mid-JSON, and handed back something unparseable. The fix
+was a sentence in the prompt ("the shortest span, at most 25 words") and a
+bigger answer budget, not a better model. When a live run fails, read the raw
+output before you blame the judgment.
+
+**Let the model interpret, and let a machine check.** Nothing decides "what's
+next" with a regex. The model reads the roadmap, and a verifier then insists
+that every quote it cites actually exists in the file, at a line the verifier
+finds itself. The single miss in the final run was the verifier doing its job:
+the model named ANA3 but quoted a sentence about ANA4, so the dashboard says
+"unverified" instead of citing the wrong line. The same shape repeats for
+proposals: the orchestrator may only choose from items already verified, and
+anything else is dropped as ungrounded.
+
+**The screen belongs to the user.** Caverno can only *start* a turn on the
+thread you are looking at, so the obvious "let the model send work to another
+thread" would have yanked your screen away mid-answer. Instead, a started task
+becomes a new thread added in the background with the task as its goal, and
+nothing is sent until you open it. The first real version of "run it without
+me" uses isolated worktree agents that end as a branch for you to review, and
+only for commands you declared yourself.
+
+**A Cancel button that only changed a label.** Building the farm's Cancel
+found a bug that had lived in the worktree agents all along. Cancelling a
+running task marked it cancelled, but the agent kept editing, and when it
+finished, "completed" overwrote the cancel. A status flag does not stop a
+loop. Now the cancel is read before every tool call and before verification.
+
+**Two housekeeping scars.** Running `dart format` over all of `lib/`
+reformatted about seventy unrelated files and tripped the size ratchets, so
+format only what you touched. And when a file sits exactly at its size budget,
+the way in is to carry something useful out first, not to raise the budget.
+
 ## Where to start reading
 
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its
@@ -415,6 +461,8 @@ agreed on one property, and the bug lived in exactly that gap.
 - The bouncer: `lib/core/security/`.
 - The tools: `lib/features/chat/data/datasources/` (filesystem, git, shell,
   network, BLE, MCP).
+- The project farm: `lib/features/project_farm/` (dashboard, roadmap
+  extraction, proposals, background runs) and `docs/project_farm_roadmap.md`.
 - The flight recorder: `~/.caverno/session_logs/**`, plus
   `tool/triage_session_logs.py` and `tool/sec_verify_logs.sh` to read it.
 - Live truth: `tool/canaries/*` + `tool/run_*_canary.sh` (point
