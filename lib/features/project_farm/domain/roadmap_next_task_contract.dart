@@ -11,6 +11,10 @@ library;
 
 import 'dart:convert';
 
+/// Bump when the prompt, schema, or verifier changes, so cached snapshots made
+/// by an earlier contract are re-extracted.
+const int roadmapExtractorVersion = 1;
+
 // ---------------------------------------------------------------------------
 // Extraction contract.
 

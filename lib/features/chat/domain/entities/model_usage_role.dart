@@ -31,6 +31,9 @@ enum ModelUsageRole {
   routine,
   eval,
 
+  /// Roadmap next-task extraction for the project dashboard (FARM1).
+  projectState,
+
   /// No call site claimed this request. Kept as the default so a missed entry
   /// point shows up as a visible gap instead of silently inflating [chat].
   unknown;

@@ -396,6 +396,19 @@ Acceptance criteria:
 
 Dependencies: FARM0 spike A meets its thresholds.
 
+Progress:
+- **Slice 1 (2026-09-26).** The measured contract moved into
+  `lib/features/project_farm/domain/roadmap_next_task_contract.dart`.
+- **Slice 2 (2026-09-26).** Added `RoadmapNextTaskExtractor`, which both the app
+  and the FARM0 tool now drive, plus `RoadmapSnapshotService` with its
+  repository and providers.
+  - Snapshots are cached by content hash, extractor version, and model.
+  - Extraction runs under the new `ModelUsageRole.projectState`.
+  - Roadmap paths are confined to the project root.
+  - Concurrent refreshes share one run.
+  - A live smoke on three fixtures, covering both routes, matched the spike.
+- **Next: slice 3,** the dashboard page and **Start work**.
+
 ### FARM2: Control Plane And Built-in Tools
 
 Status: `next`

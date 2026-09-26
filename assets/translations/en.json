@@ -64,6 +64,7 @@
         "subagent": "Subagents",
         "routine": "Routines",
         "eval": "Evaluations",
+        "projectState": "Project state",
         "unknown": "Unattributed"
       }
     }

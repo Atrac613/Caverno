@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/project_farm/domain/roadmap_next_task_contract.dart';
+import 'package:caverno/features/project_farm/domain/roadmap_next_task_extractor.dart';
 
 /// FARM0 spike A: next-task extraction accuracy.
 ///
@@ -321,77 +322,90 @@ Future<Map<String, dynamic>> runFixture({
     'scored': fixture.scored,
     'expectedRecommendedId': fixture.expectedRecommendedId,
   };
-  try {
-    final text = await fixture.load();
-    final lines = const LineSplitter().convert(text);
-    final source = NormalizedSource(lines);
-    record['documentChars'] = text.length;
-    record['documentLines'] = lines.length;
-
-    final String excerpt;
-    if (text.length <= options.directBudgetChars) {
-      record['route'] = 'direct';
-      excerpt = numberLines(lines);
-    } else {
-      record['route'] = 'outline';
-      excerpt = await _outlineExcerpt(
-        client: client,
-        options: options,
-        lines: lines,
-        record: record,
-      );
-    }
-
+  // Timing per stage, keyed by schema name, recorded around the shared port.
+  final stages = <String, Map<String, dynamic>>{};
+  Future<RoadmapCompletion> complete({
+    required String system,
+    required String user,
+    required String schemaName,
+    required Map<String, dynamic> schema,
+    required int maxTokens,
+  }) async {
     final result = await completeStructured(
       client: client,
       options: options,
-      system: extractionSystemPrompt,
-      user: 'Roadmap document:\n\n$excerpt',
-      schemaName: 'caverno_roadmap_next_task',
-      schema: extractionSchema,
-      maxTokens: 4000,
+      system: system,
+      user: user,
+      schemaName: schemaName,
+      schema: schema,
+      maxTokens: maxTokens,
     );
-    record['extraction'] = {
+    stages[schemaName] = {
       'latencyMs': result.latency.inMilliseconds,
       'promptChars': result.promptChars,
       'finishReason': result.finishReason,
-      'rawContent': _clip(result.content, 6000),
     };
-    final decoded = decodeJsonObject(result.content);
-    if (decoded == null) {
+    return RoadmapCompletion(
+      content: result.content,
+      finishReason: result.finishReason,
+    );
+  }
+
+  try {
+    final text = await fixture.load();
+    record['documentChars'] = text.length;
+    record['documentLines'] = const LineSplitter().convert(text).length;
+    final extraction = await RoadmapNextTaskExtractor(
+      complete: complete,
+      directBudgetChars: options.directBudgetChars,
+    ).extract(text);
+
+    record['route'] = extraction.route.name;
+    final outlineStage = stages['caverno_roadmap_sections'];
+    if (outlineStage != null) {
+      record['outline'] = {
+        ...outlineStage,
+        'chosen': [
+          for (final chosen in extraction.outlineChosen)
+            {
+              'heading': chosen.heading,
+              'line': chosen.line,
+              'resolvedLine': chosen.resolvedLine,
+            },
+        ],
+      };
+      record['excerptChars'] = extraction.excerptChars;
+    }
+    record['extraction'] = {
+      ...?stages['caverno_roadmap_next_task'],
+      'rawContent': _clip(extraction.rawContent, 6000),
+    };
+    if (extraction.parseFailed) {
       record['parseFailed'] = true;
-      // A cut-off answer is an instrument budget problem, not a judgment.
-      record['truncated'] = result.finishReason == 'length';
+      record['truncated'] = extraction.truncated;
       record['correct'] = false;
       return record;
     }
 
-    var totalItems = 0;
-    var droppedItems = 0;
-    final verified = <String, List<Map<String, dynamic>>>{};
-    for (final key in const ['recommended', 'current', 'blocked']) {
-      verified[key] = [
-        for (final item in itemsOf(decoded, key))
-          () {
-            final verification = verifyItem(item, source);
-            totalItems++;
-            if (!verification.kept) droppedItems++;
-            return {...item.toJson(), 'verification': verification.toJson()};
-          }(),
-      ];
-    }
-    record['items'] = verified;
-    record['totalItems'] = totalItems;
-    record['droppedItems'] = droppedItems;
+    List<Map<String, dynamic>> encode(List<VerifiedRoadmapItem> items) => [
+      for (final entry in items)
+        {...entry.item.toJson(), 'verification': entry.verification.toJson()},
+    ];
+    record['items'] = {
+      'recommended': encode(extraction.recommended),
+      'current': encode(extraction.current),
+      'blocked': encode(extraction.blocked),
+    };
+    record['totalItems'] = extraction.allItems.length;
+    record['droppedItems'] = extraction.droppedCount;
 
-    final recommended = itemsOf(decoded, 'recommended').firstOrNull;
-    final recommendedVerified =
-        recommended != null && verifyItem(recommended, source).kept;
-    record['recommendedId'] = recommended?.id;
+    final recommended = extraction.recommended.firstOrNull;
+    final recommendedVerified = recommended?.verification.kept ?? false;
+    record['recommendedId'] = recommended?.item.id;
     record['recommendedVerified'] = recommendedVerified;
     record['correct'] = recommendationCorrect(
       expectedId: fixture.expectedRecommendedId,
-      modelRecommended: recommended,
+      modelRecommended: recommended?.item,
       recommendedVerified: recommendedVerified,
     );
   } on Object catch (error) {
@@ -399,98 +413,6 @@ Future<Map<String, dynamic>> runFixture({
     record['correct'] = false;
   }
   return record;
-}
-
-Future<String> _outlineExcerpt({
-  required HttpClient client,
-  required SpikeOptions options,
-  required List<String> lines,
-  required Map<String, dynamic> record,
-}) async {
-  final outline = outlineOf(lines);
-  final opening = numberLines(lines.take(roadmapOutlineOpeningLines).toList());
-  final headings = outline
-      .map(
-        (heading) =>
-            '${heading.line.toString().padLeft(5)}| '
-            '${'#' * heading.level} ${heading.text}',
-      )
-      .join('\n');
-  final result = await completeStructured(
-    client: client,
-    options: options,
-    system: outlineSystemPrompt,
-    user: 'Opening lines:\n$opening\nHeadings:\n$headings',
-    schemaName: 'caverno_roadmap_sections',
-    schema: outlineSchema,
-    maxTokens: 500,
-  );
-  final decoded = decodeJsonObject(result.content);
-  final chosen = <Map<String, dynamic>>[];
-  final ranges = <({int start, int end})>[];
-  final requested = decoded?['sections'];
-  if (requested is List) {
-    for (final entry in requested) {
-      if (entry is! Map) continue;
-      final heading = _string(entry['heading']);
-      final line = entry['line'] is num ? (entry['line'] as num).toInt() : 0;
-      final resolved = resolveHeading(outline, heading, line);
-      chosen.add({
-        'heading': heading,
-        'line': line,
-        'resolvedLine': resolved?.line,
-      });
-      if (resolved != null) {
-        ranges.add(sectionRange(outline, resolved, lines.length));
-      }
-    }
-  }
-  record['outline'] = {
-    'headings': outline.length,
-    'latencyMs': result.latency.inMilliseconds,
-    'promptChars': result.promptChars,
-    'chosen': chosen,
-  };
-  if (ranges.isEmpty) {
-    throw StateError('The outline stage chose no verifiable section.');
-  }
-
-  final buffer = StringBuffer();
-  var used = 0;
-  for (final range in _mergedRanges(ranges)) {
-    final section = lines.sublist(range.start - 1, range.end - 1);
-    final numbered = numberLines(section, firstLine: range.start);
-    final remaining = options.directBudgetChars - used;
-    if (remaining <= 0) break;
-    final clipped = numbered.length <= remaining
-        ? numbered
-        : numbered.substring(0, remaining);
-    buffer
-      ..writeln('[...]')
-      ..write(clipped);
-    used += clipped.length;
-  }
-  record['excerptChars'] = buffer.length;
-  return buffer.toString();
-}
-
-List<({int start, int end})> _mergedRanges(
-  List<({int start, int end})> ranges,
-) {
-  final sorted = [...ranges]..sort((a, b) => a.start.compareTo(b.start));
-  final merged = <({int start, int end})>[];
-  for (final range in sorted) {
-    if (merged.isNotEmpty && range.start <= merged.last.end) {
-      final last = merged.removeLast();
-      merged.add((
-        start: last.start,
-        end: range.end > last.end ? range.end : last.end,
-      ));
-    } else {
-      merged.add(range);
-    }
-  }
-  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -607,8 +529,6 @@ Future<Map<String, dynamic>> _repositoryProvenance() async {
     'dirty': (await git(['status', '--porcelain'])).isNotEmpty,
   };
 }
-
-String _string(Object? value) => value is String ? value.trim() : '';
 
 String _clip(String text, int max) =>
     text.length <= max ? text : '${text.substring(0, max)}…';

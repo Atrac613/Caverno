@@ -64,6 +64,7 @@
         "subagent": "サブエージェント",
         "routine": "ルーティン",
         "eval": "評価",
+        "projectState": "プロジェクト状態",
         "unknown": "未分類"
       }
     }
