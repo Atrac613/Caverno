@@ -669,7 +669,19 @@ Progress:
   - The record of each run is the LL13 registry, which keeps the title,
     command, and branch. The approval audit is deliberately not used; see the
     corrected acceptance criterion.
-- **Slice 4c** (a cross-project queue and a two-project canary) is next.
+- **Slice 4c (2026-09-26).** Two-project isolation.
+  - Cross-project queueing is LL13's existing scheduler: one task per
+    endpoint, with the rest held `queued`, never dropped. The 4b gate adds
+    one unfinished task per project, so no new queue was needed.
+  - `tool/canaries/farm4_background_two_project_live_canary_test.dart` runs
+    two projects' tasks at once through the production LL13 execution
+    delegate, with the FARM4 prompt and policy-declared commands, in scratch
+    directories.
+  - On `qwen3.8-27b-exl3` (one run, 19 s) both were verified green, each
+    changed only its own `lib/greeting.dart`, and each wrote only its own
+    marker. Nothing crossed between projects.
+  - Remaining FARM4 criterion: cancelling reaches only its own work. LL13 owns
+    cancellation; a FARM surface for it is a follow-up.
 
 ### FARM5: Bounded Autonomous Operation
 
