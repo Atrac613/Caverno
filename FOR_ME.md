@@ -453,6 +453,45 @@ reformatted about seventy unrelated files and tripped the size ratchets, so
 format only what you touched. And when a file sits exactly at its size budget,
 the way in is to carry something useful out first, not to raise the budget.
 
+### Lesson 11: a "no" filed as "done" (the commit that couldn't happen)
+
+Session dd50d110 was a routine release: bump the version, write release notes,
+commit, tag. The commit and tag alone took four turns and three "続けて" from
+the user. Every link in the chain was a guard behaving correctly on its own.
+
+The commit guard said, rightly, "you haven't read the diff you're about to
+commit." The model ran `git diff --cached` as told and asked again with the
+exact same call. The duplicate-call filter said "you already ran that" and
+handed back the old refusal. It had a point, from where it stood: the guard
+had reported its "no" as a *success*, so the loop filed the refused commit as
+an executed one. Meanwhile the turn digest told the model the commit had
+"already run". A kitchen ticket stamped DONE when the chef had actually sent
+it back: the waiter won't fire it again, and the chef can't.
+
+The fix is one word of provenance. A guard's block now declares itself a
+refusal (`ok: false`, `result_origin: refusal`), so it never enters the
+executed-call ledger and the digest stops listing it. The tag guard had the
+same blind spot in the digest, and the model went hunting for a tag it had
+never created.
+
+Two neighbours turned up on the way:
+
+- **A question the loop answered for the user.** The model hit its iteration
+  limit while asking which version to release as, and the recovery prompt
+  ("do not ask for confirmation") had it pick one itself. This is Lesson 5
+  wearing a different hat: a pending `ask_user_question` now skips that
+  recovery and goes to the user.
+- **An empty reply read as an answer.** A follow-up came back in 3.2 s with
+  no content, no finish reason and no usage. The loop took the silence for a
+  final answer, which is why the commit landed in a new turn at all. A stream
+  that ends having carried nothing is now sent once more, unless the user
+  stopped it. Three of the five such follow-ups in the logs were stops, so
+  that exception is load-bearing.
+
+The takeaway: "never executed", "ran and failed" and "ran" are three states.
+Any piece of the loop that squeezes them into two will eventually convict an
+innocent call, or clear a guilty one.
+
 ## Where to start reading
 
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its
