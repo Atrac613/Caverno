@@ -185,7 +185,12 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
 
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
-      execute: (toolCall) async {
+      execute: (call) async {
+        // The guards below cast arguments, so a mistyped one must be caught
+        // here: session e3a9f3f0's write_file content object threw in one.
+        final argumentCheck = _mcpToolService?.checkToolArguments(call);
+        if (argumentCheck?.failure case final failure?) return failure;
+        final toolCall = argumentCheck?.toolCall ?? call;
         final validationProbeGuardResult = const GoalValidationProbeGuard()
             .evaluate(
               toolCall,

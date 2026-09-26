@@ -258,6 +258,113 @@ void registerChatNotifierToolFailureClassificationTests() {
       contains('unchanged_verifier_replay_before_repair_blocked'),
     );
   });
+
+  test(
+    'mistyped write_file content comes back as a tool result, not a dispatch error',
+    () async {
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_tool_argument_type_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 9, 26),
+        updatedAt: DateTime(2026, 9, 26),
+      );
+      // Copied from session e3a9f3f0, where it ended two turns. The type
+      // guard in the dispatcher never saw the call: a guard ahead of dispatch
+      // resolved the write_file arguments first, and its cast threw.
+      final writeConfig = ToolCallInfo(
+        id: 'call_71f702ab592a401dbe389cf7',
+        name: 'write_file',
+        arguments:
+            jsonDecode(
+                  '{"path": "config.json", "content": {"webhook_url": '
+                  '"https://chat.googleapis.com/v1/spaces/SPACE_KEY/messages?key=[redacted]", '
+                  '"queries": ["例: 監視したい商品名"], "state_file": "state.json", '
+                  '"limit": 20, "max_age_days": 30, "notify_existing": false}, '
+                  '"reason": "watcher.py が読み込む設定ファイル config.json を作成する"}',
+                )
+                as Map<String, dynamic>,
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [writeConfig],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The write was rejected before it ran.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': '{"ok":true}'},
+        // The property types the real write_file schema declares.
+        parameters: const {
+          'write_file': {
+            'type': 'object',
+            'properties': {
+              'path': {'type': 'string'},
+              'content': {'type': 'string'},
+              'create_parents': {'type': 'boolean'},
+              'reason': {'type': 'string'},
+            },
+            'required': ['path', 'content'],
+          },
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage('Create config.json');
+
+      expect(toolService.executedToolNames, isNot(contains('write_file')));
+      final rejected = dataSource.toolResultBatches
+          .expand((batch) => batch)
+          .singleWhere((result) => result.id == writeConfig.id);
+      final payload = jsonDecode(rejected.result) as Map<String, dynamic>;
+      expect(payload['code'], 'invalid_tool_argument_type');
+      expect(payload['argument'], 'content');
+      expect(payload['received'], 'a JSON object');
+      expect(payload['executed'], isFalse);
+      expect(
+        notifier.state.messages.last.content,
+        isNot(contains('[Tool dispatch error')),
+      );
+    },
+  );
 }
 
 Future<({List<String> executedToolNames, Set<String> secondBatchCodes})>

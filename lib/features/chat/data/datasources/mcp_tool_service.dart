@@ -14,7 +14,9 @@ import '../../../../core/utils/logger.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/skill.dart';
+import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/subagent_tool_definitions.dart';
+import '../../domain/services/tool_argument_type_guard.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository_api.dart';
@@ -232,10 +234,6 @@ class McpToolService extends McpToolServiceFacadeBase {
     await connect();
   }
 
-  /// Returns tool definitions for the LLM.
-  ///
-  /// Returns dynamically fetched tools when MCP is connected.
-  /// Otherwise returns the fallback `web_search` tool for SearXNG.
   /// The JSON-schema `parameters` of a built-in tool, or null for a remote
   /// MCP tool or a name this service does not offer.
   ///
@@ -253,6 +251,17 @@ class McpToolService extends McpToolServiceFacadeBase {
     return null;
   }
 
+  /// [call] matched to [builtInToolParameters]; see [ToolArgumentTypeGuard].
+  ToolArgumentCheck checkToolArguments(ToolCallInfo call) =>
+      const ToolArgumentTypeGuard().check(
+        call,
+        builtInToolParameters(call.name),
+      );
+
+  /// Returns tool definitions for the LLM.
+  ///
+  /// Returns dynamically fetched tools when MCP is connected.
+  /// Otherwise returns the fallback `web_search` tool for SearXNG.
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     final toolDefinitions = <Map<String, dynamic>>[];
 

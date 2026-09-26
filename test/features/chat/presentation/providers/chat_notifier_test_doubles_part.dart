@@ -2894,6 +2894,7 @@ class _FakeMcpToolService extends McpToolService
   _FakeMcpToolService({
     required this.results,
     this.descriptions = const {},
+    this.parameters = const {},
     Map<String, List<String>> queuedResults = const {},
   }) : queuedResults = queuedResults.map(
          (key, value) => MapEntry(key, Queue<String>.from(value)),
@@ -2901,6 +2902,9 @@ class _FakeMcpToolService extends McpToolService
 
   final Map<String, String> results;
   final Map<String, String> descriptions;
+
+  /// Declared JSON-schema `parameters` per tool; a bare object otherwise.
+  final Map<String, Map<String, dynamic>> parameters;
   final Map<String, Queue<String>> queuedResults;
   final List<String> executedToolNames = [];
   final List<Map<String, dynamic>> executedToolArguments = [];
@@ -2925,7 +2929,9 @@ class _FakeMcpToolService extends McpToolService
               'function': {
                 'name': toolName,
                 'description': descriptions[toolName] ?? 'Fake tool $toolName',
-                'parameters': const <String, dynamic>{'type': 'object'},
+                'parameters':
+                    parameters[toolName] ??
+                    const <String, dynamic>{'type': 'object'},
               },
             },
           )
