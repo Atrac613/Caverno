@@ -52,7 +52,6 @@ import '../../data/datasources/background_process_monitor_service.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/create_routine_tool_runtime_adapter.dart';
-import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/execution_snapshot_log_runtime_adapter.dart';
 import '../../data/datasources/file_mutation_tool_runtime_adapter.dart';
 import '../../data/datasources/file_rollback_checkpoint_store.dart';
@@ -705,12 +704,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   LlmSessionLogContext _llmSessionLogContextForGeneration(int generation) =>
       _turnOwnerSnapshotForGeneration(generation)?.sessionLogContext ??
-      const LlmSessionLogContext(
-        workspaceMode: WorkspaceMode.chat,
-        sessionId: 'unassigned',
-        conversationId: 'unassigned',
-        phase: 'unassigned_turn',
-      );
+      LlmSessionLogContext.unassignedTurn;
 
   /// Main-loop requests bill to [ModelUsageRole.chat]; secondary roles started
   /// from inside a turn re-stamp themselves in [SecondaryCompletionRouter],
@@ -741,22 +735,12 @@ class ChatNotifier extends Notifier<ChatState> {
   ChatDataSource _withChatSessionLogging(
     ChatDataSource dataSource,
     AppSettings settings,
-  ) {
-    final loggingEnabled = LlmSessionLogStore.isEnabled(
-      settingsEnabled: settings.enableLlmSessionLogs,
-    );
-    if (!loggingEnabled ||
-        settings.demoMode ||
-        dataSource is DemoDataSource ||
-        dataSource is! ChatRemoteDataSource) {
-      return dataSource;
-    }
-    return SessionLoggingChatDataSource(
-      delegate: dataSource,
-      logStore: ref.read(llmSessionLogStoreProvider),
-      contextProvider: _currentLlmSessionLogContext,
-    );
-  }
+  ) => withChatSessionLogging(
+    dataSource,
+    settings,
+    logStore: () => ref.read(llmSessionLogStoreProvider),
+    contextProvider: _currentLlmSessionLogContext,
+  );
 
   void updateMcpToolService(McpToolService? mcpToolService) {
     if (identical(_mcpToolService, mcpToolService)) return;
