@@ -61,7 +61,9 @@ const Map<String, int> _lineBudgets = {
   // +11 for the turn abort signal: an import, a field, a release registration,
   // and the signal handed to the zone the request sites already run in. The
   // logic is in TurnAbortSignals.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8694,
+  // -7: the loop-limit recovery decision derives its pending-call facts in
+  // ToolLoopExhaustionDecisionInput.fromPendingCalls instead of here.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8687,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
@@ -345,7 +347,10 @@ const Map<String, int> _lineBudgets = {
   // -21: escaped loose scalar decoding moved behind its own bounded parser.
   'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 672,
   'lib/features/chat/domain/services/loose_json_scalar_extractor.dart': 37,
-  'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 55,
+  // +43: the pending-call facts moved here from chat_notifier.dart (-7), and a
+  // pending ask_user_question now declines recovery, whose "do not ask for
+  // confirmation" had the model answer its own question (dd50d110).
+  'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 98,
   // -11: the block payload and the Git working-tree evidence check moved to
   // their own collaborators.
   'lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart':
@@ -1188,7 +1193,9 @@ const Map<String, int> _libraryLineBudgets = {
   // registration, the owner-scoped abort in cancellation, and the zone the
   // request sites already run in. The pinned prompt clock that shipped before
   // it needed no aggregate room.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19900,
+  // -7 matching the primary file: the loop-limit recovery facts left the
+  // library for ToolLoopExhaustionDecisionInput.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19893,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
