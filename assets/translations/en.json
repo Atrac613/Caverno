@@ -1952,5 +1952,12 @@
       "unattended": "Can run unattended",
       "needsHuman": "Needs you"
     }
+  },
+  "project_farm_policy": {
+    "title": "Background runs",
+    "not_configured": "Not configured. Background work stays off until you allow at least one verification command.",
+    "allowed_commands": "Allowed verification commands",
+    "help": "One command per line. Background work may run only these, exactly as written. No shell syntax: no pipes, redirects, quotes, or variables.",
+    "invalid_command": "Not allowed: {}. Remove shell syntax."
   }
 }

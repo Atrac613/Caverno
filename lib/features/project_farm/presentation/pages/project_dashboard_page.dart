@@ -14,6 +14,7 @@ import '../../data/project_git_status_reader.dart';
 import '../../domain/entities/roadmap_snapshot.dart';
 import '../providers/roadmap_snapshot_providers.dart';
 import '../widgets/project_dashboard_sections.dart';
+import '../widgets/project_farm_policy_card.dart';
 
 /// Pushes the dashboard for [projectId]. Completes with the id of a thread the
 /// user opened or started from it, for the caller to select.
@@ -184,6 +185,8 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
           ),
           const SizedBox(height: 12),
           ProjectStatusRow(agents: agents, git: _git),
+          const SizedBox(height: 12),
+          ProjectFarmPolicyCard(projectId: project.id),
         ],
       ),
     );

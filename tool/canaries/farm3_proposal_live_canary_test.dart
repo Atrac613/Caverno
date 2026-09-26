@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/project_farm/application/project_proposal_service.dart';
 import 'package:caverno/features/project_farm/application/roadmap_snapshot_service.dart';
 import 'package:caverno/features/project_farm/data/roadmap_snapshot_repository.dart';
+import 'package:caverno/features/project_farm/domain/entities/project_farm_policy.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_proposal.dart';
 import 'package:caverno/features/project_farm/domain/entities/roadmap_snapshot.dart';
 import 'package:caverno/features/project_farm/domain/roadmap_next_task_extractor.dart';
@@ -169,4 +170,10 @@ final class _MemoryRepository implements RoadmapSnapshotRepositoryApi {
   @override
   Future<void> saveProposal(ProjectProposal proposal) async =>
       _proposals[proposal.projectId] = proposal;
+
+  @override
+  ProjectFarmPolicy? policyFor(String projectId) => null;
+
+  @override
+  Future<void> savePolicy(ProjectFarmPolicy policy) async {}
 }

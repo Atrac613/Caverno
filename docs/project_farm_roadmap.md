@@ -627,6 +627,20 @@ decides to run it.
 
 Dependencies: FARM3, and the user's review of this design.
 
+Progress:
+- **Slice 4a (2026-09-26).** Added `ProjectFarmPolicy`: allowed verification
+  commands, with a concurrency default of 1.
+  - It is stored in the project-farm repository and edited only from the
+    dashboard's **Background runs** card. No tool writes it.
+  - `policyCommandProblem` is stricter than the LL13 runner. It rejects
+    quotes, globs, and every shell metacharacter, so a declared command is a
+    plain argv.
+  - `ProjectFarmPolicy.allows` matches commands exactly, with whitespace
+    collapsed.
+  - Nothing executes yet.
+- **Slice 4b** (Run in background) waits for the user's review of the design
+  above.
+
 ### FARM5: Bounded Autonomous Operation
 
 Status: `later`
