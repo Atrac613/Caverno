@@ -13,6 +13,7 @@ import 'local_shell_grep.dart';
 import 'project_mutation_path_fence.dart';
 import 'project_read_path_fence.dart';
 import 'shell_write_observation.dart';
+import 'turn_project_root.dart';
 
 class LocalShellTools {
   LocalShellTools._();
@@ -193,6 +194,7 @@ class LocalShellTools {
       return _executeInternally(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
+        projectRoot: projectRoot,
       );
     }
 
@@ -631,9 +633,36 @@ class LocalShellTools {
       'grep' =>
         !_hasUnquotedShellExpansion(command) &&
             LocalShellGrep.parse(args.skip(1).toList()) != null,
+      'git' => _readOnlyGitSubcommand(command, args) != null,
       _ => false,
     };
   }
+
+  /// The subcommand of a `git` segment that `git_execute_command` would run
+  /// without approval, or null.
+  ///
+  /// The segment is handed to [GitTools.executeResult], the same executor,
+  /// fences and flag allowlist as that tool, so running it here grants nothing
+  /// that tool does not already. Two shapes it never receives are refused: a
+  /// global option before the subcommand -- `-c core.fsmonitor=<program>`
+  /// makes a plain `git status` run that program, and `-C` / `--git-dir`
+  /// move it out of the fenced directory -- and any word `sh` would expand
+  /// differently from the quote-stripping split, as for grep.
+  ///
+  /// Outside a turn's coding project GitTools refuses every command, so there
+  /// a git segment stays on the shell path, where it can still run once
+  /// approved, rather than skip approval only to be refused.
+  static String? _readOnlyGitSubcommand(String command, List<String> args) {
+    final projectRoot = TurnProjectRoot.current?.rootPath.trim() ?? '';
+    if (projectRoot.isEmpty) return null;
+    if (args.length < 2 || args[1].startsWith('-')) return null;
+    final match = _gitInvocationPattern.firstMatch(command.trim());
+    if (match == null || _hasUnquotedShellExpansion(command)) return null;
+    final subcommand = match.group(1)!;
+    return GitTools.isReadOnly(subcommand) ? subcommand : null;
+  }
+
+  static final RegExp _gitInvocationPattern = RegExp(r'^git\s+(\S.*)$');
 
   /// Whether `sh` would build a word of [command] differently from
   /// [_splitArgs]: pathname globbing, brace or tilde expansion, backslash
@@ -936,6 +965,7 @@ class LocalShellTools {
   static Future<FirstPartyToolExecutionResult> _executeInternally({
     required String command,
     required String workingDirectory,
+    required String? projectRoot,
   }) async {
     final stdoutBuffer = StringBuffer();
     final stderrBuffer = StringBuffer();
@@ -951,6 +981,8 @@ class LocalShellTools {
       final result = await _executeInternalSegment(
         step.command,
         workingDirectory: workingDirectory,
+        projectRoot: projectRoot,
+        lineLimit: step.lineLimit,
       );
       final lineLimit = step.lineLimit;
       final stdout = lineLimit == null
@@ -999,6 +1031,8 @@ class LocalShellTools {
   static Future<_LocalCommandResult> _executeInternalSegment(
     String command, {
     required String workingDirectory,
+    required String? projectRoot,
+    required GitOutputLineLimit? lineLimit,
   }) async {
     final args = _splitArgs(command);
     if (args.isEmpty) {
@@ -1022,11 +1056,59 @@ class LocalShellTools {
       'find' => await _executeFind(args.skip(1).toList(), workingDirectory),
       'rg' => await _executeRg(args.skip(1).toList(), workingDirectory),
       'grep' => await _executeGrep(args.skip(1).toList(), workingDirectory),
+      'git' => await _executeGit(
+        command,
+        args,
+        workingDirectory: workingDirectory,
+        projectRoot: projectRoot,
+        lineLimit: lineLimit,
+      ),
       _ => _LocalCommandResult(
         exitCode: 1,
         stderr: 'Unsupported internal command: ${args.first}\n',
       ),
     };
+  }
+
+  static Future<_LocalCommandResult> _executeGit(
+    String command,
+    List<String> args, {
+    required String workingDirectory,
+    required String? projectRoot,
+    required GitOutputLineLimit? lineLimit,
+  }) async {
+    final subcommand = _readOnlyGitSubcommand(command, args);
+    if (subcommand == null) {
+      return const _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'git: unsupported internal command\n',
+      );
+    }
+    // GitTools caps stdout, so it must apply the line limit itself: a
+    // `| tail -N` applied here would read the end of an already-cut head.
+    // Applying it again afterwards leaves the lines unchanged.
+    final execution = await GitTools.executeResult(
+      command: lineLimit == null
+          ? subcommand
+          : '$subcommand | ${lineLimit.describe}',
+      workingDirectory: workingDirectory,
+      projectRoot: projectRoot,
+    );
+    final exitCode = execution.outcome?.exitCode;
+    // No exit status means git never ran: a fence, the repository check or
+    // the timeout refused it, and only the error explains why.
+    if (exitCode == null) {
+      return _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'git: ${execution.errorMessage ?? 'command did not run'}\n',
+      );
+    }
+    final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+    return _LocalCommandResult(
+      exitCode: exitCode,
+      stdout: payload['stdout'] as String? ?? '',
+      stderr: payload['stderr'] as String? ?? '',
+    );
   }
 
   static List<String> _splitArgs(String command) {

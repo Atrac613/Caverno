@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
+import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -287,7 +288,6 @@ void main() {
     });
 
     test('rejects every shell-backed inspection command', () {
-      expect(LocalShellTools.isReadOnly('git status --short'), isFalse);
       // grep forms the bounded implementation does not reproduce.
       expect(LocalShellTools.isReadOnly('grep -R needle lib'), isFalse);
       expect(LocalShellTools.isReadOnly('grep needle'), isFalse);
@@ -364,6 +364,166 @@ void main() {
       // The shell path drops `-e` once a `;` appears, so a newline would stop
       // the chain here and not there.
       expect(LocalShellTools.isReadOnly('ls; pwd\npwd'), isFalse);
+    });
+
+    group('git segments', () {
+      late Directory project;
+      late String root;
+
+      setUp(() {
+        project = Directory.systemTemp.createTempSync('caverno_shell_git_');
+        root = project.resolveSymbolicLinksSync();
+      });
+      tearDown(() {
+        if (project.existsSync()) project.deleteSync(recursive: true);
+      });
+
+      T inProject<T>(T Function() body) =>
+          TurnProjectRoot.runScoped(TurnProjectRoot(root), body);
+
+      Future<Map<String, dynamic>> run(String command) async =>
+          jsonDecode(
+                await inProject(
+                  () => LocalShellTools.execute(
+                    command: command,
+                    workingDirectory: root,
+                  ),
+                ),
+              )
+              as Map<String, dynamic>;
+
+      Future<void> git(List<String> args) async {
+        final result = await Process.run('git', [
+          '-c',
+          'user.name=Test',
+          '-c',
+          'user.email=test@example.com',
+          ...args,
+        ], workingDirectory: root);
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+      }
+
+      test('accepts what git_execute_command runs unapproved', () {
+        inProject(() {
+          expect(LocalShellTools.isReadOnly('git status --short'), isTrue);
+          expect(
+            LocalShellTools.isReadOnly(
+              "git tag --list '[0-9]*' --sort=-version:refname | head -3; "
+              'git log --oneline -1; git status --short; '
+              "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -3",
+            ),
+            isTrue,
+          );
+        });
+      });
+
+      test('stays on the shell path outside a coding project', () {
+        // GitTools refuses there, so skipping approval would only buy a
+        // refusal for a command that can still run once approved.
+        expect(LocalShellTools.isReadOnly('git status --short'), isFalse);
+      });
+
+      test('refuses shapes git_execute_command never receives', () {
+        inProject(() {
+          // A global option can run a program or leave the fenced directory.
+          expect(
+            LocalShellTools.isReadOnly(
+              "git -c core.fsmonitor='touch x' status",
+            ),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('git -C /tmp log -1'), isFalse);
+          expect(
+            LocalShellTools.isReadOnly('git --git-dir=/tmp/x log'),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('/usr/bin/git status'), isFalse);
+          expect(LocalShellTools.isReadOnly('"git" status'), isFalse);
+          // Unvetted flags and writes stay with the git tool's own gate.
+          expect(
+            LocalShellTools.isReadOnly('git log --output=out.txt'),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('git tag 1.0.0'), isFalse);
+          expect(LocalShellTools.isReadOnly('git push'), isFalse);
+          // Words the shell would expand, and pipes other than head/tail.
+          expect(LocalShellTools.isReadOnly('git log -- lib/*.dart'), isFalse);
+          expect(
+            LocalShellTools.isReadOnly('git log --oneline | sort'),
+            isFalse,
+          );
+          expect(LocalShellTools.isReadOnly('git'), isFalse);
+        });
+      });
+
+      test('runs the release inspection through GitTools', () async {
+        File(
+          '$root/pubspec.yaml',
+        ).writeAsStringSync('name: sample\nversion: 1.2.3+4\n');
+        Directory('$root/docs/releases').createSync(recursive: true);
+        for (final version in ['1.2.1', '1.2.2', '1.2.3']) {
+          File(
+            '$root/docs/releases/caverno-$version.md',
+          ).writeAsStringSync('# $version\n');
+        }
+        await git(['init', '-q']);
+        await git(['add', '.']);
+        await git(['commit', '-q', '-m', 'Initial release notes']);
+        for (final tag in ['1.2.1', '1.2.2', '1.2.3', '1.2.10']) {
+          await git(['tag', tag]);
+        }
+        File('$root/untracked.txt').writeAsStringSync('x\n');
+
+        final result = await run(
+          "git tag --list '[0-9]*' --sort=-version:refname | head -2; "
+          'git log --oneline -1; git status --short; '
+          "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -1",
+        );
+
+        expect(result['executed_internally'], isTrue);
+        expect(result['exit_code'], 0);
+        final stdout = result['stdout'] as String;
+        expect(stdout, startsWith('1.2.10\n1.2.3\n'));
+        expect(stdout, isNot(contains('1.2.2\n')));
+        expect(stdout, contains('Initial release notes'));
+        expect(stdout, contains('?? untracked.txt'));
+        expect(stdout, contains('version: 1.2.3+4'));
+        expect(stdout, contains('caverno-1.2.3.md'));
+        expect(stdout, isNot(contains('caverno-1.2.2.md')));
+      });
+
+      test(
+        'takes a tail from the whole git output, not a capped head',
+        () async {
+          await git(['init', '-q']);
+          // Enough commits that `log --oneline` passes GitTools' stdout cap.
+          for (var index = 0; index < 250; index++) {
+            await git([
+              'commit',
+              '-q',
+              '--allow-empty',
+              '-m',
+              'Commit number $index with a subject long enough to add up',
+            ]);
+          }
+
+          final result = await run('git log --oneline | tail -1');
+
+          expect(result['executed_internally'], isTrue);
+          expect(result['stdout'], contains('Commit number 0 '));
+          expect((result['stdout'] as String).trim().split('\n'), hasLength(1));
+        },
+      );
+
+      test('reports a refused git segment as a failed step', () async {
+        final result = await run(
+          'git status --short && echo skipped; echo resumed',
+        );
+
+        expect(result['executed_internally'], isTrue);
+        expect(result['stdout'], 'resumed\n');
+        expect(result['stderr'], contains('Not a git repository'));
+      });
     });
 
     test('mirrors the shell across `;`, `&&` and a trailing tail', () async {

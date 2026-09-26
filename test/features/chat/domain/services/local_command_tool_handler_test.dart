@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/services/local_command_tool_handler.dart';
@@ -540,6 +541,49 @@ void main() {
         isEmpty,
         reason: 'in-project reads must not start costing an approval round',
       );
+    });
+
+    test(
+      'a read-only git inspection keeps the fast path in a project',
+      () async {
+        // The release-prep shape that used to cost a fresh SEC4.4g approval.
+        const inspection =
+            "git tag --list '[0-9]*' --sort=-version:refname | head -3; "
+            'git log --oneline -1; git status --short; '
+            "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -3";
+        final owner = _owner('owner-a');
+        final harness = _Harness();
+
+        await TurnProjectRoot.runScoped(
+          const TurnProjectRoot(_ownerARoot),
+          () => harness.handler.handle(
+            _request(owner: owner, arguments: const {'command': inspection}),
+          ),
+        );
+
+        expect(harness.execution.calls, hasLength(1));
+        expect(harness.approval.resolveCalls, isEmpty);
+      },
+    );
+
+    test('a git global option still needs a fresh approval', () async {
+      final owner = _owner('owner-a');
+      final harness = _Harness();
+
+      await TurnProjectRoot.runScoped(
+        const TurnProjectRoot(_ownerARoot),
+        () => harness.handler.handle(
+          _request(
+            owner: owner,
+            arguments: const {
+              'command': "git -c core.fsmonitor='touch marker' status",
+            },
+          ),
+        ),
+      );
+
+      expect(harness.approval.resolveCalls, hasLength(1));
+      expect(harness.approval.manualCalls, hasLength(1));
     });
 
     test('a quoted in-project path with spaces keeps its fast path', () async {
