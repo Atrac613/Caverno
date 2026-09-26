@@ -344,6 +344,69 @@ void main() {
       expect(result['stdout'], 'a|b;c\$d\ndone\n');
     });
 
+    test('accepts `;` and one trailing head/tail per segment', () {
+      expect(
+        LocalShellTools.isReadOnly(
+          "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -3",
+        ),
+        isTrue,
+      );
+      expect(LocalShellTools.isReadOnly('ls | head -n 5 && pwd'), isTrue);
+      expect(LocalShellTools.isReadOnly('ls;'), isTrue);
+
+      expect(LocalShellTools.isReadOnly('ls | sort'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls | head'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls | head -3 | tail -1'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls || head -3'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls | head -3 > out.txt'), isFalse);
+      expect(LocalShellTools.isReadOnly('ls; rm -rf build'), isFalse);
+      expect(LocalShellTools.isReadOnly(r'find . -name x \; pwd'), isFalse);
+      // The shell path drops `-e` once a `;` appears, so a newline would stop
+      // the chain here and not there.
+      expect(LocalShellTools.isReadOnly('ls; pwd\npwd'), isFalse);
+    });
+
+    test('mirrors the shell across `;`, `&&` and a trailing tail', () async {
+      final tempDir = Directory.systemTemp.createTempSync('caverno_shell_');
+      addTearDown(() {
+        if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+      });
+      for (final name in ['a.txt', 'b.txt', 'c.txt']) {
+        File('${tempDir.path}/$name').writeAsStringSync('$name\n');
+      }
+
+      Future<Map<String, dynamic>> run(String command) async =>
+          jsonDecode(
+                await LocalShellTools.execute(
+                  command: command,
+                  workingDirectory: tempDir.path,
+                ),
+              )
+              as Map<String, dynamic>;
+
+      final resumed = await run(
+        'cat missing.txt && echo skipped; echo resumed',
+      );
+      expect(resumed['executed_internally'], isTrue);
+      expect(resumed['stdout'], 'resumed\n');
+      expect(resumed['exit_code'], 0);
+
+      final stopped = await run('echo first; cat missing.txt && echo skipped');
+      expect(stopped['stdout'], 'first\n');
+      expect(stopped['exit_code'], isNot(0));
+
+      final tailed = await run('ls | tail -2');
+      expect(tailed['executed_internally'], isTrue);
+      expect(tailed['stdout'], isNot(contains('a.txt')));
+      expect(tailed['stdout'], contains('b.txt'));
+      expect(tailed['stdout'], contains('c.txt'));
+
+      // Without pipefail the pipeline reports tail's status, not cat's.
+      final piped = await run('cat missing.txt | tail -1 && echo continued');
+      expect(piped['exit_code'], 0);
+      expect(piped['stdout'], 'continued\n');
+    });
+
     test(
       'keeps unsupported find and rg options inside the bounded executor',
       () async {

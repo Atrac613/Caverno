@@ -70,9 +70,10 @@ class LocalShellTools {
   }) async {
     final normalized = normalizeCommand(command);
     if (!_canExecuteInternally(normalized)) return null;
-    final segments = _splitConditionalCommands(
-      normalized,
-    ).map(_splitArgs).where((args) => args.isNotEmpty).toList(growable: false);
+    final segments = _internalSteps(normalized)!
+        .map((step) => _splitArgs(step.command))
+        .where((args) => args.isNotEmpty)
+        .toList(growable: false);
     if (segments.every((args) => args.first == 'echo')) return null;
     const fence = ProjectReadPathFence();
     final workingDirectoryAuthorization = await fence.authorize(
@@ -604,9 +605,11 @@ class LocalShellTools {
   static const String _shellOperatorChars = '|&;<>`\$#';
 
   static bool _canExecuteInternally(String command) {
-    final segments = _splitConditionalCommands(command);
-    if (segments.isEmpty) return false;
-    return segments.every(_canExecuteSingleCommandInternally);
+    final steps = _internalSteps(command);
+    if (steps == null || steps.isEmpty) return false;
+    return steps.every(
+      (step) => _canExecuteSingleCommandInternally(step.command),
+    );
   }
 
   static bool _canExecuteSingleCommandInternally(String command) {
@@ -692,19 +695,63 @@ class LocalShellTools {
     return inWord && !wordHasChars;
   }
 
-  static List<String> _splitConditionalCommands(String command) {
-    final segments = <String>[];
+  /// [command] as the chain the internal executors would run, or null when
+  /// its separators cannot be mirrored without `sh`.
+  ///
+  /// `&&` and a newline stop the chain at the first failure; `;` does not.
+  /// A newline only stops it because the shell path adds `-e` to a multi-line
+  /// command -- and drops `-e` as soon as the command also holds a `;`. Rather
+  /// than model that interaction, a command mixing the two stays on the shell
+  /// path. A backslash keeps the character after it inside the segment, so an
+  /// escaped separator such as `find ... \;` is left for
+  /// [_hasUnsafeShellSyntax] to refuse instead of being split on.
+  ///
+  /// Each segment may end in one `| head -N` / `| tail -N`, parsed by
+  /// [GitTools.parseTrailingLineLimit] so both tools accept the same clause.
+  /// Any other pipe stays in the segment and makes it unsafe.
+  static List<_InternalStep>? _internalSteps(String command) {
+    final steps = <_InternalStep>[];
     final buffer = StringBuffer();
     String? quoteChar;
+    var continuesAfterFailure = true;
+    var sawSemicolon = false;
+    var sawNewline = false;
+
+    void flush() {
+      final segment = buffer.toString().trim();
+      buffer.clear();
+      if (segment.isEmpty) return;
+      final lineLimit = GitTools.parseTrailingLineLimit(segment);
+      steps.add(
+        _InternalStep(
+          command: lineLimit?.command ?? segment,
+          lineLimit: lineLimit,
+          continuesAfterFailure: continuesAfterFailure,
+        ),
+      );
+    }
 
     for (var i = 0; i < command.length; i++) {
       final char = command[i];
 
       if (quoteChar != null) {
+        if (quoteChar == '"' && char == r'\' && i + 1 < command.length) {
+          buffer.write(char);
+          i += 1;
+          buffer.write(command[i]);
+          continue;
+        }
         if (char == quoteChar) {
           quoteChar = null;
         }
         buffer.write(char);
+        continue;
+      }
+
+      if (char == r'\' && i + 1 < command.length) {
+        buffer.write(char);
+        i += 1;
+        buffer.write(command[i]);
         continue;
       }
 
@@ -714,28 +761,23 @@ class LocalShellTools {
         continue;
       }
 
-      if ((char == '&' && i + 1 < command.length && command[i + 1] == '&') ||
-          char == '\n') {
-        final segment = buffer.toString().trim();
-        if (segment.isNotEmpty) {
-          segments.add(segment);
-        }
-        buffer.clear();
-        if (char == '&') {
-          i += 1;
-        }
+      final isAndList =
+          char == '&' && i + 1 < command.length && command[i + 1] == '&';
+      if (isAndList || char == '\n' || char == ';') {
+        flush();
+        if (char == ';') sawSemicolon = true;
+        if (char == '\n') sawNewline = true;
+        continuesAfterFailure = char == ';';
+        if (isAndList) i += 1;
         continue;
       }
 
       buffer.write(char);
     }
+    flush();
 
-    final trailing = buffer.toString().trim();
-    if (trailing.isNotEmpty) {
-      segments.add(trailing);
-    }
-
-    return segments;
+    if (sawSemicolon && sawNewline) return null;
+    return steps;
   }
 
   static _DirectGitWriteCommand? _firstDirectGitWriteCommand(String command) {
@@ -898,23 +940,35 @@ class LocalShellTools {
     final stdoutBuffer = StringBuffer();
     final stderrBuffer = StringBuffer();
     var exitCode = 0;
+    var skipping = false;
 
-    for (final segment in _splitConditionalCommands(command)) {
+    for (final step in _internalSteps(command)!) {
+      // A failure skips the rest of its `&&` list; the next `;` resumes, as
+      // `a && b; c` runs `c` in the shell whether or not `a` failed.
+      if (step.continuesAfterFailure) skipping = false;
+      if (skipping) continue;
+
       final result = await _executeInternalSegment(
-        segment,
+        step.command,
         workingDirectory: workingDirectory,
       );
+      final lineLimit = step.lineLimit;
+      final stdout = lineLimit == null
+          ? result.stdout
+          : lineLimit.apply(result.stdout);
 
-      if (result.stdout.isNotEmpty) {
-        stdoutBuffer.write(result.stdout);
+      if (stdout.isNotEmpty) {
+        stdoutBuffer.write(stdout);
       }
       if (result.stderr.isNotEmpty) {
         stderrBuffer.write(result.stderr);
       }
 
-      exitCode = result.exitCode;
+      // Without `pipefail` a pipeline reports its last command, and a head or
+      // tail over a stream succeeds whatever the left side returned.
+      exitCode = lineLimit == null ? result.exitCode : 0;
       if (exitCode != 0) {
-        break;
+        skipping = true;
       }
     }
 
@@ -1929,4 +1983,21 @@ class _FileCounts {
   final int words;
   final int bytes;
   final String? error;
+}
+
+/// One command of a chain [LocalShellTools] runs without a shell.
+final class _InternalStep {
+  const _InternalStep({
+    required this.command,
+    required this.lineLimit,
+    required this.continuesAfterFailure,
+  });
+
+  /// The command with any trailing `| head -N` / `| tail -N` removed.
+  final String command;
+  final GitOutputLineLimit? lineLimit;
+
+  /// Whether the step runs after an earlier failure: true for the first step
+  /// and for one that follows `;`, false after `&&` or a newline.
+  final bool continuesAfterFailure;
 }
