@@ -1965,7 +1965,19 @@
     "not_configured": "Not configured. Background work stays off until you allow at least one verification command.",
     "allowed_commands": "Allowed verification commands",
     "help": "One command per line. Background work may run only these, exactly as written. No shell syntax: no pipes, redirects, quotes, or variables.",
-    "invalid_command": "Not allowed: {}. Remove shell syntax."
+    "invalid_command": "Not allowed: {}. Remove shell syntax.",
+    "unattended_title": "Unattended runs",
+    "unattended_enable": "Advance this project while you are away",
+    "unattended_window": "Runs only in the idle maintenance window: idle, on AC power, at night.",
+    "unattended_limit": "Runs per day",
+    "unattended_commands_help": "Check only commands that do not execute project code (for example analyze or a format check). Tests run code the agent wrote, so they keep asking you.",
+    "unattended_on": "Unattended: up to {} a day, verified by {}",
+    "unattended_off": "Unattended runs are off.",
+    "unattended_edit": "Unattended…",
+    "recent_runs": "Recent runs",
+    "run_manual": "manual",
+    "run_unattended": "unattended",
+    "skipped": "skipped ({})"
   },
   "project_farm_run": {
     "title": "Run in background",

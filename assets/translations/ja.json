@@ -1965,7 +1965,19 @@
     "not_configured": "未設定です。検証コマンドを1つ以上許可するまで、バックグラウンド実行は無効です。",
     "allowed_commands": "許可された検証コマンド",
     "help": "1行に1コマンド。バックグラウンド実行はこれらを書いたとおりにのみ実行できます。パイプ・リダイレクト・引用符・変数などのシェル構文は使えません。",
-    "invalid_command": "使用できません: {}。シェル構文を取り除いてください。"
+    "invalid_command": "使用できません: {}。シェル構文を取り除いてください。",
+    "unattended_title": "無人実行",
+    "unattended_enable": "不在の間にこのプロジェクトを進める",
+    "unattended_window": "アイドル・AC電源・夜間のメンテナンス枠でのみ実行します。",
+    "unattended_limit": "1日の実行回数",
+    "unattended_commands_help": "プロジェクトのコードを実行しないコマンド（analyze や format チェックなど）だけにチェックしてください。テストはエージェントが書いたコードを実行するため、毎回あなたに確認します。",
+    "unattended_on": "無人実行: 1日最大 {} 回、検証は {}",
+    "unattended_off": "無人実行はオフです。",
+    "unattended_edit": "無人実行…",
+    "recent_runs": "最近の実行",
+    "run_manual": "手動",
+    "run_unattended": "無人",
+    "skipped": "スキップ（{}）"
   },
   "project_farm_run": {
     "title": "バックグラウンドで実行",

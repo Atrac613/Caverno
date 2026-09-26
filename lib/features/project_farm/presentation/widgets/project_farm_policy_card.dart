@@ -31,12 +31,34 @@ class _ProjectFarmPolicyCardState extends ConsumerState<ProjectFarmPolicyCard> {
     await ref
         .read(roadmapSnapshotRepositoryProvider)
         .savePolicy(
-          ProjectFarmPolicy(
-            projectId: widget.projectId,
-            allowedVerificationCommands: commands,
-            updatedAt: DateTime.now(),
-          ),
+          (policy ??
+                  ProjectFarmPolicy(
+                    projectId: widget.projectId,
+                    updatedAt: DateTime.now(),
+                  ))
+              .copyWith(
+                allowedVerificationCommands: commands,
+                // A command the user removed cannot stay unattended.
+                unattendedCommands: [
+                  for (final command in policy?.unattendedCommands ?? const [])
+                    if (commands.contains(normalizePolicyCommand(command)))
+                      command,
+                ],
+                updatedAt: DateTime.now(),
+              ),
         );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _editUnattended(ProjectFarmPolicy policy) async {
+    final updated = await showDialog<ProjectFarmPolicy>(
+      context: context,
+      builder: (_) => ProjectFarmUnattendedDialog(policy: policy),
+    );
+    if (updated == null || !mounted) return;
+    await ref
+        .read(roadmapSnapshotRepositoryProvider)
+        .savePolicy(updated.copyWith(updatedAt: DateTime.now()));
     if (mounted) setState(() {});
   }
 
@@ -47,6 +69,14 @@ class _ProjectFarmPolicyCardState extends ConsumerState<ProjectFarmPolicyCard> {
         .watch(roadmapSnapshotRepositoryProvider)
         .policyFor(widget.projectId);
     final commands = policy?.allowedVerificationCommands ?? const <String>[];
+    final recentRuns = ref
+        .watch(roadmapSnapshotRepositoryProvider)
+        .farmRuns()
+        .where((run) => run.projectId == widget.projectId)
+        .toList()
+        .reversed
+        .take(5)
+        .toList();
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -82,6 +112,45 @@ class _ProjectFarmPolicyCardState extends ConsumerState<ProjectFarmPolicyCard> {
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontFamily: 'monospace',
                   ),
+                ),
+              const Divider(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      policy!.allowsUnattendedRuns
+                          ? 'project_farm_policy.unattended_on'.tr(
+                              args: [
+                                '${policy.dailyRunLimit}',
+                                policy.unattendedCommand!,
+                              ],
+                            )
+                          : 'project_farm_policy.unattended_off'.tr(),
+                      key: const ValueKey('project-farm-policy-unattended'),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    key: const ValueKey('project-farm-policy-unattended-edit'),
+                    onPressed: () => _editUnattended(policy),
+                    child: Text('project_farm_policy.unattended_edit'.tr()),
+                  ),
+                ],
+              ),
+            ],
+            if (recentRuns.isNotEmpty) ...[
+              const Divider(height: 24),
+              Text(
+                'project_farm_policy.recent_runs'.tr(),
+                style: theme.textTheme.bodySmall,
+              ),
+              for (final run in recentRuns)
+                Text(
+                  '${DateFormat.MMMd().add_Hm().format(run.at.toLocal())} · '
+                  '${'project_farm_policy.run_${run.trigger}'.tr()} · '
+                  '${run.outcome == 'enqueued' ? '${run.taskId} → ${run.branch}' : 'project_farm_policy.skipped'.tr(args: [run.detail])}',
+                  key: ValueKey('project-farm-run-${run.id}'),
+                  style: theme.textTheme.bodySmall,
                 ),
             ],
           ],
@@ -171,6 +240,110 @@ class _ProjectFarmPolicyDialogState extends State<ProjectFarmPolicyDialog> {
         FilledButton(
           key: const ValueKey('project-farm-policy-save'),
           onPressed: _save,
+          child: Text('common.save'.tr()),
+        ),
+      ],
+    );
+  }
+}
+
+/// FARM5: whether idle-time maintenance may start runs, how many a day, and
+/// which allowed commands the user declares do not execute project code.
+class ProjectFarmUnattendedDialog extends StatefulWidget {
+  const ProjectFarmUnattendedDialog({super.key, required this.policy});
+
+  final ProjectFarmPolicy policy;
+
+  @override
+  State<ProjectFarmUnattendedDialog> createState() =>
+      _ProjectFarmUnattendedDialogState();
+}
+
+class _ProjectFarmUnattendedDialogState
+    extends State<ProjectFarmUnattendedDialog> {
+  late bool _enabled = widget.policy.autoRunEnabled;
+  late int _limit = widget.policy.dailyRunLimit.clamp(1, 10);
+  late final Set<String> _unattended = {
+    for (final command in widget.policy.unattendedCommands)
+      normalizePolicyCommand(command),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final commands = widget.policy.allowedVerificationCommands;
+    return AlertDialog(
+      title: Text('project_farm_policy.unattended_title'.tr()),
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              key: const ValueKey('project-farm-unattended-switch'),
+              contentPadding: EdgeInsets.zero,
+              title: Text('project_farm_policy.unattended_enable'.tr()),
+              subtitle: Text('project_farm_policy.unattended_window'.tr()),
+              value: _enabled,
+              onChanged: (value) => setState(() => _enabled = value),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('project_farm_policy.unattended_limit'.tr()),
+                ),
+                DropdownButton<int>(
+                  value: _limit,
+                  items: [
+                    for (var n = 1; n <= 10; n++)
+                      DropdownMenuItem(value: n, child: Text('$n')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _limit = value);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('project_farm_policy.unattended_commands_help'.tr()),
+            for (final command in commands)
+              CheckboxListTile(
+                key: ValueKey('project-farm-unattended-$command'),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  command,
+                  style: const TextStyle(fontFamily: 'monospace'),
+                ),
+                value: _unattended.contains(normalizePolicyCommand(command)),
+                onChanged: (checked) => setState(() {
+                  final normalized = normalizePolicyCommand(command);
+                  checked == true
+                      ? _unattended.add(normalized)
+                      : _unattended.remove(normalized);
+                }),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('common.cancel'.tr()),
+        ),
+        FilledButton(
+          key: const ValueKey('project-farm-unattended-save'),
+          onPressed: () => Navigator.of(context).pop(
+            widget.policy.copyWith(
+              autoRunEnabled: _enabled,
+              dailyRunLimit: _limit,
+              unattendedCommands: [
+                for (final command in commands)
+                  if (_unattended.contains(normalizePolicyCommand(command)))
+                    normalizePolicyCommand(command),
+              ],
+            ),
+          ),
           child: Text('common.save'.tr()),
         ),
       ],

@@ -11,6 +11,7 @@ import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../../chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import '../../application/background_task_runner.dart';
 import '../../application/project_task_starter.dart';
+import '../../domain/entities/farm_run_record.dart';
 import '../../domain/entities/project_farm_policy.dart';
 import '../../domain/entities/project_proposal.dart';
 import '../../domain/entities/roadmap_snapshot.dart';
@@ -155,6 +156,20 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
         roadmapPath: snapshot.roadmapPath,
         verificationCommand: command,
       );
+      await ref
+          .read(roadmapSnapshotRepositoryProvider)
+          .appendFarmRun(
+            FarmRunRecord(
+              id: task.id,
+              projectId: project.id,
+              trigger: 'manual',
+              at: DateTime.now(),
+              outcome: 'enqueued',
+              taskId: item.id,
+              command: command,
+              branch: task.branchName,
+            ),
+          );
       messenger.showSnackBar(
         SnackBar(
           content: Text('project_farm_run.started'.tr(args: [task.branchName])),
@@ -457,29 +472,6 @@ class ProjectOverviewTile extends StatelessWidget {
       ),
     );
   }
-}
-
-/// The item Start work would begin: the proposed one when it is a verified
-/// next or in-progress item, otherwise the verified next task. Blocked items
-/// and unverified ones are never startable.
-RoadmapItemSnapshot? startableItem(
-  RoadmapSnapshot? snapshot,
-  ProjectProposal? proposal,
-) {
-  if (snapshot == null) return null;
-  final verifiedNext = snapshot.status == RoadmapSnapshotStatus.verified
-      ? snapshot.recommended
-      : null;
-  final startable = [
-    ?verifiedNext,
-    ...snapshot.current.where((item) => item.verified),
-  ];
-  final proposedId = proposal?.error == null ? proposal?.taskId ?? '' : '';
-  if (proposedId.isNotEmpty) {
-    final match = startable.where((item) => item.id == proposedId).firstOrNull;
-    if (match != null) return match;
-  }
-  return verifiedNext;
 }
 
 /// Whether [proposal] predates a change it depends on: a newer roadmap

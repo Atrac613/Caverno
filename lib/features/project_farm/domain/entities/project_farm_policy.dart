@@ -17,12 +17,38 @@ abstract class ProjectFarmPolicy with _$ProjectFarmPolicy {
     @Default(<String>[]) List<String> allowedVerificationCommands,
     @Default(1) int maxConcurrentTasks,
     required DateTime updatedAt,
+
+    /// FARM5: the subset of [allowedVerificationCommands] the user declared as
+    /// not executing project code (e.g. analyze, a format check). Only these
+    /// may run unattended: a test run executes code the agent just wrote, so
+    /// it keeps a person in the loop. Declared, never inferred.
+    @Default(<String>[]) List<String> unattendedCommands,
+
+    /// FARM5: whether idle-time maintenance may start runs on its own. Off
+    /// until the user turns it on.
+    @Default(false) bool autoRunEnabled,
+
+    /// FARM5: unattended runs allowed per local day.
+    @Default(1) int dailyRunLimit,
   }) = _ProjectFarmPolicy;
 
   factory ProjectFarmPolicy.fromJson(Map<String, dynamic> json) =>
       _$ProjectFarmPolicyFromJson(json);
 
   bool get allowsBackgroundWork => allowedVerificationCommands.isNotEmpty;
+
+  /// The command an unattended run uses: the first one the user declared as
+  /// not executing project code that is also allowed. Null when none is.
+  String? get unattendedCommand {
+    for (final command in unattendedCommands) {
+      if (allows(command)) return normalizePolicyCommand(command);
+    }
+    return null;
+  }
+
+  /// Whether idle-time maintenance may start a run in this project at all.
+  bool get allowsUnattendedRuns =>
+      autoRunEnabled && dailyRunLimit > 0 && unattendedCommand != null;
 
   /// Whether [command] is one the user declared, compared exactly after
   /// collapsing whitespace.

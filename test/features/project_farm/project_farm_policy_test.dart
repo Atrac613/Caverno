@@ -98,4 +98,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(saved, ['fvm flutter analyze']);
   });
+
+  testWidgets('the unattended dialog saves the switch, limit and commands', (
+    tester,
+  ) async {
+    ProjectFarmPolicy? saved;
+    final policy = ProjectFarmPolicy(
+      projectId: 'p',
+      allowedVerificationCommands: const [
+        'fvm flutter analyze',
+        'tool/flutter_test_quiet.sh',
+      ],
+      updatedAt: DateTime.utc(2026, 9, 26),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async => saved = await showDialog<ProjectFarmPolicy>(
+              context: context,
+              builder: (_) => ProjectFarmUnattendedDialog(policy: policy),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('project-farm-unattended-switch')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('project-farm-unattended-fvm flutter analyze')),
+    );
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('project-farm-unattended-save')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(saved!.autoRunEnabled, isTrue);
+    expect(saved!.unattendedCommands, ['fvm flutter analyze']);
+    expect(saved!.unattendedCommand, 'fvm flutter analyze');
+    expect(saved!.allowsUnattendedRuns, isTrue);
+  });
 }

@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/project_farm/application/project_proposal_service.dart';
 import 'package:caverno/features/project_farm/application/roadmap_snapshot_service.dart';
 import 'package:caverno/features/project_farm/data/roadmap_snapshot_repository.dart';
+import 'package:caverno/features/project_farm/domain/entities/farm_run_record.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_farm_policy.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_proposal.dart';
 import 'package:caverno/features/project_farm/domain/entities/roadmap_snapshot.dart';
@@ -182,4 +183,10 @@ final class _MemoryRepository implements RoadmapSnapshotRepositoryApi {
 
   @override
   Future<void> savePinnedTask(String projectId, String? taskId) async {}
+
+  @override
+  List<FarmRunRecord> farmRuns() => const [];
+
+  @override
+  Future<void> appendFarmRun(FarmRunRecord record) async {}
 }

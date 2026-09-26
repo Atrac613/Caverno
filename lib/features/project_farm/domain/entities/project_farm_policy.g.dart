@@ -16,6 +16,13 @@ _ProjectFarmPolicy _$ProjectFarmPolicyFromJson(Map<String, dynamic> json) =>
           const <String>[],
       maxConcurrentTasks: (json['maxConcurrentTasks'] as num?)?.toInt() ?? 1,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      unattendedCommands:
+          (json['unattendedCommands'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>[],
+      autoRunEnabled: json['autoRunEnabled'] as bool? ?? false,
+      dailyRunLimit: (json['dailyRunLimit'] as num?)?.toInt() ?? 1,
     );
 
 Map<String, dynamic> _$ProjectFarmPolicyToJson(_ProjectFarmPolicy instance) =>
@@ -24,4 +31,7 @@ Map<String, dynamic> _$ProjectFarmPolicyToJson(_ProjectFarmPolicy instance) =>
       'allowedVerificationCommands': instance.allowedVerificationCommands,
       'maxConcurrentTasks': instance.maxConcurrentTasks,
       'updatedAt': instance.updatedAt.toIso8601String(),
+      'unattendedCommands': instance.unattendedCommands,
+      'autoRunEnabled': instance.autoRunEnabled,
+      'dailyRunLimit': instance.dailyRunLimit,
     };

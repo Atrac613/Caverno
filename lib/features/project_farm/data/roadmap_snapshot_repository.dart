@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../domain/entities/farm_run_record.dart';
 import '../domain/entities/project_farm_policy.dart';
 import '../domain/entities/project_proposal.dart';
 import '../domain/entities/roadmap_snapshot.dart';
@@ -32,6 +33,11 @@ abstract interface class RoadmapSnapshotRepositoryApi {
   String? pinnedTaskFor(String projectId);
 
   Future<void> savePinnedTask(String projectId, String? taskId);
+
+  /// The FARM run ledger, newest last.
+  List<FarmRunRecord> farmRuns();
+
+  Future<void> appendFarmRun(FarmRunRecord record);
 }
 
 class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
@@ -42,6 +48,10 @@ class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
   static const _proposalsKey = 'project_farm_proposals';
   static const _policiesKey = 'project_farm_policies';
   static const _pinsKey = 'project_farm_pinned_tasks';
+  static const _runsKey = 'project_farm_run_ledger';
+
+  /// Oldest entries drop past this, so the ledger stays small.
+  static const maxFarmRuns = 200;
 
   final SharedPreferences _prefs;
 
@@ -134,6 +144,34 @@ class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
       pins[projectId] = trimmed;
     }
     return _prefs.setString(_pinsKey, jsonEncode(pins));
+  }
+
+  @override
+  List<FarmRunRecord> farmRuns() {
+    final raw = _prefs.getString(_runsKey);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return [
+        for (final entry in decoded)
+          if (entry is Map<String, dynamic>) FarmRunRecord.fromJson(entry),
+      ];
+    } on Object {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> appendFarmRun(FarmRunRecord record) {
+    final runs = [...farmRuns(), record];
+    final kept = runs.length > maxFarmRuns
+        ? runs.sublist(runs.length - maxFarmRuns)
+        : runs;
+    return _prefs.setString(
+      _runsKey,
+      jsonEncode([for (final run in kept) run.toJson()]),
+    );
   }
 
   Map<String, dynamic> _readMap(String key) {
