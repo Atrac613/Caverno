@@ -434,6 +434,34 @@ class ToolArgumentTypeGuardSignatureTest(unittest.TestCase):
         self.assertFalse(self.match(blob))
 
 
+class WriteFileContentTypeRejectionSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["write_file_content_type_rejection"]["match"]
+        )
+
+    _RESULT = {"ok": False, "code": "invalid_tool_argument_type", "argument": "content"}
+
+    @staticmethod
+    def _blob(name, result):
+        return json.dumps(
+            [{"request": {"toolResults": [{"name": name, "result": result}]}}]
+        )
+
+    def test_the_write_file_rejection_fires(self):
+        self.assertTrue(self.match(self._blob("write_file", self._RESULT)))
+
+    def test_another_tool_rejection_does_not_fire(self):
+        result = {**self._RESULT, "argument": "options"}
+        self.assertFalse(self.match(self._blob("ask_user_question", result)))
+
+    def test_the_rejection_quoted_as_text_does_not_fire(self):
+        blob = json.dumps([{"request": {"messages": [
+            {"role": "tool", "content": json.dumps(self._RESULT)}]}}])
+        self.assertFalse(self.match(blob))
+
+
 class SearchFilesLineAnchorSignatureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

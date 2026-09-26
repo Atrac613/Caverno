@@ -179,6 +179,31 @@ def _decoded_result(result):
     return None
 
 
+def _write_file_content_rejected(blob):
+    """Whether a write_file call was answered with the type guard's rejection
+    of its content.
+
+    Before 5bfffa75c that call threw in a guard ahead of dispatch and left no
+    tool result, so the rejection existing at all is the change firing.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries if isinstance(entries, list) else []:
+        request = entry.get("request") if isinstance(entry, dict) else None
+        for result in (request or {}).get("toolResults") or []:
+            if result.get("name") != "write_file":
+                continue
+            payload = _decoded_result(result.get("result")) or {}
+            if (
+                payload.get("code") == "invalid_tool_argument_type"
+                and payload.get("argument") == "content"
+            ):
+                return True
+    return False
+
+
 def _refused_commit_then_ran(blob):
     """Whether a commit refused for an unread diff later ran in the same log.
 
@@ -567,6 +592,14 @@ SIGNATURES = {
         # Matched as a real JSON key on the decoded result; the Dart source
         # spells it with single quotes and quoted text is escaped.
         "match": lambda s: _TOOL_ARGUMENT_TYPE_REJECTION.search(s) is not None,
+    },
+    "write_file_content_type_rejection": {
+        "commit": "5bfffa75c",
+        "what": "write_file content object rejected as a tool result, not a dispatch error",
+        # The tool_argument_type_guard row above matches any rejection, so an
+        # ask_user_question rejection reported it fired while this path, the
+        # one it was built for, still threw. Read structurally.
+        "match": _write_file_content_rejected,
     },
     "argument_trailing_closer_decode": {
         "commit": "8e38cc36e",
