@@ -2,7 +2,7 @@
 
 Date: 2026-09-26
 
-Status: FARM0–FARM4 `done` (2026-09-26). FARM5 is gated on OBS1 and SEC1. Promoted from the
+Status: FARM0–FARM5 `done` (2026-09-26); FARM6 `later`. Promoted from the
 [Anabasis Project Vision](anabasis_project_vision.md) by user decision on
 2026-09-26. [Roadmap](roadmap.md) owns cross-track selection; this document
 owns FARM scope, acceptance criteria, and evidence.
@@ -703,16 +703,63 @@ Progress:
 
 ### FARM5: Bounded Autonomous Operation
 
-Status: `later`
+Status: `done` for the first bounded version (2026-09-26).
 
-Scope:
-- A per-project policy: the task classes allowed to run, a budget, and a time
-  window.
-- Runs are scheduled through the LL18 idle orchestrator.
-- Work stops at human decisions and notifies the user.
-- A morning report.
+**Gate decision (user, 2026-09-26).** The roadmap gated FARM5 on OBS1 and
+SEC1. The user replaced that gate with a FARM-local minimum, for these
+reasons:
+- **OBS1**, the trace timeline for every agent run, is not started and is
+  large. FARM5 needs only an inspectable record of its own decisions: the FARM
+  run ledger.
+- **SEC1 slice 7** classifies HTTP and browser actions and host-wide reads.
+  The FARM execution path is worktree-scoped file tools plus one declared
+  command, and it touches none of those.
+- The real unattended risk is different. A verification command such as a
+  test run executes code the agent just wrote, on the host, with no one
+  reviewing it. The user chose to allow unattended runs only for commands
+  they declare do not execute project code.
 
-Dependencies: OBS1, SEC1, FARM3, FARM4.
+**What runs.** A `farm_advance` stage in the LL18 idle-maintenance pipeline,
+between `adopt` and `precompute`, so the cache warm-up stays last. It runs
+only in LL18's window: idle, on AC power, at night. For each project,
+`FarmUnattendedRunner` does the following:
+1. **Skips the project entirely** unless its policy has unattended runs on,
+   and at least one allowed command the user declared as not executing project
+   code. A project that did not opt in costs no model call.
+2. **Stops at the daily limit** (default 1), counted from the ledger.
+3. **Rereads the roadmap and recomputes the proposal**, one project at a time.
+4. **Starts a run only when all the Run in background gates pass:** a
+   verified task, a proposal naming it `unattended`, and no unfinished
+   background task in the project. The run uses the declared non-executing
+   command, never a test.
+5. **Records every start and every skip** of an opted-in project in the
+   ledger, with its reason.
+
+Between projects it polls the maintenance cancel handle, so a returning user
+stops the pass.
+
+**Settings.** The dashboard's Background runs card has an **Unattended**
+dialog with an on/off switch (off by default), runs per day, and per-command
+checkboxes marking the commands that do not execute project code. The card
+lists the project's five most recent ledger entries, manual and unattended.
+The stage's summary ("started N, skipped M") appears in the morning
+maintenance report.
+
+**Not included, by design:**
+- merging;
+- running tests unattended;
+- any project that did not opt in;
+- work outside the idle window.
+
+The automatability label remains advice. It is one of four gates, never the
+only one.
+
+**Evidence.**
+- Unit tests cover opt-in, the daily limit, each gate, command selection,
+  cancellation, and the ledger.
+- The execution path is the one the 4c two-project canary exercised live.
+- An unattended pass has not been run against the user's real projects,
+  because it would create real worktrees and branches.
 
 ### FARM6: Pull Requests
 

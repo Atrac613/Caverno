@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/types/workspace_mode.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/domain/entities/chat_turn_owner.dart';
 import '../../../chat/domain/entities/coding_project.dart';
@@ -14,8 +15,10 @@ import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../../chat/presentation/providers/turn_thread_scope.dart';
 import '../../../chat/presentation/providers/worktree_agent_task_launcher.dart';
 import '../../../chat/presentation/providers/worktree_agent_task_orchestrator.dart';
+import '../../../chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/background_task_runner.dart';
+import '../../application/farm_unattended_runner.dart';
 import '../../application/project_proposal_service.dart';
 import '../../application/project_task_starter.dart';
 import '../../application/roadmap_snapshot_service.dart';
@@ -23,6 +26,7 @@ import '../../application/workspace_control_tools.dart';
 import '../../data/roadmap_snapshot_repository.dart';
 import '../../domain/entities/project_farm_policy.dart';
 import '../../domain/entities/roadmap_snapshot.dart';
+import '../../domain/next_step_proposal_contract.dart';
 import '../../domain/roadmap_next_task_extractor.dart';
 
 final roadmapSnapshotRepositoryProvider =
@@ -212,3 +216,73 @@ Future<WorktreeAgentTask> runProjectTaskInBackgroundFromRef(
   roadmapPath: roadmapPath,
   verificationCommand: verificationCommand,
 );
+
+/// Thread states for a proposal: titles, run state, and goals, no transcripts.
+List<ProposalThread> proposalThreadsFor(Ref ref, String projectId) {
+  final chat = ref.read(chatNotifierProvider.notifier);
+  return [
+    for (final thread in ref.read(conversationsNotifierProvider).conversations)
+      if (thread.workspaceMode == WorkspaceMode.coding &&
+          thread.normalizedProjectId == projectId)
+        ProposalThread(
+          title: thread.title,
+          state: chat.isConversationAwaitingApproval(thread.id)
+              ? 'needs_approval'
+              : chat.isConversationBusy(thread.id)
+              ? 'running'
+              : 'idle',
+          goal: thread.goal?.objective.split('\n').first,
+          goalStatus: thread.goal?.status.name,
+        ),
+  ];
+}
+
+/// FARM5: the idle-maintenance pass that advances opted-in projects.
+final farmUnattendedRunnerProvider = Provider<FarmUnattendedRunner>((ref) {
+  return FarmUnattendedRunner(
+    repository: ref.watch(roadmapSnapshotRepositoryProvider),
+    projects: () => ref.read(codingProjectsNotifierProvider).projects,
+    refreshSnapshot: (project) => ref
+        .read(roadmapSnapshotServiceProvider)
+        .refresh(projectId: project.id, projectRoot: project.rootPath),
+    refreshProposal: (project, snapshot) => ref
+        .read(projectProposalServiceProvider)
+        .refresh(
+          project: project,
+          snapshot: snapshot,
+          threads: proposalThreadsFor(ref, project.id),
+        ),
+    tasks: () => ref.read(worktreeAgentTaskRegistryNotifierProvider).tasks,
+    enqueue:
+        ({
+          required title,
+          required prompt,
+          required codingProjectId,
+          required projectRootPath,
+          required verificationCommand,
+          required acceptanceCriteria,
+        }) async =>
+            (await ref
+                    .read(worktreeAgentTaskLauncherProvider)
+                    .enqueue(
+                      WorktreeAgentTaskLaunchRequest(
+                        title: title,
+                        prompt: prompt,
+                        codingProjectId: codingProjectId,
+                        projectRootPath: projectRootPath,
+                        verificationCommand: verificationCommand,
+                        objectiveAcceptanceCriteria: acceptanceCriteria,
+                      ),
+                    ))
+                .task,
+    startReady: (projectRootPath) => unawaited(
+      ref
+          .read(worktreeAgentTaskOrchestratorProvider)
+          .startAndExecuteReady(
+            WorktreeAgentTaskRunRequest(
+              fallbackProjectRootPath: projectRootPath,
+            ),
+          ),
+    ),
+  );
+});

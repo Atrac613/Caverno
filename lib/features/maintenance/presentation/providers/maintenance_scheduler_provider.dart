@@ -23,6 +23,7 @@ import '../../../chat/presentation/providers/repo_map_precompute_cache_provider.
 import '../../../chat/presentation/providers/skills_notifier.dart';
 import '../../../personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import '../../../personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
+import '../../../project_farm/presentation/providers/roadmap_snapshot_providers.dart';
 import '../../../routines/data/routine_repository.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/app_language_resolver.dart';
@@ -566,6 +567,23 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
     // LL22 idle warm-up runs last, after probe/calibrate/eval have sent their
     // own requests, so the prefix this warms is the one left in the server slot
     // for the morning's first interactive turn.
+    CallbackMaintenanceStage(
+      name: 'farm_advance',
+      body: (context) async {
+        // FARM5: advance opted-in coding projects by one task each, on the
+        // LL13 worktree route. Every gate is in FarmUnattendedRunner; a
+        // project that did not opt in is left untouched.
+        final summary = await ref
+            .read(farmUnattendedRunnerProvider)
+            .run(isCancelled: () => context.isCancelled);
+        if (summary.started == 0 && summary.skipped == 0) {
+          return const MaintenanceStageOutcome.skipped(
+            'no project opted in to unattended runs',
+          );
+        }
+        return MaintenanceStageOutcome.completed(summary.detail);
+      },
+    ),
     CallbackMaintenanceStage(
       name: 'precompute',
       body: (_) async {
