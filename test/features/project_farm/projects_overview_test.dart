@@ -1,4 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
+import 'package:caverno/features/project_farm/domain/entities/project_proposal.dart';
 import 'package:caverno/features/project_farm/domain/entities/roadmap_snapshot.dart';
 import 'package:caverno/features/project_farm/presentation/pages/projects_overview_page.dart';
 import 'package:flutter/material.dart';
@@ -34,7 +35,8 @@ void main() {
     WidgetTester tester, {
     RoadmapSnapshot? snapshot,
     int needsApproval = 0,
-    ValueChanged<RoadmapSnapshot>? onStartWork,
+    void Function(RoadmapSnapshot, RoadmapItemSnapshot)? onStartWork,
+    ProjectProposal? proposal,
     VoidCallback? onOpenDashboard,
   }) => tester.pumpWidget(
     MaterialApp(
@@ -46,7 +48,8 @@ void main() {
           running: 1,
           needsApproval: needsApproval,
           onOpenDashboard: onOpenDashboard ?? () {},
-          onStartWork: onStartWork ?? (_) {},
+          onStartWork: onStartWork ?? (_, _) {},
+          proposal: proposal,
         ),
       ),
     ),
@@ -57,14 +60,14 @@ void main() {
   testWidgets('offers Start work only for a verified next task', (
     tester,
   ) async {
-    RoadmapSnapshot? started;
+    RoadmapItemSnapshot? started;
     await pump(
       tester,
       snapshot: _snapshot(RoadmapSnapshotStatus.verified),
-      onStartWork: (s) => started = s,
+      onStartWork: (_, item) => started = item,
     );
     await tester.tap(find.byKey(startKey));
-    expect(started?.recommended?.id, 'RC1');
+    expect(started?.id, 'RC1');
 
     await pump(tester, snapshot: _snapshot(RoadmapSnapshotStatus.unverified));
     expect(find.byKey(startKey), findsNothing);
@@ -78,5 +81,66 @@ void main() {
     await pump(tester, onOpenDashboard: () => opened = true);
     await tester.tap(find.text('caverno'));
     expect(opened, isTrue);
+  });
+
+  group('startableItem', () {
+    final snapshot = _snapshot(RoadmapSnapshotStatus.verified).copyWith(
+      current: const [
+        RoadmapItemSnapshot(id: 'F5', title: 'Split', quote: 'F5', line: 2),
+      ],
+      blocked: const [
+        RoadmapItemSnapshot(id: 'HEU3', title: 'Claims', quote: 'H', line: 3),
+      ],
+    );
+    ProjectProposal proposal(String taskId, {String? error}) => ProjectProposal(
+      projectId: 'p1',
+      inputHash: 'h',
+      proposedAt: _t,
+      taskId: taskId,
+      automatability: 'needsHuman',
+      error: error,
+    );
+
+    test('prefers a proposed in-progress item', () {
+      expect(startableItem(snapshot, proposal('F5'))?.id, 'F5');
+    });
+
+    test('falls back to the verified next task', () {
+      expect(startableItem(snapshot, null)?.id, 'RC1');
+      expect(
+        startableItem(snapshot, proposal('HEU3'))?.id,
+        'RC1',
+        reason: 'blocked items are never startable',
+      );
+      expect(startableItem(snapshot, proposal('F5', error: 'bad'))?.id, 'RC1');
+    });
+
+    test('offers nothing without a verified snapshot', () {
+      expect(
+        startableItem(_snapshot(RoadmapSnapshotStatus.unverified), null),
+        isNull,
+      );
+    });
+  });
+
+  testWidgets('shows the proposal with its automatability label', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      snapshot: _snapshot(RoadmapSnapshotStatus.verified),
+      proposal: ProjectProposal(
+        projectId: 'p1',
+        inputHash: 'h',
+        proposedAt: _t,
+        taskId: 'RC1',
+        rationale: 'The roadmap selects it.',
+        automatability: 'needsHuman',
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('projects-overview-p1-needsHuman')),
+      findsOneWidget,
+    );
   });
 }

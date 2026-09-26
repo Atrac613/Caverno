@@ -10,6 +10,7 @@ import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../../chat/presentation/providers/turn_thread_scope.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../application/project_proposal_service.dart';
 import '../../application/project_task_starter.dart';
 import '../../application/roadmap_snapshot_service.dart';
 import '../../application/workspace_control_tools.dart';
@@ -142,5 +143,17 @@ final workspaceControlToolsProvider = Provider<WorkspaceControlTools>((ref) {
         roadmapPath: roadmapPath,
       );
     },
+  );
+});
+
+/// FARM3 suggest mode: the orchestrator's next-step proposal per project.
+final projectProposalServiceProvider = Provider<ProjectProposalService>((ref) {
+  return ProjectProposalService(
+    repository: ref.watch(roadmapSnapshotRepositoryProvider),
+    complete: () => structuredRoadmapCompletion(
+      ref.read(chatRemoteDataSourceProvider),
+      model: ref.read(settingsNotifierProvider).effectiveModel,
+    ),
+    model: () => ref.read(settingsNotifierProvider).effectiveModel,
   );
 });

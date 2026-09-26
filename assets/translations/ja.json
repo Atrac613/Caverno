@@ -1945,6 +1945,11 @@
     "title": "プロジェクト一覧",
     "refresh_all": "すべて更新",
     "not_read": "ロードマップはまだ読み取っていません。更新するかダッシュボードを開いてください。",
-    "thread_counts": "実行中 {} · 承認待ち {}"
+    "thread_counts": "実行中 {} · 承認待ち {}",
+    "proposal": "提案: {} — {}",
+    "automatability": {
+      "unattended": "無人で実行可",
+      "needsHuman": "あなたの作業が必要"
+    }
   }
 }

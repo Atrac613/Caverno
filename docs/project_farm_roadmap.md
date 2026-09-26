@@ -526,6 +526,33 @@ Progress:
   - There are no proposals yet. The next slice adds the orchestrator's cited
     rationale and the automatability label.
 
+- **Slice 2 (2026-09-26).** Orchestrator proposals.
+  - `ProjectProposalService` asks the model to choose the next step from the
+    verified roadmap items plus a summary of each thread's state (no
+    transcripts). It gives a two-sentence rationale and an automatability
+    label: `unattended` or `needsHuman`.
+  - `verifyNextStepProposal` drops any answer that names a task outside the
+    candidate list, or uses an unknown label.
+  - A proposal is cached against a hash of its input: items, thread states,
+    contract version, and model. **Refresh all** recomputes proposals after
+    each roadmap read, one project at a time.
+  - The overview shows the proposal and its label. Start work begins the
+    proposed item when it is a verified next or in-progress item, and never a
+    blocked or unverified one.
+  - **Live probe (`tool/canaries/farm3_proposal_live_canary_test.dart`,
+    `qwen3.8-27b-exl3`, one run):** 3 of 3 proposals were grounded.
+    - caverno: FARM0, `needsHuman`. Correct: it needs design work and live
+      measurement.
+    - Pantry tracker: PT-12, `needsHuman`. Conservative: the model cited
+      product decisions.
+    - Household ledger: M6, `unattended`. Plausible: a PDF export verified by
+      tests.
+  - **The label is the model's self-report.** It is advice only. FARM5 must
+    not start unattended work on it alone: it needs a project-declared
+    allowlist of task classes and verification commands (invariant 2).
+  - **Not yet:** recomputing when a thread finishes. That needs a
+    runtime-event listener and is left for a later slice.
+
 ### FARM4: Background Execution
 
 Status: `later`

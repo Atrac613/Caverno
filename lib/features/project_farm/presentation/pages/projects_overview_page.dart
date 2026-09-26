@@ -8,7 +8,9 @@ import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../application/project_task_starter.dart';
+import '../../domain/entities/project_proposal.dart';
 import '../../domain/entities/roadmap_snapshot.dart';
+import '../../domain/next_step_proposal_contract.dart';
 import '../providers/roadmap_snapshot_providers.dart';
 import 'project_dashboard_page.dart';
 
@@ -33,6 +35,7 @@ class ProjectsOverviewPage extends ConsumerStatefulWidget {
 
 class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
   final Map<String, RoadmapSnapshot?> _snapshots = {};
+  final Map<String, ProjectProposal?> _proposals = {};
   String? _refreshingProjectId;
   bool _refreshingAll = false;
 
@@ -40,6 +43,31 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
       _snapshots.containsKey(projectId)
       ? _snapshots[projectId]
       : ref.read(roadmapSnapshotServiceProvider).cachedSnapshot(projectId);
+
+  ProjectProposal? _proposalFor(String projectId) =>
+      _proposals.containsKey(projectId)
+      ? _proposals[projectId]
+      : ref.read(projectProposalServiceProvider).cachedProposal(projectId);
+
+  List<ProposalThread> _threadsFor(String projectId) {
+    final chat = ref.read(chatNotifierProvider.notifier);
+    return [
+      for (final thread
+          in ref.read(conversationsNotifierProvider).conversations)
+        if (thread.workspaceMode == WorkspaceMode.coding &&
+            thread.normalizedProjectId == projectId)
+          ProposalThread(
+            title: thread.title,
+            state: chat.isConversationAwaitingApproval(thread.id)
+                ? 'needs_approval'
+                : chat.isConversationBusy(thread.id)
+                ? 'running'
+                : 'idle',
+            goal: thread.goal?.objective.split('\n').first,
+            goalStatus: thread.goal?.status.name,
+          ),
+    ];
+  }
 
   Future<void> _refreshAll(List<CodingProject> projects) async {
     setState(() => _refreshingAll = true);
@@ -52,9 +80,18 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
         projectRoot: project.rootPath,
       );
       if (!mounted) return;
-      setState(
-        () => _snapshots[project.id] = snapshot ?? _snapshots[project.id],
-      );
+      final current = snapshot ?? _snapshotFor(project.id);
+      setState(() => _snapshots[project.id] = current);
+      // One at a time, like the roadmap reads, so calls never overlap.
+      final proposal = await ref
+          .read(projectProposalServiceProvider)
+          .refresh(
+            project: project,
+            snapshot: current,
+            threads: _threadsFor(project.id),
+          );
+      if (!mounted) return;
+      setState(() => _proposals[project.id] = proposal);
     }
     if (!mounted) return;
     setState(() {
@@ -74,9 +111,11 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
     setState(() => _snapshots.remove(project.id));
   }
 
-  void _startWork(CodingProject project, RoadmapSnapshot snapshot) {
-    final item = snapshot.recommended;
-    if (item == null) return;
+  void _startWork(
+    CodingProject project,
+    RoadmapSnapshot snapshot,
+    RoadmapItemSnapshot item,
+  ) {
     final id = startProjectTask(
       conversations: ref.read(conversationsNotifierProvider.notifier),
       projectId: project.id,
@@ -140,7 +179,9 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
                       .where((t) => chat.isConversationAwaitingApproval(t.id))
                       .length,
                   onOpenDashboard: () => _openDashboard(project),
-                  onStartWork: (snapshot) => _startWork(project, snapshot),
+                  proposal: _proposalFor(project.id),
+                  onStartWork: (snapshot, item) =>
+                      _startWork(project, snapshot, item),
                 );
               },
             ),
@@ -159,15 +200,18 @@ class ProjectOverviewTile extends StatelessWidget {
     required this.needsApproval,
     required this.onOpenDashboard,
     required this.onStartWork,
+    this.proposal,
   });
 
   final CodingProject project;
   final RoadmapSnapshot? snapshot;
+  final ProjectProposal? proposal;
   final bool refreshing;
   final int running;
   final int needsApproval;
   final VoidCallback onOpenDashboard;
-  final ValueChanged<RoadmapSnapshot> onStartWork;
+  final void Function(RoadmapSnapshot snapshot, RoadmapItemSnapshot item)
+  onStartWork;
 
   @override
   Widget build(BuildContext context) {
@@ -175,6 +219,8 @@ class ProjectOverviewTile extends StatelessWidget {
     final current = snapshot;
     final item = current?.recommended;
     final verified = current?.status == RoadmapSnapshotStatus.verified;
+    final startable = startableItem(current, proposal);
+    final proposed = proposal;
     final String nextLabel;
     if (refreshing) {
       nextLabel = 'project_dashboard.extracting'.tr();
@@ -190,32 +236,102 @@ class ProjectOverviewTile extends StatelessWidget {
     return Card(
       key: ValueKey('projects-overview-${project.id}'),
       margin: EdgeInsets.zero,
-      child: ListTile(
-        title: Text(project.name),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(nextLabel, maxLines: 2, overflow: TextOverflow.ellipsis),
-            Text(
-              'project_overview.thread_counts'.tr(
-                args: ['$running', '$needsApproval'],
-              ),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: needsApproval > 0 ? theme.colorScheme.error : null,
-              ),
-            ),
-          ],
-        ),
-        isThreeLine: true,
+      child: InkWell(
         onTap: onOpenDashboard,
-        trailing: verified && item != null
-            ? FilledButton.tonal(
-                key: ValueKey('projects-overview-${project.id}-start'),
-                onPressed: () => onStartWork(current!),
-                child: Text('project_dashboard.start_work'.tr()),
-              )
-            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(project.name, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      nextLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (proposed != null &&
+                        proposed.error == null &&
+                        proposed.taskId.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Chip(
+                            key: ValueKey(
+                              'projects-overview-${project.id}-'
+                              '${proposed.automatability}',
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            label: Text(
+                              'project_overview.automatability.'
+                                      '${proposed.automatability}'
+                                  .tr(),
+                            ),
+                          ),
+                          Text(
+                            'project_overview.proposal'.tr(
+                              args: [proposed.taskId, proposed.rationale],
+                            ),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'project_overview.thread_counts'.tr(
+                        args: ['$running', '$needsApproval'],
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: needsApproval > 0
+                            ? theme.colorScheme.error
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (startable != null) ...[
+                const SizedBox(width: 12),
+                FilledButton.tonal(
+                  key: ValueKey('projects-overview-${project.id}-start'),
+                  onPressed: () => onStartWork(current!, startable),
+                  child: Text('project_dashboard.start_work'.tr()),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+/// The item Start work would begin: the proposed one when it is a verified
+/// next or in-progress item, otherwise the verified next task. Blocked items
+/// and unverified ones are never startable.
+RoadmapItemSnapshot? startableItem(
+  RoadmapSnapshot? snapshot,
+  ProjectProposal? proposal,
+) {
+  if (snapshot == null) return null;
+  final verifiedNext = snapshot.status == RoadmapSnapshotStatus.verified
+      ? snapshot.recommended
+      : null;
+  final startable = [
+    ?verifiedNext,
+    ...snapshot.current.where((item) => item.verified),
+  ];
+  final proposedId = proposal?.error == null ? proposal?.taskId ?? '' : '';
+  if (proposedId.isNotEmpty) {
+    final match = startable.where((item) => item.id == proposedId).firstOrNull;
+    if (match != null) return match;
+  }
+  return verifiedNext;
 }

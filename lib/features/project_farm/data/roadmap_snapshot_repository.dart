@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../domain/entities/project_proposal.dart';
 import '../domain/entities/roadmap_snapshot.dart';
 
 /// Persists each project's chosen roadmap path and its latest snapshot.
@@ -17,6 +18,10 @@ abstract interface class RoadmapSnapshotRepositoryApi {
   RoadmapSnapshot? snapshotFor(String projectId);
 
   Future<void> saveSnapshot(RoadmapSnapshot snapshot);
+
+  ProjectProposal? proposalFor(String projectId);
+
+  Future<void> saveProposal(ProjectProposal proposal);
 }
 
 class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
@@ -24,6 +29,7 @@ class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
 
   static const _pathsKey = 'project_farm_roadmap_paths';
   static const _snapshotsKey = 'project_farm_roadmap_snapshots';
+  static const _proposalsKey = 'project_farm_proposals';
 
   final SharedPreferences _prefs;
 
@@ -62,6 +68,24 @@ class RoadmapSnapshotRepository implements RoadmapSnapshotRepositoryApi {
     final snapshots = _readMap(_snapshotsKey);
     snapshots[snapshot.projectId] = jsonDecode(jsonEncode(snapshot));
     return _prefs.setString(_snapshotsKey, jsonEncode(snapshots));
+  }
+
+  @override
+  ProjectProposal? proposalFor(String projectId) {
+    final value = _readMap(_proposalsKey)[projectId];
+    if (value is! Map<String, dynamic>) return null;
+    try {
+      return ProjectProposal.fromJson(value);
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> saveProposal(ProjectProposal proposal) {
+    final proposals = _readMap(_proposalsKey);
+    proposals[proposal.projectId] = proposal.toJson();
+    return _prefs.setString(_proposalsKey, jsonEncode(proposals));
   }
 
   Map<String, dynamic> _readMap(String key) {
