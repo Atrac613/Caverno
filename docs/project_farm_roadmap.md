@@ -468,6 +468,13 @@ Progress:
     `search_past_conversations`: read-only inspection and project source.
   - To make room, `ConversationSearchTool.candidates` moved out of
     `mcp_tool_service.dart`, which brought that file back under its ratchet.
+  - **Live probe (2026-09-26, `qwen3.8-27b-exl3`, one run at temperature 0).**
+    `tool/canaries/farm2_tool_selection_live_canary_test.dart` offers the
+    real built-in catalogue narrowed to the initial `tool_search` selection,
+    so the workspace tools start deferred. It grades only on the tool names
+    called. 3 of 3 prompts passed, two in English and one in Japanese. Each
+    reached `list_coding_projects` through `tool_search`. The Japanese prompt
+    first tried `list_directory`, and then searched.
   - **Next:** `start_project_task`. It mutates, so it needs the approval
     surface and taint check that live in the chat notifier library, which is
     over its size budget. Land the ratchet repair first.
