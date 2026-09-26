@@ -232,30 +232,52 @@ class RoadmapItemsCard extends StatelessWidget {
 }
 
 /// The project's coding threads with their run and goal state.
-class ProjectThreadsCard extends StatelessWidget {
+class ProjectThreadsCard extends StatefulWidget {
   const ProjectThreadsCard({
     super.key,
     required this.threads,
     required this.isBusy,
     required this.needsApproval,
     required this.onOpen,
+    this.pageSize = defaultPageSize,
   });
+
+  static const int defaultPageSize = 10;
 
   final List<Conversation> threads;
   final bool Function(String conversationId) isBusy;
   final bool Function(String conversationId) needsApproval;
   final ValueChanged<String> onOpen;
+  final int pageSize;
+
+  @override
+  State<ProjectThreadsCard> createState() => _ProjectThreadsCardState();
+}
+
+class _ProjectThreadsCardState extends State<ProjectThreadsCard> {
+  int _page = 0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sorted = sortThreadsForDashboard(
+      widget.threads,
+      isBusy: widget.isBusy,
+      needsApproval: widget.needsApproval,
+    );
+    final pageCount = (sorted.length / widget.pageSize).ceil();
+    // A thread list that shrank (a delete, a move) must not strand the user
+    // on a page that no longer exists.
+    final page = pageCount == 0 ? 0 : _page.clamp(0, pageCount - 1);
+    final start = page * widget.pageSize;
+    final end = (start + widget.pageSize).clamp(0, sorted.length);
     return _SectionCard(
       title: 'project_dashboard.threads'.tr(),
-      child: threads.isEmpty
+      child: sorted.isEmpty
           ? Text('project_dashboard.no_threads'.tr())
           : Column(
               children: [
-                for (final thread in threads)
+                for (final thread in sorted.sublist(start, end))
                   ListTile(
                     key: ValueKey('project-dashboard-thread-${thread.id}'),
                     dense: true,
@@ -273,18 +295,47 @@ class ProjectThreadsCard extends StatelessWidget {
                             ),
                           ),
                     trailing: Text(
-                      needsApproval(thread.id)
+                      widget.needsApproval(thread.id)
                           ? 'project_dashboard.thread_needs_approval'.tr()
-                          : isBusy(thread.id)
+                          : widget.isBusy(thread.id)
                           ? 'project_dashboard.thread_running'.tr()
                           : 'project_dashboard.thread_idle'.tr(),
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: needsApproval(thread.id)
+                        color: widget.needsApproval(thread.id)
                             ? theme.colorScheme.error
                             : null,
                       ),
                     ),
-                    onTap: () => onOpen(thread.id),
+                    onTap: () => widget.onOpen(thread.id),
+                  ),
+                if (pageCount > 1)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        'project_dashboard.thread_range'.tr(
+                          args: ['${start + 1}', '$end', '${sorted.length}'],
+                        ),
+                        key: const ValueKey('project-dashboard-thread-range'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      IconButton(
+                        key: const ValueKey('project-dashboard-thread-prev'),
+                        tooltip: 'project_dashboard.previous_page'.tr(),
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: page > 0
+                            ? () => setState(() => _page = page - 1)
+                            : null,
+                      ),
+                      IconButton(
+                        key: const ValueKey('project-dashboard-thread-next'),
+                        tooltip: 'project_dashboard.next_page'.tr(),
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: page < pageCount - 1
+                            ? () => setState(() => _page = page + 1)
+                            : null,
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -293,6 +344,25 @@ class ProjectThreadsCard extends StatelessWidget {
 
   static String _goalLabel(ConversationGoalStatus status) =>
       'project_dashboard.goal.${status.name}'.tr();
+}
+
+/// Dashboard order: threads waiting on the user first, then running ones,
+/// then the rest, each group newest first. Paging never hides a thread that
+/// needs the user behind the first page.
+List<Conversation> sortThreadsForDashboard(
+  Iterable<Conversation> threads, {
+  required bool Function(String conversationId) isBusy,
+  required bool Function(String conversationId) needsApproval,
+}) {
+  int rank(Conversation thread) => needsApproval(thread.id)
+      ? 0
+      : isBusy(thread.id)
+      ? 1
+      : 2;
+  return threads.toList()..sort((a, b) {
+    final byRank = rank(a).compareTo(rank(b));
+    return byRank != 0 ? byRank : b.updatedAt.compareTo(a.updatedAt);
+  });
 }
 
 /// Worktree agents and git state.

@@ -287,6 +287,93 @@ void main() {
     await tester.pumpAndSettle();
     expect(result, 'PLAN.md');
   });
+
+  group('ProjectThreadsCard paging', () {
+    Conversation thread(int n, {int minutesAgo = 0}) => Conversation(
+      id: 't$n',
+      title: 'Thread $n',
+      messages: const [],
+      createdAt: DateTime.utc(2026, 9, 26),
+      updatedAt: DateTime.utc(
+        2026,
+        9,
+        26,
+        12,
+      ).subtract(Duration(minutes: minutesAgo)),
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'p1',
+    );
+
+    test('orders threads needing approval, then running, then newest', () {
+      final threads = [
+        thread(1, minutesAgo: 1),
+        thread(2, minutesAgo: 50),
+        thread(3, minutesAgo: 30),
+        thread(4, minutesAgo: 5),
+      ];
+      final sorted = sortThreadsForDashboard(
+        threads,
+        isBusy: (id) => id == 't3',
+        needsApproval: (id) => id == 't2',
+      );
+      expect(sorted.map((t) => t.id), ['t2', 't3', 't1', 't4']);
+    });
+
+    Future<void> pump(WidgetTester tester, List<Conversation> threads) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ProjectThreadsCard(
+                  threads: threads,
+                  isBusy: (_) => false,
+                  needsApproval: (_) => false,
+                  onOpen: (_) {},
+                  pageSize: 3,
+                ),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('pages through threads and clamps when the list shrinks', (
+      tester,
+    ) async {
+      final threads = [for (var n = 1; n <= 7; n++) thread(n, minutesAgo: n)];
+      const next = ValueKey('project-dashboard-thread-next');
+      const prev = ValueKey('project-dashboard-thread-prev');
+      Finder row(int n) => find.byKey(ValueKey('project-dashboard-thread-t$n'));
+
+      await pump(tester, threads);
+      expect(row(1), findsOneWidget);
+      expect(row(4), findsNothing);
+
+      await tester.tap(find.byKey(next));
+      await tester.pump();
+      expect(row(4), findsOneWidget);
+      expect(row(1), findsNothing);
+
+      await tester.tap(find.byKey(next));
+      await tester.pump();
+      expect(row(7), findsOneWidget);
+
+      // Only four threads left: page 3 no longer exists, so page 2 shows.
+      await pump(tester, threads.take(4).toList());
+      expect(row(4), findsOneWidget);
+
+      await tester.tap(find.byKey(prev));
+      await tester.pump();
+      expect(row(1), findsOneWidget);
+    });
+
+    testWidgets('shows no paging controls for a single page', (tester) async {
+      await pump(tester, [thread(1), thread(2)]);
+      expect(
+        find.byKey(const ValueKey('project-dashboard-thread-next')),
+        findsNothing,
+      );
+    });
+  });
 }
 
 class _InMemoryConversationRepository implements ConversationRepositoryApi {
