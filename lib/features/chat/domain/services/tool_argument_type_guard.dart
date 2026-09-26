@@ -30,6 +30,15 @@ final class ToolArgumentCheck {
 /// turn aborted on the repeat. Decoding reads the value; it does not guess at
 /// one. Anything else is rejected with a structured failure the model can act
 /// on.
+///
+/// None of the stringified `options` the model has actually sent was exact
+/// JSON: all 8 in the corpus were a complete array followed by more text. In 3
+/// the text was only a stray `}` (session b41b57fa). The value is complete and
+/// the closer holds nothing, so it is decoded. In the other 5 the text was the
+/// rest of the arguments object (`], "allow_other": true}`). That text holds
+/// values, so the call is rejected and the error names the trailing text.
+/// "a string was sent" alone told the model nothing it could see: it re-sent
+/// identical bytes and the turn aborted.
 final class ToolArgumentTypeGuard {
   const ToolArgumentTypeGuard();
 
@@ -60,7 +69,15 @@ final class ToolArgumentTypeGuard {
       if (replacement == null) {
         return ToolArgumentCheck._(
           toolCall,
-          _failure(toolCall.name, entry.key, expected, value),
+          _failure(
+            toolCall.name,
+            entry.key,
+            expected,
+            value,
+            trailing: value is String
+                ? _trailingAfterJson(value, expected)
+                : null,
+          ),
         );
       }
       (decoded ??= {...toolCall.arguments})[entry.key] = replacement;
@@ -116,9 +133,70 @@ final class ToolArgumentTypeGuard {
     try {
       return jsonDecode(text);
     } on FormatException {
-      return null;
+      final leading = _leadingJson(text);
+      if (leading == null || !_onlyClosers.hasMatch(leading.rest)) return null;
+      return leading.value;
     }
   }
+
+  static final RegExp _onlyClosers = RegExp(r'^[\s}\]]+$');
+
+  /// The complete JSON array or object [text] starts with, and the text after
+  /// it; null when [text] does not start with one.
+  static ({Object? value, String rest})? _leadingJson(String text) {
+    if (text.isEmpty || (text[0] != '[' && text[0] != '{')) return null;
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var index = 0; index < text.length; index++) {
+      final char = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char == r'\') {
+          escaped = true;
+        } else if (char == '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (char == '"') {
+        inString = true;
+      } else if (char == '[' || char == '{') {
+        depth++;
+      } else if (char == ']' || char == '}') {
+        depth--;
+        if (depth == 0) {
+          try {
+            return (
+              value: jsonDecode(text.substring(0, index + 1)),
+              rest: text.substring(index + 1),
+            );
+          } on FormatException {
+            return null;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /// The text after a complete JSON value of an [expected] container type
+  /// that [text] starts with, or null when there is no such value.
+  static String? _trailingAfterJson(String text, List<String> expected) {
+    final leading = _leadingJson(text.trim());
+    if (leading == null) return null;
+    final type = switch (leading.value) {
+      List() => 'array',
+      Map() => 'object',
+      _ => null,
+    };
+    if (type == null || !expected.contains(type)) return null;
+    final rest = leading.rest.trim();
+    return rest.isEmpty ? null : rest;
+  }
+
+  static const int _maxTrailingPreview = 120;
 
   static String _describe(Object value) => switch (value) {
     Map() => 'a JSON object',
@@ -133,16 +211,28 @@ final class ToolArgumentTypeGuard {
     String toolName,
     String argument,
     List<String> expected,
-    Object value,
-  ) {
+    Object value, {
+    String? trailing,
+  }) {
     final expectedText = expected.where((type) => type != 'null').join(' or ');
     final received = _describe(value);
     final hint = expected.contains('string') && (value is Map || value is List)
         ? ' To write JSON, pass the serialized JSON text as the string.'
         : '';
+    final preview = trailing == null
+        ? null
+        : trailing.length <= _maxTrailingPreview
+        ? trailing
+        : '${trailing.substring(0, _maxTrailingPreview)}...';
+    final detail = preview == null
+        ? ''
+        : ' The string holds a complete JSON $expectedText followed by '
+              '`$preview`, which is not part of it. Send "$argument" as the '
+              '$expectedText alone, and pass any other argument as its own '
+              'argument.';
     final error =
         '$toolName argument "$argument" must be $expectedText, but '
-        '$received was sent. Nothing was executed.$hint';
+        '$received was sent.$detail Nothing was executed.$hint';
     return McpToolResult(
       toolName: toolName,
       result: jsonEncode({
@@ -153,6 +243,7 @@ final class ToolArgumentTypeGuard {
         'argument': argument,
         'expected': expectedText,
         'received': received,
+        'trailing_text': ?preview,
         'error': error,
       }),
       isSuccess: false,

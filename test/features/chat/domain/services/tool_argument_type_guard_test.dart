@@ -54,7 +54,8 @@ void main() {
   });
 
   test('decodes stringified values of the declared type', () {
-    // Session 42f1b8d5: options as JSON text and allow_other as "True".
+    // Session 42f1b8d5 sent allow_other as "True"; exact JSON text for the
+    // containers is the contract, not a logged payload (see below).
     final parameters = {
       'type': 'object',
       'properties': {
@@ -91,6 +92,66 @@ void main() {
       'filter': {'k': 1},
     });
     expect(original.arguments['allow_other'], 'True');
+  });
+
+  // Payloads below are copied verbatim from session b41b57fa's log. All 8
+  // stringified `options` in the corpus were one of these two shapes.
+  final askParameters = {
+    'properties': {
+      'options': {'type': 'array'},
+      'allow_other': {'type': 'boolean'},
+    },
+  };
+  ToolCallInfo ask(Object options) => ToolCallInfo(
+    id: 'call_ask',
+    name: 'ask_user_question',
+    arguments: {'question': 'q', 'options': options, 'allow_other': 'True'},
+  );
+
+  test('decodes a complete array followed only by a stray closer', () {
+    const options =
+        r'[{"id": "robustness", "label": "堅牢性・運用強化", "description": "リトライ/バックオフ、レート制限、エラー時の通知、ログ、cron/launchd 化、ヘルスチェック。"}, {"id": "features", "label": "機能拡張", "description": "価格変動検知、複数クエリごとのフィルタ（価格帯/状態）、通知のバッチ化、画像添付。"}, {"id": "api", "label": "取得手段の強化", "description": "非公式APIの安定化、公式API/スクレイピングへの対応、ヘッダ/セッション管理。"}, {"id": "quality", "label": "品質・テスト", "description": "ユニットテスト、型チェック、CI、ドキュメント整備。"}]}';
+
+    final checked = guard.check(ask(options), askParameters);
+
+    expect(checked.failure, isNull);
+    final decoded = checked.toolCall.arguments['options'] as List;
+    expect(decoded, hasLength(4));
+    expect((decoded.first as Map)['id'], 'robustness');
+    expect(checked.toolCall.arguments['allow_other'], isTrue);
+  });
+
+  test('rejects an array followed by more arguments and names the text', () {
+    const options =
+        r'[{"id": "watcher", "label": "Watcher (Mercari 在庫監視)", "description": "現在の作業プロジェクト。Mercari の在庫監視スクリプトの今後の機能計画。"}, {"id": "caverno", "label": "Caverno (iOS/macOS チャットクライアント)", "description": "Flutter 製チャットクライアントのロードマップ。"}, {"id": "other", "label": "その他", "description": "gs1_flutter_app、agent-kb、herpes など別のプロジェクト。"}], "allow_other": true, "other_placeholder": "プロジェクト名や目的を記入"}]';
+
+    final failure = guard.check(ask(options), askParameters).failure;
+
+    expect(failure, isNotNull);
+    final payload = jsonDecode(failure!.result) as Map<String, dynamic>;
+    expect(payload['argument'], 'options');
+    expect(payload['executed'], isFalse);
+    expect(payload['trailing_text'], startsWith(', "allow_other": true'));
+    expect(payload['error'], contains('a complete JSON array followed by'));
+    expect(payload['error'], contains('"options" as the array alone'));
+  });
+
+  test('names no trailing text when the string is not JSON at all', () {
+    final failure = guard
+        .check(ask('robustness, features'), askParameters)
+        .failure;
+
+    final payload = jsonDecode(failure!.result) as Map<String, dynamic>;
+    expect(payload.containsKey('trailing_text'), isFalse);
+    expect(payload['error'], isNot(contains('followed by')));
+  });
+
+  test('keeps rejecting a closer that leaves the value incomplete', () {
+    expect(guard.check(ask('[{"id": "a"}'), askParameters).failure, isNotNull);
+    expect(
+      guard.check(ask('[{"id": "a"}]] extra'), askParameters).failure,
+      isNotNull,
+    );
   });
 
   test('rejects JSON text of the wrong shape', () {
