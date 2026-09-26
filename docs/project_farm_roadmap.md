@@ -622,8 +622,13 @@ decides to run it.
 - A verification command outside the policy is rejected before it runs.
 - Two projects run at once with no crossed prompts or tool results.
 - Cancelling reaches only its own work.
-- Every background run appears in the approval audit with its task, command,
-  and branch.
+- Every background run is recorded, with its task, command, and branch, in
+  the LL13 task registry, which persists across restarts. Corrected
+  2026-09-26: the approval audit records only automated decisions the user
+  never saw ("manual approvals are intentionally not recorded here" in
+  `tool_approval_audit_log.dart`), and a background run is always confirmed
+  by the user in a dialog. Writing one there would break the audit's
+  charter.
 
 Dependencies: FARM3, and the user's review of this design.
 
@@ -661,9 +666,9 @@ Progress:
   - Not live-verified end to end: a live run would create a real worktree and
     branch. The execution path is the existing LL13 route, which its own
     canary covers (`tool/canaries/ll37_worktree_agent_live_canary_test.dart`).
-  - The approval-audit entry named in the acceptance criteria is not written
-    yet. The LL13 registry persists each task's title, command, and branch.
-    A dedicated audit entry is a follow-up.
+  - The record of each run is the LL13 registry, which keeps the title,
+    command, and branch. The approval audit is deliberately not used; see the
+    corrected acceptance criterion.
 - **Slice 4c** (a cross-project queue and a two-project canary) is next.
 
 ### FARM5: Bounded Autonomous Operation
