@@ -5814,19 +5814,12 @@ class ChatNotifier extends Notifier<ChatState> {
             : currentAssistantContent;
         // Keep declared mutations instead of replaying stale recovery results.
         if (const ToolLoopExhaustionPolicy().shouldRequestRecovery(
-          ToolLoopExhaustionDecisionInput(
+          ToolLoopExhaustionDecisionInput.fromPendingCalls(
             iteration: iteration,
             maxIterations: maxIterations,
             recoveryAlreadyAttempted: attemptedToolLoopExhaustionRecovery,
-            hasPendingToolCalls: currentToolCalls.isNotEmpty,
+            pendingToolCalls: currentToolCalls,
             hasCurrentBatchToolResults: batchToolResults.isNotEmpty,
-            hasPendingFileMutation: currentToolCalls.any(
-              (toolCall) =>
-                  _fileMutationEvidencePolicy.isMutationToolName(toolCall.name),
-            ),
-            hasPendingWriteGitCommand: currentToolCalls.any(
-              const GitWriteConfirmationPolicy().isWriteGitCommandToolCall,
-            ),
           ),
         )) {
           attemptedToolLoopExhaustionRecovery = true;

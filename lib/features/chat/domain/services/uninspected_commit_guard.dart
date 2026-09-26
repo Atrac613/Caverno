@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
@@ -39,6 +41,11 @@ final class UninspectedCommitInput {
 /// `--name-status` do not count: they report file names and hide the change.
 /// Nor does an empty diff, such as session 23d19ede's bare `git diff` run
 /// after staging everything.
+///
+/// The block is a declared refusal, not a result. Reported as a success it was
+/// filed as an executed commit, so in session dd50d110 the identical commit
+/// re-issued after `diff --cached` was skipped as a duplicate and this refusal
+/// replayed -- in two turns running -- and the digest listed it as already run.
 final class UninspectedCommitGuard {
   const UninspectedCommitGuard();
 
@@ -70,6 +77,8 @@ final class UninspectedCommitGuard {
     return McpToolResult(
       toolName: input.toolCall.name,
       result: jsonEncode({
+        'ok': false,
+        ...ToolResultOrigin.refusal.marker,
         'error':
             'This turn has not read what it is about to commit. Only file '
             'names were inspected, and no file was written here, so the '
@@ -84,7 +93,7 @@ final class UninspectedCommitGuard {
             'form such as --stat or --name-only does not satisfy this: it '
             'reports file names and hides the change.',
       }),
-      isSuccess: true,
+      isSuccess: false,
     );
   }
 

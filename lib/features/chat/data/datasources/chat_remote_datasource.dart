@@ -152,11 +152,11 @@ class ChatRemoteDataSource
   /// A retry only happens while the attempt has emitted nothing, so a rejected
   /// request (which fails before the first event) is recovered without any risk
   /// of replaying content the caller already received.
-  Stream<T> _streamWithReasoningFallback<T>({
+  Stream<ChatStreamEvent> _streamWithReasoningFallback({
     required String operation,
-    required Stream<T> Function(bool includeReasoning) send,
+    required Stream<ChatStreamEvent> Function(bool includeReasoning) send,
     Future<void>? abort,
-  }) => _requestFallback.stream(operation: operation, send: send, abort: abort);
+  }) => _requestFallback.events(operation: operation, send: send, abort: abort);
 
   @visibleForTesting
   String formatToolLogSummaryForTest(List<Map<String, dynamic>> tools) {

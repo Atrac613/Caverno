@@ -1929,6 +1929,136 @@ void registerChatNotifierGitGuardrailTests() {
     }
   });
 
+  test(
+    'a commit refused for an unread diff runs once the diff is read',
+    () async {
+      // Session dd50d110: the refusal was filed as an executed commit, so the
+      // identical commit re-issued after `diff --cached` was skipped as a
+      // duplicate and the refusal replayed -- two turns running.
+      ToolCallInfo commit(String id) => ToolCallInfo(
+        id: id,
+        name: 'git_execute_command',
+        arguments: const {
+          'command': 'commit -m "chore: bump version to 1.3.53+67"',
+          'reason': 'Commit the version bump',
+        },
+      );
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [commit('commit-1')],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Reading the staged diff first.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'diff-1',
+                name: 'git_execute_command',
+                arguments: const {'command': 'diff --cached'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The diff holds only the version bump.',
+            toolCalls: [commit('commit-2')],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: 'Committed.', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['Committed the version bump.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'git_execute_command': '{"exit_code":0}'},
+        queuedResults: const {
+          'git_execute_command': [
+            '{"command":"git diff --cached","working_directory":"/tmp/project",'
+                '"exit_code":0,"stdout":"-version: 1.3.51+65\\n'
+                '+version: 1.3.53+67\\n","stderr":""}',
+            '{"command":"git commit","working_directory":"/tmp/project",'
+                '"exit_code":0,"stdout":"[main 6549d9317] chore\\n",'
+                '"stderr":""}',
+          ],
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 9, 26),
+        updatedAt: DateTime(2026, 9, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Commit the staged version bump',
+          bypassPlanMode: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          toolService.executedToolArguments.map(
+            (arguments) => arguments['command'],
+          ),
+          ['diff --cached', 'commit -m "chore: bump version to 1.3.53+67"'],
+        );
+        String resultFor(int batch, String id) => toolDataSource
+            .toolResultBatches[batch]
+            .firstWhere((result) => result.id == id)
+            .result;
+        expect(
+          resultFor(0, 'commit-1'),
+          contains('commit_without_diff_inspection_blocked'),
+        );
+        final commitResult = resultFor(2, 'commit-2');
+        expect(commitResult, contains('6549d9317'));
+        expect(
+          commitResult,
+          isNot(contains('duplicate_tool_call_result_reused')),
+        );
+        // The digest must not tell the model the refused commit already ran.
+        expect(
+          toolDataSource.assistantContents[1],
+          isNot(contains('ran `git commit')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
   test('full access runs git writes without a pending approval', () async {
     final conversationRepository = _FakeConversationRepository();
     final toolDataSource = _ToolBatchChatDataSource(

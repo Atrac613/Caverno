@@ -1,3 +1,4 @@
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop_exhaustion_policy.dart';
 import 'package:test/test.dart';
 
@@ -11,6 +12,7 @@ ToolLoopExhaustionDecisionInput _input({
   bool hasCurrentBatchToolResults = true,
   bool hasPendingFileMutation = false,
   bool hasPendingWriteGitCommand = false,
+  bool hasPendingUserQuestion = false,
 }) {
   return ToolLoopExhaustionDecisionInput(
     iteration: iteration,
@@ -20,6 +22,7 @@ ToolLoopExhaustionDecisionInput _input({
     hasCurrentBatchToolResults: hasCurrentBatchToolResults,
     hasPendingFileMutation: hasPendingFileMutation,
     hasPendingWriteGitCommand: hasPendingWriteGitCommand,
+    hasPendingUserQuestion: hasPendingUserQuestion,
   );
 }
 
@@ -34,6 +37,7 @@ void main() {
         hasCurrentBatchToolResults: true,
         hasPendingFileMutation: false,
         hasPendingWriteGitCommand: false,
+        hasPendingUserQuestion: false,
       );
 
       expect(input.iteration, 13);
@@ -43,6 +47,7 @@ void main() {
       expect(input.hasCurrentBatchToolResults, isTrue);
       expect(input.hasPendingFileMutation, isFalse);
       expect(input.hasPendingWriteGitCommand, isFalse);
+      expect(input.hasPendingUserQuestion, isFalse);
       expect(input.iterationLimitReached, isTrue);
     });
   });
@@ -88,6 +93,10 @@ void main() {
           name: 'pending write git command',
           input: _input(hasPendingWriteGitCommand: true),
         ),
+        (
+          name: 'pending user question',
+          input: _input(hasPendingUserQuestion: true),
+        ),
       ];
 
       for (final testCase in cases) {
@@ -131,6 +140,59 @@ void main() {
         ),
         isTrue,
       );
+    });
+  });
+
+  group('ToolLoopExhaustionDecisionInput.fromPendingCalls', () {
+    ToolLoopExhaustionDecisionInput derive(List<ToolCallInfo> pending) =>
+        ToolLoopExhaustionDecisionInput.fromPendingCalls(
+          iteration: 12,
+          maxIterations: 12,
+          recoveryAlreadyAttempted: false,
+          pendingToolCalls: pending,
+          hasCurrentBatchToolResults: true,
+        );
+    ToolCallInfo call(
+      String name, [
+      Map<String, dynamic> arguments = const {},
+    ]) => ToolCallInfo(id: 'call-$name', name: name, arguments: arguments);
+
+    test('derives each pending-call fact from the calls', () {
+      final read = derive([
+        call('read_file', {'path': 'a.dart'}),
+      ]);
+      expect(read.hasPendingToolCalls, isTrue);
+      expect(read.hasPendingFileMutation, isFalse);
+      expect(read.hasPendingWriteGitCommand, isFalse);
+      expect(read.hasPendingUserQuestion, isFalse);
+      expect(_policy.shouldRequestRecovery(read), isTrue);
+
+      expect(derive(const []).hasPendingToolCalls, isFalse);
+      expect(
+        derive([
+          call('write_file', {'path': 'a.dart'}),
+        ]).hasPendingFileMutation,
+        isTrue,
+      );
+      expect(
+        derive([
+          call('git_execute_command', {'command': 'commit -m "x"'}),
+        ]).hasPendingWriteGitCommand,
+        isTrue,
+      );
+    });
+
+    test('leaves a pending user question to the user, not to recovery', () {
+      // Session dd50d110: only ask_user_question was pending at the limit, and
+      // the recovery prompt ("do not ask for confirmation") had the model
+      // settle the release version itself.
+      final input = derive([
+        call('read_file', {'path': 'pubspec.yaml'}),
+        call('ask_user_question', {'question': 'Which version?'}),
+      ]);
+
+      expect(input.hasPendingUserQuestion, isTrue);
+      expect(_policy.shouldRequestRecovery(input), isFalse);
     });
   });
 }
