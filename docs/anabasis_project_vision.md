@@ -6,6 +6,14 @@ Status: independent future vision. The product direction below is agreed;
 the delivery sequence and design recommendations are proposals, not committed
 implementation milestones.
 
+Promotion, 2026-09-26: by user decision, the project view and the bounded
+ongoing operation stage were promoted into their own track, `FARM<number>`,
+owned by the [Project Farm roadmap](project_farm_roadmap.md). The user's framing
+is a per-project dashboard showing the next roadmap task with a Start button,
+built-in tools that let the model operate projects from chat, and eventually a
+cross-project software farm. This document keeps the product reasoning, and the
+FARM track owns milestone status.
+
 ## Agreed Product Direction
 
 Anabasis should help the user operate and evolve a project continuously across
