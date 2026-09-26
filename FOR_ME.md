@@ -528,6 +528,37 @@ The repair:
 The takeaway: a fixture for a log-driven fix is copied out of the log, never
 retyped from memory of it. The retyped one tests the bug you imagined.
 
+### Lesson 13: the bouncer stood behind the second door
+
+Session e3a9f3f0 wanted a `config.json`. The model sent `write_file` with the
+file's JSON as an object instead of a string, the turn died on a cast, and we
+added a type guard so that call would come back as a readable rejection. The
+next day, on a build containing that guard, the same call died with the same
+message.
+
+The guard lived in `ChatToolDispatcher`, and its comment said it ran "before
+every other policy". That was true inside the dispatcher. But the tool loop
+runs about fifteen guards before it ever reaches the dispatcher, and one of
+them resolves the call's paths through a helper that casts `content` to a
+string. A bouncer at the inner door can't stop someone who trips over the
+doormat outside.
+
+Every test was green. They checked the guard and the dispatcher in isolation,
+so none of them walked through the front door. The regression test now drives
+`ChatNotifier` with the payload copied from the log, and it failed on the old
+code with exactly the production error.
+
+The repair runs the check at the top of the batch, so every guard sees
+arguments of the declared types. We also tried making the resolver stop
+casting, and backed it out: a test pins that a mistyped `path` stops a read
+before it executes, so that cast is also a safety net.
+
+Two takeaways. "Runs first" is a claim about one place; check where the call
+actually enters. And a firing signature that matched any rejection had been
+reporting this guard as working, off `ask_user_question` calls, the whole time
+the path it was built for still threw.
+
+
 ## Where to start reading
 
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its
