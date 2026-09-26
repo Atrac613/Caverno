@@ -4,14 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../../chat/domain/entities/coding_project.dart';
+import '../../../chat/domain/entities/worktree_agent_task.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../../chat/presentation/providers/conversations_notifier.dart';
+import '../../../chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
+import '../../application/background_task_runner.dart';
 import '../../application/project_task_starter.dart';
+import '../../domain/entities/project_farm_policy.dart';
 import '../../domain/entities/project_proposal.dart';
 import '../../domain/entities/roadmap_snapshot.dart';
 import '../../domain/next_step_proposal_contract.dart';
 import '../providers/roadmap_snapshot_providers.dart';
+import '../widgets/run_in_background_dialog.dart';
 import 'project_dashboard_page.dart';
 
 /// Pushes the cross-project overview. Completes with the id of a thread the
@@ -125,9 +130,48 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
     Navigator.of(context).pop(id);
   }
 
+  Future<void> _runInBackground(
+    CodingProject project,
+    RoadmapSnapshot snapshot,
+    RoadmapItemSnapshot item,
+    ProjectFarmPolicy policy,
+  ) async {
+    final command = await showDialog<String>(
+      context: context,
+      builder: (_) => RunInBackgroundDialog(
+        projectName: project.name,
+        item: item,
+        commands: policy.allowedVerificationCommands,
+      ),
+    );
+    if (command == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final task = await runProjectTaskInBackgroundFromRef(
+        ref,
+        project: project,
+        policy: policy,
+        item: item,
+        roadmapPath: snapshot.roadmapPath,
+        verificationCommand: command,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('project_farm_run.started'.tr(args: [task.branchName])),
+        ),
+      );
+    } on Object catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final projects = ref.watch(codingProjectsNotifierProvider).projects;
+    final agentTasks = ref
+        .watch(worktreeAgentTaskRegistryNotifierProvider)
+        .tasks;
+    final repository = ref.watch(roadmapSnapshotRepositoryProvider);
     final conversations = ref
         .watch(conversationsNotifierProvider)
         .conversations;
@@ -189,6 +233,24 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
                   ),
                   onStartWork: (snapshot, item) =>
                       _startWork(project, snapshot, item),
+                  latestBackgroundTask: latestTaskFor(agentTasks, project.id),
+                  backgroundBlocker: backgroundRunBlocker(
+                    policy: repository.policyFor(project.id),
+                    proposal: _proposalFor(project.id),
+                    item: startableItem(
+                      _snapshotFor(project.id),
+                      _proposalFor(project.id),
+                    ),
+                    projectTasks: agentTasks.where(
+                      (task) => task.codingProjectId == project.id,
+                    ),
+                  ),
+                  onRunInBackground: (snapshot, item) => _runInBackground(
+                    project,
+                    snapshot,
+                    item,
+                    repository.policyFor(project.id)!,
+                  ),
                 );
               },
             ),
@@ -209,7 +271,18 @@ class ProjectOverviewTile extends StatelessWidget {
     required this.onStartWork,
     this.proposal,
     this.proposalStale = false,
+    this.latestBackgroundTask,
+    this.backgroundBlocker = BackgroundRunBlocker.noPolicy,
+    this.onRunInBackground,
   });
+
+  /// The project's most recent background task, for its status line.
+  final WorktreeAgentTask? latestBackgroundTask;
+
+  /// Null when Run in background is offered.
+  final BackgroundRunBlocker? backgroundBlocker;
+  final void Function(RoadmapSnapshot snapshot, RoadmapItemSnapshot item)?
+  onRunInBackground;
 
   final CodingProject project;
   final RoadmapSnapshot? snapshot;
@@ -302,6 +375,20 @@ class ProjectOverviewTile extends StatelessWidget {
                         ],
                       ),
                     ],
+                    if (latestBackgroundTask case final task?) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'project_farm_run.status'.tr(
+                          args: [
+                            task.title,
+                            'project_farm_run.state.${task.status.name}'.tr(),
+                            task.branchName,
+                          ],
+                        ),
+                        key: ValueKey('projects-overview-${project.id}-bg'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     Text(
                       'project_overview.thread_counts'.tr(
@@ -318,10 +405,26 @@ class ProjectOverviewTile extends StatelessWidget {
               ),
               if (startable != null) ...[
                 const SizedBox(width: 12),
-                FilledButton.tonal(
-                  key: ValueKey('projects-overview-${project.id}-start'),
-                  onPressed: () => onStartWork(current!, startable),
-                  child: Text('project_dashboard.start_work'.tr()),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FilledButton.tonal(
+                      key: ValueKey('projects-overview-${project.id}-start'),
+                      onPressed: () => onStartWork(current!, startable),
+                      child: Text('project_dashboard.start_work'.tr()),
+                    ),
+                    if (backgroundBlocker == null &&
+                        onRunInBackground != null) ...[
+                      const SizedBox(height: 6),
+                      OutlinedButton(
+                        key: ValueKey('projects-overview-${project.id}-run-bg'),
+                        onPressed: () =>
+                            onRunInBackground!(current!, startable),
+                        child: Text('project_farm_run.action'.tr()),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ],
@@ -369,4 +472,19 @@ bool proposalIsStale(
   final at = proposal.proposedAt;
   if (snapshot != null && snapshot.extractedAt.isAfter(at)) return true;
   return goalCompletions.any((completedAt) => completedAt.isAfter(at));
+}
+
+/// The newest worktree-agent task started for [projectId], if any.
+WorktreeAgentTask? latestTaskFor(
+  Iterable<WorktreeAgentTask> tasks,
+  String projectId,
+) {
+  WorktreeAgentTask? latest;
+  for (final task in tasks) {
+    if (task.codingProjectId != projectId) continue;
+    if (latest == null || task.createdAt.isAfter(latest.createdAt)) {
+      latest = task;
+    }
+  }
+  return latest;
 }

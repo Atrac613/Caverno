@@ -1,20 +1,28 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/domain/entities/chat_turn_owner.dart';
+import '../../../chat/domain/entities/coding_project.dart';
 import '../../../chat/domain/entities/message.dart';
+import '../../../chat/domain/entities/worktree_agent_task.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../../chat/presentation/providers/turn_thread_scope.dart';
+import '../../../chat/presentation/providers/worktree_agent_task_launcher.dart';
+import '../../../chat/presentation/providers/worktree_agent_task_orchestrator.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../application/background_task_runner.dart';
 import '../../application/project_proposal_service.dart';
 import '../../application/project_task_starter.dart';
 import '../../application/roadmap_snapshot_service.dart';
 import '../../application/workspace_control_tools.dart';
 import '../../data/roadmap_snapshot_repository.dart';
+import '../../domain/entities/project_farm_policy.dart';
+import '../../domain/entities/roadmap_snapshot.dart';
 import '../../domain/roadmap_next_task_extractor.dart';
 
 final roadmapSnapshotRepositoryProvider =
@@ -157,3 +165,50 @@ final projectProposalServiceProvider = Provider<ProjectProposalService>((ref) {
     model: () => ref.read(settingsNotifierProvider).effectiveModel,
   );
 });
+
+/// FARM4 slice 4b: runs a task on the unchanged LL13 worktree route.
+Future<WorktreeAgentTask> runProjectTaskInBackgroundFromRef(
+  WidgetRef ref, {
+  required CodingProject project,
+  required ProjectFarmPolicy policy,
+  required RoadmapItemSnapshot item,
+  required String roadmapPath,
+  required String verificationCommand,
+}) => runProjectTaskInBackground(
+  enqueue:
+      ({
+        required title,
+        required prompt,
+        required codingProjectId,
+        required projectRootPath,
+        required verificationCommand,
+        required acceptanceCriteria,
+      }) async =>
+          (await ref
+                  .read(worktreeAgentTaskLauncherProvider)
+                  .enqueue(
+                    WorktreeAgentTaskLaunchRequest(
+                      title: title,
+                      prompt: prompt,
+                      codingProjectId: codingProjectId,
+                      projectRootPath: projectRootPath,
+                      verificationCommand: verificationCommand,
+                      objectiveAcceptanceCriteria: acceptanceCriteria,
+                    ),
+                  ))
+              .task,
+  // Fire and forget, like the slash command and the Anabasis route: the run
+  // outlives the page that started it.
+  startReady: (projectRootPath) => unawaited(
+    ref
+        .read(worktreeAgentTaskOrchestratorProvider)
+        .startAndExecuteReady(
+          WorktreeAgentTaskRunRequest(fallbackProjectRootPath: projectRootPath),
+        ),
+  ),
+  project: project,
+  policy: policy,
+  item: item,
+  roadmapPath: roadmapPath,
+  verificationCommand: verificationCommand,
+);

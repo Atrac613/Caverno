@@ -555,7 +555,7 @@ Progress:
 
 ### FARM4: Background Execution
 
-Status: `next`. The design below was drafted 2026-09-26 and needs the user's
+Status: `current`. The design below was drafted 2026-09-26 and needs the user's
 review before any code.
 
 Scope: run a started task in the background on an LL13 worktree agent. The
@@ -638,8 +638,33 @@ Progress:
   - `ProjectFarmPolicy.allows` matches commands exactly, with whitespace
     collapsed.
   - Nothing executes yet.
-- **Slice 4b** (Run in background) waits for the user's review of the design
-  above.
+- **Slice 4b (2026-09-26).** Run in background. The user authorized
+  continuing on 2026-09-26.
+  - `backgroundRunBlocker` offers the action only when all four gates pass:
+    a policy with at least one command, a verified task, a proposal that names
+    that very task as `unattended`, and no unfinished background task in the
+    project.
+  - `RunInBackgroundDialog` shows the task, its quote, and a picker limited to
+    the policy's commands. It states that the result is a branch for review.
+  - `runProjectTaskInBackground` rechecks the policy just before enqueueing
+    and refuses any other command. It then enqueues on the unchanged LL13
+    route (`WorktreeAgentTaskLauncher` and
+    `WorktreeAgentTaskOrchestrator.startAndExecuteReady`). The prompt tells
+    the agent not to merge, push, or mark the roadmap item done.
+  - The overview shows the project's latest background task, with its state
+    and branch.
+  - Concurrency: one unfinished task per project through the gate. The global
+    cap is LL13's existing one per endpoint.
+  - Taint: proposals are built from repository documents and thread states,
+    not from a chat turn, so there is no turn taint to carry. Revisit if
+    proposals ever take web or MCP input.
+  - Not live-verified end to end: a live run would create a real worktree and
+    branch. The execution path is the existing LL13 route, which its own
+    canary covers (`tool/canaries/ll37_worktree_agent_live_canary_test.dart`).
+  - The approval-audit entry named in the acceptance criteria is not written
+    yet. The LL13 registry persists each task's title, command, and branch.
+    A dedicated audit entry is a follow-up.
+- **Slice 4c** (a cross-project queue and a two-project canary) is next.
 
 ### FARM5: Bounded Autonomous Operation
 

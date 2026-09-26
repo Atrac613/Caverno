@@ -1959,5 +1959,22 @@
     "allowed_commands": "Allowed verification commands",
     "help": "One command per line. Background work may run only these, exactly as written. No shell syntax: no pipes, redirects, quotes, or variables.",
     "invalid_command": "Not allowed: {}. Remove shell syntax."
+  },
+  "project_farm_run": {
+    "title": "Run in background",
+    "command": "Verification command",
+    "explain": "A worktree agent edits files on a new branch, then runs this command. Nothing merges: you review the branch. Only commands your project policy allows are offered.",
+    "confirm": "Run",
+    "action": "Run in background",
+    "started": "Started in the background on {}.",
+    "status": "Background: {} — {} ({})",
+    "state": {
+      "queued": "queued",
+      "running": "running",
+      "needsRecovery": "needs recovery",
+      "completed": "finished",
+      "failed": "failed",
+      "cancelled": "cancelled"
+    }
   }
 }
