@@ -29,6 +29,7 @@ import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/turn_diff_retention.dart';
 import 'conversation_semantic_index_sync.dart';
 import 'conversations_state.dart';
 import 'mcp_tool_provider.dart';
@@ -252,6 +253,24 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       projectId: projectId ?? '',
       worktreePath: worktreePath,
     );
+  }
+
+  /// Adds a conversation without selecting it, so a turn running in another
+  /// thread keeps the screen (FARM2 `start_project_task`).
+  Conversation addBackgroundConversation({
+    required WorkspaceMode workspaceMode,
+    required String projectId,
+    ConversationGoal? goal,
+  }) {
+    final conversation = _createConversation(
+      workspaceMode: workspaceMode,
+      projectId: projectId,
+    ).copyWith(goal: goal);
+    state = state.copyWith(
+      conversations: [conversation, ...state.conversations],
+    );
+    _repository.save(conversation);
+    return conversation;
   }
 
   void _sortConversations(List<Conversation> conversations) {
@@ -698,7 +717,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final retainedCheckpoints = conversation.checkpoints
         .where((item) => item.messageCount <= retainedMessages.length)
         .toList(growable: false);
-    final retainedTurnDiffs = _retainTurnDiffsForMessages(
+    final retainedTurnDiffs = retainTurnDiffsForMessages(
       conversation.turnDiffs,
       retainedMessages,
     );
@@ -751,25 +770,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
     _semanticIndexSync.schedule(updatedConversation);
     return true;
-  }
-
-  List<TurnDiff> _retainTurnDiffsForMessages(
-    List<TurnDiff> turnDiffs,
-    List<Message> messages,
-  ) {
-    final retainedAssistantMessageIds = messages
-        .where((message) => message.role == MessageRole.assistant)
-        .map((message) => message.id)
-        .toSet();
-    if (retainedAssistantMessageIds.isEmpty) {
-      return const [];
-    }
-    return turnDiffs
-        .where(
-          (diff) =>
-              retainedAssistantMessageIds.contains(diff.assistantMessageId),
-        )
-        .toList(growable: false);
   }
 
   Future<void> recordCurrentTurnDiff(TurnDiff turnDiff) async {

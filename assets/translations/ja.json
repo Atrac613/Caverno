@@ -1370,6 +1370,7 @@
     "tool_list_coding_threads": "プロジェクトのスレッドと実行・ゴール状態を一覧",
     "tool_get_project_state": "プロジェクトのロードマップ状態（キャッシュ）を読む",
     "tool_read_coding_thread": "コーディングスレッドの最近のメッセージを読む",
+    "tool_start_project_task": "ロードマップのタスクを新しいコーディングスレッドで開始（毎回確認）",
     "browser_tools_title": "内蔵ブラウザ",
     "browser_tools_desc": "エージェントが埋め込みブラウザでページを開き、フォーム入力やスクレイピングを行えるようにします",
     "browser_back": "戻る",

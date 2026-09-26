@@ -87,7 +87,7 @@ void main() {
     });
   });
 
-  test('Start work opens a new coding thread carrying the task goal', () async {
+  test('Start work creates a coding thread carrying the task goal', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final repository = _InMemoryConversationRepository();
@@ -99,9 +99,8 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final id = await startProjectTask(
+    final id = startProjectTask(
       conversations: container.read(conversationsNotifierProvider.notifier),
-      readConversations: () => container.read(conversationsNotifierProvider),
       projectId: 'p1',
       item: _item,
       roadmapPath: 'docs/roadmap.md',
@@ -109,13 +108,47 @@ void main() {
 
     final state = container.read(conversationsNotifierProvider);
     final created = state.conversations.singleWhere((c) => c.id == id);
-    expect(state.currentConversationId, id);
+    expect(
+      state.currentConversationId,
+      isNot(id),
+      reason: 'the caller decides whether to open it',
+    );
     expect(created.workspaceMode, WorkspaceMode.coding);
     expect(created.normalizedProjectId, 'p1');
     expect(created.messages, isEmpty, reason: 'nothing is sent');
     expect(created.goal!.status, ConversationGoalStatus.active);
     expect(created.goal!.objective, contains('docs/roadmap.md:97'));
-    expect(repository.getById(id!)?.goal, isNotNull);
+    expect(repository.getById(id)?.goal, isNotNull);
+  });
+
+  test('a background thread is added without switching threads', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final repository = _InMemoryConversationRepository();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        conversationRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+    notifier.createNewConversation(workspaceMode: WorkspaceMode.chat);
+    final manager = container.read(conversationsNotifierProvider);
+
+    final created = notifier.addBackgroundConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'p1',
+      goal: projectTaskGoal(_item, 'docs/roadmap.md'),
+    );
+
+    final state = container.read(conversationsNotifierProvider);
+    expect(state.currentConversationId, manager.currentConversationId);
+    expect(state.activeWorkspaceMode, manager.activeWorkspaceMode);
+    expect(state.conversations.first.id, created.id);
+    expect(created.goal!.objective, contains('docs/roadmap.md:97'));
+    expect(created.goal!.autoContinue, isFalse);
+    expect(repository.getById(created.id), isNotNull);
   });
 
   group('NextTaskCard', () {

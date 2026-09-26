@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 import '../../../core/types/workspace_mode.dart';
 import '../../chat/domain/entities/conversation_goal.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
@@ -16,31 +18,33 @@ String projectTaskObjective(RoadmapItemSnapshot item, String roadmapPath) {
   return '$heading\n\nSource: $citation\n"${item.quote.trim()}"';
 }
 
+/// The goal a started roadmap task carries. Auto-continue stays off: nothing
+/// runs until the user sends from the thread.
+ConversationGoal projectTaskGoal(RoadmapItemSnapshot item, String roadmapPath) {
+  final now = DateTime.now();
+  return ConversationGoal(
+    id: const Uuid().v4(),
+    objective: projectTaskObjective(item, roadmapPath),
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
 /// Starts work on a roadmap task: a new coding thread in the project whose goal
-/// is the task. Nothing is sent; the user reviews the goal and sends, or
-/// enters Plan Mode, from the thread.
+/// is the task, added without switching threads. Nothing is sent; the caller
+/// decides whether to open it (the dashboard does, the model's tool does not).
 ///
-/// This is the one command path the dashboard's Start work button and, from
-/// FARM2, the model's `start_project_task` tool share.
-Future<String?> startProjectTask({
+/// This is the one command path the dashboard's Start work button and the
+/// model's `start_project_task` tool share, so both create identical threads.
+String startProjectTask({
   required ConversationsNotifier conversations,
-  required ConversationsState Function() readConversations,
   required String projectId,
   required RoadmapItemSnapshot item,
   required String roadmapPath,
-}) async {
-  conversations.createNewConversation(
-    workspaceMode: WorkspaceMode.coding,
-    projectId: projectId,
-  );
-  final created = readConversations().currentConversation;
-  if (created == null || created.normalizedProjectId != projectId) {
-    return null;
-  }
-  await conversations.saveCurrentGoal(
-    objective: projectTaskObjective(item, roadmapPath),
-    enabled: true,
-    status: ConversationGoalStatus.active,
-  );
-  return created.id;
-}
+}) => conversations
+    .addBackgroundConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: projectId,
+      goal: projectTaskGoal(item, roadmapPath),
+    )
+    .id;

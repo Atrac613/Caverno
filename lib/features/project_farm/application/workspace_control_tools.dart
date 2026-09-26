@@ -8,12 +8,16 @@ import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
 import '../domain/entities/roadmap_snapshot.dart';
 
-/// Read-only control-plane tools over coding projects and their threads (FARM2).
+/// Control-plane tools over coding projects and their threads (FARM2).
 ///
-/// See `docs/project_farm_roadmap.md`. Every answer comes from state Caverno
+/// See `docs/project_farm_roadmap.md`. The read tools answer from state Caverno
 /// already holds: no model call, no file read, no change. A caller in a coding
 /// thread sees only its own project; a chat thread sees every project; a call
 /// with no identifiable thread is refused rather than guessed.
+///
+/// [start_project_task] is the one mutating tool, offered only when [startTask]
+/// is wired. It is chat-only, starts only a verified roadmap item (never text
+/// the model composed), and [startTask] must ask the user every time.
 final class WorkspaceControlTools implements BuiltInToolExtension {
   WorkspaceControlTools({
     required this.projects,
@@ -22,18 +26,21 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
     required this.isBusy,
     required this.needsApproval,
     required this.callerConversationId,
+    this.startTask,
   });
 
   static const listProjects = 'list_coding_projects';
   static const listThreads = 'list_coding_threads';
   static const projectState = 'get_project_state';
   static const readThread = 'read_coding_thread';
+  static const startProjectTask = 'start_project_task';
 
   static const Set<String> names = {
     listProjects,
     listThreads,
     projectState,
     readThread,
+    startProjectTask,
   };
 
   static const int _maxThreads = 50;
@@ -51,8 +58,18 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
   /// production.
   final String? Function() callerConversationId;
 
+  /// Asks the user, then creates the thread without switching to it. Returns
+  /// the new thread id, or null when the user declined.
+  final Future<String?> Function({
+    required CodingProject project,
+    required RoadmapItemSnapshot item,
+    required String roadmapPath,
+  })?
+  startTask;
+
   @override
-  Set<String> get toolNames => names;
+  Set<String> get toolNames =>
+      startTask == null ? names.difference({startProjectTask}) : names;
 
   @override
   List<Map<String, dynamic>> get definitions => [
@@ -107,6 +124,27 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
       },
       required: const ['thread_id'],
     ),
+    if (startTask != null)
+      _function(
+        startProjectTask,
+        'Start work on a roadmap task: after the user approves, create a new '
+        'coding thread in the project whose goal is the task, without sending '
+        'anything. Only the verified next task or a verified in-progress item '
+        'can be started.',
+        {
+          'project_id': {
+            'type': 'string',
+            'description': 'Project id from list_coding_projects.',
+          },
+          'task_id': {
+            'type': 'string',
+            'description':
+                'Roadmap item id from get_project_state. Defaults to the '
+                'next task.',
+          },
+        },
+        required: const ['project_id'],
+      ),
   ];
 
   @override
@@ -130,6 +168,7 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
       listThreads => _listThreads(name, scope, arguments),
       projectState => _projectState(name, scope, arguments),
       readThread => _readThread(name, scope, arguments),
+      startProjectTask => await _startProjectTask(name, scope, arguments),
       _ => _error(name, 'Unknown workspace tool.'),
     };
   }
@@ -318,6 +357,56 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
       'state': _runState(thread.id),
       'messages': messages,
       'omitted_earlier': visible.length - messages.length,
+    });
+  }
+
+  Future<McpToolResult> _startProjectTask(
+    String name,
+    String scope,
+    Map<String, dynamic> arguments,
+  ) async {
+    final start = startTask;
+    if (start == null) return _error(name, 'Unknown workspace tool.');
+    if (scope.isNotEmpty) {
+      return _error(name, 'Tasks can only be started from a chat thread.');
+    }
+    final project = _project(scope, arguments['project_id']);
+    if (project == null) return _error(name, _projectNotFound);
+    final snapshot = snapshotFor(project.id);
+    final wanted = arguments['task_id'] is String
+        ? (arguments['task_id'] as String).trim()
+        : '';
+    final candidates = [
+      ?snapshot?.recommended,
+      ...?snapshot?.current,
+    ].where((item) => item.verified);
+    final item = wanted.isEmpty
+        ? (snapshot?.status == RoadmapSnapshotStatus.verified
+              ? snapshot!.recommended
+              : null)
+        : candidates.where((item) => item.id == wanted).firstOrNull;
+    if (snapshot == null || item == null) {
+      return _error(
+        name,
+        'No verified roadmap task matches. Call get_project_state, or ask the '
+        'user to open the project dashboard.',
+      );
+    }
+    final threadId = await start(
+      project: project,
+      item: item,
+      roadmapPath: snapshot.roadmapPath,
+    );
+    if (threadId == null) {
+      return _error(name, 'The user declined to start this task.');
+    }
+    return _ok(name, {
+      'thread_id': threadId,
+      'project_id': project.id,
+      'task_id': item.id,
+      'note':
+          'Created with the task as its goal. Nothing was sent; the user '
+          'opens the thread from the sidebar to begin.',
     });
   }
 

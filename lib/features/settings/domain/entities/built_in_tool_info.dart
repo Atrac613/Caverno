@@ -137,6 +137,11 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_read_coding_thread',
       category: categoryWorkspace,
     ),
+    BuiltInToolInfo(
+      name: 'start_project_task',
+      descriptionKey: 'settings.tool_start_project_task',
+      category: categoryWorkspace,
+    ),
     // DateTime
     BuiltInToolInfo(
       name: 'get_current_datetime',

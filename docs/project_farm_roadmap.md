@@ -475,9 +475,29 @@ Progress:
     called. 3 of 3 prompts passed, two in English and one in Japanese. Each
     reached `list_coding_projects` through `tool_search`. The Japanese prompt
     first tried `list_directory`, and then searched.
-  - **Next:** `start_project_task`. It mutates, so it needs the approval
-    surface and taint check that live in the chat notifier library, which is
-    over its size budget. Land the ratchet repair first.
+  - The chat-notifier library's size budget blocked `start_project_task`
+    until `fix/ratchet-overruns` (`a8286e942`) brought four chat files back
+    under their ratchets. That branch is merged here.
+- **Slice 2 (2026-09-26).** `start_project_task`.
+  - It is offered only when a starter is wired, and runs only from a chat
+    thread.
+  - It starts only a verified roadmap item: the next task, or an in-progress
+    item named by id. It never starts text the model composed.
+  - It asks the user every time through the file-operation approval sheet,
+    with the goal as its preview, and never caches the answer.
+  - It adds the thread with `ConversationsNotifier.addBackgroundConversation`,
+    so the manager thread keeps the screen and its running turn, and it sends
+    nothing. The goal's auto-continue stays off.
+  - **Start work** now goes through the same `startProjectTask` command, so
+    both paths create identical threads. The dashboard then opens the thread
+    by returning its id to the drawer.
+  - Children cannot call it: it is in `SubagentToolPolicy.blockedTools`.
+  - Making room in `conversations_notifier.dart` moved
+    `retainTurnDiffsForMessages` into `domain/services`.
+  - **Taint carry (invariant 4) is not implemented yet.** Nothing runs until
+    the user sends, so the user's send is the start. Carry the originating
+    turn's taint once FARM4 starts work without a send.
+
 
 ### FARM3: Suggest Mode
 

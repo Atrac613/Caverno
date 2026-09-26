@@ -1370,6 +1370,7 @@
     "tool_list_coding_threads": "List a project's threads with run and goal state",
     "tool_get_project_state": "Read a project's cached roadmap state",
     "tool_read_coding_thread": "Read the latest messages of a coding thread",
+    "tool_start_project_task": "Start a roadmap task in a new coding thread (asks first)",
     "browser_tools_title": "Built-in browser",
     "browser_tools_desc": "Let the agent open pages, fill forms, and scrape data in an embedded browser",
     "browser_back": "Back",

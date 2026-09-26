@@ -176,13 +176,126 @@ void main() {
     expect(empty['roadmap'], isNull);
   });
 
+  group('start_project_task', () {
+    final verified = RoadmapSnapshot(
+      projectId: 'alpha',
+      roadmapPath: 'docs/roadmap.md',
+      contentSha256: 'sha',
+      extractorVersion: 1,
+      model: 'm',
+      extractedAt: _t,
+      status: RoadmapSnapshotStatus.verified,
+      recommended: const RoadmapItemSnapshot(
+        id: 'RC1',
+        title: 'Evidence',
+        quote: 'next slice: RC1',
+        line: 97,
+      ),
+      current: const [
+        RoadmapItemSnapshot(id: 'F5', title: 'Split', quote: 'F5', line: 3),
+        RoadmapItemSnapshot(
+          id: 'SEC1',
+          title: 'Perimeter',
+          quote: 'SEC1',
+          verified: false,
+        ),
+      ],
+    );
+    late List<String> started;
+    late bool approve;
+
+    WorkspaceControlTools starter({RoadmapSnapshot? snapshot}) =>
+        WorkspaceControlTools(
+          projects: () => [_project('alpha')],
+          conversations: () => conversations,
+          snapshotFor: (_) => snapshot ?? verified,
+          isBusy: (_) => false,
+          needsApproval: (_) => false,
+          callerConversationId: () => caller,
+          startTask:
+              ({required project, required item, required roadmapPath}) async {
+                if (!approve) return null;
+                started.add('${project.id}:${item.id}:$roadmapPath');
+                return 'new-thread';
+              },
+        );
+
+    setUp(() {
+      started = [];
+      approve = true;
+    });
+
+    test('is offered only when a starter is wired', () {
+      expect(tools().toolNames, isNot(contains('start_project_task')));
+      expect(starter().toolNames, contains('start_project_task'));
+    });
+
+    test('starts the verified next task from a chat thread', () async {
+      final payload = await call(
+        starter(),
+        WorkspaceControlTools.startProjectTask,
+        {'project_id': 'alpha'},
+      );
+      expect(payload['thread_id'], 'new-thread');
+      expect(started, ['alpha:RC1:docs/roadmap.md']);
+    });
+
+    test('starts a verified in-progress item by id', () async {
+      await call(starter(), WorkspaceControlTools.startProjectTask, {
+        'project_id': 'alpha',
+        'task_id': 'F5',
+      });
+      expect(started, ['alpha:F5:docs/roadmap.md']);
+    });
+
+    test('refuses unverified or unknown items and coding callers', () async {
+      final subject = starter();
+      for (final taskId in ['SEC1', 'MADE-UP']) {
+        final result = await subject.execute(
+          WorkspaceControlTools.startProjectTask,
+          {'project_id': 'alpha', 'task_id': taskId},
+        );
+        expect(result.isSuccess, isFalse, reason: taskId);
+      }
+      final unverified =
+          await starter(
+            snapshot: verified.copyWith(
+              status: RoadmapSnapshotStatus.unverified,
+            ),
+          ).execute(WorkspaceControlTools.startProjectTask, {
+            'project_id': 'alpha',
+          });
+      expect(unverified.isSuccess, isFalse);
+
+      caller = 'a1';
+      final fromCoding = await subject.execute(
+        WorkspaceControlTools.startProjectTask,
+        {'project_id': 'alpha'},
+      );
+      expect(fromCoding.isSuccess, isFalse);
+      expect(started, isEmpty);
+    });
+
+    test('reports a declined approval without starting', () async {
+      approve = false;
+      final result = await starter().execute(
+        WorkspaceControlTools.startProjectTask,
+        {'project_id': 'alpha'},
+      );
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('declined'));
+    });
+  });
+
   test('McpToolService offers and dispatches the extension', () async {
-    final service = McpToolService(builtInExtensions: [tools()]);
+    final extension = tools();
+    final service = McpToolService(builtInExtensions: [extension]);
     final names = service
         .getOpenAiToolDefinitions()
         .map((tool) => (tool['function'] as Map)['name'])
         .toSet();
-    expect(names, containsAll(WorkspaceControlTools.names));
+    expect(names, containsAll(extension.toolNames));
+    expect(names, isNot(contains('start_project_task')));
 
     final result = await service.executeTool(
       name: WorkspaceControlTools.listProjects,

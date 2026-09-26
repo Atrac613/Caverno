@@ -3,12 +3,14 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../chat/data/datasources/chat_datasource.dart';
+import '../../../chat/domain/entities/chat_turn_owner.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../../chat/presentation/providers/turn_thread_scope.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../application/project_task_starter.dart';
 import '../../application/roadmap_snapshot_service.dart';
 import '../../application/workspace_control_tools.dart';
 import '../../data/roadmap_snapshot_repository.dart';
@@ -111,5 +113,34 @@ final workspaceControlToolsProvider = Provider<WorkspaceControlTools>((ref) {
         .read(chatNotifierProvider.notifier)
         .isConversationAwaitingApproval(id),
     callerConversationId: () => TurnThread.currentId,
+    startTask: ({required project, required item, required roadmapPath}) async {
+      final callerId = TurnThread.currentId;
+      final generation = TurnGeneration.current;
+      if (callerId == null || generation == null) return null;
+      final objective = projectTaskObjective(item, roadmapPath);
+      // Fresh approval every time, never cached: starting work in another
+      // thread is the user's call (docs/project_farm_roadmap.md, invariant 1).
+      final approved = await ref
+          .read(chatNotifierProvider.notifier)
+          .requestFileOperation(
+            owner: ChatTurnOwner(
+              conversationId: callerId,
+              interactionGeneration: generation,
+            ),
+            operation: 'Start Project Task',
+            path: project.rootPath,
+            preview: objective,
+            reason:
+                'Creates a coding thread in ${project.name} with this '
+                'goal. Nothing is sent until you open it.',
+          );
+      if (!approved) return null;
+      return startProjectTask(
+        conversations: ref.read(conversationsNotifierProvider.notifier),
+        projectId: project.id,
+        item: item,
+        roadmapPath: roadmapPath,
+      );
+    },
   );
 });

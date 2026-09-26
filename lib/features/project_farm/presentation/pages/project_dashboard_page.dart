@@ -83,17 +83,16 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
     });
   }
 
-  Future<void> _startWork(RoadmapSnapshot snapshot) async {
+  void _startWork(RoadmapSnapshot snapshot) {
     final item = snapshot.recommended;
     if (item == null) return;
-    final conversationId = await startProjectTask(
+    final conversationId = startProjectTask(
       conversations: ref.read(conversationsNotifierProvider.notifier),
-      readConversations: () => ref.read(conversationsNotifierProvider),
       projectId: widget.projectId,
       item: item,
       roadmapPath: snapshot.roadmapPath,
     );
-    if (!mounted || conversationId == null) return;
+    // The drawer selects the returned thread, which opens it.
     Navigator.of(context).pop(conversationId);
   }
 
