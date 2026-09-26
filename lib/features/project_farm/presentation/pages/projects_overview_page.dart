@@ -180,6 +180,13 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
                       .length,
                   onOpenDashboard: () => _openDashboard(project),
                   proposal: _proposalFor(project.id),
+                  proposalStale: proposalIsStale(
+                    _proposalFor(project.id),
+                    snapshot: _snapshotFor(project.id),
+                    goalCompletions: [
+                      for (final thread in threads) ?thread.goal?.completedAt,
+                    ],
+                  ),
                   onStartWork: (snapshot, item) =>
                       _startWork(project, snapshot, item),
                 );
@@ -201,11 +208,15 @@ class ProjectOverviewTile extends StatelessWidget {
     required this.onOpenDashboard,
     required this.onStartWork,
     this.proposal,
+    this.proposalStale = false,
   });
 
   final CodingProject project;
   final RoadmapSnapshot? snapshot;
   final ProjectProposal? proposal;
+
+  /// Something the proposal was based on changed since; Refresh all updates it.
+  final bool proposalStale;
   final bool refreshing;
   final int running;
   final int needsApproval;
@@ -274,6 +285,14 @@ class ProjectOverviewTile extends StatelessWidget {
                                   .tr(),
                             ),
                           ),
+                          if (proposalStale)
+                            Chip(
+                              key: ValueKey(
+                                'projects-overview-${project.id}-stale',
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              label: Text('project_overview.stale'.tr()),
+                            ),
                           Text(
                             'project_overview.proposal'.tr(
                               args: [proposed.taskId, proposed.rationale],
@@ -334,4 +353,20 @@ RoadmapItemSnapshot? startableItem(
     if (match != null) return match;
   }
   return verifiedNext;
+}
+
+/// Whether [proposal] predates a change it depends on: a newer roadmap
+/// snapshot, or a thread in the project that finished its goal since.
+///
+/// Deliberately a flag, not a trigger: recomputing after every finished goal
+/// would put a model call behind each turn on a local GPU. The user refreshes.
+bool proposalIsStale(
+  ProjectProposal? proposal, {
+  required RoadmapSnapshot? snapshot,
+  required Iterable<DateTime> goalCompletions,
+}) {
+  if (proposal == null) return false;
+  final at = proposal.proposedAt;
+  if (snapshot != null && snapshot.extractedAt.isAfter(at)) return true;
+  return goalCompletions.any((completedAt) => completedAt.isAfter(at));
 }

@@ -1947,6 +1947,7 @@
     "not_read": "Roadmap not read yet. Refresh or open the dashboard.",
     "thread_counts": "{} running · {} need approval",
     "proposal": "Proposed: {} — {}",
+    "stale": "Out of date",
     "automatability": {
       "unattended": "Can run unattended",
       "needsHuman": "Needs you"

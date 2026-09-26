@@ -143,4 +143,51 @@ void main() {
       findsOneWidget,
     );
   });
+
+  group('proposalIsStale', () {
+    final proposal = ProjectProposal(
+      projectId: 'p1',
+      inputHash: 'h',
+      proposedAt: _t,
+    );
+    final later = _t.add(const Duration(minutes: 5));
+    final earlier = _t.subtract(const Duration(minutes: 5));
+
+    test('flags a newer roadmap read or a goal finished since', () {
+      final snapshot = _snapshot(RoadmapSnapshotStatus.verified);
+      expect(
+        proposalIsStale(
+          proposal,
+          snapshot: snapshot.copyWith(extractedAt: later),
+          goalCompletions: const [],
+        ),
+        isTrue,
+      );
+      expect(
+        proposalIsStale(
+          proposal,
+          snapshot: snapshot.copyWith(extractedAt: earlier),
+          goalCompletions: [later],
+        ),
+        isTrue,
+      );
+    });
+
+    test('keeps a proposal newer than both current', () {
+      expect(
+        proposalIsStale(
+          proposal,
+          snapshot: _snapshot(
+            RoadmapSnapshotStatus.verified,
+          ).copyWith(extractedAt: earlier),
+          goalCompletions: [earlier],
+        ),
+        isFalse,
+      );
+      expect(
+        proposalIsStale(null, snapshot: null, goalCompletions: [later]),
+        isFalse,
+      );
+    });
+  });
 }

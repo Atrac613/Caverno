@@ -555,20 +555,77 @@ Progress:
 
 ### FARM4: Background Execution
 
-Status: `later`
+Status: `next`. The design below was drafted 2026-09-26 and needs the user's
+review before any code.
 
-Scope:
-- Execution on the substrate that spike B selects.
-- Concurrency limits derived from inference capacity, workspace leases, and
-  budgets.
-- Results end as branches ready for review.
+Scope: run a started task in the background on an LL13 worktree agent. The
+result is a branch ready for review, and the user decides what happens to it.
+The trigger is still a person: FARM4 changes **where** work runs, not **who**
+decides to run it.
 
-Acceptance criteria:
-- Two projects run at once with no crossed prompts or tool results. The
-  multi-thread live canary is extended to prove it.
+**Design.**
+
+1. **A project policy, declared by the user.** Before anything runs, a
+   per-project record sets:
+   - which verification commands are allowed, as exact argv, for example
+     `tool/flutter_test_quiet.sh` and `fvm flutter analyze`;
+   - a concurrency limit of 1 by default;
+   - which worktree root to use.
+
+   Caverno stores the policy, the settings page edits it, and a model never
+   writes it. With no policy, FARM4 is unavailable for that project
+   (invariant 2).
+2. **Run in background.** The action sits next to Start work and is offered
+   only when all of these hold:
+   - the proposal is labeled `unattended`;
+   - the task is a verified next or in-progress item;
+   - the project has a policy.
+
+   It opens an approval sheet showing the task, the goal, the one
+   verification command chosen from the policy, the worktree, and the branch
+   name. Approving enqueues an LL13 task through `WorktreeAgentTaskLauncher`.
+   Refusing leaves Start work as the manual path.
+3. **Execution** reuses the existing LL13 route unchanged:
+   - `WorktreeAgentScopedToolDispatcher`, which gives file tools only;
+   - the declared verification command, through
+     `WorktreeAgentVerificationRunner`;
+   - `WorktreeAgentExecutionEvidenceRecorder`, which records the changed files.
+4. **Results** appear on the dashboard and in the overview as
+   `running`, `verified-green`, `failed`, or `needs recovery`, with the branch
+   and the changed files. Nothing merges automatically (invariant 8). The user
+   reviews the branch and merges or discards it.
+5. **Concurrency.**
+   - At most one background task per project and a global cap that follows
+     the inference capacity (LL20 slots and the LL8 mesh).
+   - Workspace leases keep a background task and a foreground thread from
+     editing the same worktree.
+   - A second request queues. It is never dropped.
+6. **Taint (invariant 4).** A task started from a proposal carries the taint
+   of the turn that produced the proposal. If untrusted content influenced
+   that turn, the approval sheet says so and background execution is refused:
+   only Start work is offered.
+7. **Cancellation.** Stopping a background task cancels only its own run and
+   leaves its worktree for inspection, following LL13's recovery behavior.
+
+**Slices.**
+- **4a.** The project policy entity, its repository, and a settings page. No
+  execution.
+- **4b.** Run in background through LL13, with approval, one per project,
+  and a results surface.
+- **4c.** The global concurrency cap and queueing across projects, then a
+  two-project live canary proving that prompts and tool results never cross
+  (extending the multi-thread canary).
+
+**Acceptance criteria.**
+- With no policy, or with a `needsHuman` proposal, no background action is
+  offered.
+- A verification command outside the policy is rejected before it runs.
+- Two projects run at once with no crossed prompts or tool results.
 - Cancelling reaches only its own work.
+- Every background run appears in the approval audit with its task, command,
+  and branch.
 
-Dependencies: FARM0 spike B, FARM2.
+Dependencies: FARM3, and the user's review of this design.
 
 ### FARM5: Bounded Autonomous Operation
 
