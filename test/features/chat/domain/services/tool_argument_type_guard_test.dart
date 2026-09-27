@@ -15,28 +15,67 @@ void main() {
   ToolCallInfo call(Map<String, dynamic> arguments) =>
       ToolCallInfo(id: 'call_1', name: 'write_file', arguments: arguments);
 
-  test('rejects a JSON object passed as write_file content', () {
+  test('serializes JSON object content for write_file', () {
     // Session e3a9f3f0: config.json content sent as an object, twice.
-    final result = guard
-        .check(
-          call({
-            'path': 'config.json',
-            'content': {'webhook_url': 'https://example.invalid', 'limit': 20},
-          }),
-          writeFileParameters,
-        )
-        .failure;
+    final original = call({
+      'path': 'config.json',
+      'content': {'webhook_url': 'https://example.invalid', 'limit': 20},
+    });
+    final checked = guard.check(original, writeFileParameters);
 
-    expect(result, isNotNull);
-    expect(result!.isSuccess, isFalse);
-    final payload = jsonDecode(result.result) as Map<String, dynamic>;
-    expect(payload['code'], ToolArgumentTypeGuard.code);
-    expect(payload['executed'], isFalse);
-    expect(payload['result_origin'], 'malformed');
-    expect(payload['argument'], 'content');
-    expect(payload['expected'], 'string');
-    expect(payload['received'], 'a JSON object');
-    expect(payload['error'], contains('serialized JSON text'));
+    expect(checked.failure, isNull);
+    expect(checked.toolCall.id, original.id);
+    expect(jsonDecode(checked.toolCall.arguments['content'] as String), {
+      'webhook_url': 'https://example.invalid',
+      'limit': 20,
+    });
+    expect(original.arguments['content'], isA<Map>());
+  });
+
+  test('serializes JSON array content for write_file', () {
+    final checked = guard.check(
+      call({
+        'path': 'CONFIG.JSON',
+        'content': [
+          1,
+          {'enabled': true},
+        ],
+      }),
+      writeFileParameters,
+    );
+
+    expect(checked.failure, isNull);
+    expect(jsonDecode(checked.toolCall.arguments['content'] as String), [
+      1,
+      {'enabled': true},
+    ]);
+  });
+
+  test('rejects structured content for non-JSON files and other tools', () {
+    for (final path in ['config.yaml', 'script.py', 'config.jsonl']) {
+      final result = guard.check(
+        call({
+          'path': path,
+          'content': {'limit': 20},
+        }),
+        writeFileParameters,
+      );
+      expect(result.failure, isNotNull, reason: path);
+      final payload =
+          jsonDecode(result.failure!.result) as Map<String, dynamic>;
+      expect(payload['code'], ToolArgumentTypeGuard.code);
+      expect(payload['executed'], isFalse);
+    }
+
+    final otherTool = ToolCallInfo(
+      id: 'call_2',
+      name: 'edit_file',
+      arguments: const {
+        'path': 'config.json',
+        'content': {'limit': 20},
+      },
+    );
+    expect(guard.check(otherTool, writeFileParameters).failure, isNotNull);
   });
 
   test('rejects a string that is not the JSON text of the declared type', () {

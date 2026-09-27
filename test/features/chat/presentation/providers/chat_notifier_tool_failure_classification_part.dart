@@ -260,7 +260,7 @@ void registerChatNotifierToolFailureClassificationTests() {
   });
 
   test(
-    'mistyped write_file content comes back as a tool result, not a dispatch error',
+    'JSON object write_file content is serialized before dispatch and produces a successful tool result',
     () async {
       final projectRoot = await Directory.systemTemp.createTemp(
         'caverno_tool_argument_type_',
@@ -273,9 +273,8 @@ void registerChatNotifierToolFailureClassificationTests() {
         createdAt: DateTime(2026, 9, 26),
         updatedAt: DateTime(2026, 9, 26),
       );
-      // Copied from session e3a9f3f0, where it ended two turns. The type
-      // guard in the dispatcher never saw the call: a guard ahead of dispatch
-      // resolved the write_file arguments first, and its cast threw.
+      // Copied from session e3a9f3f0, where the model repeated the same
+      // structured content and never created config.json.
       final writeConfig = ToolCallInfo(
         id: 'call_71f702ab592a401dbe389cf7',
         name: 'write_file',
@@ -293,7 +292,7 @@ void registerChatNotifierToolFailureClassificationTests() {
         initialToolCalls: [writeConfig],
         toolLoopResponses: [
           ChatCompletionResult(
-            content: 'The write was rejected before it ran.',
+            content: 'The write completed.',
             finishReason: 'stop',
           ),
         ],
@@ -350,15 +349,18 @@ void registerChatNotifierToolFailureClassificationTests() {
       final notifier = container.read(chatNotifierProvider.notifier);
       await notifier.sendMessage('Create config.json');
 
-      expect(toolService.executedToolNames, isNot(contains('write_file')));
-      final rejected = dataSource.toolResultBatches
+      expect(toolService.executedToolNames, contains('write_file'));
+      final dispatched = toolService.executedToolArguments.single;
+      expect(dispatched['path'], endsWith('/config.json'));
+      expect(dispatched['content'], isA<String>());
+      expect(
+        jsonDecode(dispatched['content'] as String),
+        writeConfig.arguments['content'],
+      );
+      final completed = dataSource.toolResultBatches
           .expand((batch) => batch)
           .singleWhere((result) => result.id == writeConfig.id);
-      final payload = jsonDecode(rejected.result) as Map<String, dynamic>;
-      expect(payload['code'], 'invalid_tool_argument_type');
-      expect(payload['argument'], 'content');
-      expect(payload['received'], 'a JSON object');
-      expect(payload['executed'], isFalse);
+      expect(completed.result, contains('"ok":true'));
       expect(
         notifier.state.messages.last.content,
         isNot(contains('[Tool dispatch error')),

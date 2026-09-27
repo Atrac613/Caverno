@@ -5,7 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 
-/// The call to dispatch, with arguments decoded where that was lossless, or
+/// The call to dispatch, with arguments normalized where that was lossless, or
 /// the failure to return instead of dispatching.
 final class ToolArgumentCheck {
   const ToolArgumentCheck._(this.toolCall, this.failure);
@@ -20,8 +20,8 @@ final class ToolArgumentCheck {
 /// Handlers read arguments with casts such as `arguments['content'] as
 /// String?`, and a thrown cast ends the whole turn with the call unexecuted.
 /// In session e3a9f3f0 a model passed `write_file` a JSON object as `content`
-/// for a config.json twice; each attempt ended the turn and the file was never
-/// written.
+/// for a config.json twice. JSON file content can be serialized before any
+/// policy or approval sees the call; other file types still require text.
 ///
 /// A string that is exactly the JSON text of the declared type is decoded:
 /// the model's tool-call serializer sometimes stringifies nested values, and
@@ -65,7 +65,9 @@ final class ToolArgumentTypeGuard {
       if (expected.isEmpty || expected.any((type) => _matches(type, value))) {
         continue;
       }
-      final replacement = value is String ? _decode(value, expected) : null;
+      final replacement = value is String
+          ? _decode(value, expected)
+          : _encodeJsonWriteContent(toolCall, entry.key, value, expected);
       if (replacement == null) {
         return ToolArgumentCheck._(
           toolCall,
@@ -94,6 +96,29 @@ final class ToolArgumentTypeGuard {
     final List<Object?> many => [...many.whereType<String>()],
     _ => const [],
   };
+
+  static String? _encodeJsonWriteContent(
+    ToolCallInfo toolCall,
+    String argument,
+    Object value,
+    List<String> expected,
+  ) {
+    if (toolCall.name != 'write_file' ||
+        argument != 'content' ||
+        !expected.contains('string') ||
+        (value is! Map && value is! List)) {
+      return null;
+    }
+    final path = toolCall.arguments['path'];
+    if (path is! String || !path.toLowerCase().endsWith('.json')) {
+      return null;
+    }
+    try {
+      return jsonEncode(value);
+    } on JsonUnsupportedObjectError {
+      return null;
+    }
+  }
 
   static bool _matches(String type, Object value) => switch (type) {
     'string' => value is String,
