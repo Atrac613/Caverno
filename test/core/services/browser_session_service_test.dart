@@ -7,6 +7,19 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('BrowserSessionService', () {
+    test('closing the desktop window clears an idle browser session', () {
+      final service = BrowserSessionService();
+      service.updateEnabled(true);
+      service.open();
+      service.handleLoadStart('https://example.com/previous');
+
+      service.closePanelWhenIdle();
+
+      expect(service.isPanelOpen, isFalse);
+      expect(service.currentUrl, isNull);
+      expect(service.shouldShowPanel, isFalse);
+    });
+
     test('preserves Unicode filenames when resolving save targets', () async {
       final directory = Directory.systemTemp.createTempSync(
         'browser_save_target_',

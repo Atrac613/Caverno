@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/services/attachment_storage_service.dart';
+import 'core/services/browser_session_service.dart';
 import 'core/services/caverno_app_exit_handler.dart';
 import 'core/services/crashlytics_service.dart';
 import 'core/services/login_shell_environment.dart';
@@ -355,6 +356,11 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (Platform.isMacOS) {
+      widget.windowManagerService?.onWindowBackgrounded = () {
+        ref.read(browserSessionServiceProvider).closePanelWhenIdle();
+      };
+    }
     _appMenuService = ref.read(macosAppMenuServiceProvider);
     _appMenuService.setHandlers(
       onOpenSettings: _handleOpenSettings,
@@ -371,6 +377,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    widget.windowManagerService?.onWindowBackgrounded = null;
     _appMenuService.clear();
     widget.windowManagerService?.dispose();
     WidgetsBinding.instance.removeObserver(this);

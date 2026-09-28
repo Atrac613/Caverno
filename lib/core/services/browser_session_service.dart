@@ -191,6 +191,8 @@ class BrowserSessionService extends ChangeNotifier {
   bool _canGoBack = false;
   bool _canGoForward = false;
   Uri? _localPreviewOrigin;
+  int _activeActions = 0;
+  bool _closeWhenIdle = false;
 
   /// Default cap on elements returned by [snapshot] to keep results compact.
   static const int _defaultSnapshotElements = 80;
@@ -416,8 +418,12 @@ class BrowserSessionService extends ChangeNotifier {
   }
 
   String closePanel() {
+    _closeWhenIdle = false;
     final hadPreview = _localPreviewOrigin != null;
     _localPreviewOrigin = null;
+    _currentUrl = null;
+    _pageTitle = null;
+    _lastError = null;
     unawaited(_stopMediationProxy());
     if (_isPanelOpen) {
       _isPanelOpen = false;
@@ -429,6 +435,16 @@ class BrowserSessionService extends ChangeNotifier {
       notifyListeners();
     }
     return jsonEncode({'ok': true, 'closed': true});
+  }
+
+  /// Hide a browser left open when the desktop window closes. Let an action
+  /// already using its WebView finish before unmounting the controller.
+  void closePanelWhenIdle() {
+    if (_activeActions > 0) {
+      _closeWhenIdle = true;
+      return;
+    }
+    closePanel();
   }
 
   /// Opens the built-in browser onto a loopback HTML preview started by the
@@ -908,6 +924,7 @@ class BrowserSessionService extends ChangeNotifier {
 
   /// Runs an action with uniform error handling, returning a JSON envelope.
   Future<String> _guard(String tool, Future<String> Function() body) async {
+    _activeActions++;
     try {
       return await body();
     } on BrowserUnavailableException {
@@ -923,6 +940,11 @@ class BrowserSessionService extends ChangeNotifier {
     } catch (error) {
       appLog('[BrowserSessionService] $tool error: $error');
       return _error('browser_error', error.toString());
+    } finally {
+      _activeActions--;
+      if (_activeActions == 0 && _closeWhenIdle) {
+        closePanel();
+      }
     }
   }
 
