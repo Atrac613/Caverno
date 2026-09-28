@@ -146,6 +146,36 @@ void main() {
     );
   });
 
+  test('the parent may search tools while an assumption blocks', () async {
+    var asked = 0;
+    final chain = TurnToolPolicyChain(
+      executingRole: ModelUsageRole.anabasisParent,
+      assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
+        currentSpec: _blockedSpec,
+        requestConfirmation:
+            ({required item, required itemText, required toolName}) async {
+              asked++;
+              return false;
+            },
+        persist: (_) async {},
+      ),
+    );
+
+    expect(
+      await chain.evaluate(
+        ToolCallInfo(
+          id: 'call-search',
+          name: 'tool_search',
+          arguments: const {'query': 'inspect workflow status'},
+        ),
+        workspaceMode: WorkspaceMode.coding,
+      ),
+      isNull,
+    );
+    expect(asked, 0);
+  });
+
   test('delegation passes both policies', () async {
     final chain = TurnToolPolicyChain(
       executingRole: ModelUsageRole.anabasisParent,

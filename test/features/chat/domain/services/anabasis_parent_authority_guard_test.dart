@@ -79,6 +79,21 @@ void main() {
       }
     });
 
+    test('tool search is allowed as read-only catalog inspection', () {
+      final call = _call('tool_search', {'query': 'inspect workflow status'});
+      expect(
+        const ToolCapabilityClassifier()
+            .classify(call.name, arguments: call.arguments)
+            .commandEffect,
+        ToolCommandEffect.unknown,
+        reason: 'The explicit parent exception covers this meta tool only.',
+      );
+      expect(
+        _guard.evaluate(call, executingRole: ModelUsageRole.anabasisParent),
+        isNull,
+      );
+    });
+
     test('delegation is allowed, and is the only route to effect', () {
       expect(
         _guard.evaluate(
