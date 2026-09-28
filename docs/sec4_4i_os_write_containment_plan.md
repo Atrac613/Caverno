@@ -1,6 +1,8 @@
 # SEC4.4i OS-Enforced Write Containment (plan)
 
-Status: 4i-a implemented 2026-09-24 (opt-in observe mode). 4i-b onward planned.
+Status: 4i-a implemented 2026-09-24 (opt-in observe mode). A narrow macOS
+foreground Python containment route is implemented; general 4i-b onward remains
+planned.
 
 ## Why
 
@@ -97,6 +99,23 @@ inside an app sandbox.
   fresh approval.
 
 ## Slices
+
+### Foreground Python route
+
+Direct `python`/`python3` commands, including a leading `cd ... &&`, can use
+the ordinary Coding approval gate when a macOS `sandbox-exec` launcher and an
+active project root are available. Their shell and child processes run with
+project and per-command temporary writes only; Git metadata, Apple Events,
+Mach services, and network access are denied. A literal out-of-project path,
+background execution, another platform, or an unavailable launcher retains
+the fresh host-write approval. If containment setup fails after gate selection,
+execution fails closed. This route does not relax approvals for other shell
+commands or for the general `run_tests` and `process_start` paths.
+
+The Python route can break scripts that need host caches, network access, or
+service helpers. Those commands require a separate, explicitly approved host
+execution path. The broader OS containment plan below still requires its
+service-escape and release-gate work before other command families are relaxed.
 
 1. **4i-a Launcher, observe-only, no gate change.** Approved native-shell
    commands, except the nested-toolchain set, run under a reporting profile

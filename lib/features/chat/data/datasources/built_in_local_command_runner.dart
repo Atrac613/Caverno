@@ -12,6 +12,7 @@ typedef BuiltInLocalCommandResultRunner =
       required String command,
       required String workingDirectory,
       String? observationRoot,
+      String? containmentRoot,
     });
 
 BuiltInLocalCommandResultRunner resolveBuiltInLocalCommandResultRunner({
@@ -25,9 +26,20 @@ BuiltInLocalCommandResultRunner resolveBuiltInLocalCommandResultRunner({
             required command,
             required workingDirectory,
             observationRoot,
-          }) async => FirstPartyToolExecutionResult.payloadOnly(
-            await legacyRunner(
-              command: command,
-              workingDirectory: workingDirectory,
-            ),
-          ));
+            containmentRoot,
+          }) async {
+            if (containmentRoot != null) {
+              const error = 'Legacy command runners cannot contain Python';
+              return const FirstPartyToolExecutionResult(
+                result:
+                    '{"ok":false,"error":"Legacy command runners cannot contain Python"}',
+                errorMessage: error,
+              );
+            }
+            return FirstPartyToolExecutionResult.payloadOnly(
+              await legacyRunner(
+                command: command,
+                workingDirectory: workingDirectory,
+              ),
+            );
+          });

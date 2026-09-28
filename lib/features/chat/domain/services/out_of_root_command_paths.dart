@@ -185,6 +185,7 @@ final class LocalCommandApprovalScope {
     required String command,
     required String? projectRoot,
     required bool reachesNativeShell,
+    bool hostWriteContained = false,
     required bool Function(String command) commandShapeRequiresApproval,
   }) {
     final paths = const OutOfRootCommandPaths().scan(
@@ -192,7 +193,9 @@ final class LocalCommandApprovalScope {
       projectRoot: projectRoot,
     );
     final requiresHostWriteApproval =
-        (projectRoot?.trim().isNotEmpty ?? false) && reachesNativeShell;
+        (projectRoot?.trim().isNotEmpty ?? false) &&
+        reachesNativeShell &&
+        !hostWriteContained;
     return LocalCommandApprovalScope._(
       outOfRootPaths: paths,
       requiresExplicitApproval:

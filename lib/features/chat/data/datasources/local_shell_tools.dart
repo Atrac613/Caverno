@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/services/login_shell_environment.dart';
@@ -10,6 +11,7 @@ import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
 import 'local_command_mutation_guard.dart';
 import 'local_shell_grep.dart';
+import 'local_shell_launch_plan.dart';
 import 'project_mutation_path_fence.dart';
 import 'project_read_path_fence.dart';
 import 'shell_write_observation.dart';
@@ -157,6 +159,7 @@ class LocalShellTools {
     Duration timeout = _timeout,
     String? projectRoot,
     String? observationRoot,
+    String? containmentRoot,
   }) async {
     final authorized = await _authorizeMutation(
       command: command,
@@ -207,20 +210,29 @@ class LocalShellTools {
             normalizedCommand,
           ];
 
-    final observed = ShellWriteObservation.wrap(
+    final launch = await LocalShellLaunchPlan.prepare(
       command: normalizedCommand,
       shellExecutable: shellExecutable,
       shellArgs: shellArgs,
-      root: observationRoot,
+      observationRoot: observationRoot,
+      containmentRoot: containmentRoot,
     );
+    if (launch == null) {
+      const error = 'Python workspace containment could not be started';
+      return FirstPartyToolExecutionResult(
+        result: jsonEncode({'ok': false, 'error': error}),
+        errorMessage: error,
+      );
+    }
     try {
       return await _executeWithProcessHandle(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
-        shellExecutable: observed?.executable ?? shellExecutable,
-        shellArgs: observed?.args ?? shellArgs,
+        shellExecutable: launch.executable,
+        shellArgs: launch.args,
         timeout: timeout,
-        observationTag: observed?.tag,
+        observationTag: launch.observationTag,
+        scratchDirectory: launch.scratchDirectory,
       );
     } catch (e) {
       return FirstPartyToolExecutionResult.payloadOnly(
@@ -230,6 +242,8 @@ class LocalShellTools {
           'error': e.toString(),
         }),
       );
+    } finally {
+      await launch.dispose();
     }
   }
 
@@ -295,13 +309,17 @@ class LocalShellTools {
     required List<String> shellArgs,
     required Duration timeout,
     String? observationTag,
+    String? scratchDirectory,
   }) async {
     final process = await Process.start(
       shellExecutable,
       shellArgs,
       workingDirectory: workingDirectory,
       // Inject the login-shell PATH so user commands resolve their binaries.
-      environment: await LoginShellEnvironment.instance.environment(),
+      environment: {
+        ...await LoginShellEnvironment.instance.environment(),
+        'TMPDIR': ?scratchDirectory,
+      },
     );
     final stdout = _BoundedOutputBuffer(_maxOutputChars);
     final stderr = _BoundedOutputBuffer(_maxOutputChars);

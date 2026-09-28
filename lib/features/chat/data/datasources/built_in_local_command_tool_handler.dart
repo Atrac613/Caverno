@@ -1,4 +1,5 @@
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/local_command_tool_contract.dart';
@@ -141,6 +142,9 @@ class BuiltInLocalCommandToolHandler {
           command: command,
           workingDirectory: workingDirectory,
           observationRoot: args['allowed_read_root'] as String?,
+          containmentRoot: args['workspace_python_containment'] == true
+              ? args['allowed_read_root'] as String?
+              : null,
         );
         // A non-zero exit is the command's outcome, not a tool failure, so the
         // result stays successful and only carries the reported exit status.
@@ -163,13 +167,11 @@ class BuiltInLocalCommandToolHandler {
         return McpToolResultNormalizer.structuredFailure(
           toolName: name,
           payload: {
-            'error':
-                'run_tests must be executed through the chat command approval flow.',
+            'error': 'run_tests must be executed through the chat command approval flow.',
             'code': 'approval_required',
             ...ToolResultOrigin.refusal.marker,
           },
-          errorMessage:
-              'run_tests must be executed through the chat command approval flow',
+          errorMessage: 'run_tests must be executed through the chat command approval flow',
         );
     }
 

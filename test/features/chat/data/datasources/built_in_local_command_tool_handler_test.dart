@@ -356,11 +356,15 @@ void main() {
       // fact, so downstream consumers stop parsing stdout to find it.
       final handler = BuiltInLocalCommandToolHandler(
         foregroundCommandResultRunner:
-            ({required command, required workingDirectory, observationRoot}) async =>
-                const FirstPartyToolExecutionResult(
-                  result: '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
-                  outcome: ToolOutcome(exitCode: 2),
-                ),
+            ({
+              required command,
+              required workingDirectory,
+              observationRoot,
+              containmentRoot,
+            }) async => const FirstPartyToolExecutionResult(
+              result: '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
+              outcome: ToolOutcome(exitCode: 2),
+            ),
       );
 
       final result = await handler.execute(
@@ -377,11 +381,42 @@ void main() {
       expect(result.outcome?.hasFailingExitCode, isTrue);
     });
 
+    test('legacy runners cannot bypass requested Python containment', () async {
+      final root = await Directory.systemTemp.createTemp('legacy-python-');
+      addTearDown(() => root.delete(recursive: true));
+      var invoked = false;
+      final handler = BuiltInLocalCommandToolHandler(
+        foregroundCommandRunner:
+            ({required command, required workingDirectory}) async {
+              invoked = true;
+              return 'ran';
+            },
+      );
+
+      final result = await handler.execute(
+        owner: owner,
+        name: 'local_execute_command',
+        arguments: {
+          'command': 'python3 -c "print(1)"',
+          'working_directory': root.path,
+          'allowed_read_root': root.path,
+          'workspace_python_containment': true,
+        },
+      );
+
+      expect(invoked, isFalse);
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('cannot contain Python'));
+    });
+
     test('reports no exit status when the command never reached one', () async {
       final handler = BuiltInLocalCommandToolHandler(
         foregroundCommandRunner:
-            ({required command, required workingDirectory, observationRoot}) async =>
-                'command runner unavailable',
+            ({
+              required command,
+              required workingDirectory,
+              observationRoot,
+            }) async => 'command runner unavailable',
       );
 
       final result = await handler.execute(
@@ -662,7 +697,11 @@ void main() {
       final handler = BuiltInLocalCommandToolHandler(
         backgroundProcessTools: tools,
         foregroundCommandRunner:
-            ({required command, required workingDirectory, observationRoot}) async => failure,
+            ({
+              required command,
+              required workingDirectory,
+              observationRoot,
+            }) async => failure,
       );
       final calls = <(String, Map<String, dynamic>)>[
         (

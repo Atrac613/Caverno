@@ -3,9 +3,9 @@ import 'dart:convert';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../entities/mcp_tool_entity.dart';
+import 'local_command_execution_plan.dart';
 import 'local_command_tool_contract.dart';
 import 'local_command_working_directory.dart';
-import 'out_of_root_command_paths.dart';
 
 export 'local_command_tool_contract.dart';
 
@@ -47,18 +47,12 @@ final class LocalCommandToolHandler {
       return _outsideProjectFailure(request.toolName);
     }
 
-    final execution = LocalCommandExecutionRequest(
-      toolCallId: request.toolCallId,
-      toolName: request.toolName,
+    final plan = LocalCommandExecutionPlan.create(
+      request: request,
       command: command,
       workingDirectory: workingDirectory,
-      arguments: {
-        ...request.arguments,
-        'command': command,
-        'working_directory': workingDirectory,
-        'allowed_read_root': request.allowedWorkingDirectoryRoot,
-      },
     );
+    final execution = plan.execution;
     final ruleRequest = CommandPermissionRuleRequest(
       command: command,
       workingDirectory: workingDirectory,
@@ -70,15 +64,7 @@ final class LocalCommandToolHandler {
       request.owner,
       ruleRequest,
     );
-    final approvalScope = LocalCommandApprovalScope.of(
-      command: command,
-      projectRoot: request.allowedWorkingDirectoryRoot,
-      reachesNativeShell:
-          argumentIsTruthy(request.arguments['background']) ||
-          !LocalShellTools.isReadOnly(command),
-      commandShapeRequiresApproval:
-          LocalCommandPermissionService.requiresExplicitApproval,
-    );
+    final approvalScope = plan.approvalScope;
     final requiresExplicitApproval = approvalScope.requiresExplicitApproval;
     if (permission == CommandPermissionRuleDecision.deny) {
       return _failure(
