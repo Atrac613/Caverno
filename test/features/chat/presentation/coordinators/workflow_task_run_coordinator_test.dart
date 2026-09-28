@@ -192,6 +192,7 @@ class _ValidationChatNotifier extends ChatNotifier {
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
+    bool codeReview = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
     String? remoteDeviceId,
     bool interrupt = false,

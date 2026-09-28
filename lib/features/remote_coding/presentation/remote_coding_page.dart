@@ -603,6 +603,33 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
       );
     }
 
+    if (invocation.definition.promptTemplateId == 'review' ||
+        invocation.definition.action == SlashCommandAction.review) {
+      if (projectId == null) {
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_review_unavailable'.tr(),
+        );
+      }
+      final template = builtInSlashCommandPromptTemplates.firstWhere(
+        (template) => template.id == 'review',
+      );
+      final sent = await ref
+          .read(remoteCodingClientProvider.notifier)
+          .sendMessage(
+            template.expand(
+              args: invocation.args,
+              commandName: invocation.commandName,
+            ),
+            languageCode: context.locale.languageCode,
+            codeReview: true,
+          );
+      return sent
+          ? SlashCommandExecutionResult.handled
+          : SlashCommandExecutionResult.keepInput(
+              feedbackMessage: 'message.slash_command_failed'.tr(),
+            );
+    }
+
     final notifier = ref.read(remoteCodingClientProvider.notifier);
     final currentSettings = ref
         .read(remoteCodingClientProvider)

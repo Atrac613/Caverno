@@ -324,7 +324,43 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required Conversation? currentConversation,
     required ConversationsState conversationsState,
     required List<SlashCommandPromptTemplate> customPromptTemplates,
-  }) {
+  }) async {
+    if (isLoading && !invocation.definition.enabledWhileLoading) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_blocked_while_loading'.tr(),
+      );
+    }
+    if (invocation.definition.promptTemplateId == 'review' ||
+        invocation.definition.action == SlashCommandAction.review) {
+      final settings = ref.read(settingsNotifierProvider);
+      if (!isCodingWorkspace || activeProject == null) {
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_review_unavailable'.tr(),
+        );
+      }
+      if (!settings.hasCodeReviewRoute) {
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_review_not_configured'.tr(),
+        );
+      }
+      final template = builtInSlashCommandPromptTemplates.firstWhere(
+        (template) => template.id == 'review',
+      );
+      unawaited(
+        ref
+            .read(chatNotifierProvider.notifier)
+            .sendMessage(
+              template.expand(
+                args: invocation.args,
+                commandName: invocation.commandName,
+              ),
+              languageCode: context.locale.languageCode,
+              codeReview: true,
+              bypassPlanMode: true,
+            ),
+      );
+      return SlashCommandExecutionResult.handled;
+    }
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,

@@ -2350,6 +2350,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // message carries what steering cannot (see [_isSteerableMessage]); all
     // three fall back to the queue rather than dropping the message.
     bool interrupt = false,
+    bool codeReview = false,
   }) async {
     final hasBody = content.trim().isNotEmpty || imageBase64 != null;
     if (!hasBody && video == null) return null;
@@ -2385,6 +2386,7 @@ class ChatNotifier extends Notifier<ChatState> {
           ? remoteDeviceId?.trim()
           : null,
       conversationId: ownerConversationId,
+      codeReview: codeReview,
     );
     // Only when the user asked to interrupt. Queueing stays the default
     // because "run this after" is a different intent from "do this instead",
@@ -2648,6 +2650,7 @@ class ChatNotifier extends Notifier<ChatState> {
         owner: startedRuntime,
         conversation: currentConversation,
         bypassPlanMode: bypassPlanMode,
+        codeReview: queuedMessage.codeReview,
       );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return turnOwner;

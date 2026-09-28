@@ -720,6 +720,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     String content, {
     String languageCode = 'en',
     RemoteCodingAttachmentDraft? attachment,
+    bool codeReview = false,
   }) async {
     final attachmentId = await _uploadAttachment(attachment);
     if (attachment != null && attachmentId == null) return false;
@@ -728,6 +729,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     await _sendCommand('sendMessage', {
       'content': content,
       'languageCode': languageCode,
+      if (codeReview) 'codeReview': true,
       if (composerSettings != null) 'composer': composerSettings.toJson(),
       ...?attachmentId == null ? null : {'attachmentId': attachmentId},
     });

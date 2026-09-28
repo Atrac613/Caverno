@@ -52,6 +52,30 @@ void _runChatNotifierPrimaryModelRouting() {
     );
     expect(notifier.primaryRouteCountForTest(), 0);
   });
+
+  test('review turn uses its model and never falls back to primary', () async {
+    final primary = _RecordingDataSource(content: 'primary');
+    final assigned = _RecordingDataSource(
+      content: 'unused',
+      streamError: StateError('review endpoint unavailable'),
+    );
+    final container = _containerChatNotifierPrimaryModelRouting(
+      primary: primary,
+      assigned: assigned,
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(chatNotifierProvider.notifier);
+
+    final owner = await notifier.sendMessage(
+      'Review changes',
+      codeReview: true,
+    );
+    if (owner != null) await notifier.waitForTurnCompletion(owner);
+
+    expect(assigned.models, ['review-model']);
+    expect(primary.models, isEmpty);
+    expect(notifier.primaryRouteCountForTest(), 0);
+  });
 }
 
 ProviderContainer _containerChatNotifierPrimaryModelRouting({
@@ -91,6 +115,8 @@ final class _RoutingSettingsNotifier extends SettingsNotifier {
     model: 'main-model',
     codingPrimaryModel: 'quality-model',
     codingPrimaryEndpointId: 'quality-host',
+    codeReviewModel: 'review-model',
+    codeReviewEndpointId: 'quality-host',
     llmEndpoints: const [
       LlmEndpoint(
         id: 'quality-host',

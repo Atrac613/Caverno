@@ -1564,6 +1564,15 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
+    if (message.payload['codeReview'] == true &&
+        !ref.read(settingsNotifierProvider).hasCodeReviewRoute) {
+      client.sendError(
+        id: message.id,
+        code: 'review_route_unavailable',
+        message: 'Configure a code review endpoint and model in Model Routing.',
+      );
+      return;
+    }
     if (!await _applyComposerSettings(client, message)) return;
     final content = (message.payload['content'] as String?)?.trim() ?? '';
     final attachmentId = _attachmentId(message);
@@ -1631,9 +1640,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
-            bypassPlanMode: false,
+            bypassPlanMode: message.payload['codeReview'] == true,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
+            codeReview: message.payload['codeReview'] == true,
           ),
     );
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
@@ -1692,9 +1702,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
-            bypassPlanMode: false,
+            bypassPlanMode: message.payload['codeReview'] == true,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
+            codeReview: message.payload['codeReview'] == true,
           ),
     );
     client.send(

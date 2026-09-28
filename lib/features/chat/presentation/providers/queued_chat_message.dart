@@ -23,12 +23,14 @@ class QueuedChatMessage {
     this.origin = ChatInteractionOrigin.local,
     this.remoteDeviceId,
     this.conversationId,
+    this.codeReview = false,
   });
 
   /// The thread this message was typed in. A message queued behind another
   /// thread's turn must come back to its own thread, never to whichever one
   /// the user is looking at when the queue drains.
   final String? conversationId;
+  final bool codeReview;
   final String id;
   final String content;
   final String? modelContent;
@@ -63,7 +65,8 @@ class QueuedChatMessage {
             bypassPlanMode == other.bypassPlanMode &&
             origin == other.origin &&
             remoteDeviceId == other.remoteDeviceId &&
-            conversationId == other.conversationId;
+            conversationId == other.conversationId &&
+            codeReview == other.codeReview;
   }
 
   @override
@@ -83,5 +86,6 @@ class QueuedChatMessage {
     origin,
     remoteDeviceId,
     conversationId,
+    codeReview,
   );
 }

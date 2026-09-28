@@ -933,6 +933,8 @@ abstract class AppSettings with _$AppSettings {
     // Pro Reasoning coordinates multiple deliberation stages, so it can use a
     // dedicated model independently from ordinary chat and plan drafting.
     @Default('') String proReasoningModel,
+    // Primary tool-using turn started by /review.
+    @Default('') String codeReviewModel,
     // Reads `flutter run` output and turns failure blocks into issues. Kept
     // separate because it runs while an app is being exercised: it wants a
     // fast, cheap model, not whichever strong model the conversation uses.
@@ -946,6 +948,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String approvalAutoReviewEndpointId,
     @Default('') String planningEndpointId,
     @Default('') String proReasoningEndpointId,
+    @Default('') String codeReviewEndpointId,
     @Default('') String logAnalysisEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
@@ -1194,6 +1197,22 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveProReasoningModel =>
       _resolveRoleModel(proReasoningModel, proReasoningEndpointId);
+
+  String get effectiveCodeReviewModel =>
+      _resolveRoleModel(codeReviewModel, codeReviewEndpointId);
+
+  bool get hasCodeReviewRoute {
+    if (llmProvider != LlmProvider.openAiCompatible) return false;
+    final endpointId = codeReviewEndpointId.trim();
+    if (endpointId.isEmpty) return false;
+    for (final endpoint in enabledLlmEndpoints) {
+      if (endpoint.id == endpointId) {
+        return codeReviewModel.trim().isNotEmpty ||
+            endpoint.normalizedModel.isNotEmpty;
+      }
+    }
+    return false;
+  }
 
   String get effectiveLogAnalysisModel =>
       _resolveRoleModel(logAnalysisModel, logAnalysisEndpointId);

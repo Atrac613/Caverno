@@ -79,6 +79,7 @@ class ThreadScopedMessageQueue {
               bypassPlanMode: message.bypassPlanMode,
               origin: message.origin,
               conversationId: conversationId,
+              codeReview: message.codeReview,
             ),
     );
     return _turnOwnerReceiptFor(message.id);

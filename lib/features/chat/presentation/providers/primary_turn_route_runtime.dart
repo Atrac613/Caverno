@@ -20,6 +20,7 @@ final class PrimaryTurnRouteRuntime {
   Future<void> capture({
     required int generation,
     required AppSettings settings,
+    bool codeReview = false,
     required AssistantMode assistantMode,
     required ChatDataSource primaryDataSource,
     required EndpointHealthTracker health,
@@ -27,17 +28,36 @@ final class PrimaryTurnRouteRuntime {
     required PrimaryRouteModelPreparer preparer,
     required PrimaryRouteRecorder record,
   }) async {
+    final reviewEndpointId = settings.codeReviewEndpointId.trim();
+    if (codeReview && !settings.hasCodeReviewRoute) {
+      throw StateError(
+        'Configure a review endpoint and model in Model Routing.',
+      );
+    }
+    final routeSettings = codeReview
+        ? settings.copyWith(
+            generalPrimaryModel: settings.effectiveCodeReviewModel,
+            codingPrimaryModel: settings.effectiveCodeReviewModel,
+            planPrimaryModel: settings.effectiveCodeReviewModel,
+            generalPrimaryEndpointId: reviewEndpointId,
+            codingPrimaryEndpointId: reviewEndpointId,
+            planPrimaryEndpointId: reviewEndpointId,
+          )
+        : settings;
     final resolution = const PrimaryModelRouter().resolve(
       PrimaryRouteContext(
-        settings: settings,
+        settings: routeSettings,
         assistantMode: assistantMode,
         unhealthyEndpointIds: health.unhealthyEndpointIds,
       ),
     );
+    if (codeReview && resolution.isDemoted) {
+      throw StateError('The configured review endpoint is unavailable.');
+    }
     final assigned = resolution.endpoint.isPrimary
         ? primaryDataSource
         : buildAssignedDataSource(resolution.endpoint);
-    final dataSource = resolution.endpoint.isPrimary
+    final dataSource = resolution.endpoint.isPrimary || codeReview
         ? assigned
         : PrimaryRouteChatDataSource(
             assigned: assigned,
