@@ -4,6 +4,7 @@ import 'package:openai_dart/openai_dart.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/security/llm_endpoint_transport_policy.dart';
 import '../../domain/services/chat_request_thinking_policy.dart';
+import 'anthropic_messages_client.dart';
 import 'chat_request_policy_client.dart';
 import 'video_content_part_client.dart';
 
@@ -35,13 +36,16 @@ abstract final class ChatDataSourceClientFactory {
         acceptsChatTemplateKwargs: shape.acceptsChatTemplateKwargs,
       );
 
-  static http.Client wrap(http.Client delegate, ChatRequestShape shape) =>
-      VideoContentPartClient(
-        delegate: ChatRequestPolicyClient(
-          delegate: delegate,
-          policy: thinkingPolicy(shape),
-        ),
-      );
+  static http.Client wrap(
+    http.Client delegate,
+    ChatRequestShape shape, {
+    String? baseUrl,
+  }) => VideoContentPartClient(
+    delegate: ChatRequestPolicyClient(
+      delegate: AnthropicMessagesClient.wrapIfNeeded(delegate, baseUrl),
+      policy: thinkingPolicy(shape),
+    ),
+  );
 
   /// The validated, fully wrapped client the datasource talks through.
   ///
@@ -62,8 +66,11 @@ abstract final class ChatDataSourceClientFactory {
       apiKey: apiKey ?? ApiConstants.defaultApiKey,
     ),
     defaultHeaders: ApiConstants.userAgentHeaders,
-    httpClient: wrap(httpClient ?? http.Client(), shape),
-    streamClientFactory: () =>
-        wrap(streamClientFactory?.call() ?? http.Client(), shape),
+    httpClient: wrap(httpClient ?? http.Client(), shape, baseUrl: baseUrl),
+    streamClientFactory: () => wrap(
+      streamClientFactory?.call() ?? http.Client(),
+      shape,
+      baseUrl: baseUrl,
+    ),
   );
 }
