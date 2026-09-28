@@ -2,6 +2,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../entities/tool_call_info.dart';
 import 'immutable_json_snapshot.dart';
+import 'tool_terminal_success_policy.dart';
 
 // ChatNotifier decomposition collaborator: turn-finalization-recovery-policy
 
@@ -44,6 +45,22 @@ final class TurnFinalizationRecoveryInput {
 
 final class TurnFinalizationRecoveryPolicy {
   const TurnFinalizationRecoveryPolicy();
+
+  bool hasTerminalGoalSuccess(
+    List<ToolResultInfo> results, {
+    required bool hasSavedValidation,
+    required bool hasGitLifecycle,
+  }) =>
+      results.isNotEmpty &&
+      (results.any(
+            (result) =>
+                const ToolTerminalSuccessPolicy().terminalMessage(
+                  result.result,
+                ) !=
+                null,
+          ) ||
+          hasSavedValidation ||
+          hasGitLifecycle);
 
   bool shouldSkipCompletedToolResultFinalAnswerRecovery(
     TurnFinalizationRecoveryInput input,

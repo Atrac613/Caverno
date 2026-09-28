@@ -266,6 +266,30 @@ void main() {
     });
   });
 
+  test('detects visible delegation promises without reading reasoning', () {
+    expect(
+      _policy.looksLikeUnexecutedDelegation(
+        '<think>I will delegate this task.</think>\n'
+        '**タスク6を委任します。**',
+      ),
+      isTrue,
+    );
+    expect(
+      _policy.looksLikeUnexecutedDelegation(
+        '<think>I will delegate this task.</think>\n'
+        'Task 6 has not been delegated.',
+      ),
+      isFalse,
+    );
+    expect(
+      _policy.buildCodingContinuationRecoveryPrompt(
+        'タスク6を委任します。',
+        recoveryCode: 'unexecuted_delegation',
+      ),
+      contains('Call spawn_subagent now'),
+    );
+  });
+
   group('tool availability', () {
     test('recognizes every supported tool name after normalization', () {
       const supportedNames = {

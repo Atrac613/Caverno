@@ -23,15 +23,32 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
         !TurnFinalMessage.hasVisibleContent(lastMessage.content)) {
       return false;
     }
-    final candidateResponse = _turnFinalizationCandidateText(
-      lastMessage.content,
-      generation: generation,
-    );
+    final candidateResponse = const TurnFinalizationRecoveryPolicy()
+        .turnFinalizationCandidateText(
+          content: lastMessage.content,
+          streamedFinalAnswer:
+              _lastStreamedToolResultFinalAnswersByGeneration[generation],
+        );
     if (candidateResponse.isEmpty) return false;
-    if (_hasTerminalGoalSuccessToolResults(
-      _turnToolResults.completed(owner),
-      generation,
-    )) {
+    final completedResults = _turnToolResults.completed(owner);
+    final pendingDelegation = const TurnFinalizationDelegationRecovery()
+        .pending(
+          isParentTurn: _anabasisRoles.isParentTurn(generation),
+          response: candidateResponse,
+          completedResults: completedResults,
+        );
+    if (const TurnFinalizationRecoveryPolicy().hasTerminalGoalSuccess(
+          completedResults,
+          hasSavedValidation:
+              _toolResultsContainSuccessfulCurrentSavedValidation(
+                completedResults,
+                generation,
+              ),
+          hasGitLifecycle: _toolResultsSatisfyCurrentGoalGitLifecycle(
+            completedResults,
+          ),
+        ) &&
+        !pendingDelegation) {
       appLog(
         '[TurnFinalization] Skipping coding continuation recovery after terminal goal success',
       );
@@ -41,13 +58,13 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
         _shouldSkipCompletedToolResultFinalAnswerRecovery(
           generation: generation,
           candidateResponse: candidateResponse,
-          toolResults: _turnToolResults.completed(owner),
+          toolResults: completedResults,
         );
     _turnEnd.recordFinalAnswerRecoveryDecision(
       owner,
       shouldSkip: shouldSkipFinalAnswerRecovery,
     );
-    if (shouldSkipFinalAnswerRecovery) {
+    if (shouldSkipFinalAnswerRecovery && !pendingDelegation) {
       appLog(
         '[TurnFinalization] Skipping coding continuation recovery after completed tool-result final answer',
       );
@@ -57,22 +74,21 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     if (mcpToolService == null || !_settings.mcpEnabled) return false;
     final allTools = mcpToolService.getOpenAiToolDefinitions();
     if (allTools.isEmpty) return false;
-    final prefixStableToolLoop = _settings.enablePrefixStableToolLoop;
-    final toolSelection = prefixStableToolLoop
-        ? ToolDefinitionSearchSelection(
-            toolSearchEnabled: false,
-            toolDefinitions: allTools,
-            selectedToolNames:
-                ToolDefinitionSearchService.toolNamesFromDefinitions(allTools),
-          )
-        : ToolDefinitionSearchService.buildInitialSelection(allTools);
-    if (_codingContinuationRecoveryCode(
-          candidateResponse: candidateResponse,
-          tools: toolSelection.toolDefinitions,
-          interactionGeneration: generation,
-          requireContinuationRequest: false,
-        ) ==
-        null) {
+    final toolSelection = const TurnFinalizationDelegationRecovery()
+        .selectTools(
+          allTools: allTools,
+          prefixStable: _settings.enablePrefixStableToolLoop,
+          pendingDelegation: pendingDelegation,
+        );
+    final forcedRecoveryCode = toolSelection.forcedCode;
+    if (forcedRecoveryCode == null &&
+        _codingContinuationRecoveryCode(
+              candidateResponse: candidateResponse,
+              tools: toolSelection.tools,
+              interactionGeneration: generation,
+              requireContinuationRequest: false,
+            ) ==
+            null) {
       return false;
     }
 
@@ -80,25 +96,34 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     appLog('[TurnFinalization] Requesting recovery before saving response');
     final recoveryResult = await _requestCodingContinuationRecovery(
       candidateResponse: candidateResponse,
-      tools: toolSelection.toolDefinitions,
+      tools: toolSelection.tools,
       interactionGeneration: generation,
       requireContinuationRequest: false,
+      forcedRecoveryCode: forcedRecoveryCode,
     );
     if (!_isCurrentInteractionGeneration(generation)) return true;
     if (!ref.mounted || recoveryResult == null) return false;
     _recordHiddenEvidence(owner, candidateResponse);
     if (!recoveryResult.hasToolCalls) {
       _recordHiddenEvidence(owner, recoveryResult.content);
+      if (forcedRecoveryCode != null) {
+        _turnEnd.addTransform(owner, 'unexecuted_delegation_notice');
+        _appendRecoveredAssistantResponse(
+          'Delegation was not executed. No spawn_subagent result was recorded.',
+          interactionGeneration: generation,
+        );
+      }
       return false;
     }
 
     appLog('[TurnFinalization] Recovery requested tool calls');
     _prepareLastAssistantForTurnFinalizationRecovery(
       generation: generation,
-      preRecoveryContent: _contentBeforeFinalizationCandidate(
-        currentContent: lastMessage.content,
-        candidateResponse: candidateResponse,
-      ),
+      preRecoveryContent: const TurnFinalizationRecoveryPolicy()
+          .contentBeforeFinalizationCandidate(
+            currentContent: lastMessage.content,
+            candidateResponse: candidateResponse,
+          ),
     );
     final recoveredToolNames = recoveryResult.toolCalls!.map(
       (toolCall) => toolCall.name,
@@ -110,32 +135,15 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
           : candidateResponse,
       toolSearchEnabled: toolSelection.toolSearchEnabled,
       selectedToolNames: {
-        ...toolSelection.selectedToolNames,
+        ...toolSelection.selectedNames,
         ...recoveredToolNames,
       },
-      stableToolDefinitions: prefixStableToolLoop
-          ? toolSelection.toolDefinitions
+      stableToolDefinitions: _settings.enablePrefixStableToolLoop
+          ? toolSelection.tools
           : null,
       interactionGeneration: generation,
     );
     return true;
-  }
-
-  bool _hasTerminalGoalSuccessToolResults(
-    List<ToolResultInfo> toolResults,
-    int interactionGeneration,
-  ) {
-    if (toolResults.isEmpty) return false;
-    const terminalSuccessPolicy = ToolTerminalSuccessPolicy();
-    return toolResults.any(
-          (toolResult) =>
-              terminalSuccessPolicy.terminalMessage(toolResult.result) != null,
-        ) ||
-        _toolResultsContainSuccessfulCurrentSavedValidation(
-          toolResults,
-          interactionGeneration,
-        ) ||
-        _toolResultsSatisfyCurrentGoalGitLifecycle(toolResults);
   }
 
   bool _shouldSkipCompletedToolResultFinalAnswerRecovery({
@@ -223,28 +231,6 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
             toolResults: toolResults,
             interactionGeneration: interactionGeneration,
           ),
-        );
-  }
-
-  String _turnFinalizationCandidateText(
-    String content, {
-    required int generation,
-  }) {
-    return const TurnFinalizationRecoveryPolicy().turnFinalizationCandidateText(
-      content: content,
-      streamedFinalAnswer:
-          _lastStreamedToolResultFinalAnswersByGeneration[generation],
-    );
-  }
-
-  String _contentBeforeFinalizationCandidate({
-    required String currentContent,
-    required String candidateResponse,
-  }) {
-    return const TurnFinalizationRecoveryPolicy()
-        .contentBeforeFinalizationCandidate(
-          currentContent: currentContent,
-          candidateResponse: candidateResponse,
         );
   }
 

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../entities/tool_call_info.dart';
 import 'immutable_json_snapshot.dart';
 import 'structured_coding_execution_deferral_detector.dart';
@@ -253,6 +255,21 @@ final class CodingContinuationRecoveryPolicy {
         (hasEnglishAction || hasCjkAction);
   }
 
+  bool looksLikeUnexecutedDelegation(String content) {
+    final visible = ContentParser.stripModelHistoryArtifacts(content);
+    if (visible.length > 12000) return false;
+    return visible.split('\n').any((line) {
+      final plain = line.trim().replaceAll('*', '').trim();
+      if (RegExp(r'(?:委任|委譲)します[。.!！]*$').hasMatch(plain)) {
+        return true;
+      }
+      return RegExp(
+        r"\b(?:I will|I'll|Let me) delegate\b",
+        caseSensitive: false,
+      ).hasMatch(plain);
+    });
+  }
+
   ToolResultInfo buildCodingContinuationRecoveryToolResult({
     required String id,
     required String candidateResponse,
@@ -277,6 +294,13 @@ final class CodingContinuationRecoveryPolicy {
     required String recoveryCode,
     List<ToolResultInfo> executedToolResults = const [],
   }) {
+    if (recoveryCode == 'unexecuted_delegation') {
+      return [
+        recoveryPromptLead(recoveryCode),
+        'Do not claim the task was delegated without a successful tool result.',
+        'Previous response: ${_clipForDiagnostic(candidateResponse)}',
+      ].join('\n');
+    }
     final partialProgressNotice = recoveryPartialProgressNotice(
       executedToolResults,
     );
@@ -327,6 +351,9 @@ final class CodingContinuationRecoveryPolicy {
   }
 
   String recoveryLogLabel(String recoveryCode) {
+    if (recoveryCode == 'unexecuted_delegation') {
+      return 'unexecuted delegation recovery';
+    }
     if (recoveryCode == 'length_truncated_pending_action') {
       return 'length-truncated pending action recovery';
     }
@@ -337,6 +364,9 @@ final class CodingContinuationRecoveryPolicy {
   }
 
   String recoveryReason(String recoveryCode) {
+    if (recoveryCode == 'unexecuted_delegation') {
+      return 'The parent promised delegation without a spawn_subagent tool result.';
+    }
     if (recoveryCode == 'length_truncated_pending_action') {
       return 'The assistant reached the output-token limit while trusted tool evidence still showed incomplete executable coding work.';
     }
@@ -347,6 +377,9 @@ final class CodingContinuationRecoveryPolicy {
   }
 
   String recoveryError(String recoveryCode) {
+    if (recoveryCode == 'unexecuted_delegation') {
+      return 'Delegation was described but spawn_subagent was not called.';
+    }
     if (recoveryCode == 'length_truncated_pending_action') {
       return 'The assistant reached the output-token limit before issuing the next executable coding action.';
     }
@@ -357,6 +390,9 @@ final class CodingContinuationRecoveryPolicy {
   }
 
   String recoveryRequiredAction(String recoveryCode) {
+    if (recoveryCode == 'unexecuted_delegation') {
+      return 'Call spawn_subagent now, or state that delegation did not occur.';
+    }
     if (recoveryCode == 'length_truncated_pending_action') {
       return 'Issue exactly one available tool call that advances the incomplete work.';
     }
@@ -367,6 +403,9 @@ final class CodingContinuationRecoveryPolicy {
   }
 
   String recoveryPromptLead(String recoveryCode) {
+    if (recoveryCode == 'unexecuted_delegation') {
+      return 'The previous answer promised delegation, but no spawn_subagent call was executed. Call spawn_subagent now if the task is ready; otherwise state the blocker and that delegation did not occur.';
+    }
     if (recoveryCode == 'bracketed_coding_tool_request') {
       return 'The previous assistant response contained a bracketed coding tool request in final-answer text, but no tool call was issued.';
     }

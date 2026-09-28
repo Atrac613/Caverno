@@ -157,6 +157,7 @@ import '../../domain/services/planning_executor_profile.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/planning_retry_context_builder.dart';
 import '../../domain/services/planning_tool_policy.dart';
+import '../../domain/services/post_saved_validation_tool_policy.dart';
 import '../../domain/services/printed_tool_call_recovery.dart';
 import '../../domain/services/process_start_result_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
@@ -207,6 +208,7 @@ import '../../domain/services/tool_terminal_success_policy.dart';
 import '../../domain/services/truncated_reasoning_continuation.dart';
 import '../../domain/services/truncated_tool_call_arguments_guard.dart';
 import '../../domain/services/turn_diff_service.dart';
+import '../../domain/services/turn_finalization_delegation_recovery.dart';
 import '../../domain/services/turn_finalization_recovery_policy.dart';
 import '../../domain/services/turn_steering_policy.dart';
 import '../../domain/services/turn_tool_catalog_cache.dart';
@@ -5020,14 +5022,6 @@ class ChatNotifier extends Notifier<ChatState> {
     return paths;
   }
 
-  bool _isPostSavedValidationEvidenceToolCall(ToolCallInfo toolCall) {
-    final effect = const ToolCapabilityClassifier()
-        .classify(toolCall.name, arguments: toolCall.arguments)
-        .commandEffect;
-    return effect == ToolCommandEffect.inspection ||
-        effect == ToolCommandEffect.verification;
-  }
-
   bool _postSavedValidationEvidenceRequiresRepair(
     List<ToolResultInfo> toolResults,
   ) {
@@ -5659,7 +5653,10 @@ class ChatNotifier extends Notifier<ChatState> {
           _postSavedValidationEvidenceRequiresRepair(batchToolResults);
       final followUpTools =
           savedValidationSucceeded && !validationEvidenceRequiresRepair
-          ? const <Map<String, dynamic>>[]
+          ? const PostSavedValidationToolPolicy().followUpDefinitions(
+              tools,
+              isParentTurn: _anabasisRoles.isParentTurn(interactionGeneration),
+            )
           : tools;
       if (followUpTools.isEmpty && tools.isNotEmpty) {
         appLog(
@@ -5711,7 +5708,15 @@ class ChatNotifier extends Notifier<ChatState> {
         final fallbackResponse = nextResult.content.trim();
         if (savedValidationSucceededInLoop) {
           final evidenceToolCalls = nextToolCalls
-              .where(_isPostSavedValidationEvidenceToolCall)
+              .where(
+                (toolCall) => const PostSavedValidationToolPolicy().allows(
+                  toolCall,
+                  isParentTurn: _anabasisRoles.isParentTurn(
+                    interactionGeneration,
+                  ),
+                  latestResults: batchToolResults,
+                ),
+              )
               .toList(growable: false);
           if (evidenceToolCalls.isNotEmpty) {
             if (evidenceToolCalls.length != nextToolCalls.length) {
@@ -8177,14 +8182,12 @@ class ChatNotifier extends Notifier<ChatState> {
       await _finishDetachedActiveResponse(generation);
       return;
     }
-    final responseMessages = _activeResponseRegistry.messagesForOwner(
-      turnOwner,
-    );
+    var responseMessages = _activeResponseRegistry.messagesForOwner(turnOwner);
     if (responseMessages == null || responseMessages.isEmpty) {
       return _failResponseMessagesMissing(generation);
     }
 
-    final finalMessage = _resolveTurnFinalMessage(
+    var finalMessage = _resolveTurnFinalMessage(
       responseMessages.last,
       turnOwner,
     );
@@ -8232,6 +8235,9 @@ class ChatNotifier extends Notifier<ChatState> {
         );
     if (recoveredBeforeFinalization) return;
     if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    responseMessages = _activeResponseRegistry.messagesForOwner(turnOwner);
+    if (responseMessages == null || responseMessages.isEmpty) return;
+    finalMessage = _resolveTurnFinalMessage(responseMessages.last, turnOwner);
     final goalTokenUsageDelta = _updateTokenUsage(turnOwner);
     final finishReason = _responseMetadata.finishReasonFor(turnOwner) ?? '';
     updatedMessages = finalMessage.apply(

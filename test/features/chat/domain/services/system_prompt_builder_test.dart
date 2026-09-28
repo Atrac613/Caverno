@@ -1110,6 +1110,10 @@ Dart symbols:
       final prompt = promptFor(ModelUsageRole.anabasisParent);
 
       expect(prompt, contains('You are Anabasis'));
+      expect(
+        prompt,
+        contains('An ask_user_question answer does not update the saved'),
+      );
       expect(prompt, contains('spawn_subagent'));
       expect(
         prompt,
