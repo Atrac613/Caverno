@@ -20,7 +20,10 @@ void _runChatRequestPolicyClient() {
           final delegate = _RecordingClient();
           final client = ChatRequestPolicyClient(
             delegate: delegate,
-            policy: ChatRequestThinkingPolicy(enableThinking: enabled),
+            policy: ChatRequestThinkingPolicy(
+              enableThinking: enabled,
+              acceptsChatTemplateKwargs: true,
+            ),
           );
           final request = http.Request(
             'POST',
@@ -33,6 +36,26 @@ void _runChatRequestPolicyClient() {
           client.close();
         }
       }
+    },
+  );
+
+  test(
+    'explicit thinking stays off the wire for an endpoint not opted in',
+    () async {
+      final delegate = _RecordingClient();
+      final client = ChatRequestPolicyClient(
+        delegate: delegate,
+        policy: const ChatRequestThinkingPolicy(enableThinking: true),
+      );
+      final request = http.Request(
+        'POST',
+        Uri.parse('https://api.example.com/v1/chat/completions'),
+      )..body = jsonEncode({'model': 'gpt-6-luna', 'stream': true});
+      await client.send(request);
+      final body = jsonDecode(delegate.sentBody!) as Map<String, dynamic>;
+      expect(body.containsKey('chat_template_kwargs'), isFalse);
+      expect(body.containsKey('enable_thinking'), isFalse);
+      client.close();
     },
   );
 

@@ -42,9 +42,11 @@ void main() {
 
     test('explicit preferences preserve other models request fields', () {
       for (final enabled in [true, false]) {
-        final result = ChatRequestThinkingPolicy(enableThinking: enabled)
-            .resolve(model: 'custom-model', maxTokens: 100)!
-            .applyTo({
+        final result =
+            ChatRequestThinkingPolicy(
+              enableThinking: enabled,
+              acceptsChatTemplateKwargs: true,
+            ).resolve(model: 'custom-model', maxTokens: 100)!.applyTo({
               'model': 'custom-model',
               'reasoning_effort': 'high',
               'chat_template_kwargs': {'custom': 42},
@@ -54,6 +56,27 @@ void main() {
           'custom': 42,
           'enable_thinking': enabled,
         });
+      }
+    });
+
+    test('explicit preferences send nothing to an endpoint not opted in', () {
+      // Session e3a9f3f0: `/review` routed to a hosted gpt-6-luna with the
+      // composer's thinking toggle on, and the endpoint rejected the request
+      // with `Unknown parameter: 'chat_template_kwargs'` before the model ran.
+      for (final enabled in [true, false]) {
+        final policy = ChatRequestThinkingPolicy(
+          reasoningEffort: 'medium',
+          enableThinking: enabled,
+        );
+        expect(policy.resolve(model: 'gpt-6-luna', maxTokens: 8192), isNull);
+        expect(
+          policy.resolve(
+            model: 'gpt-6-luna',
+            maxTokens: 400,
+            role: ModelUsageRole.memoryExtraction,
+          ),
+          isNull,
+        );
       }
     });
 

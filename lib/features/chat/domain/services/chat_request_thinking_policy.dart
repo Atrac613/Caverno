@@ -71,6 +71,9 @@ final class ChatRequestThinkingPolicy {
   /// Whether the endpoint was marked as accepting `chat_template_kwargs`
   /// (`LlmEndpoint.chatTemplateKwargsEnabled`).
   ///
+  /// Outside Qwen3.8 this also gates an explicit [enableThinking]: without the
+  /// opt-in no request to another family carries the field.
+  ///
   /// This, and the role, are the whole of the suppression decision -- the model
   /// name is not consulted. Only the reasoning-effort mapping stays behind
   /// [isQwen38Model], because those branches encode one template's vocabulary
@@ -130,9 +133,13 @@ final class ChatRequestThinkingPolicy {
     }
 
     if (!isQwen38Model(model)) {
-      // An explicit enableThinking is the person's own instruction, so it is
-      // honoured on any model, as it was before the opt-in existed.
-      return enableThinking == null
+      // An explicit enableThinking is honoured only where the endpoint was
+      // opted in. The composer toggle is global, so a turn routed to a hosted
+      // endpoint (e.g. `/review` on gpt-6-luna, session e3a9f3f0) inherited it
+      // and the endpoint rejected the whole request with
+      // `Unknown parameter: 'chat_template_kwargs'` before the model ran.
+      // Dropping a field the endpoint cannot act on loses nothing.
+      return enableThinking == null || !acceptsChatTemplateKwargs
           ? null
           : ChatRequestThinkingOverrides(
               maxTokens: maxTokens,
