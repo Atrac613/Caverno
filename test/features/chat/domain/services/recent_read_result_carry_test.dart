@@ -167,7 +167,7 @@ void main() {
     });
 
     test('spends the budget on the newest results and then stops', () {
-      final big = 'x' * (RecentReadResultCarry.budgetBytes ~/ 2);
+      final big = 'x' * (RecentReadResultCarry.defaultBudgetBytes ~/ 2);
       final oldest = _read('oldest.dart', body: big, id: 'oldest');
       final middle = _read('middle.dart', body: big, id: 'middle');
       final newest = _read('newest.dart', body: big, id: 'newest');
@@ -185,10 +185,49 @@ void main() {
       ]);
     });
 
+    test('keeps small older results past one that no longer fits', () {
+      // Session e3a9f3f0: the diff and status went with the file read that
+      // overflowed, and the review fetched them again.
+      final status = _gitCommand('status --short', id: 'status');
+      final file = _read(
+        'watcher.py',
+        body: 'x' * (RecentReadResultCarry.defaultBudgetBytes * 3 ~/ 4),
+        id: 'file',
+      );
+      final test = _read(
+        'test_watcher.py',
+        body: 'x' * (RecentReadResultCarry.defaultBudgetBytes * 3 ~/ 4),
+        id: 'test',
+      );
+      final batch = _gitCommand('diff --cached', id: 'batch');
+
+      final augmented = _carry.augment(
+        resolved: [batch],
+        executedToolResults: [status, file, test, batch],
+      );
+
+      expect(augmented.map((result) => result.id), ['status', 'test', 'batch']);
+    });
+
+    test('a wider budget holds a working set the default cannot', () {
+      final body = 'x' * (RecentReadResultCarry.defaultBudgetBytes * 3 ~/ 4);
+      final file = _read('watcher.py', body: body, id: 'file');
+      final test = _read('test_watcher.py', body: body, id: 'test');
+      final batch = _gitCommand('diff --cached', id: 'batch');
+      const wide = RecentReadResultCarry(budgetBytes: 32 * 1024);
+
+      final augmented = wide.augment(
+        resolved: [batch],
+        executedToolResults: [file, test, batch],
+      );
+
+      expect(augmented.map((result) => result.id), ['file', 'test', 'batch']);
+    });
+
     test('skips one oversized result instead of spending the budget on it', () {
       final huge = _read(
         'huge.dart',
-        body: 'x' * (RecentReadResultCarry.maxResultBytes + 1),
+        body: 'x' * (RecentReadResultCarry.defaultMaxResultBytes + 1),
         id: 'huge',
       );
       final small = _read('small.dart', id: 'small');

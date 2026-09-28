@@ -32,10 +32,15 @@ import 'tool_call_execution_policy.dart';
 /// 8192 -- the system prompt -- on 10 of 12 requests, because the digest and
 /// the tool results that follow it change every request anyway. The prefix is
 /// already broken where this content lands.
+///
+/// The defaults fit the median turn, not every turn. A turn whose working set
+/// is larger passes its own [budgetBytes] rather than moving the default.
 final class RecentReadResultCarry {
   const RecentReadResultCarry({
     ToolCallExecutionPolicy executionPolicy = const ToolCallExecutionPolicy(),
     StickyToolResultPolicy stickyPolicy = const StickyToolResultPolicy(),
+    this.budgetBytes = defaultBudgetBytes,
+    this.maxResultBytes = defaultMaxResultBytes,
   }) : _executionPolicy = executionPolicy,
        _stickyPolicy = stickyPolicy;
 
@@ -43,10 +48,13 @@ final class RecentReadResultCarry {
   final StickyToolResultPolicy _stickyPolicy;
 
   /// Largest single result carried, at p95 of the measured corpus.
-  static const int maxResultBytes = 8 * 1024;
+  static const int defaultMaxResultBytes = 8 * 1024;
 
   /// Total carried bytes, which covers the median turn's whole read-only set.
-  static const int budgetBytes = 8 * 1024;
+  static const int defaultBudgetBytes = 8 * 1024;
+
+  final int maxResultBytes;
+  final int budgetBytes;
 
   /// Everything a follow-up request carries: the sticky results, the
   /// carryable tail, then the batch that just ran.
@@ -129,7 +137,11 @@ final class RecentReadResultCarry {
       if (indexChanged && _readsIndex(result)) continue;
       final bytes = utf8.encode(result.result).length;
       if (bytes > maxResultBytes) continue;
-      if (bytes > remaining) break;
+      // Skipped rather than ending the walk: stopping at the first result
+      // that did not fit dropped every older one with it, however small. In
+      // session e3a9f3f0 a 6.5 KB file read took the 178 B `git status` and
+      // the 1.3 KB diff down, and the review re-ran both on the next loop.
+      if (bytes > remaining) continue;
       remaining -= bytes;
       carried.add((result, List<String>.unmodifiable(laterWrites)));
     }

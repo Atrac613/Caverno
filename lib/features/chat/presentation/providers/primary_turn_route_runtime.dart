@@ -17,6 +17,10 @@ typedef PrimaryRouteRecorder =
 final class PrimaryTurnRouteRuntime {
   final Map<int, (PrimaryRouteResolution, ChatDataSource)> _routes = {};
 
+  /// Turns started by `/review`, which the tool loop treats as read-only. Kept
+  /// with the route because the flag arrives here and nowhere else.
+  final Set<int> _codeReviews = {};
+
   Future<void> capture({
     required int generation,
     required AppSettings settings,
@@ -68,6 +72,11 @@ final class PrimaryTurnRouteRuntime {
             health: health,
           );
     _routes[generation] = (resolution, dataSource);
+    if (codeReview) {
+      _codeReviews.add(generation);
+    } else {
+      _codeReviews.remove(generation);
+    }
     await preparer.prepare(settings: settings, resolution: resolution);
     await record(resolution);
   }
@@ -120,7 +129,13 @@ final class PrimaryTurnRouteRuntime {
   AssistantMode assistantMode(int generation, AppSettings settings) =>
       _routes[generation]?.$1.context.assistantMode ?? settings.assistantMode;
 
-  void release(int generation) => _routes.remove(generation);
+  bool isCodeReview(int generation) => _codeReviews.contains(generation);
+
+  void release(int generation) {
+    _routes.remove(generation);
+    _codeReviews.remove(generation);
+  }
+
   int get count => _routes.length;
 }
 

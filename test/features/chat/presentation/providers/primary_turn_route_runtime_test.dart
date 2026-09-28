@@ -1,0 +1,68 @@
+import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+final class _MockChatDataSource extends Mock implements ChatDataSource {}
+
+void main() {
+  final settings = AppSettings.defaults().copyWith(
+    demoMode: true,
+    baseUrl: 'http://primary.example/v1',
+    model: 'main-model',
+    codeReviewModel: 'review-model',
+    codeReviewEndpointId: 'review-host',
+    llmEndpoints: const [
+      LlmEndpoint(
+        id: 'review-host',
+        baseUrl: 'http://review.example/v1',
+        model: 'review-model',
+      ),
+    ],
+  );
+
+  Future<void> capture(
+    PrimaryTurnRouteRuntime runtime,
+    int generation, {
+    required bool codeReview,
+  }) => runtime.capture(
+    generation: generation,
+    settings: settings,
+    codeReview: codeReview,
+    assistantMode: AssistantMode.coding,
+    primaryDataSource: _MockChatDataSource(),
+    health: EndpointHealthTracker(),
+    buildAssignedDataSource: (_) => _MockChatDataSource(),
+    preparer: PrimaryRouteModelPreparer(
+      serviceFactory: (_) => throw UnimplementedError(),
+      logOutcome: (_) {},
+      logError: (_, _) {},
+    ),
+    record: (_) async {},
+  );
+
+  test('remembers a review turn until its route is released', () async {
+    final runtime = PrimaryTurnRouteRuntime();
+
+    await capture(runtime, 1, codeReview: true);
+    await capture(runtime, 2, codeReview: false);
+
+    expect(runtime.isCodeReview(1), isTrue);
+    expect(runtime.isCodeReview(2), isFalse);
+
+    runtime.release(1);
+    expect(runtime.isCodeReview(1), isFalse);
+  });
+
+  test('a recaptured generation drops a stale review flag', () async {
+    final runtime = PrimaryTurnRouteRuntime();
+
+    await capture(runtime, 1, codeReview: true);
+    await capture(runtime, 1, codeReview: false);
+
+    expect(runtime.isCodeReview(1), isFalse);
+  });
+}

@@ -35,8 +35,10 @@ void main() {
       expect(prompt, isNot(contains('Use the previous tool results')));
       expect(
         prompt,
-        contains('The earlier read_file result was shortened to fit the '
-            'prompt budget'),
+        contains(
+          'The earlier read_file result was shortened to fit the '
+          'prompt budget',
+        ),
       );
       expect(prompt, contains('offset, and a small limit'));
     });
@@ -64,6 +66,38 @@ void main() {
       );
 
       expect(prompt, isNot(contains('shortened to fit the prompt budget')));
+    });
+
+    test('a review outranks a saved task in both forms', () {
+      // Session e3a9f3f0: a /review in a thread whose saved task was done was
+      // told to "modify a saved target file".
+      for (final prompt in [
+        builder.buildInspectionPrompt(
+          toolCalls: readFileCalls,
+          hasSavedTask: true,
+          readOnlyReview: true,
+        ),
+        builder.buildFollowUpPrompt(
+          toolCalls: readFileCalls,
+          hasSavedTask: true,
+          readOnlyReview: true,
+        ),
+      ]) {
+        expect(prompt, isNot(contains('saved')));
+        expect(prompt, contains('read-only review'));
+        expect(prompt, contains('Write the review now'));
+      }
+    });
+
+    test('a shortened result still gets its narrow-read hint in a review', () {
+      final prompt = builder.buildInspectionPrompt(
+        toolCalls: readFileCalls,
+        hasSavedTask: false,
+        readOnlyReview: true,
+        budgetReducedToolNames: const {'read_file'},
+      );
+
+      expect(prompt, contains('shortened to fit the prompt budget'));
     });
   });
 }

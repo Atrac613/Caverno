@@ -1,4 +1,5 @@
-// Same-library ChatNotifier extension for final-answer claim recovery.
+// Same-library ChatNotifier extension for final-answer claim recovery and the
+// duplicate-call recovery prompts.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
@@ -492,4 +493,43 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       interactionGeneration: interactionGeneration,
     );
   }
+
+  /// Redirects a model that keeps re-inspecting instead of acting.
+  String _buildDuplicateInspectionRecoveryPrompt(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+    bool hasSavedTask = true,
+    bool readOnlyReview = false,
+  }) => const DuplicateRecoveryPromptBuilder().buildInspectionPrompt(
+    toolCalls: toolCalls,
+    hasSavedTask: hasSavedTask,
+    readOnlyReview: readOnlyReview,
+    previousCommandValidationFailed: _toolResultsContainFailedCommandValidation(
+      previousToolResults,
+    ),
+    previousExactExitCodeExpectationFailed:
+        _toolResultsMentionExactNonZeroExitCodeExpectation(previousToolResults),
+    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
+      previousToolResults,
+    ),
+  );
+
+  /// Redirects a model that re-issues the same follow-up call.
+  String _buildDuplicateFollowUpRecoveryPrompt(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+    bool hasSavedTask = true,
+    bool readOnlyReview = false,
+  }) => const DuplicateRecoveryPromptBuilder().buildFollowUpPrompt(
+    toolCalls: toolCalls,
+    hasSavedTask: hasSavedTask,
+    readOnlyReview: readOnlyReview,
+    repeatedValidationTool: toolCalls.any(_isRepeatableCommandTool),
+    inspectedFailingFile: previousToolResults.any(
+      (toolResult) => toolResult.name == 'read_file',
+    ),
+    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
+      previousToolResults,
+    ),
+  );
 }

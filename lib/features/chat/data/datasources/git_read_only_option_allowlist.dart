@@ -64,7 +64,23 @@ class GitReadOnlyOptionAllowlist {
     },
     'describe': {'--tags', '--always', '--dirty', '--long', '--exact-match'},
     'shortlog': {'-s', '-n', '-e', '--summary', '--numbered', '--email'},
-    'ls-files': {'-m', '-o', '-c', '-d', '-s', '-z', '--exclude-standard'},
+    // Long spellings of the short flags. Models list untracked files for a
+    // review as `ls-files --others --exclude-standard`; without them that call
+    // went to auto-review and was never repeatable (session e3a9f3f0).
+    'ls-files': {
+      '-m',
+      '--modified',
+      '-o',
+      '--others',
+      '-c',
+      '--cached',
+      '-d',
+      '--deleted',
+      '-s',
+      '--stage',
+      '-z',
+      '--exclude-standard',
+    },
     'ls-tree': {'-r', '-t', '-d', '-l', '--name-only', '--name-status', '-z'},
     'cat-file': {'-t', '-s', '-e', '-p'},
     'for-each-ref': {'--ignore-case'},

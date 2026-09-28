@@ -97,7 +97,9 @@ const Map<String, int> _lineBudgets = {
   // one name. What stayed is the decision; what moved is the policy it reads.
   'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 70,
   'lib/features/chat/domain/services/anabasis_parent_authority_tools.dart': 36,
-  'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 44,
+  // +5 for the turn scope, the read-only review's refusal. It belongs in the
+  // chain because it must run before the assumption gate asks the user.
+  'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 49,
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
   // +10, to 155: a worktree child that named no files owes no changed-file
@@ -991,7 +993,10 @@ const Map<String, int> _lineBudgets = {
   // scenarios go into parts, not the number of scenarios.
   // -67 further: the approval-audit scenario sits with the other approval
   // tests, which paid for the stand-in calls the SEC4.4g gate now needs.
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 17610,
+  // +6: the output-feedback scenario queues the duplicate-command recovery
+  // response, which now runs before the command's output may stand as the
+  // answer. It is an existing scenario's script, not a new scenario.
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 17616,
   // Folded into chat_presentation_providers_tiny_test.dart as a part file; the
   // budget follows the content, which is what it was guarding.
   'test/features/chat/presentation/providers/mcp_tool_provider_rollback_store_cases.dart':
@@ -1195,7 +1200,12 @@ const Map<String, int> _libraryLineBudgets = {
   // it needed no aggregate room.
   // -7 matching the primary file: the loop-limit recovery facts left the
   // library for ToolLoopExhaustionDecisionInput.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19893,
+  // +24 for the read-only review scope (session e3a9f3f0) and the
+  // duplicate-command recovery that must run before raw output may stand as
+  // the answer. The scope, its carry and its prompts live outside the
+  // library; what is left is the per-turn lookup, the tool-list default, the
+  // policy-chain hook and one argument at each recovery prompt site.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19917,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

@@ -202,4 +202,34 @@ void main() {
       reason: 'Delegation is the parent\'s only route to effect.',
     );
   });
+
+  test('the turn scope refuses before anyone is asked to confirm', () async {
+    var asked = 0;
+    final scoped = McpToolResult(
+      toolName: 'write_file',
+      result: '{"ok":false}',
+      isSuccess: false,
+      errorMessage: 'out of scope',
+    );
+    final chain = TurnToolPolicyChain(
+      executingRole: ModelUsageRole.unknown,
+      turnScope: (call) => call.name == 'write_file' ? scoped : null,
+      assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
+        currentSpec: _blockedSpec,
+        requestConfirmation:
+            ({required item, required itemText, required toolName}) async {
+              asked++;
+              return true;
+            },
+        persist: (_) async {},
+      ),
+    );
+
+    expect(
+      await chain.evaluate(_mutation, workspaceMode: WorkspaceMode.coding),
+      same(scoped),
+    );
+    expect(asked, 0);
+  });
 }

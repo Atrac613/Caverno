@@ -39,6 +39,7 @@ import '../../application/runtime/background_wait_iteration_refund.dart';
 import '../../application/runtime/duplicate_command_answer_policy.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
 import '../../application/runtime/read_only_command_repeat_budget.dart';
+import '../../application/runtime/read_only_review_scope.dart';
 import '../../application/runtime/shell_write_observer.dart';
 import '../../application/runtime/tool_outcome_shadow_observer.dart';
 import '../../application/runtime/turn_abort_signals.dart';
@@ -3838,6 +3839,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     final fileTools = _mcpToolService?..beginChatFileTurnCheckpoint(turnOwner);
     try {
+      allowedToolNames ??= _readOnlyReviewToolNames(generation);
       final allTools = _toolDefinitionsAllowedBy(allowedToolNames);
       _activeResponseRegistry.setTools(
         generation,
@@ -5394,36 +5396,20 @@ class ChatNotifier extends Notifier<ChatState> {
             deliverRecoveredAnswer(fallbackResponse);
             break;
           }
-          if (_toolCallExecutionPolicy
-              .containsOnlyPreviouslySuccessfulCommandToolCalls(
-                currentToolCalls,
-                executedToolResults,
-              )) {
+          final duplicateCommandAnswer = const DuplicateCommandAnswerPolicy()
+              .answerForDuplicateCommands(
+                toolCalls: currentToolCalls,
+                executedToolResults: executedToolResults,
+                recoveredToolResults: recovered,
+                visibleAnswer: currentAssistantContent?.trim() ?? '',
+              );
+          if (duplicateCommandAnswer != null &&
+              (recovered.isEmpty || attemptedDuplicateFollowUpRecovery)) {
             appLog(
               '[Tool] Duplicate command follow-up already has a successful result',
             );
-            final fallbackResponse = currentAssistantContent?.trim() ?? '';
-            final recoveredAnswer = const DuplicateCommandAnswerPolicy()
-                .resolve(
-                  previousOutput: _toolCallExecutionPolicy
-                      .previousSuccessfulCommandOutputForDuplicateCalls(
-                        currentToolCalls,
-                        recovered.isNotEmpty ? recovered : executedToolResults,
-                      ),
-                  visibleAnswer: fallbackResponse,
-                  mayUsePreviousOutput: _toolCallExecutionPolicy
-                      .shouldUsePreviousOutputForDuplicateCommandCalls(
-                        currentToolCalls,
-                      ),
-                  visibleAnswerLooksPending:
-                      DuplicateCommandAnswerPolicy.looksLikePendingToolAction(
-                        fallbackResponse,
-                      ),
-                );
-            if (recoveredAnswer != null) {
-              deliverRecoveredAnswer(recoveredAnswer);
-              break;
-            }
+            deliverRecoveredAnswer(duplicateCommandAnswer);
+            break;
           }
           if (batchToolResults.isEmpty &&
               !attemptedDuplicateInspectionRecovery &&
@@ -5460,6 +5446,7 @@ class ChatNotifier extends Notifier<ChatState> {
                     hasSavedTask: _hasSavedTaskForGeneration(
                       interactionGeneration,
                     ),
+                    readOnlyReview: _isCodeReview(interactionGeneration),
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -5508,6 +5495,14 @@ class ChatNotifier extends Notifier<ChatState> {
               hasTextResponse = true;
               break;
             }
+            if (duplicateCommandAnswer != null) {
+              deliverRecoveredAnswer(
+                const DuplicateCommandAnswerPolicy().afterRecovery(
+                  recoveryText: fallbackResponse,
+                  previousAnswer: duplicateCommandAnswer,
+                ),
+              );
+            }
             break;
           }
           if (batchToolResults.isEmpty &&
@@ -5544,6 +5539,7 @@ class ChatNotifier extends Notifier<ChatState> {
                     hasSavedTask: _hasSavedTaskForGeneration(
                       interactionGeneration,
                     ),
+                    readOnlyReview: _isCodeReview(interactionGeneration),
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -5591,6 +5587,14 @@ class ChatNotifier extends Notifier<ChatState> {
               currentAssistantContent = fallbackResponse;
               hasTextResponse = true;
               break;
+            }
+            if (duplicateCommandAnswer != null) {
+              deliverRecoveredAnswer(
+                const DuplicateCommandAnswerPolicy().afterRecovery(
+                  recoveryText: fallbackResponse,
+                  previousAnswer: duplicateCommandAnswer,
+                ),
+              );
             }
             break;
           }
@@ -5643,10 +5647,11 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
       final tools = selectedDefinitionsFor(mcpToolService);
-      final followUpToolResults = _recentReadResultCarry.resolve(
-        batchToolResults: batchToolResults,
-        executedToolResults: executedToolResults,
-      );
+      final followUpToolResults = _readResultCarryFor(interactionGeneration)
+          .resolve(
+            batchToolResults: batchToolResults,
+            executedToolResults: executedToolResults,
+          );
       final savedValidationSucceeded =
           _toolResultsContainSuccessfulCurrentSavedValidation(
             batchToolResults,
@@ -5857,10 +5862,11 @@ class ChatNotifier extends Notifier<ChatState> {
           // tagging, or committing a guessed build number. The prompt still
           // reads [recoveryToolResults]: its edit-mismatch wording claims a
           // matching read_file is attached, which only that list guarantees.
-          final recoveryRequestToolResults = _recentReadResultCarry.resolve(
-            batchToolResults: recoveryToolResults,
-            executedToolResults: executedToolResults,
-          );
+          final recoveryRequestToolResults =
+              _readResultCarryFor(interactionGeneration).resolve(
+                batchToolResults: recoveryToolResults,
+                executedToolResults: executedToolResults,
+              );
           final recoveryAssistantContent = _followUpAssistantContent.build(
             assistantContent: currentAssistantContent,
             executedToolResults: executedToolResults,
@@ -5879,6 +5885,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 content: _toolLoopRecoveryPolicy.buildExhaustionRecoveryPrompt(
                   currentToolCalls,
                   previousToolResults: recoveryToolResults,
+                  readOnlyReview: _isCodeReview(interactionGeneration),
                 ),
                 timestamp: DateTime.now(),
               ),
@@ -6835,8 +6842,6 @@ class ChatNotifier extends Notifier<ChatState> {
     await _finishStreaming(interactionGeneration: interactionGeneration);
   }
 
-  static const _recentReadResultCarry = RecentReadResultCarry();
-
   void _appendToLastMessageForGeneration(
     int generation,
     String chunk, {
@@ -7320,41 +7325,6 @@ class ChatNotifier extends Notifier<ChatState> {
       ),
     );
   }
-
-  /// Redirects a model that keeps re-inspecting instead of acting.
-  String _buildDuplicateInspectionRecoveryPrompt(
-    List<ToolCallInfo> toolCalls, {
-    List<ToolResultInfo> previousToolResults = const [],
-    bool hasSavedTask = true,
-  }) => const DuplicateRecoveryPromptBuilder().buildInspectionPrompt(
-    toolCalls: toolCalls,
-    hasSavedTask: hasSavedTask,
-    previousCommandValidationFailed: _toolResultsContainFailedCommandValidation(
-      previousToolResults,
-    ),
-    previousExactExitCodeExpectationFailed:
-        _toolResultsMentionExactNonZeroExitCodeExpectation(previousToolResults),
-    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
-      previousToolResults,
-    ),
-  );
-
-  /// Redirects a model that re-issues the same follow-up call.
-  String _buildDuplicateFollowUpRecoveryPrompt(
-    List<ToolCallInfo> toolCalls, {
-    List<ToolResultInfo> previousToolResults = const [],
-    bool hasSavedTask = true,
-  }) => const DuplicateRecoveryPromptBuilder().buildFollowUpPrompt(
-    toolCalls: toolCalls,
-    hasSavedTask: hasSavedTask,
-    repeatedValidationTool: toolCalls.any(_isRepeatableCommandTool),
-    inspectedFailingFile: previousToolResults.any(
-      (toolResult) => toolResult.name == 'read_file',
-    ),
-    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
-      previousToolResults,
-    ),
-  );
 
   List<ToolResultInfo> _buildToolLoopRecoveryToolResults({
     required List<ToolResultInfo> currentToolResults,

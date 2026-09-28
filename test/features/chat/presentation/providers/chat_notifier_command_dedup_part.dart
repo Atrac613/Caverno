@@ -275,6 +275,115 @@ void registerChatNotifierCommandDedupTests() {
     },
   );
 
+  // Session e3a9f3f0: a read-only `/review` re-issued a command whose output
+  // the follow-up no longer carried, the duplicate was discarded, and the turn
+  // answered with that command's raw stdout instead of the review.
+  Future<String> answerAfterDiscardedDuplicate(
+    ChatCompletionResult recovery,
+  ) async {
+    final repeated = {
+      'command': './scripts/list_changes.sh',
+      'working_directory': '/tmp/project',
+      'reason': 'List untracked files',
+    };
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'list-first',
+          name: 'local_execute_command',
+          arguments: repeated,
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'list-second',
+              name: 'local_execute_command',
+              arguments: repeated,
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        recovery,
+      ],
+      finalAnswerChunks: const ['unexpected final answer'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'local_execute_command': jsonEncode({
+          'command': './scripts/list_changes.sh',
+          'working_directory': '/tmp/project',
+          'exit_code': 0,
+          'stdout': 'untracked.py\n',
+          'stderr': '',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      await toolNotifier.sendMessage('Review the uncommitted changes');
+      expect(toolService.executedToolNames, ['local_execute_command']);
+      expect(
+        toolDataSource.toolResultBatches,
+        hasLength(2),
+        reason: 'the discarded duplicate must reach one bounded recovery',
+      );
+      return toolNotifier.state.messages.last.content;
+    } finally {
+      toolContainer.dispose();
+    }
+  }
+
+  test(
+    'a discarded duplicate command lets the model write the answer first',
+    () async {
+      final answer = await answerAfterDiscardedDuplicate(
+        ChatCompletionResult(
+          content: 'Review: untracked.py has no tests yet.',
+          finishReason: 'stop',
+        ),
+      );
+
+      expect(answer, contains('Review: untracked.py has no tests yet.'));
+    },
+  );
+
+  test(
+    'a discarded duplicate command falls back to its earlier output',
+    () async {
+      // Session 96e27118's guarantee survives: when the recovery yields no
+      // usable text, the output the model asked for is still delivered.
+      final answer = await answerAfterDiscardedDuplicate(
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      );
+
+      expect(answer, contains('untracked.py'));
+    },
+  );
+
   test(
     'sendMessage blocks an embedded git write before requesting approval',
     () async {

@@ -10,8 +10,17 @@ import '../entities/tool_call_info.dart';
 /// turn whose request was to commit. The lines that do the work in either case
 /// (naming the repeated tools, refusing unbacked file-write claims) are kept
 /// in both forms.
+///
+/// A read-only review is a third form, and it outranks a saved task: session
+/// e3a9f3f0's `/review` ran in a thread whose saved task was already done, and
+/// both prompts still ordered it to edit the saved target file.
 final class DuplicateRecoveryPromptBuilder {
   const DuplicateRecoveryPromptBuilder();
+
+  static const _readOnlyReviewLines = [
+    'This is a read-only review: do not edit files or change Git state.',
+    'Write the review now from the results you already have, and name anything you could not inspect as a verification limit.',
+  ];
 
   /// Redirects a model that keeps re-inspecting instead of acting.
   String buildInspectionPrompt({
@@ -20,12 +29,22 @@ final class DuplicateRecoveryPromptBuilder {
     bool previousCommandValidationFailed = false,
     bool previousExactExitCodeExpectationFailed = false,
     Set<String> budgetReducedToolNames = const {},
+    bool readOnlyReview = false,
   }) {
     final repeatedToolNames = _repeatedToolNames(toolCalls);
     final reduced = _reducedRepeatedToolNames(
       toolCalls,
       budgetReducedToolNames,
     );
+    if (readOnlyReview) {
+      return [
+        'You already inspected the same local files in this turn.',
+        if (repeatedToolNames.isNotEmpty)
+          'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
+        if (reduced.isNotEmpty) ..._budgetReductionLines(reduced),
+        ..._readOnlyReviewLines,
+      ].join('\n');
+    }
     return [
       hasSavedTask
           ? 'You already inspected the same local files for the current saved task.'
@@ -55,12 +74,22 @@ final class DuplicateRecoveryPromptBuilder {
     bool repeatedValidationTool = false,
     bool inspectedFailingFile = false,
     Set<String> budgetReducedToolNames = const {},
+    bool readOnlyReview = false,
   }) {
     final repeatedToolNames = _repeatedToolNames(toolCalls);
     final reduced = _reducedRepeatedToolNames(
       toolCalls,
       budgetReducedToolNames,
     );
+    if (readOnlyReview) {
+      return [
+        'You already attempted the same follow-up tool call in this turn.',
+        if (repeatedToolNames.isNotEmpty)
+          'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
+        if (reduced.isNotEmpty) ..._budgetReductionLines(reduced),
+        ..._readOnlyReviewLines,
+      ].join('\n');
+    }
     return [
       'You already attempted the same follow-up tool call for the current task.',
       if (repeatedToolNames.isNotEmpty)
@@ -105,9 +134,7 @@ final class DuplicateRecoveryPromptBuilder {
     Set<String> budgetReducedToolNames,
   ) => toolCalls
       .map((toolCall) => toolCall.name.trim())
-      .where(
-        (name) => name.isNotEmpty && budgetReducedToolNames.contains(name),
-      )
+      .where((name) => name.isNotEmpty && budgetReducedToolNames.contains(name))
       .toSet()
       .join(', ');
 

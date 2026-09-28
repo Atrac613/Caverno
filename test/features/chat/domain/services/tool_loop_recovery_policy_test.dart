@@ -25,6 +25,20 @@ void main() {
     return '${result.name}:${jsonEncode(result.arguments)}';
   }
 
+  test('a review at the loop limit is told to write the review', () {
+    final prompt = policy.buildExhaustionRecoveryPrompt([
+      ToolCallInfo(
+        id: 'read-1',
+        name: 'read_file',
+        arguments: const {'path': 'lib/main.dart'},
+      ),
+    ], readOnlyReview: true);
+
+    expect(prompt, isNot(contains('saved task')));
+    expect(prompt, contains('Pending tool calls at the limit: read_file.'));
+    expect(prompt, contains('Write the review now'));
+  });
+
   test('detects unseen read-only inspection calls at the loop limit', () {
     final readCall = ToolCallInfo(
       id: 'read-1',

@@ -22,6 +22,19 @@ void main() {
     }
   });
 
+  test('ls-files accepts the long spellings of its vetted flags', () {
+    // Session e3a9f3f0: a `/review` listed untracked files with the long
+    // form, which went to auto-review and could not be re-run.
+    for (final command in [
+      'ls-files --others --exclude-standard',
+      'ls-files --modified --deleted',
+      'ls-files --cached --stage -z',
+    ]) {
+      expect(GitTools.isReadOnly(command), isTrue, reason: command);
+    }
+    expect(GitTools.isReadOnly('ls-files --others --made-up-flag'), isFalse);
+  });
+
   test('unknown flags on conditional verbs require approval', () {
     for (final command in [
       'branch --made-up-flag',

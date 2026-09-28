@@ -9056,6 +9056,12 @@ with open(path, "rb") as file:
             toolCalls: [duplicateCommandCall],
             finishReason: 'tool_calls',
           ),
+          // The bounded recovery, which asks for the same command again.
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [duplicateCommandCall],
+            finishReason: 'tool_calls',
+          ),
         ],
         finalAnswerChunks: const ['This final answer should not be requested.'],
       );

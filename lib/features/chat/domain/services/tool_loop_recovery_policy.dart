@@ -92,12 +92,24 @@ class ToolLoopRecoveryPolicy {
   String buildExhaustionRecoveryPrompt(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
+    bool readOnlyReview = false,
   }) {
     final pendingToolNames = toolCalls
         .map((toolCall) => toolCall.name.trim())
         .where((name) => name.isNotEmpty)
         .toSet()
         .join(', ');
+    // A review has no saved task to finish and nothing to edit, so none of the
+    // lines below apply; session e3a9f3f0 received them anyway.
+    if (readOnlyReview) {
+      return [
+        'You hit the bounded tool loop limit during a read-only review.',
+        if (pendingToolNames.isNotEmpty)
+          'Pending tool calls at the limit: $pendingToolNames.',
+        'Do not edit files or change Git state.',
+        'Write the review now from the latest tool results, and name anything you could not inspect as a verification limit.',
+      ].join('\n');
+    }
     final hasEditMismatch = toolResultsContainEditMismatch(previousToolResults);
     final hasMatchingReadContext = previousToolResults.any(
       (toolResult) => toolResult.name == 'read_file',

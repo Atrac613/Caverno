@@ -67,6 +67,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       // silently unarmed the parent guard. The generation is the turn's own
       // identity and is in scope either way.
       executingRole: _anabasisRoles.mainLoopRoleFor(interactionGeneration),
+      // The tool list already omits editors on a review; this also catches a
+      // mutating shell command and a call the model makes from memory.
+      turnScope: _isCodeReview(interactionGeneration)
+          ? const ReadOnlyReviewScope().evaluate
+          : null,
       assumptionGate: MaterialAssumptionConfirmationGate(
         // The turn's memory, not this batch's: the loop builds a gate per
         // iteration, so a field here would re-ask a dismissal every time.
