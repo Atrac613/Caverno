@@ -18,21 +18,26 @@ String projectTaskObjective(RoadmapItemSnapshot item, String roadmapPath) {
   return '$heading\n\nSource: $citation\n"${item.quote.trim()}"';
 }
 
-/// The goal a started roadmap task carries. Auto-continue stays off: nothing
-/// runs until the user sends from the thread.
-ConversationGoal projectTaskGoal(RoadmapItemSnapshot item, String roadmapPath) {
+/// The goal a started roadmap task carries. Automatic review is opt-in for
+/// dashboard starts; the model's start-task tool still only creates a thread.
+ConversationGoal projectTaskGoal(
+  RoadmapItemSnapshot item,
+  String roadmapPath, {
+  bool autoReview = false,
+}) {
   final now = DateTime.now();
   return ConversationGoal(
     id: const Uuid().v4(),
     objective: projectTaskObjective(item, roadmapPath),
+    projectTaskAutoReview: autoReview,
     createdAt: now,
     updatedAt: now,
   );
 }
 
-/// Starts work on a roadmap task: a new coding thread in the project whose goal
-/// is the task, added without switching threads. Nothing is sent; the caller
-/// decides whether to open it (the dashboard does, the model's tool does not).
+/// Creates a coding thread for a roadmap task without selecting it. A dashboard
+/// start can request the review workflow when the user opens the thread; the
+/// model's start-task tool leaves that flag off and sends nothing.
 ///
 /// This is the one command path the dashboard's Start work button and the
 /// model's `start_project_task` tool share, so both create identical threads.
@@ -41,10 +46,11 @@ String startProjectTask({
   required String projectId,
   required RoadmapItemSnapshot item,
   required String roadmapPath,
+  bool autoReview = false,
 }) => conversations
     .addBackgroundConversation(
       workspaceMode: WorkspaceMode.coding,
       projectId: projectId,
-      goal: projectTaskGoal(item, roadmapPath),
+      goal: projectTaskGoal(item, roadmapPath, autoReview: autoReview),
     )
     .id;

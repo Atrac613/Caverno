@@ -12,6 +12,7 @@ _ConversationGoal _$ConversationGoalFromJson(Map<String, dynamic> json) =>
       objective: json['objective'] as String? ?? '',
       enabled: json['enabled'] as bool? ?? true,
       autoContinue: json['autoContinue'] as bool? ?? false,
+      projectTaskAutoReview: json['projectTaskAutoReview'] as bool? ?? false,
       status:
           $enumDecodeNullable(
             _$ConversationGoalStatusEnumMap,
@@ -46,6 +47,7 @@ Map<String, dynamic> _$ConversationGoalToJson(_ConversationGoal instance) =>
       'objective': instance.objective,
       'enabled': instance.enabled,
       'autoContinue': instance.autoContinue,
+      'projectTaskAutoReview': instance.projectTaskAutoReview,
       'status': _$ConversationGoalStatusEnumMap[instance.status]!,
       'tokenBudget': instance.tokenBudget,
       'tokenUsage': instance.tokenUsage,

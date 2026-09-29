@@ -122,7 +122,38 @@ void main() {
     expect(created.messages, isEmpty, reason: 'nothing is sent');
     expect(created.goal!.status, ConversationGoalStatus.active);
     expect(created.goal!.objective, contains('docs/roadmap.md:97'));
+    expect(created.goal!.projectTaskAutoReview, isFalse);
     expect(repository.getById(id)?.goal, isNotNull);
+  });
+
+  test('dashboard start opts into automatic review', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        conversationRepositoryProvider.overrideWithValue(
+          _InMemoryConversationRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final id = startProjectTask(
+      conversations: container.read(conversationsNotifierProvider.notifier),
+      projectId: 'p1',
+      item: _item,
+      roadmapPath: 'docs/roadmap.md',
+      autoReview: true,
+    );
+    final created = container
+        .read(conversationsNotifierProvider)
+        .conversationForId(id)!;
+    expect(created.goal!.projectTaskAutoReview, isTrue);
+    expect(
+      ConversationGoal.fromJson(created.goal!.toJson()).projectTaskAutoReview,
+      isTrue,
+    );
+    expect(created.messages, isEmpty);
   });
 
   test('a background thread is added without switching threads', () async {

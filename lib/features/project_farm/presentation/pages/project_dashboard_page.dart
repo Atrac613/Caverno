@@ -94,6 +94,7 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
       projectId: widget.projectId,
       item: item,
       roadmapPath: snapshot.roadmapPath,
+      autoReview: true,
     );
     // The drawer selects the returned thread, which opens it.
     Navigator.of(context).pop(conversationId);

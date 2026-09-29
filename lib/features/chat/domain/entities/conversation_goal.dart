@@ -32,6 +32,7 @@ abstract class ConversationGoal with _$ConversationGoal {
     @Default('') String objective,
     @Default(true) bool enabled,
     @Default(false) bool autoContinue,
+    @Default(false) bool projectTaskAutoReview,
     @JsonKey(unknownEnumValue: ConversationGoalStatus.active)
     @Default(ConversationGoalStatus.active)
     ConversationGoalStatus status,

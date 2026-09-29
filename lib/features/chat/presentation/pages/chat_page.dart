@@ -18,6 +18,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
+import '../../../project_farm/application/project_task_review_workflow.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
@@ -126,6 +127,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final _workflowPanelScrollController = ScrollController();
   final ApprovalDialogPresenter _approvalDialogs = ApprovalDialogPresenter();
   final Set<String> _rolledBackTurnDiffIds = <String>{};
+  final Set<String> _runningProjectTaskReviews = <String>{};
   final _uuid = const Uuid();
   bool _isPresentingPlanReviewSheet = false;
   String? _trackedPlanGenerationConversationId;
@@ -442,8 +444,95 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _selectDrawerConversation(String conversationId) =>
-      _workspaceNavigationCoordinator.selectConversation(conversationId);
+  Future<void> _selectDrawerConversation(String conversationId) async {
+    await _workspaceNavigationCoordinator.selectConversation(conversationId);
+    if (!mounted) return;
+    unawaited(_startProjectTaskReview(conversationId));
+  }
+
+  Future<void> _startProjectTaskReview(String conversationId) async {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .conversationForId(conversationId);
+    if (conversation?.goal?.projectTaskAutoReview != true ||
+        conversation!.messages.isNotEmpty ||
+        !_runningProjectTaskReviews.add(conversationId)) {
+      return;
+    }
+    if (!ref.read(settingsNotifierProvider).hasCodeReviewRoute) {
+      _runningProjectTaskReviews.remove(conversationId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('chat.slash_review_not_configured'.tr())),
+      );
+      return;
+    }
+    final languageCode = context.locale.languageCode;
+    try {
+      final notifier = ref.read(chatNotifierProvider.notifier);
+      final workflow = ProjectTaskReviewWorkflow(
+        conversationId: conversationId,
+        readConversation: () => ref
+            .read(conversationsNotifierProvider)
+            .conversationForId(conversationId),
+        isSelected: () =>
+            mounted &&
+            ref.read(conversationsNotifierProvider).currentConversationId ==
+                conversationId &&
+            notifier.conversationId == conversationId,
+        isWaitingForUser: () =>
+            notifier.isConversationAwaitingApproval(conversationId) ||
+            notifier.isConversationBusy(conversationId),
+        send: (prompt, {required codeReview}) async {
+          if (!mounted ||
+              ref.read(conversationsNotifierProvider).currentConversationId !=
+                  conversationId) {
+            return false;
+          }
+          final owner = await notifier.sendMessage(
+            prompt,
+            languageCode: languageCode,
+            bypassPlanMode: true,
+            codeReview: codeReview,
+          );
+          if (owner == null) return false;
+          await notifier.waitForTurnCompletion(owner);
+          return mounted &&
+              !notifier.isConversationBusy(conversationId) &&
+              !notifier.isConversationAwaitingApproval(conversationId);
+        },
+      );
+      final result = await workflow.run();
+      if (!mounted ||
+          ref.read(conversationsNotifierProvider).currentConversationId !=
+              conversationId) {
+        return;
+      }
+      final message = switch (result) {
+        ProjectTaskReviewResult.clean => 'chat.project_task_review_clean'.tr(),
+        ProjectTaskReviewResult.findingsRemain =>
+          'chat.project_task_review_findings'.tr(),
+        ProjectTaskReviewResult.stopped =>
+          'chat.project_task_review_stopped'.tr(),
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'chat.project_task_review_error'.tr(
+                namedArgs: {'error': error.toString()},
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      _runningProjectTaskReviews.remove(conversationId);
+    }
+  }
 
   void _createDrawerChatConversation() {
     _leaveDashboard();

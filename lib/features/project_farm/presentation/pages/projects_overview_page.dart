@@ -127,6 +127,7 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
       projectId: project.id,
       item: item,
       roadmapPath: snapshot.roadmapPath,
+      autoReview: true,
     );
     Navigator.of(context).pop(id);
   }
