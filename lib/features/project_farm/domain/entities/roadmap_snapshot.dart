@@ -59,6 +59,7 @@ abstract class RoadmapSnapshot with _$RoadmapSnapshot {
     RoadmapRecommendationSource recommendationSource,
     @Default(<RoadmapItemSnapshot>[]) List<RoadmapItemSnapshot> current,
     @Default(<RoadmapItemSnapshot>[]) List<RoadmapItemSnapshot> blocked,
+    @Default(<RoadmapItemSnapshot>[]) List<RoadmapItemSnapshot> upcoming,
     @Default(0) int droppedCount,
     String? error,
 

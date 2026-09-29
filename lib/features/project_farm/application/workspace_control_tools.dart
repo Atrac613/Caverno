@@ -310,6 +310,7 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
               },
         'in_progress': [for (final i in snapshot.current) item(i)],
         'blocked': [for (final i in snapshot.blocked) item(i)],
+        'upcoming': [for (final i in snapshot.upcoming) item(i)],
       },
     });
   }

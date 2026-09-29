@@ -1922,6 +1922,8 @@
     "no_roadmap": "No roadmap found. Add docs/roadmap.md, ROADMAP.md, or roadmap.md to the project.",
     "extraction_failed": "Couldn't read the roadmap. Try refreshing.",
     "no_recommendation": "The roadmap doesn't name a next task.",
+    "upcoming": "Up next · priority order",
+    "roadmap_status": "Roadmap status",
     "verified": "Verified",
     "unverified": "Unverified",
     "pinned": "Pinned",

@@ -32,8 +32,8 @@ enum RoadmapExtractionRoute { direct, outline }
 enum RoadmapRecommendationBasis { explicit, priority, none }
 
 /// The outcome of one extraction, including the trace the FARM0 instrument
-/// records. The recommendation, its basis, current work, and blockers are
-/// product data.
+/// records. The recommendation, its basis, current work, blockers, and
+/// upcoming tasks are product data.
 final class RoadmapExtraction {
   const RoadmapExtraction({
     required this.route,
@@ -41,6 +41,7 @@ final class RoadmapExtraction {
     required this.recommendationBasis,
     required this.current,
     required this.blocked,
+    required this.upcoming,
     required this.rawContent,
     this.finishReason,
     this.parseFailed = false,
@@ -56,6 +57,7 @@ final class RoadmapExtraction {
   final RoadmapRecommendationBasis recommendationBasis;
   final List<VerifiedRoadmapItem> current;
   final List<VerifiedRoadmapItem> blocked;
+  final List<VerifiedRoadmapItem> upcoming;
   final String rawContent;
   final String? finishReason;
   final bool parseFailed;
@@ -69,6 +71,7 @@ final class RoadmapExtraction {
     ...recommended,
     ...current,
     ...blocked,
+    ...upcoming,
   ];
 
   int get droppedCount =>
@@ -152,6 +155,7 @@ final class RoadmapNextTaskExtractor {
       recommendationBasis: basis ?? RoadmapRecommendationBasis.none,
       current: verified('current'),
       blocked: verified('blocked'),
+      upcoming: verified('upcoming'),
       rawContent: completion.content,
       finishReason: completion.finishReason,
       parseFailed: decoded == null || basis == null,

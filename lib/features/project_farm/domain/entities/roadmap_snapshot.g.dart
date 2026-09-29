@@ -56,6 +56,11 @@ _RoadmapSnapshot _$RoadmapSnapshotFromJson(
           ?.map((e) => RoadmapItemSnapshot.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const <RoadmapItemSnapshot>[],
+  upcoming:
+      (json['upcoming'] as List<dynamic>?)
+          ?.map((e) => RoadmapItemSnapshot.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <RoadmapItemSnapshot>[],
   droppedCount: (json['droppedCount'] as num?)?.toInt() ?? 0,
   error: json['error'] as String?,
   pinned: json['pinned'] as bool? ?? false,
@@ -75,6 +80,7 @@ Map<String, dynamic> _$RoadmapSnapshotToJson(_RoadmapSnapshot instance) =>
           _$RoadmapRecommendationSourceEnumMap[instance.recommendationSource]!,
       'current': instance.current,
       'blocked': instance.blocked,
+      'upcoming': instance.upcoming,
       'droppedCount': instance.droppedCount,
       'error': instance.error,
       'pinned': instance.pinned,

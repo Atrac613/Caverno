@@ -74,12 +74,16 @@ final class RoadmapSnapshotService {
       ?snapshot.recommended,
       ...snapshot.current,
       ...snapshot.blocked,
+      ...snapshot.upcoming,
     ].where((item) => item.verified && item.id == pinnedId).firstOrNull;
     if (item == null) return snapshot;
     return snapshot.copyWith(
       recommended: item,
       status: RoadmapSnapshotStatus.verified,
       pinned: true,
+      upcoming: snapshot.upcoming
+          .where((candidate) => _itemKey(candidate) != _itemKey(item))
+          .toList(),
     );
   }
 
@@ -211,6 +215,19 @@ RoadmapSnapshot snapshotFromExtraction(
   ];
 
   final recommended = extraction.recommended.firstOrNull;
+  final recommendedSnapshot = recommended == null
+      ? null
+      : toSnapshot(recommended);
+  final current = kept(extraction.current);
+  final blocked = kept(extraction.blocked);
+  final seen = <String>{
+    for (final item in [?recommendedSnapshot, ...current, ...blocked])
+      _itemKey(item),
+  };
+  final upcoming = [
+    for (final item in kept(extraction.upcoming))
+      if (seen.add(_itemKey(item))) item,
+  ];
   final status = extraction.parseFailed
       ? RoadmapSnapshotStatus.failed
       : recommended == null
@@ -226,13 +243,14 @@ RoadmapSnapshot snapshotFromExtraction(
     model: model,
     extractedAt: extractedAt,
     status: status,
-    recommended: recommended == null ? null : toSnapshot(recommended),
+    recommended: recommendedSnapshot,
     recommendationSource:
         extraction.recommendationBasis == RoadmapRecommendationBasis.priority
         ? RoadmapRecommendationSource.priority
         : RoadmapRecommendationSource.explicit,
-    current: kept(extraction.current),
-    blocked: kept(extraction.blocked),
+    current: current,
+    blocked: blocked,
+    upcoming: upcoming,
     droppedCount: extraction.droppedCount,
     error: extraction.parseFailed
         ? (extraction.truncated
@@ -241,3 +259,7 @@ RoadmapSnapshot snapshotFromExtraction(
         : null,
   );
 }
+
+String _itemKey(RoadmapItemSnapshot item) => item.id.trim().isNotEmpty
+    ? 'id:${item.id.trim()}'
+    : 'line:${item.line ?? item.quote}';

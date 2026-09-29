@@ -120,6 +120,7 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
       ?snapshot.recommended,
       ...snapshot.current,
       ...snapshot.blocked,
+      ...snapshot.upcoming,
     ].where((item) => item.verified && item.id.isNotEmpty).toList();
     final chosen = await showDialog<String>(
       context: context,

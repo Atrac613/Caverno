@@ -227,7 +227,7 @@ class DashboardSplit extends StatelessWidget {
   }
 }
 
-/// Current and blocked items the verifier kept.
+/// Current, blocked, and prioritized upcoming items the verifier kept.
 class RoadmapItemsCard extends StatelessWidget {
   const RoadmapItemsCard({super.key, required this.snapshot});
 
@@ -246,10 +246,15 @@ class RoadmapItemsCard extends StatelessWidget {
         ),
     ];
     return _SectionCard(
-      title: 'project_dashboard.in_progress'.tr(),
+      title: 'project_dashboard.roadmap_status'.tr(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'project_dashboard.in_progress'.tr(),
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
           if (snapshot.current.isEmpty)
             Text(
               'project_dashboard.none'.tr(),
@@ -270,6 +275,37 @@ class RoadmapItemsCard extends StatelessWidget {
             )
           else
             ...rows(snapshot.blocked),
+          const SizedBox(height: 8),
+          Text(
+            'project_dashboard.upcoming'.tr(),
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
+          if (snapshot.upcoming.isEmpty)
+            Text(
+              'project_dashboard.none'.tr(),
+              style: theme.textTheme.bodySmall,
+            )
+          else
+            for (final (index, item) in snapshot.upcoming.indexed)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${index + 1}. '
+                        '${[item.id, item.title].where((part) => part.isNotEmpty).join(' · ')}',
+                      ),
+                    ),
+                    if (item.line != null)
+                      Text(
+                        '${snapshot.roadmapPath}:${item.line}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                  ],
+                ),
+              ),
         ],
       ),
     );

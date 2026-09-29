@@ -1922,6 +1922,8 @@
     "no_roadmap": "ロードマップが見つかりません。docs/roadmap.md、ROADMAP.md、roadmap.md のいずれかを追加してください。",
     "extraction_failed": "ロードマップを読み取れませんでした。更新してください。",
     "no_recommendation": "ロードマップに次のタスクが書かれていません。",
+    "upcoming": "次の候補・優先度順",
+    "roadmap_status": "ロードマップの状況",
     "verified": "検証済み",
     "unverified": "未検証",
     "pinned": "固定",

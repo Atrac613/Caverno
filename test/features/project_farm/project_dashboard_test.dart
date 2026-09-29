@@ -247,6 +247,38 @@ void main() {
     });
   });
 
+  testWidgets('shows upcoming tasks in priority order beside status groups', (
+    tester,
+  ) async {
+    final snapshot = _snapshot().copyWith(
+      upcoming: const [
+        RoadmapItemSnapshot(
+          id: '',
+          title: 'Retry requests',
+          quote: 'Retry requests',
+          line: 19,
+        ),
+        RoadmapItemSnapshot(
+          id: '',
+          title: 'Add tests',
+          quote: 'Add tests',
+          line: 21,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: RoadmapItemsCard(snapshot: snapshot)),
+      ),
+    );
+
+    expect(find.text('1. Retry requests'), findsOneWidget);
+    expect(find.text('2. Add tests'), findsOneWidget);
+    expect(find.text('docs/roadmap.md:19'), findsOneWidget);
+    expect(find.text('docs/roadmap.md:21'), findsOneWidget);
+    expect(find.text('RC1 · Signed-device evidence'), findsNothing);
+  });
+
   testWidgets('labels a pinned next task', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

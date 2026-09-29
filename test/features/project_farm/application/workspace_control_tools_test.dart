@@ -161,6 +161,14 @@ void main() {
         quote: 'next slice: RC1',
         line: 97,
       ),
+      upcoming: const [
+        RoadmapItemSnapshot(
+          id: 'F5',
+          title: 'Split files',
+          quote: 'F5',
+          line: 105,
+        ),
+      ],
     );
     final subject = tools(snapshot: snapshot);
 
@@ -169,6 +177,8 @@ void main() {
     });
     final next = (state['roadmap'] as Map)['next_task'] as Map;
     expect(next['source'], 'docs/roadmap.md:97');
+    final upcoming = (state['roadmap'] as Map)['upcoming'] as List;
+    expect((upcoming.single as Map)['source'], 'docs/roadmap.md:105');
 
     final empty = await call(subject, WorkspaceControlTools.projectState, {
       'project_id': 'beta',

@@ -19,12 +19,12 @@ const _roadmap = '''
 | Heuristic Removal | HEU3 | blocked | Completion claims. |
 ''';
 
-Map<String, dynamic> _item(String id, String quote, int line) => {
-  'id': id,
-  'title': id,
-  'quote': quote,
-  'line': line,
-};
+Map<String, dynamic> _item(
+  String id,
+  String quote,
+  int line, {
+  String? title,
+}) => {'id': id, 'title': title ?? id, 'quote': quote, 'line': line};
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -52,6 +52,7 @@ void main() {
         _item('RC9', 'invented sentence', 1),
       ],
       'blocked': [_item('HEU3', '| Heuristic Removal | HEU3 | blocked |', 8)],
+      'upcoming': [],
     });
   });
 
@@ -116,6 +117,7 @@ void main() {
         'recommendation_basis': 'explicit',
         'current': [],
         'blocked': [],
+        'upcoming': [],
       });
 
       final snapshot = await service().refresh(
@@ -148,14 +150,24 @@ void main() {
 # Watcher roadmap
 ## Phase 1
 - [ ] Retry failed requests
+- [ ] Add tests
+- [ ] Ignore local config
 ## Priorities
 | High | Phase 1 |
 ''';
       answer = jsonEncode({
-        'recommended': [_item('', '- [ ] Retry failed requests', 3)],
+        'recommended': [
+          _item('', '- [ ] Retry failed requests', 3, title: 'Retry'),
+        ],
         'recommendation_basis': 'priority',
         'current': [],
         'blocked': [],
+        'upcoming': [
+          _item('', '- [ ] Add tests', 4, title: 'Add tests'),
+          _item('', '- [ ] Ignore local config', 5, title: 'Ignore config'),
+          _item('', '- [ ] Retry failed requests', 3),
+          _item('', 'invented task', 1),
+        ],
       });
 
       final snapshot = await service().refresh(
@@ -169,6 +181,12 @@ void main() {
         RoadmapRecommendationSource.priority,
       );
       expect(snapshot.recommended!.line, 3);
+      expect(snapshot.upcoming.map((item) => item.title), [
+        'Add tests',
+        'Ignore config',
+      ]);
+      expect(snapshot.upcoming.map((item) => item.line), [4, 5]);
+      expect(snapshot.droppedCount, 1);
       expect(
         repository.snapshotFor('p1')!.recommendationSource,
         RoadmapRecommendationSource.priority,

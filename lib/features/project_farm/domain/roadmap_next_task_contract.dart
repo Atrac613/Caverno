@@ -13,7 +13,7 @@ import 'dart:convert';
 
 /// Bump when the prompt, schema, or verifier changes, so cached snapshots made
 /// by an earlier contract are re-extracted.
-const int roadmapExtractorVersion = 2;
+const int roadmapExtractorVersion = 3;
 
 // ---------------------------------------------------------------------------
 // Extraction contract.
@@ -41,8 +41,15 @@ const Map<String, dynamic> extractionSchema = {
     },
     'current': {'type': 'array', 'items': _itemSchema, 'maxItems': 8},
     'blocked': {'type': 'array', 'items': _itemSchema, 'maxItems': 8},
+    'upcoming': {'type': 'array', 'items': _itemSchema, 'maxItems': 8},
   },
-  'required': ['recommended', 'recommendation_basis', 'current', 'blocked'],
+  'required': [
+    'recommended',
+    'recommendation_basis',
+    'current',
+    'blocked',
+    'upcoming',
+  ],
 };
 
 const Map<String, dynamic> outlineSchema = {
@@ -71,7 +78,7 @@ You read one project roadmap document and report where the project stands.
 The document is shown with a line-number gutter such as "   42| ". The gutter
 is not part of the document.
 
-Report three lists:
+Report four lists:
 - recommended: choose one unfinished item. First use the single next item the
   document explicitly recommends or selects. Otherwise, if the document ranks
   work by priority, choose an unfinished item in its highest-priority group.
@@ -87,6 +94,18 @@ Report three lists:
   item chosen from a priority group, or "none" when recommended is empty.
 - current: items the document says are in progress now (at most 8).
 - blocked: items the document says are blocked (at most 8).
+- upcoming: up to eight other unfinished, unblocked, not-in-progress tasks in
+  priority order, excluding recommended. A priority assigned to a phase applies
+  to its unfinished tasks. Within each priority level, list specially singled
+  out tasks first, then its other tasks in document order. Exhaust the higher
+  priority level before listing anything from a lower level. Fill all eight
+  slots from the highest level when it has at least eight eligible tasks after
+  excluding recommended. Never include a medium-priority task while an
+  eligible high-priority task was omitted. Include only tasks supported by a
+  priority ranking; do not treat an entire phase as one task or infer that a
+  listed task is already in progress. Example: if a priority table says "High:
+  Phase 1 (especially A and B); Medium: C", rank A and B, then all other
+  unfinished Phase 1 tasks, then C.
 
 For every item give:
 - id: the item's identifier exactly as written in the document, such as a

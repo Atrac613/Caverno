@@ -170,7 +170,9 @@ FARM1 owns this contract. FARM0 spike A measures it first.
 - **Request.** Strict structured output at temperature 0 under a dedicated
   `ModelUsageRole`, so the cost is accounted for instead of landing in
   `unknown`.
-- **Response.** A recommended next item, plus the current and blocked items.
+- **Response.** A recommended next item, plus current, blocked, and prioritized
+  upcoming items. Upcoming includes up to eight other unfinished tasks in
+  priority order, excluding the recommendation and active or blocked work.
   An explicit next item takes precedence. Without one, the extractor suggests
   an unfinished item in the highest-priority group, preferring any items singled
   out within that group and using document order for ties. It records whether
