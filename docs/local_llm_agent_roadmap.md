@@ -190,6 +190,7 @@ structurally unmotivated to build:
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Local LLM | LL41 | later | M | LL34, LL35, LL37 | Deterministic goal verification contract: a `ConversationGoal` may carry a user-declared verification command and acceptance criteria whose exit code is ground truth for the goal auto-continue stop decision. Adds no judge and no inline panel — LL37's no-inline-stage decision stands; this is ground truth, not a verdict. Evidence-gated on an LL31 turn-exit triage of `awaitingConfirmation` and `noProgress` terminations. |
+| Local LLM | LL42 | later | S-M | F6, LL6 | Measure tool-definition cost across request paths and trim oversized initial catalogs where task-scoped selection preserves tool reachability and safety. Start with representative chat, coding, Plan Mode, Remote Coding, and routine turns; promote one measured path at a time. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
 | Retrieval | RAG3 | blocked | M | RAG2, LL5, F6, LL39 | No measured candidate is eligible. The frozen hybrid candidate failed the unavailable-evidence gate; deterministic score, intent, and cross-arm policies lack a support signal; verbose semantic filtering misses the latency gate; compact v3 misses both quality and latency gates. Current candidate families are closed. Bounded vector persistence, `search_knowledge`, prompting, promotion, and runtime wiring remain blocked. Evidence: `docs/rag3_post_v3_entry_contract_2026-09-01.md`. |
@@ -5936,6 +5937,44 @@ Promotion gate: stays `later` until a triage of the LL31 turn-exit corpus
 in `awaitingConfirmation` or stop on `noProgress`. LL29 was demoted when its LL31
 gate came back negative; the same standard applies here. Current evidence is a
 single session, not a rate. Scoped 2026-09-01.
+
+### LL42: Task-Scoped Tool-Definition Budgets
+
+Status: `later`
+
+Context:
+- A 2026-09-29 desktop `/review` session sent 37 tool definitions on each of
+  ten requests, although the review used three tool names. Commit `4325f188a`
+  narrowed the default review catalog to 11 definitions. The serialized
+  definition size fell from 26,660 to 11,841 characters (55.6%); actual prompt
+  tokens, cache behavior, and task quality after the change remain unmeasured.
+- F6 already defers specialized tools behind `tool_search` in the default
+  request mode. LL6's optional prefix-stable mode keeps a fixed full tool list
+  across a loop, so reducing definitions can also change cache reuse.
+
+Scope:
+- Inventory the definitions actually sent per request path and turn phase,
+  including ordinary chat, coding, Plan Mode, Remote Coding, and routines.
+  Compare definition size, provider-reported prompt tokens where available,
+  cache timing, and tools actually requested. Keep session contents private.
+- Select one high-cost path with representative evidence, then test a smaller
+  task-scoped initial catalog with `tool_search` recovery for deferred tools.
+  Preserve required tools, read-only boundaries, approval rules, and explicit
+  user-enabled capabilities.
+
+Acceptance criteria:
+- Record a reproducible before/after measurement for the chosen path, including
+  definition count and size, prompt tokens when reported, and cache/latency
+  effects where the endpoint exposes them. Do not treat character savings as
+  measured token savings.
+- Focused request-construction and tool-discovery tests prove required and
+  deferred tools remain reachable, with the same approval and safety behavior.
+  A representative task replay or live canary catches selection regressions.
+- Document a Go/No-Go decision for further paths based on measured savings and
+  task success, rather than applying one global allowlist.
+
+Next action: capture a per-path tool-definition census and compare it with
+actual tool use before choosing the first path beyond `/review`.
 
 ## Future Platform Vision Milestone Notes
 
