@@ -232,6 +232,9 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
               'id': snapshot!.recommended!.id,
               'title': snapshot.recommended!.title,
               'verified': snapshot.status == RoadmapSnapshotStatus.verified,
+              'recommendation_source': snapshot.pinned
+                  ? 'pinned'
+                  : snapshot.recommendationSource.name,
             },
     };
   }
@@ -299,7 +302,12 @@ final class WorkspaceControlTools implements BuiltInToolExtension {
         'extracted_at': snapshot.extractedAt.toIso8601String(),
         'next_task': snapshot.recommended == null
             ? null
-            : item(snapshot.recommended!),
+            : {
+                ...item(snapshot.recommended!),
+                'recommendation_source': snapshot.pinned
+                    ? 'pinned'
+                    : snapshot.recommendationSource.name,
+              },
         'in_progress': [for (final i in snapshot.current) item(i)],
         'blocked': [for (final i in snapshot.blocked) item(i)],
       },

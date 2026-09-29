@@ -46,6 +46,7 @@ void main() {
       'recommended': [
         _item('RC1', 'Recommended next slice: RC1 signed-device evidence.', 5),
       ],
+      'recommendation_basis': 'explicit',
       'current': [
         _item('RC1', '| Remote Coding | RC1 | current |', 7),
         _item('RC9', 'invented sentence', 1),
@@ -112,6 +113,7 @@ void main() {
     () async {
       answer = jsonEncode({
         'recommended': [_item('ANA3', '# Roadmap', 1)],
+        'recommendation_basis': 'explicit',
         'current': [],
         'blocked': [],
       });
@@ -138,6 +140,41 @@ void main() {
     expect(snapshot!.status, RoadmapSnapshotStatus.failed);
     expect(snapshot.error, isNotNull);
   });
+
+  test(
+    'stores a priority suggestion separately from an explicit next task',
+    () async {
+      files['/repo/docs/roadmap.md'] = '''
+# Watcher roadmap
+## Phase 1
+- [ ] Retry failed requests
+## Priorities
+| High | Phase 1 |
+''';
+      answer = jsonEncode({
+        'recommended': [_item('', '- [ ] Retry failed requests', 3)],
+        'recommendation_basis': 'priority',
+        'current': [],
+        'blocked': [],
+      });
+
+      final snapshot = await service().refresh(
+        projectId: 'p1',
+        projectRoot: '/repo',
+      );
+
+      expect(snapshot!.status, RoadmapSnapshotStatus.verified);
+      expect(
+        snapshot.recommendationSource,
+        RoadmapRecommendationSource.priority,
+      );
+      expect(snapshot.recommended!.line, 3);
+      expect(
+        repository.snapshotFor('p1')!.recommendationSource,
+        RoadmapRecommendationSource.priority,
+      );
+    },
+  );
 
   test('returns null when the project has no roadmap document', () async {
     files.clear();

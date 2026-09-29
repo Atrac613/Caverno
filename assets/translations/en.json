@@ -1925,6 +1925,7 @@
     "verified": "Verified",
     "unverified": "Unverified",
     "pinned": "Pinned",
+    "priority_suggestion": "Suggested from priorities",
     "change_roadmap": "Change roadmap file",
     "pin_task": "Pin next task",
     "clear_pin": "Clear pin",

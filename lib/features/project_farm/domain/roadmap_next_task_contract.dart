@@ -13,7 +13,7 @@ import 'dart:convert';
 
 /// Bump when the prompt, schema, or verifier changes, so cached snapshots made
 /// by an earlier contract are re-extracted.
-const int roadmapExtractorVersion = 1;
+const int roadmapExtractorVersion = 2;
 
 // ---------------------------------------------------------------------------
 // Extraction contract.
@@ -35,10 +35,14 @@ const Map<String, dynamic> extractionSchema = {
   'additionalProperties': false,
   'properties': {
     'recommended': {'type': 'array', 'items': _itemSchema, 'maxItems': 1},
+    'recommendation_basis': {
+      'type': 'string',
+      'enum': ['explicit', 'priority', 'none'],
+    },
     'current': {'type': 'array', 'items': _itemSchema, 'maxItems': 8},
     'blocked': {'type': 'array', 'items': _itemSchema, 'maxItems': 8},
   },
-  'required': ['recommended', 'current', 'blocked'],
+  'required': ['recommended', 'recommendation_basis', 'current', 'blocked'],
 };
 
 const Map<String, dynamic> outlineSchema = {
@@ -68,10 +72,19 @@ The document is shown with a line-number gutter such as "   42| ". The gutter
 is not part of the document.
 
 Report three lists:
-- recommended: the single item the document itself says should be worked on
-  next. Include it only when the document explicitly recommends, selects, or
-  prioritizes one next item. When the document only lists items and their
-  statuses, leave this list empty.
+- recommended: choose one unfinished item. First use the single next item the
+  document explicitly recommends or selects. Otherwise, if the document ranks
+  work by priority, choose an unfinished item in its highest-priority group.
+  If that group singles out particular items as especially important, choose
+  the first unfinished one of those in document order, even if other unfinished
+  items appear earlier in the group. Phrases meaning "especially" in any
+  language single out the named items. Otherwise choose the first
+  unfinished item in the group. A phase containing multiple tasks is a
+  group, not an item: choose one task within it. Do not choose a completed or
+  blocked item. If no explicit next item or priority ranking supports a choice,
+  leave this list empty.
+- recommendation_basis: "explicit" for a named next item, "priority" for an
+  item chosen from a priority group, or "none" when recommended is empty.
 - current: items the document says are in progress now (at most 8).
 - blocked: items the document says are blocked (at most 8).
 
@@ -81,18 +94,22 @@ For every item give:
 - title: a short title for the item.
 - quote: the shortest span, at most 25 words, copied verbatim from the
   document that names the item and supports the classification, without the
-  gutter. For a table row, copy only its leading cells. Do not paraphrase.
+  gutter. For a priority-based recommendation, quote the unfinished task's own
+  entry rather than the priority summary. For a table row, copy only its
+  leading cells. Do not paraphrase.
 - line: the gutter number of the line where the quote starts.
 
-Report only what the document states. Do not infer a next step it does not
-state.''';
+Use only tasks and priorities present in the document. A priority-based choice
+is a suggestion, not a claim that the document explicitly names the next task.''';
 
 const String outlineSystemPrompt = '''
 You are given the outline of a long project roadmap document: its opening
 lines and every heading, each with its line number. Choose up to four sections
-that most likely state what the project is working on now, what is blocked,
-and what should be done next. Return each section's heading text exactly as
-shown, without the leading # marks, and its line number.''';
+that most likely state an explicit next item, priority ranking and its
+unfinished tasks, current work, or blockers. When there is no explicit next
+item, include both the priority section and the section containing tasks in
+its highest-priority group. Return each heading text exactly as shown, without
+the leading # marks, and its line number.''';
 
 /// Opening lines shown beside the heading outline in the outline stage.
 const int roadmapOutlineOpeningLines = 60;

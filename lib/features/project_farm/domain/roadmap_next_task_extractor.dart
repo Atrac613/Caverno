@@ -29,12 +29,16 @@ final class VerifiedRoadmapItem {
 
 enum RoadmapExtractionRoute { direct, outline }
 
+enum RoadmapRecommendationBasis { explicit, priority, none }
+
 /// The outcome of one extraction, including the trace the FARM0 instrument
-/// records. Only [recommended], [current], and [blocked] are product data.
+/// records. The recommendation, its basis, current work, and blockers are
+/// product data.
 final class RoadmapExtraction {
   const RoadmapExtraction({
     required this.route,
     required this.recommended,
+    required this.recommendationBasis,
     required this.current,
     required this.blocked,
     required this.rawContent,
@@ -49,6 +53,7 @@ final class RoadmapExtraction {
   /// Every item the model returned, verified or not. A consumer that shows an
   /// item must check its verification.
   final List<VerifiedRoadmapItem> recommended;
+  final RoadmapRecommendationBasis recommendationBasis;
   final List<VerifiedRoadmapItem> current;
   final List<VerifiedRoadmapItem> blocked;
   final String rawContent;
@@ -128,6 +133,9 @@ final class RoadmapNextTaskExtractor {
       maxTokens: extractionMaxTokens,
     );
     final decoded = decodeJsonObject(completion.content);
+    final basis = RoadmapRecommendationBasis.values
+        .where((value) => value.name == decoded?['recommendation_basis'])
+        .firstOrNull;
     List<VerifiedRoadmapItem> verified(String key) => decoded == null
         ? const []
         : [
@@ -141,11 +149,12 @@ final class RoadmapNextTaskExtractor {
     return RoadmapExtraction(
       route: route,
       recommended: verified('recommended'),
+      recommendationBasis: basis ?? RoadmapRecommendationBasis.none,
       current: verified('current'),
       blocked: verified('blocked'),
       rawContent: completion.content,
       finishReason: completion.finishReason,
-      parseFailed: decoded == null,
+      parseFailed: decoded == null || basis == null,
       outlineChosen: outlineChosen,
       excerptChars: excerptChars,
     );

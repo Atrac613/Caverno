@@ -171,6 +171,11 @@ FARM1 owns this contract. FARM0 spike A measures it first.
   `ModelUsageRole`, so the cost is accounted for instead of landing in
   `unknown`.
 - **Response.** A recommended next item, plus the current and blocked items.
+  An explicit next item takes precedence. Without one, the extractor suggests
+  an unfinished item in the highest-priority group, preferring any items singled
+  out within that group and using document order for ties. It records whether
+  the recommendation was explicit or inferred from priorities. With no supported
+  choice, it recommends nothing.
   Each item carries `id`, `title`, `quote` (a verbatim span from the source),
   and `line`. Every schema property is required.
 - **Verification.** An item is kept only when both hold:

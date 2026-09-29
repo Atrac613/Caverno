@@ -101,6 +101,14 @@ class NextTaskCard extends StatelessWidget {
                   avatar: const Icon(Icons.push_pin_outlined, size: 16),
                   label: Text('project_dashboard.pinned'.tr()),
                 ),
+              if (!current.pinned &&
+                  current.recommendationSource ==
+                      RoadmapRecommendationSource.priority)
+                Chip(
+                  key: const ValueKey('project-dashboard-priority-suggestion'),
+                  visualDensity: VisualDensity.compact,
+                  label: Text('project_dashboard.priority_suggestion'.tr()),
+                ),
               Chip(
                 key: ValueKey(
                   verified

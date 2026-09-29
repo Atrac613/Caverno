@@ -227,6 +227,10 @@ RoadmapSnapshot snapshotFromExtraction(
     extractedAt: extractedAt,
     status: status,
     recommended: recommended == null ? null : toSnapshot(recommended),
+    recommendationSource:
+        extraction.recommendationBasis == RoadmapRecommendationBasis.priority
+        ? RoadmapRecommendationSource.priority
+        : RoadmapRecommendationSource.explicit,
     current: kept(extraction.current),
     blocked: kept(extraction.blocked),
     droppedCount: extraction.droppedCount,

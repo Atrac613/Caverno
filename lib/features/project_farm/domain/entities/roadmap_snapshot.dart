@@ -19,6 +19,8 @@ enum RoadmapSnapshotStatus {
   failed,
 }
 
+enum RoadmapRecommendationSource { explicit, priority }
+
 /// One roadmap item as the dashboard shows it. [line] comes from the verifier,
 /// not the model, so the citation points at the source.
 @freezed
@@ -53,6 +55,8 @@ abstract class RoadmapSnapshot with _$RoadmapSnapshot {
     required DateTime extractedAt,
     required RoadmapSnapshotStatus status,
     RoadmapItemSnapshot? recommended,
+    @Default(RoadmapRecommendationSource.explicit)
+    RoadmapRecommendationSource recommendationSource,
     @Default(<RoadmapItemSnapshot>[]) List<RoadmapItemSnapshot> current,
     @Default(<RoadmapItemSnapshot>[]) List<RoadmapItemSnapshot> blocked,
     @Default(0) int droppedCount,

@@ -1925,6 +1925,7 @@
     "verified": "検証済み",
     "unverified": "未検証",
     "pinned": "固定",
+    "priority_suggestion": "優先度から提案",
     "change_roadmap": "ロードマップのファイルを変更",
     "pin_task": "次のタスクを固定",
     "clear_pin": "固定を解除",

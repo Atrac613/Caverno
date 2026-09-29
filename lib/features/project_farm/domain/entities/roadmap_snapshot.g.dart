@@ -40,6 +40,12 @@ _RoadmapSnapshot _$RoadmapSnapshotFromJson(
       : RoadmapItemSnapshot.fromJson(
           json['recommended'] as Map<String, dynamic>,
         ),
+  recommendationSource:
+      $enumDecodeNullable(
+        _$RoadmapRecommendationSourceEnumMap,
+        json['recommendationSource'],
+      ) ??
+      RoadmapRecommendationSource.explicit,
   current:
       (json['current'] as List<dynamic>?)
           ?.map((e) => RoadmapItemSnapshot.fromJson(e as Map<String, dynamic>))
@@ -65,6 +71,8 @@ Map<String, dynamic> _$RoadmapSnapshotToJson(_RoadmapSnapshot instance) =>
       'extractedAt': instance.extractedAt.toIso8601String(),
       'status': _$RoadmapSnapshotStatusEnumMap[instance.status]!,
       'recommended': instance.recommended,
+      'recommendationSource':
+          _$RoadmapRecommendationSourceEnumMap[instance.recommendationSource]!,
       'current': instance.current,
       'blocked': instance.blocked,
       'droppedCount': instance.droppedCount,
@@ -77,4 +85,9 @@ const _$RoadmapSnapshotStatusEnumMap = {
   RoadmapSnapshotStatus.unverified: 'unverified',
   RoadmapSnapshotStatus.none: 'none',
   RoadmapSnapshotStatus.failed: 'failed',
+};
+
+const _$RoadmapRecommendationSourceEnumMap = {
+  RoadmapRecommendationSource.explicit: 'explicit',
+  RoadmapRecommendationSource.priority: 'priority',
 };

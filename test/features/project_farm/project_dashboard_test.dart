@@ -27,6 +27,8 @@ const _item = RoadmapItemSnapshot(
 RoadmapSnapshot _snapshot({
   RoadmapSnapshotStatus status = RoadmapSnapshotStatus.verified,
   RoadmapItemSnapshot? recommended = _item,
+  RoadmapRecommendationSource recommendationSource =
+      RoadmapRecommendationSource.explicit,
 }) => RoadmapSnapshot(
   projectId: 'p1',
   roadmapPath: 'docs/roadmap.md',
@@ -36,6 +38,7 @@ RoadmapSnapshot _snapshot({
   extractedAt: DateTime.utc(2026, 9, 26),
   status: status,
   recommended: recommended,
+  recommendationSource: recommendationSource,
 );
 
 void main() {
@@ -199,6 +202,17 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('docs/roadmap.md'), findsOneWidget);
+    });
+
+    testWidgets('labels a priority-based suggestion', (tester) async {
+      await pump(
+        tester,
+        _snapshot(recommendationSource: RoadmapRecommendationSource.priority),
+      );
+      expect(
+        find.byKey(const ValueKey('project-dashboard-priority-suggestion')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('says so when the roadmap names no task', (tester) async {
