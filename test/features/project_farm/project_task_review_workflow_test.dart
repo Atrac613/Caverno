@@ -107,7 +107,50 @@ void main() {
       },
     );
     expect(await workflow.run(), ProjectTaskReviewResult.stopped);
-    expect(calls, 1);
+    expect(
+      calls,
+      2,
+      reason: 'one bounded recovery follows a false ready claim',
+    );
+  });
+
+  test('recovers a false ready claim before starting review', () async {
+    var conversation = initial();
+    final routes = <bool>[];
+    final prompts = <String>[];
+    final workflow = ProjectTaskReviewWorkflow(
+      conversationId: 'task',
+      readConversation: () => conversation,
+      isSelected: () => true,
+      isWaitingForUser: () => false,
+      send: (prompt, {required codeReview}) async {
+        routes.add(codeReview);
+        prompts.add(prompt);
+        final call = routes.length;
+        conversation = conversation.copyWith(
+          messages: [
+            ...conversation.messages,
+            assistant(
+              call == 1
+                  ? 'Modified files and all tests pass.\n'
+                        'PROJECT_TASK_READY_FOR_REVIEW\n\n'
+                        'Deliverable claim check: no mutation was recorded.'
+                  : call == 2
+                  ? 'Implemented and verified.\nPROJECT_TASK_READY_FOR_REVIEW'
+                  : 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
+              call,
+            ),
+          ],
+          turnDiffs: call == 2 ? [diff(call)] : conversation.turnDiffs,
+        );
+        return true;
+      },
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.clean);
+    expect(routes, [false, false, true]);
+    expect(prompts[1], contains('no reviewable file change'));
+    expect(prompts[2], contains('```diff'));
   });
 
   test('stops before review when the user switches threads', () async {
@@ -122,9 +165,7 @@ void main() {
       send: (_, {required codeReview}) async {
         calls++;
         conversation = conversation.copyWith(
-          messages: [
-            assistant('Done.\nPROJECT_TASK_READY_FOR_REVIEW', calls),
-          ],
+          messages: [assistant('Done.\nPROJECT_TASK_READY_FOR_REVIEW', calls)],
           turnDiffs: [diff(calls)],
         );
         selected = false;

@@ -39,7 +39,7 @@ acceptance machinery, not a parallel one.
 | 2026-09-26 | Work starts now, ahead of RC1's signed-device evidence. |
 | 2026-09-26 | The chat half of the dashboard starts as an ordinary chat-workspace thread. The 2026-09-14 decision against a fourth `WorkspaceMode` stands. A split-view console is added only if use shows the need. |
 | 2026-09-26 | The model does not get a "switch the visible thread, then send" capability. Manual starts go through the dashboard, and automatic starts need background execution either way, so the intermediate design is not worth building. |
-| 2026-09-29 | Dashboard Start work opens a task thread and runs implementation, dedicated read-only `/review`, and at most two repair rounds. It stops at approval, incomplete verification, missing captured patches, an unavailable review route, or a thread switch; it never commits or publishes. Model-created task threads do not auto-run. |
+| 2026-09-29 | Dashboard Start work opens a task thread and runs implementation, dedicated read-only `/review`, and at most two repair rounds. A ready claim without a captured file change gets one bounded implementation retry before stopping. It stops at approval, incomplete verification, missing captured patches, an unavailable review route, or a thread switch; it never commits or publishes. Model-created task threads do not auto-run. |
 
 ## Architecture
 

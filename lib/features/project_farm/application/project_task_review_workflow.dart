@@ -21,6 +21,7 @@ final class ProjectTaskReviewWorkflow {
   final Future<bool> Function(String prompt, {required bool codeReview}) send;
 
   static const maxRepairRounds = 2;
+  static const maxMissingDiffRetries = 1;
   static const _ready = 'PROJECT_TASK_READY_FOR_REVIEW';
   static const _clean = 'PROJECT_TASK_REVIEW_CLEAN';
   static const _findings = 'PROJECT_TASK_REVIEW_FINDINGS';
@@ -41,24 +42,34 @@ $objective
 Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification. Respect all approval and user-input gates. Do not commit, push, or publish. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
 
     for (var repairRound = 0; repairRound <= maxRepairRounds; repairRound++) {
-      final before = readConversation();
-      if (!_canContinue(before)) return ProjectTaskReviewResult.stopped;
-      final previousMessageCount = before!.messages.length;
-      final previousDiffCount = before.turnDiffs.length;
-      if (!await send(implementation, codeReview: false)) {
-        return ProjectTaskReviewResult.stopped;
-      }
-      final after = readConversation();
-      if (!_canContinue(after)) return ProjectTaskReviewResult.stopped;
-      final response = _lastAssistant(after!, previousMessageCount);
-      if (response == null || !_endsWithMarker(response.content, _ready)) {
-        return ProjectTaskReviewResult.stopped;
-      }
-      if (after.turnDiffs.length <= previousDiffCount) {
-        return ProjectTaskReviewResult.stopped;
+      Conversation? after;
+      for (var retry = 0; retry <= maxMissingDiffRetries; retry++) {
+        final before = readConversation();
+        if (!_canContinue(before)) return ProjectTaskReviewResult.stopped;
+        final previousMessageCount = before!.messages.length;
+        final previousDiffCount = before.turnDiffs.length;
+        if (!await send(implementation, codeReview: false)) {
+          return ProjectTaskReviewResult.stopped;
+        }
+        after = readConversation();
+        if (!_canContinue(after)) return ProjectTaskReviewResult.stopped;
+        final response = _lastAssistant(after!, previousMessageCount);
+        if (response == null) return ProjectTaskReviewResult.stopped;
+        if (after.turnDiffs.length > previousDiffCount) {
+          if (!_endsWithMarker(response.content, _ready)) {
+            return ProjectTaskReviewResult.stopped;
+          }
+          break;
+        }
+        if (retry == maxMissingDiffRetries ||
+            !response.content.contains(_ready)) {
+          return ProjectTaskReviewResult.stopped;
+        }
+        implementation =
+            '''Your previous reply claimed this task was ready, but this thread captured no reviewable file change from that turn. Treat the claimed edits and test results as unverified. Inspect the current files, then perform the required implementation with file tools and run relevant verification. Do not repeat the same whole-file reads. Respect approval and user-input gates. If the task is blocked or already complete, explain the evidence and omit $_ready. End with exactly $_ready only after the work and verification are actually complete.''';
       }
 
-      final patch = _reviewPatch(after);
+      final patch = _reviewPatch(after!);
       if (patch == null) return ProjectTaskReviewResult.stopped;
       final template = builtInSlashCommandPromptTemplates.firstWhere(
         (candidate) => candidate.id == 'review',

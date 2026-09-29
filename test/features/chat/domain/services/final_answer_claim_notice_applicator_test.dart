@@ -60,6 +60,26 @@ void main() {
     ]);
   });
 
+  test('qualifies an unsupported ready claim after duplicate reads', () {
+    const content =
+        '**Modified: `mercari.py`**\n\n'
+        'PROJECT_TASK_READY_FOR_REVIEW';
+
+    final result = applicator.apply(
+      _input(candidateContent: content, projectRoot: ownerRoot.path),
+    );
+
+    expect(
+      result.transformIds,
+      contains(FinalAnswerClaimNoticeApplicator.unwrittenFileTransformId),
+    );
+    expect(result.content, contains('Deliverable claim check:'));
+    expect(
+      result.content.trimRight(),
+      isNot(endsWith('PROJECT_TASK_READY_FOR_REVIEW')),
+    );
+  });
+
   test('applies the narrated-transcript notice independently', () {
     const content = '''
 Verification:

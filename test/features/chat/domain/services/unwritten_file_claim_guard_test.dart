@@ -52,6 +52,24 @@ void main() {
     expect(assessment.buildNotice(), contains('was not modified in this turn'));
   });
 
+  test('flags completed Modified labels without file mutation evidence', () {
+    final assessment = guard.assess(
+      candidateResponse:
+          '**Modified: `mercari.py`**\n'
+          '**Modified: `notifier.py`**\n'
+          'PROJECT_TASK_READY_FOR_REVIEW',
+      toolResults: const [],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(assessment.claims.map((claim) => claim.displayPath), [
+      'mercari.py',
+      'notifier.py',
+    ]);
+    expect(assessment.buildNotice(), contains('was not modified in this turn'));
+  });
+
   test('does not treat generic command success as mutation evidence', () {
     final assessment = guard.assess(
       candidateResponse: '`lib/generated.g.dart` was updated.',
@@ -77,6 +95,17 @@ void main() {
       toolResults: const [],
       projectRoot: root,
       pathExists: (path) => path == '$root/lib/prior.dart',
+    );
+
+    expect(assessment.hasClaims, isFalse);
+  });
+
+  test('ignores a file modified in a prior turn', () {
+    final assessment = guard.assess(
+      candidateResponse: '`lib/prior.dart` was modified in the previous turn.',
+      toolResults: const [],
+      projectRoot: root,
+      pathExists: (_) => true,
     );
 
     expect(assessment.hasClaims, isFalse);

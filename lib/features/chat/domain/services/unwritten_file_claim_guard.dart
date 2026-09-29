@@ -44,24 +44,24 @@ class UnwrittenFileClaimGuard {
   static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   static final RegExp _completedEnglishMutation = RegExp(
-    r'\b(?:created|added|updated|wrote|written)\b',
+    r'\b(?:created|added|updated|modified|wrote|written)\b',
     caseSensitive: false,
   );
   static final RegExp _futureOrNegativeEnglishMutation = RegExp(
     r'\b(?:will|would|should|could|can|may|might|to|not|never|'
     r"didn['’]?t|wasn['’]?t|weren['’]?t|haven['’]?t|"
     r"hasn['’]?t)\s+(?:be\s+)?(?:create(?:d)?|add(?:ed)?|"
-    r'update(?:d)?|write|written)\b',
+    r'update(?:d)?|modif(?:y|ied)|write|written)\b',
     caseSensitive: false,
   );
   static final RegExp _planningEnglishMutation = RegExp(
     r'\b(?:plan|planning|intend|intending|going)\s+to\s+'
-    r'(?:create|add|update|write)\b',
+    r'(?:create|add|update|modify|write)\b',
     caseSensitive: false,
   );
   static final RegExp _priorTurnMutation = RegExp(
     r'\b(?:previous|prior|earlier|last)\s+(?:assistant\s+)?turn\b|'
-    r'\b(?:before|previously|earlier)\b.*\b(?:created|added|updated|written)\b',
+    r'\b(?:before|previously|earlier)\b.*\b(?:created|added|updated|modified|written)\b',
     caseSensitive: false,
   );
   static final RegExp _completedJapaneseMutation = RegExp(
@@ -78,7 +78,7 @@ class UnwrittenFileClaimGuard {
     unicode: true,
   );
   static final RegExp _completedEnglishMutationBeforePath = RegExp(
-    r'\b(?:created|added|updated|wrote|written)\b'
+    r'\b(?:created|added|updated|modified|wrote|written)\b'
     r'(?:\s+(?:(?:the|a|an)\s+)?(?:new\s+|existing\s+)?'
     r'files?(?:\s+at)?)?'
     r'\s*(?:[:\u2013\u2014-]\s*)?[`*_~\[(]*\s*$',
@@ -89,9 +89,9 @@ class UnwrittenFileClaimGuard {
     r'^(?::\d{1,7}(?::\d{1,7})?)?\s*[`*_~\]\}]*\s*'
     r'(?:'
     r'(?:(?:was|were)|(?:has|have)\s+been|(?:is|are)\s+now)\s+'
-    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|written)\b|'
+    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|modified|written)\b|'
     r'[(:\u2013\u2014-]\s*(?:(?:successfully|newly)\s+)*'
-    r'(?:created|added|updated|written)\b'
+    r'(?:created|added|updated|modified|written)\b'
     r'(?=\s*(?:[\]),.;:]|$))'
     r')',
     caseSensitive: false,
@@ -121,7 +121,7 @@ class UnwrittenFileClaimGuard {
   static final RegExp _completedMutationListBeforePaths = RegExp(
     r'^\s*(?:(?:[-*+]|\d+[.)])\s+)?'
     r'(?:'
-    r'(?:files?\s+)?(?:created|added|updated|wrote|written)'
+    r'(?:files?\s+)?(?:created|added|updated|modified|wrote|written)'
     r'(?:\s+files?)?|'
     r'(?:\u65b0\u898f)?(?:\u4f5c\u6210|\u66f4\u65b0|\u8ffd\u52a0)'
     r'(?:\u6e08\u307f)?'
@@ -144,7 +144,7 @@ class UnwrittenFileClaimGuard {
     r'[`*_~\]\)]*)+'
     r'\s*(?:'
     r'(?:(?:was|were)|(?:has|have)\s+been)\s+'
-    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|written)\b|'
+    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|modified|written)\b|'
     r'(?:\u3092|\u306f)\s*(?:\u65b0\u898f)?'
     r'(?:\u4f5c\u6210|\u66f4\u65b0|\u8ffd\u52a0)'
     r'(?:\u3057\u307e\u3057\u305f|\u3057\u305f|\u6e08\u307f(?:\u3067\u3059)?)'
@@ -153,8 +153,8 @@ class UnwrittenFileClaimGuard {
     unicode: true,
   );
   static final RegExp _completedMutationTableHeading = RegExp(
-    r'(?:files?\s+(?:created|added|updated|written)|'
-    r'(?:created|added|updated|written)\s+files?|'
+    r'(?:files?\s+(?:created|added|updated|modified|written)|'
+    r'(?:created|added|updated|modified|written)\s+files?|'
     r'(?:\u4f5c\u6210|\u66f4\u65b0|\u8ffd\u52a0)(?:\u3057\u305f)?\u30d5\u30a1\u30a4\u30eb)',
     caseSensitive: false,
     unicode: true,
