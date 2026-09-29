@@ -1,8 +1,8 @@
 # SEC4.4i OS-Enforced Write Containment (plan)
 
 Status: 4i-a implemented 2026-09-24 (opt-in observe mode). A narrow macOS
-foreground Python containment route is implemented; general 4i-b onward remains
-planned.
+foreground Python and Bash containment route is implemented (Bash added
+2026-09-30); general 4i-b onward remains planned.
 
 ## Why
 
@@ -100,11 +100,11 @@ inside an app sandbox.
 
 ## Slices
 
-### Foreground Python route
+### Foreground Python and Bash route
 
-Direct `python`/`python3` commands, including a leading `cd ... &&`, can use
-the ordinary Coding approval gate when a macOS `sandbox-exec` launcher and an
-active project root are available. Their shell and child processes run with
+Direct `python`/`python3` and `bash` commands, including a leading `cd ... &&`,
+can use the ordinary Coding approval gate when a macOS `sandbox-exec` launcher
+and an active project root are available. Their shell and child processes run with
 project and per-command temporary writes only; Git metadata, Apple Events,
 Mach services, and network access are denied. A literal out-of-project path,
 background execution, another platform, or an unavailable launcher retains
@@ -112,7 +112,17 @@ the fresh host-write approval. If containment setup fails after gate selection,
 execution fails closed. This route does not relax approvals for other shell
 commands or for the general `run_tests` and `process_start` paths.
 
-The Python route can break scripts that need host caches, network access, or
+Bash script files, `bash -c`, heredocs, pipelines, and their child processes
+share the enforced profile. Known release scripts and commands mentioning a
+nested sandbox toolchain or single-ampersand syntax retain fresh host-write
+approval. The single-ampersand check is conservative: it can also prompt for a
+quoted literal ampersand or `&>` redirection, while `&&` remains eligible. This
+exemption only removes containment; it never grants approval. Dependencies hidden in a
+script remain sandboxed and may fail, without an automatic uncontained retry.
+The execution plan selects the same `workspace_command_containment` route for
+both the approval scope and launcher, and legacy runners refuse that route.
+
+The contained route can break scripts that need host caches, network access, or
 service helpers. Those commands require a separate, explicitly approved host
 execution path. The broader OS containment plan below still requires its
 service-escape and release-gate work before other command families are relaxed.

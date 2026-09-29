@@ -218,7 +218,7 @@ class LocalShellTools {
       containmentRoot: containmentRoot,
     );
     if (launch == null) {
-      const error = 'Python workspace containment could not be started';
+      const error = 'Command workspace containment could not be started';
       return FirstPartyToolExecutionResult(
         result: jsonEncode({'ok': false, 'error': error}),
         errorMessage: error,

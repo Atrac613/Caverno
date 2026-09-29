@@ -1,7 +1,7 @@
-import 'python_workspace_containment.dart';
+import 'local_command_workspace_containment.dart';
 import 'shell_write_observation.dart';
 
-/// Selects either enforced Python containment or optional shell observation.
+/// Selects either enforced command containment or optional shell observation.
 final class LocalShellLaunchPlan {
   const LocalShellLaunchPlan({
     required this.executable,
@@ -13,7 +13,7 @@ final class LocalShellLaunchPlan {
   final String executable;
   final List<String> args;
   final String? observationTag;
-  final PythonWorkspaceSandbox? sandbox;
+  final LocalCommandWorkspaceSandbox? sandbox;
 
   String? get scratchDirectory => sandbox?.scratch.path;
 
@@ -27,13 +27,13 @@ final class LocalShellLaunchPlan {
     required String? containmentRoot,
   }) async {
     if (containmentRoot != null) {
-      final sandbox = await PythonWorkspaceContainment.prepare(
+      final sandbox = await LocalCommandWorkspaceContainment.prepare(
         command: command,
         root: containmentRoot,
       );
       if (sandbox == null) return null;
       return LocalShellLaunchPlan(
-        executable: PythonWorkspaceContainment.executable,
+        executable: LocalCommandWorkspaceContainment.executable,
         args: ['-p', sandbox.profile, shellExecutable, ...shellArgs],
         sandbox: sandbox,
       );

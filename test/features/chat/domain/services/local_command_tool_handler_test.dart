@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/data/datasources/python_workspace_containment.dart';
+import 'package:caverno/features/chat/data/datasources/local_command_workspace_containment.dart';
 import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -659,43 +659,83 @@ void main() {
       expect(harness.execution.calls, hasLength(1));
     });
 
-    test('contained Python uses auto-review without a manual gate', () async {
-      final root = await Directory.systemTemp.createTemp('python-gate-');
+    for (final command in ['python3 watcher.py --help', 'bash tool/check.sh']) {
+      test(
+        'contained $command uses auto-review without a manual gate',
+        () async {
+          final root = await Directory.systemTemp.createTemp('python-gate-');
+          addTearDown(() => root.delete(recursive: true));
+          if (!LocalCommandWorkspaceContainment.eligible(
+            command: command,
+            root: root.path,
+          )) {
+            return;
+          }
+          final owner = _owner('owner-a');
+          final harness = _Harness()
+            ..approval.gates[owner] =
+                ToolApprovalGateDecision.autoReviewAllowed;
+
+          await harness.handler.handle(
+            _request(
+              owner: owner,
+              allowedRoot: root.path,
+              defaultWorkingDirectory: root.path,
+              arguments: {'command': command},
+            ),
+          );
+
+          expect(harness.approval.resolveCalls, hasLength(1));
+          expect(
+            harness.approval.resolveCalls.single.request.requiredManualDecision,
+            isNull,
+          );
+          expect(harness.approval.manualCalls, isEmpty);
+          expect(
+            harness
+                .execution
+                .calls
+                .single
+                .request
+                .arguments['workspace_command_containment'],
+            isTrue,
+          );
+        },
+      );
+    }
+
+    test('Bash outside the containment route retains fresh approval', () async {
+      final root = await Directory.systemTemp.createTemp('bash-gate-');
       addTearDown(() => root.delete(recursive: true));
-      if (!PythonWorkspaceContainment.eligible(
-        command: 'python3 watcher.py --help',
-        root: root.path,
-      )) {
-        return;
-      }
       final owner = _owner('owner-a');
-      final harness = _Harness()
-        ..approval.gates[owner] = ToolApprovalGateDecision.autoReviewAllowed;
+      for (final arguments in [
+        {'command': 'bash tool/check.sh', 'background': true},
+        {'command': 'bash tool/check.sh &'},
+        {'command': 'bash tool/check.sh /outside-project/result.txt'},
+        {'command': 'bash tool/release_ios_macos.sh'},
+        {'command': 'bash -c "flutter build macos"'},
+      ]) {
+        final harness = _Harness()
+          ..rules.decisions[owner] = CommandPermissionRuleDecision.allow;
 
-      await harness.handler.handle(
-        _request(
-          owner: owner,
-          allowedRoot: root.path,
-          defaultWorkingDirectory: root.path,
-          arguments: const {'command': 'python3 watcher.py --help'},
-        ),
-      );
+        await harness.handler.handle(
+          _request(
+            owner: owner,
+            allowedRoot: root.path,
+            defaultWorkingDirectory: root.path,
+            arguments: {...arguments, 'workspace_command_containment': true},
+          ),
+        );
 
-      expect(harness.approval.resolveCalls, hasLength(1));
-      expect(
-        harness.approval.resolveCalls.single.request.requiredManualDecision,
-        isNull,
-      );
-      expect(harness.approval.manualCalls, isEmpty);
-      expect(
-        harness
-            .execution
-            .calls
-            .single
-            .request
-            .arguments['workspace_python_containment'],
-        isTrue,
-      );
+        final request = harness.approval.resolveCalls.single.request;
+        expect(request.requiredManualDecision?.needsManual, isTrue);
+        expect(
+          request.execution.arguments['workspace_command_containment'],
+          isFalse,
+        );
+        expect(harness.approval.manualCalls, hasLength(1));
+        expect(harness.approval.rememberedResults, isEmpty);
+      }
     });
 
     test(

@@ -29,10 +29,10 @@ BuiltInLocalCommandResultRunner resolveBuiltInLocalCommandResultRunner({
             containmentRoot,
           }) async {
             if (containmentRoot != null) {
-              const error = 'Legacy command runners cannot contain Python';
+              const error = 'Legacy command runners cannot contain commands';
               return const FirstPartyToolExecutionResult(
                 result:
-                    '{"ok":false,"error":"Legacy command runners cannot contain Python"}',
+                    '{"ok":false,"error":"Legacy command runners cannot contain commands"}',
                 errorMessage: error,
               );
             }

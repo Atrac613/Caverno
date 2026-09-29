@@ -142,8 +142,8 @@ class BuiltInLocalCommandToolHandler {
           command: command,
           workingDirectory: workingDirectory,
           observationRoot: args['allowed_read_root'] as String?,
-          containmentRoot: args['workspace_python_containment'] == true
-              ? args['allowed_read_root'] as String?
+          containmentRoot: args['workspace_command_containment'] == true
+              ? args['allowed_read_root'] as String? ?? ''
               : null,
         );
         // A non-zero exit is the command's outcome, not a tool failure, so the
@@ -167,11 +167,13 @@ class BuiltInLocalCommandToolHandler {
         return McpToolResultNormalizer.structuredFailure(
           toolName: name,
           payload: {
-            'error': 'run_tests must be executed through the chat command approval flow.',
+            'error':
+                'run_tests must be executed through the chat command approval flow.',
             'code': 'approval_required',
             ...ToolResultOrigin.refusal.marker,
           },
-          errorMessage: 'run_tests must be executed through the chat command approval flow',
+          errorMessage:
+              'run_tests must be executed through the chat command approval flow',
         );
     }
 
