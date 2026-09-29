@@ -1114,6 +1114,7 @@ Dart symbols:
         prompt,
         contains('An ask_user_question answer does not update the saved'),
       );
+      expect(prompt, contains('companion panel under Waiting on you'));
       expect(prompt, contains('spawn_subagent'));
       expect(
         prompt,
