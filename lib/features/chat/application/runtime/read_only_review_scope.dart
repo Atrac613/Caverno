@@ -42,6 +42,23 @@ final class ReadOnlyReviewScope {
     'git_execute_command',
   };
 
+  /// Keep the fixed review catalog focused on repository inspection. Web
+  /// readers cover URL and pull-request scopes; other read-only tools need a
+  /// separate reason to join the catalog instead of riding the general list.
+  static const _initialToolNames = <String>{
+    'git_execute_command',
+    'list_directory',
+    'read_file',
+    'inspect_file',
+    'find_files',
+    'search_files',
+    'local_execute_command',
+    'run_tests',
+    'http_get',
+    'search_web',
+    'load_skill',
+  };
+
   /// The follow-up carry for a review turn.
   ///
   /// A review needs the diff and the files it touches at once, which the
@@ -64,6 +81,9 @@ final class ReadOnlyReviewScope {
       _namedExceptions.contains(toolName) ||
       _commandTools.contains(toolName) ||
       _isReadOnly(_classifier.classify(toolName).commandEffect);
+
+  bool offersInitially(String toolName) =>
+      _initialToolNames.contains(toolName) && offers(toolName);
 
   /// The refusal for [toolCall], or `null` when a review may run it.
   McpToolResult? evaluate(ToolCallInfo toolCall) {

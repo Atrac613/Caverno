@@ -146,7 +146,7 @@ extension ChatNotifierPrimaryModelRouting on ChatNotifier {
       ? null
       : ToolDefinitionSearchService.toolNamesFromDefinitions(
           _toolDefinitionsAllowedBy(null),
-        ).where(const ReadOnlyReviewScope().offers).toSet();
+        ).where(const ReadOnlyReviewScope().offersInitially).toSet();
   String _primaryModelForGeneration(int generation) =>
       _primaryRoutes.model(generation, _settings);
   ModelCapabilityProfile? _primaryCapabilityProfileForGeneration(

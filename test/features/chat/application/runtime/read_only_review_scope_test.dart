@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/application/runtime/read_only_review_scope.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:test/test.dart';
 
 ToolCallInfo _call(String name, [Map<String, dynamic> arguments = const {}]) =>
@@ -34,6 +35,85 @@ void main() {
         expect(scope.offers(name), isFalse, reason: name);
       }
     });
+  });
+
+  test('initial review catalog contains repository and URL readers only', () {
+    for (final name in [
+      'git_execute_command',
+      'list_directory',
+      'read_file',
+      'inspect_file',
+      'find_files',
+      'search_files',
+      'local_execute_command',
+      'run_tests',
+      'http_get',
+      'search_web',
+      'load_skill',
+    ]) {
+      expect(scope.offersInitially(name), isTrue, reason: name);
+    }
+    for (final name in [
+      'tool_search',
+      'ask_user_question',
+      'get_subagent_result',
+      'wifi_scan',
+      'get_wan_status',
+      'search_images',
+      'process_wait',
+      'write_file',
+    ]) {
+      expect(scope.offersInitially(name), isFalse, reason: name);
+    }
+  });
+
+  test('the review catalog does not retain general diagnostic tools', () {
+    final names = [
+      'git_execute_command',
+      'read_file',
+      'local_execute_command',
+      'http_get',
+      'search_web',
+      'load_skill',
+      'wifi_scan',
+      'get_wan_status',
+      'search_images',
+      'tool_search',
+      'write_file',
+    ];
+    final available = [
+      for (final name in names)
+        {
+          'type': 'function',
+          'function': {
+            'name': name,
+            'description': name,
+            'parameters': {'type': 'object'},
+          },
+        },
+    ];
+    final allowed = available.where((definition) {
+      final function = definition['function']! as Map<String, Object>;
+      return scope.offersInitially(function['name']! as String);
+    }).toList();
+    final selection = ToolDefinitionSearchService.buildInitialSelection(
+      allowed,
+    );
+
+    expect(selection.toolSearchEnabled, isFalse);
+    expect(
+      ToolDefinitionSearchService.toolNamesFromDefinitions(
+        selection.toolDefinitions,
+      ),
+      {
+        'git_execute_command',
+        'read_file',
+        'local_execute_command',
+        'http_get',
+        'search_web',
+        'load_skill',
+      },
+    );
   });
 
   group('evaluate', () {
