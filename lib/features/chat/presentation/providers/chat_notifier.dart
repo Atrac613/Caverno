@@ -5070,7 +5070,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required ChatTurnOwner observationOwner,
   }) {
     final budgetedToolResults = _budgetToolResultsForPrompt(
-      toolResults,
+      ToolResultPromptBuilder.dedupeReadFileResultsForAnswer(toolResults),
       mode: budgetMode,
       protectedPaths: protectedPaths,
       observationOwner: observationOwner,

@@ -366,6 +366,28 @@ class ToolResultPromptBuilder {
     return deduped;
   }
 
+  /// Repeated whole-file reads can crowd the relevant lines out of the final
+  /// answer prompt. Keep the newest identical observation of each file.
+  static List<ToolResultInfo> dedupeReadFileResultsForAnswer(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final seen = <(String, String)>{};
+    final retained = <ToolResultInfo>[];
+    for (final toolResult in toolResults.reversed) {
+      if (toolResult.name == 'read_file') {
+        final payload = _tryDecodeJsonMap(toolResult.result);
+        final path = payload?['path'];
+        if (path is String &&
+            path.isNotEmpty &&
+            payload?['content'] is String) {
+          if (!seen.add((path, toolResult.result))) continue;
+        }
+      }
+      retained.add(toolResult);
+    }
+    return retained.reversed.toList(growable: false);
+  }
+
   static List<ToolResultInfo> budgetToolResults(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,

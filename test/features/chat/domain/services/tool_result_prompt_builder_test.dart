@@ -8,6 +8,74 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ToolResultPromptBuilder', () {
+    test('repeated reads do not hide the middle of a review test', () {
+      ToolResultInfo read(String path, String content, String id) =>
+          ToolResultInfo(
+            id: id,
+            name: 'read_file',
+            arguments: {'path': path},
+            result: jsonEncode({'path': '/repo/$path', 'content': content}),
+          );
+
+      final testBody =
+          '${'a' * 2900}\n'
+          'st = state.load(config["state_file"])\n'
+          'assert "FAIL1" not in st["items"]\n'
+          '${'b' * 2900}';
+      final first = read('test_watcher.py', testBody, 'first');
+      final latest = read('test_watcher.py', testBody, 'latest');
+      final changed = read('test_watcher.py', 'new content', 'changed');
+      final failed = ToolResultInfo(
+        id: 'failed',
+        name: 'read_file',
+        arguments: const {'path': 'test_watcher.py'},
+        result: jsonEncode({
+          'path': '/repo/test_watcher.py',
+          'error': 'denied',
+        }),
+      );
+      expect(
+        ToolResultPromptBuilder.dedupeReadFileResultsForAnswer([
+          failed,
+          failed,
+        ]),
+        [failed, failed],
+      );
+      final results = <ToolResultInfo>[
+        for (var i = 0; i < 3; i++) ...[
+          read('watcher.py', 'w' * 6000, 'watcher-$i'),
+          i == 0 ? first : latest,
+          read('state.py', 's' * 6000, 'state-$i'),
+        ],
+        changed,
+        failed,
+      ];
+
+      expect(
+        ToolResultPromptBuilder.budgetToolResults(
+          results,
+        ).any((result) => result.result.contains('Omitted')),
+        isTrue,
+      );
+
+      final deduped = ToolResultPromptBuilder.dedupeReadFileResultsForAnswer(
+        results,
+      );
+      expect(deduped.map((result) => result.id), [
+        'watcher-2',
+        'latest',
+        'state-2',
+        'changed',
+        'failed',
+      ]);
+      final budgeted = ToolResultPromptBuilder.budgetToolResults(deduped);
+      expect(
+        budgeted.any((result) => result.result.contains('Omitted')),
+        isFalse,
+      );
+      expect(budgeted[1].result, contains('assert \\"FAIL1\\" not in st'));
+    });
+
     group('unfinished background jobs', () {
       ToolResultInfo processResult(
         String name,
