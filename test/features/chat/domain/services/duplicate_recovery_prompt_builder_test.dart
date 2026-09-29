@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:caverno/features/chat/data/datasources/built_in_filesystem_tool_definitions.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_recovery_prompt_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +16,73 @@ void main() {
   ];
 
   group('DuplicateRecoveryPromptBuilder', () {
+    test('recovery narrows reads while preserving edits and the catalogue', () {
+      final read = BuiltInFilesystemToolDefinitions.readFileTool;
+      final edit = BuiltInFilesystemToolDefinitions.editFileTool;
+      final definitions = [read, edit];
+      final recovery = builder.buildToolDefinitions(
+        definitions,
+        toolCalls: readFileCalls,
+      );
+      final parameters = recovery.first['function']['parameters'] as Map;
+      final properties = parameters['properties'] as Map;
+
+      expect(parameters['required'], containsAll(['path', 'offset', 'limit']));
+      expect(properties['limit']['maximum'], 120);
+      expect(properties['offset']['minimum'], 1);
+      expect(recovery.last, same(edit));
+      expect(read['function']['parameters']['required'], ['path']);
+      expect(
+        read['function']['parameters']['properties']['limit'],
+        isNot(contains('maximum')),
+      );
+      expect(
+        builder.buildInspectionPrompt(
+          toolCalls: readFileCalls,
+          hasSavedTask: false,
+        ),
+        contains('at most 120 lines'),
+      );
+    });
+
+    test('keeps a stricter existing read limit', () {
+      final read =
+          jsonDecode(jsonEncode(BuiltInFilesystemToolDefinitions.readFileTool))
+              as Map<String, dynamic>;
+      read['function']['parameters']['properties']['limit']['maximum'] = 40;
+      final recovery = builder.buildToolDefinitions([
+        read,
+      ], toolCalls: readFileCalls);
+
+      expect(
+        recovery
+            .single['function']['parameters']['properties']['limit']['maximum'],
+        40,
+      );
+    });
+
+    test('does not invent range arguments for an unrelated tool schema', () {
+      final definitions = <Map<String, dynamic>>[
+        {
+          'function': {
+            'name': 'read_file',
+            'parameters': {'type': 'object'},
+          },
+        },
+      ];
+
+      expect(
+        builder
+            .buildToolDefinitions(definitions, toolCalls: readFileCalls)
+            .single,
+        same(definitions.single),
+      );
+      expect(
+        builder.buildToolDefinitions(definitions, toolCalls: const []),
+        same(definitions),
+      );
+    });
+
     test('keeps the plain reuse instruction when nothing was shortened', () {
       final prompt = builder.buildFollowUpPrompt(
         toolCalls: readFileCalls,

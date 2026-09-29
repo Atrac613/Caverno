@@ -178,6 +178,13 @@ while no tool call was emitted. Treat it as the continuation-stall signature:
 the turn should be recovered before the response is saved or used for memory
 extraction.
 
+The summary reports `all_calls_discarded` when the latest recorded turn ended
+after repeated tool calls were skipped, even if a final answer exists. This
+is a tool-loop stop, not proof that the requested task is complete. Check the
+mutation and verification results. An `unwritten_file_claim` warning records
+the corresponding turn-exit guard; raw model claims alone are not file-change
+evidence.
+
 ## Recommended Next Improvements
 
 - Add a small log export or bundle command that collects one session with

@@ -3,6 +3,132 @@ part of 'chat_notifier_test.dart';
 /// Tool-loop deduplication and pre-approval shell guards, extracted from
 /// chat_notifier_test.dart to keep it within its size ratchet.
 void registerChatNotifierCommandDedupTests() {
+  test('duplicate read recovery preserves the path to editing', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'duplicate-recovery-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = File('${directory.path}/retry.py')
+      ..writeAsStringSync('attempts = 1');
+    final project = CodingProject(
+      id: 'duplicate-recovery',
+      name: 'duplicate-recovery',
+      rootPath: directory.path,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    ToolCallInfo read(String id) => ToolCallInfo(
+      id: id,
+      name: 'read_file',
+      arguments: const {'path': 'retry.py'},
+    );
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [read('read-1')],
+      toolLoopResponses: [
+        for (final id in ['read-2', 'read-3', 'read-4'])
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [read(id)],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'edit-retry',
+              name: 'edit_file',
+              arguments: const {
+                'path': 'retry.py',
+                'old_text': 'attempts = 1',
+                'new_text': 'attempts = 3',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The retry edit is complete.',
+          finishReason: 'stop',
+        ),
+      ],
+      finalAnswerChunks: const ['The retry edit is complete.'],
+    );
+    final tools = _FakeMcpToolService(
+      results: {
+        'read_file': jsonEncode({'path': file.path, 'content': 'attempts = 1'}),
+        'edit_file': jsonEncode({
+          'path': file.path,
+          'changed': true,
+          'replacements': 1,
+        }),
+      },
+      parameters: const {
+        'read_file': {
+          'type': 'object',
+          'properties': {
+            'path': {'type': 'string'},
+            'offset': {'type': 'integer'},
+            'limit': {'type': 'integer'},
+          },
+          'required': ['path'],
+        },
+      },
+    );
+    final lifecycle = _MockAppLifecycleService();
+    when(() => lifecycle.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(tools),
+        appLifecycleServiceProvider.overrideWithValue(lifecycle),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    standInForTheApprover(container);
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+          createIfMissing: true,
+        );
+    final notifier = container.read(chatNotifierProvider.notifier);
+    await notifier.sendMessage('Implement retry support in retry.py');
+
+    Map parametersAt(int index) =>
+        dataSource.toolResultDefinitions[index].singleWhere(
+              (definition) => definition['function']['name'] == 'read_file',
+            )['function']['parameters']
+            as Map;
+    expect(tools.executedToolNames, ['read_file', 'edit_file']);
+    // The two bounded recoveries use range reads, then the normal catalogue
+    // returns after the edit. No shared definition was mutated.
+    for (final index in [2, 3]) {
+      expect(parametersAt(index)['required'], containsAll(['offset', 'limit']));
+      expect(parametersAt(index)['properties']['limit']['maximum'], 120);
+    }
+    expect(parametersAt(4)['required'], ['path']);
+    expect(
+      notifier.state.messages.last.content,
+      contains('The retry edit is complete.'),
+    );
+  });
+
   test(
     'duplicate-inspection recovery drops saved-task framing without a task',
     () {

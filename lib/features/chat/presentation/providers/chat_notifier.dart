@@ -5347,14 +5347,12 @@ class ChatNotifier extends Notifier<ChatState> {
       commandRetryGeneration = batchResult.commandRetryGeneration;
       stateChangeGeneration = batchResult.stateChangeGeneration;
       final batchToolResults = batchResult.batchToolResults;
-      final pendingBatchCalls = batchResult.pendingBatchCalls;
       maxIterations += backgroundWaitRefund.iterationsFor(
         batchToolResults,
         cap: maxIterations,
       );
-      final terminalSuccessMessage = batchResult.terminalSuccessMessage;
       if (await _finishExplicitTerminalSuccess(
-        terminalSuccessMessage,
+        batchResult.terminalSuccessMessage,
         interactionGeneration: interactionGeneration,
       )) {
         hasTextResponse = true;
@@ -5374,7 +5372,8 @@ class ChatNotifier extends Notifier<ChatState> {
         break;
       }
       if (batchToolResults.isEmpty) {
-        if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
+        if (batchResult.pendingBatchCalls.isEmpty &&
+            currentToolCalls.isNotEmpty) {
           final recovered = const DuplicateToolResultRecovery().recover(
             DuplicateToolResultRecoveryInput(
               currentToolCalls: currentToolCalls,
@@ -5411,8 +5410,7 @@ class ChatNotifier extends Notifier<ChatState> {
             deliverRecoveredAnswer(duplicateCommandAnswer);
             break;
           }
-          if (batchToolResults.isEmpty &&
-              !attemptedDuplicateInspectionRecovery &&
+          if (!attemptedDuplicateInspectionRecovery &&
               _containsOnlyReadOnlyInspectionToolCalls(currentToolCalls) &&
               recovered.isNotEmpty) {
             attemptedDuplicateInspectionRecovery = true;
@@ -5428,7 +5426,11 @@ class ChatNotifier extends Notifier<ChatState> {
               );
               return;
             }
-            final tools = selectedDefinitionsFor(mcpToolService);
+            final tools = const DuplicateRecoveryPromptBuilder()
+                .buildToolDefinitions(
+                  selectedDefinitionsFor(mcpToolService),
+                  toolCalls: currentToolCalls,
+                );
             List<Message> buildRecoveryMessages(bool forceCompaction) {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
@@ -5505,9 +5507,7 @@ class ChatNotifier extends Notifier<ChatState> {
             }
             break;
           }
-          if (batchToolResults.isEmpty &&
-              !attemptedDuplicateFollowUpRecovery &&
-              recovered.isNotEmpty) {
+          if (!attemptedDuplicateFollowUpRecovery && recovered.isNotEmpty) {
             attemptedDuplicateFollowUpRecovery = true;
             appLog(
               '[Tool] Duplicate follow-up tool calls detected, requesting bounded recovery',
@@ -5521,7 +5521,11 @@ class ChatNotifier extends Notifier<ChatState> {
               );
               return;
             }
-            final tools = selectedDefinitionsFor(mcpToolService);
+            final tools = const DuplicateRecoveryPromptBuilder()
+                .buildToolDefinitions(
+                  selectedDefinitionsFor(mcpToolService),
+                  toolCalls: currentToolCalls,
+                );
             List<Message> buildRecoveryMessages(bool forceCompaction) {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
@@ -5598,25 +5602,21 @@ class ChatNotifier extends Notifier<ChatState> {
             }
             break;
           }
-          if (batchToolResults.isEmpty) {
-            appLog(
-              '[Tool] Skipped duplicate follow-up tool calls, falling back to prior tool results',
-            );
-          }
-        }
-        if (batchToolResults.isEmpty) {
-          appLog('[Tool] All requested tool calls discarded, ending the turn');
-          _appendToLastMessageForGeneration(
-            interactionGeneration,
-            const ToolLoopAbortNotice().buildDiscardedDuplicateCallsNotice(
-              toolCalls: currentToolCalls,
-              executedToolResults: executedToolResults,
-            ),
+          appLog(
+            '[Tool] Skipped duplicate follow-up tool calls, falling back to prior tool results',
           );
-          _turnEnd.setHint(turnOwner, ToolLoopExitReason.allCallsDiscarded);
-          currentToolCalls = [];
-          break;
         }
+        appLog('[Tool] All requested tool calls discarded, ending the turn');
+        _appendToLastMessageForGeneration(
+          interactionGeneration,
+          const ToolLoopAbortNotice().buildDiscardedDuplicateCallsNotice(
+            toolCalls: currentToolCalls,
+            executedToolResults: executedToolResults,
+          ),
+        );
+        _turnEnd.setHint(turnOwner, ToolLoopExitReason.allCallsDiscarded);
+        currentToolCalls = [];
+        break;
       }
       appLog(
         '[Tool] Retrieved ${batchToolResults.length} tool result(s) in this loop',

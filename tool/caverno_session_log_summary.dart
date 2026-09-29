@@ -52,6 +52,7 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
   var malformedLineCount = 0;
   var parsedEntryCount = 0;
   var totalToolCallCount = 0;
+  String? latestTurnExitReason;
   SessionLogEntryDiagnostic? finalAnswer;
 
   final lines = await logFile.readAsLines();
@@ -94,6 +95,34 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     final turnTransforms = _asList(
       turnExit?['transforms'],
     ).map(_asString).whereType<String>().toList(growable: false);
+    if (operation == 'turn_exit') {
+      latestTurnExitReason = _asString(turnExit?['reason']);
+      if (latestTurnExitReason == 'all_calls_discarded') {
+        warnings.add(
+          SessionLogWarningEntry(
+            code: 'all_calls_discarded',
+            lineNumber: lineNumber,
+            message:
+                'The tool loop stopped after discarding repeated calls. '
+                'A final answer does not prove the requested work was completed; '
+                'inspect the tool results for mutation and verification evidence.',
+            evidencePreview: 'all_calls_discarded',
+          ),
+        );
+      }
+      if (turnTransforms.contains('unwritten_file_claim_notice')) {
+        warnings.add(
+          SessionLogWarningEntry(
+            code: 'unwritten_file_claim',
+            lineNumber: lineNumber,
+            message:
+                'The turn applied a guard for a file-change claim without '
+                'matching successful file-mutation evidence.',
+            evidencePreview: 'unwritten_file_claim_notice',
+          ),
+        );
+      }
+    }
 
     operationCounts.update(operation, (count) => count + 1, ifAbsent: () => 1);
     if (finishReason != null) {
@@ -241,6 +270,7 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
       hasErrors: errorEntries.isNotEmpty,
       hasLoopLimitPrompt: loopLimitPromptLineNumbers.isNotEmpty,
       hasFinalAnswer: finalAnswer != null,
+      latestTurnExitReason: latestTurnExitReason,
     ),
     operationCounts: Map.unmodifiable(operationCounts),
     finishReasonCounts: Map.unmodifiable(finishReasonCounts),
@@ -261,9 +291,13 @@ String _summaryResult({
   required bool hasErrors,
   required bool hasLoopLimitPrompt,
   required bool hasFinalAnswer,
+  String? latestTurnExitReason,
 }) {
   if (hasErrors) {
     return 'error';
+  }
+  if (latestTurnExitReason == 'all_calls_discarded') {
+    return 'all_calls_discarded';
   }
   if (hasLoopLimitPrompt && hasFinalAnswer) {
     return 'loop_limit_recovered';

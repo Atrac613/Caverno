@@ -366,6 +366,47 @@ void main() {
     expect(summary.finalAnswer, isNull);
   });
 
+  test('discarded calls remain visible despite a final answer', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content: 'The retry implementation remains incomplete.',
+      ),
+      _entry(
+        operation: 'turn_exit',
+        turnExitReason: 'all_calls_discarded',
+        turnExitTransforms: const ['unwritten_file_claim_notice'],
+      ),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+
+    expect(summary.result, 'all_calls_discarded');
+    expect(summary.finalAnswer?.lineNumber, 1);
+    expect(summary.hasFatalError, isFalse);
+    expect(summary.warnings.map((warning) => warning.code), [
+      'all_calls_discarded',
+      'unwritten_file_claim',
+    ]);
+    expect(summary.toMarkdown(), contains('all_calls_discarded'));
+  });
+
+  test('a later terminal turn supersedes an earlier discarded turn', () async {
+    final logFile = _writeSessionLog([
+      _entry(operation: 'turn_exit', turnExitReason: 'all_calls_discarded'),
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content: 'The requested inspection is complete.',
+      ),
+      _entry(operation: 'turn_exit', turnExitReason: 'text_response'),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+
+    expect(summary.result, 'complete');
+    expect(summary.warnings.single.code, 'all_calls_discarded');
+  });
+
   test('parses CLI options with positional and explicit log paths', () {
     expect(
       CavernoSessionLogSummaryOptions.parse(['session.jsonl'])?.logPath,
@@ -384,9 +425,7 @@ void main() {
 }
 
 File _writeSessionLog(List<Map<String, Object?>> entries) {
-  return _writeRawSessionLog(
-    entries.map(jsonEncode).toList(growable: false),
-  );
+  return _writeRawSessionLog(entries.map(jsonEncode).toList(growable: false));
 }
 
 File _writeRawSessionLog(List<String> lines) {
@@ -411,6 +450,7 @@ Map<String, Object?> _entry({
   List<Map<String, Object?>> requestTools = const [],
   List<Map<String, Object?>> toolCalls = const [],
   List<String> turnExitTransforms = const [],
+  String? turnExitReason,
   Map<String, Object?>? error,
 }) {
   return {
@@ -422,8 +462,11 @@ Map<String, Object?> _entry({
     'durationMs': 1000,
     'operation': operation,
     'context': {'phase': 'chat_turn', 'workspaceMode': 'coding'},
-    if (turnExitTransforms.isNotEmpty)
-      'turnExit': {'reason': 'text_response', 'transforms': turnExitTransforms},
+    if (turnExitTransforms.isNotEmpty || turnExitReason != null)
+      'turnExit': {
+        'reason': turnExitReason ?? 'text_response',
+        'transforms': turnExitTransforms,
+      },
     'request': {
       'messages': requestMessages,
       'tools': requestTools,

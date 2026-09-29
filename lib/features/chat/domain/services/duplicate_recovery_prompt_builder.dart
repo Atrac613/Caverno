@@ -17,6 +17,66 @@ import '../entities/tool_call_info.dart';
 final class DuplicateRecoveryPromptBuilder {
   const DuplicateRecoveryPromptBuilder();
 
+  static const recoveryReadLineLimit = 120;
+
+  /// Narrows repeated file reads for one recovery request without changing
+  /// the cached catalogue or withholding editors and verification tools.
+  List<Map<String, dynamic>> buildToolDefinitions(
+    List<Map<String, dynamic>> definitions, {
+    required List<ToolCallInfo> toolCalls,
+  }) {
+    if (!toolCalls.any((call) => call.name == 'read_file')) return definitions;
+    return definitions
+        .map((definition) {
+          final function = definition['function'];
+          if (function is! Map || function['name'] != 'read_file') {
+            return definition;
+          }
+          final parameters = function['parameters'];
+          final properties = parameters is Map
+              ? parameters['properties']
+              : null;
+          if (properties is! Map ||
+              properties['offset'] is! Map ||
+              properties['limit'] is! Map) {
+            return definition;
+          }
+          final limit = Map<String, dynamic>.from(properties['limit'] as Map);
+          final maximum = limit['maximum'];
+          return <String, dynamic>{
+            ...definition,
+            'function': <String, dynamic>{
+              ...function,
+              'parameters': <String, dynamic>{
+                ...parameters as Map,
+                'properties': <String, dynamic>{
+                  ...properties,
+                  'offset': <String, dynamic>{
+                    ...properties['offset'] as Map,
+                    'minimum': 1,
+                  },
+                  'limit': <String, dynamic>{
+                    ...limit,
+                    'minimum': 1,
+                    'maximum': maximum is num && maximum < recoveryReadLineLimit
+                        ? maximum
+                        : recoveryReadLineLimit,
+                  },
+                },
+                'required': <String>{
+                  ...?parameters['required'] is List
+                      ? (parameters['required'] as List).cast<String>()
+                      : null,
+                  'offset',
+                  'limit',
+                }.toList(),
+              },
+            },
+          };
+        })
+        .toList(growable: false);
+  }
+
   static const _readOnlyReviewLines = [
     'This is a read-only review: do not edit files or change Git state.',
     'Write the review now from the results you already have, and name anything you could not inspect as a verification limit.',
@@ -42,6 +102,7 @@ final class DuplicateRecoveryPromptBuilder {
         if (repeatedToolNames.isNotEmpty)
           'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
         if (reduced.isNotEmpty) ..._budgetReductionLines(reduced),
+        if (toolCalls.any((call) => call.name == 'read_file')) _rangeReadLine,
         ..._readOnlyReviewLines,
       ].join('\n');
     }
@@ -52,6 +113,7 @@ final class DuplicateRecoveryPromptBuilder {
       if (repeatedToolNames.isNotEmpty)
         'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
       if (reduced.isNotEmpty) ..._budgetReductionLines(reduced),
+      if (toolCalls.any((call) => call.name == 'read_file')) _rangeReadLine,
       if (previousCommandValidationFailed)
         'The latest validation command failed; use that failure output now instead of inspecting the directory again.',
       if (previousExactExitCodeExpectationFailed)
@@ -87,6 +149,7 @@ final class DuplicateRecoveryPromptBuilder {
         if (repeatedToolNames.isNotEmpty)
           'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
         if (reduced.isNotEmpty) ..._budgetReductionLines(reduced),
+        if (toolCalls.any((call) => call.name == 'read_file')) _rangeReadLine,
         ..._readOnlyReviewLines,
       ].join('\n');
     }
@@ -94,6 +157,7 @@ final class DuplicateRecoveryPromptBuilder {
       'You already attempted the same follow-up tool call for the current task.',
       if (repeatedToolNames.isNotEmpty)
         'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
+      if (toolCalls.any((call) => call.name == 'read_file')) _rangeReadLine,
       if (reduced.isNotEmpty)
         ..._budgetReductionLines(reduced)
       else
@@ -128,6 +192,11 @@ final class DuplicateRecoveryPromptBuilder {
         'offset, and a small limit to fetch only the range you still need, or '
         'act on what you already have.',
   ];
+
+  static const _rangeReadLine =
+      'If more file content is needed, read_file must specify offset and limit '
+      'for at most $recoveryReadLineLimit lines. Reuse the provided file '
+      'content for edits instead of reading the whole file again.';
 
   String _reducedRepeatedToolNames(
     List<ToolCallInfo> toolCalls,

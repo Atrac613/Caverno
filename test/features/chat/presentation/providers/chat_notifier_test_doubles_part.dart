@@ -2455,6 +2455,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   /// turn was actually built with.
   final List<Message> initialRequestMessages = <Message>[];
   final List<int> toolResultToolDefinitionCounts = [];
+  final List<List<Map<String, dynamic>>> toolResultDefinitions = [];
   final List<Message> finalAnswerMessages = <Message>[];
   final List<String?> assistantContents = [];
   double? initialToolTemperature;
@@ -2556,6 +2557,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
     toolResultRequestMessages.add(List<Message>.from(messages));
     toolResultToolDefinitionCounts.add(tools?.length ?? 0);
+    toolResultDefinitions.add(List<Map<String, dynamic>>.from(tools ?? []));
     assistantContents.add(assistantContent);
     final gate = toolLoopResponseGates[toolResultBatches.length];
     if (gate != null) {
