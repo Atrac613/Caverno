@@ -61,12 +61,11 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
           }
           break;
         }
-        if (retry == maxMissingDiffRetries ||
-            !response.content.contains(_ready)) {
+        if (retry == maxMissingDiffRetries) {
           return ProjectTaskReviewResult.stopped;
         }
         implementation =
-            '''Your previous reply claimed this task was ready, but this thread captured no reviewable file change from that turn. Treat the claimed edits and test results as unverified. Inspect the current files, then perform the required implementation with file tools and run relevant verification. Do not repeat the same whole-file reads. Respect approval and user-input gates. If the task is blocked or already complete, explain the evidence and omit $_ready. End with exactly $_ready only after the work and verification are actually complete.''';
+            '''The previous implementation turn captured no reviewable file change. Any claimed edits or test results without tool evidence are unverified. Inspect the current files, then perform the remaining implementation with file tools and run relevant verification. Do not repeat the same whole-file reads. Respect approval and user-input gates. If the task is blocked or already complete, explain the evidence and omit $_ready. End with exactly $_ready only after the work and verification are actually complete.''';
       }
 
       final patch = _reviewPatch(after!);

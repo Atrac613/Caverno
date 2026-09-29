@@ -481,7 +481,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             notifier.conversationId == conversationId,
         isWaitingForUser: () =>
             notifier.isConversationAwaitingApproval(conversationId) ||
-            notifier.isConversationBusy(conversationId),
+            notifier.isConversationBusy(conversationId) ||
+            ref
+                    .read(chatNotifierProvider)
+                    .pendingAskUserQuestion
+                    ?.conversationId ==
+                conversationId,
         send: (prompt, {required codeReview}) async {
           if (!mounted ||
               ref.read(conversationsNotifierProvider).currentConversationId !=
