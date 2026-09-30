@@ -114,6 +114,46 @@ void main() {
     );
   });
 
+  test('records why the review never started', () async {
+    // Session 1d76c878: the review never ran and nothing said whether the
+    // goal status or the marker line stopped it.
+    var conversation = initial();
+    var completed = true;
+    final workflow = ProjectTaskReviewWorkflow(
+      conversationId: 'task',
+      readConversation: () => conversation,
+      isSelected: () => true,
+      isWaitingForUser: () => false,
+      send: (_, {required codeReview}) async {
+        conversation = conversation.copyWith(
+          messages: [
+            assistant(
+              'Done.\nPROJECT_TASK_READY_FOR_REVIEW\n\n'
+              'Deliverable claim check: `a.py` was not modified.',
+              1,
+            ),
+          ],
+          turnDiffs: [diff(1)],
+        );
+        return completed;
+      },
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(
+      workflow.stopReason,
+      allOf(
+        contains('does not end with PROJECT_TASK_READY_FOR_REVIEW'),
+        contains('Deliverable claim check'),
+      ),
+    );
+
+    conversation = initial();
+    completed = false;
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(workflow.stopReason, contains('without a recorded goal completion'));
+  });
+
   test('recovers a false ready claim before starting review', () async {
     var conversation = initial();
     final routes = <bool>[];

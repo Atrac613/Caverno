@@ -1,3 +1,4 @@
+import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
@@ -27,12 +28,13 @@ final class ProjectTaskReviewWorkflow {
   static const _findings = 'PROJECT_TASK_REVIEW_FINDINGS';
 
   Future<ProjectTaskReviewResult> run() async {
+    stopReason = null;
     final task = readConversation();
     if (task == null || !isSelected() || task.messages.isNotEmpty) {
-      return ProjectTaskReviewResult.stopped;
+      return _stop('the task thread is not a new, selected thread');
     }
     final objective = task.goal?.normalizedObjective;
-    if (objective == null) return ProjectTaskReviewResult.stopped;
+    if (objective == null) return _stop('the task has no goal objective');
 
     var implementation =
         '''Implement this roadmap task in the current coding project:
@@ -45,31 +47,43 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
       Conversation? after;
       for (var retry = 0; retry <= maxMissingDiffRetries; retry++) {
         final before = readConversation();
-        if (!_canContinue(before)) return ProjectTaskReviewResult.stopped;
+        if (!_canContinue(before)) return _stop(_notContinuable);
         final previousMessageCount = before!.messages.length;
         final previousDiffCount = before.turnDiffs.length;
         if (!await send(implementation, codeReview: false)) {
-          return ProjectTaskReviewResult.stopped;
+          return _stop(
+            'the implementation turn ended without a recorded goal '
+            'completion (goal: ${readConversation()?.goal?.status.name})',
+          );
         }
         after = readConversation();
-        if (!_canContinue(after)) return ProjectTaskReviewResult.stopped;
+        if (!_canContinue(after)) return _stop(_notContinuable);
         final response = _lastAssistant(after!, previousMessageCount);
-        if (response == null) return ProjectTaskReviewResult.stopped;
+        if (response == null) {
+          return _stop('the implementation turn saved no assistant response');
+        }
         if (after.turnDiffs.length > previousDiffCount) {
           if (!_endsWithMarker(response.content, _ready)) {
-            return ProjectTaskReviewResult.stopped;
+            return _stop(
+              'the implementation response does not end with $_ready '
+              '(last line: "${_lastLine(response.content)}")',
+            );
           }
           break;
         }
         if (retry == maxMissingDiffRetries) {
-          return ProjectTaskReviewResult.stopped;
+          return _stop('the implementation captured no reviewable file change');
         }
         implementation =
             '''The previous implementation turn captured no reviewable file change. Any claimed edits or test results without tool evidence are unverified. Inspect the current files, then perform the remaining implementation with file tools and run relevant verification. Do not repeat the same whole-file reads. Respect approval and user-input gates. If the task is blocked or already complete, explain the evidence and omit $_ready. End with exactly $_ready only after the work and verification are actually complete.''';
       }
 
       final patch = _reviewPatch(after!);
-      if (patch == null) return ProjectTaskReviewResult.stopped;
+      if (patch == null) {
+        return _stop(
+          'the captured patch is empty, binary, truncated, or too large',
+        );
+      }
       final template = builtInSlashCommandPromptTemplates.firstWhere(
         (candidate) => candidate.id == 'review',
       );
@@ -88,17 +102,20 @@ $_findings — when there are actionable findings
 If review is incomplete, omit both markers.''';
       final beforeReviewCount = after.messages.length;
       if (!await send(reviewPrompt, codeReview: true)) {
-        return ProjectTaskReviewResult.stopped;
+        return _stop('the review turn did not complete');
       }
       final reviewed = readConversation();
-      if (!_canContinue(reviewed)) return ProjectTaskReviewResult.stopped;
+      if (!_canContinue(reviewed)) return _stop(_notContinuable);
       final review = _lastAssistant(reviewed!, beforeReviewCount);
-      if (review == null) return ProjectTaskReviewResult.stopped;
+      if (review == null) return _stop('the review turn saved no response');
       if (_endsWithMarker(review.content, _clean)) {
         return ProjectTaskReviewResult.clean;
       }
       if (!_endsWithMarker(review.content, _findings)) {
-        return ProjectTaskReviewResult.stopped;
+        return _stop(
+          'the review ended without $_clean or $_findings '
+          '(last line: "${_lastLine(review.content)}")',
+        );
       }
       if (repairRound == maxRepairRounds) {
         return ProjectTaskReviewResult.findingsRemain;
@@ -108,7 +125,30 @@ If review is incomplete, omit both markers.''';
 
 ${review.content}''';
     }
+    return _stop('the repair rounds ended without a review result');
+  }
+
+  /// Why the last [run] returned [ProjectTaskReviewResult.stopped].
+  ///
+  /// Every stop used to return the same bare result. In session 1d76c878 the
+  /// review never started, and nothing recorded whether the goal status, the
+  /// marker line, or the patch was the reason.
+  String? stopReason;
+
+  static const _notContinuable =
+      'the task thread is no longer selected or is waiting for the user';
+
+  ProjectTaskReviewResult _stop(String reason) {
+    stopReason = reason;
+    appLog(
+      '[ProjectTaskReview] stopped: $reason; conversation=$conversationId',
+    );
     return ProjectTaskReviewResult.stopped;
+  }
+
+  String _lastLine(String content) {
+    final line = content.trimRight().split('\n').last.trim();
+    return line.length <= 120 ? line : '${line.substring(0, 120)}...';
   }
 
   bool _canContinue(Conversation? conversation) =>
