@@ -168,6 +168,54 @@ def _status_request_states_evidence(blob):
     return False
 
 
+def _verifier_replay_keeps_edit(blob):
+    """Whether a post-mutation verifier replay still knew about the edit.
+
+    Before b7139cdbc the replay re-entered the loop from a ledger stored
+    before the edit's batch ran, so no request carrying the replayed
+    verifier could label an earlier result with that edit.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        results = (entry.get("request") or {}).get("toolResults") or []
+        # Only the request right after the replay, where the replayed
+        # verifier is the batch that just ran: an edit the model makes later
+        # in the same continuation labels results on a pre-fix build too.
+        replayed = bool(results) and str(results[-1].get("id", "")).startswith(
+            "post_mutation_verifier_"
+        )
+        if replayed and any(
+            str(change).startswith(("edit_file ", "write_file "))
+            for result in results
+            for change in result.get("changesSinceCapture") or []
+        ):
+            return True
+    return False
+
+
+def _project_gap_guidance(blob):
+    """Whether a rejected project-task completion carried a2baaff2b's guidance.
+
+    Read from an update_goal tool result, so the same sentence quoted from
+    this repository in a file read cannot fire it.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for result in (entry.get("request") or {}).get("toolResults") or []:
+            if result.get("name") == "update_goal" and (
+                "Do not change files only to satisfy these checks"
+                in str(result.get("result"))
+            ):
+                return True
+    return False
+
+
 def _recovery_carries_earlier_results(blob):
     """Whether a loop-limit recovery request held more than the last batch.
 
@@ -686,6 +734,16 @@ SIGNATURES = {
         "commit": "2560eb21b",
         "what": "structured status request states captured writes and verification",
         "match": _status_request_states_evidence,
+    },
+    "verifier_replay_keeps_edit": {
+        "commit": "b7139cdbc",
+        "what": "post-mutation verifier replay still carries the edit that triggered it",
+        "match": _verifier_replay_keeps_edit,
+    },
+    "project_gap_guidance": {
+        "commit": "a2baaff2b",
+        "what": "rejected project-task completion says not to edit files for evidence",
+        "match": _project_gap_guidance,
     },
     "loop_limit_question_to_user": {
         "commit": "4e482cb4b",

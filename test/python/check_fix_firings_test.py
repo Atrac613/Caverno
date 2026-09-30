@@ -512,6 +512,56 @@ class CommandCarryAndStatusEvidenceSignatureTest(unittest.TestCase):
         self.assertFalse(self.evidence(blob))
 
 
+class LedgerAndGapGuidanceSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        tool = _load_tool()
+        cls.replay = staticmethod(
+            tool.SIGNATURES["verifier_replay_keeps_edit"]["match"]
+        )
+        cls.guidance = staticmethod(
+            tool.SIGNATURES["project_gap_guidance"]["match"]
+        )
+
+    @staticmethod
+    def _blob(*results):
+        return json.dumps(
+            [{"request": {"toolResults": list(results)}}], ensure_ascii=False
+        )
+
+    _REPLAY = {"id": "post_mutation_verifier_2_1", "name": "local_execute_command"}
+
+    def test_a_replay_that_labels_the_edit_fires(self):
+        read = {"id": "r", "name": "read_file",
+                "changesSinceCapture": ["edit_file /p/ROADMAP.md"]}
+        self.assertTrue(self.replay(self._blob(read, self._REPLAY)))
+
+    def test_a_replay_without_the_edit_does_not_fire(self):
+        read = {"id": "r", "name": "read_file",
+                "changesSinceCapture": ["local_execute_command `pytest`"]}
+        self.assertFalse(self.replay(self._blob(read, self._REPLAY)))
+
+    def test_an_edit_labelled_after_the_replay_request_does_not_fire(self):
+        replay = dict(self._REPLAY, changesSinceCapture=["edit_file /p/a.md"])
+        later = {"id": "r2", "name": "read_file"}
+        self.assertFalse(self.replay(self._blob(replay, later)))
+
+    def test_an_edit_label_without_a_replay_does_not_fire(self):
+        read = {"id": "r", "name": "read_file",
+                "changesSinceCapture": ["edit_file /p/ROADMAP.md"]}
+        self.assertFalse(self.replay(self._blob(read)))
+
+    def test_the_guidance_in_an_update_goal_result_fires(self):
+        result = {"name": "update_goal", "result": "Completion not recorded. "
+                  "Do not change files only to satisfy these checks."}
+        self.assertTrue(self.guidance(self._blob(result)))
+
+    def test_the_guidance_quoted_in_a_file_read_does_not_fire(self):
+        result = {"name": "read_file", "result": {"content": (
+            "Do not change files only to satisfy these checks.")}}
+        self.assertFalse(self.guidance(self._blob(result)))
+
+
 class SearchFilesLineAnchorSignatureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
