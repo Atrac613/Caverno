@@ -276,6 +276,15 @@ class GoalUpdateAckResolver {
     }
   }
 
+  /// "Resolve these" has one reading for a missing file change: make one.
+  /// Session 7ae7632b did exactly that, editing ROADMAP.md only to create
+  /// evidence, and a task whose work already exists has no honest way to
+  /// clear that gap. Name the honest report instead.
+  static const _projectTaskGapGuidance =
+      'Do not change files only to satisfy these checks. If the task needs no '
+      'change because the work already exists, say so and report it with '
+      'blocked_reason instead.';
+
   GoalUpdateAck _resolveCompletion(
     ToolResultCompletionEvidence evidence,
     GoalCompletionPolicy completionPolicy, {
@@ -294,7 +303,7 @@ class GoalUpdateAckResolver {
             'Completion not recorded — the following remain outstanding:\n'
             '${gaps.map((gap) => '- $gap').join('\n')}\n'
             'The goal is still active. Resolve these and report completion '
-            'again.',
+            'again.${taskGaps.isEmpty ? '' : ' $_projectTaskGapGuidance'}',
       );
     }
     if (!completionPolicy.acceptsToolCompletion) {

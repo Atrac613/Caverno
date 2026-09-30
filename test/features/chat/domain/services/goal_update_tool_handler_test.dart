@@ -121,6 +121,28 @@ void main() {
       expect(outcome.completionEvidence.unresolvedErrorCount, 2);
     });
 
+    test('project-task gaps say not to edit files just for evidence', () {
+      // Session 7ae7632b: told to "resolve" a missing file change, the model
+      // edited ROADMAP.md only to create evidence.
+      final outcome = _handle(
+        goal: _goal().copyWith(projectTaskAutoReview: true),
+        arguments: const {'completed': true},
+      );
+
+      expect(outcome.ackOutcome, GoalUpdateAckOutcome.completionRejected);
+      expect(
+        outcome.toolResult.result,
+        allOf(
+          contains('no captured file-change evidence'),
+          endsWith(
+            'Do not change files only to satisfy these checks. If the task '
+            'needs no change because the work already exists, say so and '
+            'report it with blocked_reason instead.',
+          ),
+        ),
+      );
+    });
+
     test('rejects completion from failures in current owner results', () {
       final outcome = _handle(
         arguments: const {'completed': true},
