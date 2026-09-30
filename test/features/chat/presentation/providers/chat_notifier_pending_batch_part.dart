@@ -133,6 +133,90 @@ void registerChatNotifierPendingBatchTests() {
     expect(recoveryResults.last.fromEarlierLoop, isFalse);
   });
 
+  test(
+    'finalization recovers a visible promise with earlier read context',
+    () async {
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_finalization_context_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final firstTarget = File('${projectRoot.path}/lib/first.dart');
+      final remainingTarget = File('${projectRoot.path}/lib/remaining.dart');
+      ToolCallInfo writeCall(String id, File target) => ToolCallInfo(
+        id: id,
+        name: 'write_file',
+        arguments: {
+          'path': target.path,
+          'content': 'const implemented = true;\n',
+        },
+      );
+      const promise = "I'll implement the remaining Dart code and tests.";
+      final rawAnswer =
+          '<think>${'The code is updated, but I cannot stop yet. ' * 800}'
+          '</think>$promise';
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [_pendingBatchReadCall(0, projectRoot.path)],
+        toolLoopResponses: [
+          ..._pendingBatchResponses(
+            projectRoot: projectRoot.path,
+            finalCall: writeCall('first-write', firstTarget),
+          ),
+          ChatCompletionResult(
+            content: 'Apply the remaining implementation.',
+            toolCalls: [writeCall('remaining-write', remainingTarget)],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The remaining Dart file was implemented.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunkBatches: [
+          [rawAnswer],
+          ['Both Dart files were implemented.'],
+        ],
+      );
+      final toolService = _PendingBatchMcpToolService(projectRoot);
+      final project = _pendingBatchProject(projectRoot.path);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = _pendingBatchContainer(
+        project: project,
+        dataSource: dataSource,
+        toolService: toolService,
+        appLifecycleService: appLifecycleService,
+        settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+      _activatePendingBatchProject(container, project);
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      await notifier.sendMessage('Implement both Dart files.');
+
+      expect(firstTarget.existsSync(), isTrue);
+      expect(remainingTarget.existsSync(), isTrue);
+      expect(
+        toolService.executedToolNames.where((name) => name == 'write_file'),
+        hasLength(2),
+      );
+      final recoveryBatch = dataSource.toolResultBatches.singleWhere(
+        (batch) => batch.any(
+          (result) => result.id.startsWith('prose_only_coding_continuation_'),
+        ),
+      );
+      expect(
+        recoveryBatch.map((result) => result.id),
+        containsAll(['read-0', 'read-14']),
+      );
+      expect(dataSource.assistantContents[15], promise);
+      expect(
+        notifier.state.messages.last.content,
+        contains('Both Dart files were implemented.'),
+      );
+      expect(notifier.state.messages.last.content, isNot(contains(promise)));
+    },
+  );
+
   test('edit mismatch follow-up executes before exhaustion recovery', () async {
     final projectRoot = await Directory.systemTemp.createTemp(
       'caverno_pending_edit_recovery_',

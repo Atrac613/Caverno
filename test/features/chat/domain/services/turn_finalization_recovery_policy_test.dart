@@ -381,6 +381,36 @@ void main() {
   });
 
   group('turn finalization candidate text', () {
+    test('uses visible content from cached and uncached answers', () {
+      final answer =
+          '<think>${'The implementation is completed. ' * 800}</think>'
+          'I will implement the remaining Python code.';
+      for (final streamedAnswer in <String?>[null, answer]) {
+        expect(
+          _policy.turnFinalizationCandidateText(
+            content: answer,
+            streamedFinalAnswer: streamedAnswer,
+          ),
+          'I will implement the remaining Python code.',
+        );
+      }
+    });
+
+    test('completed visible answer matches its cached raw response', () {
+      const answer =
+          '<think>I will inspect the Dart source.</think>'
+          'The Dart implementation completed.';
+      expect(
+        _policy.shouldSkipCompletedToolResultFinalAnswerRecovery(
+          _input(
+            candidateResponse: 'The Dart implementation completed.',
+            streamedFinalAnswer: answer,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
     test('prefers a non-empty streamed final answer', () {
       expect(
         _policy.turnFinalizationCandidateText(

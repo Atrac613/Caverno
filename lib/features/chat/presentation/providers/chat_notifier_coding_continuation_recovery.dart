@@ -82,6 +82,9 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     required int interactionGeneration,
     required bool requireContinuationRequest,
   }) {
+    candidateResponse = ContentParser.stripModelHistoryArtifacts(
+      candidateResponse,
+    );
     final ownerSnapshot = _turnOwnerSnapshotForGeneration(
       interactionGeneration,
     );

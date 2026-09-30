@@ -44,7 +44,9 @@ final class CodingContinuationRecoveryPolicy {
       StructuredCodingExecutionDeferralDetector();
 
   String? recoveryCode(CodingContinuationRecoveryInput input) {
-    final candidate = input.candidateResponse.trim();
+    final candidate = ContentParser.stripModelHistoryArtifacts(
+      input.candidateResponse,
+    );
     if (candidate.isEmpty) {
       return null;
     }
@@ -143,7 +145,7 @@ final class CodingContinuationRecoveryPolicy {
   }
 
   bool looksLikeProseOnlyCodingContinuation(String text) {
-    final trimmed = text.trim();
+    final trimmed = ContentParser.stripModelHistoryArtifacts(text);
     if (trimmed.isEmpty) {
       return false;
     }

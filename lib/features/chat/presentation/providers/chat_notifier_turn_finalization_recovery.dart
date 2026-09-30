@@ -100,6 +100,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
       interactionGeneration: generation,
       requireContinuationRequest: false,
       forcedRecoveryCode: forcedRecoveryCode,
+      executedToolResults: completedResults,
     );
     if (!_isCurrentInteractionGeneration(generation)) return true;
     if (!ref.mounted || recoveryResult == null) return false;

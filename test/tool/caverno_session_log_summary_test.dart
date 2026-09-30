@@ -287,7 +287,7 @@ void main() {
 
       final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
 
-      expect(summary.result, 'complete');
+      expect(summary.result, 'incomplete');
       expect(summary.finalAnswer?.lineNumber, 1);
       expect(summary.hasWarnings, isTrue);
       expect(summary.hasCodingActionPromiseWithoutToolWarning, isTrue);
@@ -339,6 +339,61 @@ void main() {
       summary.toMarkdown(),
       contains('Coding action promise without tool: `yes`'),
     );
+  });
+
+  test(
+    'warns on visible promises despite completion words in thinking',
+    () async {
+      final logFile = _writeSessionLog([
+        _entry(
+          operation: 'streamChatCompletion',
+          finishReason: 'tool_calls',
+          content:
+              '<think>${'The code was updated and verified. ' * 800}</think>'
+              "I'll implement the remaining Python code and tests.",
+        ),
+      ]);
+      final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+      expect(summary.result, 'incomplete');
+      expect(summary.hasCodingActionPromiseWithoutToolWarning, isTrue);
+      expect(
+        summary.warnings.single.evidencePreview,
+        startsWith("I'll implement"),
+      );
+    },
+  );
+
+  test('does not warn on promises confined to thinking', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content:
+            '<think>I will implement the Python code.</think>'
+            'The Python code was implemented and tested.',
+      ),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+    expect(summary.result, 'complete');
+    expect(summary.hasWarnings, isFalse);
+  });
+
+  test('a later final answer supersedes an earlier coding promise', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content: 'I will implement the Python code.',
+      ),
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content: 'The Python code was implemented and tested.',
+      ),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+    expect(summary.result, 'complete');
+    expect(summary.finalAnswer?.lineNumber, 2);
   });
 
   test('records malformed lines and error entries without crashing', () async {

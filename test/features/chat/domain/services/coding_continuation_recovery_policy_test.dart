@@ -126,6 +126,30 @@ void main() {
   });
 
   group('recoveryCode', () {
+    test('judges the visible promise after a long thinking block', () {
+      final candidate =
+          '<think>${'The code is updated, but I cannot stop yet. ' * 800}'
+          '</think>I will implement the remaining Python code and tests.';
+      expect(
+        _policy.recoveryCode(_input(candidateResponse: candidate)),
+        'prose_only_coding_continuation',
+      );
+      expect(_policy.looksLikeProseOnlyCodingContinuation(candidate), isTrue);
+    });
+
+    test('ignores coding promises confined to thinking', () {
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse:
+                '<think>I will implement the Python code.</think>'
+                'The Python code was implemented and tested.',
+          ),
+        ),
+        isNull,
+      );
+    });
+
     test('returns no recovery for each terminal precondition', () {
       expect(_policy.recoveryCode(_input(candidateResponse: '  ')), isNull);
       expect(

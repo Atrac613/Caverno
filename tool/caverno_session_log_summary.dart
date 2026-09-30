@@ -2,6 +2,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 Future<void> main(List<String> args) async {
   final options = CavernoSessionLogSummaryOptions.parse(args);
   if (options == null) {
@@ -271,6 +273,11 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
       hasLoopLimitPrompt: loopLimitPromptLineNumbers.isNotEmpty,
       hasFinalAnswer: finalAnswer != null,
       latestTurnExitReason: latestTurnExitReason,
+      hasFinalActionPromise: warnings.any(
+        (warning) =>
+            warning.code == 'coding_action_promise_without_tool' &&
+            warning.lineNumber == finalAnswer?.lineNumber,
+      ),
     ),
     operationCounts: Map.unmodifiable(operationCounts),
     finishReasonCounts: Map.unmodifiable(finishReasonCounts),
@@ -291,6 +298,7 @@ String _summaryResult({
   required bool hasErrors,
   required bool hasLoopLimitPrompt,
   required bool hasFinalAnswer,
+  required bool hasFinalActionPromise,
   String? latestTurnExitReason,
 }) {
   if (hasErrors) {
@@ -298,6 +306,9 @@ String _summaryResult({
   }
   if (latestTurnExitReason == 'all_calls_discarded') {
     return 'all_calls_discarded';
+  }
+  if (hasFinalActionPromise) {
+    return 'incomplete';
   }
   if (hasLoopLimitPrompt && hasFinalAnswer) {
     return 'loop_limit_recovered';
@@ -470,6 +481,7 @@ List<SessionLogWarningEntry> _buildFinalAnswerWarnings({
   required int requestToolResultCount,
   required int previewLength,
 }) {
+  content = ContentParser.stripModelHistoryArtifacts(content);
   final warnings = <SessionLogWarningEntry>[];
   if (_misinterpretsStreamEnd(content)) {
     warnings.add(

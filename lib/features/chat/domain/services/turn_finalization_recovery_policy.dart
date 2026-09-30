@@ -65,11 +65,13 @@ final class TurnFinalizationRecoveryPolicy {
   bool shouldSkipCompletedToolResultFinalAnswerRecovery(
     TurnFinalizationRecoveryInput input,
   ) {
-    final candidate = input.candidateResponse.trim();
-    final streamedFinalAnswer = input.streamedFinalAnswer?.trim();
-    if (streamedFinalAnswer != null &&
-        streamedFinalAnswer.isNotEmpty &&
-        candidate != streamedFinalAnswer) {
+    final candidate = ContentParser.stripModelHistoryArtifacts(
+      input.candidateResponse,
+    );
+    final streamedFinalAnswer = ContentParser.stripModelHistoryArtifacts(
+      input.streamedFinalAnswer ?? '',
+    );
+    if (streamedFinalAnswer.isNotEmpty && candidate != streamedFinalAnswer) {
       return false;
     }
     return shouldSkipCompletedToolResultCodingContinuationRecovery(input);
@@ -78,7 +80,9 @@ final class TurnFinalizationRecoveryPolicy {
   bool shouldSkipCompletedToolResultCodingContinuationRecovery(
     TurnFinalizationRecoveryInput input,
   ) {
-    final candidate = input.candidateResponse.trim();
+    final candidate = ContentParser.stripModelHistoryArtifacts(
+      input.candidateResponse,
+    );
     if (candidate.isEmpty) {
       return false;
     }
@@ -106,6 +110,7 @@ final class TurnFinalizationRecoveryPolicy {
   }
 
   bool looksLikeCompletedCodingFinalAnswer(String content) {
+    content = ContentParser.stripModelHistoryArtifacts(content);
     final normalized = content.trim().toLowerCase();
     if (normalized.isEmpty || normalized.length > 1600) {
       return false;
@@ -165,6 +170,7 @@ final class TurnFinalizationRecoveryPolicy {
   }
 
   bool looksLikeCodingFutureAction(String content) {
+    content = ContentParser.stripModelHistoryArtifacts(content);
     final normalized = content.trim().toLowerCase();
     if (normalized.isEmpty) {
       return false;
@@ -233,9 +239,9 @@ final class TurnFinalizationRecoveryPolicy {
   }) {
     final streamedCandidate = streamedFinalAnswer?.trim();
     if (streamedCandidate != null && streamedCandidate.isNotEmpty) {
-      return streamedCandidate;
+      return ContentParser.stripModelHistoryArtifacts(streamedCandidate);
     }
-    return ContentParser.stripToolArtifacts(content).trim();
+    return ContentParser.stripModelHistoryArtifacts(content);
   }
 
   String contentBeforeFinalizationCandidate({

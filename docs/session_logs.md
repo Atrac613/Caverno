@@ -178,6 +178,11 @@ while no tool call was emitted. Treat it as the continuation-stall signature:
 the turn should be recovered before the response is saved or used for memory
 extraction.
 
+Coding promise warnings inspect visible response text after removing thinking
+and tool artifacts. A promise in the latest final response makes the summary
+result `incomplete`, even when thinking contains completion claims. Earlier
+promise warnings remain diagnostic history when a later final answer exists.
+
 The summary reports `all_calls_discarded` when the latest recorded turn ended
 after repeated tool calls were skipped, even if a final answer exists. This
 is a tool-loop stop, not proof that the requested task is complete. Check the
