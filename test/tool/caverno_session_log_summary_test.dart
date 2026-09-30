@@ -287,7 +287,7 @@ void main() {
 
       final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
 
-      expect(summary.result, 'incomplete');
+      expect(summary.result, 'complete');
       expect(summary.finalAnswer?.lineNumber, 1);
       expect(summary.hasWarnings, isTrue);
       expect(summary.hasCodingActionPromiseWithoutToolWarning, isTrue);
@@ -354,7 +354,7 @@ void main() {
         ),
       ]);
       final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
-      expect(summary.result, 'incomplete');
+      expect(summary.result, 'complete');
       expect(summary.hasCodingActionPromiseWithoutToolWarning, isTrue);
       expect(
         summary.warnings.single.evidencePreview,
@@ -377,6 +377,104 @@ void main() {
     expect(summary.result, 'complete');
     expect(summary.hasWarnings, isFalse);
   });
+
+  test('warns on a let-me fix promise after completed substeps', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content: 'watcher.py was updated. Let me make the fixes:',
+      ),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+    expect(summary.result, 'complete');
+    expect(summary.hasCodingActionPromiseWithoutToolWarning, isTrue);
+  });
+
+  test('pending verification prose is advisory', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content:
+            'The implementation is complete.\nUnexecuted verification command:\n'
+            '```\n.venv/bin/python -m pytest test_watcher.py\n```',
+      ),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+    expect(summary.result, 'complete');
+    expect(summary.warnings.single.code, 'coding_task_incomplete');
+  });
+
+  test('remaining work prose preserves the loop-limit result', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        requestMessages: [
+          _message('user', 'You hit the bounded tool loop limit.'),
+        ],
+        content:
+            '**\u672a\u5b8c\u4e86\u306e\u4f5c\u696d:**\n'
+            '`test_watcher.py` \u306b `**kwargs` \u3092\u8ffd\u52a0\u3059\u308b\u3002\n'
+            '\u30bf\u30b9\u30af\u306f\u672a\u5b8c\u3067\u3059\u3002',
+      ),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+    expect(summary.result, 'loop_limit_recovered');
+    expect(summary.warnings.single.code, 'coding_task_incomplete');
+  });
+
+  test('partial completion prose is advisory', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletion',
+        finishReason: 'stop',
+        content:
+            'The Python implementation is partially complete.\n'
+            '- Implement notifier.py.\nThe task remains incomplete.',
+      ),
+      _entry(operation: 'turn_exit', turnExitReason: 'text_response'),
+    ]);
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+    expect(summary.result, 'complete');
+    expect(summary.warnings.single.code, 'coding_task_incomplete');
+  });
+
+  for (final status in const [
+    'missing',
+    'progressLogged',
+    'completionRejected',
+    'blockerLogged',
+    'completionRecorded',
+  ]) {
+    test('uses structured task status $status regardless of prose', () async {
+      final summary = await buildCavernoLlmSessionLogSummary(
+        logFile: _writeSessionLog([
+          _entry(
+            operation: 'streamChatCompletion',
+            finishReason: 'stop',
+            content: 'Done.',
+          ),
+          _entry(
+            operation: 'turn_exit',
+            turnExitReason: 'text_response',
+            turnExitTransforms: ['coding_task_status_$status'],
+          ),
+        ]),
+      );
+      expect(
+        summary.result,
+        status == 'completionRecorded' ? 'complete' : 'incomplete',
+      );
+      expect(
+        summary.warnings.any(
+          (warning) => warning.code == 'coding_task_status_unresolved',
+        ),
+        status != 'completionRecorded',
+      );
+    });
+  }
 
   test('a later final answer supersedes an earlier coding promise', () async {
     final logFile = _writeSessionLog([
@@ -440,6 +538,7 @@ void main() {
     expect(summary.finalAnswer?.lineNumber, 1);
     expect(summary.hasFatalError, isFalse);
     expect(summary.warnings.map((warning) => warning.code), [
+      'coding_task_incomplete',
       'all_calls_discarded',
       'unwritten_file_claim',
     ]);

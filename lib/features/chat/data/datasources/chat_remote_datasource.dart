@@ -143,21 +143,6 @@ class ChatRemoteDataSource
     required Future<T> Function(bool includeReasoning) send,
   }) => _requestFallback.create(operation: operation, send: send);
 
-  /// Streaming counterpart of [_createWithReasoningFallback].
-  ///
-  /// Events are re-emitted with `await for` rather than `yield*` because errors
-  /// from a `yield*`-ed stream are forwarded straight to the consumer and never
-  /// enter this function's `try`, which would leave the retry unreachable.
-  ///
-  /// A retry only happens while the attempt has emitted nothing, so a rejected
-  /// request (which fails before the first event) is recovered without any risk
-  /// of replaying content the caller already received.
-  Stream<ChatStreamEvent> _streamWithReasoningFallback({
-    required String operation,
-    required Stream<ChatStreamEvent> Function(bool includeReasoning) send,
-    Future<void>? abort,
-  }) => _requestFallback.events(operation: operation, send: send, abort: abort);
-
   @visibleForTesting
   String formatToolLogSummaryForTest(List<Map<String, dynamic>> tools) {
     return _logger.formatToolLogSummary(tools);
@@ -223,7 +208,7 @@ class ChatRemoteDataSource
       _logger.logMessages(messages);
 
       try {
-        final stream = _streamWithReasoningFallback(
+        final stream = _requestFallback.events(
           operation: 'streamChatCompletion',
           abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
@@ -344,7 +329,7 @@ class ChatRemoteDataSource
           stripImages: _shouldStripImages(messages),
           videoUrls: await _resolveVideoUrls(messages),
         );
-        final stream = _streamWithReasoningFallback(
+        final stream = _requestFallback.events(
           operation: 'streamChatCompletionWithTools',
           abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
@@ -678,7 +663,7 @@ class ChatRemoteDataSource
     final timer = Stopwatch()..start();
     final attribution = _telemetry.captureAttribution();
     try {
-      final stream = _streamWithReasoningFallback(
+      final stream = _requestFallback.events(
         operation: 'streamWithToolResult',
         send: (includeReasoning) => _client.chat.completions.createStream(
           ChatCompletionCreateRequest(
@@ -836,7 +821,7 @@ class ChatRemoteDataSource
           assistantContent: assistantContent,
         );
 
-        final stream = _streamWithReasoningFallback(
+        final stream = _requestFallback.events(
           operation: 'streamChatCompletionWithToolResults',
           abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
@@ -849,6 +834,10 @@ class ChatRemoteDataSource
               maxCompletionTokens: _requestFallback
                   .maxCompletionTokensForRequest(maxTokens),
               tools: ChatRequestToolDeclarations.tools(tools),
+              toolChoice: ChatRequestToolDeclarations.toolChoice(
+                tools,
+                toolResults: toolResults,
+              ),
               streamOptions: const StreamOptions(includeUsage: true),
               reasoningEffort: _requestFallback.reasoningEffortForRequest(
                 includeReasoning,
@@ -966,6 +955,10 @@ class ChatRemoteDataSource
           maxTokens,
         ),
         tools: ChatRequestToolDeclarations.tools(tools),
+        toolChoice: ChatRequestToolDeclarations.toolChoice(
+          tools,
+          toolResults: toolResults,
+        ),
         reasoningEffort: _requestFallback.reasoningEffortForRequest(
           includeReasoning,
         ),

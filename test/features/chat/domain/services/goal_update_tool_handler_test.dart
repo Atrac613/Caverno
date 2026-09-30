@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_tool_handler.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 const _handler = GoalUpdateToolHandler();
@@ -412,6 +413,46 @@ void main() {
           reason: name,
         );
       }
+    });
+
+    test('preserves typed outcomes across owner snapshot isolation', () {
+      final mutations = [
+        const ToolFileMutation(path: '/workspace/a.py', changed: true),
+      ];
+      final results = [
+        ToolResultInfo(
+          id: 'write',
+          name: 'write_file',
+          arguments: const {'path': '/workspace/a.py'},
+          result: 'Written',
+          outcome: ToolOutcome(fileMutations: mutations),
+        ),
+        ToolResultInfo(
+          id: 'verify',
+          name: 'local_execute_command',
+          arguments: const {'command': 'python -m pytest'},
+          result: 'Verified',
+          outcome: const ToolOutcome(exitCode: 0),
+        ),
+      ];
+      final request = _request(arguments: const {'completed': true});
+      final snapshot = _snapshot(
+        request,
+        goal: _goal().copyWith(projectTaskAutoReview: true),
+        toolResults: results,
+      );
+      mutations.clear();
+      expect(snapshot.toolResults.first.outcome!.fileMutations, hasLength(1));
+      expect(
+        () => snapshot.toolResults.first.outcome!.fileMutations.clear(),
+        throwsUnsupportedError,
+      );
+      expect(
+        _handler
+            .handle(request: request, ownerSnapshot: snapshot)
+            .completionAccepted,
+        isTrue,
+      );
     });
 
     test('recursively freezes request and tool-result arguments', () {

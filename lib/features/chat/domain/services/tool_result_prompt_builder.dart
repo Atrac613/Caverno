@@ -5,7 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
-import 'coding_command_output_guardrail_service.dart';
+import 'command_verification_reconciliation.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';
 
@@ -852,6 +852,7 @@ class ToolResultPromptBuilder {
   static ToolResultCompletionEvidence completionEvidence(
     List<ToolResultInfo> toolResults,
   ) {
+    toolResults = CommandVerificationReconciliation.currentResults(toolResults);
     final lastMutationIndexByPath = _lastSuccessfulFileMutationIndexByPath(
       toolResults,
     );
@@ -1037,14 +1038,23 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     required int afterIndex,
   }) {
-    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+    if (CommandVerificationReconciliation.hasFailedFeedback(
+      toolResults,
+      afterIndex,
+    )) {
       return false;
     }
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) continue;
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
+        continue;
+      }
       final normalizedName = toolResult.name.trim().toLowerCase();
       final outcome = toolResult.outcome;
+      if ((outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          (outcome?.diagnosticErrorCount ?? 0) > 0) {
+        continue;
+      }
       if (outcome?.processState != null) {
         if (outcome!.isProcessTerminal && outcome.hasSucceedingExitCode) {
           return true;
@@ -1087,15 +1097,22 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     required int afterIndex,
   }) {
-    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+    if (CommandVerificationReconciliation.hasFailedFeedback(
+      toolResults,
+      afterIndex,
+    )) {
       return true;
     }
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) {
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
         continue;
       }
       final outcome = toolResult.outcome;
+      if ((outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          (outcome?.diagnosticErrorCount ?? 0) > 0) {
+        return true;
+      }
       if (outcome?.processState != null) {
         if (outcome!.isProcessTerminal && outcome.hasFailingExitCode) {
           return true;
@@ -1156,7 +1173,7 @@ class ToolResultPromptBuilder {
   }) {
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) {
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
         continue;
       }
       if (toolResult.outcome?.processState != null) {
@@ -1181,25 +1198,6 @@ class ToolResultPromptBuilder {
           decoded['validationStatus'] != null) {
         return true;
       }
-    }
-    return false;
-  }
-
-  static bool _isVerificationRunToolResult(ToolResultInfo toolResult) {
-    final normalizedName = toolResult.name.trim().toLowerCase();
-    if (normalizedName == 'local_execute_command' ||
-        normalizedName == 'git_execute_command') {
-      return const ToolCapabilityClassifier()
-              .classify(toolResult.name, arguments: toolResult.arguments)
-              .commandEffect ==
-          ToolCommandEffect.verification;
-    }
-    switch (normalizedName) {
-      case 'analyze_project':
-      case 'run_tests':
-      case 'process_start':
-      case 'process_wait':
-        return true;
     }
     return false;
   }
@@ -1266,31 +1264,6 @@ class ToolResultPromptBuilder {
   static bool _isBackgroundProcessVerificationTool(String normalizedName) =>
       normalizedName == 'process_start' || normalizedName == 'process_wait';
 
-  static bool _hasFailedCommandOutputFeedback(
-    List<ToolResultInfo> toolResults, {
-    required int afterIndex,
-  }) {
-    for (var index = afterIndex + 1; index < toolResults.length; index++) {
-      final toolResult = toolResults[index];
-      if (toolResult.name.trim().toLowerCase() !=
-          CodingCommandOutputGuardrailService.toolName) {
-        continue;
-      }
-      final decoded = _tryDecodeJsonMap(toolResult.result);
-      if (decoded == null) {
-        continue;
-      }
-      final validationStatus = decoded['validation_status']
-          ?.toString()
-          .trim()
-          .toLowerCase();
-      if (decoded['success'] == false || validationStatus == 'failed') {
-        return true;
-      }
-    }
-    return false;
-  }
-
   /// Map each absolute file path to the index of the latest successful
   /// write_file/edit_file/rollback result that touched it, so analyzer
   /// diagnostics emitted earlier in the sequence can be recognized as stale.
@@ -1335,6 +1308,7 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     Map<String, String> descriptionsByName = const {},
   }) {
+    toolResults = CommandVerificationReconciliation.currentResults(toolResults);
     final sections = toolResults.map((toolResult) {
       final buffer = StringBuffer()..writeln('[Tool: ${toolResult.name}]');
       final description = descriptionsByName[toolResult.name];

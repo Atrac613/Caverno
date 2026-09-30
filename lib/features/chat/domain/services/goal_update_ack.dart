@@ -4,6 +4,7 @@ import '../../../../core/types/goal_completion_policy.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'project_task_completion_evidence.dart';
 import 'tool_result_prompt_builder.dart';
 
 /// What the model asked the harness to do with the goal.
@@ -183,8 +184,8 @@ class GoalUpdateAck {
 /// and the LL34 completion evidence, never from the prose of the response that
 /// made the claim. Until LL37 adds an adversarial verifier, "no mechanical
 /// evidence against it" is as far as a completion can be checked — so a
-/// recorded completion here is *not verified*, only *not contradicted*, and
-/// the message says so.
+/// recorded completion is not independently verified. Project implementation
+/// goals additionally require typed change and post-change execution evidence.
 class GoalUpdateAckResolver {
   const GoalUpdateAckResolver();
 
@@ -199,12 +200,14 @@ class GoalUpdateAckResolver {
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
     GoalCompletionPolicy completionPolicy = GoalCompletionPolicy.toolOrAsk,
+    List<ToolResultInfo> taskToolResults = const [],
   }) {
     return resolve(
       input: GoalUpdateInput.fromArguments(toolCall.arguments),
       goal: goal,
       evidence: evidence,
       completionPolicy: completionPolicy,
+      taskToolResults: taskToolResults,
     );
   }
 
@@ -214,6 +217,7 @@ class GoalUpdateAckResolver {
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
     GoalCompletionPolicy completionPolicy = GoalCompletionPolicy.toolOrAsk,
+    List<ToolResultInfo> taskToolResults = const [],
   }) {
     if (!input.isValid) {
       return GoalUpdateAck(
@@ -232,7 +236,17 @@ class GoalUpdateAckResolver {
 
     switch (input.kind) {
       case GoalUpdateKind.completion:
-        return _resolveCompletion(evidence, completionPolicy);
+        return _resolveCompletion(
+          evidence,
+          completionPolicy,
+          supersedesProgress: goal.projectTaskAutoReview,
+          taskGaps: goal.projectTaskAutoReview
+              ? const ProjectTaskCompletionEvidence().gaps(
+                  toolResults: taskToolResults,
+                  evidence: evidence,
+                )
+              : const [],
+        );
       case GoalUpdateKind.blocker:
         return GoalUpdateAck(
           outcome: GoalUpdateAckOutcome.blockerLogged,
@@ -264,9 +278,14 @@ class GoalUpdateAckResolver {
 
   GoalUpdateAck _resolveCompletion(
     ToolResultCompletionEvidence evidence,
-    GoalCompletionPolicy completionPolicy,
-  ) {
-    final gaps = completionGaps(evidence);
+    GoalCompletionPolicy completionPolicy, {
+    required List<String> taskGaps,
+    required bool supersedesProgress,
+  }) {
+    final gaps = [
+      ...completionGaps(evidence, includeRemainingWork: !supersedesProgress),
+      ...taskGaps,
+    ];
     if (gaps.isNotEmpty) {
       return GoalUpdateAck(
         outcome: GoalUpdateAckOutcome.completionRejected,
@@ -300,7 +319,10 @@ class GoalUpdateAckResolver {
   /// Reads the LL34 completion evidence, not the response text. Order is most
   /// to least actionable. There are a fixed seven evidence sources, so the
   /// list is naturally bounded — no truncation is needed.
-  List<String> completionGaps(ToolResultCompletionEvidence evidence) {
+  List<String> completionGaps(
+    ToolResultCompletionEvidence evidence, {
+    bool includeRemainingWork = true,
+  }) {
     final gaps = <String>[];
 
     if (evidence.unresolvedErrorCount > 0) {
@@ -330,7 +352,7 @@ class GoalUpdateAckResolver {
     if (evidence.hasUnexecutedActionClaim) {
       gaps.add('an action was claimed in prose but never executed');
     }
-    if (evidence.hasReportedRemainingWork) {
+    if (includeRemainingWork && evidence.hasReportedRemainingWork) {
       final message = evidence.remainingWorkMessage.trim();
       gaps.add(
         message.isEmpty

@@ -1,11 +1,6 @@
 import '../../domain/entities/video_attachment_draft.dart';
 import 'chat_state.dart' show ChatInteractionOrigin;
 
-/// One message waiting for its thread to be free.
-///
-/// Lifted out of chat_state.dart: it is a hand-written value class with
-/// its own equality, not part of the ChatState freezed graph, and it grows
-/// a field every time the composer learns to carry something new.
 class QueuedChatMessage {
   const QueuedChatMessage({
     required this.id,
@@ -24,13 +19,12 @@ class QueuedChatMessage {
     this.remoteDeviceId,
     this.conversationId,
     this.codeReview = false,
+    this.projectTaskImplementation = false,
   });
 
-  /// The thread this message was typed in. A message queued behind another
-  /// thread's turn must come back to its own thread, never to whichever one
-  /// the user is looking at when the queue drains.
   final String? conversationId;
   final bool codeReview;
+  final bool projectTaskImplementation;
   final String id;
   final String content;
   final String? modelContent;
@@ -66,7 +60,8 @@ class QueuedChatMessage {
             origin == other.origin &&
             remoteDeviceId == other.remoteDeviceId &&
             conversationId == other.conversationId &&
-            codeReview == other.codeReview;
+            codeReview == other.codeReview &&
+            projectTaskImplementation == other.projectTaskImplementation;
   }
 
   @override
@@ -87,5 +82,6 @@ class QueuedChatMessage {
     remoteDeviceId,
     conversationId,
     codeReview,
+    projectTaskImplementation,
   );
 }

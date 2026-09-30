@@ -2,6 +2,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/domain/services/coding_future_action_detector.dart';
+import 'package:caverno/features/chat/domain/services/incomplete_coding_work_detector.dart';
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 Future<void> main(List<String> args) async {
@@ -55,6 +57,7 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
   var parsedEntryCount = 0;
   var totalToolCallCount = 0;
   String? latestTurnExitReason;
+  String? latestTaskStatus;
   SessionLogEntryDiagnostic? finalAnswer;
 
   final lines = await logFile.readAsLines();
@@ -99,6 +102,21 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     ).map(_asString).whereType<String>().toList(growable: false);
     if (operation == 'turn_exit') {
       latestTurnExitReason = _asString(turnExit?['reason']);
+      latestTaskStatus = turnTransforms
+          .where((code) => code.startsWith('coding_task_status_'))
+          .lastOrNull;
+      if (latestTaskStatus != null &&
+          latestTaskStatus != 'coding_task_status_completionRecorded') {
+        warnings.add(
+          SessionLogWarningEntry(
+            code: 'coding_task_status_unresolved',
+            lineNumber: lineNumber,
+            message:
+                'The structured implementation status was not accepted as complete.',
+            evidencePreview: latestTaskStatus,
+          ),
+        );
+      }
       if (latestTurnExitReason == 'all_calls_discarded') {
         warnings.add(
           SessionLogWarningEntry(
@@ -273,11 +291,9 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
       hasLoopLimitPrompt: loopLimitPromptLineNumbers.isNotEmpty,
       hasFinalAnswer: finalAnswer != null,
       latestTurnExitReason: latestTurnExitReason,
-      hasFinalActionPromise: warnings.any(
-        (warning) =>
-            warning.code == 'coding_action_promise_without_tool' &&
-            warning.lineNumber == finalAnswer?.lineNumber,
-      ),
+      hasUnresolvedTaskStatus:
+          latestTaskStatus != null &&
+          latestTaskStatus != 'coding_task_status_completionRecorded',
     ),
     operationCounts: Map.unmodifiable(operationCounts),
     finishReasonCounts: Map.unmodifiable(finishReasonCounts),
@@ -298,7 +314,7 @@ String _summaryResult({
   required bool hasErrors,
   required bool hasLoopLimitPrompt,
   required bool hasFinalAnswer,
-  required bool hasFinalActionPromise,
+  required bool hasUnresolvedTaskStatus,
   String? latestTurnExitReason,
 }) {
   if (hasErrors) {
@@ -307,7 +323,7 @@ String _summaryResult({
   if (latestTurnExitReason == 'all_calls_discarded') {
     return 'all_calls_discarded';
   }
-  if (hasFinalActionPromise) {
+  if (hasUnresolvedTaskStatus) {
     return 'incomplete';
   }
   if (hasLoopLimitPrompt && hasFinalAnswer) {
@@ -483,6 +499,24 @@ List<SessionLogWarningEntry> _buildFinalAnswerWarnings({
 }) {
   content = ContentParser.stripModelHistoryArtifacts(content);
   final warnings = <SessionLogWarningEntry>[];
+  if (_hasCodingOrToolContext(
+        operation: operation,
+        workspaceMode: workspaceMode,
+        requestToolCount: requestToolCount,
+        requestToolResultCount: requestToolResultCount,
+      ) &&
+      const IncompleteCodingWorkDetector().hasIncompleteTask(content)) {
+    warnings.add(
+      SessionLogWarningEntry(
+        code: 'coding_task_incomplete',
+        lineNumber: lineNumber,
+        message:
+            'The final answer explicitly reports unfinished coding work. '
+            'Completed substeps do not prove that the requested task is complete.',
+        evidencePreview: _preview(content, previewLength),
+      ),
+    );
+  }
   if (_misinterpretsStreamEnd(content)) {
     warnings.add(
       SessionLogWarningEntry(
@@ -575,6 +609,9 @@ bool _looksLikeCodingActionPromiseWithoutTool({
   final normalized = content.trim().replaceAll(RegExp(r'\s+'), ' ');
   if (normalized.isEmpty) {
     return false;
+  }
+  if (const CodingFutureActionDetector().matchesFixPromise(normalized)) {
+    return true;
   }
   if (_looksLikeCompletedCodingAnswer(normalized)) {
     return false;

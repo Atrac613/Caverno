@@ -172,16 +172,57 @@ log. It is not an interruption signal by itself. Treat it as suspicious only
 when paired with an explicit `error`, an empty or visibly incomplete final
 answer, or a tool-loop limit prompt without a usable final answer.
 
-For coding turns, `coding_action_promise_without_tool` means the final response
-looked like a promise to inspect, edit, run, port, or otherwise continue work
-while no tool call was emitted. Treat it as the continuation-stall signature:
-the turn should be recovered before the response is saved or used for memory
-extraction.
+Coding prose warnings (`coding_action_promise_without_tool` and
+`coding_task_incomplete`) inspect visible text after removing thinking and tool
+artifacts. They are advisory diagnostics: their language-dependent patterns do
+not authorize project-task continuation or change the summary result.
+A summary result of `complete` in an older log means a final response exists;
+it does not certify implementation or verification success.
 
-Coding promise warnings inspect visible response text after removing thinking
-and tool artifacts. A promise in the latest final response makes the summary
-result `incomplete`, even when thinking contains completion claims. Earlier
-promise warnings remain diagnostic history when a later final answer exists.
+Project Farm implementation turns carry explicit turn metadata. Before their
+final response is saved, the harness requests `update_goal` once when typed
+status is missing or reports remaining work. This request offers only
+`update_goal`; subsequent work follows the normal tool and approval gates.
+The status elicitation also sets a function `tool_choice` for `update_goal`;
+its acknowledgement follow-up does not force another status call.
+An accepted completion requires captured file changes and a successful terminal
+execution after the latest change, with no unresolved contradictory evidence.
+A progress report can resume the tool loop; a blocker, approval, user question,
+budget cap, or already accepted completion prevents this recovery. Dedicated
+review turns and ordinary chat do not opt into this protocol through prose.
+Another status request requires new mutation hashes or successful verification
+evidence, with at most three requests per turn. Repeated reads and equivalent
+verifier results do not renew this budget.
+
+The `coding_task_status_*` turn transforms record the reconciled acknowledgement.
+The exit record is written after goal reconciliation so it includes that status.
+Only `coding_task_status_completionRecorded` settles the implementation status.
+Other recorded statuses produce `coding_task_status_unresolved` and an
+`incomplete` summary. A later terminal turn supersedes an earlier unresolved
+status. Language-dependent diagnostics remain visible as history.
+
+Command output feedback records its source `tool_call_id`. Completion evidence
+and final-answer prompts supersede an earlier pytest invocation only when a
+later invocation in the same absolute working directory verifies the same
+pytest arguments with a terminal typed zero exit and positive passing runner
+counts, without failed tests or output issues. Python executable selection and
+a trailing output-only `tail -N` pipeline may differ. Other targets, options,
+directories, unknown shell syntax, and unknown outcomes do not settle the old
+diagnostic. Original tool results remain in the log and execution ledger.
+One literal `cd <directory> &&` prefix is resolved before comparison; quoted
+literal paths and arguments are supported without shell expansion. Successful
+pytest replay candidates retain the actual runner and effective directory,
+omitting only the recognized directory and output wrappers. Failed pytest
+invocations do not replace a captured working verifier.
+
+Optional environment inspection composed solely of literal `cd`, `ls`, `pwd`,
+`which`, and Python version queries may end in `|| true` without producing a
+task failure. It never counts as verification. Unknown commands, mutations,
+masked checks, and actual runtime failure output retain their diagnostics.
+
+A zero exit code from a pipeline is not successful verification when its output
+reports a Python missing module or failed pytest tests. These output diagnostics
+identify execution failures rather than infer the user's or model's intent.
 
 The summary reports `all_calls_discarded` when the latest recorded turn ended
 after repeated tool calls were skipped, even if a final answer exists. This

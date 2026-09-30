@@ -188,6 +188,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       const MaterialContractAssumptionGuard().isContractMutation,
     );
 
+    _turnToolResults.setCompleted(owner, executedToolResults);
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (call) async {
@@ -389,7 +390,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             ) ??
             dispatchResult;
         if (!_toolFailureClassifier.isApprovalDenial(effectiveResult)) {
-          _recordExecutedVerifierReplayCandidate(owner, toolCall);
+          final verifier = ExecutedVerifierReplayPolicy.prepare(
+            toolCall,
+            effectiveResult,
+          );
+          if (verifier != null) {
+            _recordExecutedVerifierReplayCandidate(owner, verifier);
+          }
         }
         if (allowSuccessfulReadResultReplay) {
           _successfulReadResultReplayCache.record(

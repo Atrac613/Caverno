@@ -8,6 +8,36 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   _diagnosticsTests();
   group('typed execution result', () {
+    test(
+      'captures recognized pytest counts beside a masked pipeline exit',
+      () async {
+        if (Platform.isWindows) return;
+        final directory = await Directory.systemTemp.createTemp(
+          'pytest_outcome_',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final executable = File('${directory.path}/python3');
+        await executable.writeAsString(
+          '#!/bin/sh\necho "=== 2 failed, 4 passed in 0.1s ==="\nexit 1\n',
+        );
+        expect(
+          (await Process.run('chmod', ['700', executable.path])).exitCode,
+          0,
+        );
+        for (final command in [
+          './python3 -m pytest test_retry.py 2>&1 | tail -30',
+          "cd '${directory.path}' && './python3' -m pytest 'test retry.py' 2>&1 | tail -30",
+        ]) {
+          final result = await LocalShellTools.executeResult(
+            command: command,
+            workingDirectory: directory.path,
+          );
+          expect(result.outcome?.exitCode, 0);
+          expect(result.outcome?.testOutcome?.passedCount, 4);
+          expect(result.outcome?.testOutcome?.failedCount, 2);
+        }
+      },
+    );
     test('returns the exit status without decoding its payload', () async {
       final tempDir = Directory.systemTemp.createTempSync('caverno_shell_');
       addTearDown(() {

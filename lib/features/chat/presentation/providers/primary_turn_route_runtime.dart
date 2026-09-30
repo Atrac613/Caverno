@@ -20,11 +20,13 @@ final class PrimaryTurnRouteRuntime {
   /// Turns started by `/review`, which the tool loop treats as read-only. Kept
   /// with the route because the flag arrives here and nowhere else.
   final Set<int> _codeReviews = {};
+  final Set<int> _projectTaskImplementations = {};
 
   Future<void> capture({
     required int generation,
     required AppSettings settings,
     bool codeReview = false,
+    bool projectTaskImplementation = false,
     required AssistantMode assistantMode,
     required ChatDataSource primaryDataSource,
     required EndpointHealthTracker health,
@@ -72,6 +74,11 @@ final class PrimaryTurnRouteRuntime {
             health: health,
           );
     _routes[generation] = (resolution, dataSource);
+    if (projectTaskImplementation && !codeReview) {
+      _projectTaskImplementations.add(generation);
+    } else {
+      _projectTaskImplementations.remove(generation);
+    }
     if (codeReview) {
       _codeReviews.add(generation);
     } else {
@@ -130,8 +137,11 @@ final class PrimaryTurnRouteRuntime {
       _routes[generation]?.$1.context.assistantMode ?? settings.assistantMode;
 
   bool isCodeReview(int generation) => _codeReviews.contains(generation);
+  bool isProjectTaskImplementation(int generation) =>
+      _projectTaskImplementations.contains(generation);
 
   void release(int generation) {
+    _projectTaskImplementations.remove(generation);
     _routes.remove(generation);
     _codeReviews.remove(generation);
   }

@@ -1,6 +1,7 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../entities/tool_call_info.dart';
+import 'coding_future_action_detector.dart';
 import 'immutable_json_snapshot.dart';
 import 'tool_terminal_success_policy.dart';
 
@@ -50,17 +51,15 @@ final class TurnFinalizationRecoveryPolicy {
     List<ToolResultInfo> results, {
     required bool hasSavedValidation,
     required bool hasGitLifecycle,
-  }) =>
-      results.isNotEmpty &&
-      (results.any(
-            (result) =>
-                const ToolTerminalSuccessPolicy().terminalMessage(
-                  result.result,
-                ) !=
-                null,
-          ) ||
-          hasSavedValidation ||
-          hasGitLifecycle);
+  }) {
+    const terminalPolicy = ToolTerminalSuccessPolicy();
+    return results.isNotEmpty &&
+        (results.any(
+              (result) => terminalPolicy.terminalMessage(result.result) != null,
+            ) ||
+            hasSavedValidation ||
+            hasGitLifecycle);
+  }
 
   bool shouldSkipCompletedToolResultFinalAnswerRecovery(
     TurnFinalizationRecoveryInput input,
@@ -104,10 +103,9 @@ final class TurnFinalizationRecoveryPolicy {
 
   bool hasSuccessfulFinalAnswerToolEvidence(
     TurnFinalizationRecoveryInput input,
-  ) {
-    return input.hasSuccessfulFileMutationEvidence ||
-        input.hasSuccessfulCommandExecutionEvidence;
-  }
+  ) =>
+      input.hasSuccessfulFileMutationEvidence ||
+      input.hasSuccessfulCommandExecutionEvidence;
 
   bool looksLikeCompletedCodingFinalAnswer(String content) {
     content = ContentParser.stripModelHistoryArtifacts(content);
@@ -169,80 +167,17 @@ final class TurnFinalizationRecoveryPolicy {
         ]);
   }
 
-  bool looksLikeCodingFutureAction(String content) {
-    content = ContentParser.stripModelHistoryArtifacts(content);
-    final normalized = content.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return false;
-    }
-    return _containsAny(normalized, const [
-          'i will inspect',
-          'i will check',
-          'i will read',
-          'i will port',
-          'i will implement',
-          'i will update',
-          'i will edit',
-          'i will modify',
-          'i will write',
-          'i will create',
-          "i'll inspect",
-          "i'll check",
-          "i'll read",
-          "i'll port",
-          "i'll implement",
-          "i'll update",
-          "i'll edit",
-          "i'll modify",
-          "i'll write",
-          "i'll create",
-          'i am going to inspect',
-          'i am going to check',
-          'i am going to read',
-          'i am going to port',
-          'i am going to implement',
-          'i am going to update',
-          'i am going to edit',
-          'i am going to modify',
-          'i am going to write',
-          'i am going to create',
-          'next i will',
-          'now i will',
-        ]) ||
-        _containsAnyCodeUnitSequence(content, const [
-          [0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059],
-          [0x8abf, 0x67fb, 0x3057, 0x307e, 0x3059],
-          [0x8aad, 0x307f, 0x307e, 0x3059],
-          [
-            0x30dd,
-            0x30fc,
-            0x30c6,
-            0x30a3,
-            0x30f3,
-            0x30b0,
-            0x3057,
-            0x307e,
-            0x3059,
-          ],
-          [0x79fb, 0x690d, 0x3057, 0x307e, 0x3059],
-          [0x5b9f, 0x88c5, 0x3057, 0x307e, 0x3059],
-          [0x66f4, 0x65b0, 0x3057, 0x307e, 0x3059],
-          [0x7de8, 0x96c6, 0x3057, 0x307e, 0x3059],
-          [0x4f5c, 0x6210, 0x3057, 0x307e, 0x3059],
-          [0x66f8, 0x304d, 0x307e, 0x3059],
-        ]);
-  }
+  bool looksLikeCodingFutureAction(String content) =>
+      const CodingFutureActionDetector().matches(content);
 
   String turnFinalizationCandidateText({
     required String content,
     required String? streamedFinalAnswer,
-  }) {
-    final streamedCandidate = streamedFinalAnswer?.trim();
-    if (streamedCandidate != null && streamedCandidate.isNotEmpty) {
-      return ContentParser.stripModelHistoryArtifacts(streamedCandidate);
-    }
-    return ContentParser.stripModelHistoryArtifacts(content);
-  }
+  }) => ContentParser.stripModelHistoryArtifacts(
+    (streamedFinalAnswer?.trim().isNotEmpty ?? false)
+        ? streamedFinalAnswer!
+        : content,
+  );
 
   String contentBeforeFinalizationCandidate({
     required String currentContent,
@@ -259,33 +194,12 @@ final class TurnFinalizationRecoveryPolicy {
     return currentContent.substring(0, index).trimRight();
   }
 
-  bool _containsAny(String value, List<String> markers) {
-    return markers.any(value.contains);
-  }
+  bool _containsAny(String value, List<String> markers) =>
+      markers.any(value.contains);
 
-  bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences) {
-    return sequences.any(
-      (sequence) => _containsCodeUnitSequence(text, sequence),
-    );
-  }
-
-  bool _containsCodeUnitSequence(String text, List<int> sequence) {
-    if (sequence.isEmpty || text.length < sequence.length) {
-      return false;
-    }
-    final units = text.codeUnits;
-    for (var index = 0; index <= units.length - sequence.length; index++) {
-      var matched = true;
-      for (var offset = 0; offset < sequence.length; offset++) {
-        if (units[index + offset] != sequence[offset]) {
-          matched = false;
-          break;
-        }
-      }
-      if (matched) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences) =>
+      sequences.any(
+        (units) =>
+            units.isNotEmpty && text.contains(String.fromCharCodes(units)),
+      );
 }

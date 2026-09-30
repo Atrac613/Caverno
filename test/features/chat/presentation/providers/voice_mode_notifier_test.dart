@@ -58,6 +58,7 @@ class _ControllableChatNotifier extends ChatNotifier {
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
     bool codeReview = false,
+    bool projectTaskImplementation = false,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
     String? remoteDeviceId,
     bool interrupt = false,

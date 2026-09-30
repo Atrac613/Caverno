@@ -82,6 +82,9 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     required int interactionGeneration,
     required bool requireContinuationRequest,
   }) {
+    if (_primaryRoutes.isProjectTaskImplementation(interactionGeneration)) {
+      return null;
+    }
     candidateResponse = ContentParser.stripModelHistoryArtifacts(
       candidateResponse,
     );

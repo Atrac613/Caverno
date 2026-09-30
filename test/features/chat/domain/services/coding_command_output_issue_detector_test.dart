@@ -47,6 +47,45 @@ void main() {
   });
 
   group('decoded command results', () {
+    test('detects Python and pytest failures hidden by a successful tail', () {
+      for (final output in [
+        '/opt/python/bin/python3.14: No module named pytest\n',
+        "ModuleNotFoundError: No module named 'pytest'\n",
+        '========================= 2 failed, 4 passed in 0.14s ==========================\n',
+        '========================= 4 passed, 2 failed in 0.14s ==========================\n',
+      ]) {
+        final issue = detector.detectFromDecodedCommandResult(
+          toolName: 'local_execute_command',
+          decoded: {
+            'command': 'python3 -m pytest test_watcher.py -v 2>&1 | tail -30',
+            'exit_code': 0,
+            'stdout': output,
+          },
+        );
+        expect(issue, isNotNull, reason: output);
+        expect(issue!.source, 'stdout');
+      }
+      for (final output in [
+        '========================= 6 passed in 0.14s ==========================',
+        '========================= 0 failed, 6 passed in 0.14s ==========================',
+        'No module named pytest is an example error message.',
+        'Expected result: 2 failed, 4 passed.',
+      ]) {
+        expect(
+          detector.detectFromDecodedCommandResult(
+            toolName: 'local_execute_command',
+            decoded: {
+              'command': 'python3 -m pytest',
+              'exit_code': 0,
+              'stdout': output,
+            },
+          ),
+          isNull,
+          reason: output,
+        );
+      }
+    });
+
     test('rejects invalid envelopes, unsupported tools, and nonzero exits', () {
       expect(
         detector.detect(
@@ -333,6 +372,21 @@ void main() {
           ],
         }),
       );
+    });
+
+    test('keeps repeated-failure signatures stable across invocation ids', () {
+      String? signature(String id) => detector.feedbackSignature(
+        feedback('coding_output_feedback', {
+          'provider': 'command_output_guardrail',
+          'validation_status': 'failed',
+          'issues': [
+            {'summary': 'failed', 'tool_call_id': id},
+          ],
+        }),
+        feedbackToolName: 'coding_output_feedback',
+      );
+      expect(signature('first'), signature('second'));
+      expect(signature('first'), isNot(contains('tool_call_id')));
     });
 
     test('classifies raw JSON without throwing on invalid input', () {

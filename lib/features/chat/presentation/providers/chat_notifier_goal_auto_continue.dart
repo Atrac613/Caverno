@@ -162,11 +162,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   bool isVerifierReplayEligibleForTest(ToolCallInfo toolCall) =>
       _goalAutoContinueTrackerRegistry.isReplayEligibleVerifierToolCall(
         toolCall,
-      ) &&
-      const ToolCapabilityClassifier()
-              .classify(toolCall.name, arguments: toolCall.arguments)
-              .commandEffect ==
-          ToolCommandEffect.verification;
+      );
 
   ToolCallInfo? _takePostMutationVerifierReplay({
     required ToolResultCompletionEvidence evidence,
@@ -313,6 +309,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         conversation: _conversationForId(owner.conversationId),
         assistantResponse: assistantResponse,
         tokenUsageDelta: tokenUsageDelta,
+        projectTaskImplementation: _primaryRoutes.isProjectTaskImplementation(
+          owner.interactionGeneration,
+        ),
       );
 
   @visibleForTesting

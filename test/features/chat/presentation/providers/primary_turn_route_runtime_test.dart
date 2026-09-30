@@ -28,10 +28,12 @@ void main() {
     PrimaryTurnRouteRuntime runtime,
     int generation, {
     required bool codeReview,
+    bool implementation = false,
   }) => runtime.capture(
     generation: generation,
     settings: settings,
     codeReview: codeReview,
+    projectTaskImplementation: implementation,
     assistantMode: AssistantMode.coding,
     primaryDataSource: _MockChatDataSource(),
     health: EndpointHealthTracker(),
@@ -42,6 +44,22 @@ void main() {
       logError: (_, _) {},
     ),
     record: (_) async {},
+  );
+
+  test(
+    'implementation metadata cannot leak to review or a recaptured turn',
+    () async {
+      final runtime = PrimaryTurnRouteRuntime();
+      await capture(runtime, 1, codeReview: false, implementation: true);
+      await capture(runtime, 2, codeReview: true, implementation: true);
+      expect(runtime.isProjectTaskImplementation(1), isTrue);
+      expect(runtime.isProjectTaskImplementation(2), isFalse);
+      await capture(runtime, 1, codeReview: false);
+      expect(runtime.isProjectTaskImplementation(1), isFalse);
+      await capture(runtime, 1, codeReview: false, implementation: true);
+      runtime.release(1);
+      expect(runtime.isProjectTaskImplementation(1), isFalse);
+    },
   );
 
   test('remembers a review turn until its route is released', () async {

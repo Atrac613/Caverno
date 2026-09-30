@@ -586,6 +586,10 @@ class SessionLoggingChatDataSource
       messages: messages,
       tools: tools,
       toolResults: toolResults,
+      toolChoice: StrictToolChoicePolicy.openAiToolChoice(
+        tools,
+        toolResults: toolResults,
+      ),
       assistantContent: assistantContent,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
@@ -650,6 +654,10 @@ class SessionLoggingChatDataSource
       messages: messages,
       tools: tools,
       toolResults: toolResults,
+      toolChoice: StrictToolChoicePolicy.openAiToolChoice(
+        tools,
+        toolResults: toolResults,
+      ),
       assistantContent: assistantContent,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,

@@ -5,6 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue.dart';
 import 'coding_command_preflight_issue_detector.dart';
+import 'masked_inspection_command_policy.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
 export 'coding_command_output_issue.dart' show CodingCommandOutputIssue;
@@ -27,7 +28,10 @@ class CodingCommandOutputIssueDetector {
     caseSensitive: false,
   );
   static final RegExp _runtimeFailurePattern = RegExp(
-    r'\b(?:uncaught exception|unhandled exception|fatal exception|assertionerror:)\b',
+    r'\b(?:uncaught exception|unhandled exception|fatal exception|assertionerror:)\b|'
+    r'^(?:(?:.*[/\\])?python(?:\d+(?:\.\d+)*)?(?:\.exe)?|ModuleNotFoundError):'
+    r'\s+No module named\b|'
+    r'^={2,}\s*(?:\d+\s+\w+,\s*)*[1-9]\d*\s+failed\b.*={2,}\s*$',
     caseSensitive: false,
   );
   static final String _cjkErrorLabel = String.fromCharCodes([
@@ -97,10 +101,12 @@ class CodingCommandOutputIssueDetector {
           command: command,
           workingDirectory: workingDirectory,
         ) ??
-        _preflightDetector.detectMaskedExitStatusIssue(
-          command: command,
-          workingDirectory: workingDirectory,
-        );
+        (MaskedInspectionCommandPolicy.applies(command)
+            ? null
+            : _preflightDetector.detectMaskedExitStatusIssue(
+                command: command,
+                workingDirectory: workingDirectory,
+              ));
     if (preflightIssue != null) {
       return CodingCommandOutputIssue(
         toolName: toolName,
@@ -154,7 +160,14 @@ class CodingCommandOutputIssueDetector {
     return jsonEncode({
       'provider': decoded?['provider'],
       'validation_status': decoded?['validation_status'],
-      'issues': issues,
+      // Invocation provenance must not change the repeated-failure signature.
+      'issues': [
+        for (final issue in issues)
+          if (issue is Map)
+            Map<String, dynamic>.from(issue)..remove('tool_call_id')
+          else
+            issue,
+      ],
     });
   }
 
@@ -223,18 +236,12 @@ class CodingCommandOutputIssueDetector {
     };
   }
 
-  int? _parseExitCode(dynamic value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    if (value is String) {
-      return int.tryParse(value.trim());
-    }
-    return null;
-  }
+  int? _parseExitCode(dynamic value) => switch (value) {
+    int() => value,
+    num() => value.toInt(),
+    String() => int.tryParse(value.trim()),
+    _ => null,
+  };
 
   Map<String, dynamic>? _tryDecodeMap(String value) {
     try {

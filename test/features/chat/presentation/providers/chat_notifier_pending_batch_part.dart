@@ -133,9 +133,47 @@ void registerChatNotifierPendingBatchTests() {
     expect(recoveryResults.last.fromEarlierLoop, isFalse);
   });
 
-  test(
-    'finalization recovers a visible promise with earlier read context',
-    () async {
+  for (final (label, promise, userRequest) in [
+    (
+      'visible promise',
+      "I'll implement the remaining Dart code and tests.",
+      'Implement both Dart files.',
+    ),
+    (
+      'partial implementation report',
+      'The Dart implementation is partially complete.\n'
+          '- Implement lib/remaining.dart.\n- Run tests.\nThe task remains incomplete.',
+      'Implement both Dart files.',
+    ),
+    (
+      'let-me fix promise',
+      'lib/remaining.dart needs another edit. Let me make the fixes:',
+      'Implement both Dart files.',
+    ),
+    (
+      'Japanese addition promise',
+      '`lib/remaining.dart` \u306b\u30d1\u30e9\u30e1\u30fc\u30bf\u3092\u8ffd\u52a0\u3057\u307e\u3059\u3002',
+      'Implement both Dart files.',
+    ),
+    (
+      'English future status',
+      "I'll implement the remaining Dart code and tests.",
+      'continue',
+    ),
+    ('Spanish status', 'Listo.', 'Implement both Dart files.'),
+    ('opaque status', '...', 'Implement both Dart files.'),
+    (
+      'prose remaining work',
+      '**\u672a\u5b8c\u4e86\u306e\u4f5c\u696d:**\n'
+          '`lib/remaining.dart` \u306b\u4fee\u6b63\u3092\u8ffd\u52a0\u3057\u3001'
+          '\u5b8c\u6210\u3055\u305b\u308b\u3002\n'
+          '\u30bf\u30b9\u30af\u306f\u672a\u5b8c\u3067\u3059\u3002',
+      'The previous implementation turn captured no reviewable file change. '
+          'Inspect the current files, then perform the remaining implementation with file tools and run relevant verification.',
+    ),
+  ]) {
+    final structuredTask = label != 'visible promise';
+    test('finalization recovers a $label with earlier read context', () async {
       final projectRoot = await Directory.systemTemp.createTemp(
         'caverno_finalization_context_',
       );
@@ -150,7 +188,6 @@ void registerChatNotifierPendingBatchTests() {
           'content': 'const implemented = true;\n',
         },
       );
-      const promise = "I'll implement the remaining Dart code and tests.";
       final rawAnswer =
           '<think>${'The code is updated, but I cannot stop yet. ' * 800}'
           '</think>$promise';
@@ -161,6 +198,21 @@ void registerChatNotifierPendingBatchTests() {
             projectRoot: projectRoot.path,
             finalCall: writeCall('first-write', firstTarget),
           ),
+          if (structuredTask)
+            ChatCompletionResult(
+              content: '',
+              finishReason: 'tool_calls',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'report-task-state',
+                  name: 'update_goal',
+                  arguments: const {
+                    'completed': false,
+                    'message': 'A remaining implementation step needs tools.',
+                  },
+                ),
+              ],
+            ),
           ChatCompletionResult(
             content: 'Apply the remaining implementation.',
             toolCalls: [writeCall('remaining-write', remainingTarget)],
@@ -189,9 +241,13 @@ void registerChatNotifierPendingBatchTests() {
       );
       addTearDown(container.dispose);
       _activatePendingBatchProject(container, project);
+      if (structuredTask) _activateStructuredProjectTask(container, project);
       final notifier = container.read(chatNotifierProvider.notifier);
 
-      await notifier.sendMessage('Implement both Dart files.');
+      await notifier.sendMessage(
+        userRequest,
+        projectTaskImplementation: structuredTask,
+      );
 
       expect(firstTarget.existsSync(), isTrue);
       expect(remainingTarget.existsSync(), isTrue);
@@ -199,9 +255,9 @@ void registerChatNotifierPendingBatchTests() {
         toolService.executedToolNames.where((name) => name == 'write_file'),
         hasLength(2),
       );
-      final recoveryBatch = dataSource.toolResultBatches.singleWhere(
+      final recoveryBatch = dataSource.toolResultBatches.firstWhere(
         (batch) => batch.any(
-          (result) => result.id.startsWith('prose_only_coding_continuation_'),
+          (result) => result.name == 'coding_continuation_recovery',
         ),
       );
       expect(
@@ -209,11 +265,356 @@ void registerChatNotifierPendingBatchTests() {
         containsAll(['read-0', 'read-14']),
       );
       expect(dataSource.assistantContents[15], promise);
+      if (structuredTask) {
+        expect(
+          dataSource.toolResultDefinitions[15].map(
+            (tool) => (tool['function'] as Map)['name'],
+          ),
+          ['update_goal'],
+        );
+      }
       expect(
         notifier.state.messages.last.content,
         contains('Both Dart files were implemented.'),
       );
       expect(notifier.state.messages.last.content, isNot(contains(promise)));
+    });
+  }
+
+  for (final status in [
+    'complete',
+    'complete after progress',
+    'complete after progress recovery',
+    'missing',
+    'blocker',
+    'unoffered',
+  ]) {
+    test('structured project finalization handles $status status', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_task_status_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final project = _pendingBatchProject(root.path);
+      final target = File('${root.path}/test.py');
+      final write = ToolCallInfo(
+        id: 'write',
+        name: 'write_file',
+        arguments: {'path': target.path, 'content': 'pass\n'},
+      );
+      final report = ToolCallInfo(
+        id: 'report',
+        name: 'update_goal',
+        arguments: status == 'blocker'
+            ? const {
+                'completed': false,
+                'blocked_reason': 'Project dependency unavailable.',
+              }
+            : const {'completed': true},
+      );
+      final source = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [write],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            finishReason: 'tool_calls',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'verify',
+                name: 'local_execute_command',
+                arguments: {
+                  'command': 'python -m pytest',
+                  'working_directory': root.path,
+                },
+              ),
+            ],
+          ),
+          if (status == 'complete')
+            ChatCompletionResult(
+              content: '',
+              finishReason: 'tool_calls',
+              toolCalls: [report],
+            ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          if (status != 'complete')
+            ChatCompletionResult(
+              content: '...',
+              finishReason: status == 'missing' ? 'stop' : 'tool_calls',
+              toolCalls: status == 'missing'
+                  ? null
+                  : [
+                      status == 'unoffered'
+                          ? write
+                          : status.startsWith('complete after progress')
+                          ? ToolCallInfo(
+                              id: 'progress',
+                              name: 'update_goal',
+                              arguments: const {
+                                'completed': false,
+                                'message': 'Run verification.',
+                              },
+                            )
+                          : report,
+                    ],
+            ),
+          if (status.startsWith('complete after progress')) ...[
+            ChatCompletionResult(
+              content: '',
+              finishReason: 'tool_calls',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'verify-again',
+                  name: 'local_execute_command',
+                  arguments: {
+                    'command': 'python -m pytest -q',
+                    'working_directory': root.path,
+                  },
+                ),
+              ],
+            ),
+            if (status == 'complete after progress recovery')
+              ChatCompletionResult(content: '', finishReason: 'stop'),
+            ChatCompletionResult(
+              content: '',
+              finishReason: 'tool_calls',
+              toolCalls: [report],
+            ),
+            ChatCompletionResult(content: '', finishReason: 'stop'),
+          ],
+          if (status == 'blocker')
+            ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunkBatches: const [
+          ['Done.'],
+          ['Stopped.'],
+          ['Finished.'],
+        ],
+      );
+      final appLifecycle = _MockAppLifecycleService();
+      when(() => appLifecycle.isInBackground).thenReturn(false);
+      final service = _PendingBatchMcpToolService(root);
+      final logs = LlmSessionLogStore(
+        rootDirectoryProvider: () async => Directory('${root.path}/logs'),
+      );
+      final container = _pendingBatchContainer(
+        project: project,
+        dataSource: source,
+        toolService: service,
+        appLifecycleService: appLifecycle,
+        settingsOverride: _ToolEnabledLoggingNoConfirmSettingsNotifier.new,
+        sessionLogStore: logs,
+      );
+      addTearDown(container.dispose);
+      _activatePendingBatchProject(container, project);
+      _activateStructuredProjectTask(container, project);
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage(
+        'Implement the task.',
+        projectTaskImplementation: true,
+      );
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      final conversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      final log = await logs.fileForContext(
+        LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: conversation.id,
+          conversationId: conversation.id,
+        ),
+        create: false,
+      );
+      final exits = (await log.readAsLines())
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .where((entry) => entry['operation'] == 'turn_exit')
+          .toList();
+      expect(exits, hasLength(1));
+      expect(
+        exits.single['turnExit']['transforms'],
+        contains(
+          'coding_task_status_${status.startsWith('complete')
+              ? 'completionRecorded'
+              : status == 'blocker'
+              ? 'blockerLogged'
+              : 'missing'}',
+        ),
+      );
+      if (status.startsWith('complete')) {
+        expect(
+          source.toolResultBatches
+              .expand((batch) => batch)
+              .firstWhere((result) => result.name == 'write_file')
+              .outcome
+              ?.fileMutations,
+          isNotEmpty,
+        );
+        final reportResult = source.toolResultBatches
+            .expand((batch) => batch)
+            .lastWhere((result) => result.name == 'update_goal');
+        expect(reportResult.result, contains('Completion accepted'));
+      }
+      expect(
+        goal.status,
+        status.startsWith('complete')
+            ? ConversationGoalStatus.completed
+            : status == 'blocker'
+            ? ConversationGoalStatus.blocked
+            : ConversationGoalStatus.active,
+      );
+      final requests = source.toolResultDefinitions.where(
+        (tools) =>
+            tools.length == 1 &&
+            (tools.single['function'] as Map)['name'] == 'update_goal',
+      );
+      expect(
+        requests,
+        hasLength(
+          status == 'complete'
+              ? 0
+              : status == 'complete after progress recovery'
+              ? 2
+              : 1,
+        ),
+      );
+      expect(
+        service.executedToolNames.where((name) => name == 'write_file'),
+        hasLength(1),
+      );
+    });
+  }
+
+  test(
+    'finalization runs pending venv verification after a masked failure',
+    () async {
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_pending_verification_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = _pendingBatchProject(projectRoot.path);
+      const pending =
+          'The implementation is complete.\n'
+          'ModuleNotFoundError: No module named pytest with the system Python.\n'
+          'Unexecuted verification command:\n'
+          '```\n.venv/bin/python -m pytest test_watcher.py\n```';
+      const failedCommand = 'python3 -m pytest test_watcher.py 2>&1 | tail -30';
+      const verificationCommand = '.venv/bin/python -m pytest test_watcher.py';
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'system-test',
+            name: 'local_execute_command',
+            arguments: {
+              'command': failedCommand,
+              'working_directory': projectRoot.path,
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(
+            content: '',
+            finishReason: 'tool_calls',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'report-verification-state',
+                name: 'update_goal',
+                arguments: const {
+                  'completed': false,
+                  'message': 'Run verification with the project interpreter.',
+                },
+              ),
+            ],
+          ),
+          ChatCompletionResult(
+            content: 'Run the available venv verifier.',
+            finishReason: 'tool_calls',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'venv-test',
+                name: 'local_execute_command',
+                arguments: {
+                  'command': verificationCommand,
+                  'working_directory': projectRoot.path,
+                },
+              ),
+            ],
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunkBatches: const [
+          [pending],
+          ['Verification finished: 6 passed.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command': 'unused',
+          'update_goal': 'unused',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': failedCommand,
+              'working_directory': projectRoot.path,
+              'exit_code': 0,
+              'stdout': '/opt/python/bin/python3.14: No module named pytest\n',
+            }),
+            jsonEncode({
+              'command': verificationCommand,
+              'working_directory': projectRoot.path,
+              'exit_code': 0,
+              'stdout':
+                  '========================= 6 passed in 0.14s ==========================',
+            }),
+          ],
+        },
+      );
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = _pendingBatchContainer(
+        project: project,
+        dataSource: dataSource,
+        toolService: toolService,
+        appLifecycleService: lifecycle,
+        settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+      standInForTheApprover(container);
+      _activatePendingBatchProject(container, project);
+      _activateStructuredProjectTask(container, project);
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      await notifier.sendMessage(
+        'Implement retry and run relevant verification.',
+        projectTaskImplementation: true,
+      );
+
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+      ]);
+      expect(
+        dataSource.toolResultBatches.any(
+          (batch) =>
+              batch.any((result) => result.name == 'coding_output_feedback'),
+        ),
+        isTrue,
+      );
+      expect(
+        dataSource.toolResultBatches.any(
+          (batch) => batch.any(
+            (result) => result.name == 'coding_continuation_recovery',
+          ),
+        ),
+        isTrue,
+      );
+      expect(notifier.state.messages.last.content, contains('6 passed'));
+      expect(
+        notifier.state.messages.last.content,
+        isNot(contains('Unexecuted verification')),
+      );
     },
   );
 
@@ -521,12 +922,15 @@ CodingProject _pendingBatchProject(String rootPath) {
 ProviderContainer _pendingBatchContainer({
   required CodingProject project,
   required _QueuedToolLoopChatDataSource dataSource,
-  required _PendingBatchMcpToolService toolService,
+  required McpToolService toolService,
   required AppLifecycleService appLifecycleService,
   required SettingsNotifier Function() settingsOverride,
+  LlmSessionLogStore? sessionLogStore,
 }) {
   return ProviderContainer(
     overrides: [
+      if (sessionLogStore != null)
+        llmSessionLogStoreProvider.overrideWithValue(sessionLogStore),
       settingsNotifierProvider.overrideWith(settingsOverride),
       conversationRepositoryProvider.overrideWithValue(
         _FakeConversationRepository(),
@@ -560,6 +964,25 @@ void _activatePendingBatchProject(
       );
 }
 
+void _activateStructuredProjectTask(
+  ProviderContainer container,
+  CodingProject project,
+) {
+  final conversations = container.read(conversationsNotifierProvider.notifier);
+  final task = conversations.addBackgroundConversation(
+    workspaceMode: WorkspaceMode.coding,
+    projectId: project.id,
+    goal: ConversationGoal(
+      id: 'project-task-goal',
+      objective: 'Implement and verify the task',
+      projectTaskAutoReview: true,
+      createdAt: DateTime(2026, 9, 30),
+      updatedAt: DateTime(2026, 9, 30),
+    ),
+  );
+  conversations.selectConversation(task.id);
+}
+
 // The owner-aware delegate mirrors production: the file mutation runtime
 // executes raw mutations through the service's owner-fenced boundary, so a
 // double that only overrides executeTool never observes them.
@@ -581,6 +1004,21 @@ class _PendingBatchMcpToolService extends McpToolService
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     return const [
+      {
+        'type': 'function',
+        'function': {
+          'name': 'update_goal',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'completed': {'type': 'boolean'},
+              'message': {'type': 'string'},
+              'blocked_reason': {'type': 'string'},
+            },
+            'required': ['completed'],
+          },
+        },
+      },
       {
         'type': 'function',
         'function': {
@@ -655,12 +1093,29 @@ class _PendingBatchMcpToolService extends McpToolService
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
     if (name == 'write_file') {
-      final result = await FilesystemTools.writeFile(
+      final execution = await FilesystemTools.writeFileResult(
         path: arguments['path'] as String,
         content: arguments['content'] as String? ?? '',
         createParents: true,
       );
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
+      return McpToolResult(
+        toolName: name,
+        result: execution.result,
+        isSuccess: true,
+        outcome: execution.outcome,
+      );
+    }
+    if (name == 'local_execute_command') {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({
+          'exit_code': 0,
+          'stdout': '1 passed',
+          'command': arguments['command'],
+        }),
+        isSuccess: true,
+        outcome: const ToolOutcome(exitCode: 0),
+      );
     }
     return McpToolResult(
       toolName: name,

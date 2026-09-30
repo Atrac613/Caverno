@@ -4,7 +4,7 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/goal_update_ack.dart';
+import '../../domain/services/goal_update_tool_contract.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import 'turn_finalization_state_registry.dart';
 import 'turn_goal_completion_evidence_registry.dart';
@@ -38,12 +38,13 @@ final class TurnGoalCompletionFinalizer {
     required Conversation? conversation,
     required String assistantResponse,
     required int tokenUsageDelta,
+    bool projectTaskImplementation = false,
   }) async {
     if (!evidenceRegistry.contains(owner) ||
         !finalizationState.contains(owner)) {
       return null;
     }
-    final evidence = evidenceRegistry.reconcileForFinalization(
+    var evidence = evidenceRegistry.reconcileForFinalization(
       owner,
       completedToolResults: completedToolResults,
       contentToolResults: contentToolResults,
@@ -53,16 +54,34 @@ final class TurnGoalCompletionFinalizer {
     final acknowledgement = finalizationState.takeGoalAcknowledgement(owner);
     final groundedCompletionClaimed = finalizationState.takeGoalClaim(owner);
     finalizationState.takeGoalOutcome(owner);
+    if (projectTaskImplementation &&
+        conversation?.goal?.projectTaskAutoReview == true &&
+        acknowledgement?.isCompletionClaim == true) {
+      evidence = freezeGoalUpdateCompletionEvidence(
+        evidence,
+        clearReportedRemainingWork: true,
+      );
+    }
     final finalAck = acknowledgement?.isCompletionClaim == true
         ? const GoalUpdateAckResolver().resolve(
             input: acknowledgement!.input,
             goal: conversation?.goal,
             evidence: evidence,
             completionPolicy: acknowledgement.completionPolicy,
+            taskToolResults: [...completedToolResults, ...contentToolResults],
           )
         : null;
-    final toolCompletionClaimed =
-        finalAck?.completionAccepted ?? groundedCompletionClaimed;
+    if (projectTaskImplementation &&
+        conversation?.goal?.projectTaskAutoReview == true) {
+      final status = finalAck?.outcome ?? acknowledgement?.outcome;
+      finalizationState.addTransform(
+        owner,
+        'coding_task_status_${status?.name ?? 'missing'}',
+      );
+    }
+    final toolCompletionClaimed = projectTaskImplementation
+        ? finalAck?.completionAccepted == true
+        : finalAck?.completionAccepted ?? groundedCompletionClaimed;
     await _recordGoalTurn(
       assistantResponse: assistantResponse,
       tokenUsageDelta: tokenUsageDelta,

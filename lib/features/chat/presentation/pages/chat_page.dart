@@ -18,6 +18,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
+import '../../../project_farm/application/project_task_review_turn_runner.dart';
 import '../../../project_farm/application/project_task_review_workflow.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../routines/domain/entities/routine.dart';
@@ -469,49 +470,46 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final languageCode = context.locale.languageCode;
     try {
       final notifier = ref.read(chatNotifierProvider.notifier);
+      Conversation? readTask() => ref
+          .read(conversationsNotifierProvider)
+          .conversationForId(conversationId);
+      bool selected() =>
+          mounted &&
+          ref.read(conversationsNotifierProvider).currentConversationId ==
+              conversationId &&
+          notifier.conversationId == conversationId;
+      bool waiting() =>
+          notifier.isConversationBusy(conversationId) ||
+          notifier.isConversationAwaitingApproval(conversationId) ||
+          ref
+                  .read(chatNotifierProvider)
+                  .pendingAskUserQuestion
+                  ?.conversationId ==
+              conversationId;
       final workflow = ProjectTaskReviewWorkflow(
         conversationId: conversationId,
-        readConversation: () => ref
-            .read(conversationsNotifierProvider)
-            .conversationForId(conversationId),
-        isSelected: () =>
-            mounted &&
-            ref.read(conversationsNotifierProvider).currentConversationId ==
-                conversationId &&
-            notifier.conversationId == conversationId,
-        isWaitingForUser: () =>
-            notifier.isConversationAwaitingApproval(conversationId) ||
-            notifier.isConversationBusy(conversationId) ||
-            ref
-                    .read(chatNotifierProvider)
-                    .pendingAskUserQuestion
-                    ?.conversationId ==
-                conversationId,
-        send: (prompt, {required codeReview}) async {
-          if (!mounted ||
-              ref.read(conversationsNotifierProvider).currentConversationId !=
-                  conversationId) {
-            return false;
-          }
-          final owner = await notifier.sendMessage(
+        readConversation: readTask,
+        isSelected: selected,
+        isWaitingForUser: waiting,
+        send: ProjectTaskReviewTurnRunner(
+          readConversation: readTask,
+          isSelected: selected,
+          isWaitingForUser: waiting,
+          reactivate: () => ref
+              .read(conversationsNotifierProvider.notifier)
+              .markCurrentGoalStatus(status: ConversationGoalStatus.active),
+          sendTurn: (prompt, {required codeReview}) => notifier.sendMessage(
             prompt,
             languageCode: languageCode,
             bypassPlanMode: true,
             codeReview: codeReview,
-          );
-          if (owner == null) return false;
-          await notifier.waitForTurnCompletion(owner);
-          return mounted &&
-              !notifier.isConversationBusy(conversationId) &&
-              !notifier.isConversationAwaitingApproval(conversationId);
-        },
+            projectTaskImplementation: !codeReview,
+          ),
+          waitForCompletion: notifier.waitForTurnCompletion,
+        ).send,
       );
       final result = await workflow.run();
-      if (!mounted ||
-          ref.read(conversationsNotifierProvider).currentConversationId !=
-              conversationId) {
-        return;
-      }
+      if (!mounted || !selected()) return;
       final message = switch (result) {
         ProjectTaskReviewResult.clean => 'chat.project_task_review_clean'.tr(),
         ProjectTaskReviewResult.findingsRemain =>

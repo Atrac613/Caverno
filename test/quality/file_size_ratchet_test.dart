@@ -134,6 +134,17 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
+  'lib/features/chat/domain/services/coding_continuation_recovery_prompt_builder.dart':
+      78,
+  'lib/features/chat/domain/services/incomplete_coding_work_detector.dart': 30,
+  'lib/features/chat/domain/services/coding_future_action_detector.dart': 100,
+  'lib/features/chat/domain/services/project_task_completion_evidence.dart': 45,
+  'lib/features/chat/domain/services/structured_coding_task_recovery_policy.dart':
+      37,
+  'lib/features/chat/domain/services/tool_outcome_snapshot.dart': 23,
+  'lib/features/chat/domain/services/turn_finalization_recovery_plan.dart': 91,
+  'lib/features/project_farm/application/project_task_review_turn_runner.dart':
+      49,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
   'lib/features/chat/domain/services/content_tool_formatters.dart': 2,
   'lib/features/chat/domain/services/content_tool_failure_result_formatter.dart':
@@ -1047,6 +1058,19 @@ const Map<String, int> _lineBudgets = {
       3963,
   'lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart':
       1675,
+  'lib/features/chat/domain/services/command_verification_reconciliation.dart':
+      156,
+  'lib/features/chat/domain/services/pytest_verification_identity.dart': 61,
+  'lib/features/chat/domain/services/literal_shell_words.dart': 40,
+  'lib/features/chat/domain/services/pytest_shell_invocation.dart': 31,
+  'lib/features/chat/domain/services/pytest_test_outcome_parser.dart': 24,
+  'lib/features/chat/domain/services/executed_verifier_replay_policy.dart': 63,
+  'lib/features/chat/domain/services/masked_inspection_command_policy.dart': 40,
+  'lib/features/chat/domain/services/turn_finalization_recovery_budget.dart':
+      59,
+  'lib/features/chat/domain/services/turn_finalization_recovery_input_builder.dart':
+      39,
+  'lib/features/chat/data/datasources/local_shell_process_runner.dart': 234,
   'lib/features/chat/domain/services/tool_result_prompt_builder.dart': 2064,
   'lib/features/chat/data/datasources/git_tools.dart': 2047,
   'lib/features/chat/data/datasources/local_shell_tools.dart': 1932,

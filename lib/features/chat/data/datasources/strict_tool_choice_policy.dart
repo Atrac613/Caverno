@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import '../../domain/entities/tool_call_info.dart';
+
 /// Selects the small set of control tools that are safe to force when they
 /// are the only advertised function.
 ///
@@ -17,13 +21,30 @@ abstract final class StrictToolChoicePolicy {
   }
 
   static Map<String, dynamic>? openAiToolChoice(
-    List<Map<String, dynamic>>? tools,
-  ) {
+    List<Map<String, dynamic>>? tools, {
+    List<ToolResultInfo>? toolResults,
+  }) {
     final name = forcedFunctionName(tools);
     if (name == null) return null;
+    if (toolResults != null && !isStatusRecovery(toolResults)) return null;
     return {
       'type': 'function',
       'function': {'name': name},
     };
+  }
+
+  /// Force the status elicitation only, never its acknowledgement follow-up.
+  static bool isStatusRecovery(List<ToolResultInfo> results) {
+    if (results.isEmpty ||
+        results.last.name != 'coding_continuation_recovery') {
+      return false;
+    }
+    try {
+      final payload = jsonDecode(results.last.result);
+      return payload is Map &&
+          payload['code'] == 'structured_coding_task_status';
+    } on FormatException {
+      return false;
+    }
   }
 }

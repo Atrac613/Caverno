@@ -122,6 +122,7 @@ import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/delegated_result_digest.dart';
 import '../../domain/services/duplicate_recovery_prompt_builder.dart';
 import '../../domain/services/duplicate_tool_result_recovery.dart';
+import '../../domain/services/executed_verifier_replay_policy.dart';
 import '../../domain/services/execution_budget_policy.dart';
 import '../../domain/services/fenced_tool_arguments_detector.dart';
 import '../../domain/services/fenced_tool_name_blocks.dart';
@@ -209,7 +210,9 @@ import '../../domain/services/tool_terminal_success_policy.dart';
 import '../../domain/services/truncated_reasoning_continuation.dart';
 import '../../domain/services/truncated_tool_call_arguments_guard.dart';
 import '../../domain/services/turn_diff_service.dart';
-import '../../domain/services/turn_finalization_delegation_recovery.dart';
+import '../../domain/services/turn_finalization_recovery_budget.dart';
+import '../../domain/services/turn_finalization_recovery_input_builder.dart';
+import '../../domain/services/turn_finalization_recovery_plan.dart';
 import '../../domain/services/turn_finalization_recovery_policy.dart';
 import '../../domain/services/turn_steering_policy.dart';
 import '../../domain/services/turn_tool_catalog_cache.dart';
@@ -1994,7 +1997,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final _successfulReadResultReplayCache = SuccessfulReadResultReplayCache();
   final _readOnlyCommandRepeatBudget = ReadOnlyCommandRepeatBudget();
   static const int _maxContentToolContinuations = 5;
-  final Set<int> _turnFinalizationRecoveryGenerations = {};
+  final _turnFinalizationRecoveryGenerations = TurnFinalizationRecoveryBudget();
 
   /// Which turns run as the Anabasis parent. Not a zone; see the class.
   final _anabasisRoles = AnabasisTurnRoles();
@@ -2352,6 +2355,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // three fall back to the queue rather than dropping the message.
     bool interrupt = false,
     bool codeReview = false,
+    bool projectTaskImplementation = false,
   }) async {
     final hasBody = content.trim().isNotEmpty || imageBase64 != null;
     if (!hasBody && video == null) return null;
@@ -2388,6 +2392,7 @@ class ChatNotifier extends Notifier<ChatState> {
           : null,
       conversationId: ownerConversationId,
       codeReview: codeReview,
+      projectTaskImplementation: projectTaskImplementation,
     );
     // Only when the user asked to interrupt. Queueing stays the default
     // because "run this after" is a different intent from "do this instead",
@@ -2652,6 +2657,7 @@ class ChatNotifier extends Notifier<ChatState> {
         conversation: currentConversation,
         bypassPlanMode: bypassPlanMode,
         codeReview: queuedMessage.codeReview,
+        projectTaskImplementation: queuedMessage.projectTaskImplementation,
       );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return turnOwner;
@@ -5255,7 +5261,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var truncatedBeforeAnswer = false;
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
-    final executedToolResults = <ToolResultInfo>[];
+    final executedToolResults = _turnToolResults.completed(turnOwner).toList();
     var commandRetryGeneration = 0;
     var stateChangeGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;
@@ -8223,12 +8229,6 @@ class ChatNotifier extends Notifier<ChatState> {
         );
       }
     }
-    await _logTurnExitReason(
-      owner: turnOwner,
-      finalizedMessages: updatedMessages,
-      shouldDropLastAssistant: shouldDropLastAssistant,
-      finishReason: finishReason,
-    );
     if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
     if (!_isActiveResponseDetachedForGeneration(generation)) {
@@ -8248,6 +8248,12 @@ class ChatNotifier extends Notifier<ChatState> {
       state = state.copyWith(messages: updatedMessages, isLoading: false);
     }
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
+      await _logTurnExitReason(
+        owner: turnOwner,
+        finalizedMessages: updatedMessages,
+        shouldDropLastAssistant: shouldDropLastAssistant,
+        finishReason: finishReason,
+      );
       _clearTurnDiffCapture();
       _onResponseCompleted('');
       _completeRuntimeTurn(generation, content: '');
@@ -8272,6 +8278,12 @@ class ChatNotifier extends Notifier<ChatState> {
       tokenUsageDelta: goalTokenUsageDelta,
     );
     if (finalCompletionEvidence == null) return;
+    await _logTurnExitReason(
+      owner: turnOwner,
+      finalizedMessages: updatedMessages,
+      shouldDropLastAssistant: shouldDropLastAssistant,
+      finishReason: finishReason,
+    );
     if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
     if (_settings.autoReadEnabled && _settings.ttsEnabled) {
       final lastMsg = finalizedLastMessage;

@@ -126,6 +126,26 @@ void main() {
   });
 
   group('recoveryCode', () {
+    test('localized promises do not authorize continuation', () {
+      for (final response in [
+        'watcher.py needs another edit. Let me make the fixes:',
+        'The task remains incomplete.\n- Implement notifier.py.',
+        'The implementation is complete.\nUnexecuted verification command:\n.venv/bin/python -m pytest',
+        '`test_watcher.py` \u306b\u30d1\u30e9\u30e1\u30fc\u30bf\u3092\u8ffd\u52a0\u3057\u307e\u3059\u3002',
+      ]) {
+        expect(
+          _policy.recoveryCode(
+            _input(
+              candidateResponse: response,
+              owningTurnLatestUserText: 'Implement retry.',
+              requireContinuationRequest: false,
+            ),
+          ),
+          isNull,
+        );
+      }
+    });
+
     test('judges the visible promise after a long thinking block', () {
       final candidate =
           '<think>${'The code is updated, but I cannot stop yet. ' * 800}'
@@ -138,16 +158,18 @@ void main() {
     });
 
     test('ignores coding promises confined to thinking', () {
-      expect(
-        _policy.recoveryCode(
-          _input(
-            candidateResponse:
-                '<think>I will implement the Python code.</think>'
-                'The Python code was implemented and tested.',
-          ),
-        ),
-        isNull,
-      );
+      for (final response in [
+        '<think>I will implement the Python code.</think>'
+            'The Python code was implemented and tested.',
+        '<think>\u30b3\u30fc\u30c9\u3092\u4fee\u6b63\u3057\u307e\u3059\u3002</think>'
+            '\u30b3\u30fc\u30c9\u3092\u4fee\u6b63\u3057\u307e\u3057\u305f\u3002',
+      ]) {
+        expect(
+          _policy.recoveryCode(_input(candidateResponse: response)),
+          isNull,
+        );
+        expect(_policy.looksLikeProseOnlyCodingContinuation(response), isFalse);
+      }
     });
 
     test('returns no recovery for each terminal precondition', () {
@@ -545,6 +567,14 @@ void main() {
   group('recovery payload copy', () {
     test('preserves every recovery-code label and payload', () {
       const expectations = {
+        'structured_coding_task_status': {
+          'label': 'structured coding task status recovery',
+          'reason':
+              'The project task has no terminal structured goal acknowledgement.',
+          'error': 'The project task needs a structured goal status report.',
+          'action':
+              'Call update_goal with a JSON boolean completed value, using the captured execution evidence.',
+        },
         'length_truncated_pending_action': {
           'label': 'length-truncated pending action recovery',
           'reason':

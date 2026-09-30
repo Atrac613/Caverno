@@ -1,0 +1,91 @@
+import '../entities/conversation_goal.dart';
+import '../entities/tool_call_info.dart';
+import 'goal_update_ack.dart';
+import 'structured_coding_task_recovery_policy.dart';
+import 'tool_definition_search_service.dart';
+import 'turn_finalization_delegation_recovery.dart';
+import 'turn_finalization_recovery_policy.dart';
+
+typedef FinalizationRecoveryToolSelection = ({
+  List<Map<String, dynamic>> tools,
+  Set<String> selectedNames,
+  bool toolSearchEnabled,
+  String? forcedCode,
+});
+
+/// Chooses the finalization protocol from turn metadata before lexical guards.
+final class TurnFinalizationRecoveryPlan {
+  TurnFinalizationRecoveryPlan({
+    required ConversationGoal? goal,
+    required bool implementationTurn,
+    required bool boundarySafe,
+    required GoalUpdateAckOutcome? acknowledgement,
+    required bool parentTurn,
+    required String response,
+    required List<ToolResultInfo> completedResults,
+    required bool hasSavedValidation,
+    required bool hasGitLifecycle,
+    required bool skipCompletedAnswer,
+    required List<Map<String, dynamic>> allTools,
+    required bool prefixStable,
+  }) {
+    const taskPolicy = StructuredCodingTaskRecoveryPolicy();
+    structuredTask = taskPolicy.applies(
+      goal: goal,
+      implementationTurn: implementationTurn,
+    );
+    final pendingDelegation =
+        !structuredTask &&
+        const TurnFinalizationDelegationRecovery().pending(
+          isParentTurn: parentTurn,
+          response: response,
+          completedResults: completedResults,
+        );
+    skipFinalAnswer = !structuredTask && skipCompletedAnswer;
+    shouldRecover = structuredTask
+        ? taskPolicy.shouldRequestStatus(
+            goal: goal,
+            boundarySafe: boundarySafe,
+            acknowledgement: acknowledgement,
+          )
+        : pendingDelegation ||
+              (!skipCompletedAnswer &&
+                  !const TurnFinalizationRecoveryPolicy()
+                      .hasTerminalGoalSuccess(
+                        completedResults,
+                        hasSavedValidation: hasSavedValidation,
+                        hasGitLifecycle: hasGitLifecycle,
+                      ));
+    selection = const TurnFinalizationDelegationRecovery().selectTools(
+      allTools: allTools,
+      prefixStable: prefixStable,
+      pendingDelegation: pendingDelegation,
+    );
+    requestTools = structuredTask
+        ? allTools
+              .where(
+                (tool) =>
+                    ToolDefinitionSearchService.toolNameFromDefinition(tool) ==
+                    'update_goal',
+              )
+              .toList(growable: false)
+        : selection.tools;
+    if (requestTools.isEmpty) shouldRecover = false;
+    forcedCode = structuredTask
+        ? 'structured_coding_task_status'
+        : selection.forcedCode;
+    prompt = structuredTask ? taskPolicy.prompt : null;
+  }
+
+  bool acceptsCalls(List<ToolCallInfo> calls) =>
+      !structuredTask ||
+      (calls.isNotEmpty && calls.every((call) => call.name == 'update_goal'));
+
+  late final bool structuredTask;
+  late final bool skipFinalAnswer;
+  late bool shouldRecover;
+  late final FinalizationRecoveryToolSelection selection;
+  late final List<Map<String, dynamic>> requestTools;
+  late final String? forcedCode;
+  late final String? prompt;
+}
