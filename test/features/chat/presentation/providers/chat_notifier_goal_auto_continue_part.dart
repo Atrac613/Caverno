@@ -1013,11 +1013,12 @@ void registerChatNotifierGoalAutoContinueTests() {
       });
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      // SEC4.4g asks the person directly for a shell command, so the
-      // reviewer is not consulted on either turn. The property this test
-      // exists for survives it: the hidden continuation does not inherit
-      // the first turn's approval, it is asked for again.
-      expect(dataSource.autoReviewRequestMessages, isEmpty);
+      // A hidden turn never inherits the previous turn's approval grant.
+      // Contained commands must be reviewed again; others ask the user.
+      expect(
+        dataSource.autoReviewRequestMessages,
+        hasLength(_supportsForegroundCommandContainment() ? 2 : 0),
+      );
       expect(toolService.executedToolNames, [
         'local_execute_command',
         'local_execute_command',
@@ -2166,6 +2167,8 @@ void registerChatNotifierGoalAutoContinueTests() {
     final scopedVerifierArguments = {
       ...verifierArguments,
       'allowed_read_root': verifierArguments['working_directory'],
+      if (_supportsForegroundCommandContainment())
+        'workspace_command_containment': true,
     };
     expect(toolService.executedToolArguments.first, scopedVerifierArguments);
     expect(toolService.executedToolArguments.last, scopedVerifierArguments);

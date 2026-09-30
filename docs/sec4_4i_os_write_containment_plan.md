@@ -1,8 +1,9 @@
 # SEC4.4i OS-Enforced Write Containment (plan)
 
-Status: 4i-a implemented 2026-09-24 (opt-in observe mode). A narrow macOS
-foreground Python and Bash containment route is implemented (Bash added
-2026-09-30); general 4i-b onward remains planned.
+Status: 4i-a implemented 2026-09-24 (opt-in observe mode). The macOS foreground
+`local_execute_command` containment route covers shell commands and command
+chains (expanded from Python and Bash on 2026-09-30); general 4i-b onward
+remains planned.
 
 ## Why
 
@@ -100,22 +101,24 @@ inside an app sandbox.
 
 ## Slices
 
-### Foreground Python and Bash route
+### Foreground shell command route
 
-Direct `python`/`python3` and `bash` commands, including a leading `cd ... &&`,
-can use the ordinary Coding approval gate when a macOS `sandbox-exec` launcher
-and an active project root are available. Their shell and child processes run with
-project and per-command temporary writes only; Git metadata, Apple Events,
+Foreground `local_execute_command` commands can use the ordinary Coding approval
+gate when a macOS `sandbox-exec` launcher and an active project root are available.
+Eligibility does not depend on the first executable: leading `cd`, command chains,
+pipelines, redirections, environment assignments, and multiline scripts all share
+the same containment route. Their entire shell invocation and child processes run
+with project and per-command temporary writes only; Git metadata, Apple Events,
 Mach services, and network access are denied. A literal out-of-project path,
 background execution, another platform, or an unavailable launcher retains
 the fresh host-write approval. If containment setup fails after gate selection,
-execution fails closed. This route does not relax approvals for other shell
-commands or for the general `run_tests` and `process_start` paths.
+execution fails closed. This route does not relax approvals for the general
+`run_tests` and `process_start` paths.
 
 Bash script files, `bash -c`, heredocs, pipelines, and their child processes
-share the enforced profile. Known release scripts and commands mentioning a
-nested sandbox toolchain or single-ampersand syntax retain fresh host-write
-approval. The single-ampersand check is conservative: it can also prompt for a
+share the enforced profile. Across the entire command, known release scripts and
+commands mentioning a nested sandbox toolchain or single-ampersand syntax retain
+fresh host-write approval. The single-ampersand check is conservative: it can also prompt for a
 quoted literal ampersand or `&>` redirection, while `&&` remains eligible. This
 exemption only removes containment; it never grants approval. Dependencies hidden in a
 script remain sandboxed and may fail, without an automatic uncontained retry.

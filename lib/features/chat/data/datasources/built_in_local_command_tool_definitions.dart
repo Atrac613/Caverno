@@ -17,7 +17,7 @@ abstract final class BuiltInLocalCommandToolDefinitions {
           'command': {
             'type': 'string',
             'description':
-                'Exact native-shell command or multiline script. Eligible foreground Python and Bash commands on macOS run with writes limited to the project and per-command temporary directory, and no network access. Use && between independent commands for portable early exit; foreground POSIX newline scripts also stop at the first unhandled failure.',
+                'Exact native-shell command or multiline script. Eligible foreground commands and command chains on macOS run with writes limited to the project and per-command temporary directory, and no network access. Use && between independent commands for portable early exit; foreground POSIX newline scripts also stop at the first unhandled failure.',
           },
           'background': {
             'type': 'boolean',

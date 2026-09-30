@@ -1,5 +1,8 @@
 part of 'chat_notifier_test.dart';
 
+bool _supportsForegroundCommandContainment() =>
+    Platform.isMacOS && File('/usr/bin/sandbox-exec').existsSync();
+
 void registerChatNotifierApprovalCacheTests() {
   test('auto-review verdicts are written to the approval audit log', () async {
     final auditDir = Directory.systemTemp.createTempSync('chat_audit_');
@@ -283,19 +286,21 @@ void registerChatNotifierApprovalCacheTests() {
     await _waitForCondition(() => notifier.state.pendingFileOperation != null);
     final fileApproval = notifier.state.pendingFileOperation!;
     notifier.resolveFileOperation(id: fileApproval.id, approved: true);
-    // SEC4.4g: the repeat is asked for again rather than replayed from the
-    // cache, which is the point of the audit assertion below. Approving it is
-    // what makes the re-execution observable at all.
-    await _waitForCondition(
-      () =>
-          notifier.state.pendingLocalCommand != null &&
-          notifier.state.pendingLocalCommand!.id != localApproval.id,
-    );
-    final repeatApproval = notifier.state.pendingLocalCommand!;
-    notifier.resolveLocalCommand(
-      id: repeatApproval.id,
-      approval: const LocalCommandApproval(approved: true),
-    );
+    // Contained commands reuse the grant but still execute for fresh output.
+    // Uncontained commands continue to require another manual approval.
+    final contained = _supportsForegroundCommandContainment();
+    if (!contained) {
+      await _waitForCondition(
+        () =>
+            notifier.state.pendingLocalCommand != null &&
+            notifier.state.pendingLocalCommand!.id != localApproval.id,
+      );
+      final repeatApproval = notifier.state.pendingLocalCommand!;
+      notifier.resolveLocalCommand(
+        id: repeatApproval.id,
+        approval: const LocalCommandApproval(approved: true),
+      );
+    }
     await sendFuture.timeout(const Duration(seconds: 5));
 
     expect(notifier.state.pendingLocalCommand, isNull);
@@ -318,29 +323,22 @@ void registerChatNotifierApprovalCacheTests() {
         .where((line) => line.trim().isNotEmpty)
         .map((line) => jsonDecode(line) as Map<String, dynamic>)
         .toList(growable: false);
-    // The repeat is no longer served from the approval cache: SEC4.4g routes
-    // every shell command through a fresh `opaque_host_write` ask, and the
-    // audit is where that is visible. The guard this test exists for -- the
-    // second `dart analyze` returning its own output rather than replaying the
-    // first -- is asserted above and still holds.
+    // Audit the grant reuse separately from the fresh command results above.
     expect(
       auditEntries.where(
         (entry) =>
             entry['tool'] == 'local_execute_command' &&
             entry['decisionSource'] == 'opaque_host_write',
       ),
-      hasLength(2),
+      hasLength(contained ? 0 : 2),
     );
     expect(
-      auditEntries,
-      isNot(
-        contains(
-          allOf(
-            containsPair('tool', 'local_execute_command'),
-            containsPair('decisionSource', 'cached_approval'),
-          ),
-        ),
+      auditEntries.where(
+        (entry) =>
+            entry['tool'] == 'local_execute_command' &&
+            entry['decisionSource'] == 'cached_approval',
       ),
+      hasLength(contained ? 1 : 0),
     );
   });
 

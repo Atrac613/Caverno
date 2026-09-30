@@ -94,6 +94,9 @@ List<({ChatTurnOwner owner, String toolCallId, String error})> _poisonScopes(
 ];
 
 void main() {
+  final containmentSupported =
+      Platform.isMacOS &&
+      File(LocalCommandWorkspaceContainment.executable).existsSync();
   group('LocalCommandToolHandler', () {
     test('recursively freezes request and execution arguments', () async {
       final owner = _owner('owner-a');
@@ -659,18 +662,18 @@ void main() {
       expect(harness.execution.calls, hasLength(1));
     });
 
-    for (final command in ['python3 watcher.py --help', 'bash tool/check.sh']) {
+    for (final command in [
+      'python3 watcher.py --help',
+      'bash tool/check.sh',
+      'which python3 && python3 --version',
+      'env MODE=check python3 watcher.py --help',
+      'printf ready | cat > output.txt',
+    ]) {
       test(
         'contained $command uses auto-review without a manual gate',
         () async {
           final root = await Directory.systemTemp.createTemp('python-gate-');
           addTearDown(() => root.delete(recursive: true));
-          if (!LocalCommandWorkspaceContainment.eligible(
-            command: command,
-            root: root.path,
-          )) {
-            return;
-          }
           final owner = _owner('owner-a');
           final harness = _Harness()
             ..approval.gates[owner] =
@@ -701,42 +704,85 @@ void main() {
             isTrue,
           );
         },
+        skip: !containmentSupported,
       );
     }
 
-    test('Bash outside the containment route retains fresh approval', () async {
-      final root = await Directory.systemTemp.createTemp('bash-gate-');
-      addTearDown(() => root.delete(recursive: true));
-      final owner = _owner('owner-a');
-      for (final arguments in [
-        {'command': 'bash tool/check.sh', 'background': true},
-        {'command': 'bash tool/check.sh &'},
-        {'command': 'bash tool/check.sh /outside-project/result.txt'},
-        {'command': 'bash tool/release_ios_macos.sh'},
-        {'command': 'bash -c "flutter build macos"'},
-      ]) {
+    test(
+      'the chained environment probe reaches auto-review unchanged',
+      () async {
+        final root = await Directory.systemTemp.createTemp('command-gate-');
+        addTearDown(() => root.delete(recursive: true));
+        final command =
+            'cd ${root.path} && ls -la && which python3 && python3 --version '
+            '&& ls .venv 2>/dev/null || true';
+        final owner = _owner('owner-a');
         final harness = _Harness()
-          ..rules.decisions[owner] = CommandPermissionRuleDecision.allow;
+          ..approval.gates[owner] = ToolApprovalGateDecision.autoReviewAllowed;
 
         await harness.handler.handle(
           _request(
             owner: owner,
             allowedRoot: root.path,
             defaultWorkingDirectory: root.path,
-            arguments: {...arguments, 'workspace_command_containment': true},
+            arguments: {'command': command},
           ),
         );
 
         final request = harness.approval.resolveCalls.single.request;
-        expect(request.requiredManualDecision?.needsManual, isTrue);
+        expect(request.requiredManualDecision, isNull);
+        expect(request.requiredManualDecisionSource, isNull);
         expect(
           request.execution.arguments['workspace_command_containment'],
-          isFalse,
+          isTrue,
         );
-        expect(harness.approval.manualCalls, hasLength(1));
-        expect(harness.approval.rememberedResults, isEmpty);
-      }
-    });
+        expect(harness.approval.manualCalls, isEmpty);
+        expect(harness.execution.calls.single.request.command, command);
+      },
+      skip: !containmentSupported,
+    );
+
+    test(
+      'commands outside the containment route retain fresh approval',
+      () async {
+        final root = await Directory.systemTemp.createTemp('bash-gate-');
+        addTearDown(() => root.delete(recursive: true));
+        final owner = _owner('owner-a');
+        for (final arguments in [
+          {'command': 'bash tool/check.sh', 'background': true},
+          {'command': 'bash tool/check.sh &'},
+          {'command': 'bash tool/check.sh /outside-project/result.txt'},
+          {'command': 'bash tool/release_ios_macos.sh'},
+          {'command': 'bash -c "flutter build macos"'},
+          {'command': 'ls -la && which python3', 'background': true},
+          {'command': 'ls -la && python3 --version &'},
+          {'command': 'ls -la && python3 /outside-project/probe.py'},
+          {'command': 'ls -la && sh tool/release_ios_macos.sh'},
+          {'command': 'ls -la && xcodebuild -version'},
+        ]) {
+          final harness = _Harness()
+            ..rules.decisions[owner] = CommandPermissionRuleDecision.allow;
+
+          await harness.handler.handle(
+            _request(
+              owner: owner,
+              allowedRoot: root.path,
+              defaultWorkingDirectory: root.path,
+              arguments: {...arguments, 'workspace_command_containment': true},
+            ),
+          );
+
+          final request = harness.approval.resolveCalls.single.request;
+          expect(request.requiredManualDecision?.needsManual, isTrue);
+          expect(
+            request.execution.arguments['workspace_command_containment'],
+            isFalse,
+          );
+          expect(harness.approval.manualCalls, hasLength(1));
+          expect(harness.approval.rememberedResults, isEmpty);
+        }
+      },
+    );
 
     test(
       'executes a fresh manual approval without caching its result',

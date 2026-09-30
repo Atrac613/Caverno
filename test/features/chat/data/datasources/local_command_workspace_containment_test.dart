@@ -10,8 +10,8 @@ void main() {
       Platform.isMacOS &&
       File(LocalCommandWorkspaceContainment.executable).existsSync();
 
-  test('selects direct Python and Bash command shapes', () {
-    final root = Directory.systemTemp.createTempSync('python-root-');
+  test('selects foreground commands regardless of the first executable', () {
+    final root = Directory.systemTemp.createTempSync('command-root-');
     addTearDown(() => root.deleteSync(recursive: true));
     for (final command in [
       'python3 watcher.py --help',
@@ -24,6 +24,15 @@ void main() {
       'bash tool/check.sh | cat > output.txt',
       'bash tool/check.sh && bash tool/another-check.sh',
       "bash <<'SCRIPT'\nprintf ok > output.txt\nSCRIPT",
+      'cd ${root.path} && ls -la && which python3 && python3 --version '
+          '&& ls .venv 2>/dev/null || true',
+      'which python3 && python3 --version',
+      'sh tool/check.sh',
+      'zsh tool/check.sh',
+      'env MODE=check python3 watcher.py --help',
+      'printf ok | cat > output.txt',
+      'printf first > first.txt\nprintf second > second.txt',
+      'curl example.com && python3 watcher.py',
     ]) {
       expect(
         LocalCommandWorkspaceContainment.eligible(
@@ -35,14 +44,8 @@ void main() {
       );
     }
     for (final command in [
-      'echo python3 watcher.py',
-      'curl example.com && python3 watcher.py',
-      'python3-not-an-interpreter watcher.py',
-      'echo bash tool/check.sh',
-      'curl example.com && bash tool/check.sh',
-      'bash-not-a-shell tool/check.sh',
-      'sh tool/check.sh',
-      'zsh tool/check.sh',
+      '',
+      '  \n  ',
       'bash tool/release_ios_macos.sh',
       'bash tool/publish_macos_sparkle_release.sh',
       'bash -c "flutter build macos"',
@@ -50,6 +53,12 @@ void main() {
       'bash -c "sandbox-exec -h"',
       'bash tool/check.sh &',
       "bash -c 'bash tool/check.sh &'",
+      'python3 watcher.py &',
+      'ls -la && python3 --version &',
+      'printf ok &> output.txt',
+      'ls -la && xcodebuild -version',
+      'python3 watcher.py && flutter build macos',
+      'cd ${root.path} && sh tool/release_ios_macos.sh',
     ]) {
       expect(
         LocalCommandWorkspaceContainment.eligible(
@@ -124,13 +133,13 @@ void main() {
     skip: !supported,
   );
 
-  group('real Bash containment', () {
+  group('real foreground command containment', () {
     late Directory fixture;
     late Directory project;
     late Directory outside;
 
     setUp(() async {
-      fixture = await Directory.systemTemp.createTemp('bash-containment-');
+      fixture = await Directory.systemTemp.createTemp('command-containment-');
       project = await Directory('${fixture.path}/project').create();
       outside = await Directory('${fixture.path}/outside').create();
     });
@@ -146,6 +155,21 @@ void main() {
       return jsonDecode(result.result) as Map<String, dynamic>;
     }
 
+    test('runs the environment probe without a Bash wrapper', () async {
+      await Directory('${project.path}/.venv').create();
+      await File('${project.path}/.venv/probe-marker').writeAsString('fixture');
+      final command =
+          'cd ${project.path} && ls -la && which python3 && python3 --version '
+          '&& ls .venv 2>/dev/null || true';
+
+      final result = await execute(command);
+
+      expect(result['exit_code'], 0, reason: result['stderr'] as String?);
+      expect(result['command'], command);
+      expect(result['stdout'], contains(RegExp(r'Python \d+\.\d+')));
+      expect(result['stdout'], contains('probe-marker'));
+    }, skip: !supported);
+
     test(
       'allows scripts, pipelines, child shells and scratch writes',
       () async {
@@ -158,18 +182,26 @@ printf scratch > "$scratch"
 cat "$scratch" > scratch.txt
 ''');
 
-        final result = await execute('bash check.sh');
+        for (final command in [
+          'bash check.sh',
+          'cd "${project.path}" && sh check.sh | cat',
+        ]) {
+          final result = await execute(command);
 
-        expect(result['exit_code'], 0, reason: result['stderr'] as String?);
-        expect(
-          await File('${project.path}/inside.txt').readAsString(),
-          'inside',
-        );
-        expect(await File('${project.path}/child.txt').readAsString(), 'child');
-        expect(
-          await File('${project.path}/scratch.txt').readAsString(),
-          'scratch',
-        );
+          expect(result['exit_code'], 0, reason: result['stderr'] as String?);
+          expect(
+            await File('${project.path}/inside.txt').readAsString(),
+            'inside',
+          );
+          expect(
+            await File('${project.path}/child.txt').readAsString(),
+            'child',
+          );
+          expect(
+            await File('${project.path}/scratch.txt').readAsString(),
+            'scratch',
+          );
+        }
       },
       skip: !supported,
     );
@@ -193,14 +225,19 @@ bash -c 'printf blocked > "$1"' child 'TARGET'
                 .replaceAll('TARGET', target),
           );
 
-          final result = await execute('bash $script');
-          expect(result['exit_code'], allOf(isA<int>(), isNot(0)));
-          expect(result['stderr'], contains('Operation not permitted'));
-          expect(outside.listSync(), isEmpty);
+          for (final command in [
+            'bash $script',
+            'cd "${project.path}" && sh $script',
+          ]) {
+            final result = await execute(command);
+            expect(result['exit_code'], allOf(isA<int>(), isNot(0)));
+            expect(result['stderr'], contains('Operation not permitted'));
+            expect(outside.listSync(), isEmpty);
+          }
         }
         expect(
           await File('${project.path}/attempts.txt').readAsString(),
-          'attemptattempt',
+          'attemptattemptattemptattempt',
         );
       },
       skip: !supported,
@@ -211,12 +248,15 @@ bash -c 'printf blocked > "$1"' child 'TARGET'
       await hook.parent.create(recursive: true);
       await hook.writeAsString('original');
 
-      final result = await execute(
+      for (final command in [
         "bash -c 'printf changed > .git/hooks/pre-commit'",
-      );
+        'printf changed > .git/hooks/pre-commit',
+      ]) {
+        final result = await execute(command);
 
-      expect(result['exit_code'], allOf(isA<int>(), isNot(0)));
-      expect(await hook.readAsString(), 'original');
+        expect(result['exit_code'], allOf(isA<int>(), isNot(0)));
+        expect(await hook.readAsString(), 'original');
+      }
     }, skip: !supported);
 
     test('blocks loopback network access from script children', () async {
@@ -232,24 +272,35 @@ set -eu
 /usr/bin/curl --silent --show-error --connect-timeout 1 --max-time 2 "$1"
 ''');
 
-      final result = await execute(
+      for (final command in [
         'bash network.sh http://127.0.0.1:${server.port}/probe',
-      );
+        'printf ready && sh network.sh http://127.0.0.1:${server.port}/probe',
+      ]) {
+        final result = await execute(command);
 
-      expect(result['exit_code'], allOf(isA<int>(), isNot(0)));
-      expect(requests, 0);
+        expect(result['exit_code'], allOf(isA<int>(), isNot(0)));
+        expect(requests, 0);
+      }
     }, skip: !supported);
 
     test('fails closed when containment preparation fails', () async {
-      final result = await LocalShellTools.executeResult(
-        command: "bash -c 'printf ran > unexpected.txt'",
-        workingDirectory: project.path,
-        projectRoot: project.path,
-        containmentRoot: '${fixture.path}/missing',
-      );
+      for (final command in [
+        "bash -c 'printf ran > unexpected.txt'",
+        'printf ran > unexpected.txt',
+      ]) {
+        final result = await LocalShellTools.executeResult(
+          command: command,
+          workingDirectory: project.path,
+          projectRoot: project.path,
+          containmentRoot: '${fixture.path}/missing',
+        );
 
-      expect(result.errorMessage, contains('containment could not be started'));
-      expect(File('${project.path}/unexpected.txt').existsSync(), isFalse);
+        expect(
+          result.errorMessage,
+          contains('containment could not be started'),
+        );
+        expect(File('${project.path}/unexpected.txt').existsSync(), isFalse);
+      }
     });
   });
 }

@@ -2,28 +2,22 @@ import 'dart:io';
 
 import 'shell_write_observation.dart';
 
-/// Runs foreground Python and Bash commands with writes confined by macOS.
+/// Runs foreground shell commands with writes confined by macOS.
 /// The approval gate may relax its host-write rule only for this exact route.
 abstract final class LocalCommandWorkspaceContainment {
   static const executable = '/usr/bin/sandbox-exec';
-  static final _command = RegExp(
-    r'^(?:cd\s+(?:\x27[^\x27]+\x27|"[^"]+"|[^\s;&|]+)\s*&&\s*)?'
-    r'(?:[^\s;&|]*/)?(python(?:3(?:\.\d+)?)?|bash)(?:\s|$)',
-  );
   static final _backgroundOperator = RegExp(r'(?<!&)&(?!&)');
 
   static bool eligible({required String command, required String? root}) {
     if (!Platform.isMacOS || !File(executable).existsSync()) return false;
-    final match = _command.firstMatch(command.trim());
-    if (match == null) return false;
+    if (command.trim().isEmpty) return false;
     // Visible background syntax and known host toolchains keep fresh approval.
     // Hidden script dependencies stay sandboxed and may fail, without an
     // uncontained retry.
-    if (match.group(1) == 'bash' &&
-        (_backgroundOperator.hasMatch(command) ||
-            ShellWriteObservation.reachesNestedSandbox(
-              command.replaceAll("'", ' ').replaceAll('"', ' '),
-            ))) {
+    if (_backgroundOperator.hasMatch(command) ||
+        ShellWriteObservation.reachesNestedSandbox(
+          command.replaceAll("'", ' ').replaceAll('"', ' '),
+        )) {
       return false;
     }
     if (root == null || root.trim().isEmpty) return false;
