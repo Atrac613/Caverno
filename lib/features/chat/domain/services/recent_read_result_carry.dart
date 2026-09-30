@@ -152,13 +152,33 @@ final class RecentReadResultCarry {
         laterWrites.insert(0, 'git add $stagedPaths');
         continue;
       }
+      // A process observer reports on a job, not on the workspace: it neither
+      // changes files nor restates them.
+      if (_executionPolicy.isRepeatableBackgroundProcessInspectionTool(call)) {
+        continue;
+      }
       // A mutating command has no declared scope -- it can move the branch or
-      // rewrite any file -- so everything read before it may describe a
-      // workspace that no longer exists, and stating that as current is worse
-      // than the digest line that merely names it.
+      // rewrite any file -- so everything read before it is labelled with it
+      // and the model judges what it may have made stale, as with a file
+      // write. Dropping them instead cost session 1d76c878 seven re-reads
+      // after `pytest --version`, and the command's own result went with
+      // them: the passing `pytest -q` was gone one loop later, before the
+      // status request that needed it.
       if (_executionPolicy.isCommandExecutionTool(result.name) &&
           !_executionPolicy.isReadOnlyCommandExecutionToolCall(call)) {
-        break;
+        final bytes = utf8.encode(result.result).length;
+        if (_hasExitStatus(result) &&
+            present.add(_keyFor(result)) &&
+            bytes <= maxResultBytes &&
+            bytes <= remaining) {
+          remaining -= bytes;
+          carried.add((result, List<String>.unmodifiable(laterWrites)));
+        }
+        laterWrites.insert(0, _commandLabel(result));
+        // A mutating git command moves the index or HEAD, so an older
+        // `status` or `diff` is known stale rather than possibly stale.
+        if (result.name == 'git_execute_command') indexChanged = true;
+        continue;
       }
       if (!present.add(_keyFor(result))) continue;
       if (!_isCarryable(result)) continue;
@@ -202,6 +222,23 @@ final class RecentReadResultCarry {
     if (path is! String) return null;
     final trimmed = path.trim();
     return trimmed.isEmpty ? null : _resolveProjectPath(trimmed);
+  }
+
+  static const _maxLabelCommandChars = 120;
+
+  /// A command without an exit status never finished, so its output is not
+  /// a result to restate.
+  bool _hasExitStatus(ToolResultInfo result) =>
+      _executionPolicy.toolResultHasSuccessfulExit(result) ||
+      _executionPolicy.toolResultHasFailedExit(result);
+
+  String _commandLabel(ToolResultInfo result) {
+    final command = _executionPolicy.toolCommandArgument(result.arguments);
+    if (command == null) return result.name;
+    final clipped = command.length <= _maxLabelCommandChars
+        ? command
+        : '${command.substring(0, _maxLabelCommandChars)}...';
+    return '${result.name} `$clipped`';
   }
 
   bool _isCarryable(ToolResultInfo result) {

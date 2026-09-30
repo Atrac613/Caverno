@@ -759,7 +759,11 @@ void registerChatNotifierGitGuardrailTests() {
         expect(toolService.executedToolNames, ['local_execute_command']);
         expect(toolDataSource.toolResultBatches, hasLength(2));
         final releaseBlock =
-            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+            jsonDecode(
+                  _ranInBatch(
+                    toolDataSource.toolResultBatches.last,
+                  ).single.result,
+                )
                 as Map<String, dynamic>;
         expect(
           releaseBlock,

@@ -4,6 +4,12 @@ part of 'chat_notifier_test.dart';
 // chat_notifier_test.dart to keep that file under its F1 size ratchet
 // (docs/large_file_refactor_plan.md). These tests share the library's
 // private test doubles via the part-of relationship.
+/// The results that ran in [batch], without the history the read carry
+/// re-sends ahead of them. Assertions about "the batch that just ran" use
+/// this, so they do not depend on how much earlier context was carried.
+List<ToolResultInfo> _ranInBatch(List<ToolResultInfo> batch) =>
+    batch.where((result) => !result.fromEarlierLoop).toList(growable: false);
+
 void registerChatNotifierContinuationRecoveryTests() {
   test('turn finalization recovery selects the owning generation evidence', () {
     const ownerGeneration = 41;
@@ -709,7 +715,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
       ]);
       expect(dataSource.toolResultBatches, hasLength(3));
       expect(
-        dataSource.toolResultBatches[1].single.result,
+        _ranInBatch(dataSource.toolResultBatches[1]).single.result,
         contains('prose_only_coding_continuation'),
       );
       expect(dataSource.assistantContents[1], continuationText);
@@ -833,7 +839,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
       // Recovery still fires (the failed command is a real open problem).
       expect(dataSource.toolResultBatches, hasLength(3));
       expect(
-        dataSource.toolResultBatches[1].single.result,
+        _ranInBatch(dataSource.toolResultBatches[1]).single.result,
         contains('prose_only_coding_continuation'),
       );
       // The re-prompt for the recovery turn must use the non-destructive,

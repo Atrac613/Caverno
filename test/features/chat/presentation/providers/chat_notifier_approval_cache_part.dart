@@ -310,7 +310,7 @@ void registerChatNotifierApprovalCacheTests() {
       'local_execute_command',
     ]);
     final commandResults = dataSource.toolResultBatches
-        .expand((batch) => batch)
+        .expand(_ranInBatch)
         .where((result) => result.name == 'local_execute_command')
         .toList(growable: false);
     expect(commandResults, hasLength(2));

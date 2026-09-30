@@ -353,19 +353,23 @@ void main() {
       expect(augmented.map((result) => result.id), ['batch']);
     });
 
-    test('does not carry a mutating command', () {
+    test('carries a finished mutating command as current', () {
       final mutating = _gitCommand('commit -m "x"', id: 'commit');
+      final unfinished = _gitCommand('push', exitCode: null, id: 'push');
       final batch = _read('batch.dart', id: 'batch');
 
       final augmented = _carry.augment(
         resolved: [batch],
-        executedToolResults: [mutating, batch],
+        executedToolResults: [mutating, unfinished, batch],
       );
 
-      expect(augmented.map((result) => result.id), ['batch']);
+      expect(augmented.map((result) => result.id), ['commit', 'batch']);
+      expect(augmented.first.changesSinceCapture, [
+        'git_execute_command `push`',
+      ]);
     });
 
-    test('a mutating command also invalidates the reads before it', () {
+    test('labels the reads before a mutating command instead of dropping', () {
       final before = _read('a.dart', id: 'before');
       final mutating = _gitCommand('checkout other-branch', id: 'checkout');
       final after = _read('b.dart', id: 'after');
@@ -377,8 +381,46 @@ void main() {
       );
 
       // isFileMutationToolCall sees only the file-writing tools, so without
-      // the command check `before` would be carried as if it still held.
-      expect(augmented.map((result) => result.id), ['after', 'batch']);
+      // the command label `before` would be carried as if it still held.
+      expect(augmented.map((result) => result.id), [
+        'before',
+        'checkout',
+        'after',
+        'batch',
+      ]);
+      expect(augmented.first.changesSinceCapture, [
+        'git_execute_command `checkout other-branch`',
+      ]);
+      expect(augmented[2].changesSinceCapture, isEmpty);
+    });
+
+    test('keeps a test run and the sources it verified', () {
+      // Session 1d76c878: `pytest --version` dropped every earlier read, and
+      // the passing `pytest -q` was gone one loop later, before the status
+      // request that needed it.
+      final source = _read('state.py', id: 'source');
+      final pytest = ToolResultInfo(
+        id: 'pytest',
+        name: 'local_execute_command',
+        arguments: {'command': '.venv/bin/python -m pytest -q'},
+        result: '{"exit_code":0,"stdout":"53 passed in 3.11s"}',
+        outcome: ToolOutcome(exitCode: 0),
+      );
+      final batch = _read('ROADMAP.md', id: 'batch');
+
+      final augmented = _carry.augment(
+        resolved: [batch],
+        executedToolResults: [source, pytest, batch],
+      );
+
+      expect(augmented.map((result) => result.id), [
+        'source',
+        'pytest',
+        'batch',
+      ]);
+      expect(augmented.first.changesSinceCapture, [
+        'local_execute_command `.venv/bin/python -m pytest -q`',
+      ]);
     });
 
     test('keeps the version facts across git add', () {
@@ -408,18 +450,23 @@ void main() {
       expect(byId['add']!.changesSinceCapture, isEmpty);
     });
 
-    test('still stops at a commit after git add', () {
+    test('labels facts across git add and commit and drops index reads', () {
       final tag = _gitCommand('tag --list', id: 'tag');
+      final status = _gitCommand('status --short', id: 'status');
       final add = _gitCommand('add pubspec.yaml', stdout: '', id: 'add');
       final commit = _gitCommand('commit -m "x"', id: 'commit');
       final batch = _read('batch.dart', id: 'batch');
 
       final augmented = _carry.augment(
         resolved: [batch],
-        executedToolResults: [tag, add, commit, batch],
+        executedToolResults: [tag, status, add, commit, batch],
       );
 
-      expect(augmented.map((result) => result.id), ['batch']);
+      expect(augmented.map((result) => result.id), ['tag', 'commit', 'batch']);
+      expect(augmented.first.changesSinceCapture, [
+        'git add pubspec.yaml',
+        'git_execute_command `commit -m "x"`',
+      ]);
     });
 
     test('does not carry a duplicate-reuse pointer', () {

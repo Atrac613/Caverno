@@ -377,7 +377,10 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
           'local_execute_command',
         ]);
         expect(toolDataSource.toolResultBatches, hasLength(4));
-        expect(toolDataSource.toolResultBatches[3].single.name, 'edit_file');
+        expect(
+          _ranInBatch(toolDataSource.toolResultBatches[3]).single.name,
+          'edit_file',
+        );
       } finally {
         toolContainer.dispose();
       }

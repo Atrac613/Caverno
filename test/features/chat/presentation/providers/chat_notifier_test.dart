@@ -9301,7 +9301,7 @@ with open(path, "rb") as file:
         expect(toolDataSource.toolResultBatches, hasLength(3));
         expect(
           toolDataSource.toolResultBatches
-              .expand((batch) => batch.map((item) => item.name))
+              .expand((batch) => _ranInBatch(batch).map((item) => item.name))
               .toList(),
           ['local_execute_command', 'write_cli', 'local_execute_command'],
         );

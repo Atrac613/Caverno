@@ -60,9 +60,12 @@ Each line is one JSON object with schema name
   carry optional `request.toolResults[].outcome` facts such as exit status,
   file change/identity, or diagnostic counts. The outcome is additive and can
   be absent for older entries and tools without a trustworthy typed fact.
-  A result re-sent from an earlier loop across file writes also carries
-  `request.toolResults[].changesSinceCapture`, the `<tool> <path>` writes it
-  predates; the model sees the same list stated beside the result.
+  A result re-sent from an earlier loop across later changes also carries
+  `request.toolResults[].changesSinceCapture`: the `<tool> <path>` file
+  writes, `git add <paths>`, and ``<tool> `<command>` `` for commands not
+  classified read-only that it predates. The model sees the same list stated
+  beside the result. A finished command's own result is carried too; before
+  2026-09-30 such a command dropped itself and every older result.
 - `request.label` (schema v3), naming the producer that issued the call —
   `turn opening request`, `tool-result follow-up`, `coding verification
   feedback`, `narrated transcript feedback`, `blocked production release
