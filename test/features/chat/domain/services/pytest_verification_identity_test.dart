@@ -22,6 +22,20 @@ void main() {
     );
     expect(actual.counts('====== 6 passed in 3.05s ======')?.passedCount, 6);
   });
+  test('accepts the tail -n output wrapper', () {
+    // Session 26d7db3e: `| tail -n 15` was not stripped, so a passing run was
+    // never counted as verification and update_goal rejected completion.
+    for (final wrapper in ['tail -n 15', 'tail -n15', 'tail -15']) {
+      expect(
+        PytestVerificationIdentity.parse(
+          'cd /workspace && .venv/bin/python -m pytest -q 2>&1 | $wrapper',
+          '/tmp',
+        )?.directory,
+        '/workspace',
+        reason: wrapper,
+      );
+    }
+  });
   for (final command in [
     'cd /workspace && python -m pytest && rm -rf data',
     'cd /workspace; python -m pytest',
@@ -30,6 +44,7 @@ void main() {
     'python -m pytest *.py',
     'python -m pytest > tests.txt',
     'python -m pytest | tee tests.txt',
+    'python -m pytest | tail 15',
     'python -m pytest # ignored.py',
     'python -m pytest\nrm -rf data',
     'cd - && python -m pytest',
