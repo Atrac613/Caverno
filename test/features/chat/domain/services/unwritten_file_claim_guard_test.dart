@@ -389,4 +389,40 @@ void main() {
 
     expect(assessment.claims.single.displayPath, 'state.py');
   });
+
+  test('a path added into a written file is not a deliverable claim', () {
+    // Session 26d7db3e: "added config.json to .gitignore" flagged config.json.
+    final edit = ToolResultInfo(
+      id: 'edit',
+      name: 'edit_file',
+      arguments: {
+        'path': '.gitignore',
+        'old_text': 'state.json',
+        'new_text': 'config.json\nstate.json',
+      },
+      result: jsonEncode({'path': '$root/.gitignore', 'changed': true}),
+      outcome: ToolOutcome(
+        fileMutations: [
+          ToolFileMutation(path: '$root/.gitignore', changed: true),
+        ],
+      ),
+    );
+
+    final added = guard.assess(
+      candidateResponse:
+          '`.gitignore` に `config.json` を追加しました（`state.json` は既存）。',
+      toolResults: [edit],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+    final unrelated = guard.assess(
+      candidateResponse: '`.gitignore` と `lib/b.dart` を更新しました。',
+      toolResults: [edit],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(added.claims, isEmpty);
+    expect(unrelated.claims.single.displayPath, 'lib/b.dart');
+  });
 }

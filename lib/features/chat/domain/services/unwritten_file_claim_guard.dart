@@ -175,6 +175,7 @@ class UnwrittenFileClaimGuard {
       toolResults,
       normalizedRoot,
     );
+    final writtenText = _writtenTextByPath(toolResults, normalizedRoot);
     final claimedPaths = <String, String>{};
     var insideFence = false;
     var insideMutationTable = false;
@@ -224,6 +225,9 @@ class UnwrittenFileClaimGuard {
       for (final reference in references) {
         if (!hasMutationListClaim &&
             !_hasCompletedMutationClaimForPath(line, reference.path)) {
+          continue;
+        }
+        if (_isContentOfWrittenFile(reference.path, line, writtenText)) {
           continue;
         }
         final absolutePath = _resolveInsideRoot(reference.path, normalizedRoot);
@@ -326,6 +330,49 @@ class UnwrittenFileClaimGuard {
     }
     return _completedMutationListBeforePaths.hasMatch(maskedLine) ||
         _completedMutationListAfterPaths.hasMatch(maskedLine);
+  }
+
+  /// Whether [path] names text written into another file on the same line.
+  ///
+  /// "`.gitignore` に `config.json` を追加しました" adds a line to .gitignore;
+  /// session 26d7db3e flagged config.json as an unwritten deliverable. Decided
+  /// by what the edit wrote, not by the sentence's grammar.
+  bool _isContentOfWrittenFile(
+    String path,
+    String line,
+    Map<String, String> writtenText,
+  ) {
+    for (final MapEntry(key: container, value: text) in writtenText.entries) {
+      if (container.endsWith('/$path')) continue;
+      final name = container.substring(container.lastIndexOf('/') + 1);
+      if (line.contains(name) && text.contains(path)) return true;
+    }
+    return false;
+  }
+
+  /// Text each successful file mutation wrote, keyed by resolved path.
+  Map<String, String> _writtenTextByPath(
+    List<ToolResultInfo> toolResults,
+    String normalizedRoot,
+  ) {
+    final written = <String, String>{};
+    for (final toolResult in toolResults) {
+      if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name) ||
+          !_fileMutationEvidencePolicy.isSuccessfulResult(toolResult)) {
+        continue;
+      }
+      final rawPath = _fileMutationEvidencePolicy.pathForResult(toolResult);
+      final path = rawPath == null
+          ? null
+          : _resolveInsideRoot(rawPath, normalizedRoot);
+      if (path == null) continue;
+      final texts = [
+        for (final key in const ['new_text', 'content'])
+          if (toolResult.arguments[key] case final String text) text,
+      ];
+      written[path] = [written[path] ?? '', ...texts].join('\n');
+    }
+    return written;
   }
 
   Set<String> _successfulMutationPaths(
