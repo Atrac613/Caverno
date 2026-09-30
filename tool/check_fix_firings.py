@@ -138,6 +138,36 @@ _GIT_ADD_CHANGE_LABEL = re.compile(
 )
 
 
+_COMMAND_CHANGE_LABEL = re.compile(
+    r'"changesSinceCapture": \[(?:"(?:[^"\\]|\\.)*", )*'
+    r'"(?:local_execute_command|git_execute_command|run_tests|'
+    r'ssh_execute_command|process_start) `'
+)
+
+
+def _status_request_states_evidence(blob):
+    """Whether a structured status request stated the turn's evidence.
+
+    Before 2560eb21b the status feedback held only the recovery code and the
+    claimed response. The key is read from a parsed tool result, so the same
+    text quoted in a message or a file cannot fire it.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for result in (entry.get("request") or {}).get("toolResults") or []:
+            payload = result.get("result")
+            if (
+                result.get("name") == "coding_continuation_recovery"
+                and isinstance(payload, dict)
+                and "capturedEvidence" in payload
+            ):
+                return True
+    return False
+
+
 def _recovery_carries_earlier_results(blob):
     """Whether a loop-limit recovery request held more than the last batch.
 
@@ -644,6 +674,18 @@ SIGNATURES = {
         "commit": "6ab0621de",
         "what": "commit refused for an unread diff runs once the diff is read",
         "match": _refused_commit_then_ran,
+    },
+    "carry_across_command": {
+        "commit": "4f77f92dc",
+        "what": "reads carried past a non-read-only command, labelled with it",
+        # Before this change such a command ended the carry, so no carried
+        # result could name one. Matched as the real JSON key, like git add.
+        "match": lambda s: _COMMAND_CHANGE_LABEL.search(s) is not None,
+    },
+    "status_request_evidence": {
+        "commit": "2560eb21b",
+        "what": "structured status request states captured writes and verification",
+        "match": _status_request_states_evidence,
     },
     "loop_limit_question_to_user": {
         "commit": "4e482cb4b",

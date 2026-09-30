@@ -462,6 +462,56 @@ class WriteFileContentTypeRejectionSignatureTest(unittest.TestCase):
         self.assertFalse(self.match(blob))
 
 
+class CommandCarryAndStatusEvidenceSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        tool = _load_tool()
+        cls.carry = staticmethod(tool.SIGNATURES["carry_across_command"]["match"])
+        cls.evidence = staticmethod(
+            tool.SIGNATURES["status_request_evidence"]["match"]
+        )
+
+    @staticmethod
+    def _blob(result):
+        return json.dumps(
+            [{"request": {"toolResults": [result]}}], ensure_ascii=False
+        )
+
+    def test_a_command_label_on_a_carried_result_fires(self):
+        blob = self._blob({
+            "name": "read_file",
+            "result": {"content": "x"},
+            "changesSinceCapture": [
+                "write_file /p/a.py",
+                "local_execute_command `pytest -q`",
+            ],
+        })
+        self.assertTrue(self.carry(blob))
+
+    def test_a_file_write_label_alone_does_not_fire(self):
+        blob = self._blob({
+            "name": "read_file",
+            "result": {"content": "x"},
+            "changesSinceCapture": ["write_file /p/a.py"],
+        })
+        self.assertFalse(self.carry(blob))
+
+    def test_status_evidence_fires_from_the_parsed_result(self):
+        blob = self._blob({
+            "name": "coding_continuation_recovery",
+            "result": {"code": "structured_coding_task_status",
+                       "capturedEvidence": {"fileChanges": []}},
+        })
+        self.assertTrue(self.evidence(blob))
+
+    def test_status_evidence_quoted_as_text_does_not_fire(self):
+        blob = self._blob({
+            "name": "read_file",
+            "result": {"content": '"capturedEvidence": {}'},
+        })
+        self.assertFalse(self.evidence(blob))
+
+
 class SearchFilesLineAnchorSignatureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
