@@ -2172,6 +2172,16 @@ void registerChatNotifierGoalAutoContinueTests() {
     };
     expect(toolService.executedToolArguments.first, scopedVerifierArguments);
     expect(toolService.executedToolArguments.last, scopedVerifierArguments);
+    // Session 7ae7632b: the replay re-entered the loop from a ledger stored
+    // before the write ran, so the request after it described the workspace
+    // as if the write had never happened.
+    final afterReplay = dataSource.toolResultBatches.last;
+    expect(afterReplay.last.id, startsWith('post_mutation_verifier_'));
+    expect(
+      afterReplay.expand((result) => result.changesSinceCapture),
+      contains(endsWith('README.md')),
+      reason: 'the write that triggered the replay must stay in evidence',
+    );
   });
 
   test(

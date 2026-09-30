@@ -188,7 +188,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       const MaterialContractAssumptionGuard().isContractMutation,
     );
 
-    _turnToolResults.setCompleted(owner, executedToolResults);
+    _turnToolResults.track(owner, executedToolResults);
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (call) async {

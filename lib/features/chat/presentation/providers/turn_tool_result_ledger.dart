@@ -23,7 +23,7 @@ class TurnToolResultLedger {
   bool get isEmpty => length == 0;
 
   List<ToolResultInfo> completed(ChatTurnOwner owner) =>
-      _stateForRead(owner)?.completed ?? const <ToolResultInfo>[];
+      List.unmodifiable(_stateForRead(owner)?.completed ?? const []);
 
   List<ToolResultInfo> content(ChatTurnOwner owner) =>
       List.unmodifiable(_stateForRead(owner)?.content ?? const []);
@@ -43,6 +43,14 @@ class TurnToolResultLedger {
 
   void setCompleted(ChatTurnOwner owner, Iterable<ToolResultInfo> results) =>
       _stateFor(owner).completed = List.unmodifiable(results);
+
+  /// Follows the tool loop's own [results] list, so every read includes the
+  /// batch that just ran. A copy taken before each batch missed it, and the
+  /// recovery paths that re-enter the loop after it ends seed from here:
+  /// session 7ae7632b's verifier replay lost the edit that triggered it, so
+  /// update_goal saw no file change and the model invented another edit.
+  void track(ChatTurnOwner owner, List<ToolResultInfo> results) =>
+      _stateFor(owner).completed = results;
 
   void addContent(ChatTurnOwner owner, ToolResultInfo result) =>
       _stateFor(owner).content.add(result);
