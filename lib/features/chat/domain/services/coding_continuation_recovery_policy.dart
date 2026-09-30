@@ -289,6 +289,21 @@ final class CodingContinuationRecoveryPolicy {
     );
   }
 
+  /// [feedback] restated after a rejected status response, naming the
+  /// violation and the only accepted call.
+  ToolResultInfo withProtocolCorrection(
+    ToolResultInfo feedback,
+    Map<String, dynamic> violation,
+  ) => feedback.withResult(
+    jsonEncode({
+      ...jsonDecode(feedback.result) as Map<String, dynamic>,
+      'protocol_violation': violation,
+      'requiredAction':
+          'The rejected calls were not executed. Call only '
+          'update_goal once with completed as a JSON boolean.',
+    }),
+  );
+
   String buildCodingContinuationRecoveryPrompt(
     String candidateResponse, {
     required String recoveryCode,

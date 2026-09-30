@@ -5,6 +5,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/coding_continuation_recovery_policy.dart';
 import '../../domain/services/goal_update_ack.dart';
+import '../../domain/services/structured_task_status_evidence.dart';
 
 typedef RecoveryCompletionCreator =
     Future<ChatCompletionResult> Function({
@@ -36,25 +37,19 @@ abstract final class CodingContinuationRecoveryRequest {
     ChatCompletionResult? rejected;
     for (var attempt = 0; attempt < (structured ? 2 : 1); attempt++) {
       if (!isCurrent()) return null;
-      final feedback = policy.buildCodingContinuationRecoveryToolResult(
-        id: '${recoveryCode}_${DateTime.now().microsecondsSinceEpoch}_$attempt',
-        candidateResponse: candidateResponse,
-        recoveryCode: recoveryCode,
+      // The carried tail can omit the very writes and verification a status
+      // report is judged on (session 1d76c878), so the request states them.
+      final feedback = const StructuredTaskStatusEvidence().attachTo(
+        policy.buildCodingContinuationRecoveryToolResult(
+          id: '${recoveryCode}_${DateTime.now().microsecondsSinceEpoch}_$attempt',
+          candidateResponse: candidateResponse,
+          recoveryCode: recoveryCode,
+        ),
+        structured ? executedResults : const [],
       );
       final correctiveFeedback = violation == null
           ? feedback
-          : ToolResultInfo(
-              id: feedback.id,
-              name: feedback.name,
-              arguments: feedback.arguments,
-              result: jsonEncode({
-                ...jsonDecode(feedback.result) as Map<String, dynamic>,
-                'protocol_violation': violation,
-                'requiredAction':
-                    'The rejected calls were not executed. Call only '
-                    'update_goal once with completed as a JSON boolean.',
-              }),
-            );
+          : policy.withProtocolCorrection(feedback, violation);
       final correction = violation;
       final response = await create(
         logLabel: policy.recoveryLogLabel(recoveryCode),

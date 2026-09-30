@@ -177,4 +177,55 @@ void main() {
       expect(result?.toolCalls?.single.name, cancelled ? isNull : 'read_file');
     }
   });
+
+  test(
+    'states captured writes and verification in the status request',
+    () async {
+      // Session 1d76c878: the carried tail held four reads, so the model set
+      // out to verify instead of reporting and the turn recorded no status.
+      List<ToolResultInfo>? sent;
+      await CodingContinuationRecoveryRequest.run(
+        candidateResponse: 'Done',
+        recoveryCode: 'structured_coding_task_status',
+        forcedPrompt: 'Call update_goal.',
+        generation: 1,
+        tools: tools,
+        executedResults: [
+          ToolResultInfo(
+            id: 'w',
+            name: 'write_file',
+            arguments: {'path': '/p/test_state.py'},
+            result: '{"path":"/p/test_state.py","created":true}',
+          ),
+          ToolResultInfo(
+            id: 'c',
+            name: 'local_execute_command',
+            arguments: {'command': 'pytest -q'},
+            result: '{"exit_code":0,"stdout":"53 passed"}',
+          ),
+        ],
+        buildBaseMessages: (_) => [],
+        carryResults: (feedback) => [feedback],
+        isCurrent: () => true,
+        create:
+            ({
+              required logLabel,
+              required interactionGeneration,
+              required buildMessages,
+              required toolResults,
+              required assistantContent,
+              required tools,
+            }) async {
+              sent = toolResults;
+              return response('update_goal', completed: true);
+            },
+      );
+
+      final payload = jsonDecode(sent!.single.result) as Map<String, dynamic>;
+      final captured = payload['capturedEvidence'] as Map<String, dynamic>;
+      expect(captured['fileChanges'], ['/p/test_state.py']);
+      expect((captured['latestExecution'] as Map)['succeeded'], isTrue);
+      expect(captured['latestExecutionFollowsLatestChange'], isTrue);
+    },
+  );
 }

@@ -201,6 +201,11 @@ evidence, with at most three recovery boundaries per turn and two requests
 per boundary. Repeated reads and equivalent verifier results do not renew
 this budget.
 
+The status request's feedback result carries `capturedEvidence`: the paths
+the turn changed, and the latest finished non-git command with its exit, an
+output tail, and whether it ran after the latest change. The carried tail
+alone can omit both.
+
 The `coding_task_status_*` turn transforms record the reconciled acknowledgement.
 The exit record is written after goal reconciliation so it includes that status.
 Only `coding_task_status_completionRecorded` settles the implementation status.
