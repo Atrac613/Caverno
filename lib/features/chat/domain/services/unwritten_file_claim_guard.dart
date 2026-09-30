@@ -274,6 +274,13 @@ class UnwrittenFileClaimGuard {
         return false;
       }
       final pathEnd = pathStart + path.length;
+      // `state.py` inside `test_state.py` is another file: attributing that
+      // file's claim to it flagged an untouched `state.py` (session 1d76c878).
+      if (!_isPathBoundary(normalizedLine, pathStart - 1) ||
+          !_isPathBoundary(normalizedLine, pathEnd, after: true)) {
+        searchStart = pathEnd;
+        continue;
+      }
       final beforePath = line.substring(0, pathStart);
       final afterPath = line.substring(pathEnd);
       if (_completedEnglishMutationBeforePath.hasMatch(beforePath) ||
@@ -285,6 +292,20 @@ class UnwrittenFileClaimGuard {
       searchStart = pathEnd;
     }
     return false;
+  }
+
+  static final RegExp _pathCharacter = RegExp(r'[A-Za-z0-9_\-./\\]');
+
+  /// Whether the character at [index] ends a path reference rather than
+  /// continuing it. A trailing `.` is sentence punctuation, not a path.
+  bool _isPathBoundary(String line, int index, {bool after = false}) {
+    if (index < 0 || index >= line.length) return true;
+    final character = line[index];
+    if (after && character == '.') {
+      return index + 1 >= line.length ||
+          !_pathCharacter.hasMatch(line[index + 1]);
+    }
+    return !_pathCharacter.hasMatch(character);
   }
 
   bool _hasCompletedMutationListClaim(

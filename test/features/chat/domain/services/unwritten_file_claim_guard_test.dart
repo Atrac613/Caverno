@@ -366,4 +366,27 @@ void main() {
 
     expect(assessment.claims.single.displayPath, 'lib/a.dart');
   });
+
+  test('does not attribute a claim to a path inside a longer name', () {
+    // Session 1d76c878: `state.py` matched inside `test_state.py`.
+    final assessment = guard.assess(
+      candidateResponse: '1. test_state.py was created (covers state.py)',
+      toolResults: [successfulWrite('test_state.py')],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(assessment.claims, isEmpty);
+  });
+
+  test('still reads a claim for a path ending a sentence', () {
+    final assessment = guard.assess(
+      candidateResponse: 'Updated: state.py.',
+      toolResults: const [],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(assessment.claims.single.displayPath, 'state.py');
+  });
 }
