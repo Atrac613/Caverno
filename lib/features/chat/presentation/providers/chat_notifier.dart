@@ -5461,7 +5461,11 @@ class ChatNotifier extends Notifier<ChatState> {
                   logLabel: 'duplicate inspection recovery',
                   interactionGeneration: interactionGeneration,
                   buildMessages: buildRecoveryMessages,
-                  toolResults: recovered,
+                  toolResults: _readResultCarryFor(interactionGeneration)
+                      .resolve(
+                        batchToolResults: recovered,
+                        executedToolResults: executedToolResults,
+                      ),
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
@@ -5556,7 +5560,11 @@ class ChatNotifier extends Notifier<ChatState> {
                   logLabel: 'duplicate follow-up recovery',
                   interactionGeneration: interactionGeneration,
                   buildMessages: buildRecoveryMessages,
-                  toolResults: recovered,
+                  toolResults: _readResultCarryFor(interactionGeneration)
+                      .resolve(
+                        batchToolResults: recovered,
+                        executedToolResults: executedToolResults,
+                      ),
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
@@ -5854,14 +5862,9 @@ class ChatNotifier extends Notifier<ChatState> {
             pendingToolCalls: currentToolCalls,
             projectRoot: _projectRootForGeneration(interactionGeneration),
           );
-          // The recovery request is told to "use the latest tool results and
-          // finish", so it must carry what an ordinary follow-up does: the
-          // sticky skill, the recent reads and the turn digest. It used to
-          // send the last batch alone, and in sessions 50e3f486, d84f819b and
-          // e6b3d03c the model finished blind -- re-listing tags instead of
-          // tagging, or committing a guessed build number. The prompt still
-          // reads [recoveryToolResults]: its edit-mismatch wording claims a
-          // matching read_file is attached, which only that list guarantees.
+          // Recovery needs the ordinary carried context and turn digest.
+          // Keep the prompt's edit-mismatch input separate: only
+          // recoveryToolResults guarantees a matching read_file is attached.
           final recoveryRequestToolResults =
               _readResultCarryFor(interactionGeneration).resolve(
                 batchToolResults: recoveryToolResults,
@@ -7524,35 +7527,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool _toolResultsContainFailedCommandValidation(
     List<ToolResultInfo> toolResults,
-  ) {
-    return toolResults.any((toolResult) {
-      final normalizedName = toolResult.name.trim().toLowerCase();
-      if (normalizedName != 'local_execute_command' &&
-          normalizedName != 'process_start' &&
-          normalizedName != 'process_status' &&
-          normalizedName != 'process_wait' &&
-          normalizedName != 'run_tests' &&
-          normalizedName != 'git_execute_command' &&
-          normalizedName != 'ssh_execute_command') {
-        return false;
-      }
-      final normalizedResult = toolResult.result.toLowerCase();
-      return RegExp(
-            r'"exit_code"\s*:\s*(?!0\b)-?\d+',
-          ).hasMatch(normalizedResult) ||
-          RegExp(r'exit_code:\s*(?!0\b)-?\d+').hasMatch(normalizedResult);
-    });
-  }
+  ) => _toolLoopRecoveryPolicy.toolResultsContainFailedCommandValidation(
+    toolResults,
+  );
 
   bool _toolResultsMentionExactNonZeroExitCodeExpectation(
     List<ToolResultInfo> toolResults,
-  ) {
-    return toolResults.any((toolResult) {
-      final normalized = toolResult.result.toLowerCase();
-      return normalized.contains('expected exit code') ||
-          RegExp(r'returned\s+-?\d+,\s*expected\s+-?\d+').hasMatch(normalized);
-    });
-  }
+  ) => _toolLoopRecoveryPolicy
+      .toolResultsMentionExactNonZeroExitCodeExpectation(toolResults);
 
   /// Dispatches tools while intercepting SSH calls that require confirmation.
   Future<McpToolResult> _dispatchToolCall(

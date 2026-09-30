@@ -10,6 +10,10 @@ void registerChatNotifierCommandDedupTests() {
     addTearDown(() => directory.deleteSync(recursive: true));
     final file = File('${directory.path}/retry.py')
       ..writeAsStringSync('attempts = 1');
+    final sourceFiles = [
+      for (final name in ['fetch.py', 'notify.py'])
+        File('${directory.path}/$name')..writeAsStringSync('x' * 6000),
+    ];
     final project = CodingProject(
       id: 'duplicate-recovery',
       name: 'duplicate-recovery',
@@ -23,7 +27,15 @@ void registerChatNotifierCommandDedupTests() {
       arguments: const {'path': 'retry.py'},
     );
     final dataSource = _QueuedToolLoopChatDataSource(
-      initialToolCalls: [read('read-1')],
+      initialToolCalls: [
+        for (final source in sourceFiles)
+          ToolCallInfo(
+            id: source.path,
+            name: 'read_file',
+            arguments: {'path': source.path},
+          ),
+        read('read-1'),
+      ],
       toolLoopResponses: [
         for (final id in ['read-2', 'read-3', 'read-4'])
           ChatCompletionResult(
@@ -73,6 +85,13 @@ void registerChatNotifierCommandDedupTests() {
           'required': ['path'],
         },
       },
+      queuedResults: {
+        'read_file': [
+          for (final source in sourceFiles)
+            jsonEncode({'path': source.path, 'content': 'x' * 6000}),
+          jsonEncode({'path': file.path, 'content': 'attempts = 1'}),
+        ],
+      },
     );
     final lifecycle = _MockAppLifecycleService();
     when(() => lifecycle.isInBackground).thenReturn(false);
@@ -115,7 +134,27 @@ void registerChatNotifierCommandDedupTests() {
               (definition) => definition['function']['name'] == 'read_file',
             )['function']['parameters']
             as Map;
-    expect(tools.executedToolNames, ['read_file', 'edit_file']);
+    expect(tools.executedToolNames, [
+      'read_file',
+      'read_file',
+      'read_file',
+      'edit_file',
+    ]);
+    // Both normal follow-ups and duplicate recovery need the implementation
+    // files together. Session b82411f0 lost them under the 8 KiB carry cap.
+    for (final batch in dataSource.toolResultBatches.skip(1)) {
+      for (final source in sourceFiles) {
+        expect(
+          batch.any(
+            (result) =>
+                result.arguments['path'] == source.path &&
+                result.result.contains('x' * 6000) &&
+                result.fromEarlierLoop,
+          ),
+          isTrue,
+        );
+      }
+    }
     // The two bounded recoveries use range reads, then the normal catalogue
     // returns after the edit. No shared definition was mutated.
     for (final index in [2, 3]) {

@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
+import '../../data/datasources/filesystem_path_resolver.dart';
 import '../../data/datasources/git_tools.dart';
 import '../entities/tool_call_info.dart';
 import 'sticky_tool_result_policy.dart';
@@ -41,6 +44,7 @@ final class RecentReadResultCarry {
     StickyToolResultPolicy stickyPolicy = const StickyToolResultPolicy(),
     this.budgetBytes = defaultBudgetBytes,
     this.maxResultBytes = defaultMaxResultBytes,
+    this.projectRoot,
   }) : _executionPolicy = executionPolicy,
        _stickyPolicy = stickyPolicy;
 
@@ -53,8 +57,25 @@ final class RecentReadResultCarry {
   /// Total carried bytes, which covers the median turn's whole read-only set.
   static const int defaultBudgetBytes = 8 * 1024;
 
+  /// Coding needs the source files and tests together. Session b82411f0's
+  /// unchanged working set was about 30 KiB: the 8 KiB tail kept evicting the
+  /// implementation before the next edit, leading to 54 reads in 58 calls.
+  static const coding = RecentReadResultCarry(
+    budgetBytes: 32 * 1024,
+    maxResultBytes: 16 * 1024,
+  );
+
   final int maxResultBytes;
   final int budgetBytes;
+  final String? projectRoot;
+
+  RecentReadResultCarry forProject(String? root) => RecentReadResultCarry(
+    executionPolicy: _executionPolicy,
+    stickyPolicy: _stickyPolicy,
+    budgetBytes: budgetBytes,
+    maxResultBytes: maxResultBytes,
+    projectRoot: root,
+  );
 
   /// Everything a follow-up request carries: the sticky results, the
   /// carryable tail, then the batch that just ran.
@@ -97,6 +118,14 @@ final class RecentReadResultCarry {
     var remaining = budgetBytes;
     for (var index = executedToolResults.length - 1; index >= 0; index--) {
       final result = executedToolResults[index];
+      // Feedback and refusals never reached a tool. A synthetic command
+      // must not invalidate the code the recovery request needs to act on.
+      if (ToolResultOrigin.fromPayload(
+            _executionPolicy.tryDecodeMap(result.result),
+          ) !=
+          null) {
+        continue;
+      }
       final call = _callFor(result);
       if (_executionPolicy.isFileMutationToolCall(call)) {
         // A file tool names what it wrote, so only reads of that path are
@@ -172,7 +201,7 @@ final class RecentReadResultCarry {
     final path = result.arguments['path'];
     if (path is! String) return null;
     final trimmed = path.trim();
-    return trimmed.isEmpty ? null : trimmed;
+    return trimmed.isEmpty ? null : _resolveProjectPath(trimmed);
   }
 
   bool _isCarryable(ToolResultInfo result) {
@@ -216,6 +245,12 @@ final class RecentReadResultCarry {
     arguments: result.arguments,
   );
 
-  String _keyFor(ToolResultInfo result) =>
-      _executionPolicy.toolResultDedupKey(result);
+  String _keyFor(ToolResultInfo result) => _executionPolicy.toolResultDedupKey(
+    result,
+    resolveProjectPath: _resolveProjectPath,
+  );
+
+  String _resolveProjectPath(String path) => projectRoot == null
+      ? path
+      : FilesystemPathResolver.resolve(path, defaultRoot: projectRoot) ?? path;
 }

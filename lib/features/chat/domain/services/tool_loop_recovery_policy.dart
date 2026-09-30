@@ -12,6 +12,34 @@ typedef ToolResultKeyBuilder = String Function(ToolResultInfo toolResult);
 class ToolLoopRecoveryPolicy {
   const ToolLoopRecoveryPolicy();
 
+  bool toolResultsContainFailedCommandValidation(
+    List<ToolResultInfo> toolResults,
+  ) => toolResults.any((toolResult) {
+    final normalizedName = toolResult.name.trim().toLowerCase();
+    if (normalizedName != 'local_execute_command' &&
+        normalizedName != 'process_start' &&
+        normalizedName != 'process_status' &&
+        normalizedName != 'process_wait' &&
+        normalizedName != 'run_tests' &&
+        normalizedName != 'git_execute_command' &&
+        normalizedName != 'ssh_execute_command') {
+      return false;
+    }
+    final normalizedResult = toolResult.result.toLowerCase();
+    return RegExp(
+          r'"exit_code"\s*:\s*(?!0\b)-?\d+',
+        ).hasMatch(normalizedResult) ||
+        RegExp(r'exit_code:\s*(?!0\b)-?\d+').hasMatch(normalizedResult);
+  });
+
+  bool toolResultsMentionExactNonZeroExitCodeExpectation(
+    List<ToolResultInfo> toolResults,
+  ) => toolResults.any((toolResult) {
+    final normalized = toolResult.result.toLowerCase();
+    return normalized.contains('expected exit code') ||
+        RegExp(r'returned\s+-?\d+,\s*expected\s+-?\d+').hasMatch(normalized);
+  });
+
   bool containsOnlyReadOnlyInspectionToolCalls(
     List<ToolCallInfo> toolCalls, {
     required ToolCallPredicate isReadOnlyInspectionToolCall,

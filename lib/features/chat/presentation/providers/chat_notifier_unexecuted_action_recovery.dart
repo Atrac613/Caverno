@@ -41,7 +41,10 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
           toolDefinitionsOverride: tools,
           interactionGeneration: interactionGeneration,
         ),
-        toolResults: [promptFeedback],
+        toolResults: _readResultCarryFor(interactionGeneration).resolve(
+          batchToolResults: [promptFeedback],
+          executedToolResults: executedToolResults,
+        ),
         assistantContent: candidateResponse,
         tools: tools,
       );

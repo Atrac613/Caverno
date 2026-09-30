@@ -3809,7 +3809,13 @@ void main() {
       expect(toolService.executedToolNames, ['read_file']);
       expect(dataSource.toolResultBatches, hasLength(2));
       final blockedPayload =
-          jsonDecode(dataSource.toolResultBatches.last.single.result)
+          jsonDecode(
+                dataSource.toolResultBatches.last
+                    .singleWhere(
+                      (result) => result.name == 'local_execute_command',
+                    )
+                    .result,
+              )
               as Map<String, dynamic>;
       expect(blockedPayload, containsPair('code', 'unexecuted_file_save'));
       expect(

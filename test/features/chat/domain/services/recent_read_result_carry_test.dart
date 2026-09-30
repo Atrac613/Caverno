@@ -38,6 +38,102 @@ List<String> _names(List<ToolResultInfo> results) =>
 
 void main() {
   group('RecentReadResultCarry', () {
+    test('project-relative and absolute observations share one identity', () {
+      final relative = _read('retry.py', id: 'relative');
+      final absolute = _read('/project/retry.py', id: 'absolute');
+      final carried = RecentReadResultCarry.coding
+          .forProject('/project')
+          .resolve(
+            batchToolResults: [absolute],
+            executedToolResults: [relative, absolute],
+          );
+
+      expect(carried.map((result) => result.id), ['absolute']);
+    });
+
+    test('an absolute write invalidates an earlier relative read', () {
+      final stale = _read('retry.py', id: 'stale');
+      final other = _read('tests.py', id: 'other');
+      final batch = _write('/project/retry.py');
+      final carried = RecentReadResultCarry.coding
+          .forProject('/project')
+          .resolve(
+            batchToolResults: [batch],
+            executedToolResults: [stale, other, batch],
+          );
+
+      expect(carried.map((result) => result.id), ['other', batch.id]);
+      expect(carried.first.changesSinceCapture, [
+        'write_file /project/retry.py',
+      ]);
+    });
+
+    test('coding retains a bounded source and test working set together', () {
+      // Approximate UTF-8 payload sizes from session b82411f0, without
+      // retaining the user's source or configuration in the fixture.
+      final reads = [
+        for (final (index, size) in [
+          6400,
+          5200,
+          3200,
+          7000,
+          3600,
+          400,
+          4000,
+        ].indexed)
+          _read('source_$index.py', id: 'read-$index', body: 'x' * size),
+      ];
+      final batch = _write('retry.py');
+      final history = [
+        _read('oversized.py', id: 'oversized', body: 'x' * (17 * 1024)),
+        ...reads,
+        batch,
+      ];
+      final carried = RecentReadResultCarry.coding.resolve(
+        batchToolResults: [batch],
+        executedToolResults: history,
+      );
+
+      expect(carried.map((result) => result.id), [
+        ...reads.map((result) => result.id),
+        batch.id,
+      ]);
+      expect(
+        _carry.resolve(batchToolResults: [batch], executedToolResults: history),
+        hasLength(lessThan(carried.length)),
+      );
+      final overflow = RecentReadResultCarry.coding.resolve(
+        batchToolResults: [batch],
+        executedToolResults: [
+          ...reads,
+          _read('extra.py', id: 'extra', body: 'x' * 8000),
+          batch,
+        ],
+      );
+      expect(overflow.map((result) => result.id), isNot(contains('read-0')));
+      expect(overflow.map((result) => result.id), contains('extra'));
+    });
+
+    test('non-executing command feedback keeps earlier read context', () {
+      final source = _read('retry.py', id: 'source');
+      for (final origin in ToolResultOrigin.values) {
+        final feedback = ToolResultInfo(
+          id: 'feedback',
+          name: 'local_execute_command',
+          arguments: const {'reason': 'Issue the missing test command'},
+          result: '{"ok":false,"result_origin":"${origin.wireValue}"}',
+        );
+        final carried = _carry.resolve(
+          batchToolResults: [feedback],
+          executedToolResults: [source, feedback],
+        );
+
+        expect(carried.map((result) => result.id), ['source', 'feedback']);
+        expect(carried.first.fromEarlierLoop, isTrue);
+        expect(carried.first.changesSinceCapture, isEmpty);
+      }
+    });
+
     test('carries an earlier read the batch no longer holds', () {
       final tag = _gitCommand('tag --list --sort=-version:refname');
       final spec = _read('pubspec.yaml');

@@ -415,10 +415,12 @@ List<ChatCompletionResult> _pendingBatchResponses({
 }
 
 ToolCallInfo _pendingBatchReadCall(int index, String projectRoot) {
+  final path = '$projectRoot/probe-$index.txt';
+  File(path).writeAsStringSync('fixture observation');
   return ToolCallInfo(
     id: 'read-$index',
     name: 'read_file',
-    arguments: {'path': '$projectRoot/probe-$index.txt'},
+    arguments: {'path': path},
   );
 }
 

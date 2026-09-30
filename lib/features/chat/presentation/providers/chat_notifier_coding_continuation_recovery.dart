@@ -67,7 +67,10 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       ),
       interactionGeneration: interactionGeneration,
       buildMessages: buildRecoveryMessages,
-      toolResults: [recoveryToolResult],
+      toolResults: _readResultCarryFor(interactionGeneration).resolve(
+        batchToolResults: [recoveryToolResult],
+        executedToolResults: executedToolResults,
+      ),
       assistantContent: candidateResponse.isNotEmpty ? candidateResponse : null,
       tools: tools,
     );

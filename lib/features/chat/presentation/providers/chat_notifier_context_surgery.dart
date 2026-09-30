@@ -135,9 +135,12 @@ extension ChatNotifierPrimaryModelRouting on ChatNotifier {
       _primaryRoutes.dataSource(generation, _dataSource);
   bool _isCodeReview(int generation) => _primaryRoutes.isCodeReview(generation);
   RecentReadResultCarry _readResultCarryFor(int generation) =>
-      _isCodeReview(generation)
-      ? ReadOnlyReviewScope.readResultCarry
-      : const RecentReadResultCarry();
+      (_isCodeReview(generation)
+              ? ReadOnlyReviewScope.readResultCarry
+              : _isCodingWorkspaceOrMode(generation)
+              ? RecentReadResultCarry.coding
+              : const RecentReadResultCarry())
+          .forProject(_projectRootForGeneration(generation));
 
   /// The tools a review turn is offered, or null outside a review so the
   /// turn keeps whatever gate it already had.
