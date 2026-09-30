@@ -56,6 +56,14 @@ class ToolCallExecutionPolicy {
           !shouldAllowRepeatedToolExecution(toolCall) &&
           !isRepeatableCommandTool(toolCall),
     );
+    if (observesWorkspaceFileTree(toolCall)) {
+      // A listing answers for the tree it saw. Keyed without a generation, a
+      // `list_directory` after `write_file` collided with the one before it
+      // and was skipped as a duplicate, so the model kept the pre-write
+      // listing and concluded its new file was missing (session 1d76c878).
+      return '$baseKey#commandRetryGeneration=$commandRetryGeneration'
+          '#stateChangeGeneration=$stateChangeGeneration';
+    }
     if (!isRepeatableCommandTool(toolCall)) {
       return baseKey;
     }
@@ -155,6 +163,22 @@ class ToolCallExecutionPolicy {
     return toolCall.name == 'local_execute_command' ||
         toolCall.name == 'run_tests' ||
         toolCall.name == 'git_execute_command';
+  }
+
+  /// Whether [toolCall] observes which files exist or what they contain, so
+  /// its result is stale after a file write or a mutating command.
+  ///
+  /// `read_file` is excluded because [shouldAllowRepeatedToolExecution]
+  /// already lets it re-run.
+  bool observesWorkspaceFileTree(ToolCallInfo toolCall) {
+    switch (toolCall.name.trim().toLowerCase()) {
+      case 'list_directory':
+      case 'find_files':
+      case 'search_files':
+      case 'inspect_file':
+        return true;
+    }
+    return false;
   }
 
   bool advancesCommandRetryGeneration(ToolCallInfo toolCall) {
