@@ -1,6 +1,95 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierPendingBatchTests() {
+  test(
+    'reuses a passing venv result when the model returns to its failed runner',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_verified_replay_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final project = _pendingBatchProject(root.path);
+      ToolCallInfo call(String id, String command) => ToolCallInfo(
+        id: id,
+        name: 'local_execute_command',
+        arguments: {'command': command, 'working_directory': root.path},
+      );
+      final failed = call('failed', 'python3 -m pytest test.py -v');
+      final passed = call('passed', '.venv/bin/python -m pytest test.py -v');
+      final repeated = call(
+        'old-runner',
+        'cd ${root.path} && python3 -m pytest test.py -v 2>&1 | tail -30',
+      );
+      McpToolResult result(ToolCallInfo call, bool success) => McpToolResult(
+        toolName: call.name,
+        isSuccess: true,
+        result: jsonEncode({
+          ...call.arguments,
+          'exit_code': success ? 0 : 1,
+          'stdout': success
+              ? '=== 6 passed in 3.05s ==='
+              : 'python3: No module named pytest',
+        }),
+        outcome: ToolOutcome(
+          exitCode: success ? 0 : 1,
+          testOutcome: success
+              ? ToolTestOutcome(
+                  passedCount: 6,
+                  failedCount: 0,
+                  skippedCount: 0,
+                  command: call.arguments['command'] as String,
+                )
+              : null,
+        ),
+      );
+      final source = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [failed],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            finishReason: 'tool_calls',
+            toolCalls: [passed],
+          ),
+          ChatCompletionResult(
+            content: '',
+            finishReason: 'tool_calls',
+            toolCalls: [repeated],
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['Verification completed: 6 passed.'],
+      );
+      final service = _QueuedMcpToolResultService({
+        'local_execute_command': [result(failed, false), result(passed, true)],
+      });
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = _pendingBatchContainer(
+        project: project,
+        dataSource: source,
+        toolService: service,
+        appLifecycleService: lifecycle,
+        settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+      _activatePendingBatchProject(container, project);
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage('Verify the current implementation.');
+      expect(service.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+      ]);
+      final reused = source.toolResultBatches
+          .expand((batch) => batch)
+          .lastWhere((entry) => entry.id == repeated.id);
+      expect(
+        jsonDecode(reused.result)['code'],
+        'verified_pytest_result_reused',
+      );
+      expect(reused.outcome?.testOutcome?.passedCount, 6);
+      expect(notifier.state.messages.last.content, contains('6 passed'));
+    },
+  );
   // Both suites pin how the loop spends its iteration cap.
   registerChatNotifierBackgroundWaitRefundTests();
   test(
@@ -356,6 +445,12 @@ void registerChatNotifierPendingBatchTests() {
                           : report,
                     ],
             ),
+          if (const ['unoffered', 'missing'].contains(status))
+            ChatCompletionResult(
+              content: '...',
+              finishReason: status == 'missing' ? 'stop' : 'tool_calls',
+              toolCalls: status == 'missing' ? null : [write],
+            ),
           if (status.startsWith('complete after progress')) ...[
             ChatCompletionResult(
               content: '',
@@ -404,6 +499,7 @@ void registerChatNotifierPendingBatchTests() {
         sessionLogStore: logs,
       );
       addTearDown(container.dispose);
+      standInForTheApprover(container);
       _activatePendingBatchProject(container, project);
       _activateStructuredProjectTask(container, project);
       final notifier = container.read(chatNotifierProvider.notifier);
@@ -474,6 +570,8 @@ void registerChatNotifierPendingBatchTests() {
           status == 'complete'
               ? 0
               : status == 'complete after progress recovery'
+              ? 2
+              : const ['unoffered', 'missing'].contains(status)
               ? 2
               : 1,
         ),

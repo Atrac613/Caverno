@@ -5,7 +5,7 @@ import 'coding_command_output_issue_detector.dart';
 import 'command_verification_reconciliation.dart';
 import 'pytest_verification_identity.dart';
 
-/// Bounds status requests and permits another only after mechanical progress.
+/// Bounds status recovery boundaries and renews only after mechanical progress.
 final class TurnFinalizationRecoveryBudget {
   final _attempts = <int, Set<String>>{};
 

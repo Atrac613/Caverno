@@ -180,19 +180,23 @@ A summary result of `complete` in an older log means a final response exists;
 it does not certify implementation or verification success.
 
 Project Farm implementation turns carry explicit turn metadata. Before their
-final response is saved, the harness requests `update_goal` once when typed
+final response is saved, the harness requests `update_goal` when typed
 status is missing or reports remaining work. This request offers only
 `update_goal`; subsequent work follows the normal tool and approval gates.
 The status elicitation also sets a function `tool_choice` for `update_goal`;
 its acknowledgement follow-up does not force another status call.
+Exactly one valid `update_goal` call is accepted. Missing status, other tools,
+or invalid arguments receive one protocol correction and one retry. Rejected
+calls are never dispatched; a second violation records missing status.
 An accepted completion requires captured file changes and a successful terminal
 execution after the latest change, with no unresolved contradictory evidence.
 A progress report can resume the tool loop; a blocker, approval, user question,
 budget cap, or already accepted completion prevents this recovery. Dedicated
 review turns and ordinary chat do not opt into this protocol through prose.
 Another status request requires new mutation hashes or successful verification
-evidence, with at most three requests per turn. Repeated reads and equivalent
-verifier results do not renew this budget.
+evidence, with at most three recovery boundaries per turn and two requests
+per boundary. Repeated reads and equivalent verifier results do not renew
+this budget.
 
 The `coding_task_status_*` turn transforms record the reconciled acknowledgement.
 The exit record is written after goal reconciliation so it includes that status.
@@ -214,6 +218,12 @@ literal paths and arguments are supported without shell expansion. Successful
 pytest replay candidates retain the actual runner and effective directory,
 omitting only the recognized directory and output wrappers. Failed pytest
 invocations do not replace a captured working verifier.
+If the model returns to an earlier failed runner, the harness may reuse a later
+passing result for the same directory and pytest arguments. It requires no
+observed mutation or unknown command between failure and success or after
+success, no changed read hash, no later failure, and no pending mutation.
+The result identifies the captured runner, source call, and requested command
+and explicitly marks execution reuse; it does not claim a new execution.
 
 Optional environment inspection composed solely of literal `cd`, `ls`, `pwd`,
 `which`, and Python version queries may end in `|| true` without producing a

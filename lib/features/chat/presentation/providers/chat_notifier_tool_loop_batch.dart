@@ -377,6 +377,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             );
           }
         }
+        final verifiedReplay = VerifiedPytestReplayPolicy.reuse(
+          call: toolCall,
+          results: executedToolResults,
+          pendingCalls: pendingBatchCalls,
+          projectRoot: projectRoot,
+        );
+        if (verifiedReplay != null) return verifiedReplay;
         final dispatchedAt = DateTime.now();
         final dispatchResult = await _dispatchToolCall(
           toolCall,

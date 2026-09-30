@@ -1065,7 +1065,12 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/pytest_shell_invocation.dart': 31,
   'lib/features/chat/domain/services/pytest_test_outcome_parser.dart': 24,
   'lib/features/chat/domain/services/executed_verifier_replay_policy.dart': 63,
-  'lib/features/chat/domain/services/masked_inspection_command_policy.dart': 40,
+  'lib/features/chat/domain/services/verified_pytest_replay_policy.dart': 202,
+  'lib/features/chat/domain/services/literal_environment_inspection_policy.dart':
+      37,
+  'lib/features/chat/presentation/providers/coding_continuation_recovery_request.dart':
+      106,
+  'lib/features/chat/domain/services/masked_inspection_command_policy.dart': 11,
   'lib/features/chat/domain/services/turn_finalization_recovery_budget.dart':
       59,
   'lib/features/chat/domain/services/turn_finalization_recovery_input_builder.dart':
@@ -1229,7 +1234,7 @@ const Map<String, int> _libraryLineBudgets = {
   // the answer. The scope, its carry and its prompts live outside the
   // library; what is left is the per-turn lookup, the tool-list default, the
   // policy-chain hook and one argument at each recovery prompt site.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19917,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19903,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

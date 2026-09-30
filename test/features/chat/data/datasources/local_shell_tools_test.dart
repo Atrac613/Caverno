@@ -9,6 +9,37 @@ void main() {
   _diagnosticsTests();
   group('typed execution result', () {
     test(
+      'internal ls preserves directory names and hidden filtering',
+      () async {
+        final root = await Directory.systemTemp.createTemp('caverno_ls_names_');
+        addTearDown(() => root.delete(recursive: true));
+        for (final name in ['.venv', 'src', '日本語']) {
+          await Directory('${root.path}/$name').create();
+        }
+        await File('${root.path}/.hidden').writeAsString('hidden');
+        for (final flags in ['', '-a', '-R']) {
+          final result =
+              jsonDecode(
+                    await LocalShellTools.execute(
+                      command: 'ls $flags',
+                      workingDirectory: root.path,
+                    ),
+                  )
+                  as Map<String, dynamic>;
+          expect(result['executed_internally'], isTrue);
+          final lines = (result['stdout'] as String).split('\n');
+          expect(lines, containsAll(['src/', '日本語/']));
+          expect(lines, isNot(contains('/')));
+          if (flags == '-a') {
+            expect(lines, containsAll(['.venv/', '.hidden']));
+          } else {
+            expect(lines, isNot(contains('.venv/')));
+            expect(lines, isNot(contains('.hidden')));
+          }
+        }
+      },
+    );
+    test(
       'captures recognized pytest counts beside a masked pipeline exit',
       () async {
         if (Platform.isWindows) return;

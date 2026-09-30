@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:path/path.dart' as path;
 
 import 'filesystem_tools.dart';
 import 'first_party_tool_execution_result.dart';
@@ -1105,7 +1106,7 @@ class LocalShellTools {
 
       try {
         if (entityType == FileSystemEntityType.file) {
-          stdoutBuffer.writeln(File(resolvedPath).uri.pathSegments.last);
+          stdoutBuffer.writeln(path.basename(resolvedPath));
           continue;
         }
 
@@ -1154,9 +1155,7 @@ class LocalShellTools {
   }) async {
     final entries = <FileSystemEntity>[];
     await for (final entity in directory.list(followLinks: false)) {
-      final name = entity.uri.pathSegments.isEmpty
-          ? entity.path
-          : entity.uri.pathSegments.last;
+      final name = path.basename(entity.path);
       if (!includeHidden && name.startsWith('.')) {
         continue;
       }
@@ -1173,9 +1172,7 @@ class LocalShellTools {
       buffer.writeln();
     } else {
       for (final entry in entries) {
-        final name = entry.uri.pathSegments.isEmpty
-            ? entry.path
-            : entry.uri.pathSegments.last;
+        final name = path.basename(entry.path);
         final type = await FileSystemEntity.type(entry.path);
         buffer.writeln(
           type == FileSystemEntityType.directory ? '$name/' : name,
