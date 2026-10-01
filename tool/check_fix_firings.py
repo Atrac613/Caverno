@@ -245,6 +245,26 @@ def _inherited_task_guidance(blob):
     return False
 
 
+def _status_request_offers_verification(blob):
+    """Whether a farm status request offered the verification the gate needs.
+
+    The open-gap status prompt is the only place this sentence is sent, and it
+    is read from user messages, never from file reads.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for message in (entry.get("request") or {}).get("messages") or []:
+            if message.get("role") == "user" and (
+                "run exactly one verification command now"
+                in str(message.get("content"))
+            ):
+                return True
+    return False
+
+
 def _recovery_carries_earlier_results(blob):
     """Whether a loop-limit recovery request held more than the last batch.
 
@@ -784,6 +804,11 @@ SIGNATURES = {
         "commit": "0571c9f56",
         "what": "a tool-loop response ending inside reasoning gets a continuation",
         "transform": "coding_continuation_recovery_reasoning_only_stop",
+    },
+    "status_request_offers_verification": {
+        "commit": "2951b2a24",
+        "what": "a farm status request lets the model run the gate's verification",
+        "match": _status_request_offers_verification,
     },
     "loop_limit_question_to_user": {
         "commit": "4e482cb4b",
