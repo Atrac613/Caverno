@@ -142,6 +142,12 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
             );
           }
           if (repairRound == 0 && decomposed.isNotEmpty) {
+            final failed = _failedVerification(
+              after,
+              decomposed.last,
+              number: subtaskCount,
+            );
+            if (failed != null) return _stop(failed);
             await markSubtaskDone?.call(decomposed.last.id);
           }
           break;
@@ -283,8 +289,37 @@ ${paths.map((path) => '- $path').join('\n')}''';
         '(last line: "${_lastLine(response.content)}")',
       );
     }
+    final failed = _failedVerification(after, subtasks[index], number: number);
+    if (failed != null) return _stop(failed);
     await markSubtaskDone?.call(subtasks[index].id);
     return null;
+  }
+
+  /// Why [subtask] must not be recorded as done, or null when it may be.
+  ///
+  /// The app's own verification writes this progress when the turn's tests
+  /// fail. Recording the subtask as done on the model's marker anyway would
+  /// overwrite that verdict with one judged from prose, and the progress bar
+  /// would show failed work as finished.
+  String? _failedVerification(
+    Conversation conversation,
+    ConversationWorkflowTask subtask, {
+    required int number,
+  }) {
+    final progress = conversation.executionProgressForTask(subtask.id);
+    if (progress == null) return null;
+    if (progress.status != ConversationWorkflowTaskStatus.blocked &&
+        progress.validationStatus !=
+            ConversationExecutionValidationStatus.failed) {
+      return null;
+    }
+    final detail = [progress.lastValidationSummary, progress.blockedReason]
+        .map((text) => text.trim())
+        .firstWhere(
+          (text) => text.isNotEmpty,
+          orElse: () => progress.status.name,
+        );
+    return 'subtask $number ended with failed verification: $detail';
   }
 
   String _subtaskPrompt(

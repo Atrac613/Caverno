@@ -11,6 +11,7 @@ class ConversationPlanDocumentBuilder {
     required ConversationWorkflowSpec workflowSpec,
     List<ConversationWorkflowTask>? tasks,
     DateTime? updatedAt,
+    String label = 'Built approved plan document',
   }) {
     final markdown = build(
       workflowStage: workflowStage,
@@ -23,7 +24,7 @@ class ConversationPlanDocumentBuilder {
     ).recordRevision(
       markdown: markdown,
       kind: ConversationPlanRevisionKind.approved,
-      label: 'Built approved plan document',
+      label: label,
       createdAt: updatedAt,
     );
   }

@@ -90,4 +90,31 @@ void main() {
       isFalse,
     );
   });
+
+  test('reopens a goal an earlier subtask completed too early', () async {
+    var reopened = 0;
+    final subtaskRunner = ProjectTaskStepTurnRunner(
+      readConversation: () => conversation,
+      isSelected: () => selected,
+      isWaitingForUser: () => waiting,
+      admits: ProjectTaskStepTurnRunner.activeGoal,
+      reactivateCompleted: () async {
+        reopened++;
+        conversation = conversation.copyWith(
+          goal: conversation.goal!.copyWith(
+            status: ConversationGoalStatus.active,
+          ),
+        );
+      },
+      sendTurn: (_) async {
+        sends++;
+        return ChatTurnOwner(conversationId: 'task', interactionGeneration: 1);
+      },
+      waitForCompletion: (_) async {},
+    );
+
+    expect(await subtaskRunner.send('Subtask 2'), isTrue);
+    expect(reopened, 1);
+    expect(sends, 1);
+  });
 }

@@ -484,6 +484,8 @@ class SystemPromptBuilder {
           buffer.writeln(
             assistantMode == AssistantMode.plan
                 ? 'Current plan document draft for this coding thread (source of truth while planning):'
+                : (planArtifact?.isUnreviewedOutline ?? false)
+                ? 'Generated task outline for this coding thread (no person reviewed it; follow it while implementing, and say so if it does not fit the code):'
                 : 'Approved plan document for this coding thread (source of truth while implementing):',
           );
           buffer.writeln(_clipPlanDocumentForPrompt(preferredPlanMarkdown));

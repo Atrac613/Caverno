@@ -209,4 +209,42 @@ void main() {
     expect(sendPrompts.first, isNot(contains('Subtasks:')));
     expect(reports[1].subtaskCount, 1);
   });
+
+  test('does not record a subtask whose verification failed', () async {
+    // Coding verification marks the subtask blocked when the turn's tests
+    // fail; the model's done marker must not overwrite that verdict.
+    final run = ProjectTaskReviewWorkflow(
+      conversationId: 'task',
+      readConversation: () => conversation,
+      isSelected: () => true,
+      isWaitingForUser: () => false,
+      decompose: (_) async => subtasks,
+      sendStep: (prompt) async {
+        reply('Done.\nPROJECT_TASK_SUBTASK_DONE', withDiff: true);
+        conversation = conversation.copyWith(
+          executionProgress: [
+            const ConversationExecutionTaskProgress(
+              taskId: 'project-subtask-1',
+              status: ConversationWorkflowTaskStatus.blocked,
+              validationStatus: ConversationExecutionValidationStatus.failed,
+              lastValidationSummary: '2 tests failed',
+            ),
+          ],
+        );
+        return true;
+      },
+      markSubtaskDone: (id) async => marked.add(id),
+      onProgress: reports.add,
+      send: (prompt, {required codeReview}) async => true,
+      commit: (_) async => true,
+      readGitState: (_) async => null,
+    );
+
+    expect(await run.run(), ProjectTaskReviewResult.stopped);
+    expect(
+      run.stopReason,
+      'subtask 1 ended with failed verification: 2 tests failed',
+    );
+    expect(marked, isEmpty);
+  });
 }
