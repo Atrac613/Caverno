@@ -57,17 +57,28 @@ enum ModelUsageRole {
 /// caller's zone, so the role and label would both come back empty. Issue time
 /// is the only point where the caller's zone is still current.
 final class ModelUsageAttribution {
-  const ModelUsageAttribution({this.role = ModelUsageRole.unknown, this.label});
+  const ModelUsageAttribution({
+    this.role = ModelUsageRole.unknown,
+    this.label,
+    this.conversationId,
+  });
 
   /// Snapshots whatever is in scope right now.
-  factory ModelUsageAttribution.capture({String? Function()? labelResolver}) =>
-      ModelUsageAttribution(
-        role: ModelUsageRole.current,
-        label: labelResolver?.call(),
-      );
+  factory ModelUsageAttribution.capture({
+    String? Function()? labelResolver,
+    String? Function()? conversationResolver,
+  }) => ModelUsageAttribution(
+    role: ModelUsageRole.current,
+    label: labelResolver?.call(),
+    conversationId: conversationResolver?.call(),
+  );
 
   final ModelUsageRole role;
   final String? label;
+
+  /// The conversation whose turn issued the request, for per-conversation
+  /// work time. Null outside any conversation (routines, probes).
+  final String? conversationId;
 
   static const empty = ModelUsageAttribution();
 }

@@ -1,4 +1,5 @@
 import '../../domain/entities/chat_turn_owner.dart';
+import '../../domain/services/approval_wait_ledger.dart';
 import 'pending_tool_approvals.dart';
 
 /// Every pending approval in the app, keyed by id and by owning turn.
@@ -11,6 +12,10 @@ import 'pending_tool_approvals.dart';
 /// outstanding. Re-exported from `pending_tool_approvals.dart`, so no importer
 /// changed.
 class PendingToolApprovalRegistry {
+  PendingToolApprovalRegistry({ApprovalWaitLedger? waitLedger})
+    : _waitLedger = waitLedger ?? ApprovalWaitLedger.shared;
+  final ApprovalWaitLedger _waitLedger;
+
   final Map<ChatTurnOwner, Map<String, PendingToolApproval<dynamic>>>
   _requestsByOwner = {};
   final Map<String, PendingToolApproval<dynamic>> _requestsById = {};
@@ -26,6 +31,7 @@ class PendingToolApprovalRegistry {
     }
     _requestsById[request.id] = request;
     (_requestsByOwner[request.owner] ??= {})[request.id] = request;
+    _waitLedger.track(request.id, request.owner, request.completer);
   }
 
   Future<T> registerCurrent<T>(
@@ -61,9 +67,7 @@ class PendingToolApprovalRegistry {
     required String id,
   }) {
     final request = _requestsByOwner[owner]?[id];
-    if (request is! T) {
-      return null;
-    }
+    if (request is! T) return null;
     _remove(owner: owner, id: id);
     return request;
   }
@@ -87,18 +91,14 @@ class PendingToolApprovalRegistry {
 
   bool cancel({required ChatTurnOwner owner, required String id}) {
     final request = _remove(owner: owner, id: id);
-    if (request == null) {
-      return false;
-    }
+    if (request == null) return false;
     request.completeCancellation();
     return true;
   }
 
   List<PendingToolApproval<dynamic>> cancelOwner(ChatTurnOwner owner) {
     final requests = _requestsByOwner.remove(owner);
-    if (requests == null) {
-      return const [];
-    }
+    if (requests == null) return const [];
     for (final entry in requests.entries) {
       if (identical(_requestsById[entry.key], entry.value)) {
         _requestsById.remove(entry.key);

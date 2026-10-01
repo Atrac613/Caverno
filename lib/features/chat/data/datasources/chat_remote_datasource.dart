@@ -64,6 +64,7 @@ class ChatRemoteDataSource
     ModelUsageSink? usageSink,
     String endpointId = '',
     String? Function()? usageLabelResolver,
+    String? Function()? usageConversationResolver,
     VideoAttachmentResolver? videoAttachmentResolver,
     this.defaultTopP,
   }) : _videoAttachmentResolver = videoAttachmentResolver,
@@ -77,6 +78,7 @@ class ChatRemoteDataSource
          usageSink: usageSink,
          endpointId: endpointId,
          labelResolver: usageLabelResolver,
+         conversationResolver: usageConversationResolver,
        ),
        _client = ChatDataSourceClientFactory.client(
          baseUrl: baseUrl,

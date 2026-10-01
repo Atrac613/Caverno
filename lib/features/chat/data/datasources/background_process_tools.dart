@@ -32,6 +32,7 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   BackgroundProcessTools({
     BackgroundProcessStarter? processStarter,
     BackgroundProcessTerminator? processTerminator,
+    this.onJobFinished,
   }) : _processStarter = processStarter ?? startBackgroundProcess,
        _processTerminator =
            processTerminator ?? _defaultBackgroundProcessTerminator;
@@ -46,6 +47,7 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
       'This command is still running from an earlier turn and has been '
       'adopted.';
 
+  final BackgroundProcessFinishedCallback? onJobFinished;
   final BackgroundProcessStarter _processStarter;
   final BackgroundProcessTerminator _processTerminator;
   final Map<ChatTurnOwner, _OwnerProcessState> _ownerStates = {};
@@ -178,6 +180,7 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
       processGroupId: null,
       launch: launch,
       containmentRoot: containmentRoot,
+      onFinished: _jobFinishedReporter(owner.conversationId),
     );
     final recovery = _registerRecovery(state, lease, job);
     Object? attachmentError;

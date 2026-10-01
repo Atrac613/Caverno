@@ -31,12 +31,16 @@ final class _BackgroundProcessJob {
     this.label,
     this.launch,
     this.containmentRoot,
+    this.onFinished,
   }) : _terminator = terminator;
 
   final String id, command, workingDirectory;
   final String? label;
   final String? containmentRoot;
   final LocalShellLaunchPlan? launch;
+
+  /// Called once after the process exits and its output has drained.
+  final void Function(_BackgroundProcessJob job)? onFinished;
   final Process process;
   final DateTime startedAt;
   final int? processGroupId;
@@ -154,6 +158,7 @@ final class _BackgroundProcessJob {
     } finally {
       await launch?.dispose();
       _complete(_done);
+      onFinished?.call(this);
     }
   }
 

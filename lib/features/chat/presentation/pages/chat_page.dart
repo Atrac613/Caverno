@@ -74,6 +74,7 @@ import '../widgets/chat_page_scaffold.dart';
 import '../widgets/chat_right_sidebar.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/conversation_goal_status_presentation.dart';
+import '../widgets/conversation_work_time_section.dart';
 import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/flutter_run_issue_list.dart';
 import '../widgets/local_llm_health_section.dart';

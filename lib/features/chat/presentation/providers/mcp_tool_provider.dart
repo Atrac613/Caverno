@@ -24,6 +24,7 @@ import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/semantic_search_service.dart';
 import '../../data/repositories/skill_repository.dart';
+import 'conversation_work_time_providers.dart';
 import 'semantic_search_provider.dart';
 
 /// Provides the configured MCP clients.
@@ -66,7 +67,12 @@ final mcpClientsProvider = Provider<List<McpClientBase>>((ref) {
 });
 
 final backgroundProcessToolsProvider = Provider<BackgroundProcessTools>((ref) {
-  final tools = BackgroundProcessTools();
+  // Read once: rebuilding on a store change would kill every running job.
+  final tools = BackgroundProcessTools(
+    onJobFinished: backgroundJobWorkTimeReporter(
+      ref.read(conversationWorkTimeStoreProvider),
+    ),
+  );
   ref.onDispose(() {
     unawaited(tools.dispose());
   });

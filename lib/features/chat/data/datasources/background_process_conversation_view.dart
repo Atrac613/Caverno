@@ -42,6 +42,23 @@ extension BackgroundProcessConversationView on BackgroundProcessTools {
     return true;
   }
 
+  /// Adapts [onJobFinished] to one job of [conversationId]; null when no
+  /// one listens, so jobs then carry no callback at all.
+  void Function(_BackgroundProcessJob job)? _jobFinishedReporter(
+    String conversationId,
+  ) {
+    final report = onJobFinished;
+    if (report == null) return null;
+    return (job) {
+      final end = job.finishedAt ?? DateTime.now();
+      report(
+        conversationId: conversationId,
+        elapsedMs: end.difference(job.startedAt).inMilliseconds,
+        exitCode: job.exitCode,
+      );
+    };
+  }
+
   Map<String, _BackgroundProcessJob> _conversationJobs(String conversationId) {
     final jobs = <String, _BackgroundProcessJob>{};
     for (final entry in _ownerStates.entries) {
