@@ -1,8 +1,8 @@
 import '../entities/conversation_goal.dart';
 import '../entities/tool_call_info.dart';
 import 'goal_update_ack.dart';
+import 'status_recovery_verification.dart';
 import 'structured_coding_task_recovery_policy.dart';
-import 'tool_definition_search_service.dart';
 import 'turn_finalization_delegation_recovery.dart';
 import 'turn_finalization_recovery_policy.dart';
 
@@ -61,25 +61,21 @@ final class TurnFinalizationRecoveryPlan {
       prefixStable: prefixStable,
       pendingDelegation: pendingDelegation,
     );
-    requestTools = structuredTask
-        ? allTools
-              .where(
-                (tool) =>
-                    ToolDefinitionSearchService.toolNameFromDefinition(tool) ==
-                    'update_goal',
-              )
-              .toList(growable: false)
-        : selection.tools;
+    final status = structuredTask
+        ? _verification.request(allTools, completedResults, goal, taskPolicy)
+        : null;
+    requestTools = status?.tools ?? selection.tools;
     if (requestTools.isEmpty) shouldRecover = false;
     forcedCode = structuredTask
         ? 'structured_coding_task_status'
         : selection.forcedCode;
-    prompt = structuredTask ? taskPolicy.prompt : null;
+    prompt = status?.prompt;
   }
 
+  static const _verification = StatusRecoveryVerification();
+
   bool acceptsCalls(List<ToolCallInfo> calls) =>
-      !structuredTask ||
-      (calls.isNotEmpty && calls.every((call) => call.name == 'update_goal'));
+      !structuredTask || _verification.acceptsStatus(calls, requestTools);
 
   late final bool structuredTask;
   late final bool skipFinalAnswer;

@@ -357,11 +357,14 @@ void registerChatNotifierPendingBatchTests() {
       );
       expect(dataSource.assistantContents[15], promise);
       if (structuredTask) {
+        // The two writes were never verified, so the status request also
+        // offers the execution tool the completion gate needs (02fec5c8),
+        // and still no editor.
         expect(
           dataSource.toolResultDefinitions[15].map(
             (tool) => (tool['function'] as Map)['name'],
           ),
-          ['update_goal'],
+          ['update_goal', 'local_execute_command'],
         );
       }
       expect(

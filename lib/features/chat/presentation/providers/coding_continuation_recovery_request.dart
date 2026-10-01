@@ -4,8 +4,9 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/coding_continuation_recovery_policy.dart';
-import '../../domain/services/goal_update_ack.dart';
+import '../../domain/services/status_recovery_verification.dart';
 import '../../domain/services/structured_task_status_evidence.dart';
+import '../../domain/services/tool_definition_search_service.dart';
 
 typedef RecoveryCompletionCreator =
     Future<ChatCompletionResult> Function({
@@ -78,16 +79,17 @@ abstract final class CodingContinuationRecoveryRequest {
       if (!isCurrent()) return null;
       if (!structured) return response;
       final calls = response.toolCalls ?? [];
-      if (calls.length == 1 &&
-          calls.single.name == 'update_goal' &&
-          GoalUpdateInput.fromArguments(calls.single.arguments).isValid) {
+      if (const StatusRecoveryVerification().accepts(calls, tools)) {
         return response;
       }
       rejected = response;
       violation = {
         'code': 'structured_task_status_protocol_violation',
         'executed': false,
-        'allowed_tool': 'update_goal',
+        'allowed_tools': [
+          for (final tool in tools)
+            ToolDefinitionSearchService.toolNameFromDefinition(tool),
+        ],
         'returned_tools': calls.map((call) => call.name).toList(),
         'required_arguments': {'completed': 'JSON boolean'},
       };

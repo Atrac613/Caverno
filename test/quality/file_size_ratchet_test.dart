@@ -148,7 +148,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/structured_coding_task_recovery_policy.dart':
       37,
   'lib/features/chat/domain/services/tool_outcome_snapshot.dart': 23,
-  'lib/features/chat/domain/services/turn_finalization_recovery_plan.dart': 91,
+  // -4, to 87: the status request's tools, prompt and call acceptance moved
+  // to StatusRecoveryVerification.
+  'lib/features/chat/domain/services/turn_finalization_recovery_plan.dart': 87,
   'lib/features/project_farm/application/project_task_review_turn_runner.dart':
       49,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
