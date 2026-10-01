@@ -1,3 +1,5 @@
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/conversation_workflow.dart';
@@ -24,6 +26,8 @@ final class ProjectTaskReviewWorkflow {
     this.sendStep,
     this.markSubtaskDone,
     this.onProgress,
+    this.inheritedFiles = const [],
+    this.recordPriorChanges,
   });
 
   final String conversationId;
@@ -51,6 +55,19 @@ final class ProjectTaskReviewWorkflow {
   /// Records a subtask as completed in the thread's execution progress.
   final Future<void> Function(String taskId)? markSubtaskDone;
   final void Function(ProjectTaskProgress progress)? onProgress;
+
+  /// Changes an earlier run of this task captured with its file tools and
+  /// left uncommitted. They are reviewed and committed as this task's own:
+  /// in session b2971ae0 the re-run found the work done, had no change of
+  /// its own to show, and could only stop.
+  final List<TurnDiffFile> inheritedFiles;
+
+  /// Records the files this task changed before the coming turn, so the
+  /// completion gate counts them. Its file-change check is per turn: in
+  /// session 6f3ea3cf the edits were made in two subtask turns and the last
+  /// subtask only verified them, so completion was refused and the workflow
+  /// stopped with every subtask done.
+  final Future<void> Function(List<String> paths)? recordPriorChanges;
 
   static const maxRepairRounds = 2;
   static const maxMissingDiffRetries = 1;
@@ -103,7 +120,7 @@ final class ProjectTaskReviewWorkflow {
 
 $objective
 
-Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification. Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item's status unchanged: both happen in a separate step after review. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
+Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification.$_inheritedNote Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item's status unchanged: both happen in a separate step after review. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
 
     for (var repairRound = 0; repairRound <= maxRepairRounds; repairRound++) {
       if (repairRound > 0) {
@@ -122,6 +139,8 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
         final previousDiffCount = repairRound == 0
             ? diffBaseline
             : before.turnDiffs.length;
+        final priorPaths = _taskPaths(before);
+        if (priorPaths.isNotEmpty) await recordPriorChanges?.call(priorPaths);
         if (!await send(implementation, codeReview: false)) {
           return _stop(
             'the implementation turn ended without a recorded goal '
@@ -134,7 +153,8 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
         if (response == null) {
           return _stop('the implementation turn saved no assistant response');
         }
-        if (after.turnDiffs.length > previousDiffCount) {
+        if (after.turnDiffs.length > previousDiffCount ||
+            (repairRound == 0 && inheritedFiles.isNotEmpty)) {
           if (!_endsWithMarker(response.content, _ready)) {
             return _stop(
               'the implementation response does not end with $_ready '
@@ -171,7 +191,7 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
       final reviewPrompt =
           '''${template.expand(args: 'Only the task changes in the patch below', commandName: 'review')}
 
-The patch below is the captured output of this task's file tools. Review these changes and relevant surrounding code. Do not review unrelated pre-existing changes in the working tree. If the patch cannot be reconciled with the working tree, explain the limit and do not report a clean review.
+The patch below is the captured output of this task's file tools${inheritedFiles.isEmpty ? '' : ', including changes an earlier run of this task left uncommitted'}. Review these changes and relevant surrounding code. Do not review unrelated pre-existing changes in the working tree. If the patch cannot be reconciled with the working tree, explain the limit and do not report a clean review.
 
 ```diff
 $patch
@@ -206,7 +226,7 @@ If review is incomplete, omit both markers.''';
       implementation =
           '''Fix the actionable findings from the dedicated code review below. Inspect the cited code, make only task-related repairs, and rerun relevant verification. Respect approval and user-input gates. Do not commit, push, or publish. End with the exact line $_ready only when the fixes and verification are complete; otherwise explain what remains and omit the line.
 
-${review.content}''';
+${ContentParser.stripModelHistoryArtifacts(review.content)}''';
     }
     return _stop('the repair rounds ended without a review result');
   }
@@ -349,7 +369,7 @@ $objective
 Subtasks:
 $outline
 
-Read the cited roadmap and relevant code before editing. $scope''';
+Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''';
   }
 
   ProjectTaskProgress _progress = const ProjectTaskProgress(
@@ -361,11 +381,31 @@ Read the cited roadmap and relevant code before editing. $scope''';
     onProgress?.call(progress);
   }
 
-  List<String> _taskPaths(Conversation conversation) => {
-    for (final diff in conversation.turnDiffs)
-      if (diff.source == TurnDiffSource.tool)
-        for (final file in diff.files) file.filePath,
-  }.toList();
+  List<String> _taskPaths(Conversation conversation) =>
+      {for (final file in _taskFiles(conversation)) file.filePath}.toList();
+
+  /// This thread's captured files, then each inherited file this thread did
+  /// not touch: a path both changed is reviewed through this thread's patch.
+  List<TurnDiffFile> _taskFiles(Conversation conversation) {
+    final own = conversation.turnDiffs
+        .where((diff) => diff.source == TurnDiffSource.tool)
+        .expand((diff) => diff.files)
+        .toList();
+    final ownPaths = {for (final file in own) file.filePath};
+    return [
+      ...inheritedFiles.where((file) => !ownPaths.contains(file.filePath)),
+      ...own,
+    ];
+  }
+
+  String get _inheritedNote => inheritedFiles.isEmpty
+      ? ''
+      : '\n\nAn earlier run of this task left these changes uncommitted: '
+            '${{for (final file in inheritedFiles) file.filePath}.join(', ')}. Treat '
+            'them as this task\'s work so far: inspect them, finish anything '
+            'missing, and verify the result with an execution command. If they '
+            'already complete the task, do not edit files only to show a '
+            'change.';
 
   /// Why the last [run] returned [ProjectTaskReviewResult.stopped].
   ///
@@ -415,10 +455,7 @@ Read the cited roadmap and relevant code before editing. $scope''';
       content.trimRight().split('\n').last.trim() == marker;
 
   String? _reviewPatch(Conversation conversation) {
-    final files = conversation.turnDiffs
-        .where((diff) => diff.source == TurnDiffSource.tool)
-        .expand((diff) => diff.files)
-        .toList();
+    final files = _taskFiles(conversation);
     if (files.isEmpty ||
         files.any(
           (file) =>

@@ -244,8 +244,10 @@ class GoalUpdateAckResolver {
               ? const ProjectTaskCompletionEvidence().gaps(
                   toolResults: taskToolResults,
                   evidence: evidence,
+                  inheritedChanges: goal.projectTaskInheritedPaths.isNotEmpty,
                 )
               : const [],
+          inheritedChanges: goal.projectTaskInheritedPaths.isNotEmpty,
         );
       case GoalUpdateKind.blocker:
         return GoalUpdateAck(
@@ -285,11 +287,23 @@ class GoalUpdateAckResolver {
       'change because the work already exists, say so and report it with '
       'blocked_reason instead.';
 
+  /// When an earlier run's uncommitted changes were carried into this task,
+  /// "the work already exists" is the expected case, not a blocker: reporting
+  /// one there stopped session b2971ae0 with the task finished but unreviewed
+  /// and uncommitted. What is owed is a verification of that work.
+  static const _inheritedTaskGapGuidance =
+      'Do not change files only to satisfy these checks. Uncommitted changes '
+      'from earlier turns or runs of this task count as this task\'s changes: '
+      'if they already complete it, run an execution command that verifies '
+      'them, then report completion again. Report a blocker only if the work '
+      'cannot be completed.';
+
   GoalUpdateAck _resolveCompletion(
     ToolResultCompletionEvidence evidence,
     GoalCompletionPolicy completionPolicy, {
     required List<String> taskGaps,
     required bool supersedesProgress,
+    bool inheritedChanges = false,
   }) {
     final gaps = [
       ...completionGaps(evidence, includeRemainingWork: !supersedesProgress),
@@ -303,7 +317,7 @@ class GoalUpdateAckResolver {
             'Completion not recorded — the following remain outstanding:\n'
             '${gaps.map((gap) => '- $gap').join('\n')}\n'
             'The goal is still active. Resolve these and report completion '
-            'again.${taskGaps.isEmpty ? '' : ' $_projectTaskGapGuidance'}',
+            'again.${taskGaps.isEmpty ? '' : ' ${inheritedChanges ? _inheritedTaskGapGuidance : _projectTaskGapGuidance}'}',
       );
     }
     if (!completionPolicy.acceptsToolCompletion) {

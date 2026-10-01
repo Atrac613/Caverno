@@ -143,6 +143,46 @@ void main() {
       );
     });
 
+    test('an inherited change needs verification, not a blocker report', () {
+      // Session b2971ae0: a re-run found an earlier run's uncommitted work
+      // already complete, was refused for having no file change of its own,
+      // was told to report a blocker, and the workflow stopped.
+      final goal = _goal().copyWith(
+        projectTaskAutoReview: true,
+        projectTaskInheritedPaths: const ['/repo/.gitignore'],
+      );
+      final unverified = _handle(
+        goal: goal,
+        arguments: const {'completed': true},
+      );
+
+      expect(unverified.ackOutcome, GoalUpdateAckOutcome.completionRejected);
+      expect(
+        unverified.toolResult.result,
+        allOf(
+          isNot(contains('no captured file-change evidence')),
+          contains('needs successful execution verification'),
+          contains('count as this task\'s changes'),
+          isNot(contains('blocked_reason')),
+        ),
+      );
+
+      final verified = _handle(
+        goal: goal,
+        arguments: const {'completed': true},
+        ownerToolResults: [
+          ToolResultInfo(
+            id: 'pytest-result',
+            name: 'local_execute_command',
+            arguments: const {'command': 'pytest -q'},
+            result: jsonEncode({'exit_code': 0, 'stdout': '53 passed'}),
+            outcome: const ToolOutcome(exitCode: 0),
+          ),
+        ],
+      );
+      expect(verified.ackOutcome, GoalUpdateAckOutcome.completionRecorded);
+    });
+
     test('rejects completion from failures in current owner results', () {
       final outcome = _handle(
         arguments: const {'completed': true},

@@ -247,4 +247,89 @@ void main() {
     );
     expect(marked, isEmpty);
   });
+
+  test('reviews and commits an earlier run\'s uncommitted change', () async {
+    // Session b2971ae0: the re-run made no edit because the work was done.
+    final commitPrompts = <String>[];
+    final run = ProjectTaskReviewWorkflow(
+      conversationId: 'task',
+      readConversation: () => conversation,
+      isSelected: () => true,
+      isWaitingForUser: () => false,
+      // Two captured edits of one file, as an earlier run with two turns
+      // leaves; session 80dc7079 listed the path twice.
+      inheritedFiles: const [
+        TurnDiffFile(filePath: '/repo/.gitignore', unifiedPatch: '@@ -1 +1 @@'),
+        TurnDiffFile(
+          filePath: '/repo/.gitignore',
+          unifiedPatch: '@@ -1 +1,2 @@\n state.json\n+config.json',
+        ),
+      ],
+      send: (prompt, {required codeReview}) async {
+        sendPrompts.add(prompt);
+        codeReview
+            ? reply('No findings.\nPROJECT_TASK_REVIEW_CLEAN')
+            : reply(
+                'Already in place and verified.\nPROJECT_TASK_READY_FOR_REVIEW',
+              );
+        return true;
+      },
+      commit: (prompt) async {
+        commitPrompts.add(prompt);
+        commits++;
+        return true;
+      },
+      readGitState: (_) async =>
+          ProjectTaskGitState(head: 'head-$commits', dirtyPaths: const []),
+    );
+
+    expect(await run.run(), ProjectTaskReviewResult.committed);
+    expect(
+      sendPrompts.first,
+      contains('left these changes uncommitted: /repo/.gitignore. Treat'),
+    );
+    expect(
+      sendPrompts[1],
+      allOf(contains('+config.json'), contains('earlier run of this task')),
+    );
+    expect(commitPrompts.single, contains('- /repo/.gitignore'));
+  });
+
+  test(
+    'records earlier subtask changes before a verify-only last turn',
+    () async {
+      // Session 6f3ea3cf: the last subtask only verified README edits made in
+      // the two before it, and the per-turn change check refused completion.
+      final recorded = <List<String>>[];
+      final run = ProjectTaskReviewWorkflow(
+        conversationId: 'task',
+        readConversation: () => conversation,
+        isSelected: () => true,
+        isWaitingForUser: () => false,
+        decompose: (_) async => subtasks,
+        sendStep: (prompt) async {
+          reply('Done.\nPROJECT_TASK_SUBTASK_DONE', withDiff: true);
+          return true;
+        },
+        recordPriorChanges: (paths) async => recorded.add(paths),
+        send: (prompt, {required codeReview}) async {
+          codeReview
+              ? reply('No findings.\nPROJECT_TASK_REVIEW_CLEAN')
+              : reply('Verified.\nPROJECT_TASK_READY_FOR_REVIEW');
+          return true;
+        },
+        commit: (_) async {
+          commits++;
+          return true;
+        },
+        readGitState: (_) async =>
+            ProjectTaskGitState(head: 'head-$commits', dirtyPaths: const []),
+      );
+
+      expect(await run.run(), ProjectTaskReviewResult.committed);
+      expect(recorded, [
+        ['lib/parser.dart'],
+      ]);
+    },
+  );
 }

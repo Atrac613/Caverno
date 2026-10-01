@@ -216,6 +216,35 @@ def _project_gap_guidance(blob):
     return False
 
 
+def _inherited_task_guidance(blob):
+    """Whether a re-run project task was handed an earlier run's changes.
+
+    Matches the implementation prompt that names them, or a rejected
+    completion that counted them. A run that verifies first is accepted on
+    its first update_goal and never sees the rejection, which is how session
+    f4269d8c succeeded unseen by the rejection-only version of this row. Read
+    from user messages and update_goal results, never file reads.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        request = entry.get("request") or {}
+        for message in request.get("messages") or []:
+            if message.get("role") == "user" and (
+                "An earlier run of this task left these changes uncommitted"
+                in str(message.get("content"))
+            ):
+                return True
+        for result in request.get("toolResults") or []:
+            if result.get("name") == "update_goal" and (
+                "count as this task's changes" in str(result.get("result"))
+            ):
+                return True
+    return False
+
+
 def _recovery_carries_earlier_results(blob):
     """Whether a loop-limit recovery request held more than the last batch.
 
@@ -744,6 +773,12 @@ SIGNATURES = {
         "commit": "a2baaff2b",
         "what": "rejected project-task completion says not to edit files for evidence",
         "match": _project_gap_guidance,
+    },
+    "inherited_task_changes": {
+        # 4a6970a5f shipped the carry; 00c2d7a25 made it survive a relaunch.
+        "commit": "00c2d7a25",
+        "what": "a re-run farm task counts an earlier run's uncommitted changes",
+        "match": _inherited_task_guidance,
     },
     "loop_limit_question_to_user": {
         "commit": "4e482cb4b",

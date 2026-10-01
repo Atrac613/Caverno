@@ -1,15 +1,18 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../chat/data/repositories/conversation_listing_codec.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/conversation_goal.dart';
 import '../../chat/domain/entities/conversation_plan_artifact.dart';
 import '../../chat/domain/entities/conversation_workflow.dart';
+import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/domain/services/conversation_plan_document_builder.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
+import '../application/project_task_inheritance.dart';
 import '../application/project_task_review_turn_runner.dart';
 import '../application/project_task_review_workflow.dart';
 import '../application/project_task_step_turn_runner.dart';
@@ -105,6 +108,43 @@ final class ProjectTaskReviewLauncher {
         waitForCompletion: notifier.waitForTurnCompletion,
       );
       final conversations = ref.read(conversationsNotifierProvider.notifier);
+      final inherited = projectRoot == null || projectRoot.isEmpty
+          ? const <TurnDiffFile>[]
+          : await inheritedTaskFiles(
+              task: conversation,
+              conversations: ref
+                  .read(conversationsNotifierProvider)
+                  .conversations,
+              load: (run) async {
+                if (!ConversationListingCodec.isListingStub(run.messages)) {
+                  return run;
+                }
+                await conversations.refreshConversationForExecution(run.id);
+                return ref
+                        .read(conversationsNotifierProvider)
+                        .conversationForId(run.id) ??
+                    run;
+              },
+              isDirty: (path) async =>
+                  (await _gitReader.readTaskState(projectRoot, [
+                    path,
+                  ]))?.dirtyPaths.isNotEmpty ==
+                  true,
+            );
+      if (inherited.isNotEmpty) {
+        // The completion gate reads this from the goal, so a turn that finds
+        // the work already done is asked to verify it, not to report a
+        // blocker.
+        await conversations.persistRuntimeGoal(
+          conversationId: conversationId,
+          goal: conversation.goal!.copyWith(
+            projectTaskInheritedPaths: [
+              ...{for (final file in inherited) file.filePath},
+            ],
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
       final workflow = ProjectTaskReviewWorkflow(
         conversationId: conversationId,
         readConversation: readTask,
@@ -161,6 +201,20 @@ final class ProjectTaskReviewLauncher {
             lastRunAt: now,
             eventType: ConversationExecutionTaskEventType.completed,
             eventTimestamp: now,
+          );
+        },
+        inheritedFiles: inherited,
+        recordPriorChanges: (paths) async {
+          final goal = readTask()?.goal;
+          if (goal == null) return;
+          final merged = {...goal.projectTaskInheritedPaths, ...paths};
+          if (merged.length == goal.projectTaskInheritedPaths.length) return;
+          await conversations.persistRuntimeGoal(
+            conversationId: conversationId,
+            goal: goal.copyWith(
+              projectTaskInheritedPaths: merged.toList(),
+              updatedAt: DateTime.now(),
+            ),
           );
         },
         onProgress: (progress) => ref

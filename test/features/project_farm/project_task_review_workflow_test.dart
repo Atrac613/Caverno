@@ -54,56 +54,58 @@ void main() {
     ],
   );
 
-  test(
-    'implements, reviews through the dedicated route, and repairs',
-    () async {
-      var conversation = initial();
-      final routes = <bool>[];
-      final prompts = <String>[];
-      var implementationCount = 0;
-      final workflow = ProjectTaskReviewWorkflow(
-        conversationId: 'task',
-        commit: commitTurn,
-        readGitState: gitState,
-        readConversation: () => conversation,
-        isSelected: () => true,
-        isWaitingForUser: () => false,
-        send: (prompt, {required codeReview}) async {
-          routes.add(codeReview);
-          prompts.add(prompt);
-          final index = routes.length;
-          if (codeReview) {
-            conversation = conversation.copyWith(
-              messages: [
-                ...conversation.messages,
-                assistant(
-                  index == 2
-                      ? 'Fix a null case.\nPROJECT_TASK_REVIEW_FINDINGS'
-                      : 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
-                  index,
-                ),
-              ],
-            );
-          } else {
-            implementationCount++;
-            conversation = conversation.copyWith(
-              messages: [
-                ...conversation.messages,
-                assistant('Verified.\nPROJECT_TASK_READY_FOR_REVIEW', index),
-              ],
-              turnDiffs: [...conversation.turnDiffs, diff(implementationCount)],
-            );
-          }
-          return true;
-        },
-      );
+  test('implements, reviews through the dedicated route, and repairs', () async {
+    var conversation = initial();
+    final routes = <bool>[];
+    final prompts = <String>[];
+    var implementationCount = 0;
+    final workflow = ProjectTaskReviewWorkflow(
+      conversationId: 'task',
+      commit: commitTurn,
+      readGitState: gitState,
+      readConversation: () => conversation,
+      isSelected: () => true,
+      isWaitingForUser: () => false,
+      send: (prompt, {required codeReview}) async {
+        routes.add(codeReview);
+        prompts.add(prompt);
+        final index = routes.length;
+        if (codeReview) {
+          conversation = conversation.copyWith(
+            messages: [
+              ...conversation.messages,
+              assistant(
+                index == 2
+                    ? '<tool_use>{"name":"read_file","arguments":{"path":"a"}}'
+                          '</tool_use>\nFix a null case.\n'
+                          'PROJECT_TASK_REVIEW_FINDINGS'
+                    : 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
+                index,
+              ),
+            ],
+          );
+        } else {
+          implementationCount++;
+          conversation = conversation.copyWith(
+            messages: [
+              ...conversation.messages,
+              assistant('Verified.\nPROJECT_TASK_READY_FOR_REVIEW', index),
+            ],
+            turnDiffs: [...conversation.turnDiffs, diff(implementationCount)],
+          );
+        }
+        return true;
+      },
+    );
 
-      expect(await workflow.run(), ProjectTaskReviewResult.committed);
-      expect(routes, [false, true, false, true]);
-      expect(prompts[1], contains('```diff'));
-      expect(prompts[2], contains('Fix a null case.'));
-    },
-  );
+    expect(await workflow.run(), ProjectTaskReviewResult.committed);
+    expect(routes, [false, true, false, true]);
+    expect(prompts[1], contains('```diff'));
+    expect(prompts[2], contains('Fix a null case.'));
+    // Session 80dc7079: the review's raw tool markup reached the repair
+    // prompt as if it were review text.
+    expect(prompts[2], isNot(contains('<tool_use>')));
+  });
 
   test('stops when task changes have no reviewable patch', () async {
     var conversation = initial();
