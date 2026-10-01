@@ -148,6 +148,8 @@ void main() {
     expect(created.goal!.status, ConversationGoalStatus.active);
     expect(created.goal!.objective, contains('docs/roadmap.md:97'));
     expect(created.goal!.projectTaskAutoReview, isFalse);
+    // Named after the roadmap item, not the workflow's generic first prompt.
+    expect(created.title, 'RC1: Signed-device evidence');
     expect(repository.getById(id)?.goal, isNotNull);
   });
 

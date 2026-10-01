@@ -28,12 +28,15 @@ import '../../domain/services/conversation_goal_status_transition.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
+import '../../domain/services/reusable_empty_conversation.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/turn_diff_retention.dart';
 import 'conversation_semantic_index_sync.dart';
 import 'conversations_state.dart';
 import 'mcp_tool_provider.dart';
 
+export '../../domain/services/reusable_empty_conversation.dart'
+    show defaultConversationTitle;
 export 'conversations_state.dart';
 
 part 'conversations_notifier_progress_writers.dart';
@@ -55,9 +58,6 @@ final conversationAttachmentCleanupProvider =
     Provider<ConversationAttachmentCleanup>(
       (ref) => AttachmentStorageService.deleteOwnedAttachments,
     );
-
-/// Default title for new conversations (used as a sentinel for auto-title).
-const defaultConversationTitle = '__new_conversation__';
 
 /// Notifier that manages the conversation list.
 class ConversationsNotifier extends Notifier<ConversationsState> {
@@ -152,7 +152,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         workspaceMode.usesConversations) {
       final latestConversation = visibleConversations.firstOrNull;
       if (latestConversation != null &&
-          _isReusableEmptyConversation(latestConversation)) {
+          isReusableEmptyConversation(latestConversation)) {
         return ConversationsState(
           conversations: nextConversations,
           currentConversationId: latestConversation.id,
@@ -213,18 +213,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
   }
 
-  bool _isReusableEmptyConversation(Conversation conversation) {
-    return conversation.title == defaultConversationTitle &&
-        conversation.messages.isEmpty &&
-        !conversation.usesWorktree &&
-        !conversation.hasWorkflowContext &&
-        !conversation.hasGoal &&
-        !conversation.hasPlanArtifact &&
-        !conversation.hasCompactionArtifact &&
-        conversation.executionProgress.isEmpty &&
-        conversation.openQuestionProgress.isEmpty;
-  }
-
   String? _normalizeProjectId(WorkspaceMode workspaceMode, String? projectId) {
     if (!workspaceMode.usesProjects) {
       return null;
@@ -261,11 +249,12 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     required WorkspaceMode workspaceMode,
     required String projectId,
     ConversationGoal? goal,
+    String title = defaultConversationTitle,
   }) {
     final conversation = _createConversation(
       workspaceMode: workspaceMode,
       projectId: projectId,
-    ).copyWith(goal: goal);
+    ).copyWith(goal: goal, title: title);
     state = state.copyWith(
       conversations: [conversation, ...state.conversations],
     );
@@ -385,7 +374,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
           }
           return conversation.normalizedProjectId == resolvedProjectId;
         })
-        .where(_isReusableEmptyConversation)
+        .where(isReusableEmptyConversation)
         .firstOrNull;
     if (reusableConversation != null) {
       state = state.copyWith(

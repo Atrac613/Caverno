@@ -53,7 +53,8 @@ void main() {
 
     expect(step('decompose', 'done'), findsOneWidget);
     expect(step('implement', 'active'), findsOneWidget);
-    expect(find.text('2/3'), findsOneWidget);
+    // One finished; the second is running.
+    expect(find.text('project_task_progress.subtasks_done'), findsOneWidget);
     expect(step('review', 'pending'), findsOneWidget);
     expect(step('commit', 'pending'), findsOneWidget);
   });
@@ -70,7 +71,7 @@ void main() {
     );
 
     expect(step('implement', 'done'), findsOneWidget);
-    expect(find.text('3/3'), findsOneWidget);
+    expect(find.text('project_task_progress.subtasks_done'), findsOneWidget);
     expect(step('review', 'active'), findsOneWidget);
     expect(find.text('project_task_progress.repair_round'), findsOneWidget);
   });
@@ -103,5 +104,30 @@ void main() {
     for (final label in ['decompose', 'implement', 'review', 'commit']) {
       expect(step(label, 'done'), findsOneWidget, reason: label);
     }
+  });
+
+  test('counts finished subtasks, not the running one', () {
+    // Session 6f3ea3cf: the sidebar read "3/3" while the third subtask had
+    // not finished and the workflow had stopped on it.
+    const running = ProjectTaskProgress(
+      phase: ProjectTaskPhase.implement,
+      subtaskIndex: 2,
+      subtaskCount: 3,
+    );
+    expect(running.completedSubtasks, 2);
+    expect(
+      running.copyWith(outcome: ProjectTaskOutcome.stopped).completedSubtasks,
+      2,
+    );
+    expect(
+      running.copyWith(phase: ProjectTaskPhase.review).completedSubtasks,
+      3,
+    );
+    expect(
+      const ProjectTaskProgress(
+        phase: ProjectTaskPhase.decompose,
+      ).completedSubtasks,
+      0,
+    );
   });
 }

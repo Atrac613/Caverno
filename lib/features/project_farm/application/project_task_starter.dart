@@ -5,13 +5,16 @@ import '../../chat/domain/entities/conversation_goal.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
 import '../domain/entities/roadmap_snapshot.dart';
 
+/// The roadmap item's own name: its id and title, as the roadmap gives them.
+String projectTaskHeading(RoadmapItemSnapshot item) => [
+  if (item.id.trim().isNotEmpty) item.id.trim(),
+  if (item.title.trim().isNotEmpty) item.title.trim(),
+].join(': ');
+
 /// The goal objective a started roadmap task carries, citing its source so the
 /// thread can reread the roadmap instead of trusting the summary.
 String projectTaskObjective(RoadmapItemSnapshot item, String roadmapPath) {
-  final heading = [
-    if (item.id.trim().isNotEmpty) item.id.trim(),
-    if (item.title.trim().isNotEmpty) item.title.trim(),
-  ].join(': ');
+  final heading = projectTaskHeading(item);
   final citation = item.line == null
       ? roadmapPath
       : '$roadmapPath:${item.line}';
@@ -41,6 +44,10 @@ ConversationGoal projectTaskGoal(
 ///
 /// This is the one command path the dashboard's Start work button and the
 /// model's `start_project_task` tool share, so both create identical threads.
+///
+/// The thread is named after the roadmap item. Left unnamed, it took its title
+/// from the first message, the workflow's generic "Implement this roadmap task
+/// in..." prompt, so every task thread on the dashboard read the same.
 String startProjectTask({
   required ConversationsNotifier conversations,
   required String projectId,
@@ -52,5 +59,8 @@ String startProjectTask({
       workspaceMode: WorkspaceMode.coding,
       projectId: projectId,
       goal: projectTaskGoal(item, roadmapPath, autoReview: autoReview),
+      title: projectTaskHeading(item).isEmpty
+          ? defaultConversationTitle
+          : projectTaskHeading(item),
     )
     .id;

@@ -34,6 +34,15 @@ final class ProjectTaskProgress {
   final int repairRound;
   final String? stopReason;
 
+  /// Subtasks finished so far: all of them once implementation is behind the
+  /// workflow, otherwise the ones before the running subtask.
+  int get completedSubtasks => phase == ProjectTaskPhase.decompose
+      ? 0
+      : phase == ProjectTaskPhase.implement &&
+            outcome != ProjectTaskOutcome.committed
+      ? subtaskIndex.clamp(0, subtaskCount)
+      : subtaskCount;
+
   ProjectTaskProgress copyWith({
     ProjectTaskPhase? phase,
     ProjectTaskOutcome? outcome,

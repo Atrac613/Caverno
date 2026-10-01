@@ -910,7 +910,11 @@ const Map<String, int> _lineBudgets = {
   // +5, to 1,679, and it is a raise: the rewind has to put back
   // taskAcceptances along with everything else it restores, or an acceptance
   // outlives the evidence it rested on.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1679,
+  // -11, to 1,668: the reusable-empty-thread predicate and the default-title
+  // sentinel it reads are pure functions of a Conversation and moved to
+  // domain/services/reusable_empty_conversation.dart, which paid for the
+  // background thread's title parameter (a farm task is named after its item).
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1668,
   // The progress writers' own ceiling, raised deliberately and with a reason
   // when a writer is added -- which is the point of giving them a file with a
   // budget of their own.

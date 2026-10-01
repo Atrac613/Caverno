@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -116,10 +114,15 @@ class ProjectTaskProgressSection extends ConsumerWidget {
           : _StepState.failed;
     }
 
+    // Completed subtasks, as the Plan Mode progress rows count them. The
+    // position of the running one read as "3/3" while the third had not
+    // finished, and the workflow had stopped on it.
     final count = progress.subtaskCount;
     final implementDetail = count == 0
         ? null
-        : '${stateOf(1) == _StepState.done ? count : math.min(progress.subtaskIndex + 1, count)}/$count';
+        : 'project_task_progress.subtasks_done'.tr(
+            args: ['${progress.completedSubtasks}', '$count'],
+          );
     final repairDetail = progress.repairRound == 0
         ? null
         : 'project_task_progress.repair_round'.tr(
