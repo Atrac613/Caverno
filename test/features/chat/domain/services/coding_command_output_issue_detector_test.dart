@@ -150,6 +150,14 @@ void main() {
           'exit_code': 0.0,
           'command': 42,
           'working_directory': ' /tmp ',
+          'stdout': 'No data found.',
+        },
+      );
+      final masked = detector.detectFromDecodedCommandResult(
+        toolName: 'local_execute_command',
+        decoded: const {
+          'exit_code': 0.0,
+          'command': 'python3 app.py | tail -5',
           'stdout': 'Fatal exception',
         },
       );
@@ -159,7 +167,11 @@ void main() {
       expect(fallback.exitCode, 0);
       expect(decoded!.command, '42');
       expect(decoded.workingDirectory, '/tmp');
-      expect(decoded.summary, 'Output contains a runtime failure signal.');
+      expect(
+        decoded.summary,
+        'Output reports that required data was not found.',
+      );
+      expect(masked!.summary, 'Output contains a runtime failure signal.');
     });
 
     test('prefers a typed exit status over a contradictory payload', () {
@@ -233,6 +245,7 @@ void main() {
         toolName: 'local_execute_command',
         decoded: const {
           'exit_code': 0,
+          'command': 'python3 app.py 2>&1 | tee run.log',
           'stdout': 'completed',
           'stderr': 'Unhandled exception',
         },
@@ -241,6 +254,7 @@ void main() {
         toolName: 'local_execute_command',
         decoded: const {
           'exit_code': 0,
+          'command': 'python3 app.py | cat',
           'stdout': '   ',
           'stderr': 'Fatal exception',
         },
@@ -281,10 +295,58 @@ void main() {
       ]) {
         final issue = detector.detectFromDecodedCommandResult(
           toolName: 'local_execute_command',
-          decoded: {'exit_code': 0, 'stderr': output},
+          decoded: {
+            'exit_code': 0,
+            'command': 'python3 app.py 2>&1 | tail -40',
+            'stderr': output,
+          },
         );
 
         expect(issue!.summary, 'Output contains a runtime failure signal.');
+      }
+    });
+
+    test('a runtime failure line judges only a masked exit status', () {
+      // Corpus 2026-10-01: all 11 correct runtime verdicts were `... | tail`
+      // hiding a real failure; all 5 on an unmasked command were a script
+      // printing a traceback on purpose and exiting 0 (session 22d603f7).
+      const traceback =
+          'Traceback (most recent call last)\nValueError: simulated failure\n'
+          'ALL LOGGING VERIFICATIONS PASSED';
+      Map<String, dynamic> run(String command) => {
+        'exit_code': 0,
+        'command': command,
+        'stdout': traceback,
+      };
+      for (final command in [
+        '.venv/bin/python verify_logging.py',
+        'cd /w && .venv/bin/python verify_logging.py && .venv/bin/python -m pytest -v 2>&1',
+        'set -o pipefail && python3 -m pytest -q | tail -5',
+        "python3 -c 'print(\"a | b\")'",
+      ]) {
+        expect(
+          detector.detectFromDecodedCommandResult(
+            toolName: 'local_execute_command',
+            decoded: run(command),
+          ),
+          isNull,
+          reason: command,
+        );
+      }
+      for (final command in [
+        'python3 -m unittest test_watcher -v 2>&1 | tail -60',
+        'python3 -m pytest -q 2>&1 | tail -5',
+      ]) {
+        expect(
+          detector
+              .detectFromDecodedCommandResult(
+                toolName: 'local_execute_command',
+                decoded: run(command),
+              )
+              ?.summary,
+          'Output contains a runtime failure signal.',
+          reason: command,
+        );
       }
     });
 

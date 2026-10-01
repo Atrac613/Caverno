@@ -1444,7 +1444,7 @@ void registerChatNotifierGoalAutoContinueTests() {
               id: 'call-runtime-validation',
               name: 'local_execute_command',
               arguments: const {
-                'command': 'dart run bin/todo.dart done 999',
+                'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
                 'working_directory': '/tmp/goal-auto-output-feedback',
               },
             ),
@@ -1473,7 +1473,7 @@ void registerChatNotifierGoalAutoContinueTests() {
           ],
           'local_execute_command': [
             jsonEncode({
-              'command': 'dart run bin/todo.dart done 999',
+              'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
               'working_directory': '/tmp/goal-auto-output-feedback',
               'exit_code': 0,
               'stdout': '',

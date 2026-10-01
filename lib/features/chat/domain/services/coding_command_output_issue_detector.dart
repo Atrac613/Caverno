@@ -5,6 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue.dart';
 import 'coding_command_preflight_issue_detector.dart';
+import 'exit_status_mask.dart';
 import 'masked_inspection_command_policy.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
@@ -127,7 +128,10 @@ class CodingCommandOutputIssueDetector {
       if (output == null) {
         continue;
       }
-      final signal = _detectOutputSignal(output);
+      final signal = _detectOutputSignal(
+        output,
+        runtimeSignals: const ExitStatusMask().mayHide(command),
+      );
       if (signal == null) {
         continue;
       }
@@ -183,7 +187,10 @@ class CodingCommandOutputIssueDetector {
         null;
   }
 
-  _OutputSignal? _detectOutputSignal(String output) {
+  _OutputSignal? _detectOutputSignal(
+    String output, {
+    required bool runtimeSignals,
+  }) {
     final lines = output.split(RegExp(r'\r?\n'));
     var offset = 0;
     for (final line in lines) {
@@ -208,8 +215,9 @@ class CodingCommandOutputIssueDetector {
             startIndex: offset,
           );
         }
-        if (_tracebackPattern.hasMatch(trimmed) ||
-            _runtimeFailurePattern.hasMatch(trimmed)) {
+        if (runtimeSignals &&
+            (_tracebackPattern.hasMatch(trimmed) ||
+                _runtimeFailurePattern.hasMatch(trimmed))) {
           return _OutputSignal(
             summary: 'Output contains a runtime failure signal.',
             startIndex: offset,

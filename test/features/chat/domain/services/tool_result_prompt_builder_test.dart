@@ -595,11 +595,11 @@ void main() {
           id: 'verify-runtime-behavior',
           name: 'local_execute_command',
           arguments: const {
-            'command': 'dart run bin/todo.dart done 999',
+            'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
             'working_directory': '/tmp/todo',
           },
           result: jsonEncode({
-            'command': 'dart run bin/todo.dart done 999',
+            'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
             'working_directory': '/tmp/todo',
             'exit_code': 0,
             'stdout': '',
