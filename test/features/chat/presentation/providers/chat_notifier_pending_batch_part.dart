@@ -335,7 +335,9 @@ void registerChatNotifierPendingBatchTests() {
 
       await notifier.sendMessage(
         userRequest,
-        projectTaskImplementation: structuredTask,
+        purpose: structuredTask
+            ? PrimaryTurnPurpose.projectTaskImplementation
+            : PrimaryTurnPurpose.conversation,
       );
 
       expect(firstTarget.existsSync(), isTrue);
@@ -505,7 +507,7 @@ void registerChatNotifierPendingBatchTests() {
       final notifier = container.read(chatNotifierProvider.notifier);
       await notifier.sendMessage(
         'Implement the task.',
-        projectTaskImplementation: true,
+        purpose: PrimaryTurnPurpose.projectTaskImplementation,
       );
       final goal = container
           .read(conversationsNotifierProvider)
@@ -686,7 +688,7 @@ void registerChatNotifierPendingBatchTests() {
 
       await notifier.sendMessage(
         'Implement retry and run relevant verification.',
-        projectTaskImplementation: true,
+        purpose: PrimaryTurnPurpose.projectTaskImplementation,
       );
 
       expect(toolService.executedToolNames, [

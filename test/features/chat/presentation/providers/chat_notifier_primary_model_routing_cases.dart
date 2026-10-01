@@ -68,7 +68,7 @@ void _runChatNotifierPrimaryModelRouting() {
 
     final owner = await notifier.sendMessage(
       'Review changes',
-      codeReview: true,
+      purpose: PrimaryTurnPurpose.codeReview,
     );
     if (owner != null) await notifier.waitForTurnCompletion(owner);
 

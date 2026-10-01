@@ -1,5 +1,6 @@
 import '../../domain/entities/video_attachment_draft.dart';
 import 'chat_state.dart' show ChatInteractionOrigin;
+import 'primary_turn_purpose.dart';
 
 class QueuedChatMessage {
   const QueuedChatMessage({
@@ -18,13 +19,11 @@ class QueuedChatMessage {
     this.origin = ChatInteractionOrigin.local,
     this.remoteDeviceId,
     this.conversationId,
-    this.codeReview = false,
-    this.projectTaskImplementation = false,
+    this.purpose = PrimaryTurnPurpose.conversation,
   });
 
   final String? conversationId;
-  final bool codeReview;
-  final bool projectTaskImplementation;
+  final PrimaryTurnPurpose purpose;
   final String id;
   final String content;
   final String? modelContent;
@@ -60,8 +59,7 @@ class QueuedChatMessage {
             origin == other.origin &&
             remoteDeviceId == other.remoteDeviceId &&
             conversationId == other.conversationId &&
-            codeReview == other.codeReview &&
-            projectTaskImplementation == other.projectTaskImplementation;
+            purpose == other.purpose;
   }
 
   @override
@@ -81,7 +79,6 @@ class QueuedChatMessage {
     origin,
     remoteDeviceId,
     conversationId,
-    codeReview,
-    projectTaskImplementation,
+    purpose,
   );
 }

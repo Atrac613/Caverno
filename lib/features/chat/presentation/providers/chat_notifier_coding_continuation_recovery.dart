@@ -59,12 +59,8 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     required int interactionGeneration,
     required bool requireContinuationRequest,
   }) {
-    if (_primaryRoutes.isProjectTaskImplementation(interactionGeneration)) {
-      return null;
-    }
-    candidateResponse = ContentParser.stripModelHistoryArtifacts(
-      candidateResponse,
-    );
+    final visible = ContentParser.stripModelHistoryArtifacts(candidateResponse);
+    final owner = _turnOwnerForGeneration(interactionGeneration);
     final ownerSnapshot = _turnOwnerSnapshotForGeneration(
       interactionGeneration,
     );
@@ -83,9 +79,17 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
         saveSkillCompletedInGeneration:
             _lastSaveSkillGeneration == interactionGeneration,
         acceptsTerminalToolRoleBlockerResponse:
-            _shouldAcceptTerminalToolRoleBlockerResponse(candidateResponse),
+            _shouldAcceptTerminalToolRoleBlockerResponse(visible),
         bracketedToolRequestName: const UnexecutedFinalAnswerToolRequestPolicy()
-            .bracketedToolRequestName(candidateResponse),
+            .bracketedToolRequestName(visible),
+        isProjectTaskTurn: _primaryRoutes.isProjectTaskTurn(
+          interactionGeneration,
+        ),
+        reasoningOnlyRecoveryUsed:
+            owner == null ||
+            _turnEnd
+                .transforms(owner)
+                .contains('coding_continuation_recovery_reasoning_only_stop'),
       ),
     );
   }

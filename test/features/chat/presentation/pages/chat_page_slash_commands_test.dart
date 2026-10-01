@@ -119,14 +119,13 @@ class _SlashChatNotifier extends ChatNotifier {
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
-    bool codeReview = false,
-    bool projectTaskImplementation = false,
+    PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
     String? remoteDeviceId,
     bool interrupt = false,
   }) async {
     sentMessages.add(content);
-    sentReviewRoutes.add(codeReview);
+    sentReviewRoutes.add(purpose == PrimaryTurnPurpose.codeReview);
     return null;
   }
 }

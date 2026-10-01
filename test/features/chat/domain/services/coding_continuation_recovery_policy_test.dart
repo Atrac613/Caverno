@@ -24,6 +24,8 @@ CodingContinuationRecoveryInput _input({
   bool saveSkillCompletedInGeneration = false,
   bool acceptsTerminalToolRoleBlockerResponse = false,
   String? bracketedToolRequestName,
+  bool isProjectTaskTurn = false,
+  bool reasoningOnlyRecoveryUsed = false,
 }) {
   return CodingContinuationRecoveryInput(
     candidateResponse: candidateResponse,
@@ -36,6 +38,8 @@ CodingContinuationRecoveryInput _input({
     acceptsTerminalToolRoleBlockerResponse:
         acceptsTerminalToolRoleBlockerResponse,
     bracketedToolRequestName: bracketedToolRequestName,
+    isProjectTaskTurn: isProjectTaskTurn,
+    reasoningOnlyRecoveryUsed: reasoningOnlyRecoveryUsed,
   );
 }
 
@@ -55,6 +59,82 @@ ToolResultInfo _result({
 }
 
 void main() {
+  group('reasoning-only stop', () {
+    // Session 78578870: a subtask turn ended inside <think> twice while
+    // drafting edits, and the loop took it as the turn's end.
+    const reasoningOnly =
+        '<think>Now I will edit watcher.py, then mercari.py.</think>';
+
+    test('recovers once, on project-task turns too', () {
+      expect(
+        _policy.recoveryCode(
+          _input(candidateResponse: reasoningOnly, isProjectTaskTurn: true),
+        ),
+        'reasoning_only_stop',
+      );
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: reasoningOnly,
+            reasoningOnlyRecoveryUsed: true,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('needs reasoning and an empty visible answer', () {
+      expect(_policy.recoveryCode(_input(candidateResponse: '')), isNull);
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: '<think>Done.</think>All tests pass.',
+            requireContinuationRequest: false,
+          ),
+        ),
+        isNot('reasoning_only_stop'),
+      );
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: reasoningOnly,
+            isCodingWorkspaceOrMode: false,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('project-task turns still skip prose recovery', () {
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: 'I will inspect the Dart source.',
+            requireContinuationRequest: false,
+            isProjectTaskTurn: true,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('names the stop in its prompt and result', () {
+      final prompt = _policy.buildCodingContinuationRecoveryPrompt(
+        reasoningOnly,
+        recoveryCode: 'reasoning_only_stop',
+      );
+      expect(prompt, contains('contained only reasoning'));
+      expect(
+        _policy.recoveryLogLabel('reasoning_only_stop'),
+        'reasoning-only stop recovery',
+      );
+      expect(
+        _policy.recoveryLogLabel('anything else'),
+        'prose-only coding continuation recovery',
+      );
+    });
+  });
+
   group('CodingContinuationRecoveryInput', () {
     test('freezes the supplied tool definition list and entries', () {
       final definition = _toolDefinition('read_file');

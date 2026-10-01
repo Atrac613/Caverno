@@ -63,7 +63,10 @@ const Map<String, int> _lineBudgets = {
   // logic is in TurnAbortSignals.
   // -7: the loop-limit recovery decision derives its pending-call facts in
   // ToolLoopExhaustionDecisionInput.fromPendingCalls instead of here.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8687,
+  // -55, to 8,632: the saved-validation repair check is a pure function of
+  // tool results and moved to application/runtime, paying for the pending-edit
+  // budget extension at the tool-loop limit.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8632,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
@@ -132,8 +135,11 @@ const Map<String, int> _lineBudgets = {
   // furthest from done.
   'lib/features/chat/domain/services/subagent_result_payloads.dart': 188,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
+  // -21, to 402: the input class moved to coding_continuation_recovery_input
+  // .dart, and the per-code wording became one table, which paid for the
+  // reasoning-only stop decision moving in from the notifier library.
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
-      423,
+      402,
   'lib/features/chat/domain/services/coding_continuation_recovery_prompt_builder.dart':
       78,
   'lib/features/chat/domain/services/incomplete_coding_work_detector.dart': 30,
@@ -1238,7 +1244,7 @@ const Map<String, int> _libraryLineBudgets = {
   // the answer. The scope, its carry and its prompts live outside the
   // library; what is left is the per-turn lookup, the tool-list default, the
   // policy-chain hook and one argument at each recovery prompt site.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19903,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19881,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

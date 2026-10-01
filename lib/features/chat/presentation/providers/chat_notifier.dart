@@ -38,8 +38,10 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/runtime/background_wait_iteration_refund.dart';
 import '../../application/runtime/duplicate_command_answer_policy.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
+import '../../application/runtime/pending_edit_budget_extension.dart';
 import '../../application/runtime/read_only_command_repeat_budget.dart';
 import '../../application/runtime/read_only_review_scope.dart';
+import '../../application/runtime/saved_validation_repair_evidence.dart';
 import '../../application/runtime/shell_write_observer.dart';
 import '../../application/runtime/tool_outcome_shadow_observer.dart';
 import '../../application/runtime/turn_abort_signals.dart';
@@ -289,6 +291,7 @@ import 'worktree_agent_task_orchestrator.dart';
 
 export 'chat_data_source_provider.dart'
     show chatDataSourceFactoryProvider, chatRemoteDataSourceProvider;
+export 'primary_turn_purpose.dart';
 
 part 'chat_notifier_approval_handlers.dart';
 part 'chat_notifier_ask_user_question.dart';
@@ -2356,8 +2359,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // message carries what steering cannot (see [_isSteerableMessage]); all
     // three fall back to the queue rather than dropping the message.
     bool interrupt = false,
-    bool codeReview = false,
-    bool projectTaskImplementation = false,
+    PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
   }) async {
     final hasBody = content.trim().isNotEmpty || imageBase64 != null;
     if (!hasBody && video == null) return null;
@@ -2393,8 +2395,7 @@ class ChatNotifier extends Notifier<ChatState> {
           ? remoteDeviceId?.trim()
           : null,
       conversationId: ownerConversationId,
-      codeReview: codeReview,
-      projectTaskImplementation: projectTaskImplementation,
+      purpose: purpose,
     );
     // Only when the user asked to interrupt. Queueing stays the default
     // because "run this after" is a different intent from "do this instead",
@@ -2658,8 +2659,7 @@ class ChatNotifier extends Notifier<ChatState> {
         owner: startedRuntime,
         conversation: currentConversation,
         bypassPlanMode: bypassPlanMode,
-        codeReview: queuedMessage.codeReview,
-        projectTaskImplementation: queuedMessage.projectTaskImplementation,
+        purpose: queuedMessage.purpose,
       );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return turnOwner;
@@ -5035,41 +5035,6 @@ class ChatNotifier extends Notifier<ChatState> {
     return paths;
   }
 
-  bool _postSavedValidationEvidenceRequiresRepair(
-    List<ToolResultInfo> toolResults,
-  ) {
-    for (final result in toolResults) {
-      if (result.name == CodingCommandOutputGuardrailService.toolName) {
-        final payload = ProposalParsingTextUtils.tryDecodeMap(result.result);
-        if (payload?['success'] == false ||
-            payload?['validation_status'] == 'failed') {
-          return true;
-        }
-      }
-      final effect = const ToolCapabilityClassifier()
-          .classify(result.name, arguments: result.arguments)
-          .commandEffect;
-      if (effect != ToolCommandEffect.verification) {
-        continue;
-      }
-      if (!_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
-        return true;
-      }
-      final output = _toolCallExecutionPolicy
-          .toolResultOutputText(result)
-          .toLowerCase();
-      if (output.contains('unhandled exception') ||
-          output.contains('stack trace') ||
-          output.contains('traceback (most recent call last)') ||
-          output.contains('assertionerror') ||
-          output.contains('validation failed') ||
-          output.contains('validation failure')) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   List<Message> _buildToolResultAnswerMessages(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode budgetMode = ToolResultPromptBudgetMode.normal,
@@ -5674,7 +5639,9 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration,
           );
       final validationEvidenceRequiresRepair =
-          _postSavedValidationEvidenceRequiresRepair(batchToolResults);
+          const SavedValidationRepairEvidence().requiresRepair(
+            batchToolResults,
+          );
       final followUpTools =
           savedValidationSucceeded && !validationEvidenceRequiresRepair
           ? const PostSavedValidationToolPolicy().followUpDefinitions(
@@ -5841,14 +5808,23 @@ class ChatNotifier extends Notifier<ChatState> {
             ? nextResult.content
             : currentAssistantContent;
         // Keep declared mutations instead of replaying stale recovery results.
+        final exhaustion = ToolLoopExhaustionDecisionInput.fromPendingCalls(
+          iteration: iteration,
+          maxIterations: maxIterations,
+          recoveryAlreadyAttempted: attemptedToolLoopExhaustionRecovery,
+          pendingToolCalls: currentToolCalls,
+          hasCurrentBatchToolResults: batchToolResults.isNotEmpty,
+        );
+        if (const PendingEditBudgetExtension().applies(
+          exhaustion,
+          executedToolResults: executedToolResults,
+        )) {
+          requestBudgetExtension(
+            ExecutionBudgetExtensionReason.pendingFileEdit,
+          );
+        }
         if (const ToolLoopExhaustionPolicy().shouldRequestRecovery(
-          ToolLoopExhaustionDecisionInput.fromPendingCalls(
-            iteration: iteration,
-            maxIterations: maxIterations,
-            recoveryAlreadyAttempted: attemptedToolLoopExhaustionRecovery,
-            pendingToolCalls: currentToolCalls,
-            hasCurrentBatchToolResults: batchToolResults.isNotEmpty,
-          ),
+          exhaustion,
         )) {
           attemptedToolLoopExhaustionRecovery = true;
           appLog(

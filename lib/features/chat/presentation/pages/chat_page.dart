@@ -358,7 +358,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 commandName: invocation.commandName,
               ),
               languageCode: context.locale.languageCode,
-              codeReview: true,
+              purpose: PrimaryTurnPurpose.codeReview,
               bypassPlanMode: true,
             ),
       );

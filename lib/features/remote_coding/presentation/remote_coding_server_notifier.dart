@@ -1643,7 +1643,9 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             bypassPlanMode: message.payload['codeReview'] == true,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
-            codeReview: message.payload['codeReview'] == true,
+            purpose: message.payload['codeReview'] == true
+                ? PrimaryTurnPurpose.codeReview
+                : PrimaryTurnPurpose.conversation,
           ),
     );
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
@@ -1705,7 +1707,9 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             bypassPlanMode: message.payload['codeReview'] == true,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
-            codeReview: message.payload['codeReview'] == true,
+            purpose: message.payload['codeReview'] == true
+                ? PrimaryTurnPurpose.codeReview
+                : PrimaryTurnPurpose.conversation,
           ),
     );
     client.send(

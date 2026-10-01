@@ -29,11 +29,15 @@ void main() {
     int generation, {
     required bool codeReview,
     bool implementation = false,
+    bool step = false,
   }) => runtime.capture(
     generation: generation,
     settings: settings,
-    codeReview: codeReview,
-    projectTaskImplementation: implementation,
+    purpose: PrimaryTurnPurpose.of(
+      codeReview: codeReview,
+      projectTaskImplementation: implementation,
+      projectTaskStep: step,
+    ),
     assistantMode: AssistantMode.coding,
     primaryDataSource: _MockChatDataSource(),
     health: EndpointHealthTracker(),
@@ -45,6 +49,22 @@ void main() {
     ),
     record: (_) async {},
   );
+
+  test('a subtask step is neither implementation nor review', () async {
+    // Session 80dc7079: subtask turns lost the implementation turn's
+    // exemption from prose continuation recovery, which forced an extra tool
+    // call after a finished subtask.
+    final runtime = PrimaryTurnRouteRuntime();
+    await capture(runtime, 1, codeReview: false, step: true);
+    expect(runtime.isProjectTaskStep(1), isTrue);
+    expect(runtime.isProjectTaskImplementation(1), isFalse);
+    expect(runtime.isCodeReview(1), isFalse);
+    await capture(runtime, 1, codeReview: false);
+    expect(runtime.isProjectTaskStep(1), isFalse);
+    await capture(runtime, 2, codeReview: false, step: true);
+    runtime.release(2);
+    expect(runtime.isProjectTaskStep(2), isFalse);
+  });
 
   test(
     'implementation metadata cannot leak to review or a recaptured turn',

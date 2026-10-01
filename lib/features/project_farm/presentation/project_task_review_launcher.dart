@@ -86,8 +86,9 @@ final class ProjectTaskReviewLauncher {
           prompt,
           languageCode: languageCode,
           bypassPlanMode: true,
-          codeReview: codeReview,
-          projectTaskImplementation: !codeReview,
+          purpose: codeReview
+              ? PrimaryTurnPurpose.codeReview
+              : PrimaryTurnPurpose.projectTaskImplementation,
         ),
         waitForCompletion: notifier.waitForTurnCompletion,
       );
@@ -104,6 +105,7 @@ final class ProjectTaskReviewLauncher {
           prompt,
           languageCode: languageCode,
           bypassPlanMode: true,
+          purpose: PrimaryTurnPurpose.projectTaskStep,
         ),
         waitForCompletion: notifier.waitForTurnCompletion,
       );

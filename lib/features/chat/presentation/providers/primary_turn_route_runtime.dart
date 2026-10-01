@@ -8,6 +8,9 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/primary_route_chat_datasource.dart';
 import '../../domain/services/primary_model_router.dart';
+import 'primary_turn_purpose.dart';
+
+export 'primary_turn_purpose.dart';
 
 typedef AssignedPrimaryDataSourceBuilder =
     ChatDataSource Function(ResolvedEndpoint endpoint);
@@ -21,12 +24,12 @@ final class PrimaryTurnRouteRuntime {
   /// with the route because the flag arrives here and nowhere else.
   final Set<int> _codeReviews = {};
   final Set<int> _projectTaskImplementations = {};
+  final Set<int> _projectTaskSteps = {};
 
   Future<void> capture({
     required int generation,
     required AppSettings settings,
-    bool codeReview = false,
-    bool projectTaskImplementation = false,
+    PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
     required AssistantMode assistantMode,
     required ChatDataSource primaryDataSource,
     required EndpointHealthTracker health,
@@ -34,6 +37,7 @@ final class PrimaryTurnRouteRuntime {
     required PrimaryRouteModelPreparer preparer,
     required PrimaryRouteRecorder record,
   }) async {
+    final codeReview = purpose == PrimaryTurnPurpose.codeReview;
     final reviewEndpointId = settings.codeReviewEndpointId.trim();
     if (codeReview && !settings.hasCodeReviewRoute) {
       throw StateError(
@@ -74,11 +78,16 @@ final class PrimaryTurnRouteRuntime {
             health: health,
           );
     _routes[generation] = (resolution, dataSource);
-    if (projectTaskImplementation && !codeReview) {
-      _projectTaskImplementations.add(generation);
-    } else {
-      _projectTaskImplementations.remove(generation);
-    }
+    _mark(
+      _projectTaskImplementations,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskImplementation,
+    );
+    _mark(
+      _projectTaskSteps,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskStep,
+    );
     if (codeReview) {
       _codeReviews.add(generation);
     } else {
@@ -140,8 +149,21 @@ final class PrimaryTurnRouteRuntime {
   bool isProjectTaskImplementation(int generation) =>
       _projectTaskImplementations.contains(generation);
 
+  /// A project-task subtask turn before the last; see
+  /// [PrimaryTurnPurpose.projectTaskStep].
+  bool isProjectTaskStep(int generation) =>
+      _projectTaskSteps.contains(generation);
+
+  /// Any project-task turn the farm workflow settles by a structured marker.
+  bool isProjectTaskTurn(int generation) =>
+      isProjectTaskImplementation(generation) || isProjectTaskStep(generation);
+
+  static void _mark(Set<int> set, int generation, bool member) =>
+      member ? set.add(generation) : set.remove(generation);
+
   void release(int generation) {
     _projectTaskImplementations.remove(generation);
+    _projectTaskSteps.remove(generation);
     _routes.remove(generation);
     _codeReviews.remove(generation);
   }

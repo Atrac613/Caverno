@@ -780,6 +780,11 @@ SIGNATURES = {
         "what": "a re-run farm task counts an earlier run's uncommitted changes",
         "match": _inherited_task_guidance,
     },
+    "reasoning_only_stop_recovery": {
+        "commit": "9c6f57a6b",
+        "what": "a tool-loop response ending inside reasoning gets a continuation",
+        "transform": "coding_continuation_recovery_reasoning_only_stop",
+    },
     "loop_limit_question_to_user": {
         "commit": "4e482cb4b",
         "what": "ask_user_question pending at the loop limit reaches the user",
