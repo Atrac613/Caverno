@@ -248,7 +248,7 @@ class _ProjectFarmPolicyDialogState extends State<ProjectFarmPolicyDialog> {
 }
 
 /// FARM5: whether idle-time maintenance may start runs, how many a day, and
-/// which allowed commands the user declares do not execute project code.
+/// which allowed commands the user authorizes for contained verification.
 class ProjectFarmUnattendedDialog extends StatefulWidget {
   const ProjectFarmUnattendedDialog({super.key, required this.policy});
 

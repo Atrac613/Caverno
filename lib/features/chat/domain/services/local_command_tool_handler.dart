@@ -75,10 +75,12 @@ final class LocalCommandToolHandler {
 
     if (!request.isRemoteInteraction &&
         permission == CommandPermissionRuleDecision.allow &&
+        !approvalScope.workspaceCommandContained &&
         !requiresExplicitApproval) {
       return _execute(request, execution);
     }
-    if (!argumentIsTruthy(request.arguments['background']) &&
+    if (request.toolName != 'process_start' &&
+        !argumentIsTruthy(request.arguments['background']) &&
         LocalShellTools.isReadOnly(command) &&
         !requiresExplicitApproval) {
       return _execute(request, execution);

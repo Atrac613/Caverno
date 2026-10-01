@@ -22,6 +22,28 @@ void main() {
     );
     expect(actual.counts('====== 6 passed in 3.05s ======')?.passedCount, 6);
   });
+  test('recognizes both literal tail line-count forms', () {
+    final expected = PytestVerificationIdentity.parse(
+      'python3 -m pytest -q',
+      '/workspace',
+    );
+    for (final suffix in ['2>&1 | tail -5', '2>&1 | tail -n 5']) {
+      expect(
+        PytestVerificationIdentity.parse(
+          'python3 -m pytest -q $suffix',
+          '/workspace',
+        )?.key,
+        expected?.key,
+      );
+    }
+    expect(
+      PytestVerificationIdentity.parse(
+        'git check-ignore config.json && python3 -m pytest -q 2>&1 | tail -n 5',
+        '/workspace',
+      ),
+      isNull,
+    );
+  });
   for (final command in [
     'cd /workspace && python -m pytest && rm -rf data',
     'cd /workspace; python -m pytest',

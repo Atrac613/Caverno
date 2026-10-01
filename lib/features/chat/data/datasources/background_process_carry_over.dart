@@ -54,16 +54,13 @@ extension BackgroundProcessCarryOver on BackgroundProcessTools {
 
   _BackgroundProcessJob? _adoptCarriedRunningJob(
     ChatTurnOwner owner,
-    String command,
-    String workingDirectory,
+    (String, String, String?) route,
   ) {
     if (!_canAdopt(owner)) return null;
     final carried = _carriedJobs[owner.conversationId];
     if (carried == null) return null;
     for (final entry in carried.values) {
-      if (entry.job.isRunning &&
-          entry.job.command == command &&
-          entry.job.workingDirectory == workingDirectory) {
+      if (entry.job.isRunning && entry.job.executionRoute == route) {
         return _adoptJob(owner, entry);
       }
     }

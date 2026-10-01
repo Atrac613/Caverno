@@ -668,6 +668,9 @@ void main() {
       'which python3 && python3 --version',
       'env MODE=check python3 watcher.py --help',
       'printf ready | cat > output.txt',
+      'python3 -m pytest -q 2>&1 | tail -5',
+      '.venv/bin/python -m pytest -q 2>&1 | tail -n 5',
+      '/usr/bin/python3 -m pytest -q 2>&1 | tail -5',
     ]) {
       test(
         'contained $command uses auto-review without a manual gate',
@@ -749,14 +752,11 @@ void main() {
         addTearDown(() => root.delete(recursive: true));
         final owner = _owner('owner-a');
         for (final arguments in [
-          {'command': 'bash tool/check.sh', 'background': true},
           {'command': 'bash tool/check.sh &'},
-          {'command': 'bash tool/check.sh /outside-project/result.txt'},
+          {'command': 'bash tool/check.sh', 'execution_scope': 'host'},
           {'command': 'bash tool/release_ios_macos.sh'},
           {'command': 'bash -c "flutter build macos"'},
-          {'command': 'ls -la && which python3', 'background': true},
           {'command': 'ls -la && python3 --version &'},
-          {'command': 'ls -la && python3 /outside-project/probe.py'},
           {'command': 'ls -la && sh tool/release_ios_macos.sh'},
           {'command': 'ls -la && xcodebuild -version'},
         ]) {

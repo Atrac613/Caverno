@@ -4,10 +4,10 @@ import 'dart:io';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../../../../core/services/login_shell_environment.dart';
 import '../../domain/services/dart_diagnostic_line_parser.dart';
 import '../../domain/services/pytest_verification_identity.dart';
 import 'first_party_tool_execution_result.dart';
+import 'local_shell_launch_plan.dart';
 import 'shell_write_observation.dart';
 
 /// Owns bounded process output, timeout settlement, and observed outcomes.
@@ -22,15 +22,11 @@ abstract final class LocalShellProcessRunner {
     String? observationTag,
     String? scratchDirectory,
   }) async {
-    final process = await Process.start(
-      shellExecutable,
-      shellArgs,
+    final process = await startLocalShellProcess(
+      executable: shellExecutable,
+      arguments: shellArgs,
       workingDirectory: workingDirectory,
-      // Inject the login-shell PATH so user commands resolve their binaries.
-      environment: {
-        ...await LoginShellEnvironment.instance.environment(),
-        'TMPDIR': ?scratchDirectory,
-      },
+      scratchDirectory: scratchDirectory,
     );
     final stdout = _BoundedOutputBuffer(maxOutputChars);
     final stderr = _BoundedOutputBuffer(maxOutputChars);

@@ -40,7 +40,7 @@ void main() {
       },
     );
     test(
-      'captures recognized pytest counts beside a masked pipeline exit',
+      'preserves pytest counts and failure through an output pipeline',
       () async {
         if (Platform.isWindows) return;
         final directory = await Directory.systemTemp.createTemp(
@@ -63,7 +63,7 @@ void main() {
             command: command,
             workingDirectory: directory.path,
           );
-          expect(result.outcome?.exitCode, 0);
+          expect(result.outcome?.exitCode, 1);
           expect(result.outcome?.testOutcome?.passedCount, 4);
           expect(result.outcome?.testOutcome?.failedCount, 2);
         }
@@ -622,10 +622,10 @@ void main() {
       expect(tailed['stdout'], contains('b.txt'));
       expect(tailed['stdout'], contains('c.txt'));
 
-      // Without pipefail the pipeline reports tail's status, not cat's.
+      // Output trimming must preserve the failed producer's status.
       final piped = await run('cat missing.txt | tail -1 && echo continued');
-      expect(piped['exit_code'], 0);
-      expect(piped['stdout'], 'continued\n');
+      expect(piped['exit_code'], isNot(0));
+      expect(piped['stdout'], '');
     });
 
     test(

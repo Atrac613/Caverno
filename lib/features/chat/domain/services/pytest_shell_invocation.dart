@@ -9,10 +9,8 @@ abstract final class PytestShellInvocation {
     String directory,
   ) {
     if (!path.isAbsolute(directory)) return null;
-    var invocation = command
-        .trim()
-        .replaceFirst(RegExp(r'\s*(?:2>&1\s*)?\|\s*tail\s+-[1-9]\d*\s*$'), '')
-        .trim();
+    final tail = RegExp(r'\s*(2>&1\s*)?\|\s*tail\s+-(n\s+)?[1-9]\d*\s*$');
+    var invocation = command.trim().replaceFirst(tail, '').trim();
     final cd = RegExp(r'^cd\s+(.+?)\s*&&\s*(.+)$').firstMatch(invocation);
     if (cd != null) {
       final target = LiteralShellWords.parse(cd[1]!);

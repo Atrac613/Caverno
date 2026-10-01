@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'shell_write_observation.dart';
+import 'workspace_command_environment.dart';
 
-/// Runs foreground shell commands with writes confined by macOS.
+/// Runs commands with filesystem, environment and network authority confined.
 /// The approval gate may relax its host-write rule only for this exact route.
 abstract final class LocalCommandWorkspaceContainment {
   static const executable = '/usr/bin/sandbox-exec';
-  static final _backgroundOperator = RegExp(r'(?<!&)&(?!&)');
+  // Descriptor duplication (2>&1, <&0) and combined output (&>) are not jobs.
+  static final _backgroundOperator = RegExp(r'(?<![&<>])&(?![&>])');
 
   static bool eligible({required String command, required String? root}) {
     if (!Platform.isMacOS || !File(executable).existsSync()) return false;
@@ -32,12 +34,26 @@ abstract final class LocalCommandWorkspaceContainment {
     String literal(String value) =>
         '"${value.replaceAll(r'\', r'\\').replaceAll('"', r'\"')}"';
     return '(version 1)(allow default)'
+        '(deny file-read-data)'
+        // dyld opens the root directory during process startup. A literal
+        // grant does not allow reading its descendants.
+        '(allow file-read-data (literal "/"))'
+        '(allow file-read-data (subpath ${literal(root)}))'
+        '(allow file-read-data (subpath ${literal(scratch)}))'
+        '(allow file-read-data (regex #"^/dev/(null|zero|random|urandom|fd(/.*)?)\$"))'
+        '${WorkspaceCommandEnvironment.readRoots().map((path) => '(allow file-read-data (subpath ${literal(path)}))').join()}'
+        '(allow file-read-data (literal "/private/etc/localtime") '
+        '(literal "/private/etc/passwd") (literal "/private/etc/group"))'
         '(deny file-write*)'
         '(allow file-write* (subpath ${literal(root)}))'
         '(allow file-write* (subpath ${literal(scratch)}))'
-        '(allow file-write* (subpath "/dev"))'
+        '(allow file-write* (regex #"^/dev/(null|zero|fd(/.*)?)\$"))'
         '(deny file-write* (subpath ${literal('$root/.git')}))'
-        '(deny appleevent-send)(deny mach-lookup)(deny network*)';
+        '(deny file-write* (subpath ${literal('$root/.caverno')}))'
+        '(deny appleevent-send)(deny mach-lookup)(deny network*)'
+        '(deny process-info*)(allow process-info* (target same-sandbox))'
+        '(deny ipc-posix*)'
+        '(deny signal)(allow signal (target same-sandbox))';
   }
 
   static Future<LocalCommandWorkspaceSandbox?> prepare({
@@ -69,6 +85,12 @@ final class LocalCommandWorkspaceSandbox {
 
   final String profile;
   final Directory scratch;
+
+  Map<String, String> environment(Map<String, String> source) =>
+      WorkspaceCommandEnvironment.isolated(
+        source: source,
+        scratch: scratch.path,
+      );
 
   Future<void> dispose() async {
     try {

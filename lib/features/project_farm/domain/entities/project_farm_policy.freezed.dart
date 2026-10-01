@@ -15,10 +15,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ProjectFarmPolicy {
 
- String get projectId; List<String> get allowedVerificationCommands; int get maxConcurrentTasks; DateTime get updatedAt;/// FARM5: the subset of [allowedVerificationCommands] the user declared as
-/// not executing project code (e.g. analyze, a format check). Only these
-/// may run unattended: a test run executes code the agent just wrote, so
-/// it keeps a person in the loop. Declared, never inferred.
+ String get projectId; List<String> get allowedVerificationCommands; int get maxConcurrentTasks; DateTime get updatedAt;/// The subset of [allowedVerificationCommands] authorized for unattended
+/// verification. Project tests are permitted because the verification
+/// runner enforces workspace containment, including for generated code.
  List<String> get unattendedCommands;/// FARM5: whether idle-time maintenance may start runs on its own. Off
 /// until the user turns it on.
  bool get autoRunEnabled;/// FARM5: unattended runs allowed per local day.
@@ -235,15 +234,13 @@ class _ProjectFarmPolicy extends ProjectFarmPolicy {
 
 @override@JsonKey() final  int maxConcurrentTasks;
 @override final  DateTime updatedAt;
-/// FARM5: the subset of [allowedVerificationCommands] the user declared as
-/// not executing project code (e.g. analyze, a format check). Only these
-/// may run unattended: a test run executes code the agent just wrote, so
-/// it keeps a person in the loop. Declared, never inferred.
+/// The subset of [allowedVerificationCommands] authorized for unattended
+/// verification. Project tests are permitted because the verification
+/// runner enforces workspace containment, including for generated code.
  final  List<String> _unattendedCommands;
-/// FARM5: the subset of [allowedVerificationCommands] the user declared as
-/// not executing project code (e.g. analyze, a format check). Only these
-/// may run unattended: a test run executes code the agent just wrote, so
-/// it keeps a person in the loop. Declared, never inferred.
+/// The subset of [allowedVerificationCommands] authorized for unattended
+/// verification. Project tests are permitted because the verification
+/// runner enforces workspace containment, including for generated code.
 @override@JsonKey() List<String> get unattendedCommands {
   if (_unattendedCommands is EqualUnmodifiableListView) return _unattendedCommands;
   // ignore: implicit_dynamic_type

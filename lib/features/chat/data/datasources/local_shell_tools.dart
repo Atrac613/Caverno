@@ -191,7 +191,7 @@ class LocalShellTools {
       return FirstPartyToolExecutionResult.payloadOnly(gitWriteBlockedResult);
     }
 
-    if (_canExecuteInternally(normalizedCommand)) {
+    if (containmentRoot == null && _canExecuteInternally(normalizedCommand)) {
       return _executeInternally(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
@@ -199,10 +199,12 @@ class LocalShellTools {
       );
     }
 
-    final shellExecutable = Platform.isWindows ? 'cmd' : 'sh';
+    final shellExecutable = Platform.isWindows ? 'cmd' : 'bash';
     final shellArgs = Platform.isWindows
         ? ['/C', normalizedCommand]
         : [
+            '-o',
+            'pipefail',
             if (_shouldEnableImplicitErrexit(normalizedCommand)) '-e',
             '-c',
             normalizedCommand,
@@ -824,9 +826,8 @@ class LocalShellTools {
         stderrBuffer.write(result.stderr);
       }
 
-      // Without `pipefail` a pipeline reports its last command, and a head or
-      // tail over a stream succeeds whatever the left side returned.
-      exitCode = lineLimit == null ? result.exitCode : 0;
+      // Match the native pipefail route: output trimming cannot hide failure.
+      exitCode = result.exitCode;
       if (exitCode != 0) {
         skipping = true;
       }

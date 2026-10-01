@@ -18,10 +18,9 @@ abstract class ProjectFarmPolicy with _$ProjectFarmPolicy {
     @Default(1) int maxConcurrentTasks,
     required DateTime updatedAt,
 
-    /// FARM5: the subset of [allowedVerificationCommands] the user declared as
-    /// not executing project code (e.g. analyze, a format check). Only these
-    /// may run unattended: a test run executes code the agent just wrote, so
-    /// it keeps a person in the loop. Declared, never inferred.
+    /// The subset of [allowedVerificationCommands] authorized for unattended
+    /// verification. Project tests are permitted because the verification
+    /// runner enforces workspace containment, including for generated code.
     @Default(<String>[]) List<String> unattendedCommands,
 
     /// FARM5: whether idle-time maintenance may start runs on its own. Off
@@ -37,8 +36,7 @@ abstract class ProjectFarmPolicy with _$ProjectFarmPolicy {
 
   bool get allowsBackgroundWork => allowedVerificationCommands.isNotEmpty;
 
-  /// The command an unattended run uses: the first one the user declared as
-  /// not executing project code that is also allowed. Null when none is.
+  /// The first user-authorized unattended verification command, or null.
   String? get unattendedCommand {
     for (final command in unattendedCommands) {
       if (allows(command)) return normalizePolicyCommand(command);
