@@ -164,12 +164,14 @@ class BrowserSessionService extends ChangeNotifier {
     EgressDestinationPolicy destinationPolicy = const EgressDestinationPolicy(),
     BrowserPinnedHttpClient? pinnedHttpClient,
     Future<HttpServer> Function(InternetAddress address, int port)? proxyBind,
+    Duration controllerReadyTimeout = const Duration(seconds: 12),
   }) : _saveDirectoryOverride = saveDirectoryOverride,
        _destinationPolicy = destinationPolicy,
        _pinnedHttpClient =
            pinnedHttpClient ??
            BrowserPinnedHttpClient(destinationPolicy: destinationPolicy),
-       _proxyBind = proxyBind;
+       _proxyBind = proxyBind,
+       _controllerReadyTimeout = controllerReadyTimeout;
 
   InAppWebViewController? _controller;
   Completer<InAppWebViewController>? _controllerReady;
@@ -179,6 +181,9 @@ class BrowserSessionService extends ChangeNotifier {
   final BrowserPinnedHttpClient _pinnedHttpClient;
   final Future<HttpServer> Function(InternetAddress address, int port)?
   _proxyBind;
+
+  /// How long an action waits for the pane to mount its WebView.
+  final Duration _controllerReadyTimeout;
   BrowserMediationProxy? _mediationProxy;
   String? _inFlightReroute;
 
@@ -860,7 +865,7 @@ class BrowserSessionService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<InAppWebViewController> _ensureReady({
-    Duration timeout = const Duration(seconds: 12),
+    Duration? timeout,
     bool requireEnabled = true,
   }) async {
     if (!isPlatformSupported) throw const BrowserUnavailableException();
@@ -872,8 +877,16 @@ class BrowserSessionService extends ChangeNotifier {
     if (!_isPanelOpen) open();
     final ready = _controllerReady ??= Completer<InAppWebViewController>();
     try {
-      return await ready.future.timeout(timeout);
+      return await ready.future.timeout(timeout ?? _controllerReadyTimeout);
     } on TimeoutException {
+      // No frame mounted the pane: the window is hidden, the screen is
+      // locked, or no page hosts it. Disarm the open, or the pane mounts when
+      // frames resume and attachController replays the navigation hours after
+      // the caller was told it failed. A waiter whose wait was already
+      // replaced leaves the newer open alone.
+      if (_controller == null && identical(_controllerReady, ready)) {
+        closePanel();
+      }
       throw const BrowserNotReadyException();
     }
   }
