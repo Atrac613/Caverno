@@ -135,4 +135,27 @@ void main() {
       reason: 'one call at a time',
     );
   });
+
+  test('accepts the verification a real status request was refused', () {
+    // Session 22d603f7: the offered verification was refused twice because
+    // `2>&1` and a `.venv/bin/python` script read as workspace mutation.
+    final offered = verification.tools(allTools, verificationGap: true);
+    expect(
+      verification.accepts([
+        call('local_execute_command', {
+          'command':
+              'cd /Users/noguwo/Documents/Workspace/Watcher && '
+              '.venv/bin/python verify_logging.py && .venv/bin/python -m '
+              'pytest test_state.py test_watcher.py -v 2>&1',
+        }),
+      ], offered),
+      isTrue,
+    );
+    expect(
+      verification.accepts([
+        call('local_execute_command', {'command': 'pytest -q > out.txt'}),
+      ], offered),
+      isFalse,
+    );
+  });
 }

@@ -193,6 +193,40 @@ void main() {
       }
     });
 
+    test('descriptor duplication and venv interpreters stay verification', () {
+      // Session 22d603f7: a farm status request offered verification, and the
+      // model's `... verify_logging.py && ... pytest -v 2>&1` was refused as a
+      // workspace mutation.
+      for (final command in [
+        '.venv/bin/python -m pytest -v 2>&1',
+        'pytest -q 2>&1 | tail -n 5',
+        'pytest -q 2>/dev/null',
+        'pytest -q >&2',
+        '.venv/bin/python verify_logging.py',
+        'python3.12 verify_logging.py',
+        'cd /w && .venv/bin/python verify_logging.py && '
+            '.venv/bin/python -m pytest test_state.py -v 2>&1',
+      ]) {
+        expect(
+          effectOf('local_execute_command', command),
+          ToolCommandEffect.verification,
+          reason: command,
+        );
+      }
+      for (final command in [
+        'pytest -q > out.txt',
+        'pytest -q 2> err.txt',
+        'pytest -q >> log.txt',
+        'pytest -q &> all.txt',
+      ]) {
+        expect(
+          effectOf('local_execute_command', command),
+          isNot(ToolCommandEffect.verification),
+          reason: command,
+        );
+      }
+    });
+
     test('installs and venv creation are not verification', () {
       // Session 80dc7079: a read-only review ran `python3 -m venv .venv &&
       // .venv/bin/pip install pytest`, because `pytest` as an install target

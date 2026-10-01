@@ -360,8 +360,14 @@ class ToolCapabilityClassifier {
     return ToolCommandEffect.inspection;
   }
 
+  /// A redirection that can write a file. `2>&1` and `>&2` only duplicate a
+  /// descriptor and `>/dev/null` writes nothing, yet each used to make a test
+  /// run a workspace mutation: `pytest -v 2>&1` was refused as a read-only
+  /// verification (session 22d603f7).
   bool _containsShellRedirection(String command) {
-    return RegExp(r'(^|\s)\d*(?:>>?|<<-?)\s*\S').hasMatch(command);
+    return RegExp(
+      r'(^|\s)(?:\d*|&)(?:>>?(?!\s*(?:&\d|/dev/null(?:\s|$)))|<<-?)\s*\S',
+    ).hasMatch(command);
   }
 
   List<String> _splitShellCommandSegments(String command) {
@@ -394,6 +400,16 @@ class ToolCapabilityClassifier {
           index + 1 < command.length &&
           ((character == '&' && command[index + 1] == '&') ||
               (character == '|' && command[index + 1] == '|'));
+      // `2>&1` and `&>file` are redirections, not the background operator.
+      final isRedirectionAmpersand =
+          character == '&' &&
+          !isDoubleOperator &&
+          ((index > 0 && command[index - 1] == '>') ||
+              (index + 1 < command.length && command[index + 1] == '>'));
+      if (isRedirectionAmpersand) {
+        buffer.write(character);
+        continue;
+      }
       if (isDoubleOperator ||
           character == '&' ||
           character == ';' ||
@@ -440,7 +456,7 @@ class ToolCapabilityClassifier {
 
   bool _looksLikeRuntimeBehaviorCheck(String command) {
     return RegExp(
-      r'(^| )(?:(dart run|python3?|node|bun|deno run|ruby|go run|cargo run)\s+[^ ]+|dart\s+[^ ]+\.dart(?: |$))',
+      r'(^| )(?:(dart run|(?:[^ ]*/)?python3?(?:\.[0-9]+)?|node|bun|deno run|ruby|go run|cargo run)\s+[^ ]+|dart\s+[^ ]+\.dart(?: |$))',
     ).hasMatch(command);
   }
 
@@ -472,7 +488,7 @@ class ToolCapabilityClassifier {
 
   bool _looksLikeVerifierScriptCommand(String command) {
     return RegExp(
-      r'(^| )(dart run|python3?|bash|zsh|sh) [^ ]*(^|[/_-])verif(y|ier)[^ ]*( |$)',
+      r'(^| )(dart run|(?:[^ ]*/)?python3?(?:\.[0-9]+)?|bash|zsh|sh) [^ ]*(^|[/_-])verif(y|ier)[^ ]*( |$)',
     ).hasMatch(command);
   }
 
