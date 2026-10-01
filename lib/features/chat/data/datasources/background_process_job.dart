@@ -29,10 +29,14 @@ final class _BackgroundProcessJob {
     required BackgroundProcessTerminator terminator,
     required this.processGroupId,
     this.label,
+    this.launch,
+    this.containmentRoot,
   }) : _terminator = terminator;
 
   final String id, command, workingDirectory;
   final String? label;
+  final String? containmentRoot;
+  final LocalShellLaunchPlan? launch;
   final Process process;
   final DateTime startedAt;
   final int? processGroupId;
@@ -55,6 +59,8 @@ final class _BackgroundProcessJob {
   DateTime? finishedAt;
   bool _attached = false;
 
+  (String, String, String?) get executionRoute =>
+      (command, workingDirectory, containmentRoot);
   bool get isRunning => exitCode == null;
   Future<void> get done => _done.future;
   String get status => isRunning ? 'running' : 'exited';
@@ -146,6 +152,7 @@ final class _BackgroundProcessJob {
       exitCode = -1;
       finishedAt = DateTime.now();
     } finally {
+      await launch?.dispose();
       _complete(_done);
     }
   }
@@ -158,6 +165,7 @@ final class _BackgroundProcessJob {
       'pid': process.pid,
       'command': command,
       'working_directory': workingDirectory,
+      'workspace_command_containment': containmentRoot != null,
       if (label != null && label!.isNotEmpty) 'label': label,
       'started_at': startedAt.toIso8601String(),
       if (finishedAt != null) 'finished_at': finishedAt!.toIso8601String(),

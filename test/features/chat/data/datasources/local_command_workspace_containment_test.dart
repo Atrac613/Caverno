@@ -33,6 +33,12 @@ void main() {
       'printf ok | cat > output.txt',
       'printf first > first.txt\nprintf second > second.txt',
       'curl example.com && python3 watcher.py',
+      'python3 -m pytest -q 2>&1 | tail -5',
+      '.venv/bin/python -m pytest -q 2>&1 | tail -5',
+      'cd ${root.path} && git check-ignore -v config.json state.json && '
+          '.venv/bin/python -m pytest -q 2>&1 | tail -n 5',
+      'printf ok &> output.txt',
+      'printf ok 1>&2',
     ]) {
       expect(
         LocalCommandWorkspaceContainment.eligible(
@@ -55,7 +61,6 @@ void main() {
       "bash -c 'bash tool/check.sh &'",
       'python3 watcher.py &',
       'ls -la && python3 --version &',
-      'printf ok &> output.txt',
       'ls -la && xcodebuild -version',
       'python3 watcher.py && flutter build macos',
       'cd ${root.path} && sh tool/release_ios_macos.sh',
@@ -257,6 +262,41 @@ bash -c 'printf blocked > "$1"' child 'TARGET'
         expect(result['exit_code'], allOf(isA<int>(), isNot(0)));
         expect(await hook.readAsString(), 'original');
       }
+    }, skip: !supported);
+
+    test(
+      'blocks external reads including symlink and computed paths',
+      () async {
+        final secret = File('${outside.path}/dummy-secret.txt');
+        await secret.writeAsString('DUMMY_OUTSIDE_FIXTURE');
+        await Link('${project.path}/escape').create(outside.path);
+        for (final expression in [
+          'Path("escape/dummy-secret.txt")',
+          'Path.cwd().parent / "outside" / "dummy-secret.txt"',
+        ]) {
+          await File('${project.path}/read.py').writeAsString(
+            'from pathlib import Path\nprint(($expression).read_text())\n',
+          );
+          final result = await execute('python3 read.py');
+          expect(result['exit_code'], isNot(0));
+          expect(result['stdout'], isNot(contains('DUMMY_OUTSIDE_FIXTURE')));
+          expect(result['stderr'], contains('Operation not permitted'));
+        }
+      },
+      skip: !supported,
+    );
+
+    test('preserves a failed pipeline status through tail', () async {
+      final result = await execute('bash -c "exit 7" 2>&1 | tail -n 5');
+      expect(result['exit_code'], 7);
+    }, skip: !supported);
+
+    test('uses private home and scratch for contained children', () async {
+      final result = await execute(
+        r"""python3 -c 'import os; print(os.environ["HOME"] == os.environ["TMPDIR"]); print(os.environ["PYTHONNOUSERSITE"])' """,
+      );
+      expect(result['exit_code'], 0, reason: result['stderr'] as String?);
+      expect(result['stdout'], 'True\n1\n');
     }, skip: !supported);
 
     test('blocks loopback network access from script children', () async {

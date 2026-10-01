@@ -17,17 +17,12 @@ abstract final class LocalCommandExecutionPlan {
   }) {
     final background = argumentIsTruthy(request.arguments['background']);
     final containedCommand =
-        !background &&
+        // A process_start job owns the shell lifetime just like foreground.
+        request.arguments['execution_scope'] != 'host' &&
         LocalCommandWorkspaceContainment.eligible(
           command: command,
           root: request.allowedWorkingDirectoryRoot,
-        ) &&
-        const OutOfRootCommandPaths()
-            .scan(
-              command: command,
-              projectRoot: request.allowedWorkingDirectoryRoot,
-            )
-            .isEmpty;
+        );
     final execution = LocalCommandExecutionRequest(
       toolCallId: request.toolCallId,
       toolName: request.toolName,
@@ -44,7 +39,10 @@ abstract final class LocalCommandExecutionPlan {
     final approvalScope = LocalCommandApprovalScope.of(
       command: command,
       projectRoot: request.allowedWorkingDirectoryRoot,
-      reachesNativeShell: background || !LocalShellTools.isReadOnly(command),
+      reachesNativeShell:
+          request.toolName == 'process_start' ||
+          background ||
+          !LocalShellTools.isReadOnly(command),
       hostWriteContained: containedCommand,
       commandShapeRequiresApproval:
           LocalCommandPermissionService.requiresExplicitApproval,

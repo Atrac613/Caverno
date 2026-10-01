@@ -1,5 +1,12 @@
 # SEC4.4i OS-Enforced Write Containment (plan)
 
+2026-10-01 update: foreground commands, managed background jobs and default
+Farm verification now share a stricter filesystem/environment/service boundary.
+Contained commands receive fresh local-LLM review in Auto-review mode. See
+[Project Execution Boundaries](project_execution_boundary_design.md) for current
+behavior, native fixture evidence and remaining SDK/platform limitations. The
+sections below retain the earlier implementation history.
+
 Status: 4i-a implemented 2026-09-24 (opt-in observe mode). The macOS foreground
 `local_execute_command` containment route covers shell commands and command
 chains (expanded from Python and Bash on 2026-09-30); general 4i-b onward

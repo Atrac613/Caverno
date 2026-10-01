@@ -82,7 +82,8 @@ Project State (per-project projection with citations)
 
 ## Constraints Found In The Code
 
-Measured 2026-09-26 against main `a33200f14`.
+Measured 2026-09-26 against main `a33200f14`; execution-boundary notes updated
+2026-10-01.
 
 - **A turn can only start on the visible thread.**
   `ThreadScopedMessageQueue.canStart` requires the message owner to equal the
@@ -105,8 +106,9 @@ Measured 2026-09-26 against main `a33200f14`.
 - **LL13 worktree agents run headless.** They go through
   `SubagentExecutionService` with file tools only
   (`WorktreeAgentScopedToolDispatcher`). Their verification command runs
-  through `Process.start` without an approval gate. Verified-green tasks end
-  as a branch ready for review, and nothing merges automatically.
+  through the shared workspace sandbox without a per-run approval gate.
+  Unsupported runtimes stop verification. Verified-green tasks end as a branch
+  ready for review, and nothing merges automatically.
 - **Who supplies the verification command.** The verification command comes
   from one of three places:
   - the user-typed `/agent` command;
@@ -116,9 +118,10 @@ Measured 2026-09-26 against main `a33200f14`.
   The model drafts that last one. Before an orchestrator drafts plans with no
   human in the loop (FARM5), confirm whether plan approval shows the command
   to the user. Either way, such a command must not run unreviewed.
-- **Shell commands always need a person.** SEC4.4g requires fresh human
-  approval for every command that reaches `sh -c`, including under Full
-  Access.
+- **Host commands need a person.** SEC4.4g requires fresh human approval for
+  uncontained native commands in a coding project. Contained local commands
+  can use the selected approval mode; see
+  [Project Execution Boundaries](project_execution_boundary_design.md).
 - **Tool policies differ in their defaults.**
   - `SubagentToolPolicy.blockedTools` is a blocklist, so a child inherits any
     new tool that is not added to it.
@@ -145,10 +148,11 @@ returns to a decision instead.
    and never bypasses one. The farm advances work until a human decision is
    needed, then notifies the user: on the desktop, and on the phone through the
    existing approval push.
-2. **Nothing a model writes runs without approval.** No model or orchestrator
-   authors a command that runs without approval. Verification commands come
-   from human-reviewed sources: project configuration, or a plan a human
-   approved while seeing the command.
+2. **Execution stays within authorized authority.** Farm verification commands
+   come from human-reviewed sources: project configuration, or a plan a human
+   approved while seeing the command. Generated code runs only inside the
+   enforced workspace boundary. Foreground coding actions may be reviewed by
+   the configured LLM; uncontained host commands retain fresh human approval.
 3. **The repository stays the source of truth.** Caverno persists only cited
    projections and the provenance of every start. It never keeps a parallel
    task store.
@@ -725,24 +729,26 @@ reasons:
 - **SEC1 slice 7** classifies HTTP and browser actions and host-wide reads.
   The FARM execution path is worktree-scoped file tools plus one declared
   command, and it touches none of those.
-- The real unattended risk is different. A verification command such as a
-  test run executes code the agent just wrote, on the host, with no one
-  reviewing it. The user chose to allow unattended runs only for commands
-  they declare do not execute project code.
+- The original FARM5 policy excluded project-code execution because a test
+  could run generated code with host authority. On 2026-10-01, shared enforced
+  verification containment replaced that restriction. User-authorized tests
+  can run unattended; missing containment stops verification. See
+  [Project Execution Boundaries](project_execution_boundary_design.md) for
+  SDK provisioning and platform limitations.
 
 **What runs.** A `farm_advance` stage in the LL18 idle-maintenance pipeline,
 between `adopt` and `precompute`, so the cache warm-up stays last. It runs
 only in LL18's window: idle, on AC power, at night. For each project,
 `FarmUnattendedRunner` does the following:
 1. **Skips the project entirely** unless its policy has unattended runs on,
-   and at least one allowed command the user declared as not executing project
-   code. A project that did not opt in costs no model call.
+   and at least one allowed command the user authorized for unattended
+   verification. A project that did not opt in costs no model call.
 2. **Stops at the daily limit** (default 1), counted from the ledger.
 3. **Rereads the roadmap and recomputes the proposal**, one project at a time.
 4. **Starts a run only when all the Run in background gates pass:** a
    verified task, a proposal naming it `unattended`, and no unfinished
-   background task in the project. The run uses the declared non-executing
-   command, never a test.
+   background task in the project. The run uses the user-authorized
+   command and requires enforced workspace containment.
 5. **Records every start and every skip** of an opted-in project in the
    ledger, with its reason.
 
@@ -751,14 +757,13 @@ stops the pass.
 
 **Settings.** The dashboard's Background runs card has an **Unattended**
 dialog with an on/off switch (off by default), runs per day, and per-command
-checkboxes marking the commands that do not execute project code. The card
-lists the project's five most recent ledger entries, manual and unattended.
+checkboxes authorizing contained verification commands, including tests. The
+card lists the project's five most recent ledger entries, manual and unattended.
 The stage's summary ("started N, skipped M") appears in the morning
 maintenance report.
 
 **Not included, by design:**
 - merging;
-- running tests unattended;
 - any project that did not opt in;
 - work outside the idle window.
 
@@ -791,7 +796,7 @@ Resolved 2026-09-26:
   field.
 - **Automatability.** The proposal's label is advice only. Background work
   also needs a verified task, a user-declared policy, and, when unattended, a
-  command the user declared as not executing project code.
+  command the user authorized for contained verification.
 - **The cross-project overview** opens from the projects header of the coding
   drawer.
 

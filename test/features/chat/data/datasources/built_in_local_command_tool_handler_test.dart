@@ -1161,6 +1161,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async {
     startOwners.add(owner);
     startCalls.add((
@@ -1177,6 +1178,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async => _execution(
     await start(
       owner: owner,

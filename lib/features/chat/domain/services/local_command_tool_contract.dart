@@ -176,16 +176,14 @@ final class LocalCommandApprovalRequest {
   final String? warningTitle;
   final String? warningMessage;
 
-  /// Path tokens that triggered an outside-project check.
-  ///
-  /// Non-empty means a person has to decide: the shell may reach outside with
-  /// no path fence in front of it. The tokens are why the ask fired, not a
-  /// claim that those locations exist.
+  /// Outside-path hints; enforced containment determines their authority.
   final List<String> outOfRootPaths;
   final ToolApprovalGateDecision? requiredManualDecision;
   final String? requiredManualDecisionSource;
 
   bool get requiresFreshManualApproval => requiredManualDecision != null;
+  bool get workspaceCommandContained =>
+      execution.arguments['workspace_command_containment'] == true;
 }
 
 final class LocalCommandManualApproval {

@@ -159,6 +159,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async {
     startOwners.add(owner);
     startCalls.add({
@@ -181,6 +182,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async => FirstPartyToolExecutionResult.payloadOnly(
     await start(
       owner: owner,
@@ -1426,10 +1428,9 @@ void main() {
         sha256
             .convert(utf8.encode(jsonEncode(localCommandDefinitions)))
             .toString(),
-        // Changed deliberately: process_wait documents the clamp (now
-        // 15000-120000) and tells the model to watch a multi-minute build in a
-        // handful of long waits rather than dozens of short ones.
-        '9930b97a9e6a53697a9d846fb7625d9984954ed5f5c3598b9e2d3b0512e1b87b',
+        // Changed deliberately: command tools describe enforced workspace
+        // authority and expose an explicit fresh-approval host route.
+        'daf073bf9bb28f970c013d8fd686ab2ed26d197edbac68d1d1f24ac3fc262452',
       );
 
       final localCommandStart = names.indexOf(_localCommandToolNames.first);

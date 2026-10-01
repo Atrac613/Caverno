@@ -57,6 +57,7 @@ class ToolApprovalAutoReviewRequest {
     this.warningMessage,
     this.preview,
     this.hasUntrustedInfluence = false,
+    this.workspaceCommandContained = false,
     this.outOfRootPaths = const [],
   });
 
@@ -71,6 +72,9 @@ class ToolApprovalAutoReviewRequest {
   final String? warningMessage;
   final String? preview;
   final bool hasUntrustedInfluence;
+
+  /// Application-derived route, never an assertion supplied by the model.
+  final bool workspaceCommandContained;
 
   /// Path tokens that triggered an outside-project check.
   ///

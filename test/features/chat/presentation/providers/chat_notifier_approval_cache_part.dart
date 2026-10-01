@@ -159,7 +159,7 @@ void registerChatNotifierApprovalCacheTests() {
     expect(notifier.state.pendingLocalCommand, isNull);
   });
 
-  test('cached command approval re-executes and audits fresh results', () async {
+  test('fresh command approvals execute and audit fresh results', () async {
     final projectRoot = await Directory.systemTemp.createTemp(
       'caverno_approval_cache_',
     );
@@ -286,21 +286,18 @@ void registerChatNotifierApprovalCacheTests() {
     await _waitForCondition(() => notifier.state.pendingFileOperation != null);
     final fileApproval = notifier.state.pendingFileOperation!;
     notifier.resolveFileOperation(id: fileApproval.id, approved: true);
-    // Contained commands reuse the grant but still execute for fresh output.
-    // Uncontained commands continue to require another manual approval.
+    // Changed project code gets a fresh decision even when argv is unchanged.
     final contained = _supportsForegroundCommandContainment();
-    if (!contained) {
-      await _waitForCondition(
-        () =>
-            notifier.state.pendingLocalCommand != null &&
-            notifier.state.pendingLocalCommand!.id != localApproval.id,
-      );
-      final repeatApproval = notifier.state.pendingLocalCommand!;
-      notifier.resolveLocalCommand(
-        id: repeatApproval.id,
-        approval: const LocalCommandApproval(approved: true),
-      );
-    }
+    await _waitForCondition(
+      () =>
+          notifier.state.pendingLocalCommand != null &&
+          notifier.state.pendingLocalCommand!.id != localApproval.id,
+    );
+    final repeatApproval = notifier.state.pendingLocalCommand!;
+    notifier.resolveLocalCommand(
+      id: repeatApproval.id,
+      approval: const LocalCommandApproval(approved: true),
+    );
     await sendFuture.timeout(const Duration(seconds: 5));
 
     expect(notifier.state.pendingLocalCommand, isNull);
@@ -323,7 +320,7 @@ void registerChatNotifierApprovalCacheTests() {
         .where((line) => line.trim().isNotEmpty)
         .map((line) => jsonDecode(line) as Map<String, dynamic>)
         .toList(growable: false);
-    // Audit the grant reuse separately from the fresh command results above.
+    // No positive cache shortcut may authorize changed project code.
     expect(
       auditEntries.where(
         (entry) =>
@@ -338,7 +335,7 @@ void registerChatNotifierApprovalCacheTests() {
             entry['tool'] == 'local_execute_command' &&
             entry['decisionSource'] == 'cached_approval',
       ),
-      hasLength(contained ? 1 : 0),
+      isEmpty,
     );
   });
 
