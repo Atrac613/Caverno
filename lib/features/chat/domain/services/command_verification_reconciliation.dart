@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
-import 'coding_command_output_issue_detector.dart';
 import 'pytest_verification_identity.dart';
+import 'verification_scope.dart';
 
 /// Settles earlier invocations only after the same verification actually passes.
 abstract final class CommandVerificationReconciliation {
@@ -13,33 +13,16 @@ abstract final class CommandVerificationReconciliation {
     final supersededIds = <String>{};
     for (var index = results.length - 1; index >= 0; index--) {
       final result = results[index];
-      if (result.name != 'local_execute_command') continue;
-      final decoded = _decode(result.result);
-      final identity = PytestVerificationIdentity.parse(
-        (decoded?['command'] ?? result.arguments['command'])?.toString() ?? '',
-        (decoded?['working_directory'] ?? result.arguments['working_directory'])
-                ?.toString() ??
-            '',
+      final scope = VerificationScope.of(
+        result,
+        _decode(result.result),
+        isVerification: isVerification,
       );
-      if (identity == null) continue;
-      if (successfulScopes.contains(identity.key)) {
+      if (scope == null) continue;
+      if (successfulScopes.contains(scope.key)) {
         supersededIds.add(result.id);
       }
-      final outcome = result.outcome;
-      final counts =
-          outcome?.testOutcome ??
-          identity.counts(decoded?['stdout']?.toString() ?? '');
-      if (outcome?.hasSucceedingExitCode == true &&
-          (outcome?.processState == null || outcome!.isProcessTerminal) &&
-          (outcome?.diagnosticErrorCount ?? 0) == 0 &&
-          (outcome?.effectiveTestFailedCount ?? 0) == 0 &&
-          decoded?['timed_out'] != true &&
-          counts != null &&
-          counts.passedCount > 0 &&
-          counts.failedCount == 0 &&
-          const CodingCommandOutputIssueDetector().detect(result) == null) {
-        successfulScopes.add(identity.key);
-      }
+      if (scope.passed) successfulScopes.add(scope.key);
     }
     if (supersededIds.isEmpty) return results;
     final current = <ToolResultInfo>[];

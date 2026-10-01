@@ -183,6 +183,37 @@ void main() {
       expect(verified.ackOutcome, GoalUpdateAckOutcome.completionRecorded);
     });
 
+    test('names the unresolved failed verification in the rejection', () {
+      ToolResultInfo run(String id, String command, int exitCode) =>
+          ToolResultInfo(
+            id: id,
+            name: 'local_execute_command',
+            arguments: {'command': command},
+            result: jsonEncode({'command': command, 'exit_code': exitCode}),
+            outcome: ToolOutcome(exitCode: exitCode),
+          );
+      final outcome = _handle(
+        goal: _goal().copyWith(
+          projectTaskAutoReview: true,
+          projectTaskInheritedPaths: const ['/w/watcher.py'],
+        ),
+        arguments: const {'completed': true},
+        ownerToolResults: [
+          run('dry', 'python3 watcher.py --dry-run 2>&1 | head -20', 120),
+          run('suite', 'python3 -m pytest -q', 0),
+        ],
+      );
+
+      expect(outcome.ackOutcome, GoalUpdateAckOutcome.completionRejected);
+      expect(
+        outcome.toolResult.result,
+        allOf(
+          contains('`python3 watcher.py --dry-run 2>&1 | head -20` failed'),
+          isNot(contains('the last verification command failed')),
+        ),
+      );
+    });
+
     test('rejects completion from failures in current owner results', () {
       final outcome = _handle(
         arguments: const {'completed': true},

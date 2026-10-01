@@ -1071,7 +1071,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart':
       1675,
   'lib/features/chat/domain/services/command_verification_reconciliation.dart':
-      156,
+      139,
   'lib/features/chat/domain/services/pytest_verification_identity.dart': 61,
   'lib/features/chat/domain/services/literal_shell_words.dart': 40,
   'lib/features/chat/domain/services/pytest_shell_invocation.dart': 31,

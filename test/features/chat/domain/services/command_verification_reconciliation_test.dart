@@ -213,6 +213,42 @@ void main() {
     expect(counts.failedCount, 3);
     expect(counts.skippedCount, 1);
   });
+
+  group('non-pytest verification', () {
+    // Session d0c0462c: only pytest runs were ever reconciled, so a failed
+    // `watcher.py --dry-run` stayed failed for the rest of the turn even when
+    // the very same command later passed.
+    ToolResultInfo run(String id, String command, int exitCode) =>
+        ToolResultInfo(
+          id: id,
+          name: 'local_execute_command',
+          arguments: {'command': command, 'working_directory': '/w'},
+          result: jsonEncode({
+            'command': command,
+            'working_directory': '/w',
+            'exit_code': exitCode,
+            'stdout': exitCode == 0 ? 'All 22 checks passed.' : 'failed',
+          }),
+          outcome: ToolOutcome(exitCode: exitCode),
+        );
+    const verifier = '.venv/bin/python verify_logging.py';
+
+    test('the same command passing later settles its failure', () {
+      final current = CommandVerificationReconciliation.currentResults([
+        run('fail', verifier, 1),
+        run('pass', verifier, 0),
+      ]);
+      expect(current.map((result) => result.id), ['pass']);
+    });
+
+    test('a different command passing does not', () {
+      final current = CommandVerificationReconciliation.currentResults([
+        run('fail', verifier, 1),
+        run('other', 'python3 -m pytest -q', 0),
+      ]);
+      expect(current.map((result) => result.id), contains('fail'));
+    });
+  });
 }
 
 ToolResultInfo command(

@@ -6,6 +6,7 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'project_task_completion_evidence.dart';
 import 'tool_result_prompt_builder.dart';
+import 'unresolved_verification_failure.dart';
 
 /// What the model asked the harness to do with the goal.
 enum GoalUpdateKind { progress, completion, blocker }
@@ -248,6 +249,7 @@ class GoalUpdateAckResolver {
                 )
               : const [],
           inheritedChanges: goal.projectTaskInheritedPaths.isNotEmpty,
+          toolResults: taskToolResults,
         );
       case GoalUpdateKind.blocker:
         return GoalUpdateAck(
@@ -304,9 +306,14 @@ class GoalUpdateAckResolver {
     required List<String> taskGaps,
     required bool supersedesProgress,
     bool inheritedChanges = false,
+    List<ToolResultInfo> toolResults = const [],
   }) {
     final gaps = [
-      ...completionGaps(evidence, includeRemainingWork: !supersedesProgress),
+      ...completionGaps(
+        evidence,
+        includeRemainingWork: !supersedesProgress,
+        toolResults: toolResults,
+      ),
       ...taskGaps,
     ];
     if (gaps.isNotEmpty) {
@@ -345,6 +352,7 @@ class GoalUpdateAckResolver {
   List<String> completionGaps(
     ToolResultCompletionEvidence evidence, {
     bool includeRemainingWork = true,
+    List<ToolResultInfo> toolResults = const [],
   }) {
     final gaps = <String>[];
 
@@ -359,7 +367,10 @@ class GoalUpdateAckResolver {
       );
     }
     if (evidence.hasFailedExecutionVerification) {
-      gaps.add('the last verification command failed');
+      gaps.add(
+        const UnresolvedVerificationFailure().describe(toolResults) ??
+            'the last verification command failed',
+      );
     }
     if (evidence.boundedToolLoopExhausted) {
       gaps.add('the tool loop stopped before the work converged');
