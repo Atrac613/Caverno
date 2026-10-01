@@ -193,6 +193,51 @@ void main() {
       }
     });
 
+    test('installs and venv creation are not verification', () {
+      // Session 80dc7079: a read-only review ran `python3 -m venv .venv &&
+      // .venv/bin/pip install pytest`, because `pytest` as an install target
+      // matched the test-runner pattern and `python3` the runtime check.
+      for (final command in [
+        'pip install pytest',
+        '.venv/bin/pip install pytest',
+        'python -m pip install pytest',
+        'python3.12 -m pip install -r requirements.txt',
+        'python3 -m venv .venv',
+        'uv venv',
+        'uv pip install pytest',
+        'poetry add pytest',
+        'virtualenv env',
+        'npm i left-pad',
+        'python3 -m venv .venv && .venv/bin/pip install pytest',
+      ]) {
+        expect(
+          effectOf('local_execute_command', command),
+          ToolCommandEffect.dependencyResolution,
+          reason: command,
+        );
+      }
+      for (final command in [
+        '.venv/bin/python -m pytest -q',
+        'python3 -m pytest -q',
+        'pytest -q',
+      ]) {
+        expect(
+          effectOf('local_execute_command', command),
+          ToolCommandEffect.verification,
+          reason: command,
+        );
+      }
+      expect(
+        effectOf(
+          'local_execute_command',
+          'python3 -m venv .venv && .venv/bin/pip install pytest && '
+              '.venv/bin/python -m pytest -q',
+        ),
+        ToolCommandEffect.workspaceMutation,
+        reason: 'mixed setup and test segments are not read-only',
+      );
+    });
+
     test('distinguishes dependency, build, verification, and generation', () {
       expect(
         effectOf('local_execute_command', 'dart pub get'),

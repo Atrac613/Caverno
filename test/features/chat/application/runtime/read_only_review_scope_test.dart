@@ -130,6 +130,19 @@ void main() {
       }
     });
 
+    test('refuses package installs and venv creation', () {
+      // Session 80dc7079: a project-task review ran exactly this compound.
+      for (final command in [
+        'python3 -m venv .venv && .venv/bin/pip install pytest && '
+            '.venv/bin/python -m pytest -q',
+        '.venv/bin/pip install pytest',
+        'python3 -m venv .venv',
+      ]) {
+        expect(scope.evaluate(_command(command)), isNotNull, reason: command);
+      }
+      expect(scope.evaluate(_command('.venv/bin/python -m pytest -q')), isNull);
+    });
+
     test('refuses a file edit with a review-shaped instruction', () {
       final refusal = scope.evaluate(
         _call('edit_file', {

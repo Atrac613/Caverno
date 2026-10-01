@@ -235,6 +235,13 @@ class ToolCapabilityClassifier {
         normalized.contains('`')) {
       return ToolCommandEffect.workspaceMutation;
     }
+    // Before verification: its test-runner pattern matches `pytest` as the
+    // package an install names, and its runtime check matches any `python3`
+    // invocation, so `pip install pytest` and `python3 -m venv .venv` both
+    // read as verification and a read-only review ran them (session 80dc7079).
+    if (_looksLikeDependencyResolution(normalized)) {
+      return ToolCommandEffect.dependencyResolution;
+    }
     if (RegExp(
           r'(^| )(dart|flutter) (test|analyze)( |$)',
         ).hasMatch(normalized) ||
@@ -243,15 +250,6 @@ class ToolCapabilityClassifier {
         ).hasMatch(normalized) ||
         _looksLikeVerifierScriptCommand(normalized)) {
       return ToolCommandEffect.verification;
-    }
-    if (RegExp(
-          r'(^| )(dart|flutter) (pub get|pub upgrade)( |$)',
-        ).hasMatch(normalized) ||
-        RegExp(
-          r'(^| )(npm|pnpm|yarn) (install|add)( |$)',
-        ).hasMatch(normalized) ||
-        RegExp(r'(^| )(pip|pip3) install( |$)').hasMatch(normalized)) {
-      return ToolCommandEffect.dependencyResolution;
     }
     if (RegExp(r'(^| )(dart|flutter) format( |$)').hasMatch(normalized) ||
         RegExp(r'(^| )(prettier|rustfmt|gofmt)( |$)').hasMatch(normalized)) {
@@ -444,6 +442,26 @@ class ToolCapabilityClassifier {
     return RegExp(
       r'(^| )(?:(dart run|python3?|node|bun|deno run|ruby|go run|cargo run)\s+[^ ]+|dart\s+[^ ]+\.dart(?: |$))',
     ).hasMatch(command);
+  }
+
+  /// Package installs and virtual-environment creation, including the forms a
+  /// project venv produces (`.venv/bin/pip`, `python3 -m pip`, `-m venv`).
+  bool _looksLikeDependencyResolution(String command) {
+    return RegExp(
+          r'(^| )(dart|flutter) (pub get|pub upgrade)( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )(npm|pnpm|yarn) (install|add|i)( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )([^ ]*/)?(pip|pip3|pipenv) install( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )([^ ]*/)?python3?(\.[0-9]+)? -m (pip install|venv)( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )(uv (pip install|add|sync|venv)|poetry (add|install)|virtualenv)( |$)',
+        ).hasMatch(command);
   }
 
   bool _looksLikeDeploymentOrReleaseCommand(String command) {
