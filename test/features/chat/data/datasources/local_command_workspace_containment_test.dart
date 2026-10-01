@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/local_command_workspace_containment.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
+import 'package:caverno/features/chat/data/datasources/workspace_command_environment.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -86,6 +87,25 @@ void main() {
         isFalse,
       );
     }
+  });
+
+  test('grants the active Xcode bundle, not what surrounds it', () {
+    expect(
+      WorkspaceCommandEnvironment.activeXcodeBundle(
+        developerDir: '/Applications/Xcode-26.app/Contents/Developer',
+      ),
+      '/Applications/Xcode-26.app',
+    );
+    expect(
+      WorkspaceCommandEnvironment.activeXcodeBundle(
+        developerDir: '/Library/Developer/CommandLineTools',
+      ),
+      isNull,
+    );
+    expect(
+      WorkspaceCommandEnvironment.activeXcodeBundle(developerDir: '/.app'),
+      isNull,
+    );
   });
 
   test('profile restricts writes and service escapes', () {
@@ -285,6 +305,30 @@ bash -c 'printf blocked > "$1"' child 'TARGET'
       },
       skip: !supported,
     );
+
+    test('runs git through the xcrun shim', () async {
+      // Session 75a344ac: with Xcode as the active developer directory, the
+      // /usr/bin/git shim could not load its library, and the piped grep
+      // reported that HEAD had no matches.
+      for (final command in [
+        'git init -q',
+        'git config user.email t@example.com',
+        'git config user.name t',
+        "printf 'print(1)\\n' > a.py",
+        'git add a.py',
+        'git commit -qm init',
+      ]) {
+        await Process.run('/bin/sh', [
+          '-c',
+          command,
+        ], workingDirectory: project.path);
+      }
+
+      final result = await execute("git show HEAD:a.py | grep -c 'print('");
+
+      expect(result['exit_code'], 0, reason: result['stderr'] as String?);
+      expect(result['stdout'], '1\n');
+    }, skip: !supported);
 
     test('preserves a failed pipeline status through tail', () async {
       final result = await execute('bash -c "exit 7" 2>&1 | tail -n 5');

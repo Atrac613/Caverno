@@ -30,6 +30,7 @@ abstract final class WorkspaceCommandEnvironment {
       '/opt/homebrew/Cellar',
       '/opt/homebrew/lib',
       '/opt/homebrew/share',
+      ?activeXcodeBundle(),
       if (home != null) ...[
         '$home/fvm/versions',
         '$home/.pub-cache',
@@ -53,6 +54,25 @@ abstract final class WorkspaceCommandEnvironment {
       }
     }
     return roots.toList(growable: false);
+  }
+
+  /// `/usr/bin/git`, `make` and `clang` are xcrun shims. When Xcode is the
+  /// active developer directory they load from its app bundle, so without it
+  /// every contained `git` failed and a piped `grep` reported zero matches as
+  /// if the file had none (session 75a344ac).
+  static String? activeXcodeBundle({String? developerDir}) {
+    String? path = developerDir ?? Platform.environment['DEVELOPER_DIR'];
+    if (path == null) {
+      try {
+        path = Link('/var/db/xcode_select_link').resolveSymbolicLinksSync();
+      } on FileSystemException {
+        return null;
+      }
+    }
+    final end = path.indexOf('.app/');
+    if (end < 0 && !path.endsWith('.app')) return null;
+    final bundle = end < 0 ? path : path.substring(0, end + 4);
+    return bundle.lastIndexOf('/') > 0 ? bundle : null;
   }
 
   static Map<String, String> isolated({

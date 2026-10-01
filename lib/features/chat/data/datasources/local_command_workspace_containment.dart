@@ -43,7 +43,9 @@ abstract final class LocalCommandWorkspaceContainment {
         '(allow file-read-data (regex #"^/dev/(null|zero|random|urandom|fd(/.*)?)\$"))'
         '${WorkspaceCommandEnvironment.readRoots().map((path) => '(allow file-read-data (subpath ${literal(path)}))').join()}'
         '(allow file-read-data (literal "/private/etc/localtime") '
-        '(literal "/private/etc/passwd") (literal "/private/etc/group"))'
+        '(literal "/private/etc/passwd") (literal "/private/etc/group") '
+        // xcrun refuses to run a tool until it reads the license acceptance.
+        '(literal "/Library/Preferences/com.apple.dt.Xcode.plist"))'
         '(deny file-write*)'
         '(allow file-write* (subpath ${literal(root)}))'
         '(allow file-write* (subpath ${literal(scratch)}))'
