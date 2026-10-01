@@ -20,6 +20,7 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/background_task_runner.dart';
 import '../../application/farm_unattended_runner.dart';
 import '../../application/project_proposal_service.dart';
+import '../../application/project_task_decomposer.dart';
 import '../../application/project_task_starter.dart';
 import '../../application/roadmap_snapshot_service.dart';
 import '../../application/workspace_control_tools.dart';
@@ -57,6 +58,16 @@ Future<String?> _readFileIfPresent(String path) async {
   if (!await file.exists()) return null;
   return file.readAsString();
 }
+
+/// Splits a dashboard-started task into subtasks with the primary model.
+final projectTaskDecomposerProvider = Provider<ProjectTaskDecomposer>((ref) {
+  return ProjectTaskDecomposer(
+    complete: structuredRoadmapCompletion(
+      ref.read(chatRemoteDataSourceProvider),
+      model: ref.read(settingsNotifierProvider).effectiveModel,
+    ),
+  );
+});
 
 /// Adapts the app's structured-output datasource to the extractor's port.
 ///

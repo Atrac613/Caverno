@@ -1,13 +1,16 @@
 import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/conversation.dart';
+import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/presentation/slash_commands/slash_command_prompt_template.dart';
 import '../domain/entities/project_task_git_state.dart';
+import '../domain/project_task_progress.dart';
 
-/// Runs the user-started task through implementation, the dedicated review
-/// route, and a commit of the reviewed work. Each stage must produce an
-/// explicit result before the next begins.
+/// Runs the user-started task through decomposition, implementation one
+/// subtask per turn, the dedicated review route, and a commit of the reviewed
+/// work. Each stage must produce an explicit result before the next begins,
+/// and every stage change is reported through [onProgress].
 final class ProjectTaskReviewWorkflow {
   ProjectTaskReviewWorkflow({
     required this.conversationId,
@@ -17,6 +20,10 @@ final class ProjectTaskReviewWorkflow {
     required this.send,
     required this.commit,
     required this.readGitState,
+    this.decompose,
+    this.sendStep,
+    this.markSubtaskDone,
+    this.onProgress,
   });
 
   final String conversationId;
@@ -32,14 +39,29 @@ final class ProjectTaskReviewWorkflow {
   /// Reads HEAD and the status of [paths]; null when git cannot be read.
   final Future<ProjectTaskGitState?> Function(List<String> paths) readGitState;
 
+  /// Splits the objective into ordered subtasks and saves them as the
+  /// thread's execution tasks. An empty result runs the task as one step.
+  final Future<List<ConversationWorkflowTask>> Function(String objective)?
+  decompose;
+
+  /// Sends a subtask turn before the last one. These turns are judged by
+  /// their marker, not by goal completion, which only the last turn records.
+  final Future<bool> Function(String prompt)? sendStep;
+
+  /// Records a subtask as completed in the thread's execution progress.
+  final Future<void> Function(String taskId)? markSubtaskDone;
+  final void Function(ProjectTaskProgress progress)? onProgress;
+
   static const maxRepairRounds = 2;
   static const maxMissingDiffRetries = 1;
   static const _ready = 'PROJECT_TASK_READY_FOR_REVIEW';
+  static const _subtaskDone = 'PROJECT_TASK_SUBTASK_DONE';
   static const _clean = 'PROJECT_TASK_REVIEW_CLEAN';
   static const _findings = 'PROJECT_TASK_REVIEW_FINDINGS';
 
   Future<ProjectTaskReviewResult> run() async {
     stopReason = null;
+    _report(const ProjectTaskProgress(phase: ProjectTaskPhase.decompose));
     final task = readConversation();
     if (task == null || !isSelected() || task.messages.isNotEmpty) {
       return _stop('the task thread is not a new, selected thread');
@@ -47,20 +69,59 @@ final class ProjectTaskReviewWorkflow {
     final objective = task.goal?.normalizedObjective;
     if (objective == null) return _stop('the task has no goal objective');
 
-    var implementation =
-        '''Implement this roadmap task in the current coding project:
+    final decomposed = await decompose?.call(objective) ?? const [];
+    if (!_canContinue(readConversation())) return _stop(_notContinuable);
+    final subtasks = sendStep == null
+        ? const <ConversationWorkflowTask>[]
+        : decomposed;
+    final subtaskCount = decomposed.isEmpty ? 1 : decomposed.length;
+    // Earlier subtask turns may hold the task's only file changes, so the
+    // first round's change check counts from before the first subtask.
+    final diffBaseline = readConversation()!.turnDiffs.length;
+    for (var index = 0; index < subtasks.length - 1; index++) {
+      _report(
+        ProjectTaskProgress(
+          phase: ProjectTaskPhase.implement,
+          subtaskIndex: index,
+          subtaskCount: subtaskCount,
+        ),
+      );
+      final stopped = await _runSubtask(objective, subtasks, index);
+      if (stopped != null) return stopped;
+    }
+    _report(
+      ProjectTaskProgress(
+        phase: ProjectTaskPhase.implement,
+        subtaskIndex: subtaskCount - 1,
+        subtaskCount: subtaskCount,
+      ),
+    );
+
+    var implementation = subtasks.length > 1
+        ? _subtaskPrompt(objective, subtasks, subtasks.length - 1)
+        : '''Implement this roadmap task in the current coding project:
 
 $objective
 
 Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification. Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item's status unchanged: both happen in a separate step after review. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
 
     for (var repairRound = 0; repairRound <= maxRepairRounds; repairRound++) {
+      if (repairRound > 0) {
+        _report(
+          _progress.copyWith(
+            phase: ProjectTaskPhase.repair,
+            repairRound: repairRound,
+          ),
+        );
+      }
       Conversation? after;
       for (var retry = 0; retry <= maxMissingDiffRetries; retry++) {
         final before = readConversation();
         if (!_canContinue(before)) return _stop(_notContinuable);
         final previousMessageCount = before!.messages.length;
-        final previousDiffCount = before.turnDiffs.length;
+        final previousDiffCount = repairRound == 0
+            ? diffBaseline
+            : before.turnDiffs.length;
         if (!await send(implementation, codeReview: false)) {
           return _stop(
             'the implementation turn ended without a recorded goal '
@@ -79,6 +140,9 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
               'the implementation response does not end with $_ready '
               '(last line: "${_lastLine(response.content)}")',
             );
+          }
+          if (repairRound == 0 && decomposed.isNotEmpty) {
+            await markSubtaskDone?.call(decomposed.last.id);
           }
           break;
         }
@@ -111,6 +175,7 @@ After your findings and verification limits, end with exactly one of these lines
 $_clean — only when there are no actionable findings and the patch was reviewable
 $_findings — when there are actionable findings
 If review is incomplete, omit both markers.''';
+      _report(_progress.copyWith(phase: ProjectTaskPhase.review));
       final beforeReviewCount = after.messages.length;
       if (!await send(reviewPrompt, codeReview: true)) {
         return _stop('the review turn did not complete');
@@ -129,6 +194,7 @@ If review is incomplete, omit both markers.''';
         );
       }
       if (repairRound == maxRepairRounds) {
+        _report(_progress.copyWith(outcome: ProjectTaskOutcome.findingsRemain));
         return ProjectTaskReviewResult.findingsRemain;
       }
       implementation =
@@ -149,6 +215,7 @@ ${review.content}''';
     Conversation conversation,
     String objective,
   ) async {
+    _report(_progress.copyWith(phase: ProjectTaskPhase.commit));
     final paths = _taskPaths(conversation);
     final before = await readGitState(paths);
     if (before == null) {
@@ -184,7 +251,79 @@ ${paths.map((path) => '- $path').join('\n')}''';
         'task files remain uncommitted: ${after.dirtyPaths.join(', ')}',
       );
     }
+    _report(_progress.copyWith(outcome: ProjectTaskOutcome.committed));
     return ProjectTaskReviewResult.committed;
+  }
+
+  /// Runs subtask [index] of [subtasks] as one turn. Returns the stop result,
+  /// or null when the subtask finished and was recorded.
+  Future<ProjectTaskReviewResult?> _runSubtask(
+    String objective,
+    List<ConversationWorkflowTask> subtasks,
+    int index,
+  ) async {
+    final before = readConversation();
+    if (!_canContinue(before)) return _stop(_notContinuable);
+    final number = index + 1;
+    if (!await sendStep!(_subtaskPrompt(objective, subtasks, index))) {
+      return _stop(
+        'the turn for subtask $number did not complete '
+        '(goal: ${readConversation()?.goal?.status.name})',
+      );
+    }
+    final after = readConversation();
+    if (!_canContinue(after)) return _stop(_notContinuable);
+    final response = _lastAssistant(after!, before!.messages.length);
+    if (response == null) {
+      return _stop('the turn for subtask $number saved no assistant response');
+    }
+    if (!_endsWithMarker(response.content, _subtaskDone)) {
+      return _stop(
+        'the response for subtask $number does not end with $_subtaskDone '
+        '(last line: "${_lastLine(response.content)}")',
+      );
+    }
+    await markSubtaskDone?.call(subtasks[index].id);
+    return null;
+  }
+
+  String _subtaskPrompt(
+    String objective,
+    List<ConversationWorkflowTask> subtasks,
+    int index,
+  ) {
+    final last = index == subtasks.length - 1;
+    final outline = [
+      for (final (position, subtask) in subtasks.indexed)
+        '${position + 1}. '
+            '${position < index
+                ? '[done] '
+                : position == index
+                ? '[now] '
+                : ''}'
+            '${subtask.title}'
+            '${subtask.targetFiles.isEmpty ? '' : ' (likely files: ${subtask.targetFiles.join(', ')})'}',
+    ].join('\n');
+    final scope = last
+        ? 'Do the last subtask now, then confirm the whole task is complete and verified. Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item\'s status unchanged: both happen in a separate step after review. When implementation and verification of the whole task are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.'
+        : 'Do only subtask ${index + 1} now. Make its change with file tools and run verification relevant to it. Respect all approval and user-input gates. Do not start later subtasks, do not mark the goal complete, do not commit, push, or publish, and leave the roadmap item\'s status unchanged. When this subtask is finished, end your final response with the exact line $_subtaskDone. If it cannot be finished, explain why and omit that line.';
+    return '''Implement this roadmap task in the current coding project, one subtask at a time:
+
+$objective
+
+Subtasks:
+$outline
+
+Read the cited roadmap and relevant code before editing. $scope''';
+  }
+
+  ProjectTaskProgress _progress = const ProjectTaskProgress(
+    phase: ProjectTaskPhase.decompose,
+  );
+
+  void _report(ProjectTaskProgress progress) {
+    _progress = progress;
+    onProgress?.call(progress);
   }
 
   List<String> _taskPaths(Conversation conversation) => {
@@ -205,6 +344,12 @@ ${paths.map((path) => '- $path').join('\n')}''';
 
   ProjectTaskReviewResult _stop(String reason) {
     stopReason = reason;
+    _report(
+      _progress.copyWith(
+        outcome: ProjectTaskOutcome.stopped,
+        stopReason: reason,
+      ),
+    );
     appLog(
       '[ProjectTaskReview] stopped: $reason; conversation=$conversationId',
     );

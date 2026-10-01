@@ -1917,6 +1917,18 @@
     "response_title": "Caverno",
     "response_body": "Response ready"
   },
+  "project_task_progress": {
+    "title": "Project task",
+    "running": "Running",
+    "committed": "Committed",
+    "findings_remain": "Findings remain",
+    "stopped": "Stopped",
+    "decompose": "Break down",
+    "implement": "Implement",
+    "review": "Review",
+    "commit": "Commit",
+    "repair_round": "Repair {}/{}"
+  },
   "project_dashboard": {
     "project_missing": "This project no longer exists.",
     "refresh": "Refresh",

@@ -1,5 +1,6 @@
 import 'package:caverno/features/chat/domain/services/flutter_run_issue_request.dart';
 import 'package:caverno/features/project_farm/domain/next_step_proposal_contract.dart';
+import 'package:caverno/features/project_farm/domain/project_task_decomposition_contract.dart';
 import 'package:caverno/features/project_farm/domain/roadmap_next_task_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +15,7 @@ void main() {
       'caverno_roadmap_next_task': extractionSchema,
       'caverno_roadmap_sections': outlineSchema,
       'caverno_next_step_proposal': nextStepProposalSchema,
+      'caverno_project_task_decomposition': projectTaskDecompositionSchema,
     };
 
     for (final entry in schemas.entries) {

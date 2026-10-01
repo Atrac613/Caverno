@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
-import 'package:caverno/features/project_farm/application/project_task_commit_turn_runner.dart';
+import 'package:caverno/features/project_farm/application/project_task_step_turn_runner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -9,7 +9,7 @@ void main() {
   late bool selected;
   late bool waiting;
   late int sends;
-  late ProjectTaskCommitTurnRunner runner;
+  late ProjectTaskStepTurnRunner runner;
   setUp(() {
     final now = DateTime(2026);
     conversation = Conversation(
@@ -30,10 +30,11 @@ void main() {
     selected = true;
     waiting = false;
     sends = 0;
-    runner = ProjectTaskCommitTurnRunner(
+    runner = ProjectTaskStepTurnRunner(
       readConversation: () => conversation,
       isSelected: () => selected,
       isWaitingForUser: () => waiting,
+      admits: ProjectTaskStepTurnRunner.completedGoal,
       sendTurn: (_) async {
         sends++;
         return ChatTurnOwner(conversationId: 'task', interactionGeneration: 1);
@@ -63,5 +64,30 @@ void main() {
     waiting = true;
     expect(await runner.send('Commit'), isFalse);
     expect(sends, 0);
+  });
+
+  test('subtask turns run only on an active goal within budget', () {
+    final goal = conversation.goal!;
+    bool admits(ConversationGoal goal) =>
+        ProjectTaskStepTurnRunner.activeGoal(goal);
+    expect(admits(goal), isFalse, reason: 'completed');
+    expect(
+      admits(goal.copyWith(status: ConversationGoalStatus.active)),
+      isTrue,
+    );
+    expect(
+      admits(
+        goal.copyWith(
+          status: ConversationGoalStatus.active,
+          turnBudget: 1,
+          turnsUsed: 1,
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      admits(goal.copyWith(status: ConversationGoalStatus.blocked)),
+      isFalse,
+    );
   });
 }

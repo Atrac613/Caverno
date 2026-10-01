@@ -3,14 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/conversation_goal.dart';
+import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
-import '../application/project_task_commit_turn_runner.dart';
 import '../application/project_task_review_turn_runner.dart';
 import '../application/project_task_review_workflow.dart';
+import '../application/project_task_step_turn_runner.dart';
 import '../data/project_git_status_reader.dart';
+import 'providers/project_task_progress_provider.dart';
+import 'providers/roadmap_snapshot_providers.dart';
 
 /// Starts the automatic workflow for a dashboard-started roadmap task when its
 /// thread is first opened, and reports the outcome.
@@ -83,23 +86,64 @@ final class ProjectTaskReviewLauncher {
         ),
         waitForCompletion: notifier.waitForTurnCompletion,
       );
+      ProjectTaskStepTurnRunner step(
+        bool Function(ConversationGoal goal) admits,
+      ) => ProjectTaskStepTurnRunner(
+        readConversation: readTask,
+        isSelected: selected,
+        isWaitingForUser: waiting,
+        admits: admits,
+        sendTurn: (prompt) => notifier.sendMessage(
+          prompt,
+          languageCode: languageCode,
+          bypassPlanMode: true,
+        ),
+        waitForCompletion: notifier.waitForTurnCompletion,
+      );
+      final conversations = ref.read(conversationsNotifierProvider.notifier);
       final workflow = ProjectTaskReviewWorkflow(
         conversationId: conversationId,
         readConversation: readTask,
         isSelected: selected,
         isWaitingForUser: waiting,
         send: runner.send,
-        commit: ProjectTaskCommitTurnRunner(
-          readConversation: readTask,
-          isSelected: selected,
-          isWaitingForUser: waiting,
-          sendTurn: (prompt) => notifier.sendMessage(
-            prompt,
-            languageCode: languageCode,
-            bypassPlanMode: true,
-          ),
-          waitForCompletion: notifier.waitForTurnCompletion,
-        ).send,
+        commit: step(ProjectTaskStepTurnRunner.completedGoal).send,
+        sendStep: step(ProjectTaskStepTurnRunner.activeGoal).send,
+        // The subtasks become the thread's execution tasks, so the Plan Mode
+        // progress rows and the execution snapshot in the prompt show them.
+        // They are saved without a plan review by user decision (2026-10-01)
+        // and carry no validation command, so nothing the model wrote runs
+        // unapproved.
+        decompose: (objective) async {
+          final subtasks = await ref
+              .read(projectTaskDecomposerProvider)
+              .decompose(objective, languageCode: languageCode);
+          if (subtasks.isNotEmpty) {
+            await conversations.updateCurrentWorkflow(
+              conversationId: conversationId,
+              workflowStage: ConversationWorkflowStage.implement,
+              workflowSpec: ConversationWorkflowSpec(
+                goal: objective,
+                tasks: subtasks,
+              ),
+            );
+          }
+          return subtasks;
+        },
+        markSubtaskDone: (taskId) {
+          final now = DateTime.now();
+          return conversations.updateCurrentExecutionTaskProgress(
+            conversationId: conversationId,
+            taskId: taskId,
+            status: ConversationWorkflowTaskStatus.completed,
+            lastRunAt: now,
+            eventType: ConversationExecutionTaskEventType.completed,
+            eventTimestamp: now,
+          );
+        },
+        onProgress: (progress) => ref
+            .read(projectTaskProgressProvider.notifier)
+            .report(conversationId, progress),
         readGitState: (paths) async =>
             projectRoot == null || projectRoot.isEmpty
             ? null

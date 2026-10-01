@@ -1917,6 +1917,18 @@
     "response_title": "Caverno",
     "response_body": "応答が完了しました"
   },
+  "project_task_progress": {
+    "title": "プロジェクトタスク",
+    "running": "実行中",
+    "committed": "コミット済み",
+    "findings_remain": "指摘が残っています",
+    "stopped": "停止",
+    "decompose": "分解",
+    "implement": "実装",
+    "review": "レビュー",
+    "commit": "コミット",
+    "repair_round": "修正 {}/{}"
+  },
   "project_dashboard": {
     "project_missing": "このプロジェクトはもう存在しません。",
     "refresh": "更新",

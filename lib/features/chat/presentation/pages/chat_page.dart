@@ -19,6 +19,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
 import '../../../project_farm/presentation/project_task_review_launcher.dart';
+import '../../../project_farm/presentation/widgets/project_task_progress_section.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
