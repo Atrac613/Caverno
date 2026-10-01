@@ -105,7 +105,7 @@
     "slash_goal_unavailable": "ゴールはコーディングスレッドで利用できます。",
     "slash_review_unavailable": "コードレビューはコーディングプロジェクトで利用できます。",
     "slash_review_not_configured": "モデルルーティングでレビュー用エンドポイントを選択してください。",
-    "project_task_review_clean": "実装とコードレビューが完了しました。",
+    "project_task_review_committed": "実装・レビュー・コミットが完了しました。",
     "project_task_review_findings": "2回の修正後もレビューの指摘が残っています。",
     "project_task_review_stopped": "タスクの自動進行を停止しました。続ける前にこのスレッドを確認してください。",
     "project_task_review_error": "タスクの自動進行を停止しました: {error}",

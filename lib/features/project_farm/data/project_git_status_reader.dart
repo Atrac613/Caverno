@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import '../domain/entities/project_task_git_state.dart';
+
 /// A read-only glance at a project's git state for the dashboard.
 final class ProjectGitStatus {
   const ProjectGitStatus({
@@ -64,6 +66,37 @@ final class ProjectGitStatusReader {
             .length,
         ahead: ahead == null ? null : int.tryParse(ahead),
         lastCommit: lastCommit,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  /// HEAD and the porcelain status of [paths], for checking that a project
+  /// task's commit landed. Returns null when git fails, including for a path
+  /// outside the work tree.
+  Future<ProjectTaskGitState?> readTaskState(
+    String projectRoot,
+    List<String> paths,
+  ) async {
+    try {
+      final head = await _output(['rev-parse', 'HEAD'], projectRoot);
+      if (head == null) return null;
+      final status = paths.isEmpty
+          ? ''
+          : await _output([
+              'status',
+              '--porcelain',
+              '--',
+              ...paths,
+            ], projectRoot);
+      if (status == null) return null;
+      return ProjectTaskGitState(
+        head: head,
+        dirtyPaths: status
+            .split('\n')
+            .where((line) => line.trim().isNotEmpty)
+            .toList(),
       );
     } on Object {
       return null;

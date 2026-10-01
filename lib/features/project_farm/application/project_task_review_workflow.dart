@@ -3,9 +3,11 @@ import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/presentation/slash_commands/slash_command_prompt_template.dart';
+import '../domain/entities/project_task_git_state.dart';
 
-/// Runs the user-started task through implementation and the dedicated review
-/// route. Each stage must produce an explicit result before the next begins.
+/// Runs the user-started task through implementation, the dedicated review
+/// route, and a commit of the reviewed work. Each stage must produce an
+/// explicit result before the next begins.
 final class ProjectTaskReviewWorkflow {
   ProjectTaskReviewWorkflow({
     required this.conversationId,
@@ -13,6 +15,8 @@ final class ProjectTaskReviewWorkflow {
     required this.isSelected,
     required this.isWaitingForUser,
     required this.send,
+    required this.commit,
+    required this.readGitState,
   });
 
   final String conversationId;
@@ -20,6 +24,13 @@ final class ProjectTaskReviewWorkflow {
   final bool Function() isSelected;
   final bool Function() isWaitingForUser;
   final Future<bool> Function(String prompt, {required bool codeReview}) send;
+
+  /// Sends the commit turn. The commit itself is a model tool call, so it
+  /// passes through the same approval gate as any other git write.
+  final Future<bool> Function(String prompt) commit;
+
+  /// Reads HEAD and the status of [paths]; null when git cannot be read.
+  final Future<ProjectTaskGitState?> Function(List<String> paths) readGitState;
 
   static const maxRepairRounds = 2;
   static const maxMissingDiffRetries = 1;
@@ -41,7 +52,7 @@ final class ProjectTaskReviewWorkflow {
 
 $objective
 
-Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification. Respect all approval and user-input gates. Do not commit, push, or publish. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
+Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification. Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item's status unchanged: both happen in a separate step after review. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
 
     for (var repairRound = 0; repairRound <= maxRepairRounds; repairRound++) {
       Conversation? after;
@@ -109,7 +120,7 @@ If review is incomplete, omit both markers.''';
       final review = _lastAssistant(reviewed!, beforeReviewCount);
       if (review == null) return _stop('the review turn saved no response');
       if (_endsWithMarker(review.content, _clean)) {
-        return ProjectTaskReviewResult.clean;
+        return _commit(reviewed, objective);
       }
       if (!_endsWithMarker(review.content, _findings)) {
         return _stop(
@@ -127,6 +138,60 @@ ${review.content}''';
     }
     return _stop('the repair rounds ended without a review result');
   }
+
+  /// Marks the roadmap item done and commits the reviewed task files.
+  ///
+  /// Success is read from git, not from the response: HEAD must move and none
+  /// of the task's files may remain uncommitted. Before this stage existed a
+  /// clean review ended the workflow with the work uncommitted, and the
+  /// dashboard moved on to the next roadmap task over it.
+  Future<ProjectTaskReviewResult> _commit(
+    Conversation conversation,
+    String objective,
+  ) async {
+    final paths = _taskPaths(conversation);
+    final before = await readGitState(paths);
+    if (before == null) {
+      return _stop('git state could not be read before the commit');
+    }
+    if (!_canContinue(readConversation())) return _stop(_notContinuable);
+    final prompt =
+        '''The dedicated review found no actionable findings. Finish this roadmap task by recording it in the repository:
+
+$objective
+
+1. Open the cited roadmap entry. If it is not already marked done, mark it done following that document's own conventions. Change nothing else in the roadmap.
+2. Inspect git status and the diff, then stage only the task files listed below and the roadmap file. Do not stage unrelated pre-existing changes.
+3. Commit with a message that follows this repository's commit conventions. Do not push, publish, amend, or rewrite history.
+
+Respect all approval gates. If the commit cannot be made, explain why.
+
+Task files:
+${paths.map((path) => '- $path').join('\n')}''';
+    if (!await commit(prompt)) {
+      return _stop('the commit turn did not complete');
+    }
+    if (!_canContinue(readConversation())) return _stop(_notContinuable);
+    final after = await readGitState(paths);
+    if (after == null) {
+      return _stop('git state could not be read after the commit');
+    }
+    if (after.head == before.head) {
+      return _stop('the commit turn recorded no new commit');
+    }
+    if (after.dirtyPaths.isNotEmpty) {
+      return _stop(
+        'task files remain uncommitted: ${after.dirtyPaths.join(', ')}',
+      );
+    }
+    return ProjectTaskReviewResult.committed;
+  }
+
+  List<String> _taskPaths(Conversation conversation) => {
+    for (final diff in conversation.turnDiffs)
+      if (diff.source == TurnDiffSource.tool)
+        for (final file in diff.files) file.filePath,
+  }.toList();
 
   /// Why the last [run] returned [ProjectTaskReviewResult.stopped].
   ///
@@ -189,4 +254,4 @@ ${review.content}''';
   }
 }
 
-enum ProjectTaskReviewResult { clean, findingsRemain, stopped }
+enum ProjectTaskReviewResult { committed, findingsRemain, stopped }

@@ -18,8 +18,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
-import '../../../project_farm/application/project_task_review_turn_runner.dart';
-import '../../../project_farm/application/project_task_review_workflow.dart';
+import '../../../project_farm/presentation/project_task_review_launcher.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
@@ -128,7 +127,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final _workflowPanelScrollController = ScrollController();
   final ApprovalDialogPresenter _approvalDialogs = ApprovalDialogPresenter();
   final Set<String> _rolledBackTurnDiffIds = <String>{};
-  final Set<String> _runningProjectTaskReviews = <String>{};
+  final _projectTaskReviews = ProjectTaskReviewLauncher();
   final _uuid = const Uuid();
   bool _isPresentingPlanReviewSheet = false;
   String? _trackedPlanGenerationConversationId;
@@ -448,93 +447,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _selectDrawerConversation(String conversationId) async {
     await _workspaceNavigationCoordinator.selectConversation(conversationId);
     if (!mounted) return;
-    unawaited(_startProjectTaskReview(conversationId));
-  }
-
-  Future<void> _startProjectTaskReview(String conversationId) async {
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .conversationForId(conversationId);
-    if (conversation?.goal?.projectTaskAutoReview != true ||
-        conversation!.messages.isNotEmpty ||
-        !_runningProjectTaskReviews.add(conversationId)) {
-      return;
-    }
-    if (!ref.read(settingsNotifierProvider).hasCodeReviewRoute) {
-      _runningProjectTaskReviews.remove(conversationId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('chat.slash_review_not_configured'.tr())),
-      );
-      return;
-    }
-    final languageCode = context.locale.languageCode;
-    try {
-      final notifier = ref.read(chatNotifierProvider.notifier);
-      Conversation? readTask() => ref
-          .read(conversationsNotifierProvider)
-          .conversationForId(conversationId);
-      bool selected() =>
-          mounted &&
-          ref.read(conversationsNotifierProvider).currentConversationId ==
-              conversationId &&
-          notifier.conversationId == conversationId;
-      bool waiting() =>
-          notifier.isConversationBusy(conversationId) ||
-          notifier.isConversationAwaitingApproval(conversationId) ||
-          ref
-                  .read(chatNotifierProvider)
-                  .pendingAskUserQuestion
-                  ?.conversationId ==
-              conversationId;
-      final workflow = ProjectTaskReviewWorkflow(
+    unawaited(
+      _projectTaskReviews.start(
+        ref: ref,
         conversationId: conversationId,
-        readConversation: readTask,
-        isSelected: selected,
-        isWaitingForUser: waiting,
-        send: ProjectTaskReviewTurnRunner(
-          readConversation: readTask,
-          isSelected: selected,
-          isWaitingForUser: waiting,
-          reactivate: () => ref
-              .read(conversationsNotifierProvider.notifier)
-              .markCurrentGoalStatus(status: ConversationGoalStatus.active),
-          sendTurn: (prompt, {required codeReview}) => notifier.sendMessage(
-            prompt,
-            languageCode: languageCode,
-            bypassPlanMode: true,
-            codeReview: codeReview,
-            projectTaskImplementation: !codeReview,
-          ),
-          waitForCompletion: notifier.waitForTurnCompletion,
-        ).send,
-      );
-      final result = await workflow.run();
-      if (!mounted || !selected()) return;
-      final message = switch (result) {
-        ProjectTaskReviewResult.clean => 'chat.project_task_review_clean'.tr(),
-        ProjectTaskReviewResult.findingsRemain =>
-          'chat.project_task_review_findings'.tr(),
-        ProjectTaskReviewResult.stopped =>
-          'chat.project_task_review_stopped'.tr(),
-      };
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'chat.project_task_review_error'.tr(
-                namedArgs: {'error': error.toString()},
-              ),
-            ),
-          ),
-        );
-      }
-    } finally {
-      _runningProjectTaskReviews.remove(conversationId);
-    }
+        languageCode: context.locale.languageCode,
+        isMounted: () => mounted,
+        showMessage: (message) => ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message))),
+      ),
+    );
   }
 
   void _createDrawerChatConversation() {

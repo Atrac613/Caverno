@@ -89,6 +89,31 @@ void main() {
       );
       expect(await reader.read('/repo'), isNull);
     });
+
+    test('reads HEAD and the status of only the task files', () async {
+      final calls = <List<String>>[];
+      final reader = ProjectGitStatusReader(
+        run: (args, _) async {
+          calls.add(args);
+          return args.first == 'rev-parse' ? ok('abc\n') : ok(' M a.dart\n');
+        },
+      );
+
+      final state = await reader.readTaskState('/repo', ['a.dart']);
+
+      expect(state!.head, 'abc');
+      expect(state.dirtyPaths, hasLength(1));
+      expect(calls.last, ['status', '--porcelain', '--', 'a.dart']);
+    });
+
+    test('reports no task state when git rejects a path', () async {
+      final reader = ProjectGitStatusReader(
+        run: (args, _) async => args.first == 'rev-parse'
+            ? ok('abc')
+            : ProcessResult(0, 128, '', 'outside repository'),
+      );
+      expect(await reader.readTaskState('/repo', ['/elsewhere/a']), isNull);
+    });
   });
 
   test('Start work creates a coding thread carrying the task goal', () async {

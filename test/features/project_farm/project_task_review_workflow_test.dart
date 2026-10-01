@@ -3,10 +3,23 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
+import 'package:caverno/features/project_farm/domain/entities/project_task_git_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final now = DateTime(2026);
+  var commits = 0;
+  final commitPrompts = <String>[];
+  Future<bool> commitTurn(String prompt) async {
+    commitPrompts.add(prompt);
+    commits++;
+    return true;
+  }
+
+  Future<ProjectTaskGitState?> gitState(List<String> paths) async =>
+      ProjectTaskGitState(head: 'head-$commits', dirtyPaths: const []);
+
+  setUp(commitPrompts.clear);
   Conversation initial() => Conversation(
     id: 'task',
     title: 'Task',
@@ -50,6 +63,8 @@ void main() {
       var implementationCount = 0;
       final workflow = ProjectTaskReviewWorkflow(
         conversationId: 'task',
+        commit: commitTurn,
+        readGitState: gitState,
         readConversation: () => conversation,
         isSelected: () => true,
         isWaitingForUser: () => false,
@@ -83,7 +98,7 @@ void main() {
         },
       );
 
-      expect(await workflow.run(), ProjectTaskReviewResult.clean);
+      expect(await workflow.run(), ProjectTaskReviewResult.committed);
       expect(routes, [false, true, false, true]);
       expect(prompts[1], contains('```diff'));
       expect(prompts[2], contains('Fix a null case.'));
@@ -95,6 +110,8 @@ void main() {
     var calls = 0;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
+      commit: commitTurn,
+      readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
       isWaitingForUser: () => false,
@@ -121,6 +138,8 @@ void main() {
     var completed = true;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
+      commit: commitTurn,
+      readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
       isWaitingForUser: () => false,
@@ -160,6 +179,8 @@ void main() {
     final prompts = <String>[];
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
+      commit: commitTurn,
+      readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
       isWaitingForUser: () => false,
@@ -187,7 +208,7 @@ void main() {
       },
     );
 
-    expect(await workflow.run(), ProjectTaskReviewResult.clean);
+    expect(await workflow.run(), ProjectTaskReviewResult.committed);
     expect(routes, [false, false, true]);
     expect(prompts[1], contains('no reviewable file change'));
     expect(prompts[2], contains('```diff'));
@@ -198,6 +219,8 @@ void main() {
     final routes = <bool>[];
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
+      commit: commitTurn,
+      readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
       isWaitingForUser: () => false,
@@ -222,7 +245,7 @@ void main() {
       },
     );
 
-    expect(await workflow.run(), ProjectTaskReviewResult.clean);
+    expect(await workflow.run(), ProjectTaskReviewResult.committed);
     expect(routes, [false, false, true]);
   });
 
@@ -232,6 +255,8 @@ void main() {
     var calls = 0;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
+      commit: commitTurn,
+      readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
       isWaitingForUser: () => waiting,
@@ -258,6 +283,8 @@ void main() {
     var calls = 0;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
+      commit: commitTurn,
+      readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => selected,
       isWaitingForUser: () => false,
@@ -274,4 +301,134 @@ void main() {
     expect(await workflow.run(), ProjectTaskReviewResult.stopped);
     expect(calls, 1);
   });
+  test('commits the reviewed task and checks the commit in git', () async {
+    var conversation = initial();
+    final workflow = cleanTaskWorkflow(
+      read: () => conversation,
+      update: (next) => conversation = next,
+      commit: commitTurn,
+      readGitState: gitState,
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.committed);
+    expect(commitPrompts, hasLength(1));
+    expect(
+      commitPrompts.single,
+      allOf(
+        contains('Source: ROADMAP.md:4'),
+        contains('mark it done'),
+        contains('- lib/task.dart'),
+        contains('Do not push'),
+      ),
+    );
+  });
+
+  test('stops when the commit turn made no commit', () async {
+    // The reported defect: a clean review ended the workflow with the task
+    // uncommitted, and the dashboard moved on to the next roadmap item.
+    var conversation = initial();
+    final workflow = cleanTaskWorkflow(
+      read: () => conversation,
+      update: (next) => conversation = next,
+      commit: (_) async => true,
+      readGitState: (_) async =>
+          const ProjectTaskGitState(head: 'unchanged', dirtyPaths: []),
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(workflow.stopReason, contains('no new commit'));
+  });
+
+  test('stops when task files remain uncommitted', () async {
+    var conversation = initial();
+    var head = 'before';
+    final workflow = cleanTaskWorkflow(
+      read: () => conversation,
+      update: (next) => conversation = next,
+      commit: (_) async {
+        head = 'after';
+        return true;
+      },
+      readGitState: (_) async => ProjectTaskGitState(
+        head: head,
+        dirtyPaths: head == 'after' ? const [' M lib/task.dart'] : const [],
+      ),
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(workflow.stopReason, contains('lib/task.dart'));
+  });
+
+  test('does not commit when git cannot be read', () async {
+    var conversation = initial();
+    var commitCalls = 0;
+    final workflow = cleanTaskWorkflow(
+      read: () => conversation,
+      update: (next) => conversation = next,
+      commit: (_) async {
+        commitCalls++;
+        return true;
+      },
+      readGitState: (_) async => null,
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(commitCalls, 0);
+  });
+}
+
+/// A workflow whose implementation captures one change and whose review is
+/// clean, so the run reaches the commit stage.
+ProjectTaskReviewWorkflow cleanTaskWorkflow({
+  required Conversation Function() read,
+  required void Function(Conversation) update,
+  required Future<bool> Function(String) commit,
+  required Future<ProjectTaskGitState?> Function(List<String>) readGitState,
+}) {
+  final now = DateTime(2026);
+  var calls = 0;
+  return ProjectTaskReviewWorkflow(
+    conversationId: 'task',
+    readConversation: read,
+    isSelected: () => true,
+    isWaitingForUser: () => false,
+    commit: commit,
+    readGitState: readGitState,
+    send: (_, {required codeReview}) async {
+      calls++;
+      final conversation = read();
+      update(
+        conversation.copyWith(
+          messages: [
+            ...conversation.messages,
+            Message(
+              id: 'assistant-$calls',
+              content: codeReview
+                  ? 'No findings.\nPROJECT_TASK_REVIEW_CLEAN'
+                  : 'Verified.\nPROJECT_TASK_READY_FOR_REVIEW',
+              role: MessageRole.assistant,
+              timestamp: now,
+            ),
+          ],
+          turnDiffs: codeReview
+              ? conversation.turnDiffs
+              : [
+                  TurnDiff(
+                    id: 'diff-$calls',
+                    assistantMessageId: 'assistant-$calls',
+                    userPromptPreview: 'task',
+                    timestamp: now,
+                    files: const [
+                      TurnDiffFile(
+                        filePath: 'lib/task.dart',
+                        unifiedPatch: '@@ -1 +1 @@\n-old\n+new',
+                      ),
+                    ],
+                  ),
+                ],
+        ),
+      );
+      return true;
+    },
+  );
 }
