@@ -6,7 +6,7 @@ enum ExecutionBudgetExtensionReason {
   codingContinuation,
   lengthTruncation,
   proseOnlyStall,
-  pendingFileEdit,
+  productiveTurn,
 }
 
 class ExecutionBudgetDecision {

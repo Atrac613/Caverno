@@ -38,7 +38,7 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/runtime/background_wait_iteration_refund.dart';
 import '../../application/runtime/duplicate_command_answer_policy.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
-import '../../application/runtime/pending_edit_budget_extension.dart';
+import '../../application/runtime/productive_turn_budget_extension.dart';
 import '../../application/runtime/read_only_command_repeat_budget.dart';
 import '../../application/runtime/read_only_review_scope.dart';
 import '../../application/runtime/saved_validation_repair_evidence.dart';
@@ -5815,13 +5815,11 @@ class ChatNotifier extends Notifier<ChatState> {
           pendingToolCalls: currentToolCalls,
           hasCurrentBatchToolResults: batchToolResults.isNotEmpty,
         );
-        if (const PendingEditBudgetExtension().applies(
+        if (const ProductiveTurnBudgetExtension().applies(
           exhaustion,
           executedToolResults: executedToolResults,
         )) {
-          requestBudgetExtension(
-            ExecutionBudgetExtensionReason.pendingFileEdit,
-          );
+          requestBudgetExtension(ExecutionBudgetExtensionReason.productiveTurn);
         }
         if (const ToolLoopExhaustionPolicy().shouldRequestRecovery(
           exhaustion,
