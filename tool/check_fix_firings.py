@@ -775,13 +775,13 @@ SIGNATURES = {
         "match": _project_gap_guidance,
     },
     "inherited_task_changes": {
-        # 4a6970a5f shipped the carry; 00c2d7a25 made it survive a relaunch.
-        "commit": "00c2d7a25",
+        # Squashed: the carry and its relaunch fix landed together.
+        "commit": "5f6816085",
         "what": "a re-run farm task counts an earlier run's uncommitted changes",
         "match": _inherited_task_guidance,
     },
     "reasoning_only_stop_recovery": {
-        "commit": "9c6f57a6b",
+        "commit": "0571c9f56",
         "what": "a tool-loop response ending inside reasoning gets a continuation",
         "transform": "coding_continuation_recovery_reasoning_only_stop",
     },
