@@ -255,7 +255,7 @@ $objective
 
 1. Open the cited roadmap entry. If it is not already marked done, mark it done following that document's own conventions. Change nothing else in the roadmap.
 2. Inspect git status and the diff, then stage only the task files listed below and the roadmap file. Do not stage unrelated pre-existing changes.
-3. Commit with a message that follows this repository's commit conventions. Do not push, publish, amend, or rewrite history.
+3. Commit with a message that follows this repository's commit conventions. Keep the subject to one short line of at most 72 characters and put any details in a second -m paragraph (git_execute_command keeps quoted arguments together), even if earlier commits in the log ran their details into the subject. Do not push, publish, amend, or rewrite history.
 
 Respect all approval gates. If the commit cannot be made, explain why.
 

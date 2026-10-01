@@ -170,8 +170,35 @@ class GitTools {
       normalized = normalized.substring(3).trimLeft();
     }
 
-    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return normalized;
+    return _collapseUnquotedWhitespace(normalized).trim();
+  }
+
+  /// Collapses whitespace runs to one space outside quotes only. Collapsing
+  /// inside them turned a commit body's line breaks into spaces, so every
+  /// multi-line `-m` paragraph landed as one line (session 80dc7079).
+  static String _collapseUnquotedWhitespace(String command) {
+    final buffer = StringBuffer();
+    String? quoteChar;
+    var pendingSpace = false;
+    for (final rune in command.runes) {
+      final c = String.fromCharCode(rune);
+      if (quoteChar == null &&
+          (c == ' ' || c == '\t' || c == '\n' || c == '\r')) {
+        pendingSpace = true;
+        continue;
+      }
+      if (pendingSpace) {
+        buffer.write(' ');
+        pendingSpace = false;
+      }
+      if (quoteChar == null && (c == '"' || c == "'")) {
+        quoteChar = c;
+      } else if (c == quoteChar) {
+        quoteChar = null;
+      }
+      buffer.write(c);
+    }
+    return buffer.toString();
   }
 
   /// Returns the first shell control operator outside quotes, if present.

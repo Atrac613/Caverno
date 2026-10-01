@@ -321,6 +321,10 @@ void main() {
         contains('mark it done'),
         contains('- lib/task.dart'),
         contains('Do not push'),
+        // Session f4269d8c: copying the log's run-on subjects produced a
+        // 150-character subject holding the whole body.
+        contains('at most 72 characters'),
+        contains('second -m paragraph'),
       ),
     );
   });

@@ -34,6 +34,23 @@ void main() {
         'commit -m "Add tokyo_weather_next_week.csv"',
       );
     });
+
+    test('keeps line breaks inside quoted arguments', () {
+      // Session 80dc7079: a commit body's two bullet lines became one.
+      const body = '- README.md: add overview\n- ROADMAP.md: mark done';
+      final normalized = GitTools.normalizeCommand(
+        'git   commit -m "Add README.md"\n  -m "$body"',
+      );
+
+      expect(normalized, 'commit -m "Add README.md" -m "$body"');
+      expect(GitTools.splitArgs(normalized), [
+        'commit',
+        '-m',
+        'Add README.md',
+        '-m',
+        body,
+      ]);
+    });
   });
 
   group('GitTools.isReadOnly', () {
