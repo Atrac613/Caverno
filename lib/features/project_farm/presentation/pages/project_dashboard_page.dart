@@ -17,6 +17,7 @@ import '../providers/roadmap_snapshot_providers.dart';
 import '../widgets/project_dashboard_sections.dart';
 import '../widgets/project_farm_policy_card.dart';
 import '../widgets/roadmap_path_dialog.dart';
+import '../widgets/uncommitted_changes_guard.dart';
 
 /// Pushes the dashboard for [projectId]. Completes with the id of a thread the
 /// user opened or started from it, for the caller to select.
@@ -50,6 +51,9 @@ class ProjectDashboardPage extends ConsumerStatefulWidget {
 class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
   RoadmapSnapshot? _snapshot;
   ProjectGitStatus? _git;
+
+  /// Set while Start work reads git, so a second press cannot start twice.
+  bool _starting = false;
   bool _refreshing = false;
   bool _hasRoadmap = true;
 
@@ -86,9 +90,20 @@ class _ProjectDashboardPageState extends ConsumerState<ProjectDashboardPage> {
     });
   }
 
-  void _startWork(RoadmapSnapshot snapshot) {
+  Future<void> _startWork(RoadmapSnapshot snapshot) async {
     final item = snapshot.recommended;
-    if (item == null) return;
+    final project = ref
+        .read(codingProjectsNotifierProvider)
+        .findById(widget.projectId);
+    if (item == null || project == null || _starting) return;
+    _starting = true;
+    final proceed = await confirmStartOverUncommittedChanges(
+      context,
+      projectRoot: project.rootPath,
+      reader: widget.gitReader,
+    );
+    _starting = false;
+    if (!proceed || !mounted) return;
     final conversationId = startProjectTask(
       conversations: ref.read(conversationsNotifierProvider.notifier),
       projectId: widget.projectId,

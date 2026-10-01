@@ -18,6 +18,7 @@ import '../../domain/entities/roadmap_snapshot.dart';
 import '../../domain/next_step_proposal_contract.dart';
 import '../providers/roadmap_snapshot_providers.dart';
 import '../widgets/run_in_background_dialog.dart';
+import '../widgets/uncommitted_changes_guard.dart';
 import 'project_dashboard_page.dart';
 
 /// Pushes the cross-project overview. Completes with the id of a thread the
@@ -44,6 +45,9 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
   final Map<String, ProjectProposal?> _proposals = {};
   String? _refreshingProjectId;
   bool _refreshingAll = false;
+
+  /// Set while Start work reads git, so a second press cannot start twice.
+  bool _starting = false;
 
   RoadmapSnapshot? _snapshotFor(String projectId) =>
       _snapshots.containsKey(projectId)
@@ -117,11 +121,19 @@ class _ProjectsOverviewPageState extends ConsumerState<ProjectsOverviewPage> {
     setState(() => _snapshots.remove(project.id));
   }
 
-  void _startWork(
+  Future<void> _startWork(
     CodingProject project,
     RoadmapSnapshot snapshot,
     RoadmapItemSnapshot item,
-  ) {
+  ) async {
+    if (_starting) return;
+    _starting = true;
+    final proceed = await confirmStartOverUncommittedChanges(
+      context,
+      projectRoot: project.rootPath,
+    );
+    _starting = false;
+    if (!proceed || !mounted) return;
     final id = startProjectTask(
       conversations: ref.read(conversationsNotifierProvider.notifier),
       projectId: project.id,
