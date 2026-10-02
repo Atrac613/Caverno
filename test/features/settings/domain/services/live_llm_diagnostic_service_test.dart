@@ -1750,6 +1750,108 @@ void main() {
   });
 
   test(
+    'multi-round binding preserves requests and publishes metrics together',
+    () async {
+      final source = _MultiRoundRecordingDataSource();
+      final updates = <LiveLlmDiagnosticReport>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true, model: 'multi-model'),
+        chatDataSource: source,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: const {'multi_round_tool_loop'}, onReport: updates.add);
+      expect(source.requestCount, 3);
+      expect(source.followUpCount, 2);
+      expect(
+        _result(report, 'multi_round_tool_loop').status,
+        LiveLlmDiagnosticStatus.passed,
+      );
+      final running = updates.firstWhere(
+        (r) =>
+            _result(r, 'multi_round_tool_loop').status ==
+            LiveLlmDiagnosticStatus.running,
+      );
+      expect(running.multiRoundToolLoopMetrics, isNull);
+      final terminal = updates.firstWhere(
+        (r) =>
+            _result(r, 'multi_round_tool_loop').status ==
+            LiveLlmDiagnosticStatus.passed,
+      );
+      expect(terminal.multiRoundToolLoopMetrics?.taskCompleted, isTrue);
+    },
+  );
+
+  for (final selected in [false, true]) {
+    test(
+      'multi-round skips ${selected ? 'missing local tools' : 'unselected probe'} without model requests',
+      () async {
+        final source = _MultiRoundRecordingDataSource();
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(probeIds: selected ? const {'multi_round_tool_loop'} : const {});
+        expect(
+          _result(report, 'multi_round_tool_loop').status,
+          LiveLlmDiagnosticStatus.skipped,
+        );
+        expect(source.requestCount, 0);
+        if (selected) {
+          expect(report.multiRoundToolLoopMetrics?.modelTurnCount, 0);
+        } else {
+          expect(report.multiRoundToolLoopMetrics, isNull);
+        }
+      },
+    );
+  }
+
+  test(
+    'multi-round request exceptions publish failed results without partial metrics',
+    () async {
+      final source = _MultiRoundRecordingDataSource(failRequest: true);
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true, model: 'multi-model'),
+        chatDataSource: source,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: const {'multi_round_tool_loop'});
+      final result = _result(report, 'multi_round_tool_loop');
+      expect(result.status, LiveLlmDiagnosticStatus.failed);
+      expect(result.summary, 'The multi-round tool loop request failed.');
+      expect(result.details, 'Bad state: request failed');
+      expect(report.multiRoundToolLoopMetrics, isNull);
+    },
+  );
+
+  for (final status in [
+    LiveLlmDiagnosticStatus.running,
+    LiveLlmDiagnosticStatus.passed,
+  ]) {
+    test('multi-round propagates $status publication exceptions', () async {
+      final source = _MultiRoundRecordingDataSource();
+      final error = StateError('publication failed');
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true, model: 'multi-model'),
+        chatDataSource: source,
+        mcpToolService: McpToolService(),
+      );
+      await expectLater(
+        service.run(
+          probeIds: const {'multi_round_tool_loop'},
+          onReport: (report) {
+            if (_result(report, 'multi_round_tool_loop').status == status) {
+              throw error;
+            }
+          },
+        ),
+        throwsA(same(error)),
+      );
+      expect(
+        source.requestCount,
+        status == LiveLlmDiagnosticStatus.running ? 0 : 3,
+      );
+    });
+  }
+
+  test(
     'multi-round probe rejects a non-search call on the first turn',
     () async {
       final service = LiveLlmDiagnosticService(
@@ -3072,6 +3174,76 @@ class _DepthRecordingDataSource extends _FakeDiagnosticDataSource {
     }
     return super.createChatCompletion(
       messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _MultiRoundRecordingDataSource extends _FakeDiagnosticDataSource {
+  _MultiRoundRecordingDataSource({this.failRequest = false});
+  final bool failRequest;
+  int requestCount = 0;
+  int followUpCount = 0;
+
+  void checkRequest(
+    List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  ) {
+    requestCount += 1;
+    expect(model, 'multi-model');
+    expect(temperature, 0);
+    expect(maxTokens, 512);
+    expect(messages.first.role, MessageRole.system);
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    checkRequest(messages, model, temperature, maxTokens);
+    expect(tools?.map((t) => t['function']['name']), ['tool_search']);
+    if (failRequest) {
+      throw StateError('request failed');
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    checkRequest(messages, model, temperature, maxTokens);
+    followUpCount += 1;
+    expect(toolResults, hasLength(1));
+    expect(
+      tools?.map((t) => t['function']['name']),
+      followUpCount == 1 ? ['tool_search', 'get_current_datetime'] : isEmpty,
+    );
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
       tools: tools,
       model: model,
       temperature: temperature,

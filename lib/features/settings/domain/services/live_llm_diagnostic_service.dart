@@ -27,6 +27,7 @@ import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_diagnostic_thinking_observer.dart';
+import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_structured_output_probe.dart';
 import 'live_llm_tool_depth_probe.dart';
@@ -94,6 +95,27 @@ class LiveLlmDiagnosticService {
     messages: (user) => _messages(user: user),
     answerMaxTokens: _diagnosticMaxTokens,
     reasoningMaxTokens: _reasoningProbeMaxTokens,
+  );
+  late final _multiRoundProbe = LiveLlmMultiRoundProbe(
+    complete: ({required messages, required tools}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          tools: tools,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    completeWithToolResults:
+        ({required messages, required toolResults, required tools}) =>
+            _chat.createChatCompletionWithToolResults(
+              messages: messages,
+              toolResults: toolResults,
+              tools: tools,
+              model: _diagnosticModel,
+              temperature: _diagnosticTemperature,
+              maxTokens: _diagnosticMaxTokens,
+            ),
+    messages: (user) => _messages(user: user),
   );
   late final _toolDepthProbe = LiveLlmToolDepthProbe(
     complete: ({required messages, tools}) => _chat.createChatCompletion(
@@ -264,14 +286,13 @@ class LiveLlmDiagnosticService {
   static const _narrowToolCallProbeId = 'narrow_tool_call';
   static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
   static const _toolResultProbeId = 'tool_result_integration';
-  static const _multiRoundToolLoopProbeId = 'multi_round_tool_loop';
+  static const _multiRoundToolLoopProbeId = LiveLlmMultiRoundProbe.probeId;
   static const _initialHarnessProbeId = 'initial_harness_selection';
   static const _toolSearchProbeId = 'tool_search_catalog';
   static const _subagentProbeId = 'subagent_recognition';
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
   static const _toolDepthProbeId = LiveLlmToolDepthProbe.probeId;
   static const _toolRecoveryProbeId = LiveLlmToolRecoveryProbe.probeId;
-  static const _multiRoundToolLoopMarker = 'CAVERNO_MULTI_ROUND_LOOP_OK';
 
   /// The streaming probe asks for a run of integers rather than prose: the
   /// content is verifiable without a judge, and it is long enough that the
@@ -2694,7 +2715,14 @@ class LiveLlmDiagnosticService {
     onReport?.call(updated);
 
     try {
-      final outcome = await _measureMultiRoundToolLoop(catalog);
+      final outcome = await _multiRoundProbe.run(
+        searchTool: _singleTool(
+          catalog.definitions,
+          ToolDefinitionSearchService.toolName,
+        ),
+        dateTool: _singleTool(catalog.definitions, 'get_current_datetime'),
+        execute: mcpToolService?.executeTool,
+      );
       updated = updated
           .withProbeResult(
             outcome.result.copyWith(
@@ -2715,246 +2743,6 @@ class LiveLlmDiagnosticService {
     }
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<_MultiRoundToolLoopProbeOutcome> _measureMultiRoundToolLoop(
-    _ToolCatalogContext catalog,
-  ) async {
-    final service = mcpToolService;
-    final searchTool = _singleTool(
-      catalog.definitions,
-      ToolDefinitionSearchService.toolName,
-    );
-    final dateTool = _singleTool(catalog.definitions, 'get_current_datetime');
-    final stopwatch = Stopwatch()..start();
-    final modelResults = <ChatCompletionResult>[];
-    final observedToolNames = <String>[];
-    var toolCallCount = 0;
-    var successfulToolExecutionCount = 0;
-
-    _MultiRoundToolLoopProbeOutcome finish({
-      required LiveLlmDiagnosticStatus status,
-      required String summary,
-      String details = '',
-      String modelContent = '',
-      int passedChecks = 0,
-      int totalChecks = 3,
-    }) {
-      stopwatch.stop();
-      final usage = LiveLlmDiagnosticEvidence.totalUsage(modelResults);
-      return _MultiRoundToolLoopProbeOutcome(
-        result: LiveLlmDiagnosticProbeResult(
-          id: _multiRoundToolLoopProbeId,
-          status: status,
-          summary: summary,
-          details: details,
-          modelContent: LiveLlmDiagnosticEvidence.preview(modelContent),
-          toolCalls: List.unmodifiable(observedToolNames),
-          usage: usage,
-          passedChecks: passedChecks,
-          totalChecks: totalChecks,
-        ),
-        metrics: LiveLlmDiagnosticMultiRoundToolLoopMetrics(
-          totalElapsed: stopwatch.elapsed,
-          modelTurnCount: modelResults.length,
-          toolCallCount: toolCallCount,
-          successfulToolExecutionCount: successfulToolExecutionCount,
-          promptTokens: usage.promptTokens,
-          completionTokens: usage.completionTokens,
-          taskCompleted: status == LiveLlmDiagnosticStatus.passed,
-        ),
-      );
-    }
-
-    if (service == null || searchTool == null || dateTool == null) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.skipped,
-        summary: 'The sequential local tools are not available.',
-      );
-    }
-
-    final messages = _messages(
-      user:
-          'Find the available tool that reports the current date and timezone, '
-          'use it, then return JSON with marker="$_multiRoundToolLoopMarker", '
-          'today copied from relative_dates.today, and timezone copied from '
-          'the datetime result.',
-    );
-    final searchRequest = await _chat.createChatCompletion(
-      messages: messages,
-      // The datetime tool is intentionally absent, so the model has to
-      // discover it before it can call it.
-      tools: [searchTool],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    modelResults.add(searchRequest);
-    final searchCalls = LiveLlmResponseScoring.toolCallsFrom(searchRequest);
-    toolCallCount += searchCalls.length;
-    observedToolNames.addAll(searchCalls.map((call) => call.name));
-    // Judged by name, not by count. `tool_search` is the only tool attached
-    // here, so a second call is a second search -- the discovery this probe
-    // exists to measure, issued in parallel. Counting instead cost
-    // qwen/qwen3.8-flash all 65 points on 2026-09-18, and took the run's
-    // verdict to Failed, for searching twice before answering.
-    if (searchCalls.isEmpty ||
-        searchCalls.any(
-          (call) => call.name != ToolDefinitionSearchService.toolName,
-        )) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The first turn did not call tool_search.',
-        details: 'Returned calls: ${observedToolNames.join(", ")}',
-        modelContent: searchRequest.content,
-      );
-    }
-
-    // Every search runs: parallel queries differ, and it is their union that
-    // decides whether the datetime tool was discovered.
-    final searchResults = <ToolResultInfo>[];
-    for (final searchCall in searchCalls) {
-      final searchExecution = await service.executeTool(
-        name: searchCall.name,
-        arguments: searchCall.arguments,
-      );
-      if (!searchExecution.isSuccess) {
-        return finish(
-          status: LiveLlmDiagnosticStatus.failed,
-          summary: 'The local tool catalog search failed.',
-          details: searchExecution.errorMessage ?? searchExecution.result,
-        );
-      }
-      successfulToolExecutionCount += 1;
-      searchResults.add(
-        ToolResultInfo(
-          id: searchCall.id.isEmpty
-              ? 'diagnostic-tool-search-call-${searchResults.length}'
-              : searchCall.id,
-          name: searchCall.name,
-          arguments: searchCall.arguments,
-          result: searchExecution.result,
-        ),
-      );
-    }
-    final discovered =
-        ToolDefinitionSearchService.discoveredToolNamesFromResults(
-          searchResults,
-        );
-    if (!discovered.contains('get_current_datetime')) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'Tool search did not discover get_current_datetime.',
-        details: LiveLlmDiagnosticEvidence.preview(
-          searchResults.map((result) => result.result).join('\n'),
-          maxChars: 1200,
-        ),
-        passedChecks: 1,
-      );
-    }
-
-    final dateRequest = await _chat.createChatCompletionWithToolResults(
-      messages: messages,
-      toolResults: searchResults,
-      tools: [searchTool, dateTool],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    modelResults.add(dateRequest);
-    final dateCalls = LiveLlmResponseScoring.toolCallsFrom(dateRequest);
-    toolCallCount += dateCalls.length;
-    observedToolNames.addAll(dateCalls.map((call) => call.name));
-    // Same rule as the first turn. Both tools are attached by now, so a call
-    // to anything but the datetime tool still fails -- re-searching here means
-    // the model dropped the catalog it was just handed.
-    if (dateCalls.isEmpty ||
-        dateCalls.any((call) => call.name != 'get_current_datetime')) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The second turn did not call get_current_datetime.',
-        details:
-            'Returned calls: ${dateCalls.map((call) => call.name).join(", ")}',
-        modelContent: dateRequest.content,
-        passedChecks: 1,
-      );
-    }
-
-    // One reading is the whole answer, so repeats need no second execution.
-    final dateCall = dateCalls.first;
-    final dateExecution = await service.executeTool(
-      name: dateCall.name,
-      arguments: dateCall.arguments,
-    );
-    if (!dateExecution.isSuccess) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The local datetime tool failed.',
-        details: dateExecution.errorMessage ?? dateExecution.result,
-        passedChecks: 1,
-      );
-    }
-    successfulToolExecutionCount += 1;
-    final dateResult = ToolResultInfo(
-      id: dateCall.id.isEmpty ? 'diagnostic-datetime-call' : dateCall.id,
-      name: dateCall.name,
-      arguments: dateCall.arguments,
-      result: dateExecution.result,
-    );
-
-    final finalRequest = await _chat.createChatCompletionWithToolResults(
-      messages: messages,
-      toolResults: [dateResult],
-      tools: const <Map<String, dynamic>>[],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    modelResults.add(finalRequest);
-    final finalCalls = LiveLlmResponseScoring.toolCallsFrom(finalRequest);
-    toolCallCount += finalCalls.length;
-    observedToolNames.addAll(finalCalls.map((call) => call.name));
-
-    final expected = LiveLlmResponseScoring.tryDecodeJsonObject(
-      dateExecution.result,
-    );
-    final relativeDates = expected?['relative_dates'];
-    final today = relativeDates is Map
-        ? relativeDates['today'] as String?
-        : null;
-    final timezone = expected?['timezone'] as String?;
-    final content = finalRequest.content.trim();
-    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
-    final markerOk = decoded?['marker'] == _multiRoundToolLoopMarker;
-    final todayOk = today != null && decoded?['today'] == today;
-    final timezoneOk = timezone != null && decoded?['timezone'] == timezone;
-    final noExtraCalls = finalCalls.isEmpty;
-    final passed = markerOk && todayOk && timezoneOk && noExtraCalls;
-    return finish(
-      status: passed
-          ? LiveLlmDiagnosticStatus.passed
-          : LiveLlmDiagnosticStatus.warning,
-      summary: passed
-          ? 'The model completed two sequential tool rounds and the final answer.'
-          : 'The loop reached a final answer but did not preserve its contract.',
-      details: [
-        'Search discovered datetime: true',
-        'Marker copied: $markerOk',
-        'Today copied: $todayOk',
-        'Timezone copied: $timezoneOk',
-        'No extra final calls: $noExtraCalls',
-      ].join('\n'),
-      modelContent: content,
-      passedChecks:
-          2 +
-          [
-            markerOk,
-            todayOk,
-            timezoneOk,
-            noExtraCalls,
-          ].where((ok) => ok).length,
-      totalChecks: 6,
-    );
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runInitialHarnessProbe(
@@ -3298,16 +3086,6 @@ class _StreamingProbeOutcome {
 
   final LiveLlmDiagnosticProbeResult result;
   final LiveLlmDiagnosticStreamingMetrics metrics;
-}
-
-class _MultiRoundToolLoopProbeOutcome {
-  const _MultiRoundToolLoopProbeOutcome({
-    required this.result,
-    required this.metrics,
-  });
-
-  final LiveLlmDiagnosticProbeResult result;
-  final LiveLlmDiagnosticMultiRoundToolLoopMetrics metrics;
 }
 
 class _ToolCatalogContext {

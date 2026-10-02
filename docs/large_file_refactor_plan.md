@@ -1902,3 +1902,31 @@ device run was performed. See
 Next: scope multi-round diagnostic execution and its tool-execution/report
 boundary separately. RC1 signed-device verification stays on hold and F5 stays
 `current`.
+
+### Multi-round extraction (2026-10-03)
+
+The depth branch was fast-forward integrated into local main `2ee77ddb2`.
+The slice on `feature/f5-multi-round-probe` moved multi-round measurement into
+`live_llm_multi_round_probe.dart`, with completion, follow-up and tool-execution
+ports. The module is 284 lines, and the diagnostic service fell from 3,425 to
+3,203 lines. Catalog lookup, selection, request settings, thinking observation,
+exception-to-report handling and publication remain in the service.
+
+Name checks still precede execution. Every allowed search is executed in order,
+with discovery taken from the union of results; repeated datetime calls count
+as observations but only the first executes. Final requests have no tools, and
+extra final calls warn without execution. Usage, physical metrics, IDs,
+previews, check denominators and typed-decoding exceptions are preserved.
+
+Eleven service multi-round tests passed before extraction, including six new
+binding/skip/error/publication contracts. Those and the existing regressions
+passed after extraction alongside 31 isolated tests. The coverage verification
+gate passed with 147 tests in six focused suites, analysis, package checks and
+relay checks. Six affected size checks passed. The module has 100% executable
+coverage (107/107); the service has 88.92% (947/1,065) in this focused run.
+No full Flutter-suite, live-model or device run was performed. See
+[implementation evidence](f5_multi_round_probe_extraction_codex_task.md#implementation-evidence).
+
+The four probe families selected in this sequence are now extracted. Next:
+refresh sizes, churn, coverage and remaining boundaries before selecting another
+slice. F5 stays `current`; RC1 signed-device verification remains on hold.
