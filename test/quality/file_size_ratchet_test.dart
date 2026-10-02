@@ -868,7 +868,9 @@ const Map<String, int> _lineBudgets = {
   // which already owned the two wrapped http clients it hands that constructor.
   // -11, to 1,113: 9dcdd264c's tool_choice pushed this to 1,137; the SDK tool
   // and tool_choice mapping moved to ChatRequestToolDeclarations.
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1113,
+  // -9: the stream assembler owns its reasoning buffer, which the tool-result
+  // path used to allocate and stringify itself.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1104,
   // +32, and the only budget raised here rather than lowered. 20 of it is the
   // client construction that left chat_remote_datasource.dart just above,
   // offset there; the rest is the endpoint's chat_template_kwargs opt-in and

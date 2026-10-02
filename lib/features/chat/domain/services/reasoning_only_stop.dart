@@ -9,6 +9,11 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 /// edits, and the farm workflow stopped; 13 such stops were found across 12 of
 /// the 150 most recent coding sessions. Detection is mechanical, judging no
 /// prose, so it also applies to project-task turns that skip prose recovery.
+///
+/// A streamed reply's content omits its reasoning, so the caller restores it
+/// with `ChatCompletionResult.orReasoning`. Until it did, this never fired
+/// outside tests: session 8ca9fb5b stopped twice this way on a build that
+/// carried the recovery.
 final class ReasoningOnlyStop {
   const ReasoningOnlyStop();
 

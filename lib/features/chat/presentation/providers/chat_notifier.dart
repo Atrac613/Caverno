@@ -6198,7 +6198,7 @@ class ChatNotifier extends Notifier<ChatState> {
             !shouldSkipCodingContinuationRecovery) {
           final codingContinuationRecoveryResult =
               await _requestCodingContinuationRecovery(
-                candidateResponse: fallbackResponse,
+                candidateResponse: nextResult.orReasoning(fallbackResponse),
                 tools: tools,
                 interactionGeneration: interactionGeneration,
                 requireContinuationRequest: false,

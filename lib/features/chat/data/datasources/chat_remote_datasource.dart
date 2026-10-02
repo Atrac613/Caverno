@@ -392,6 +392,7 @@ class ChatRemoteDataSource
           toolCalls: toolCalls,
           finishReason: finishReason,
           usage: usage,
+          streamedReasoning: assembler.reasoning,
         );
         completer.complete(completion);
         _telemetry.publishRequest(
@@ -849,11 +850,7 @@ class ChatRemoteDataSource
         );
 
         final responseBuffer = StringBuffer();
-        final reasoningBuffer = StringBuffer();
-        final assembler = ReasoningTaggedStreamAssembler(
-          responseBuffer,
-          reasoning: reasoningBuffer,
-        );
+        final assembler = ReasoningTaggedStreamAssembler(responseBuffer);
         await for (final event in stream) {
           accumulator.add(event);
           final choice = event.choices?.firstOrNull;
@@ -872,9 +869,7 @@ class ChatRemoteDataSource
         _logger.logNativeToolCalls(accumulator.toolCalls);
         final normalized = _responseNormalizer.normalize(
           content: accumulator.content,
-          reasoning: reasoningBuffer.isEmpty
-              ? null
-              : reasoningBuffer.toString(),
+          reasoning: assembler.reasoning,
           nativeToolCalls: accumulator.toolCalls,
           finishReason: accumulator.finishReason?.value,
           advertisedTools: tools,
@@ -885,6 +880,7 @@ class ChatRemoteDataSource
           toolCalls: normalized.toolCalls,
           finishReason: normalized.finishReason,
           usage: usage,
+          streamedReasoning: assembler.reasoning,
         );
         completer.complete(completion);
         _telemetry.publishRequest(

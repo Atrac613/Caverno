@@ -1305,6 +1305,8 @@ void main() {
     );
     final completion = await result.completion;
     expect(completion.content, 'Done');
+    // The content leaves the reasoning out; the result still says it streamed.
+    expect(completion.streamedReasoning, 'Inspecting the result');
     expect(completion.finishReason, 'stop');
     expect(requestBody!['stream'], isTrue);
     final messages = requestBody!['messages'] as List<dynamic>;
