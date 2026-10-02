@@ -265,6 +265,26 @@ def _status_request_offers_verification(blob):
     return False
 
 
+def _repair_prompt_asks_for_underlying_defect(blob):
+    """Whether a farm repair turn was asked to fix each finding's defect class.
+
+    The repair prompt is the only place this phrase is sent, and it is read
+    from user messages, never from file reads.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for message in (entry.get("request") or {}).get("messages") or []:
+            if message.get("role") == "user" and (
+                "underlying defect behind each finding"
+                in str(message.get("content"))
+            ):
+                return True
+    return False
+
+
 def _recovery_carries_earlier_results(blob):
     """Whether a loop-limit recovery request held more than the last batch.
 
@@ -811,6 +831,11 @@ SIGNATURES = {
         "commit": "2951b2a24",
         "what": "a farm status request lets the model run the gate's verification",
         "match": _status_request_offers_verification,
+    },
+    "farm_repair_fixes_defect_class": {
+        "commit": "16eaf0bf2",
+        "what": "a farm repair turn is asked to fix each finding's underlying defect",
+        "match": _repair_prompt_asks_for_underlying_defect,
     },
     "loop_limit_question_to_user": {
         "commit": "4e482cb4b",
