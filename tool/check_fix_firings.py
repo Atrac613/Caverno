@@ -285,6 +285,27 @@ def _repair_prompt_asks_for_underlying_defect(blob):
     return False
 
 
+def _reasoning_only_recovery_without_thinking(blob):
+    """Whether a reasoning-only stop recovery request went out without thinking.
+
+    Read from the logged request, which mirrors the wire controls: its label
+    names the recovery, and its template kwargs carry the switch.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        request = entry.get("request") or {}
+        kwargs = request.get("chat_template_kwargs") or {}
+        if (
+            request.get("label") == "reasoning-only stop recovery"
+            and kwargs.get("enable_thinking") is False
+        ):
+            return True
+    return False
+
+
 def _recovery_carries_earlier_results(blob):
     """Whether a loop-limit recovery request held more than the last batch.
 
@@ -831,6 +852,11 @@ SIGNATURES = {
         "commit": "2951b2a24",
         "what": "a farm status request lets the model run the gate's verification",
         "match": _status_request_offers_verification,
+    },
+    "reasoning_only_recovery_without_thinking": {
+        "commit": "f6e09df38",
+        "what": "a reasoning-only stop recovery is sent with thinking off",
+        "match": _reasoning_only_recovery_without_thinking,
     },
     "farm_repair_fixes_defect_class": {
         "commit": "16eaf0bf2",
