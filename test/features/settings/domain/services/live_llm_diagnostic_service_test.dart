@@ -798,16 +798,30 @@ void main() {
   });
 
   test('prefers JSON Schema structured output when it is enforced', () async {
+    final dataSource = _FakeDiagnosticDataSource();
+    final updates = <LiveLlmDiagnosticReport>[];
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
-      chatDataSource: _FakeDiagnosticDataSource(),
+      chatDataSource: dataSource,
       mcpToolService: McpToolService(),
     );
 
-    final report = await service.run(probeIds: {'structured_output'});
+    final report = await service.run(
+      probeIds: {'structured_output'},
+      onReport: updates.add,
+    );
     final result = _result(report, 'structured_output');
 
     expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(dataSource.requestedModels, ['test-model']);
+    expect(dataSource.structuredCaps, [2048]);
+    expect(dataSource.structuredTemperatures, [0.0]);
+    expect(report.thinkingMetrics?.responseCount, 1);
+    expect(updates.map((r) => _result(r, 'structured_output').status).toSet(), {
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.passed,
+    });
     expect(result.passedChecks, 2);
     expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
     expect(
@@ -817,46 +831,6 @@ void main() {
       ).structuredOutputSupport,
       ModelStructuredOutputSupport.jsonSchema,
     );
-  });
-
-  test('names the expected values in the json_schema prompt', () async {
-    final dataSource = _FakeDiagnosticDataSource();
-    final service = LiveLlmDiagnosticService(
-      settings: _settings(mcpEnabled: false),
-      chatDataSource: dataSource,
-      mcpToolService: McpToolService(),
-    );
-
-    await service.run(probeIds: {'structured_output'});
-
-    // Asking abstractly is answerable only when the schema reaches the model;
-    // a serving path that drops response_format leaves nothing to produce and
-    // the model reasons to the token cap. The two arms must ask the same thing
-    // and differ only in the format they request.
-    expect(dataSource.schemaArmPrompt, contains('CAVERNO_SCHEMA_LOCKED_47'));
-    expect(dataSource.schemaArmPrompt, contains('"count":47'));
-    expect(
-      dataSource.schemaArmPrompt,
-      contains('matching the supplied response schema'),
-    );
-  });
-
-  test('scores a schema answer buried under a braced think block', () async {
-    // Regression: the merged <think> prose contains a brace, so decoding the
-    // raw content sliced from the thought into the answer and reported a
-    // schema-perfect reply as a contract violation.
-    final service = LiveLlmDiagnosticService(
-      settings: _settings(mcpEnabled: false),
-      chatDataSource: _FakeDiagnosticDataSource(bracedReasoning: true),
-      mcpToolService: McpToolService(),
-    );
-
-    final report = await service.run(probeIds: {'structured_output'});
-    final result = _result(report, 'structured_output');
-
-    expect(result.status, LiveLlmDiagnosticStatus.passed);
-    expect(result.passedChecks, 2);
-    expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
   });
 
   // The staircase is headroom, not a floor: a model that loses the carried id
@@ -954,6 +928,128 @@ void main() {
     expect(result.status, LiveLlmDiagnosticStatus.failed);
     expect(result.passedChecks, 0);
     expect(result.metadata['structuredOutputSupport'], 'none');
+  });
+
+  test(
+    'schema report publication failure still runs the object fallback',
+    () async {
+      final dataSource = _FakeDiagnosticDataSource();
+      var schemaPublications = 0;
+      final report =
+          await LiveLlmDiagnosticService(
+            settings: _settings(mcpEnabled: false),
+            chatDataSource: dataSource,
+            mcpToolService: McpToolService(),
+          ).run(
+            probeIds: {'structured_output'},
+            onReport: (report) {
+              if (_result(report, 'structured_output').status ==
+                  LiveLlmDiagnosticStatus.passed) {
+                schemaPublications += 1;
+                throw StateError('publication failed');
+              }
+            },
+          );
+
+      expect(schemaPublications, 1);
+      expect(dataSource.structuredCaps, [2048, 512]);
+      expect(
+        _result(report, 'structured_output').status,
+        LiveLlmDiagnosticStatus.warning,
+      );
+      expect(
+        _result(report, 'structured_output').details,
+        contains('publication failed'),
+      );
+      expect(report.thinkingMetrics?.responseCount, 2);
+    },
+  );
+
+  test('structured fallback reports and observes each response once', () async {
+    final dataSource = _StructuredAccountingDataSource();
+    final updates = <LiveLlmDiagnosticReport>[];
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: {'structured_output'}, onReport: updates.add);
+
+    final result = _result(report, 'structured_output');
+    expect(dataSource.requestedModels, ['test-model', 'test-model']);
+    expect(dataSource.structuredCaps, [2048, 512]);
+    expect(dataSource.structuredTemperatures, [0.0, 0.0]);
+    expect(result.usage.toJson(), {
+      'promptTokens': 30,
+      'completionTokens': 10,
+      'totalTokens': 40,
+    });
+    expect(report.thinkingMetrics?.responseCount, 2);
+    expect(report.thinkingMetrics?.reasoningResponseCount, 2);
+    expect(result.modelContent, contains('<think>'));
+    expect(updates.map((r) => _result(r, 'structured_output').status).toSet(), {
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.warning,
+    });
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      ).structuredOutputSupport,
+      ModelStructuredOutputSupport.jsonObject,
+    );
+  });
+
+  test(
+    'unselected structured probe does not send a structured request',
+    () async {
+      final dataSource = _FakeDiagnosticDataSource();
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: dataSource,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: {'instruction_echo'});
+
+      expect(dataSource.structuredCaps, isEmpty);
+      expect(
+        _result(report, 'structured_output').status,
+        LiveLlmDiagnosticStatus.skipped,
+      );
+    },
+  );
+
+  test(
+    'Apple provider skips structured output even with a capable datasource',
+    () async {
+      final dataSource = _FakeDiagnosticDataSource();
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(
+          mcpEnabled: false,
+          llmProvider: LlmProvider.appleFoundationModels,
+        ),
+        chatDataSource: dataSource,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: {'structured_output'});
+
+      expect(dataSource.requestedModels, isEmpty);
+      expect(report.thinkingMetrics, isNull);
+      final result = _result(report, 'structured_output');
+      expect(result.status, LiveLlmDiagnosticStatus.skipped);
+      expect(result.summary, contains('Apple Foundation Models'));
+    },
+  );
+
+  test('datasource without response_format skips without generation', () async {
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _UnsupportedLanguageDataSource(),
+      mcpToolService: McpToolService(),
+    ).run(probeIds: {'structured_output'});
+
+    final result = _result(report, 'structured_output');
+    expect(result.status, LiveLlmDiagnosticStatus.skipped);
+    expect(result.summary, contains('cannot send response_format'));
+    expect(report.thinkingMetrics, isNull);
   });
 
   test('measures usable embeddings and semantic separation', () async {
@@ -1753,9 +1849,6 @@ class _FakeDiagnosticDataSource
   final bool textToolCalls;
   final ModelStructuredOutputSupport structuredOutputSupport;
 
-  /// The last json_schema arm prompt, so a test can assert what it asked for.
-  String? schemaArmPrompt;
-
   /// Reasons to the token cap and returns no answer, the way a model does
   /// when the endpoint silently dropped the schema it was told to follow.
   final bool schemaArmRunsToTokenCap;
@@ -1788,6 +1881,8 @@ class _FakeDiagnosticDataSource
 
   int toolResultFollowUpCount = 0;
   final List<String?> requestedModels = [];
+  final List<int?> structuredCaps = [];
+  final List<double?> structuredTemperatures = [];
 
   /// Replays the tool-state staircase: one call per scripted step, then a
   /// final answer carrying every value that rung asks to see survive.
@@ -1850,8 +1945,9 @@ class _FakeDiagnosticDataSource
     int? maxTokens,
   }) async {
     requestedModels.add(model);
+    structuredCaps.add(maxTokens);
+    structuredTemperatures.add(temperature);
     if (responseFormat.format == StructuredOutputFormat.jsonSchema) {
-      schemaArmPrompt = messages.last.content;
       if (schemaArmRunsToTokenCap) {
         // An endpoint that drops response_format leaves the schema arm's
         // prompt with no values to produce, so the model reasons to the cap.
@@ -2175,6 +2271,38 @@ class _FakeDiagnosticDataSource
         ToolCallInfo(id: 'call-$name', name: name, arguments: arguments),
       ],
       finishReason: 'tool_calls',
+    );
+  }
+}
+
+class _StructuredAccountingDataSource extends _FakeDiagnosticDataSource {
+  _StructuredAccountingDataSource()
+    : super(bracedReasoning: true, schemaArmRunsToTokenCap: true);
+
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final result = await super.createStructuredChatCompletion(
+      messages: messages,
+      responseFormat: responseFormat,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    final schema = responseFormat.format == StructuredOutputFormat.jsonSchema;
+    return ChatCompletionResult(
+      content: result.content,
+      finishReason: result.finishReason,
+      usage: TokenUsage(
+        promptTokens: schema ? 10 : 20,
+        completionTokens: schema ? 3 : 7,
+        totalTokens: schema ? 13 : 27,
+      ),
     );
   }
 }

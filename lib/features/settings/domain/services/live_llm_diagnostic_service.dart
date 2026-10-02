@@ -28,6 +28,7 @@ import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_diagnostic_thinking_observer.dart';
 import 'live_llm_sampler_calibration_trials.dart';
+import 'live_llm_structured_output_probe.dart';
 import 'live_llm_tool_depth_staircase.dart';
 import 'live_llm_tool_recovery_cases.dart';
 import 'live_llm_vision_probes.dart';
@@ -225,7 +226,7 @@ class LiveLlmDiagnosticService {
   ];
 
   static const _instructionProbeId = 'instruction_echo';
-  static const _structuredOutputProbeId = 'structured_output';
+  static const _structuredOutputProbeId = LiveLlmStructuredOutputProbe.probeId;
   static const _streamingProbeId = 'streaming_response';
   static const _thinkingControlProbeId = 'thinking_control';
   static const _exactPreservationProbeId = 'exact_preservation';
@@ -320,21 +321,8 @@ class LiveLlmDiagnosticService {
   static const _reasoningProbeMaxTokens = 2048;
 
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
-  static const structuredOutputSupportMetadataKey = 'structuredOutputSupport';
-  static const _structuredOutputSchemaMarker = 'CAVERNO_SCHEMA_LOCKED_47';
-  static const _structuredOutputObjectMarker = 'CAVERNO_JSON_OBJECT_OK';
-  static const _structuredOutputSchema = <String, dynamic>{
-    'type': 'object',
-    'properties': <String, dynamic>{
-      'marker': <String, dynamic>{
-        'type': 'string',
-        'const': _structuredOutputSchemaMarker,
-      },
-      'count': <String, dynamic>{'type': 'integer', 'const': 47},
-    },
-    'required': <String>['marker', 'count'],
-    'additionalProperties': false,
-  };
+  static const structuredOutputSupportMetadataKey =
+      LiveLlmStructuredOutputProbe.supportMetadataKey;
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
   static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
@@ -1003,103 +991,36 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
 
-    final completed = <ChatCompletionResult>[];
-    String schemaDetail;
-
-    // Ask the endpoint before spending a generation on it. A server that drops
-    // `response_format` still answers 200, so the schema arm's prompt -- which
-    // names no literal values, because the schema is supposed to supply them --
-    // leaves the model with nothing to produce. Measured against
-    // Qwen3.8-Flash-Next-Q2: 24 s to an empty `finish_reason: length`
-    // completion, to learn what `GET /v1/models` advertises in one round trip.
-    if (await _responseFormatSupport() ==
-        EndpointParameterSupport.unsupported) {
-      return _runStructuredObjectArm(
-        report: updated,
-        structuredDataSource: structuredDataSource,
-        completed: completed,
-        schemaDetail:
-            'json_schema: not attempted -- the endpoint does not list '
-            'response_format among its supported_parameters',
-        startedAt: startedAt,
-        onReport: onReport,
-      );
-    }
-
-    try {
-      final schemaResult = await structuredDataSource
-          .createStructuredChatCompletion(
-            messages: _messages(
-              // The values are named here, as the json_object arm names its
-              // own, so the two arms differ only in the format they request.
-              // Asking abstractly ("follow the supplied response schema") is
-              // answerable only when the schema actually reaches the model: a
-              // serving path that drops response_format leaves nothing to
-              // produce, and the model reasons in circles to the token cap.
-              // Measured on Qwen3.8-Flash-Next-Q2 and qwen/qwen3.8-flash --
-              // and a curl replay of the same request shape with the values
-              // named returned in ~5 s, with or without `strict`.
-              user:
-                  'Return one JSON object with exactly these two fields and no '
-                  'markdown, matching the supplied response schema: '
-                  '{"marker":"$_structuredOutputSchemaMarker","count":47}',
-            ),
-            responseFormat: const StructuredOutputRequest.jsonSchema(
-              name: 'caverno_live_diagnostic',
-              schema: _structuredOutputSchema,
-            ),
-            model: _diagnosticModel,
-            temperature: _diagnosticTemperature,
-            maxTokens: _reasoningProbeMaxTokens,
-          );
-      _thinking.record(schemaResult.content);
-      completed.add(schemaResult);
-      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(
-        schemaResult.content,
-      );
-      final schemaPassed =
-          decoded?.length == 2 &&
-          decoded?['marker'] == _structuredOutputSchemaMarker &&
-          decoded?['count'] == 47;
-      if (schemaPassed) {
-        updated = updated.withProbeResult(
-          LiveLlmDiagnosticProbeResult(
-            id: _structuredOutputProbeId,
-            status: LiveLlmDiagnosticStatus.passed,
-            summary:
-                'The endpoint and model enforced the supplied JSON schema.',
-            details: 'json_schema: passed\njson_object fallback: not needed',
-            modelContent: LiveLlmDiagnosticEvidence.preview(
-              schemaResult.content,
-            ),
-            usage: LiveLlmDiagnosticEvidence.usage(schemaResult),
-            passedChecks: 2,
-            totalChecks: 2,
-            metadata: const {structuredOutputSupportMetadataKey: 'jsonSchema'},
-            elapsed: DateTime.now().difference(startedAt),
-          ),
-        );
-        onReport?.call(updated);
-        return updated;
-      }
-      // Truncation is not a contract violation. A reasoning model that never
-      // reaches an answer returns empty content with `finish_reason: length`,
-      // and reporting that as "violated the schema" blames the model for a
-      // budget the harness set.
-      schemaDetail = _schemaArmDetail(schemaResult);
-    } catch (error) {
-      schemaDetail =
-          'json_schema: request failed (${LiveLlmDiagnosticEvidence.preview('$error')})';
-    }
-
-    return _runStructuredObjectArm(
-      report: updated,
-      structuredDataSource: structuredDataSource,
-      completed: completed,
-      schemaDetail: schemaDetail,
+    await LiveLlmStructuredOutputProbe(
+      complete:
+          ({
+            required messages,
+            required responseFormat,
+            required maxTokens,
+          }) async {
+            final response = await structuredDataSource
+                .createStructuredChatCompletion(
+                  messages: messages,
+                  responseFormat: responseFormat,
+                  model: _diagnosticModel,
+                  temperature: _diagnosticTemperature,
+                  maxTokens: maxTokens,
+                );
+            _thinking.record(response.content);
+            return response;
+          },
+      responseFormatSupport: _responseFormatSupport,
+      messages: (user) => _messages(user: user),
+      answerMaxTokens: _diagnosticMaxTokens,
+      reasoningMaxTokens: _reasoningProbeMaxTokens,
+    ).run(
       startedAt: startedAt,
-      onReport: onReport,
+      onResult: (result) {
+        updated = updated.withProbeResult(result);
+        onReport?.call(updated);
+      },
     );
+    return updated;
   }
 
   /// Reads `supported_parameters` off `GET /models`, reporting
@@ -1564,101 +1485,6 @@ class LiveLlmDiagnosticService {
     } finally {
       client.close();
     }
-  }
-
-  String _schemaArmDetail(ChatCompletionResult result) {
-    final visible = LiveLlmResponseScoring.visibleContent(result.content);
-    if (result.finishReason == 'length') {
-      return visible.isEmpty
-          ? 'json_schema: the model reasoned to the token cap and returned no '
-                'answer (finish_reason: length)'
-          : 'json_schema: the answer was truncated at the token cap '
-                '(finish_reason: length)';
-    }
-    if (visible.isEmpty) {
-      return 'json_schema: the request completed but returned no content';
-    }
-    return 'json_schema: request completed but the response violated the schema';
-  }
-
-  /// The json_object fallback arm, shared by the ordinary path and the
-  /// short-circuit that skips a schema the endpoint never advertised.
-  Future<LiveLlmDiagnosticReport> _runStructuredObjectArm({
-    required LiveLlmDiagnosticReport report,
-    required StructuredOutputChatDataSource structuredDataSource,
-    required List<ChatCompletionResult> completed,
-    required String schemaDetail,
-    required DateTime startedAt,
-    required LiveLlmDiagnosticReportCallback? onReport,
-  }) async {
-    var updated = report;
-    try {
-      final objectResult = await structuredDataSource
-          .createStructuredChatCompletion(
-            messages: _messages(
-              user:
-                  'Return one JSON object with exactly these two fields and no '
-                  'markdown: {"marker":"$_structuredOutputObjectMarker","count":47}',
-            ),
-            responseFormat: const StructuredOutputRequest.jsonObject(),
-            model: _diagnosticModel,
-            temperature: _diagnosticTemperature,
-            maxTokens: _diagnosticMaxTokens,
-          );
-      _thinking.record(objectResult.content);
-      completed.add(objectResult);
-      final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(
-        objectResult.content,
-      );
-      final objectPassed =
-          decoded?.length == 2 &&
-          decoded?['marker'] == _structuredOutputObjectMarker &&
-          decoded?['count'] == 47;
-      updated = updated.withProbeResult(
-        LiveLlmDiagnosticProbeResult(
-          id: _structuredOutputProbeId,
-          status: objectPassed
-              ? LiveLlmDiagnosticStatus.warning
-              : LiveLlmDiagnosticStatus.failed,
-          summary: objectPassed
-              ? 'JSON object mode worked, but JSON Schema mode did not.'
-              : 'Neither structured-output mode preserved its contract.',
-          details: [
-            schemaDetail,
-            'json_object: ${objectPassed ? 'passed' : 'response violated the contract'}',
-          ].join('\n'),
-          modelContent: LiveLlmDiagnosticEvidence.preview(objectResult.content),
-          usage: LiveLlmDiagnosticEvidence.totalUsage(completed),
-          passedChecks: objectPassed ? 1 : 0,
-          totalChecks: 2,
-          metadata: {
-            structuredOutputSupportMetadataKey: objectPassed
-                ? 'jsonObject'
-                : 'none',
-          },
-          elapsed: DateTime.now().difference(startedAt),
-        ),
-      );
-    } catch (error) {
-      updated = updated.withProbeResult(
-        LiveLlmDiagnosticProbeResult(
-          id: _structuredOutputProbeId,
-          status: LiveLlmDiagnosticStatus.failed,
-          summary: 'Neither structured-output request mode was usable.',
-          details: [
-            schemaDetail,
-            'json_object: request failed (${LiveLlmDiagnosticEvidence.preview('$error')})',
-          ].join('\n'),
-          usage: LiveLlmDiagnosticEvidence.totalUsage(completed),
-          passedChecks: 0,
-          totalChecks: 2,
-          metadata: const {structuredOutputSupportMetadataKey: 'none'},
-          elapsed: DateTime.now().difference(startedAt),
-        ),
-      );
-    }
-    onReport?.call(updated);
-    return updated;
   }
 
   /// Exercises `streamChatCompletion` — the path the chat screen actually uses,

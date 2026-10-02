@@ -87,7 +87,9 @@ become implementation milestones only through an explicit promotion decision.
 Structural review: 2026-09-13, against local main `70466c022` and the
 owning roadmap documents; the recommendation below and the LL33 row were
 refreshed 2026-09-20 against local main `0fd1276ab`, and the Project Farm rows
-and recommendation on 2026-09-26 against local main `af45d9084`. This aligns status
+and recommendation on 2026-09-26 against local main `af45d9084`. Next-slice
+selection was refreshed 2026-10-02 against local main `55c739761`, with RC1
+signed-device evidence put on hold by the user. This aligns status
 placement and current summaries; it does not rerun historical release, device,
 or live-model gates.
 `current` means unfinished track scope, not simultaneous implementation.
@@ -118,12 +120,24 @@ support-packet review, and multi-device household evidence remain required for
 product promotion; the hold does not satisfy or waive those gates. See
 [the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
+**Recommended next slice: F5 tool-recovery diagnostic probe extraction.**
+The structured-output slice completed on 2026-10-02 in
+`feature/f5-structured-output-probe`: the service fell from 3,963 to 3,789
+lines, and the independent 210-line probe has 100% executable-line coverage.
+Its schema and object arms preserve requests, scoring, thinking observation,
+usage, and report callbacks. See the
+[implementation evidence](f5_structured_output_probe_extraction_codex_task.md#implementation-evidence).
+Next, scope only `_runToolRecoveryProbe` and `_runToolRecoveryCase`, freezing
+their refusal and partial-result contracts before moving them behind completion
+ports. Tool-depth and multi-round probes follow separately. See
+[the boundary plan](large_file_refactor_plan.md#next-boundary-selection-2026-10-02).
+
 LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
 firings to their stored messages, so Level 3 event sourcing stays deferred. With
-RC1 evidence on hold, the Knowledge Currency track is not the fallback: KC1 closed on 2026-09-24, and KC2 was built, measured on a
+RC1 evidence on hold, the Knowledge Currency track is not the fallback:
+KC1 closed on 2026-09-24, and KC2 was built, measured on a
 broadened fixture set, and parked with its block withdrawn (favourable,
-unproven). Pick the next slice from the other `current` rows; F5's boundary
-ranking refresh is the smallest device-free one.
+unproven). The current F5 boundary above is the device-free selection.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
@@ -133,7 +147,7 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Ranking refreshed 2026-09-24 (`docs/large_file_refactor_plan.md`): four of the eleven largest files had no size budget and were missing from the tracked inventory. Budgets added for the five low-churn ones; the Remote Coding files stay unbudgeted while RC1 changes them. Three slices of the new ranking moved the live LLM diagnostic service's response scoring, sampler-calibration trials, report evidence, and vision probes out (4,843 → 4,067 lines; new modules 92-100% covered). Next: its tool-loop and structured-output probe families. |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Structured-output slice done 2026-10-02: the diagnostic service is 3,789 lines after extracting the 210-line JSON Schema/object probe, with 52/52 executable lines covered. Relevant tests and size checks pass. Next: scope and extract only the tool-recovery family; tool-depth and multi-round families follow separately. See [the implementation evidence](f5_structured_output_probe_extraction_codex_task.md#implementation-evidence) and [boundary plan](large_file_refactor_plan.md#next-boundary-selection-2026-10-02). |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |

@@ -224,6 +224,39 @@ service fell from 4,470 to 4,067 lines (budget lowered each time); the
 (1,217/1,386). Remaining large families in the service are the tool-loop
 probes (tool depth, recovery, multi-round) and structured output.
 
+### Next boundary selection (2026-10-02)
+
+Source-only investigation against local main `55c739761` found the diagnostic
+service to be the second-largest non-generated production file, at 3,963 lines
+and exactly its budget. Its thinking observer had also been extracted after
+the three slices above; the earlier 4,067-line summary predates that move.
+
+With RC1 signed-device evidence on hold by user decision, the investigation
+selected only the structured-output probe family. The schema arm and JSON
+object fallback use one completion interface and share a bounded result
+contract. Tool-depth, recovery, and multi-round work remains separate.
+
+Implementation completed on `feature/f5-structured-output-probe` the same day:
+`live_llm_structured_output_probe.dart` is an independent 210-line module,
+and the service fell to 3,789 lines. Provider selection, reports, endpoint
+metadata IO, request settings, and thinking observation remain with the
+service. The module accepts a terminal-publication callback so a schema
+publication exception still triggers the original object fallback; object
+publication exceptions still propagate. Markers, schema, metadata, token caps,
+fallback ordering, and usage are preserved. Service and new-module ratchets
+were lowered/set to their final sizes.
+
+Verification: Flutter analysis, 128 tests in six focused suites, and three
+affected size checks passed. The new module has 100% executable-line coverage
+(52/52); the service has 87.42% (1,147/1,312) in this focused run. No live-model
+or device run was performed. See the
+[implementation evidence](f5_structured_output_probe_extraction_codex_task.md#implementation-evidence).
+
+Next: scope only the tool-recovery probe and its per-case execution boundary,
+using the existing recovery-case fixtures to freeze denial, partial-result,
+and forbidden-state behavior. Keep depth and multi-round probes for later
+slices; F5 remains `current`.
+
 
 ## Refactor Rules
 
