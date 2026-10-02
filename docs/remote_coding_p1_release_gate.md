@@ -6,6 +6,21 @@ must pass before Remote Coding can appear in a release; resilience,
 supportability, and multi-device evidence follow before broader product
 promotion.
 
+## Verification Hold
+
+RC1 signed-device evidence is on hold by user decision (2026-10-02). Do not
+schedule or select the iOS/Android LAN soak, background and desktop-wake
+reconnect checks, support-packet review, or multi-device household run as the
+next implementation task until the user requests resumption. The existing
+implementation and automated evidence remain recorded; the required manual
+gates below remain unsatisfied by this hold.
+
+The roadmap's recorded reconnect investigation (2026-09-17) found an attempt
+counter that remained exhausted after a failed manual retry, a 2s/5s/15s
+retry ladder too short for desktop wake, and no resume hook to re-arm it.
+All three were fixed with regression tests. This implementation evidence
+remains distinct from the signed-device soak still required below.
+
 ## Scope
 
 P1 covers these release-hardening requirements:

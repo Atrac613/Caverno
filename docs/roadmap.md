@@ -111,18 +111,16 @@ milestone:
 FARM6 waits on a token-storage decision. See
 [Project Farm roadmap](project_farm_roadmap.md).
 
-**Recommended next slice: RC1 signed-device evidence** (unchanged since
-2026-09-21). Remote Coding's implementation fixes (attachments, project
-ordering, mobile Plan Mode review) already have focused tests. The remaining roadmap gate is external evidence: an iOS/Android LAN
-soak, reconnect after background or desktop wake, support-packet review, and a
-multi-device household check. Record build identities, transport mode, device
-ownership, reconnect outcomes, attachment behavior, and any cross-device
-visibility before treating RC1 as ready for promotion.
+**RC1 signed-device evidence is on hold by user decision (2026-10-02).**
+RC1 is `later` and is excluded from next-slice selection until the user resumes
+this work. The iOS/Android LAN soak, background and desktop-wake reconnect,
+support-packet review, and multi-device household evidence remain required for
+product promotion; the hold does not satisfy or waive those gates. See
+[the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
 LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
-firings to their stored messages, so Level 3 event sourcing stays deferred. If
-signed-device access is unavailable, the Knowledge Currency track is not the
-fallback any more: KC1 closed on 2026-09-24, and KC2 was built, measured on a
+firings to their stored messages, so Level 3 event sourcing stays deferred. With
+RC1 evidence on hold, the Knowledge Currency track is not the fallback: KC1 closed on 2026-09-24, and KC2 was built, measured on a
 broadened fixture set, and parked with its block withdrawn (favourable,
 unproven). Pick the next slice from the other `current` rows; F5's boundary
 ranking refresh is the smallest device-free one.
@@ -135,7 +133,6 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Remote Coding | RC1 | current | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | Reconnect resilience was recorded as implemented, and measuring it 2026-09-17 found three defects behind that claim. `reconnectAttempt` fell back to zero only on a successful snapshot, so one walked ladder disabled automatic reconnection for the rest of the session -- a failed manual retry left the counter at its cap and the next unexpected drop gave up with no attempt at all. The ladder itself surrendered after 2s/5s/15s, which is shorter than a desktop takes to wake, and nothing re-armed it: `lib/features/remote_coding/` had no `AppLifecycleState.resumed` hook, and opening the page rendered a Reconnect button and waited to be tapped. All three are fixed with regression tests. The remaining evidence is the iOS/Android LAN soak, support-packet review, and multi-device household check; consult the security follow-up and promotion records before release. |
 | Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Ranking refreshed 2026-09-24 (`docs/large_file_refactor_plan.md`): four of the eleven largest files had no size budget and were missing from the tracked inventory. Budgets added for the five low-churn ones; the Remote Coding files stay unbudgeted while RC1 changes them. Three slices of the new ranking moved the live LLM diagnostic service's response scoring, sampler-calibration trials, report evidence, and vision probes out (4,843 → 4,067 lines; new modules 92-100% covered). Next: its tool-loop and structured-output probe families. |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
@@ -167,6 +164,7 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
+| Remote Coding | RC1 | later | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | Signed-device evidence is on hold by user decision (2026-10-02); resume only when the user requests it. Reconnect fixes have regression tests, but the iOS/Android LAN soak, support-packet review, and multi-device household evidence remain required before product promotion. See [the P1 gate](remote_coding_p1_release_gate.md#verification-hold). |
 | Heuristic Removal | HEU4 | later | Git write confirmation. Measured 2026-08-27: 8 of 12 confirmation questions go unrecognised, including two in English and Japanese, so the assistant asks and commits without waiting. | Held deliberately: there is no token to route to, and the structural fix is moving confirmations onto `ask_user_question` rather than replacing a predicate. Blast radius is bounded by the (cacheable) git approval gate. |
 | Heuristic Removal | HEU5 | later | Replace the tool-role acceptance carve-outs. | Blocked on the tool-role regeneration measurement; do not change on current evidence. First measured misfire 2026-09-11 (session 9174dbd1): `looksLikeBackgroundProcessCompletionClaim` has CJK positive markers but CJK negatives only for failure, so a Japanese answer denying completion matched on its own denial and cost a full regeneration (24.8k prompt tokens) per poll of a ten-minute release, while the same answer in English cost nothing. Patched with the negated completion words only -- bare negation suffixes would trade the cost bug for a safety hole. |
 | Heuristic Removal | HEU6 | later | Reduce proposal, goal-suggestion, and memory-extraction prose parsing. | Largest surface, lowest stakes; may stay best-effort by decision. |
