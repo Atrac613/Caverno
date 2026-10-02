@@ -4,6 +4,7 @@ import '../entities/message.dart';
 import '../entities/session_memory.dart';
 import '../entities/tool_call_info.dart';
 import 'memory_extraction_draft_service.dart';
+import 'project_task_terminal_status.dart';
 import 'secondary_call_budget.dart';
 import 'secondary_completion_router.dart';
 import 'session_memory_service.dart';
@@ -22,12 +23,15 @@ final class MemoryExtractionCoordinator {
     required SecondaryCompletionRouteSnapshot route,
     required int maxTokens,
   }) async {
+    final taskStatus = ProjectTaskTerminalStatus.fromToolResults(toolResults);
+    MemoryExtractionDraft? fallback() =>
+        MemoryExtractionDraftService.parseDraft(
+          '',
+          projectTaskStatus: taskStatus,
+        );
     if (!enabled) {
-      appLog(
-        '[Memory] Skipping LLM memory extraction for selected provider '
-        '(using rule-based fallback)',
-      );
-      return null;
+      appLog('[Memory] Skipping LLM memory extraction for selected provider');
+      return fallback();
     }
     if (!messages.any(
       (message) =>
@@ -71,6 +75,7 @@ final class MemoryExtractionCoordinator {
       final draft = MemoryExtractionDraftService.parseDraft(
         result.content,
         inputContext: input,
+        projectTaskStatus: taskStatus,
         onRepair: (message) => appLog('[Memory] $message'),
         onError: (error) =>
             appLog('[Memory] Failed to parse memory extraction JSON: $error'),
@@ -84,7 +89,7 @@ final class MemoryExtractionCoordinator {
       return draft;
     } catch (error) {
       appLog('[Memory] LLM memory extraction error: $error');
-      return null;
+      return fallback();
     }
   }
 }

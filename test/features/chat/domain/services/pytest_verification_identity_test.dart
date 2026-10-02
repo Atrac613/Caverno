@@ -36,6 +36,30 @@ void main() {
       );
     }
   });
+  test('a terminal stderr merge keeps the same pytest invocation', () {
+    final expected = PytestVerificationIdentity.parse(
+      'python3 -m pytest test_state.py -v',
+      '/workspace',
+    )!;
+    final actual = PytestVerificationIdentity.parse(
+      'cd /workspace && .venv/bin/python -m pytest test_state.py -v 2>&1',
+      '/parent',
+    );
+    expect(actual?.key, expected.key);
+    expect(actual?.counts('=== 53 passed in 3.08s ===')?.passedCount, 53);
+    expect(
+      actual?.replayCommand,
+      '.venv/bin/python -m pytest test_state.py -v',
+    );
+    expect(
+      PytestVerificationIdentity.parse(
+        "python3 -m pytest test_state.py -v '2>&1'",
+        '/workspace',
+      )?.key,
+      isNot(expected.key),
+      reason: 'a quoted argument is not a shell redirection',
+    );
+  });
   test('recognizes both literal tail line-count forms', () {
     final expected = PytestVerificationIdentity.parse(
       'python3 -m pytest -q',
@@ -65,6 +89,10 @@ void main() {
     r'python -m pytest $(id)',
     'python -m pytest *.py',
     'python -m pytest > tests.txt',
+    'python -m pytest 2>&1 > tests.txt',
+    'python -m pytest 2> tests.txt',
+    'python -m pytest 1>&2',
+    'python -m pytest 2>&1 || true',
     'python -m pytest | tee tests.txt',
     'python -m pytest | tail 15',
     'python -m pytest # ignored.py',

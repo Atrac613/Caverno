@@ -30,6 +30,7 @@ void main() {
     required bool codeReview,
     bool implementation = false,
     bool step = false,
+    bool commit = false,
   }) => runtime.capture(
     generation: generation,
     settings: settings,
@@ -37,6 +38,7 @@ void main() {
       codeReview: codeReview,
       projectTaskImplementation: implementation,
       projectTaskStep: step,
+      projectTaskCommit: commit,
     ),
     assistantMode: AssistantMode.coding,
     primaryDataSource: _MockChatDataSource(),
@@ -65,6 +67,22 @@ void main() {
     runtime.release(2);
     expect(runtime.isProjectTaskStep(2), isFalse);
   });
+  test(
+    'reviewed commit turns do not inherit subtask marker requirements',
+    () async {
+      final runtime = PrimaryTurnRouteRuntime();
+      await capture(runtime, 1, codeReview: false, commit: true);
+      expect(runtime.isProjectTaskTurn(1), isTrue);
+      expect(runtime.isProjectTaskCommit(1), isTrue);
+      expect(runtime.isProjectTaskStep(1), isFalse);
+      expect(runtime.isProjectTaskImplementation(1), isFalse);
+      await capture(runtime, 1, codeReview: false, step: true);
+      expect(runtime.isProjectTaskCommit(1), isFalse);
+      await capture(runtime, 2, codeReview: false, commit: true);
+      runtime.release(2);
+      expect(runtime.isProjectTaskCommit(2), isFalse);
+    },
+  );
 
   test(
     'implementation metadata cannot leak to review or a recaptured turn',

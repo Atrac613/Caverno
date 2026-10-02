@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/project_task_completion_evidence.dart';
@@ -87,6 +89,56 @@ void main() {
       updatedAt: DateTime(2026),
     );
     expect(verification.gapOpen(const [], goal), isTrue);
+  });
+
+  test('a full rerun with the project runtime closes an inherited gap', () {
+    final goal = ConversationGoal(
+      id: 'g',
+      objective: 'Verify inherited logging changes',
+      projectTaskInheritedPaths: const ['/workspace/logging.py'],
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+    ToolResultInfo run(String id, String interpreter, int exitCode) {
+      final command =
+          'cd /workspace && $interpreter verify_logging.py && '
+          '$interpreter -m pytest test_state.py test_watcher.py -v 2>&1';
+      return ToolResultInfo(
+        id: id,
+        name: 'local_execute_command',
+        arguments: {'command': command, 'working_directory': '/workspace'},
+        result: jsonEncode({
+          'command': command,
+          'working_directory': '/workspace',
+          'exit_code': exitCode,
+          'stdout': exitCode == 0
+              ? 'All 24 checks passed.\n53 passed in 3.09s'
+              : 'python3: No module named pytest',
+        }),
+        outcome: ToolOutcome(exitCode: exitCode),
+      );
+    }
+
+    final failed = run('failed', 'python3', 1);
+    final open = verification.request(
+      allTools,
+      [failed],
+      goal,
+      const StructuredCodingTaskRecoveryPolicy(),
+    );
+    expect(open.prompt, contains('captured successful checks'));
+    expect(open.prompt, contains('full failed verification chain'));
+    expect(open.prompt, isNot(contains('latest change has no successful')));
+    final closed = verification.request(
+      allTools,
+      [failed, run('passed', '.venv/bin/python', 0)],
+      goal,
+      const StructuredCodingTaskRecoveryPolicy(),
+    );
+    expect(closed.tools.map((tool) => (tool['function'] as Map)['name']), [
+      'update_goal',
+    ]);
+    expect(closed.prompt, const StructuredCodingTaskRecoveryPolicy().prompt);
   });
 
   test('accepts one update_goal or one verification call that was offered', () {

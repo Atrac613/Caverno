@@ -39,6 +39,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
       implementationTurn: _primaryRoutes.isProjectTaskImplementation(
         generation,
       ),
+      stepTurn: _primaryRoutes.isProjectTaskStep(generation),
       boundarySafe: _turnRuntimeGoalSafeBoundary
           .captureFor(owner, withinTurn: true)
           .isSafe,
@@ -85,7 +86,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
 
     if (!_turnFinalizationRecoveryGenerations.claim(
       generation,
-      structuredTask: structuredTask,
+      structuredTask: structuredTask || plan.structuredStep,
       results: completedResults,
     )) {
       return false;
@@ -106,7 +107,24 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     if (!recoveryResult.hasToolCalls ||
         !plan.acceptsCalls(recoveryResult.toolCalls!)) {
       _recordHiddenEvidence(owner, recoveryResult.content);
-      if (structuredTask) {
+      if (plan.structuredStep) {
+        final status = const ProjectTaskStepCompletionPolicy().status(
+          response: recoveryResult.content,
+          results: completedResults,
+          goal: _conversationForId(owner.conversationId)?.goal,
+        );
+        if (!recoveryResult.hasToolCalls && status.completionAccepted) {
+          _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
+          _prepareLastAssistantForTurnFinalizationRecovery(
+            generation: generation,
+            preRecoveryContent: '',
+          );
+          _appendRecoveredAssistantResponse(
+            recoveryResult.content,
+            interactionGeneration: generation,
+          );
+        }
+      } else if (structuredTask) {
         _turnEnd.addTransform(owner, 'coding_task_status_missing');
       } else if (forcedRecoveryCode != null) {
         _turnEnd.addTransform(owner, 'unexecuted_delegation_notice');

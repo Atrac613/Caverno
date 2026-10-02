@@ -693,6 +693,7 @@ class _TestSessionMemoryService extends SessionMemoryService {
 class _TrackingSessionMemoryService extends _TestSessionMemoryService {
   int updateCount = 0;
   final List<List<Message>> updateMessages = [];
+  final List<MemoryExtractionDraft?> drafts = [];
   final Completer<void> firstUpdate = Completer<void>();
 
   @override
@@ -704,6 +705,7 @@ class _TrackingSessionMemoryService extends _TestSessionMemoryService {
   }) async {
     updateCount += 1;
     updateMessages.add(List<Message>.from(messages));
+    drafts.add(draft);
     if (!firstUpdate.isCompleted) {
       firstUpdate.complete();
     }

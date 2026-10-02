@@ -493,6 +493,49 @@ void main() {
     expect(summary.result, 'complete');
     expect(summary.finalAnswer?.lineNumber, 2);
   });
+  test(
+    'subtask status supersedes raw completion prose and earlier failed status',
+    () async {
+      final entries = [
+        _entry(
+          operation: 'streamChatCompletion',
+          finishReason: 'stop',
+          content: 'All work completed.',
+        ),
+        _entry(
+          operation: 'turn_exit',
+          turnExitReason: 'text_response',
+          turnExitTransforms: ['coding_subtask_status_incomplete'],
+        ),
+      ];
+      final incomplete = await buildCavernoLlmSessionLogSummary(
+        logFile: _writeSessionLog(entries),
+      );
+      expect(incomplete.result, 'incomplete');
+      expect(
+        incomplete.warnings.any(
+          (warning) => warning.code == 'coding_subtask_status_unresolved',
+        ),
+        isTrue,
+      );
+      final settled = await buildCavernoLlmSessionLogSummary(
+        logFile: _writeSessionLog([
+          ...entries,
+          _entry(
+            operation: 'streamChatCompletion',
+            finishReason: 'stop',
+            content: 'Subtask verified.\nPROJECT_TASK_SUBTASK_DONE',
+          ),
+          _entry(
+            operation: 'turn_exit',
+            turnExitReason: 'text_response',
+            turnExitTransforms: ['coding_subtask_status_completed'],
+          ),
+        ]),
+      );
+      expect(settled.result, 'complete');
+    },
+  );
 
   test('records malformed lines and error entries without crashing', () async {
     final logFile = _writeRawSessionLog([

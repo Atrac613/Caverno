@@ -18,6 +18,7 @@ void main() {
   };
   TurnFinalizationRecoveryPlan plan({
     bool implementation = true,
+    bool step = false,
     String response = 'Done.',
     bool boundary = true,
     GoalUpdateAckOutcome? ack,
@@ -25,6 +26,7 @@ void main() {
   }) => TurnFinalizationRecoveryPlan(
     goal: goal,
     implementationTurn: implementation,
+    stepTurn: step,
     boundarySafe: boundary,
     acknowledgement: ack,
     parentTurn: false,
@@ -54,6 +56,53 @@ void main() {
   test('does not widen ordinary completed answers', () {
     expect(plan(implementation: false).shouldRecover, isFalse);
   });
+  test(
+    'subtask recovery requires its marker and never forces overall completion',
+    () {
+      final recovery = plan(implementation: false, step: true);
+      expect(recovery.structuredTask, isFalse);
+      expect(recovery.structuredStep, isTrue);
+      expect(recovery.shouldRecover, isTrue);
+      expect(recovery.forcedCode, 'structured_project_subtask');
+      expect(recovery.requestTools, hasLength(2));
+      expect(recovery.prompt, contains('Never mark the overall goal complete'));
+      expect(
+        recovery.acceptsCalls([
+          ToolCallInfo(
+            id: 'early',
+            name: 'update_goal',
+            arguments: const {'completed': true},
+          ),
+        ]),
+        isFalse,
+      );
+      expect(
+        recovery.acceptsCalls([
+          ToolCallInfo(
+            id: 'blocker',
+            name: 'update_goal',
+            arguments: const {
+              'completed': false,
+              'blocked_reason': 'Missing runtime',
+            },
+          ),
+        ]),
+        isTrue,
+      );
+      expect(
+        plan(
+          implementation: false,
+          step: true,
+          response: 'Done.\nPROJECT_TASK_SUBTASK_DONE',
+        ).shouldRecover,
+        isFalse,
+      );
+      expect(
+        plan(implementation: false, step: true, boundary: false).shouldRecover,
+        isFalse,
+      );
+    },
+  );
   test('stops for accepted completion, unsafe boundaries, or missing tool', () {
     expect(
       plan(ack: GoalUpdateAckOutcome.completionRecorded).shouldRecover,

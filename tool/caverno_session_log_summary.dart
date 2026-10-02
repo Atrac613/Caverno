@@ -103,16 +103,21 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     if (operation == 'turn_exit') {
       latestTurnExitReason = _asString(turnExit?['reason']);
       latestTaskStatus = turnTransforms
-          .where((code) => code.startsWith('coding_task_status_'))
+          .where(
+            (code) =>
+                code.startsWith('coding_task_status_') ||
+                code.startsWith('coding_subtask_status_'),
+          )
           .lastOrNull;
-      if (latestTaskStatus != null &&
-          latestTaskStatus != 'coding_task_status_completionRecorded') {
+      if (latestTaskStatus != null && !_acceptedTaskStatus(latestTaskStatus)) {
         warnings.add(
           SessionLogWarningEntry(
-            code: 'coding_task_status_unresolved',
+            code: latestTaskStatus.startsWith('coding_subtask_status_')
+                ? 'coding_subtask_status_unresolved'
+                : 'coding_task_status_unresolved',
             lineNumber: lineNumber,
             message:
-                'The structured implementation status was not accepted as complete.',
+                'The recorded project task or subtask status was not accepted as complete.',
             evidencePreview: latestTaskStatus,
           ),
         );
@@ -292,8 +297,7 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
       hasFinalAnswer: finalAnswer != null,
       latestTurnExitReason: latestTurnExitReason,
       hasUnresolvedTaskStatus:
-          latestTaskStatus != null &&
-          latestTaskStatus != 'coding_task_status_completionRecorded',
+          latestTaskStatus != null && !_acceptedTaskStatus(latestTaskStatus),
     ),
     operationCounts: Map.unmodifiable(operationCounts),
     finishReasonCounts: Map.unmodifiable(finishReasonCounts),
@@ -346,6 +350,10 @@ Map<String, dynamic>? _decodeJsonObject(String source) {
     return null;
   }
 }
+
+bool _acceptedTaskStatus(String? status) =>
+    status == 'coding_task_status_completionRecorded' ||
+    status == 'coding_subtask_status_completed';
 
 Map<String, dynamic> _decodeArguments(Object? source) {
   if (source is Map) {

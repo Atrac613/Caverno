@@ -95,6 +95,7 @@ final class ProjectTaskReviewLauncher {
       ProjectTaskStepTurnRunner step(
         bool Function(ConversationGoal goal) admits, {
         Future<void> Function()? reactivate,
+        PrimaryTurnPurpose purpose = PrimaryTurnPurpose.projectTaskStep,
       }) => ProjectTaskStepTurnRunner(
         readConversation: readTask,
         isSelected: selected,
@@ -105,7 +106,7 @@ final class ProjectTaskReviewLauncher {
           prompt,
           languageCode: languageCode,
           bypassPlanMode: true,
-          purpose: PrimaryTurnPurpose.projectTaskStep,
+          purpose: purpose,
         ),
         waitForCompletion: notifier.waitForTurnCompletion,
       );
@@ -153,7 +154,10 @@ final class ProjectTaskReviewLauncher {
         isSelected: selected,
         isWaitingForUser: waiting,
         send: runner.send,
-        commit: step(ProjectTaskStepTurnRunner.completedGoal).send,
+        commit: step(
+          ProjectTaskStepTurnRunner.completedGoal,
+          purpose: PrimaryTurnPurpose.projectTaskCommit,
+        ).send,
         sendStep: step(
           ProjectTaskStepTurnRunner.activeGoal,
           reactivate: () => conversations.markCurrentGoalStatus(

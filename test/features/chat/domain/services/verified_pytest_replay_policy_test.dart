@@ -98,12 +98,14 @@ void main() {
     },
   );
   test('allows literal environment discovery and Git inspection', () {
-    ToolResultInfo inspection(String name, String command) => ToolResultInfo(
-      id: command,
-      name: name,
-      arguments: {'command': command},
-      result: '{}',
-    );
+    ToolResultInfo inspection(String name, String command, {int? exitCode}) =>
+        ToolResultInfo(
+          id: command,
+          name: name,
+          arguments: {'command': command},
+          result: '{}',
+          outcome: exitCode == null ? null : ToolOutcome(exitCode: exitCode),
+        );
     expect(
       VerifiedPytestReplayPolicy.reuse(
         call: call,
@@ -115,6 +117,13 @@ void main() {
                 '&& ls .venv 2>/dev/null; which pytest',
           ),
           success,
+          inspection(
+            'local_execute_command',
+            'cd /workspace && ls -d .venv venv 2>/dev/null; '
+                'which pytest 2>/dev/null; '
+                'python3 -m pip show pytest 2>/dev/null | head -3',
+            exitCode: 1,
+          ),
           inspection('git_execute_command', 'status'),
           inspection('git_execute_command', 'diff HEAD -- test.py'),
           inspection('git_execute_command', 'log --oneline -5'),

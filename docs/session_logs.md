@@ -204,7 +204,11 @@ this budget.
 The status request's feedback result carries `capturedEvidence`: the paths
 the turn changed, and the latest finished non-git command with its exit, an
 output tail, and whether it ran after the latest change. The carried tail
-alone can omit both.
+alone can omit both. `succeeded` also checks command output failure evidence,
+timeouts, and typed test or diagnostic failures. A recognized shell status
+report adds `reportedExitCode` separately from the shell's own `exitCode`.
+`unresolvedVerificationFailure` identifies a failed check that an unrelated
+passing command did not settle.
 
 The `coding_task_status_*` turn transforms record the reconciled acknowledgement.
 The exit record is written after goal reconciliation so it includes that status.
@@ -212,6 +216,58 @@ Only `coding_task_status_completionRecorded` settles the implementation status.
 Other recorded statuses produce `coding_task_status_unresolved` and an
 `incomplete` summary. A later terminal turn supersedes an earlier unresolved
 status. Language-dependent diagnostics remain visible as history.
+The same reconciled verdict is carried as a harness-origin `coding_task_status`
+result to memory extraction. An implementation answer whose completion was
+rejected is replaced with its recorded completion gaps. Other unaccepted statuses
+retain the work report with an incomplete notice; none can emit
+`PROJECT_TASK_READY_FOR_REVIEW`.
+Extraction starts after this correction is saved. Its summary and open loops
+retain the incomplete verdict even if the secondary model claims completion,
+returns no draft, or fails. Profile updates remain eligible; untyped task facts
+from an unaccepted extraction are omitted.
+
+Intermediate Project Farm turns use a separate subtask verdict. A terminal
+`PROJECT_TASK_SUBTASK_DONE` line is accepted only when captured changes have
+successful execution verification after the latest change and no unresolved
+verification failure, diagnostics, or unexecuted actions remain. Read-only
+investigation subtasks do not need artificial file mutations. A missing marker
+or execution gap triggers bounded recovery through the normal tools and approval
+gates; repeated reads do not renew its budget. A marker-only correction can
+finish a verified subtask without rerunning tools. An intermediate turn cannot
+complete the overall goal with `update_goal(completed: true)`.
+
+The `coding_subtask_status_completed` and `coding_subtask_status_incomplete`
+transforms record this verdict; the latter yields an `incomplete` log summary.
+An unaccepted answer is replaced with the subtask's remaining requirements.
+Memory extraction receives the harness verdict before it runs and preserves
+the current subtask's status even if its model reports the whole task complete
+or extraction fails. A completed subtask still leaves the overall task active.
+The post-review commit has its own turn purpose and does not require a subtask
+marker. Project-root searches and repository maps skip `.venv` and
+`__pycache__`; explicitly rooting a search inside them still permits inspection.
+
+Approval and verification evidence classify a command separately. A literal
+`&&` sequence can provide verification after its final mutation, such as
+`rm -f scratch.log && python verify_logging.py && python -m pytest -q`, while
+the entire command still requires its original mutation authority. A later
+mutation, masked exit, unsupported shell syntax, timeout, running process, or
+failed runner counts cannot provide that evidence. A compound sequence ending
+in pytest also requires recognized positive passing counts.
+Its terminal stderr merge (`2>&1`), output-only `tail`, and literal separator
+echoes do not change its identity. A successful rerun in the same working
+directory can use a captured working pytest interpreter and can also switch
+the interpreter of literal Python script prerequisites. Every script path,
+argument, prerequisite order, and runner argument must still match. Interpreter
+options and module prerequisites retain their exact identity. Running only
+pytest does not settle a failed chain that also contained other verification.
+A passing full chain can settle its terminal runner's earlier failure as well.
+
+Background verification results use the originating command and absolute working
+directory, with a recorded job identity, to reconcile against a later successful
+execution. A monitor without origin metadata does not settle another command's
+failure. A poll observed after an edit cannot verify that edit unless its job
+was dispatched after the edit. Legacy nonterminal status payloads cannot count
+as successful execution.
 
 Command output feedback records its source `tool_call_id`. Completion evidence
 and final-answer prompts supersede an earlier pytest invocation only when a
@@ -237,10 +293,26 @@ Optional environment inspection composed solely of literal `cd`, `ls`, `pwd`,
 `which`, and Python version queries may end in `|| true` without producing a
 task failure. It never counts as verification. Unknown commands, mutations,
 masked checks, and actual runtime failure output retain their diagnostics.
+Literal `python -m pip show <packages>` and `pip show <packages>` queries are
+also inspection, including stderr discarded to `/dev/null` and an output-only
+`head` or `tail` limiter. An absent optional package can produce a nonzero exit
+without blocking completion or requiring installation into another interpreter.
+These evidence rules leave command approval classification unchanged.
+Structured task-status recovery reuses the working interpreter and directory
+from captured successful checks when requesting a complete chain rerun. Once
+that rerun succeeds, the request offers only `update_goal` to settle task state.
 
 A zero exit code from a pipeline is not successful verification when its output
 reports a Python missing module or failed pytest tests. These output diagnostics
 identify execution failures rather than infer the user's or model's intent.
+For a literal command followed by an exit-status echo, the final numeric report
+must establish zero; echo's own exit does not establish success. The recognized
+`PIPESTATUS[0]` form supports one output-only `head` or `tail` limiter. Missing
+reports remain unverified. A proven successful rerun can settle the same command
+and its output feedback in the same working directory. The report is removed
+before reading terminal pytest counts, which still require positive passing
+counts. A zero reported command exit permits intentional exception output from
+logging verification scripts.
 
 The summary reports `all_calls_discarded` when the latest recorded turn ended
 after repeated tool calls were skipped, even if a final answer exists. This

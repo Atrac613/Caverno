@@ -33,6 +33,7 @@ abstract final class CodingContinuationRecoveryRequest {
     required bool Function() isCurrent,
   }) async {
     final structured = recoveryCode == 'structured_coding_task_status';
+    final structuredStep = recoveryCode == 'structured_project_subtask';
     const policy = CodingContinuationRecoveryPolicy();
     Map<String, dynamic>? violation;
     ChatCompletionResult? rejected;
@@ -46,7 +47,7 @@ abstract final class CodingContinuationRecoveryRequest {
           candidateResponse: candidateResponse,
           recoveryCode: recoveryCode,
         ),
-        structured ? executedResults : const [],
+        structured || structuredStep ? executedResults : const [],
       );
       final correctiveFeedback = violation == null
           ? feedback

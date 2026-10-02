@@ -1,6 +1,9 @@
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
+import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
+import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -122,6 +125,46 @@ class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
 }
 
 void main() {
+  for (final raw in [
+    '',
+    '{"summary":"Completed task.","open_loops":[],"profile":{},"memories":[]}',
+  ]) {
+    test(
+      'stores rejected task status and its open loop from extraction: $raw',
+      () async {
+        final repository = _InMemoryChatMemoryRepository();
+        final status = ProjectTaskTerminalStatus(
+          outcome: GoalUpdateAckOutcome.completionRejected,
+          gaps: ['Verification failed.'],
+        );
+        await SessionMemoryService(repository).updateFromConversation(
+          conversationId: 'project-task',
+          messages: [
+            Message(
+              id: 'user',
+              content: 'Implement and verify the task.',
+              role: MessageRole.user,
+              timestamp: DateTime(2026, 10, 2),
+            ),
+            Message(
+              id: 'assistant',
+              content: status.incompleteResponse,
+              role: MessageRole.assistant,
+              timestamp: DateTime(2026, 10, 2),
+            ),
+          ],
+          draft: MemoryExtractionDraftService.parseDraft(
+            raw,
+            projectTaskStatus: status,
+          ),
+        );
+        expect(repository.summaries.single.summary, status.incompleteSummary);
+        expect(repository.summaries.single.openLoops, [status.nextStep]);
+        expect(repository.memories, isEmpty);
+      },
+    );
+  }
+
   test(
     'queues low-confidence memories for review and stores stable memories directly',
     () async {

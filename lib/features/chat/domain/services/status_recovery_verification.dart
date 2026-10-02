@@ -108,13 +108,16 @@ final class StatusRecoveryVerification {
 
   static const _verificationPrompt =
       'Before ending this project implementation turn, report its state with '
-      'update_goal. The latest change has no successful execution '
-      'verification yet, and completed: true will not be recorded without '
-      'one. If the work is otherwise done, run exactly one verification '
+      'update_goal. Required execution verification is still unresolved, '
+      'and completed: true will not be recorded until it succeeds. '
+      'If the work is otherwise done, run exactly one verification '
       'command now with local_execute_command or run_tests, then report with '
       'update_goal. Otherwise call update_goal with completed: false and a '
       'message when work remains, or blocked_reason when a concrete blocker '
       'prevents further work. Prose does not settle the task state. Preserve '
-      'completed work and reuse existing tool results. Keep the visible '
+      'completed work and reuse existing tool results. Use the interpreter '
+      'and working directory of captured successful checks. Rerun the full '
+      'failed verification chain with its prerequisite checks; a successful '
+      'result from another check does not settle it. Keep the visible '
       'response in the conversation language.';
 }

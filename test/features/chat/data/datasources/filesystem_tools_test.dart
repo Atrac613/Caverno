@@ -567,6 +567,54 @@ void main() {
     expect(result['matches'].single, startsWith('pubspec.yaml:2:'));
     expect(result.containsKey('error'), isFalse);
   });
+  test(
+    'project searches prune Python environment files but allow explicit inspection',
+    () async {
+      for (final path in [
+        'app.py',
+        '.venv/lib/dependency.py',
+        '__pycache__/cached.py',
+      ]) {
+        final file = File('${tempDir.path}/$path');
+        await file.parent.create(recursive: true);
+        await file.writeAsString('print("fixture")\n');
+      }
+      final found =
+          jsonDecode(
+                await FilesystemTools.findFiles(
+                  path: tempDir.path,
+                  pattern: '*.py',
+                ),
+              )
+              as Map;
+      final searched =
+          jsonDecode(
+                await FilesystemTools.searchFiles(
+                  path: tempDir.path,
+                  query: 'print(',
+                  filePattern: '*.py',
+                ),
+              )
+              as Map;
+      expect(found['matches'], ['app.py']);
+      expect(searched['scanned_files'], 1);
+      expect((searched['matches'] as List).single, startsWith('app.py:'));
+      final explicit =
+          jsonDecode(
+                await FilesystemTools.searchFiles(
+                  path: '${tempDir.path}/.venv',
+                  query: 'print(',
+                  filePattern: '*.py',
+                ),
+              )
+              as Map;
+      expect(explicit['scanned_files'], 1);
+      expect(
+        (explicit['matches'] as List).single,
+        startsWith('lib/dependency.py:'),
+      );
+    },
+  );
 
   test(
     'searchFiles still reports a path that is neither file nor directory',

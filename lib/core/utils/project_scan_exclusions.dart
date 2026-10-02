@@ -28,6 +28,8 @@ abstract final class ProjectScanExclusions {
     '.idea',
     '.symlinks',
     '.vscode',
+    '.venv',
+    '__pycache__',
     'DerivedData',
     'Pods',
     'build',

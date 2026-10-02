@@ -5,6 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
+import 'coding_command_output_issue_detector.dart';
 import 'command_verification_reconciliation.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';
@@ -852,6 +853,8 @@ class ToolResultPromptBuilder {
   static ToolResultCompletionEvidence completionEvidence(
     List<ToolResultInfo> toolResults,
   ) {
+    final staleBackgroundResults =
+        CommandVerificationReconciliation.staleBackgroundResultIds(toolResults);
     toolResults = CommandVerificationReconciliation.currentResults(toolResults);
     final lastMutationIndexByPath = _lastSuccessfulFileMutationIndexByPath(
       toolResults,
@@ -963,6 +966,7 @@ class ToolResultPromptBuilder {
         _hasSuccessfulExecutionVerification(
           toolResults,
           afterIndex: latestMutationIndex,
+          staleBackgroundResults: staleBackgroundResults,
         );
     final mutatedWithoutExecutionVerification =
         lastMutationIndexByPath.isNotEmpty && !hasExecutionVerification;
@@ -1037,6 +1041,7 @@ class ToolResultPromptBuilder {
   static bool _hasSuccessfulExecutionVerification(
     List<ToolResultInfo> toolResults, {
     required int afterIndex,
+    required Set<String> staleBackgroundResults,
   }) {
     if (CommandVerificationReconciliation.hasFailedFeedback(
       toolResults,
@@ -1046,12 +1051,22 @@ class ToolResultPromptBuilder {
     }
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
+      if (staleBackgroundResults.contains(toolResult.id)) continue;
       if (!CommandVerificationReconciliation.isVerification(toolResult)) {
         continue;
       }
       final normalizedName = toolResult.name.trim().toLowerCase();
       final outcome = toolResult.outcome;
-      if ((outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+      final tests = CommandVerificationReconciliation.testOutcome(toolResult);
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded?['timed_out'] == true ||
+          const CodingCommandOutputIssueDetector().detect(toolResult) != null ||
+          (outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          (tests?.failedCount ?? 0) > 0 ||
+          (CommandVerificationReconciliation.requiresCompoundRunnerCounts(
+                toolResult,
+              ) &&
+              (tests == null || tests.passedCount == 0)) ||
           (outcome?.diagnosticErrorCount ?? 0) > 0) {
         continue;
       }
@@ -1067,8 +1082,11 @@ class ToolResultPromptBuilder {
         }
         continue;
       }
-      final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) continue;
+      if (_isBackgroundProcessVerificationTool(normalizedName) &&
+          decoded['status'] != 'exited') {
+        continue;
+      }
       final exitCode = decoded['exit_code'];
       if (exitCode == 0 || exitCode == '0') return true;
       if (_isBackgroundProcessVerificationTool(normalizedName)) {
@@ -1110,6 +1128,12 @@ class ToolResultPromptBuilder {
       }
       final outcome = toolResult.outcome;
       if ((outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          const CodingCommandOutputIssueDetector().detect(toolResult) != null ||
+          (CommandVerificationReconciliation.testOutcome(
+                    toolResult,
+                  )?.failedCount ??
+                  0) >
+              0 ||
           (outcome?.diagnosticErrorCount ?? 0) > 0) {
         return true;
       }
@@ -1262,7 +1286,9 @@ class ToolResultPromptBuilder {
   }
 
   static bool _isBackgroundProcessVerificationTool(String normalizedName) =>
-      normalizedName == 'process_start' || normalizedName == 'process_wait';
+      normalizedName == 'process_start' ||
+      normalizedName == 'process_status' ||
+      normalizedName == 'process_wait';
 
   /// Map each absolute file path to the index of the latest successful
   /// write_file/edit_file/rollback result that touched it, so analyzer

@@ -1,6 +1,267 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierPendingBatchTests() {
+  for (final scenario in [
+    (rejected: false, extractionFails: false, reportedExitCode: null),
+    (rejected: true, extractionFails: false, reportedExitCode: null),
+    (rejected: true, extractionFails: true, reportedExitCode: null),
+    (rejected: true, extractionFails: false, reportedExitCode: 2),
+    (rejected: true, extractionFails: false, reportedExitCode: 120),
+    (rejected: false, extractionFails: false, reportedExitCode: 0),
+  ]) {
+    final rejected = scenario.rejected;
+    test(
+      'project task terminal status reaches saved answer and memory $scenario',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'caverno_task_terminal_',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final project = _pendingBatchProject(root.path);
+        ToolCallInfo report(String id) => ToolCallInfo(
+          id: id,
+          name: 'update_goal',
+          arguments: const {'completed': true},
+        );
+        final source = _ProjectTaskTerminalDataSource(
+          extractionFails: scenario.extractionFails,
+          initialToolCalls: [
+            ToolCallInfo(
+              id: 'write',
+              name: 'write_file',
+              arguments: {
+                'path': '${root.path}/source.py',
+                'content': 'pass\n',
+              },
+            ),
+            ToolCallInfo(
+              id: 'verify',
+              name: 'local_execute_command',
+              arguments: {
+                'command': scenario.reportedExitCode == null
+                    ? 'rm -f scratch.log && python -m pytest -q'
+                    : r'python3 app.py --dry-run 2>&1 | head -40; echo "PIPELINE_EXIT=${PIPESTATUS[0]:-n/a}"',
+                'working_directory': root.path,
+              },
+            ),
+          ],
+          toolLoopResponses: [
+            ChatCompletionResult(
+              content: '',
+              toolCalls: [report('complete')],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'All work is complete.',
+              finishReason: 'stop',
+            ),
+            if (rejected)
+              for (var index = 0; index < 3; index++)
+                ChatCompletionResult(
+                  content: '',
+                  toolCalls: [report('repeat-$index')],
+                  finishReason: 'tool_calls',
+                ),
+          ],
+          finalAnswerChunks: const [
+            'All work is complete.\nPROJECT_TASK_READY_FOR_REVIEW',
+          ],
+        );
+        final memory = _TrackingSessionMemoryService();
+        final lifecycle = _MockAppLifecycleService();
+        when(() => lifecycle.isInBackground).thenReturn(false);
+        final container = _pendingBatchContainer(
+          project: project,
+          dataSource: source,
+          toolService: _ProjectTaskTerminalToolService(
+            root,
+            rejected,
+            reportedExitCode: scenario.reportedExitCode,
+          ),
+          appLifecycleService: lifecycle,
+          settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+          memoryService: memory,
+        );
+        addTearDown(container.dispose);
+        standInForTheApprover(container);
+        _activatePendingBatchProject(container, project);
+        _activateStructuredProjectTask(container, project);
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Implement and verify the task.',
+          purpose: PrimaryTurnPurpose.projectTaskImplementation,
+        );
+        await memory.firstUpdate.future.timeout(const Duration(seconds: 5));
+        final conversation = container
+            .read(conversationsNotifierProvider)
+            .currentConversation!;
+        final answer = conversation.messages
+            .lastWhere((message) => message.role == MessageRole.assistant)
+            .content;
+        expect(
+          conversation.goal!.status,
+          rejected
+              ? ConversationGoalStatus.active
+              : ConversationGoalStatus.completed,
+        );
+        expect(memory.updateCount, 1);
+        expect(
+          memory.updateMessages.single
+              .lastWhere((message) => message.role == MessageRole.assistant)
+              .content,
+          ContentParser.parse(answer).text.trim(),
+        );
+        expect(
+          source.memoryMessages.last.content,
+          contains(
+            '"status":"${rejected ? 'completionRejected' : 'completionRecorded'}"',
+          ),
+        );
+        if (rejected) {
+          expect(
+            answer,
+            allOf(
+              contains('completion was not recorded'),
+              isNot(contains('PROJECT_TASK_READY_FOR_REVIEW')),
+              isNot(contains('All work is complete.')),
+            ),
+          );
+          expect(
+            memory.drafts.single!.summary,
+            contains('completion was not recorded'),
+          );
+          expect(memory.drafts.single!.openLoops, isNotEmpty);
+        } else {
+          expect(answer, endsWith('PROJECT_TASK_READY_FOR_REVIEW'));
+          expect(memory.drafts.single!.summary, 'Completed task.');
+          expect(memory.drafts.single!.openLoops, isEmpty);
+        }
+      },
+    );
+  }
+
+  test(
+    'a full venv chain completes inherited work and its saved memory',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_python_chain_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final target = File('${root.path}/logging.py')
+        ..writeAsStringSync('pass\n');
+      final project = _pendingBatchProject(root.path);
+      ToolCallInfo verify(String id, String interpreter) => ToolCallInfo(
+        id: id,
+        name: 'local_execute_command',
+        arguments: {
+          'command':
+              'cd ${root.path} && $interpreter verify_logging.py && '
+              '$interpreter -m pytest test_state.py test_watcher.py -v 2>&1',
+          'working_directory': root.path,
+        },
+      );
+      final failed = verify('system-chain', 'python3');
+      final passed = verify('venv-chain', '.venv/bin/python');
+      McpToolResult result(ToolCallInfo call, int exitCode) => McpToolResult(
+        toolName: call.name,
+        isSuccess: true,
+        result: jsonEncode({
+          ...call.arguments,
+          'exit_code': exitCode,
+          'stdout': exitCode == 0
+              ? 'All 24 checks passed.\n53 passed in 3.09s'
+              : 'All 24 checks passed.\npython3: No module named pytest',
+        }),
+        outcome: ToolOutcome(exitCode: exitCode),
+      );
+      final source = _ProjectTaskTerminalDataSource(
+        initialToolCalls: [failed],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [passed],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: 'Verified.', finishReason: 'stop'),
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'complete',
+                name: 'update_goal',
+                arguments: const {'completed': true},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: 'Verified.', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const [
+          'The task is verified.\nPROJECT_TASK_READY_FOR_REVIEW',
+        ],
+      );
+      final service = _QueuedMcpToolResultService({
+        'local_execute_command': [result(failed, 1), result(passed, 0)],
+        'update_goal': [],
+      });
+      final memory = _TrackingSessionMemoryService();
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = _pendingBatchContainer(
+        project: project,
+        dataSource: source,
+        toolService: service,
+        appLifecycleService: lifecycle,
+        settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+        memoryService: memory,
+      );
+      addTearDown(container.dispose);
+      standInForTheApprover(container);
+      _activatePendingBatchProject(container, project);
+      _activateStructuredProjectTask(
+        container,
+        project,
+        inheritedPaths: [target.path],
+      );
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage(
+            'Verify the inherited task changes.',
+            purpose: PrimaryTurnPurpose.projectTaskImplementation,
+          );
+      await memory.firstUpdate.future.timeout(const Duration(seconds: 5));
+      final conversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      expect(conversation.goal!.status, ConversationGoalStatus.completed);
+      expect(
+        conversation.messages
+            .lastWhere((message) => message.role == MessageRole.assistant)
+            .content,
+        endsWith('PROJECT_TASK_READY_FOR_REVIEW'),
+      );
+      expect(memory.drafts.single!.summary, 'Completed task.');
+      expect(memory.drafts.single!.openLoops, isEmpty);
+      expect(
+        source.memoryMessages.last.content,
+        contains('"status":"completionRecorded"'),
+      );
+      expect(service.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+      ]);
+      expect(
+        source.toolResultDefinitions.where(
+          (tools) =>
+              tools.length == 1 &&
+              (tools.single['function'] as Map)['name'] == 'update_goal',
+        ),
+        hasLength(1),
+      );
+      expect(target.readAsStringSync(), 'pass\n');
+    },
+  );
+
   test(
     'reuses a passing venv result when the model returns to its failed runner',
     () async {
@@ -1029,6 +1290,7 @@ ProviderContainer _pendingBatchContainer({
   required AppLifecycleService appLifecycleService,
   required SettingsNotifier Function() settingsOverride,
   LlmSessionLogStore? sessionLogStore,
+  SessionMemoryService? memoryService,
 }) {
   return ProviderContainer(
     overrides: [
@@ -1040,7 +1302,7 @@ ProviderContainer _pendingBatchContainer({
       ),
       chatRemoteDataSourceProvider.overrideWithValue(dataSource),
       sessionMemoryServiceProvider.overrideWithValue(
-        _TestSessionMemoryService(),
+        memoryService ?? _TestSessionMemoryService(),
       ),
       codingProjectsNotifierProvider.overrideWith(
         () => _FixedCodingProjectsNotifier(project),
@@ -1052,6 +1314,80 @@ ProviderContainer _pendingBatchContainer({
       ),
     ],
   );
+}
+
+class _ProjectTaskTerminalDataSource extends _QueuedToolLoopChatDataSource {
+  _ProjectTaskTerminalDataSource({
+    required super.initialToolCalls,
+    required super.toolLoopResponses,
+    this.extractionFails = false,
+    super.finalAnswerChunks,
+  });
+
+  final bool extractionFails;
+  final List<Message> memoryMessages = [];
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (!messages.any((message) => message.id == 'memory_extractor_system')) {
+      throw StateError('Unexpected secondary completion');
+    }
+    memoryMessages.addAll(messages);
+    if (extractionFails) {
+      throw StateError('Fixture secondary completion failed');
+    }
+    return ChatCompletionResult(
+      content: jsonEncode({
+        'summary': 'Completed task.',
+        'open_loops': [],
+        'profile': {},
+        'memories': [],
+      }),
+      finishReason: 'stop',
+    );
+  }
+}
+
+class _ProjectTaskTerminalToolService extends _PendingBatchMcpToolService {
+  _ProjectTaskTerminalToolService(
+    super.root,
+    this.rejected, {
+    this.reportedExitCode,
+  });
+  final bool rejected;
+  final int? reportedExitCode;
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    if (name != 'local_execute_command') {
+      return super.executeTool(name: name, arguments: arguments);
+    }
+    executedToolNames.add(name);
+    final exitCode = reportedExitCode == null && rejected ? 1 : 0;
+    return McpToolResult(
+      toolName: name,
+      isSuccess: true,
+      result: jsonEncode({
+        ...arguments,
+        'exit_code': exitCode,
+        'stdout': reportedExitCode != null
+            ? 'Fixture command output\nPIPELINE_EXIT=$reportedExitCode\n'
+            : rejected
+            ? '1 failed in 0.1s'
+            : '53 passed in 0.1s',
+      }),
+      outcome: ToolOutcome(exitCode: exitCode),
+    );
+  }
 }
 
 void _activatePendingBatchProject(
@@ -1069,8 +1405,9 @@ void _activatePendingBatchProject(
 
 void _activateStructuredProjectTask(
   ProviderContainer container,
-  CodingProject project,
-) {
+  CodingProject project, {
+  List<String> inheritedPaths = const [],
+}) {
   final conversations = container.read(conversationsNotifierProvider.notifier);
   final task = conversations.addBackgroundConversation(
     workspaceMode: WorkspaceMode.coding,
@@ -1079,6 +1416,7 @@ void _activateStructuredProjectTask(
       id: 'project-task-goal',
       objective: 'Implement and verify the task',
       projectTaskAutoReview: true,
+      projectTaskInheritedPaths: inheritedPaths,
       createdAt: DateTime(2026, 9, 30),
       updatedAt: DateTime(2026, 9, 30),
     ),
