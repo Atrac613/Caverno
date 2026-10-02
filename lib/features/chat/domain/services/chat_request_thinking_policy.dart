@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../entities/model_usage_role.dart';
 
 /// Decides the thinking and effort controls a chat request carries.
@@ -83,6 +85,16 @@ final class ChatRequestThinkingPolicy {
   static bool suppressesThinking(ModelUsageRole role) =>
       _structuredUtilityRoles.contains(role);
 
+  static const Object _withoutThinkingKey = #cavernoRequestWithoutThinking;
+
+  /// Runs [body] so the requests it issues carry thinking off, as a utility
+  /// role's do, without changing the role they are accounted under.
+  ///
+  /// [resolve] reads this from the zone, as its callers read the role, so the
+  /// wire request and the session log's mirror of it agree.
+  static T runWithoutThinking<T>(T Function() body) =>
+      runZoned(body, zoneValues: {_withoutThinkingKey: true});
+
   /// Whether [model] is a Qwen3.8 build this policy governs.
   ///
   /// Matched by family, because the exact-name equality this replaces
@@ -124,7 +136,9 @@ final class ChatRequestThinkingPolicy {
     // so a family this policy has never heard of gets the same suppression as
     // the one it is named after. `reasoning_effort` is dropped with it, because
     // a call that must not reason should not be carrying an effort either.
-    if (acceptsChatTemplateKwargs && suppressesThinking(role)) {
+    if (acceptsChatTemplateKwargs &&
+        (suppressesThinking(role) ||
+            Zone.current[_withoutThinkingKey] == true)) {
       return ChatRequestThinkingOverrides(
         maxTokens: maxTokens,
         chatTemplateKwargs: const {'enable_thinking': false},

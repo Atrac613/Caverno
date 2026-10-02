@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/strict_tool_choice_policy.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/chat_request_thinking_policy.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_continuation_recovery_request.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -277,4 +279,52 @@ void main() {
     expect(requests, 1);
     expect(result?.toolCalls?.single.name, 'local_execute_command');
   });
+
+  for (final (code, thinks) in [
+    ('reasoning_only_stop', false),
+    ('prose_only_coding_continuation', true),
+  ]) {
+    test(
+      '$code recovery is sent with thinking ${thinks ? 'on' : 'off'}',
+      () async {
+        // Session be9dbba9: recovered with thinking on, the request stopped
+        // inside its reasoning again; without thinking it returned a tool call.
+        const policy = ChatRequestThinkingPolicy(
+          reasoningEffort: 'medium',
+          acceptsChatTemplateKwargs: true,
+        );
+        Object? sentThinking;
+        await CodingContinuationRecoveryRequest.run(
+          candidateResponse: '',
+          recoveryCode: code,
+          forcedPrompt: null,
+          generation: 1,
+          tools: const [],
+          executedResults: const [],
+          buildBaseMessages: (_) => [],
+          carryResults: (feedback) => [feedback],
+          isCurrent: () => true,
+          create:
+              ({
+                required logLabel,
+                required interactionGeneration,
+                required buildMessages,
+                required toolResults,
+                required assistantContent,
+                required tools,
+              }) async {
+                sentThinking = policy
+                    .resolve(
+                      model: 'qwen3.8-27b-exl3',
+                      maxTokens: 8192,
+                      role: ModelUsageRole.chat,
+                    )!
+                    .chatTemplateKwargs['enable_thinking'];
+                return ChatCompletionResult(content: '', finishReason: 'stop');
+              },
+        );
+        expect(sentThinking, thinks);
+      },
+    );
+  }
 }

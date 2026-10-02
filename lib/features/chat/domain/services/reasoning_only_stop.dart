@@ -1,5 +1,7 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
+import 'chat_request_thinking_policy.dart';
+
 /// A tool-loop response that ended inside the model's reasoning: no visible
 /// answer and no tool call.
 ///
@@ -29,6 +31,20 @@ final class ReasoningOnlyStop {
         ) &&
         ContentParser.stripModelHistoryArtifacts(rawResponse).isEmpty;
   }
+
+  /// Sends a recovery request, with thinking off when [recoveryCode] is this
+  /// recovery's.
+  ///
+  /// A retry with the same settings stops at the same point. In session
+  /// be9dbba9 the stop and its recovery reasoned 947 and 946 tokens and ended
+  /// on the same words; a replay of that request stopped inside its reasoning
+  /// again, and the same request without thinking returned a tool call in 9 s.
+  /// All 16 such stops in the corpus end mid-sentence: the generation is cut
+  /// inside the reasoning, so only a request that cannot reason avoids it.
+  static Future<T> send<T>(String recoveryCode, Future<T> Function() request) =>
+      recoveryCode == ReasoningOnlyStop.recoveryCode
+      ? ChatRequestThinkingPolicy.runWithoutThinking(request)
+      : request();
 
   static const label = 'reasoning-only stop recovery';
   static const reason =

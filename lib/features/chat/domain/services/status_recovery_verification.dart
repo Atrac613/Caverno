@@ -87,6 +87,22 @@ final class StatusRecoveryVerification {
             ToolCommandEffect.verification;
   }
 
+  /// What a status response [accepts] refused is told: none of its calls ran,
+  /// which tools it was offered, and what update_goal needs.
+  Map<String, dynamic> violation(
+    List<ToolCallInfo> calls,
+    List<Map<String, dynamic>> offered,
+  ) => {
+    'code': 'structured_task_status_protocol_violation',
+    'executed': false,
+    'allowed_tools': [
+      for (final tool in offered)
+        ToolDefinitionSearchService.toolNameFromDefinition(tool),
+    ],
+    'returned_tools': calls.map((call) => call.name).toList(),
+    'required_arguments': {'completed': 'JSON boolean'},
+  };
+
   String prompt(String statusPrompt, {required bool verificationGap}) =>
       verificationGap ? _verificationPrompt : statusPrompt;
 

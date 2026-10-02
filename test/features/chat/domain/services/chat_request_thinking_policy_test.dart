@@ -284,6 +284,25 @@ void main() {
       }
     });
 
+    test('turns thinking off for requests issued without thinking', () {
+      // Session be9dbba9: a reasoning-only stop recovered with thinking on
+      // stopped inside its reasoning again, 946 tokens to the stop's 947.
+      const policy = ChatRequestThinkingPolicy(
+        reasoningEffort: 'medium',
+        acceptsChatTemplateKwargs: true,
+      );
+      ChatRequestThinkingOverrides? resolve() => policy.resolve(
+        model: 'qwen3.8-27b-exl3',
+        maxTokens: 8192,
+        role: ModelUsageRole.chat,
+      );
+
+      expect(resolve()!.chatTemplateKwargs['enable_thinking'], isTrue);
+      final off = ChatRequestThinkingPolicy.runWithoutThinking(resolve)!;
+      expect(off.chatTemplateKwargs, {'enable_thinking': false});
+      expect(off.topLevelEnableThinking, isFalse);
+    });
+
     test('sends nothing without the opt-in', () {
       // The field is the outcome worth avoiding on an endpoint that has never
       // heard of it, so an unmarked endpoint keeps its old request shape.
