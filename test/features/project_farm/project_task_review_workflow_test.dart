@@ -102,6 +102,9 @@ void main() {
     expect(routes, [false, true, false, true]);
     expect(prompts[1], contains('```diff'));
     expect(prompts[2], contains('Fix a null case.'));
+    // Session 40851e45: narrow repairs left a neighbouring variant for the
+    // next review, three rounds running.
+    expect(prompts[2], contains('underlying defect behind each finding'));
     // Session 80dc7079: the review's raw tool markup reached the repair
     // prompt as if it were review text.
     expect(prompts[2], isNot(contains('<tool_use>')));

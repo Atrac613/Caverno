@@ -223,8 +223,12 @@ If review is incomplete, omit both markers.''';
         _report(_progress.copyWith(outcome: ProjectTaskOutcome.findingsRemain));
         return ProjectTaskReviewResult.findingsRemain;
       }
+      // Each repair used to fix only the cited instance, and the next review
+      // of the whole patch flagged its neighbour: in session 40851e45 a
+      // cleanup restored a logger's level and propagate but not its
+      // handlers, three rounds running, so the task ended uncommitted.
       implementation =
-          '''Fix the actionable findings from the dedicated code review below. Inspect the cited code, make only task-related repairs, and rerun relevant verification. Respect approval and user-input gates. Do not commit, push, or publish. End with the exact line $_ready only when the fixes and verification are complete; otherwise explain what remains and omit the line.
+          '''Fix the actionable findings from the dedicated code review below. Inspect the cited code and fix the underlying defect behind each finding, not only the cited line: where the same reasoning applies to closely related state, cases, or code paths in this task's changes, fix those too, because the next review reads the whole patch again. Keep repairs task-related, and rerun relevant verification. Respect approval and user-input gates. Do not commit, push, or publish. End with the exact line $_ready only when the fixes and verification are complete; otherwise explain what remains and omit the line.
 
 ${ContentParser.stripModelHistoryArtifacts(review.content)}''';
     }
