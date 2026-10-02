@@ -141,6 +141,184 @@ void registerChatNotifierPendingBatchTests() {
   }
 
   for (final scenario in [
+    (passDryRun: false, reportAgain: false),
+    (passDryRun: true, reportAgain: false),
+    (passDryRun: false, reportAgain: true),
+    (passDryRun: true, reportAgain: true),
+  ]) {
+    test(
+      'keeps a rejected task incomplete after a later edit $scenario',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'caverno_rejected_task_',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final inherited = File('${root.path}/source.py')
+          ..writeAsStringSync('pass\n');
+        final ignored = File('${root.path}/.gitignore');
+        final project = _pendingBatchProject(root.path);
+        ToolCallInfo command(String id, String text) => ToolCallInfo(
+          id: id,
+          name: 'local_execute_command',
+          arguments: {'command': text, 'working_directory': root.path},
+        );
+        ToolCallInfo report(String id) => ToolCallInfo(
+          id: id,
+          name: 'update_goal',
+          arguments: const {'completed': true},
+        );
+        const dryRun =
+            '.venv/bin/python app.py --dry-run 2>&1 | head -20; '
+            'echo "--- app.log tail ---"; tail -8 app.log';
+        final source = _ProjectTaskTerminalDataSource(
+          initialToolCalls: [
+            command('tests', '.venv/bin/python -m pytest -q'),
+            command('failed-dry-run', dryRun),
+          ],
+          toolLoopResponses: [
+            ChatCompletionResult(content: 'Ready.', finishReason: 'stop'),
+            ChatCompletionResult(
+              content: '',
+              toolCalls: [command('retry-dry-run', dryRun)],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: '',
+              toolCalls: [report('rejected-completion')],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: '',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'ignore-log',
+                  name: 'write_file',
+                  arguments: {'path': ignored.path, 'content': 'app.log\n'},
+                ),
+                command('tests-after-edit', '.venv/bin/python -m pytest -q'),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            if (scenario.passDryRun)
+              ChatCompletionResult(
+                content: '',
+                toolCalls: [command('passing-dry-run', dryRun)],
+                finishReason: 'tool_calls',
+              ),
+            if (scenario.reportAgain)
+              ChatCompletionResult(
+                content: '',
+                toolCalls: [report('reported-after-verification')],
+                finishReason: 'tool_calls',
+              ),
+            ChatCompletionResult(content: 'Ready.', finishReason: 'stop'),
+            if (!scenario.reportAgain || !scenario.passDryRun) ...[
+              ChatCompletionResult(
+                content: '<think>The task is finished.</think>',
+                finishReason: 'stop',
+              ),
+              ChatCompletionResult(
+                content: '',
+                toolCalls: [
+                  command('unoffered-backup', 'cp config.json backup.json'),
+                ],
+                finishReason: 'tool_calls',
+              ),
+            ],
+          ],
+          finalAnswerChunks: const ['Ready.\nPROJECT_TASK_READY_FOR_REVIEW'],
+        );
+        final service = _VerificationAfterRejectionToolService(root);
+        final memory = _TrackingSessionMemoryService();
+        final lifecycle = _MockAppLifecycleService();
+        when(() => lifecycle.isInBackground).thenReturn(false);
+        final container = _pendingBatchContainer(
+          project: project,
+          dataSource: source,
+          toolService: service,
+          appLifecycleService: lifecycle,
+          settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+          memoryService: memory,
+        );
+        addTearDown(container.dispose);
+        standInForTheApprover(container);
+        _activatePendingBatchProject(container, project);
+        _activateStructuredProjectTask(
+          container,
+          project,
+          inheritedPaths: [inherited.path],
+        );
+        await container
+            .read(chatNotifierProvider.notifier)
+            .sendMessage(
+              'Verify the task and ignore its generated log.',
+              purpose: PrimaryTurnPurpose.projectTaskImplementation,
+            );
+        await memory.firstUpdate.future.timeout(const Duration(seconds: 5));
+        final conversation = container
+            .read(conversationsNotifierProvider)
+            .currentConversation!;
+        final accepted = scenario.passDryRun && scenario.reportAgain;
+        expect(
+          conversation.goal!.status,
+          accepted
+              ? ConversationGoalStatus.completed
+              : ConversationGoalStatus.active,
+        );
+        final results = source.toolResultBatches
+            .expand((batch) => batch)
+            .toList();
+        expect(
+          results.where((result) => result.id == 'rejected-completion'),
+          isNotEmpty,
+        );
+        expect(
+          results
+              .firstWhere((result) => result.id == 'rejected-completion')
+              .result,
+          contains('Completion not recorded'),
+        );
+        final answer = conversation.messages
+            .lastWhere((message) => message.role == MessageRole.assistant)
+            .content;
+        expect(
+          answer,
+          accepted
+              ? endsWith('PROJECT_TASK_READY_FOR_REVIEW')
+              : isNot(contains('PROJECT_TASK_READY_FOR_REVIEW')),
+        );
+        if (!accepted) {
+          expect(answer, contains('completion was not recorded'));
+          expect(
+            answer,
+            contains(scenario.passDryRun ? 'update_goal' : 'app.py --dry-run'),
+          );
+        }
+        expect(
+          source.memoryMessages.last.content,
+          contains(
+            '"status":"${accepted ? 'completionRecorded' : 'completionRejected'}"',
+          ),
+        );
+        expect(
+          memory.drafts.single!.summary,
+          accepted ? 'Completed task.' : isNot('Completed task.'),
+        );
+        expect(
+          memory.drafts.single!.openLoops,
+          accepted ? isEmpty : isNotEmpty,
+        );
+        expect(
+          service.executedCommands,
+          isNot(contains('cp config.json backup.json')),
+        );
+        expect(ignored.readAsStringSync(), 'app.log\n');
+        expect(inherited.readAsStringSync(), 'pass\n');
+      },
+    );
+  }
+
+  for (final scenario in [
     (retryExit: 120, reportBlocked: true),
     (retryExit: 120, reportBlocked: false),
     (retryExit: 0, reportBlocked: false),
@@ -1528,6 +1706,43 @@ class _ProjectTaskTerminalDataSource extends _QueuedToolLoopChatDataSource {
         'memories': [],
       }),
       finishReason: 'stop',
+    );
+  }
+}
+
+class _VerificationAfterRejectionToolService
+    extends _PendingBatchMcpToolService {
+  _VerificationAfterRejectionToolService(super.root);
+
+  final executedCommands = <String>[];
+  int dryRunExecutions = 0;
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    if (name != 'local_execute_command') {
+      return super.executeTool(name: name, arguments: arguments);
+    }
+    executedToolNames.add(name);
+    final command = arguments['command'] as String;
+    executedCommands.add(command);
+    final dryRun = command.contains('app.py --dry-run');
+    final failed = dryRun && ++dryRunExecutions <= 2;
+    return McpToolResult(
+      toolName: name,
+      isSuccess: true,
+      result: jsonEncode({
+        ...arguments,
+        'exit_code': 0,
+        'stdout': failed
+            ? 'Traceback (most recent call last):\nRuntimeError: fixture verification failed'
+            : dryRun
+            ? 'Dry-run passed.'
+            : '53 passed in 0.1s',
+      }),
+      outcome: const ToolOutcome(exitCode: 0),
     );
   }
 }

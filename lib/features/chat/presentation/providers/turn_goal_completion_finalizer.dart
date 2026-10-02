@@ -64,7 +64,7 @@ final class TurnGoalCompletionFinalizer {
         clearReportedRemainingWork: true,
       );
     }
-    final finalAck = acknowledgement?.isCompletionClaim == true
+    var finalAck = acknowledgement?.isCompletionClaim == true
         ? const GoalUpdateAckResolver().resolve(
             input: acknowledgement!.input,
             goal: conversation?.goal,
@@ -73,6 +73,19 @@ final class TurnGoalCompletionFinalizer {
             taskToolResults: [...completedToolResults, ...contentToolResults],
           )
         : null;
+    if (acknowledgement?.outcome == GoalUpdateAckOutcome.completionRejected &&
+        (finalAck?.completionAccepted == true ||
+            finalAck?.confirmationRequired == true)) {
+      // Re-evaluation may revoke acceptance, but cannot accept a rejected
+      // invocation that the model was explicitly told to report again.
+      finalAck = const GoalUpdateAck(
+        outcome: GoalUpdateAckOutcome.completionRejected,
+        modelMessage: 'Completion still requires a new update_goal call.',
+        gaps: [
+          'Report completion again with update_goal after successful verification.',
+        ],
+      );
+    }
     if (projectTaskImplementation &&
         conversation?.goal?.projectTaskAutoReview == true) {
       final status = finalAck?.outcome ?? acknowledgement?.outcome;

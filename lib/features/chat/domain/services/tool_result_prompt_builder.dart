@@ -957,9 +957,11 @@ class ToolResultPromptBuilder {
       toolResults,
       afterIndex: latestMutationIndex,
     );
+    // An edit invalidates prior success, but cannot settle a failed check.
+    // Matching successful reruns are already reconciled above.
     final hasFailedExecutionVerification = _hasFailedExecutionVerification(
       toolResults,
-      afterIndex: latestMutationIndex,
+      afterIndex: -1,
     );
     final hasSuccessfulExecutionVerification =
         !hasFailedExecutionVerification &&

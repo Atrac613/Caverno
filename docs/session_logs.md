@@ -213,6 +213,14 @@ passing command did not settle.
 The `coding_task_status_*` turn transforms record the reconciled acknowledgement.
 The exit record is written after goal reconciliation so it includes that status.
 Only `coding_task_status_completionRecorded` settles the implementation status.
+Final reconciliation can revoke an earlier accepted completion when later
+evidence contradicts it, but cannot accept a rejected invocation. After a
+rejection, successful verification still requires a new valid `update_goal`
+completion call. Edits and different passing checks do not settle an earlier
+verification failure; it remains blocking until its matching check passes.
+Identical goal-status arguments can be evaluated again after a file edit or
+verification command changes the captured state. Status calls and inspections
+alone do not renew their duplicate-call allowance.
 Other recorded statuses produce `coding_task_status_unresolved` and an
 `incomplete` summary. A later terminal turn supersedes an earlier unresolved
 status. Language-dependent diagnostics remain visible as history.

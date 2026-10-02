@@ -251,6 +251,76 @@ void main() {
     });
   });
 
+  group('verification failures across later mutations', () {
+    const dryRun =
+        '.venv/bin/python app.py --dry-run 2>&1 | head -20; '
+        'echo "--- app.log tail ---"; tail -8 app.log';
+    for (final exitCode in [0, 1]) {
+      for (final withFeedback in [false, true]) {
+        if (exitCode != 0 && withFeedback) continue;
+        for (final rerunPasses in [false, true]) {
+          test(
+            'requires the failed check after an edit '
+            '(exit: $exitCode, feedback: $withFeedback, rerun: $rerunPasses)',
+            () {
+              final failed = command(
+                'dry-run-failed',
+                dryRun,
+                exitCode: exitCode,
+                stdout:
+                    'Traceback (most recent call last):\n'
+                    'RuntimeError: fixture verification failed\n',
+              );
+              final results = [
+                failed,
+                if (withFeedback)
+                  const CodingCommandOutputGuardrailService()
+                      .buildFeedbackToolResult(toolResults: [failed])!,
+                ToolResultInfo(
+                  id: 'ignore-log',
+                  name: 'edit_file',
+                  arguments: const {'path': '/workspace/.gitignore'},
+                  result: jsonEncode({
+                    'path': '/workspace/.gitignore',
+                    'changed': true,
+                  }),
+                  outcome: const ToolOutcome(
+                    fileMutations: [
+                      ToolFileMutation(
+                        path: '/workspace/.gitignore',
+                        changed: true,
+                        contentHash: 'ignore-generated-log',
+                      ),
+                    ],
+                  ),
+                ),
+                command('unit-tests', '.venv/bin/python -m pytest -q'),
+                if (rerunPasses)
+                  command('dry-run-passed', dryRun, stdout: 'Dry-run passed.'),
+              ];
+              final evidence = ToolResultPromptBuilder.completionEvidence(
+                results,
+              );
+              expect(evidence.hasExecutionVerification, isTrue);
+              expect(evidence.hasFailedExecutionVerification, !rerunPasses);
+              expect(evidence.hasSuccessfulExecutionVerification, rerunPasses);
+              final settled = evidence.settleForExecutionGenerations(
+                mutationGeneration: 2,
+                verificationGeneration: 2,
+              );
+              expect(settled.hasFailedExecutionVerification, !rerunPasses);
+              expect(settled.hasSuccessfulExecutionVerification, rerunPasses);
+              expect(
+                const UnresolvedVerificationFailure().describe(results),
+                rerunPasses ? isNull : contains('app.py --dry-run'),
+              );
+            },
+          );
+        }
+      }
+    }
+  });
+
   group('reported command exit status', () {
     const invocation = '.venv/bin/python app.py --dry-run 2>&1 | head -40';
     const reporter = r'; echo "PIPELINE_EXIT=${PIPESTATUS[0]:-n/a}"';
