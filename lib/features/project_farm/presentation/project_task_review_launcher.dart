@@ -226,6 +226,10 @@ final class ProjectTaskReviewLauncher {
             projectRoot == null || projectRoot.isEmpty
             ? null
             : _gitReader.readTaskState(projectRoot, paths),
+        readTaskPatch: (paths) async =>
+            projectRoot == null || projectRoot.isEmpty
+            ? null
+            : _gitReader.readTaskPatch(projectRoot, paths),
       );
       final result = await workflow.run();
       if (!isMounted() || !selected()) return;
