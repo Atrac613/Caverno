@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
+import '../../chat/domain/entities/turn_diff.dart';
+import '../../chat/domain/services/turn_diff_service.dart';
 import '../domain/entities/project_task_git_state.dart';
 
 /// A read-only glance at a project's git state for the dashboard.
@@ -100,6 +103,67 @@ final class ProjectGitStatusReader {
       );
     } on Object {
       return null;
+    }
+  }
+
+  /// The net change of [paths] against HEAD, one entry per changed path, with
+  /// untracked paths read as new files. Returns null when git fails.
+  Future<List<TurnDiffFile>?> readTaskPatch(
+    String projectRoot,
+    List<String> paths,
+  ) async {
+    if (paths.isEmpty) return const [];
+    try {
+      List<String> diff(String option) => [
+        'diff',
+        '--no-ext-diff',
+        option,
+        'HEAD',
+        '--',
+        ...paths,
+      ];
+      final numstat = await _run(diff('--numstat'), projectRoot);
+      final patch = await _run(diff('--unified=3'), projectRoot);
+      final untracked = await _run([
+        'ls-files',
+        '--others',
+        '--exclude-standard',
+        '-z',
+        '--',
+        ...paths,
+      ], projectRoot);
+      if ([numstat, patch, untracked].any((result) => result.exitCode != 0)) {
+        return null;
+      }
+      return [
+        ...TurnDiffService.buildGitFiles(
+          numstatOutput: numstat.stdout as String,
+          patchOutput: patch.stdout as String,
+        ),
+        for (final path in (untracked.stdout as String).split('\u0000'))
+          if (path.isNotEmpty) ?_untrackedFile(projectRoot, path),
+      ];
+    } on Object {
+      return null;
+    }
+  }
+
+  /// [path] is relative to [projectRoot], as `ls-files` prints it.
+  static TurnDiffFile? _untrackedFile(String projectRoot, String path) {
+    final file = File('$projectRoot/$path');
+    if (file.lengthSync() > TurnDiffService.maxTextFileBytes) {
+      return TurnDiffFile(filePath: path, isLargeFile: true, isUntracked: true);
+    }
+    try {
+      return TurnDiffService.buildFileDiff(
+        filePath: path,
+        oldContent: null,
+        newContent: utf8.decode(file.readAsBytesSync()),
+        oldExists: false,
+        isUntracked: true,
+      )?.file;
+    } on FormatException {
+      return TurnDiffFile(filePath: path, isBinary: true, isUntracked: true);
     }
   }
 

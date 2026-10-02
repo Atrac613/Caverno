@@ -5,6 +5,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/goal_update_tool_contract.dart';
+import '../../domain/services/project_task_terminal_status.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import 'turn_finalization_state_registry.dart';
 import 'turn_goal_completion_evidence_registry.dart';
@@ -39,6 +40,7 @@ final class TurnGoalCompletionFinalizer {
     required String assistantResponse,
     required int tokenUsageDelta,
     bool projectTaskImplementation = false,
+    void Function(ProjectTaskTerminalStatus status)? onProjectTaskStatus,
   }) async {
     if (!evidenceRegistry.contains(owner) ||
         !finalizationState.contains(owner)) {
@@ -62,7 +64,7 @@ final class TurnGoalCompletionFinalizer {
         clearReportedRemainingWork: true,
       );
     }
-    final finalAck = acknowledgement?.isCompletionClaim == true
+    var finalAck = acknowledgement?.isCompletionClaim == true
         ? const GoalUpdateAckResolver().resolve(
             input: acknowledgement!.input,
             goal: conversation?.goal,
@@ -71,6 +73,19 @@ final class TurnGoalCompletionFinalizer {
             taskToolResults: [...completedToolResults, ...contentToolResults],
           )
         : null;
+    if (acknowledgement?.outcome == GoalUpdateAckOutcome.completionRejected &&
+        (finalAck?.completionAccepted == true ||
+            finalAck?.confirmationRequired == true)) {
+      // Re-evaluation may revoke acceptance, but cannot accept a rejected
+      // invocation that the model was explicitly told to report again.
+      finalAck = const GoalUpdateAck(
+        outcome: GoalUpdateAckOutcome.completionRejected,
+        modelMessage: 'Completion still requires a new update_goal call.',
+        gaps: [
+          'Report completion again with update_goal after successful verification.',
+        ],
+      );
+    }
     if (projectTaskImplementation &&
         conversation?.goal?.projectTaskAutoReview == true) {
       final status = finalAck?.outcome ?? acknowledgement?.outcome;
@@ -102,6 +117,22 @@ final class TurnGoalCompletionFinalizer {
                   'Confirm completion or reactivate the goal.'
             : 'The goal reached its configured budget cap. Review the work and '
                   'confirm completion or reactivate it with a larger budget.',
+      );
+    }
+    if (projectTaskImplementation &&
+        conversation?.goal?.projectTaskAutoReview == true) {
+      onProjectTaskStatus?.call(
+        ProjectTaskTerminalStatus(
+          outcome: finalAck?.outcome ?? acknowledgement?.outcome,
+          gaps:
+              finalAck?.gaps ??
+              [
+                ...const GoalUpdateAckResolver().completionGaps(evidence),
+                if (acknowledgement?.input.normalizedBlockedReason
+                    case final String reason)
+                  reason,
+              ],
+        ),
       );
     }
     return evidence;

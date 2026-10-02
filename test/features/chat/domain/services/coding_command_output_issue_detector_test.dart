@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_issue_detector.dart';
@@ -47,6 +48,84 @@ void main() {
   });
 
   group('decoded command results', () {
+    test(
+      'detects the failing status hidden by an actual successful echo',
+      () async {
+        const command =
+            r'''bash -c 'exit 2' | head -40; echo "PIPELINE_EXIT=${PIPESTATUS[0]:-n/a}"''';
+        final execution = await Process.run('bash', [
+          '-o',
+          'pipefail',
+          '-c',
+          command,
+        ]);
+        expect(execution.exitCode, 0);
+        final issue = detector.detectFromDecodedCommandResult(
+          toolName: 'local_execute_command',
+          decoded: {
+            'command': command,
+            'exit_code': execution.exitCode,
+            'stdout': execution.stdout,
+          },
+        );
+        expect(
+          issue?.summary,
+          'Output reports a failing command exit status (2).',
+        );
+      },
+      skip: Platform.isWindows,
+    );
+
+    test('a reported zero exit allows intentional exception output', () {
+      final issue = detector.detectFromDecodedCommandResult(
+        toolName: 'local_execute_command',
+        decoded: const {
+          'command':
+              r'python3 verify_logging.py; echo "RESULT=${PIPESTATUS[0]}"',
+          'exit_code': 0,
+          'stdout':
+              'Traceback (most recent call last)\nValueError: simulated failure\n'
+              'ALL LOGGING VERIFICATIONS PASSED\nRESULT=0\n',
+        },
+      );
+      expect(issue, isNull);
+    });
+
+    test('typed process state gates background failure evidence', () {
+      for (final state in [ToolProcessState.running, ToolProcessState.exited]) {
+        final issue = detector.detect(
+          ToolResultInfo(
+            id: 'background-report',
+            name: 'process_wait',
+            arguments: const {'job_id': 'reported-job'},
+            result: jsonEncode({
+              'command':
+                  r'python3 app.py | head -40; echo "RESULT=${PIPESTATUS[0]}"',
+              'status': state == ToolProcessState.exited ? 'running' : 'exited',
+              'exit_code': 0,
+              'stdout_tail': 'RESULT=120\n',
+            }),
+            outcome: ToolOutcome(exitCode: 0, processState: state),
+          ),
+        );
+        expect(issue != null, state == ToolProcessState.exited);
+      }
+    });
+
+    test('an unavailable exit report does not turn echo into verification', () {
+      for (final output in ['done', 'RESULT=n/a', 'RESULT=0\ntruncated']) {
+        final issue = detector.detectFromDecodedCommandResult(
+          toolName: 'local_execute_command',
+          decoded: {
+            'command': r'python3 app.py; echo "RESULT=$?"',
+            'exit_code': 0,
+            'stdout': output,
+          },
+        );
+        expect(issue?.summary, contains('unavailable'), reason: output);
+      }
+    });
+
     test('detects Python and pytest failures hidden by a successful tail', () {
       for (final output in [
         '/opt/python/bin/python3.14: No module named pytest\n',

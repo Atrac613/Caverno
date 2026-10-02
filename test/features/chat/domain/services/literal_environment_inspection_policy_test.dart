@@ -7,6 +7,10 @@ void main() {
         '&& ls .venv 2>/dev/null; which pytest',
     "cd '/project with spaces/日本語' && ls -la",
     'pwd; python3.14 -V',
+    'cd /project && ls -d .venv venv 2>/dev/null; which pytest 2>/dev/null; '
+        'python3 -m pip show pytest 2>/dev/null | head -3',
+    '.venv/bin/python -m pip show pytest wheel | tail -n 10',
+    'pip3 show pytest',
   ]) {
     test('accepts literal inspection: $command', () {
       expect(LiteralEnvironmentInspectionPolicy.applies(command), isTrue);
@@ -16,6 +20,12 @@ void main() {
     '',
     'ls; rm data',
     'ls && python3 fix.py',
+    'python3 -m pip install pytest',
+    'pip3 install pytest',
+    'python3 -m pip show --files pytest',
+    'python3 -m pip show pytest > packages.txt',
+    'python3 -m pip show pytest | tee packages.txt',
+    r'python3 -m pip show $(touch packages.txt)',
     'python3 script.py cat',
     'ls > result.txt',
     'ls 2> result.txt',

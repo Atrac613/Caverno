@@ -101,6 +101,7 @@ part 'chat_notifier_narrated_transcript_part.dart';
 part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_participant_turns_part.dart';
 part 'chat_notifier_pending_batch_part.dart';
+part 'chat_notifier_project_task_steps_part.dart';
 part 'chat_notifier_persistence_part.dart';
 part 'chat_notifier_planning_contract_part.dart';
 part 'chat_notifier_printed_tool_call_part.dart';
@@ -178,6 +179,7 @@ void main() {
   registerChatNotifierAssumptionConfirmationTests();
   registerChatNotifierCommandDedupTests();
   registerChatNotifierPendingBatchTests();
+  registerChatNotifierProjectTaskStepTests();
   registerChatNotifierParticipantTurnTests();
   registerChatNotifierGoalAutoContinueTests();
   registerChatNotifierSavedWorkflowGuardrailTests();

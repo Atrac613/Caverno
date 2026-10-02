@@ -14,6 +14,9 @@ enum PrimaryTurnPurpose {
   /// tool call (session 80dc7079).
   projectTaskStep,
 
+  /// Commits the reviewed task patch after implementation has completed.
+  projectTaskCommit,
+
   /// The project-task implementation turn, settled by goal completion.
   projectTaskImplementation;
 
@@ -21,11 +24,14 @@ enum PrimaryTurnPurpose {
     bool codeReview = false,
     bool projectTaskImplementation = false,
     bool projectTaskStep = false,
+    bool projectTaskCommit = false,
   }) => codeReview
       ? PrimaryTurnPurpose.codeReview
       : projectTaskImplementation
       ? PrimaryTurnPurpose.projectTaskImplementation
       : projectTaskStep
       ? PrimaryTurnPurpose.projectTaskStep
+      : projectTaskCommit
+      ? PrimaryTurnPurpose.projectTaskCommit
       : PrimaryTurnPurpose.conversation;
 }

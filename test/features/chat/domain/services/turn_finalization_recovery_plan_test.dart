@@ -18,13 +18,18 @@ void main() {
   };
   TurnFinalizationRecoveryPlan plan({
     bool implementation = true,
+    bool step = false,
     String response = 'Done.',
     bool boundary = true,
     GoalUpdateAckOutcome? ack,
     bool offerStatus = true,
+    bool terminalStatusOnly = false,
+    bool offerExecution = false,
   }) => TurnFinalizationRecoveryPlan(
     goal: goal,
     implementationTurn: implementation,
+    terminalStatusOnly: terminalStatusOnly,
+    stepTurn: step,
     boundarySafe: boundary,
     acknowledgement: ack,
     parentTurn: false,
@@ -33,7 +38,11 @@ void main() {
     hasSavedValidation: false,
     hasGitLifecycle: false,
     skipCompletedAnswer: true,
-    allTools: [tool('write_file'), if (offerStatus) tool('update_goal')],
+    allTools: [
+      tool('write_file'),
+      if (offerStatus) tool('update_goal'),
+      if (offerExecution) ...[tool('local_execute_command'), tool('run_tests')],
+    ],
     prefixStable: true,
   );
 
@@ -54,6 +63,84 @@ void main() {
   test('does not widen ordinary completed answers', () {
     expect(plan(implementation: false).shouldRecover, isFalse);
   });
+  test('a terminal verification status request offers only update_goal', () {
+    final recovery = plan(terminalStatusOnly: true, offerExecution: true);
+    expect(recovery.shouldRecover, isTrue);
+    expect(recovery.requestTools.single['function'], {'name': 'update_goal'});
+    expect(recovery.prompt, contains('Report its captured outcome now'));
+    expect(
+      recovery.acceptsCalls([
+        ToolCallInfo(
+          id: 'repeat',
+          name: 'local_execute_command',
+          arguments: const {'command': 'python watcher.py --dry-run'},
+        ),
+      ]),
+      isFalse,
+    );
+    expect(
+      plan(terminalStatusOnly: true, boundary: false).shouldRecover,
+      isFalse,
+    );
+    expect(
+      plan(
+        terminalStatusOnly: true,
+        ack: GoalUpdateAckOutcome.blockerLogged,
+      ).shouldRecover,
+      isFalse,
+    );
+    expect(
+      plan(terminalStatusOnly: true, offerStatus: false).shouldRecover,
+      isFalse,
+    );
+  });
+  test(
+    'subtask recovery requires its marker and never forces overall completion',
+    () {
+      final recovery = plan(implementation: false, step: true);
+      expect(recovery.structuredTask, isFalse);
+      expect(recovery.structuredStep, isTrue);
+      expect(recovery.shouldRecover, isTrue);
+      expect(recovery.forcedCode, 'structured_project_subtask');
+      expect(recovery.requestTools, hasLength(2));
+      expect(recovery.prompt, contains('Never mark the overall goal complete'));
+      expect(
+        recovery.acceptsCalls([
+          ToolCallInfo(
+            id: 'early',
+            name: 'update_goal',
+            arguments: const {'completed': true},
+          ),
+        ]),
+        isFalse,
+      );
+      expect(
+        recovery.acceptsCalls([
+          ToolCallInfo(
+            id: 'blocker',
+            name: 'update_goal',
+            arguments: const {
+              'completed': false,
+              'blocked_reason': 'Missing runtime',
+            },
+          ),
+        ]),
+        isTrue,
+      );
+      expect(
+        plan(
+          implementation: false,
+          step: true,
+          response: 'Done.\nPROJECT_TASK_SUBTASK_DONE',
+        ).shouldRecover,
+        isFalse,
+      );
+      expect(
+        plan(implementation: false, step: true, boundary: false).shouldRecover,
+        isFalse,
+      );
+    },
+  );
   test('stops for accepted completion, unsafe boundaries, or missing tool', () {
     expect(
       plan(ack: GoalUpdateAckOutcome.completionRecorded).shouldRecover,

@@ -56,6 +56,13 @@ class ToolCallExecutionPolicy {
           !shouldAllowRepeatedToolExecution(toolCall) &&
           !isRepeatableCommandTool(toolCall),
     );
+    if (toolCall.name.trim().toLowerCase() == 'update_goal') {
+      // The acknowledgement depends on captured work and execution state.
+      // Identical arguments after verification need a new evaluation, while
+      // repeated status calls without new work still collide.
+      return '$baseKey#commandRetryGeneration=$commandRetryGeneration'
+          '#stateChangeGeneration=$stateChangeGeneration';
+    }
     if (observesWorkspaceFileTree(toolCall)) {
       // A listing answers for the tree it saw. Keyed without a generation, a
       // `list_directory` after `write_file` collided with the one before it

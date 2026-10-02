@@ -1,8 +1,11 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
+import 'coding_command_output_issue_detector.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'shell_exit_status_report.dart';
 import 'tool_call_execution_policy.dart';
+import 'unresolved_verification_failure.dart';
 
 /// Summarizes what a turn changed and ran for a structured status request.
 ///
@@ -57,6 +60,9 @@ final class StructuredTaskStatusEvidence {
       }
     }
     if (changedPaths.isEmpty && latestExecutionIndex < 0) return null;
+    final unresolvedFailure = const UnresolvedVerificationFailure().describe(
+      results,
+    );
     return {
       'fileChanges': changedPaths.length <= maxListedChanges
           ? changedPaths
@@ -66,6 +72,7 @@ final class StructuredTaskStatusEvidence {
         'latestExecutionFollowsLatestChange':
             latestExecutionIndex > latestChangeIndex,
       },
+      'unresolvedVerificationFailure': ?unresolvedFailure,
     };
   }
 
@@ -96,14 +103,30 @@ final class StructuredTaskStatusEvidence {
   }
 
   Map<String, dynamic> _describeExecution(ToolResultInfo result) {
+    final decoded = _executionPolicy.tryDecodeMap(result.result);
     final command =
-        _executionPolicy.toolCommandArgument(result.arguments) ?? result.name;
+        decoded?['command']?.toString() ??
+        _executionPolicy.toolCommandArgument(result.arguments) ??
+        result.name;
+    final outputIssue = const CodingCommandOutputIssueDetector().detect(result);
+    final report = ShellExitStatusReport.parse(command);
+    final reportedExit = report?.exitCode(
+      (decoded?['stdout'] ?? decoded?['stdout_tail'])?.toString() ?? '',
+    );
     return {
       'tool': result.name,
       'command': _clip(command, maxCommandChars, keepEnd: false),
-      'succeeded': _executionPolicy.toolResultHasSuccessfulExit(result),
+      'succeeded':
+          _executionPolicy.toolResultHasSuccessfulExit(result) &&
+          decoded?['timed_out'] != true &&
+          (result.outcome?.effectiveTestFailedCount ?? 0) == 0 &&
+          (result.outcome?.diagnosticErrorCount ?? 0) == 0 &&
+          outputIssue == null &&
+          (report == null || reportedExit == 0),
       if (result.outcome?.exitCode != null)
         'exitCode': result.outcome!.exitCode,
+      'reportedExitCode': ?reportedExit,
+      if (outputIssue != null) 'failureReason': outputIssue.summary,
       'outputTail': _clip(_output(result), maxOutputTailChars, keepEnd: true),
     };
   }

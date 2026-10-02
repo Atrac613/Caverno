@@ -20,7 +20,11 @@ ToolResultInfo _command(String command, int exitCode, String stdout) =>
       id: 'cmd-$command',
       name: 'local_execute_command',
       arguments: {'command': command},
-      result: '{"exit_code":$exitCode,"stdout":"$stdout","stderr":""}',
+      result: jsonEncode({
+        'exit_code': exitCode,
+        'stdout': stdout,
+        'stderr': '',
+      }),
       outcome: ToolOutcome(exitCode: exitCode),
     );
 
@@ -67,6 +71,64 @@ void main() {
 
     expect(summary!['latestExecutionFollowsLatestChange'], isFalse);
     expect((summary['latestExecution'] as Map)['succeeded'], isFalse);
+  });
+
+  test('a successful echo cannot report its failed command as succeeded', () {
+    final summary = evidence.summarize([
+      _command(
+        r'python3 app.py --dry-run 2>&1 | head -40; echo "PIPELINE_EXIT=${PIPESTATUS[0]:-n/a}"',
+        0,
+        'usage error\nPIPELINE_EXIT=2\n',
+      ),
+    ])!;
+    final execution = summary['latestExecution'] as Map;
+    expect(execution['succeeded'], isFalse);
+    expect(execution['exitCode'], 0);
+    expect(execution['reportedExitCode'], 2);
+    expect(execution['failureReason'], contains('failing command exit status'));
+    expect(
+      summary['unresolvedVerificationFailure'],
+      contains('reported exit 2'),
+    );
+  });
+
+  test('a passing unrelated check retains the earlier failed verification', () {
+    final summary = evidence.summarize([
+      _command('python3 app.py --dry-run', 2, 'usage error'),
+      _command('python3 -m pytest -q', 0, '53 passed in 0.1s'),
+    ])!;
+    expect((summary['latestExecution'] as Map)['succeeded'], isTrue);
+    expect(
+      summary['unresolvedVerificationFailure'],
+      contains('app.py --dry-run'),
+    );
+  });
+
+  test('masked runtime errors also remain failed in captured evidence', () {
+    final summary = evidence.summarize([
+      _command(
+        'python3 app.py 2>&1 | head -40',
+        0,
+        'Traceback (most recent call last)\nConnectionError: offline',
+      ),
+    ])!;
+    expect((summary['latestExecution'] as Map)['succeeded'], isFalse);
+    expect(
+      summary['unresolvedVerificationFailure'],
+      contains('runtime failure'),
+    );
+  });
+
+  test('an unmasked successful logging verifier may print a traceback', () {
+    final summary = evidence.summarize([
+      _command(
+        'python3 verify_logging.py',
+        0,
+        'Traceback (most recent call last)\nExpected exception\nAll checks passed',
+      ),
+    ])!;
+    expect((summary['latestExecution'] as Map)['succeeded'], isTrue);
+    expect(summary, isNot(contains('unresolvedVerificationFailure')));
   });
 
   test('ignores git inspection and returns null without evidence', () {

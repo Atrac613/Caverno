@@ -28,6 +28,7 @@ final class ProjectTaskReviewWorkflow {
     this.onProgress,
     this.inheritedFiles = const [],
     this.recordPriorChanges,
+    this.readTaskPatch,
   });
 
   final String conversationId;
@@ -68,6 +69,15 @@ final class ProjectTaskReviewWorkflow {
   /// subtask only verified them, so completion was refused and the workflow
   /// stopped with every subtask done.
   final Future<void> Function(List<String> paths)? recordPriorChanges;
+
+  /// The net change of the task's files against HEAD, one entry per file, or
+  /// null when git cannot be read and the captured patches are reviewed.
+  ///
+  /// Captured patches are per turn and stack. In session be9dbba9, eight
+  /// earlier runs had left 29 of them for 7 files, 44,502 characters, and the
+  /// workflow stopped before review. The net change is also exactly what the
+  /// commit stage commits.
+  final Future<List<TurnDiffFile>?> Function(List<String> paths)? readTaskPatch;
 
   static const maxRepairRounds = 2;
   static const maxMissingDiffRetries = 1;
@@ -179,10 +189,10 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
             '''The previous implementation turn captured no reviewable file change. Any claimed edits or test results without tool evidence are unverified. Inspect the current files, then perform the remaining implementation with file tools and run relevant verification. Do not repeat the same whole-file reads. Respect approval and user-input gates. If the task is blocked or already complete, explain the evidence and omit $_ready. End with exactly $_ready only after the work and verification are actually complete.''';
       }
 
-      final patch = _reviewPatch(after!);
+      final patch = await _reviewPatch(after!);
       if (patch == null) {
         return _stop(
-          'the captured patch is empty, binary, truncated, or too large',
+          'the task patch is empty, binary, truncated, or too large',
         );
       }
       final template = builtInSlashCommandPromptTemplates.firstWhere(
@@ -191,7 +201,7 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
       final reviewPrompt =
           '''${template.expand(args: 'Only the task changes in the patch below', commandName: 'review')}
 
-The patch below is the captured output of this task's file tools${inheritedFiles.isEmpty ? '' : ', including changes an earlier run of this task left uncommitted'}. Review these changes and relevant surrounding code. Do not review unrelated pre-existing changes in the working tree. If the patch cannot be reconciled with the working tree, explain the limit and do not report a clean review.
+The patch below is this task's change to the files its file tools edited${inheritedFiles.isEmpty ? '' : ', including changes an earlier run of this task left uncommitted'}. Review these changes and relevant surrounding code. Do not review unrelated pre-existing changes in the working tree. If the patch cannot be reconciled with the working tree, explain the limit and do not report a clean review.
 
 ```diff
 $patch
@@ -458,8 +468,10 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
   bool _endsWithMarker(String content, String marker) =>
       content.trimRight().split('\n').last.trim() == marker;
 
-  String? _reviewPatch(Conversation conversation) {
-    final files = _taskFiles(conversation);
+  Future<String?> _reviewPatch(Conversation conversation) async {
+    final files =
+        await readTaskPatch?.call(_taskPaths(conversation)) ??
+        _taskFiles(conversation);
     if (files.isEmpty ||
         files.any(
           (file) =>

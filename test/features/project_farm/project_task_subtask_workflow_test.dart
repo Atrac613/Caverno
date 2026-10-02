@@ -295,6 +295,68 @@ void main() {
     expect(commitPrompts.single, contains('- /repo/.gitignore'));
   });
 
+  test('reviews the net task change, not stacked captured patches', () async {
+    // Session be9dbba9: eight earlier runs left 29 captured patches for 7
+    // files, 44,502 characters, and the workflow stopped before review.
+    final stacked = [
+      for (var turn = 0; turn < 2; turn++)
+        TurnDiffFile(
+          filePath: '/repo/watcher.py',
+          unifiedPatch: '@@ -1 +1 @@\n${'+stale turn $turn\n' * 1200}',
+        ),
+    ];
+    final requested = <List<String>>[];
+    ProjectTaskReviewWorkflow workflow({required bool readsGit}) =>
+        ProjectTaskReviewWorkflow(
+          conversationId: 'task',
+          readConversation: () => conversation,
+          isSelected: () => true,
+          isWaitingForUser: () => false,
+          inheritedFiles: stacked,
+          send: (prompt, {required codeReview}) async {
+            sendPrompts.add(prompt);
+            codeReview
+                ? reply('No findings.\nPROJECT_TASK_REVIEW_CLEAN')
+                : reply('Verified.\nPROJECT_TASK_READY_FOR_REVIEW');
+            return true;
+          },
+          commit: (_) async {
+            commits++;
+            return true;
+          },
+          readGitState: (_) async =>
+              ProjectTaskGitState(head: 'head-$commits', dirtyPaths: const []),
+          readTaskPatch: readsGit
+              ? (paths) async {
+                  requested.add(paths);
+                  return const [
+                    TurnDiffFile(
+                      filePath: 'watcher.py',
+                      unifiedPatch: '@@ -1 +1 @@\n-print(x)\n+logger.info(x)',
+                    ),
+                  ];
+                }
+              : null,
+        );
+
+    final fresh = conversation;
+    final captured = workflow(readsGit: false);
+    expect(await captured.run(), ProjectTaskReviewResult.stopped);
+    expect(captured.stopReason, contains('task patch is empty'));
+
+    conversation = fresh;
+    sendPrompts.clear();
+    expect(
+      await workflow(readsGit: true).run(),
+      ProjectTaskReviewResult.committed,
+    );
+    expect(requested.first, ['/repo/watcher.py']);
+    expect(
+      sendPrompts[1],
+      allOf(contains('+logger.info(x)'), isNot(contains('stale turn'))),
+    );
+  });
+
   test(
     'records earlier subtask changes before a verify-only last turn',
     () async {

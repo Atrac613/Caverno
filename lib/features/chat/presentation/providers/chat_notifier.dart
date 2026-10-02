@@ -165,6 +165,8 @@ import '../../domain/services/post_saved_validation_tool_policy.dart';
 import '../../domain/services/printed_tool_call_recovery.dart';
 import '../../domain/services/process_start_result_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
+import '../../domain/services/project_task_step_completion_policy.dart';
+import '../../domain/services/project_task_terminal_status.dart';
 import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
 import '../../domain/services/python_attachment_repair_policy.dart';
@@ -8214,6 +8216,9 @@ class ChatNotifier extends Notifier<ChatState> {
         _explicitTerminalSuccessSummariesByGeneration.remove(generation);
     _contentToolTurns.resetContinuationCount(turnOwner);
     updatedMessages = await _saveMessages(
+      updateSessionMemory:
+          !(_primaryRoutes.isProjectTaskImplementation(generation) ||
+              _primaryRoutes.isProjectTaskStep(generation)),
       messages: updatedMessages,
       conversationId: turnOwner.conversationId,
       memoryToolResults: _turnToolResults.completed(turnOwner),
@@ -8238,7 +8243,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _clearGoalAutoContinueIndicator();
       return;
     }
-    final finalizedLastMessage = updatedMessages.last;
+    var finalizedLastMessage = updatedMessages.last;
     if (finalizedLastMessage.role == MessageRole.assistant) {
       await _persistPendingTurnDiffForAssistant(finalizedLastMessage.id);
     } else {
@@ -8254,6 +8259,15 @@ class ChatNotifier extends Notifier<ChatState> {
       tokenUsageDelta: goalTokenUsageDelta,
     );
     if (finalCompletionEvidence == null) return;
+    if (_primaryRoutes.isProjectTaskImplementation(generation) ||
+        _primaryRoutes.isProjectTaskStep(generation)) {
+      updatedMessages = await _saveProjectTaskFinalMessages(
+        turnOwner,
+        updatedMessages,
+      );
+      if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+      finalizedLastMessage = updatedMessages.last;
+    }
     await _logTurnExitReason(
       owner: turnOwner,
       finalizedMessages: updatedMessages,

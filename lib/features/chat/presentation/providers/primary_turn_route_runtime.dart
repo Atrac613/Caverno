@@ -25,6 +25,7 @@ final class PrimaryTurnRouteRuntime {
   final Set<int> _codeReviews = {};
   final Set<int> _projectTaskImplementations = {};
   final Set<int> _projectTaskSteps = {};
+  final Set<int> _projectTaskCommits = {};
 
   Future<void> capture({
     required int generation,
@@ -87,6 +88,11 @@ final class PrimaryTurnRouteRuntime {
       _projectTaskSteps,
       generation,
       purpose == PrimaryTurnPurpose.projectTaskStep,
+    );
+    _mark(
+      _projectTaskCommits,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskCommit,
     );
     if (codeReview) {
       _codeReviews.add(generation);
@@ -154,9 +160,14 @@ final class PrimaryTurnRouteRuntime {
   bool isProjectTaskStep(int generation) =>
       _projectTaskSteps.contains(generation);
 
+  bool isProjectTaskCommit(int generation) =>
+      _projectTaskCommits.contains(generation);
+
   /// Any project-task turn the farm workflow settles by a structured marker.
   bool isProjectTaskTurn(int generation) =>
-      isProjectTaskImplementation(generation) || isProjectTaskStep(generation);
+      isProjectTaskImplementation(generation) ||
+      isProjectTaskStep(generation) ||
+      isProjectTaskCommit(generation);
 
   static void _mark(Set<int> set, int generation, bool member) =>
       member ? set.add(generation) : set.remove(generation);
@@ -164,6 +175,7 @@ final class PrimaryTurnRouteRuntime {
   void release(int generation) {
     _projectTaskImplementations.remove(generation);
     _projectTaskSteps.remove(generation);
+    _projectTaskCommits.remove(generation);
     _routes.remove(generation);
     _codeReviews.remove(generation);
   }

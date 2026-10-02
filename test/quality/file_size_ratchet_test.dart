@@ -1092,8 +1092,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/verified_pytest_replay_policy.dart': 202,
   'lib/features/chat/domain/services/literal_environment_inspection_policy.dart':
       37,
+  // -8: the status protocol violation moved to StatusRecoveryVerification,
+  // beside the acceptance rule it reports on.
   'lib/features/chat/presentation/providers/coding_continuation_recovery_request.dart':
-      106,
+      98,
   'lib/features/chat/domain/services/masked_inspection_command_policy.dart': 11,
   'lib/features/chat/domain/services/turn_finalization_recovery_budget.dart':
       59,

@@ -7,6 +7,7 @@ import 'coding_command_output_issue.dart';
 import 'coding_command_preflight_issue_detector.dart';
 import 'exit_status_mask.dart';
 import 'masked_inspection_command_policy.dart';
+import 'shell_exit_status_report.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
 export 'coding_command_output_issue.dart' show CodingCommandOutputIssue;
@@ -67,6 +68,7 @@ class CodingCommandOutputIssueDetector {
         toolResult.arguments['working_directory'],
       ),
       structuredExitCode: toolResult.outcome?.exitCode,
+      structuredProcessState: toolResult.outcome?.processState,
     );
   }
 
@@ -76,8 +78,18 @@ class CodingCommandOutputIssueDetector {
     String? fallbackCommand,
     String? fallbackWorkingDirectory,
     int? structuredExitCode,
+    ToolProcessState? structuredProcessState,
   }) {
     if (!_isCommandTool(toolName)) {
+      return null;
+    }
+    if (const {
+          'process_status',
+          'process_wait',
+        }.contains(toolName.trim().toLowerCase()) &&
+        (structuredProcessState != null
+            ? structuredProcessState != ToolProcessState.exited
+            : decoded['status'] != 'exited')) {
       return null;
     }
     final exitCodeResolution = resolveToolOutcomeExitCode(
@@ -120,9 +132,35 @@ class CodingCommandOutputIssueDetector {
         excerpt: preflightIssue.segment,
       );
     }
+    final report = ShellExitStatusReport.parse(command);
+    if (report != null) {
+      final output =
+          (decoded['stdout'] ?? decoded['stdout_tail'])?.toString() ?? '';
+      final reportedExitCode = report.exitCode(output);
+      if (reportedExitCode != 0) {
+        return CodingCommandOutputIssue(
+          toolName: toolName,
+          command: command,
+          workingDirectory: workingDirectory,
+          exitCode: exitCode!,
+          exitCodeSource: exitCodeResolution.source,
+          source: 'stdout',
+          summary: reportedExitCode == null
+              ? 'The command exit status report is unavailable; the shell exit '
+                    'status belongs to echo.'
+              : 'Output reports a failing command exit status ($reportedExitCode).',
+          excerpt: _excerpt(
+            output,
+            (output.length - 600).clamp(0, output.length).toInt(),
+          ),
+        );
+      }
+    }
     for (final entry in const {
       'stdout': 'stdout',
+      'stdout_tail': 'stdout',
       'stderr': 'stderr',
+      'stderr_tail': 'stderr',
     }.entries) {
       final output = _normalizeText(decoded[entry.key]);
       if (output == null) {
@@ -130,7 +168,8 @@ class CodingCommandOutputIssueDetector {
       }
       final signal = _detectOutputSignal(
         output,
-        runtimeSignals: const ExitStatusMask().mayHide(command),
+        runtimeSignals:
+            report == null && const ExitStatusMask().mayHide(command),
       );
       if (signal == null) {
         continue;
@@ -240,6 +279,7 @@ class CodingCommandOutputIssueDetector {
       'run_tests' ||
       'git_execute_command' ||
       'ssh_execute_command' => true,
+      'process_status' || 'process_wait' => true,
       _ => false,
     };
   }

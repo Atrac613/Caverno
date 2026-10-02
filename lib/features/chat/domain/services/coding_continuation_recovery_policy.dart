@@ -311,6 +311,14 @@ final class CodingContinuationRecoveryPolicy {
   /// Wording per recovery code. An unknown code reads as prose continuation,
   /// and a code without its own lead uses the prose lead.
   static const _texts = <String, _RecoveryText>{
+    'structured_project_subtask': (
+      label: 'structured project subtask recovery',
+      reason: 'The intermediate project subtask has unresolved requirements.',
+      error: 'The subtask completion marker or execution evidence is missing.',
+      action:
+          'Resolve the subtask requirements without completing the parent goal.',
+      lead: null,
+    ),
     'structured_coding_task_status': (
       label: 'structured coding task status recovery',
       reason:
