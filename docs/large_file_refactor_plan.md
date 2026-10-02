@@ -1849,3 +1849,29 @@ When starting a slice, add the task to the roadmap or issue tracker with:
 - tests to move or add
 - similar-pattern search terms
 - rollback plan if the extraction creates behavior drift
+
+### Tool-recovery extraction (2026-10-03)
+
+The structured-output branch was fast-forward integrated into local main
+`2d2a19dfd`; the next slice runs on `feature/f5-tool-recovery-probe`.
+`live_llm_tool_recovery_probe.dart` now owns recovery scoring and per-case
+execution behind a completion port. It is 211 lines, and the diagnostic service
+fell from 3,789 to 3,605 lines. The unchanged argument matcher shared with depth
+moved into the existing response scorer. Provider skips, initial messages,
+request settings, thinking observation, elapsed time and reports stay with the
+service. Four fixture cases, final-turn catalogs, first-call-only scoring,
+scripted user-role observations, bounds, error evidence and usage are preserved.
+
+The six existing service-level recovery regressions remain unchanged. Seventeen
+isolated tests and two service integration tests cover failure scoring, refusal
+bypass, confirmation, partial-batch retries, forbidden state, premature/extra
+calls, arguments, error containment, previews, usage and request settings.
+Analysis, 128 tests across seven focused suites, and four affected size checks
+passed. The extracted module has 100% executable-line coverage (74/74); the
+service has 88.45% (1,095/1,238) in the focused run. No full Flutter-suite,
+live-model or device run was performed. See
+[implementation evidence](f5_tool_recovery_probe_extraction_codex_task.md#implementation-evidence).
+
+Next: scope the tool-depth staircase and per-rung execution contract; keep
+multi-round execution separate. RC1 signed-device verification stays on hold
+and F5 stays `current`.

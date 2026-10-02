@@ -17,6 +17,21 @@ abstract final class LiveLlmResponseScoring {
   /// `LiveLlmDiagnosticService.chartValueTolerance`.
   static const int chartValueTolerance = 2;
 
+  /// Compares only the keys the rung pins, so a model may add its own optional
+  /// arguments; it may not get a pinned one wrong.
+  static String? firstArgumentMismatch(
+    Map<String, dynamic> actual,
+    Map<String, Object?> expected,
+  ) {
+    for (final entry in expected.entries) {
+      final value = actual[entry.key];
+      if (value == entry.value) continue;
+      if ('$value'.trim() == '${entry.value}'.trim()) continue;
+      return '${entry.key}=${value ?? 'nothing'} where ${entry.value} was expected';
+    }
+    return null;
+  }
+
   /// Counts how many of 1..N appear as their own line, in order. Line-scoped on
   /// purpose: a substring search would count the "1" inside "10".
   static int matchedIntegerSequence(String content, {required int length}) {

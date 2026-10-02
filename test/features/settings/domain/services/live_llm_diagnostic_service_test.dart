@@ -20,6 +20,55 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test(
+    'tool recovery binds settings and publishes running then terminal reports',
+    () async {
+      final dataSource = _RecoveryRecordingDataSource();
+      final updates = <LiveLlmDiagnosticReport>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'recovery-model'),
+        chatDataSource: dataSource,
+        mcpToolService: null,
+      ).run(probeIds: const {'tool_recovery'}, onReport: updates.add);
+      final result = _result(report, 'tool_recovery');
+      expect(result.status, LiveLlmDiagnosticStatus.passed);
+      expect(result.passedChecks, 4);
+      expect(result.totalChecks, 4);
+      expect(result.elapsed, isNotNull);
+      expect(dataSource.recoveryRequestCount, 8);
+      expect(
+        updates.map((r) => _result(r, 'tool_recovery').status),
+        containsAllInOrder([
+          LiveLlmDiagnosticStatus.running,
+          LiveLlmDiagnosticStatus.passed,
+        ]),
+      );
+    },
+  );
+
+  test(
+    'tool recovery skips providers without native calls without requests',
+    () async {
+      final dataSource = _RecoveryRecordingDataSource();
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(
+          mcpEnabled: false,
+          llmProvider: LlmProvider.appleFoundationModels,
+        ),
+        chatDataSource: dataSource,
+        mcpToolService: null,
+      ).run(probeIds: const {'tool_recovery'});
+      final result = _result(report, 'tool_recovery');
+      expect(result.status, LiveLlmDiagnosticStatus.skipped);
+      expect(
+        result.summary,
+        'Skipped because the selected provider does not support this diagnostic capability.',
+      );
+      expect(dataSource.recoveryRequestCount, 0);
+      expect(dataSource.requestedModels, isEmpty);
+    },
+  );
+
   test('runs live harness probes with safe tool execution', () async {
     final dataSource = _FakeDiagnosticDataSource();
     final service = LiveLlmDiagnosticService(
@@ -2871,6 +2920,34 @@ class _UnavailableFoundationModelsDataSource
         status: 'unavailable',
         reason: 'modelNotReady',
       ),
+    );
+  }
+}
+
+class _RecoveryRecordingDataSource extends _FakeDiagnosticDataSource {
+  int recoveryRequestCount = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    recoveryRequestCount += 1;
+    expect(model, 'recovery-model');
+    expect(temperature, 0);
+    expect(maxTokens, 512);
+    expect(tools, isNotEmpty);
+    expect(messages.first.role, MessageRole.system);
+    expect(messages.first.content, contains('Prefer OpenAI tool calls'));
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
     );
   }
 }
