@@ -801,7 +801,9 @@ SIGNATURES = {
         "match": _inherited_task_guidance,
     },
     "reasoning_only_stop_recovery": {
-        "commit": "0571c9f56",
+        # 0571c9f56 added the recovery, but a streamed completion's content
+        # omits its reasoning, so it could only fire from 692b7373f on.
+        "commit": "692b7373f",
         "what": "a tool-loop response ending inside reasoning gets a continuation",
         "transform": "coding_continuation_recovery_reasoning_only_stop",
     },
