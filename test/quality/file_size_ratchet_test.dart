@@ -1068,10 +1068,12 @@ const Map<String, int> _lineBudgets = {
   // from 4470 when the report-evidence helpers did, from 4440 when the
   // vision probes did, from 4067 when the thinking observer did, and from
   // 3963 when the structured-output probe did, and from 3789 when the
-  // tool-recovery probe and shared argument scoring did. The page was lowered from 1742
+  // tool-recovery probe and shared argument scoring did, and from 3605 when
+  // the tool-depth probe did. The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      3605,
+      3425,
+  'lib/features/settings/domain/services/live_llm_tool_depth_probe.dart': 235,
   'lib/features/settings/domain/services/live_llm_tool_recovery_probe.dart':
       211,
   'lib/features/settings/domain/services/live_llm_structured_output_probe.dart':

@@ -1875,3 +1875,30 @@ live-model or device run was performed. See
 Next: scope the tool-depth staircase and per-rung execution contract; keep
 multi-round execution separate. RC1 signed-device verification stays on hold
 and F5 stays `current`.
+
+### Tool-depth extraction (2026-10-03)
+
+The recovery branch was fast-forward integrated into local main `4546ab9f3`.
+The next slice on `feature/f5-tool-depth-probe` moved staircase measurement and
+per-rung execution into `live_llm_tool_depth_probe.dart` behind a completion
+port. The module is 235 lines; the diagnostic service fell from 3,605 to 3,425
+lines. It returns the result and typed metrics together. Selection, capability
+skips, initial messages, request settings, thinking observation and publication
+remain with the service; the measurement's start time still precedes running
+publication. Callback exceptions still propagate.
+
+Three fixture rungs, first-failure stopping, zero suite points, warning rather
+than failed headroom, first-call-only scoring, exact observations, final requests
+without tools, case-sensitive visible final values, usage and previews are
+preserved. Five new service contract tests passed before extraction, then passed
+again with the existing regressions and 20 isolated module tests. The coverage
+verification gate passed: analysis, 135 tests in seven focused suites, workspace
+package checks and relay checks. Five affected size checks also passed. The
+extracted module has 100% executable-line coverage (79/79); the service has
+88.85% (1,036/1,166) in the focused run. No full Flutter-suite, live-model or
+device run was performed. See
+[implementation evidence](f5_tool_depth_probe_extraction_codex_task.md#implementation-evidence).
+
+Next: scope multi-round diagnostic execution and its tool-execution/report
+boundary separately. RC1 signed-device verification stays on hold and F5 stays
+`current`.

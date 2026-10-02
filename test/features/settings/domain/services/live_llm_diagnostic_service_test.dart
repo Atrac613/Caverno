@@ -882,6 +882,101 @@ void main() {
     );
   });
 
+  test(
+    'tool depth binds requests and publishes metrics with terminal report',
+    () async {
+      final source = _DepthRecordingDataSource();
+      final updates = <LiveLlmDiagnosticReport>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'depth-model'),
+        chatDataSource: source,
+        mcpToolService: null,
+      ).run(probeIds: const {'tool_state_staircase'}, onReport: updates.add);
+      expect(source.requestCount, 12);
+      expect(source.finalRequestCount, 3);
+      expect(
+        _result(report, 'tool_state_staircase').status,
+        LiveLlmDiagnosticStatus.passed,
+      );
+      final running = updates.firstWhere(
+        (r) =>
+            _result(r, 'tool_state_staircase').status ==
+            LiveLlmDiagnosticStatus.running,
+      );
+      expect(running.toolDepthMetrics, isNull);
+      final terminal = updates.firstWhere(
+        (r) =>
+            _result(r, 'tool_state_staircase').status ==
+            LiveLlmDiagnosticStatus.passed,
+      );
+      expect(terminal.toolDepthMetrics?.deepestPassedDepth, 4);
+      expect(terminal.toolDepthMetrics?.attemptedDepths, [2, 3, 4]);
+      expect(
+        _result(terminal, 'tool_state_staircase').elapsed,
+        greaterThanOrEqualTo(Duration.zero),
+      );
+    },
+  );
+
+  for (final selected in [false, true]) {
+    test(
+      'tool depth skips ${selected ? 'unsupported provider' : 'unselected probe'} without requests',
+      () async {
+        final source = _DepthRecordingDataSource();
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(
+            mcpEnabled: false,
+            llmProvider: selected
+                ? LlmProvider.appleFoundationModels
+                : LlmProvider.openAiCompatible,
+          ),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(probeIds: selected ? const {'tool_state_staircase'} : const {});
+        final result = _result(report, 'tool_state_staircase');
+        expect(result.status, LiveLlmDiagnosticStatus.skipped);
+        expect(
+          result.summary,
+          selected
+              ? 'Skipped because the selected provider does not support this diagnostic capability.'
+              : 'Skipped because this bounded diagnostic run did not request this probe.',
+        );
+        expect(report.toolDepthMetrics, isNull);
+        expect(source.requestCount, 0);
+      },
+    );
+  }
+
+  for (final status in [
+    LiveLlmDiagnosticStatus.running,
+    LiveLlmDiagnosticStatus.passed,
+  ]) {
+    test('tool depth propagates $status publication errors', () async {
+      final source = _DepthRecordingDataSource();
+      final error = StateError('publication failed');
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'depth-model'),
+        chatDataSource: source,
+        mcpToolService: null,
+      );
+      await expectLater(
+        service.run(
+          probeIds: const {'tool_state_staircase'},
+          onReport: (report) {
+            if (_result(report, 'tool_state_staircase').status == status) {
+              throw error;
+            }
+          },
+        ),
+        throwsA(same(error)),
+      );
+      expect(
+        source.requestCount,
+        status == LiveLlmDiagnosticStatus.running ? 0 : 12,
+      );
+    });
+  }
+
   // The staircase is headroom, not a floor: a model that loses the carried id
   // at rung three sits at depth 2 and must not fail the run for it.
   test('reports the deepest rung a model carried state through', () async {
@@ -2942,6 +3037,39 @@ class _RecoveryRecordingDataSource extends _FakeDiagnosticDataSource {
     expect(tools, isNotEmpty);
     expect(messages.first.role, MessageRole.system);
     expect(messages.first.content, contains('Prefer OpenAI tool calls'));
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _DepthRecordingDataSource extends _FakeDiagnosticDataSource {
+  int requestCount = 0;
+  int finalRequestCount = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requestCount += 1;
+    expect(model, 'depth-model');
+    expect(temperature, 0);
+    expect(maxTokens, 512);
+    expect(messages.first.role, MessageRole.system);
+    if (messages.last.content.startsWith('Every tool call is done.')) {
+      finalRequestCount += 1;
+      expect(tools, isNull);
+    } else {
+      expect(tools, same(LiveLlmToolDepthStaircase.toolDefinitions));
+    }
     return super.createChatCompletion(
       messages: messages,
       tools: tools,
