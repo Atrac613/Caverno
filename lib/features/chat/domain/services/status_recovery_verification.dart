@@ -40,12 +40,18 @@ final class StatusRecoveryVerification {
     List<Map<String, dynamic>> allTools,
     List<ToolResultInfo> results,
     ConversationGoal? goal,
-    StructuredCodingTaskRecoveryPolicy taskPolicy,
-  ) {
-    final gap = gapOpen(results, goal);
+    StructuredCodingTaskRecoveryPolicy taskPolicy, {
+    bool statusOnly = false,
+  }) {
+    final gap = !statusOnly && gapOpen(results, goal);
     return (
       tools: tools(allTools, verificationGap: gap),
-      prompt: prompt(taskPolicy.prompt, verificationGap: gap),
+      prompt: statusOnly
+          ? '${taskPolicy.prompt} A recovery verification has finished. '
+                'Report its captured outcome now. If it failed, keep '
+                'completed: false and identify the remaining work or '
+                'concrete blocker.'
+          : prompt(taskPolicy.prompt, verificationGap: gap),
     );
   }
 

@@ -19,6 +19,7 @@ final class TurnFinalizationRecoveryPlan {
   TurnFinalizationRecoveryPlan({
     required ConversationGoal? goal,
     required bool implementationTurn,
+    bool terminalStatusOnly = false,
     bool stepTurn = false,
     required bool boundarySafe,
     required GoalUpdateAckOutcome? acknowledgement,
@@ -81,7 +82,13 @@ final class TurnFinalizationRecoveryPlan {
       pendingDelegation: pendingDelegation,
     );
     final status = structuredTask
-        ? _verification.request(allTools, completedResults, goal, taskPolicy)
+        ? _verification.request(
+            allTools,
+            completedResults,
+            goal,
+            taskPolicy,
+            statusOnly: terminalStatusOnly,
+          )
         : null;
     requestTools = status?.tools ?? selection.tools;
     if (requestTools.isEmpty) shouldRecover = false;

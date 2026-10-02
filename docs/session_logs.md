@@ -301,6 +301,12 @@ These evidence rules leave command approval classification unchanged.
 Structured task-status recovery reuses the working interpreter and directory
 from captured successful checks when requesting a complete chain rerun. Once
 that rerun succeeds, the request offers only `update_goal` to settle task state.
+If a verification finishes after a status-recovery request, the next boundary
+offers only `update_goal` even when the verification failed. Its typed terminal
+outcome permits one status report without treating failure as implementation
+progress. The report still passes the normal completion gate; it can record
+remaining work or a concrete blocker. Repeated reads and reused results do not
+renew this allowance, and it shares the existing three-boundary recovery cap.
 
 A zero exit code from a pipeline is not successful verification when its output
 reports a Python missing module or failed pytest tests. These output diagnostics

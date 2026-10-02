@@ -34,11 +34,18 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     final allTools = mcpToolService.getOpenAiToolDefinitions();
     if (allTools.isEmpty) return false;
     _synchronizeGoalAutoContinueSafeBoundary();
+    final terminalStatusOnly =
+        _primaryRoutes.isProjectTaskImplementation(generation) &&
+        _turnFinalizationRecoveryGenerations.needsVerificationStatus(
+          generation,
+          completedResults,
+        );
     final plan = TurnFinalizationRecoveryPlan(
       goal: _conversationForId(owner.conversationId)?.goal,
       implementationTurn: _primaryRoutes.isProjectTaskImplementation(
         generation,
       ),
+      terminalStatusOnly: terminalStatusOnly,
       stepTurn: _primaryRoutes.isProjectTaskStep(generation),
       boundarySafe: _turnRuntimeGoalSafeBoundary
           .captureFor(owner, withinTurn: true)
@@ -88,6 +95,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
       generation,
       structuredTask: structuredTask || plan.structuredStep,
       results: completedResults,
+      statusOnly: terminalStatusOnly,
     )) {
       return false;
     }

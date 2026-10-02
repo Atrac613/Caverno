@@ -23,9 +23,12 @@ void main() {
     bool boundary = true,
     GoalUpdateAckOutcome? ack,
     bool offerStatus = true,
+    bool terminalStatusOnly = false,
+    bool offerExecution = false,
   }) => TurnFinalizationRecoveryPlan(
     goal: goal,
     implementationTurn: implementation,
+    terminalStatusOnly: terminalStatusOnly,
     stepTurn: step,
     boundarySafe: boundary,
     acknowledgement: ack,
@@ -35,7 +38,11 @@ void main() {
     hasSavedValidation: false,
     hasGitLifecycle: false,
     skipCompletedAnswer: true,
-    allTools: [tool('write_file'), if (offerStatus) tool('update_goal')],
+    allTools: [
+      tool('write_file'),
+      if (offerStatus) tool('update_goal'),
+      if (offerExecution) ...[tool('local_execute_command'), tool('run_tests')],
+    ],
     prefixStable: true,
   );
 
@@ -55,6 +62,37 @@ void main() {
   });
   test('does not widen ordinary completed answers', () {
     expect(plan(implementation: false).shouldRecover, isFalse);
+  });
+  test('a terminal verification status request offers only update_goal', () {
+    final recovery = plan(terminalStatusOnly: true, offerExecution: true);
+    expect(recovery.shouldRecover, isTrue);
+    expect(recovery.requestTools.single['function'], {'name': 'update_goal'});
+    expect(recovery.prompt, contains('Report its captured outcome now'));
+    expect(
+      recovery.acceptsCalls([
+        ToolCallInfo(
+          id: 'repeat',
+          name: 'local_execute_command',
+          arguments: const {'command': 'python watcher.py --dry-run'},
+        ),
+      ]),
+      isFalse,
+    );
+    expect(
+      plan(terminalStatusOnly: true, boundary: false).shouldRecover,
+      isFalse,
+    );
+    expect(
+      plan(
+        terminalStatusOnly: true,
+        ack: GoalUpdateAckOutcome.blockerLogged,
+      ).shouldRecover,
+      isFalse,
+    );
+    expect(
+      plan(terminalStatusOnly: true, offerStatus: false).shouldRecover,
+      isFalse,
+    );
   });
   test(
     'subtask recovery requires its marker and never forces overall completion',
