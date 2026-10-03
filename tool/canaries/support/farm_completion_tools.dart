@@ -222,12 +222,18 @@ final class FarmCompletionScope {
             )) {
       return true;
     }
-    return args.length == 5 &&
+    return stage == 'commit' &&
+        args.length == 5 &&
         args[0] == 'commit' &&
         args[1] == '-m' &&
         args[3] == '-m' &&
-        RegExp(r'^(fix|test): [A-Za-z0-9 ,:.-]{1,60}$').hasMatch(args[2]) &&
-        RegExp(r'^[A-Za-z0-9 ,:.-]{1,200}$').hasMatch(args[4]);
+        args[2].length <= 72 &&
+        RegExp(
+          r'^(feat|fix|refactor|docs|chore|test|style|perf|ci|build)(\([^\r\n()]+\))?!?: [^\r\n]+$',
+        ).hasMatch(args[2]) &&
+        args[4].trim().isNotEmpty &&
+        args[4].length <= 200 &&
+        !args[4].contains('\u0000');
   }
 }
 

@@ -45,7 +45,37 @@ void main() {
         'result': name == 'failedVerification' ? 'stopped' : 'committed',
         'initialHead': 'before',
         'finalHead': name == 'failedVerification' ? 'before' : 'after',
-        'gitExecutions': [],
+        'gitExecutions': name == 'failedVerification'
+            ? []
+            : [
+                {
+                  'stage': 'commit',
+                  'mutation': true,
+                  'arguments': {
+                    'command': 'commit -m "fix: fixture" -m "Explain the fix."',
+                  },
+                },
+              ],
+        'turns': name == 'failedVerification'
+            ? []
+            : [
+                for (final stage in ['prepare', 'commit'])
+                  {
+                    'stage': stage,
+                    'livePrimaryCalls': 1,
+                    'phaseEvidence': {
+                      'completedNormally': true,
+                      'mutationAttempted': true,
+                      'failed': false,
+                    },
+                  },
+              ],
+        'commitPermits': name == 'failedVerification' ? [] : [prepared()],
+        'commitChecks': name == 'failedVerification'
+            ? []
+            : [
+                {...prepared(), 'head': 'after'},
+              ],
         'preparationSnapshots': name == 'failedVerification'
             ? []
             : [prepared(), prepared()],
@@ -73,6 +103,57 @@ void main() {
     (cases['normal']!['commitPermit'] as Map)['indexFingerprint'] = 'changed';
     expect(farmCompletionEvidenceGaps(summary, cases), isNotEmpty);
   });
+  test('accepts one idle recovery per phase with unchanged native state', () {
+    final cases = records();
+    final record = cases['normal']!;
+    final turns = record['turns'] as List;
+    final idle = {
+      'completedNormally': true,
+      'mutationAttempted': false,
+      'failed': false,
+    };
+    turns.insert(0, {
+      'stage': 'prepare',
+      'livePrimaryCalls': 1,
+      'phaseEvidence': idle,
+    });
+    turns.insert(2, {
+      'stage': 'commit',
+      'livePrimaryCalls': 1,
+      'phaseEvidence': idle,
+    });
+    (record['preparationSnapshots'] as List).insert(0, prepared());
+    (record['commitPermits'] as List).insert(0, prepared());
+    (record['commitChecks'] as List).insert(0, prepared());
+    expect(farmCompletionEvidenceGaps(summary, cases), isEmpty);
+    (record['commitChecks'] as List).first['indexFingerprint'] = 'changed';
+    expect(farmCompletionEvidenceGaps(summary, cases), isNotEmpty);
+  });
+  test(
+    'rejects failed, absent or excessive phase observations and duplicate commits',
+    () {
+      for (final mutation in [
+        (Map<String, dynamic> record) => (record['turns'] as List).clear(),
+        (Map<String, dynamic> record) =>
+            (record['turns'] as List).first['livePrimaryCalls'] = 0,
+        (Map<String, dynamic> record) =>
+            (record['turns'] as List).first['phaseEvidence']['failed'] = true,
+        (Map<String, dynamic> record) {
+          final turns = record['turns'] as List;
+          for (var extra = 0; extra < 4; extra++) {
+            turns.add(turns.first);
+          }
+        },
+        (Map<String, dynamic> record) => (record['gitExecutions'] as List).add(
+          (record['gitExecutions'] as List).first,
+        ),
+      ]) {
+        final cases = records();
+        mutation(cases['normal']!);
+        expect(farmCompletionEvidenceGaps(summary, cases), isNotEmpty);
+      }
+    },
+  );
   test('rejects commit execution during preparation', () {
     final cases = records();
     cases['normal']!['gitExecutions'] = [

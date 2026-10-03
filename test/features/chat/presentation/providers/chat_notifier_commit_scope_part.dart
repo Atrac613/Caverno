@@ -119,6 +119,22 @@ void registerChatNotifierCommitScopeTests() {
       addTearDown(container.dispose);
       _activatePendingBatchProject(container, project);
       _activateStructuredProjectTask(container, project);
+      await container
+          .read(conversationsNotifierProvider.notifier)
+          .updateCurrentConversation([
+            Message(
+              id: 'old-instructions',
+              content: 'Old review instruction: do not commit.',
+              role: MessageRole.user,
+              timestamp: DateTime(2026),
+            ),
+            Message(
+              id: 'old-claim',
+              content: 'Earlier commit reported as successful.',
+              role: MessageRole.assistant,
+              timestamp: DateTime(2026),
+            ),
+          ]);
       final notifier = container.read(chatNotifierProvider.notifier);
       final taskId = container
           .read(conversationsNotifierProvider)
@@ -157,7 +173,27 @@ void registerChatNotifierCommitScopeTests() {
       );
       expect(owner, isNotNull);
       await notifier.waitForTurnCompletion(owner!);
+      expect(
+        source.initialRequestMessages.any(
+          (message) =>
+              message.id == 'old-instructions' || message.id == 'old-claim',
+        ),
+        isFalse,
+      );
+      expect(
+        source.initialRequestMessages.first.content,
+        isNot(contains('Implement and verify the task')),
+      );
       final allowed = scenario == 'accepted commit';
+      expect(notifier.takeLatestToolResults(owner), isNotEmpty);
+      final evidence = notifier.takeProjectTaskCommitTurnEvidence(owner);
+      expect(evidence, isNotNull);
+      expect(evidence!.completedNormally, isTrue);
+      expect(evidence.mutationAttempted, isTrue);
+      expect(evidence.failed, !allowed);
+      expect(evidence.mayRecover, isFalse);
+      expect(notifier.takeProjectTaskCommitTurnEvidence(owner), isNull);
+
       expect(
         service.executedToolArguments
             .where((arguments) => arguments['command'] != 'diff --cached')
@@ -183,6 +219,111 @@ void registerChatNotifierCommitScopeTests() {
           isTrue,
         );
       }
+    });
+  }
+  for (final scenario in [
+    'idle',
+    'fragment',
+    'unverified claim',
+    'read-only',
+    'cancelled',
+    'error',
+  ]) {
+    test('Farm commit phase terminal evidence: $scenario', () async {
+      final temporary = await Directory.systemTemp.createTemp('farm_observe_');
+      final root = Directory(temporary.resolveSymbolicLinksSync());
+      addTearDown(() => root.delete(recursive: true));
+      await File('${root.path}/roadmap.md').writeAsString('- [ ] Task');
+      final gate = Completer<void>();
+      final idle =
+          scenario == 'idle' ||
+          scenario == 'fragment' ||
+          scenario == 'unverified claim';
+      final answer = scenario == 'fragment'
+          ? 'The'
+          : scenario == 'unverified claim'
+          ? 'Commit executed successfully. Observed result: the staged diff confirmed the two expected files.'
+          : 'Preparation reported.';
+      final interrupted = scenario == 'cancelled' || scenario == 'error';
+      final ChatDataSource source = idle
+          ? _NoToolStreamingWithToolsDataSource(
+              streamChunks: [answer],
+              completionContent: answer,
+            )
+          : _QueuedToolLoopChatDataSource(
+              initialToolCalls: [
+                ToolCallInfo(
+                  id: 'inspect-task',
+                  name: 'read_file',
+                  arguments: {'path': '${root.path}/roadmap.md'},
+                ),
+              ],
+              toolLoopResponses: [
+                ChatCompletionResult(
+                  content: 'Preparation reported.',
+                  finishReason: 'stop',
+                ),
+              ],
+              toolLoopResponseGates: interrupted ? {1: gate.future} : {},
+              finalAnswerChunks: ['Preparation reported.'],
+            );
+      final project = _pendingBatchProject(root.path);
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = _pendingBatchContainer(
+        project: project,
+        dataSource: source,
+        toolService: _FakeMcpToolService(results: {'read_file': 'Task entry'}),
+        appLifecycleService: lifecycle,
+        settingsOverride: _ToolEnabledSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+      _activatePendingBatchProject(container, project);
+      _activateStructuredProjectTask(container, project);
+      final notifier = container.read(chatNotifierProvider.notifier);
+      final sending = notifier.sendProjectTaskCommit(
+        'Prepare this task.',
+        ProjectTaskCommitScope(
+          conversationId: notifier.conversationId!,
+          projectRoot: root.path,
+          roadmapPath: '${root.path}/roadmap.md',
+          reviewedPaths: [],
+        ),
+        purpose: PrimaryTurnPurpose.projectTaskCommitPreparation,
+      );
+      if (interrupted) {
+        await _waitForCondition(
+          () => (source as _QueuedToolLoopChatDataSource)
+              .toolResultBatches
+              .isNotEmpty,
+        );
+        if (scenario == 'cancelled') {
+          notifier.cancelStreaming();
+          gate.complete();
+        } else {
+          gate.completeError(StateError('Fixture request failed'));
+        }
+      }
+      final owner = (await sending)!;
+      await notifier.waitForTurnCompletion(owner);
+      expect(
+        notifier.takeProjectTaskCommitTurnEvidence(
+          ChatTurnOwner(
+            conversationId: 'other',
+            interactionGeneration: owner.interactionGeneration,
+          ),
+        ),
+        isNull,
+      );
+      final evidence = notifier.takeProjectTaskCommitTurnEvidence(owner);
+      expect(evidence, isNotNull);
+      expect(
+        evidence!.completedNormally,
+        !interrupted && scenario != 'fragment',
+      );
+      expect(evidence.mutationAttempted, isFalse);
+      expect(evidence.mayRecover, !interrupted && scenario != 'fragment');
+      expect(notifier.takeProjectTaskCommitTurnEvidence(owner), isNull);
     });
   }
 }

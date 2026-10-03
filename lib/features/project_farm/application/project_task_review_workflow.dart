@@ -2,6 +2,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/conversation.dart';
+import '../../chat/domain/entities/conversation_goal.dart';
 import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
@@ -10,7 +11,8 @@ import '../../chat/presentation/slash_commands/slash_command_prompt_template.dar
 import '../domain/entities/project_task_commit_scope.dart';
 import '../domain/entities/project_task_git_state.dart';
 import '../domain/project_task_progress.dart';
-import 'project_task_commit_preparation.dart';
+import 'project_task_commit_sequence.dart';
+import 'project_task_commit_turn_evidence.dart';
 
 /// Runs the user-started task through decomposition, implementation one
 /// subtask per turn, the dedicated review route, and a commit of the reviewed
@@ -26,6 +28,7 @@ final class ProjectTaskReviewWorkflow {
     required this.commit,
     this.prepareCommit,
     this.readCommitSnapshot,
+    this.readCommitTurnEvidence,
     this.projectRoot,
     required this.readGitState,
     this.decompose,
@@ -54,6 +57,7 @@ final class ProjectTaskReviewWorkflow {
   )?
   readCommitSnapshot;
   final String? projectRoot;
+  final ProjectTaskCommitTurnEvidence? Function()? readCommitTurnEvidence;
 
   /// Reads HEAD and the status of [paths]; null when git cannot be read.
   final Future<ProjectTaskGitState?> Function(List<String> paths) readGitState;
@@ -305,25 +309,22 @@ ${ContentParser.stripModelHistoryArtifacts(review.content)}''';
       );
     }
     if (!_canContinue(readConversation())) return _stop(_notContinuable);
-    const preparation = ProjectTaskCommitPreparation();
-    if (!await prepare(preparation.prompt(objective, scope), scope)) {
-      return _stop('the commit preparation turn did not complete');
-    }
-    if (!_canContinue(readConversation())) return _stop(_notContinuable);
-    final prepared = await inspect(scope);
-    if (prepared == null) {
-      return _stop('prepared commit state could not be read');
-    }
-    final problem = scope.preparationProblem(baseline, prepared);
+    final problem = await ProjectTaskCommitSequence(
+      prepare: prepare,
+      commit: commit,
+      inspect: inspect,
+      readEvidence: readCommitTurnEvidence ?? () => null,
+      canContinue: () => _canContinue(readConversation()),
+      canRecover: () {
+        final goal = readConversation()?.goal;
+        return _canContinue(readConversation()) &&
+            goal != null &&
+            goal.enabled &&
+            goal.status == ConversationGoalStatus.completed &&
+            !goal.budgetExceeded;
+      },
+    ).run(objective, scope, baseline);
     if (problem != null) return _stop(problem);
-    if (!_canContinue(readConversation())) return _stop(_notContinuable);
-    final authorized = scope.authorize(prepared);
-    if (!await commit(
-      preparation.commitPrompt(objective, authorized),
-      authorized,
-    )) {
-      return _stop('the commit turn did not complete');
-    }
     if (!_canContinue(readConversation())) return _stop(_notContinuable);
     final committedPaths = {
       ...paths,

@@ -110,6 +110,14 @@ extension ChatNotifierPrimaryModelRouting on ChatNotifier {
     settings: _settings,
     purpose: purpose,
     projectTaskCommitScope: projectTaskCommitScope,
+    taskCommitPromptId:
+        purpose == PrimaryTurnPurpose.projectTaskCommitPreparation ||
+            purpose == PrimaryTurnPurpose.projectTaskCommit
+        ? _turnOwnerSnapshotForGeneration(owner.interactionGeneration)?.messages
+              .where((message) => message.role == MessageRole.user)
+              .lastOrNull
+              ?.id
+        : null,
     assistantMode: bypassPlanMode
         ? AssistantMode.coding
         : _resolveAssistantMode(currentConversation: conversation),

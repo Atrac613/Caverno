@@ -12,10 +12,14 @@ final class FarmCompletionPreflight {
   String stage = 'implementation';
   int index = 0;
   int reviews = 0;
+  int preparations = 0;
+  int commits = 0;
   int serial = 0;
   void beginTurn(String value) {
     stage = value;
     index = 0;
+    if (stage == 'prepare') preparations++;
+    if (stage == 'commit') commits++;
     if (stage == 'review') {
       reviews++;
     }
@@ -55,6 +59,13 @@ final class FarmCompletionPreflight {
       return ChatCompletionResult(content: report, finishReason: 'stop');
     }
     if (stage == 'prepare') {
+      if (fixture.scenario == FarmCompletionScenario.normal &&
+          preparations == 1) {
+        return ChatCompletionResult(
+          content: 'Preparation reported without tools.',
+          finishReason: 'stop',
+        );
+      }
       return switch (current) {
         0 => calls([
           write('roadmap.md', farmCompletionRoadmap.replaceFirst('[ ]', '[x]')),
@@ -72,6 +83,14 @@ final class FarmCompletionPreflight {
       };
     }
     if (stage == 'commit') {
+      if (fixture.scenario == FarmCompletionScenario.reviewRepair &&
+          commits == 1) {
+        return ChatCompletionResult(
+          content:
+              'Commit executed successfully. Observed result: the staged diff confirmed the two expected files.',
+          finishReason: 'stop',
+        );
+      }
       if (current == 0) {
         return calls([
           call('git_execute_command', {

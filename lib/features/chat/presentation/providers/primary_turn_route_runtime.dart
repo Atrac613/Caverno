@@ -1,4 +1,5 @@
 import '../../../../core/types/assistant_mode.dart';
+import '../../../project_farm/application/project_task_commit_turn_evidence.dart';
 import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
@@ -8,6 +9,7 @@ import '../../../settings/presentation/providers/local_model_lifecycle_provider.
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/primary_route_chat_datasource.dart';
+import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/primary_model_router.dart';
 import 'primary_turn_purpose.dart';
 
@@ -29,12 +31,15 @@ final class PrimaryTurnRouteRuntime {
   final Set<int> _projectTaskCommits = {};
   final Set<int> _projectTaskCommitPreparations = {};
   final Map<int, ProjectTaskCommitScope> _projectTaskCommitScopes = {};
+  final Map<int, String> _commitPromptStarts = {};
+  final Map<int, (String, ProjectTaskCommitTurnEvidence)> _commitTerminals = {};
 
   Future<void> capture({
     required int generation,
     required AppSettings settings,
     PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
     ProjectTaskCommitScope? projectTaskCommitScope,
+    String? taskCommitPromptId,
     required AssistantMode assistantMode,
     required ChatDataSource primaryDataSource,
     required EndpointHealthTracker health,
@@ -42,6 +47,13 @@ final class PrimaryTurnRouteRuntime {
     required PrimaryRouteModelPreparer preparer,
     required PrimaryRouteRecorder record,
   }) async {
+    _commitTerminals.remove(generation);
+    _commitPromptStarts.remove(generation);
+    if ((purpose == PrimaryTurnPurpose.projectTaskCommitPreparation ||
+            purpose == PrimaryTurnPurpose.projectTaskCommit) &&
+        taskCommitPromptId != null) {
+      _commitPromptStarts[generation] = taskCommitPromptId;
+    }
     final codeReview = purpose == PrimaryTurnPurpose.codeReview;
     final reviewEndpointId = settings.codeReviewEndpointId.trim();
     if (codeReview && !settings.hasCodeReviewRoute) {
@@ -182,6 +194,42 @@ final class PrimaryTurnRouteRuntime {
   ProjectTaskCommitScope? commitScope(int generation) =>
       _projectTaskCommitScopes[generation];
 
+  String? commitPromptStart(int generation) => _commitPromptStarts[generation];
+
+  // Immutable terminal observations survive owner teardown and ledger consumption.
+  // Bound retention also covers callers that never request an observation.
+  void recordCommitTerminal(
+    int generation,
+    String conversationId,
+    bool normal, {
+    Iterable<ToolResultInfo> results = const [],
+  }) {
+    if (!isProjectTaskCommit(generation) &&
+        !isProjectTaskCommitPreparation(generation)) {
+      return;
+    }
+    _commitTerminals[generation] = (
+      conversationId,
+      ProjectTaskCommitTurnEvidence.fromResults(
+        completedNormally: normal,
+        results: results,
+      ),
+    );
+    if (_commitTerminals.length > 16) {
+      _commitTerminals.remove(_commitTerminals.keys.first);
+    }
+  }
+
+  ProjectTaskCommitTurnEvidence? takeCommitTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _commitTerminals[generation];
+    if (entry?.$1 != conversationId) return null;
+    _commitTerminals.remove(generation);
+    return entry!.$2;
+  }
+
   /// Any project-task turn the farm workflow settles by a structured marker.
   bool isProjectTaskTurn(int generation) =>
       isProjectTaskImplementation(generation) ||
@@ -193,6 +241,7 @@ final class PrimaryTurnRouteRuntime {
       member ? set.add(generation) : set.remove(generation);
 
   void release(int generation) {
+    _commitPromptStarts.remove(generation);
     _projectTaskImplementations.remove(generation);
     _projectTaskSteps.remove(generation);
     _projectTaskCommits.remove(generation);

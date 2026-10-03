@@ -26,6 +26,40 @@ extension ChatNotifierCommitScope on ChatNotifier {
     );
   }
 
+  List<Message> _commitPhaseHistory(TurnOwnerSnapshot snapshot) {
+    final generation = snapshot.owner.interactionGeneration;
+    if (!_hasCommitScope(generation)) return snapshot.messages;
+    final id = _primaryRoutes.commitPromptStart(generation);
+    final start = snapshot.messages.indexWhere((message) => message.id == id);
+    if (id == null || start < 0) {
+      throw StateError(
+        'Current task phase input is unavailable for this owner.',
+      );
+    }
+    return snapshot.messages.sublist(start);
+  }
+
+  void _recordTaskCommitTerminal(int generation, bool normal) {
+    final owner = _turnOwnerForGeneration(generation);
+    if (owner != null) {
+      _primaryRoutes.recordCommitTerminal(
+        generation,
+        owner.conversationId,
+        normal,
+        results: _turnToolResults.all(owner),
+      );
+    }
+  }
+
+  ProjectTaskCommitTurnEvidence? takeProjectTaskCommitTurnEvidence(
+    ChatTurnOwner owner,
+  ) {
+    return _primaryRoutes.takeCommitTerminal(
+      owner.interactionGeneration,
+      owner.conversationId,
+    );
+  }
+
   bool _hasCommitScope(int generation) =>
       _primaryRoutes.isProjectTaskCommit(generation) ||
       _primaryRoutes.isProjectTaskCommitPreparation(generation);

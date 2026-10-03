@@ -16,10 +16,12 @@ final class FarmCompletionSource extends ChatDataSource
   final FarmCompletionFixture fixture;
   final bool preflight;
   String stage = 'implementation';
+  int currentTurnLiveCalls = 0;
   final callsByStage = <String, int>{};
   late final offline = FarmCompletionPreflight(fixture);
   void beginTurn(String value) {
     stage = value;
+    currentTurnLiveCalls = 0;
     offline.beginTurn(value);
   }
 
@@ -53,6 +55,7 @@ final class FarmCompletionSource extends ChatDataSource
       tools: tools,
     );
     if (!memory) {
+      currentTurnLiveCalls++;
       callsByStage.update(stage, (value) => value + 1, ifAbsent: () => 1);
     }
     if (outboundRequests.length >= 48) {

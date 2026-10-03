@@ -17,6 +17,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/project_farm/application/project_task_commit_turn_evidence.dart';
 import 'package:caverno/features/project_farm/application/project_task_review_turn_runner.dart';
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
 import 'package:caverno/features/project_farm/application/project_task_step_turn_runner.dart';
@@ -133,6 +134,8 @@ void main() {
         final phases = <String>[];
         final preparationSnapshots = <Map<String, dynamic>>[];
         Map<String, dynamic>? commitPermit;
+        final commitChecks = <Map<String, dynamic>>[];
+        final commitPermits = <Map<String, dynamic>>[];
         Map<String, dynamic> snapshotEvidence(
           ProjectTaskCommitSnapshot snapshot,
         ) {
@@ -210,6 +213,7 @@ void main() {
             final saved = repository.getById(conversation.id)!;
             turns.add({
               'stage': source.stage,
+              'livePrimaryCalls': source.currentTurnLiveCalls,
               'answer': saved.messages
                   .lastWhere((message) => message.role == MessageRole.assistant)
                   .content,
@@ -239,6 +243,7 @@ void main() {
             ),
             waitForCompletion: wait,
           );
+          ProjectTaskCommitTurnEvidence? commitTurnEvidence;
           ProjectTaskStepTurnRunner commitRunner(
             ProjectTaskCommitScope scope,
             bool preparing,
@@ -255,7 +260,21 @@ void main() {
                   ? PrimaryTurnPurpose.projectTaskCommitPreparation
                   : PrimaryTurnPurpose.projectTaskCommit,
             ),
-            waitForCompletion: wait,
+            waitForCompletion: (owner) async {
+              await wait(owner);
+              commitTurnEvidence = notifier.takeProjectTaskCommitTurnEvidence(
+                owner,
+              );
+              turns.last['phaseEvidence'] = commitTurnEvidence == null
+                  ? null
+                  : {
+                      'completedNormally':
+                          commitTurnEvidence!.completedNormally,
+                      'mutationAttempted':
+                          commitTurnEvidence!.mutationAttempted,
+                      'failed': commitTurnEvidence!.failed,
+                    };
+            },
           );
           const gitReader = ProjectGitStatusReader();
           var implementing = 0;
@@ -275,22 +294,27 @@ void main() {
               return runner.send(prompt, codeReview: codeReview);
             },
             projectRoot: root.path,
+            readCommitTurnEvidence: () => commitTurnEvidence,
             readCommitSnapshot: (scope) async {
               final snapshot = await const ProjectTaskCommitReader().read(
                 scope,
               );
               if (snapshot != null) {
-                preparationSnapshots.add(snapshotEvidence(snapshot));
+                (scope.prepared == null ? preparationSnapshots : commitChecks)
+                    .add(snapshotEvidence(snapshot));
               }
               return snapshot;
             },
             prepareCommit: (prompt, scope) {
+              commitTurnEvidence = null;
               source.beginTurn('prepare');
               tools.scope.stage = 'prepare';
               return commitRunner(scope, true).send(prompt);
             },
             commit: (prompt, scope) {
+              commitTurnEvidence = null;
               commitPermit = snapshotEvidence(scope.prepared!);
+              commitPermits.add(commitPermit!);
               source.beginTurn('commit');
               tools.scope.stage = 'commit';
               return commitRunner(scope, false).send(prompt);
@@ -360,15 +384,26 @@ void main() {
           expect(reviews.length, lessThanOrEqualTo(acceptedReviews.length * 2));
           expect(
             turns.where((turn) => turn['stage'] == 'prepare'),
-            hasLength(failed ? 0 : 1),
+            hasLength(failed ? 0 : inInclusiveRange(1, 2)),
           );
           expect(
             turns.where((turn) => turn['stage'] == 'commit'),
-            hasLength(failed ? 0 : 1),
+            hasLength(failed ? 0 : inInclusiveRange(1, 2)),
           );
           if (!preflight) {
             expect(source.livePrimaryCalls, greaterThan(0));
             expect(source.liveMemoryCalls, turns.length);
+            for (final turn in turns) {
+              if (scenario == FarmCompletionScenario.reviewRepair &&
+                  turn['stage'] == 'implementation') {
+                continue;
+              }
+              expect(
+                turn['livePrimaryCalls'],
+                greaterThan(0),
+                reason: 'Every real turn, including recovery, must use HTTP.',
+              );
+            }
             for (final stage
                 in turns.map((turn) => turn['stage'] as String).toSet()) {
               if (scenario == FarmCompletionScenario.reviewRepair &&
@@ -634,6 +669,8 @@ void main() {
                 'gitExecutions': tools.gitExecutions,
                 'preparationSnapshots': preparationSnapshots,
                 'commitPermit': commitPermit,
+                'commitPermits': commitPermits,
+                'commitChecks': commitChecks,
                 'approvals': approver?.decisions,
                 'oracle': oracle,
                 'persistedConversation': saved?.toJson(),

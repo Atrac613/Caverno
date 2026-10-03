@@ -68,7 +68,8 @@ const Map<String, int> _lineBudgets = {
   // budget extension at the tool-loop limit.
   // Review inspection and initial tool selection live in a bounded helper.
   // Dispatch and native commit scope checks are kept in a bounded part.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8585,
+  // Request preparation moved to the existing prompt context part.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8471,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the

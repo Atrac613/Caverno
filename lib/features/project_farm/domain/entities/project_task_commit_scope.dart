@@ -61,6 +61,25 @@ final class ProjectTaskCommitScope {
         prepared: snapshot,
       );
 
+  bool sameCapturedState(
+    ProjectTaskCommitSnapshot before,
+    ProjectTaskCommitSnapshot after,
+  ) =>
+      before.head == after.head &&
+      before.indexFingerprint == after.indexFingerprint &&
+      before.stagedPaths.length == after.stagedPaths.length &&
+      before.stagedPaths.containsAll(after.stagedPaths) &&
+      paths.every(
+        (file) =>
+            before.unstagedPaths.contains(file) ==
+            after.unstagedPaths.contains(file),
+      ) &&
+      before.fileFingerprints.keys.toSet().containsAll(paths) &&
+      after.fileFingerprints.keys.toSet().containsAll(paths) &&
+      paths.every(
+        (file) => before.fileFingerprints[file] == after.fileFingerprints[file],
+      );
+
   String? preparationProblem(
     ProjectTaskCommitSnapshot before,
     ProjectTaskCommitSnapshot after,

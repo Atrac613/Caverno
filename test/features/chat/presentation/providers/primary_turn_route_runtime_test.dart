@@ -34,10 +34,12 @@ void main() {
     bool commit = false,
     bool prepare = false,
     ProjectTaskCommitScope? scope,
+    String? promptId,
   }) => runtime.capture(
     generation: generation,
     settings: settings,
     projectTaskCommitScope: scope,
+    taskCommitPromptId: promptId,
     purpose: prepare
         ? PrimaryTurnPurpose.projectTaskCommitPreparation
         : PrimaryTurnPurpose.of(
@@ -68,7 +70,15 @@ void main() {
         roadmapPath: '/repo/roadmap.md',
         reviewedPaths: ['/repo/task.txt'],
       );
-      await capture(runtime, 1, codeReview: false, prepare: true, scope: scope);
+      await capture(
+        runtime,
+        1,
+        codeReview: false,
+        prepare: true,
+        scope: scope,
+        promptId: 'phase-input',
+      );
+      expect(runtime.commitPromptStart(1), 'phase-input');
       await capture(runtime, 2, codeReview: false);
       expect(runtime.isProjectTaskCommitPreparation(1), isTrue);
       expect(runtime.isProjectTaskCommit(1), isFalse);
@@ -76,6 +86,7 @@ void main() {
       expect(runtime.commitScope(1), same(scope));
       expect(runtime.commitScope(2), isNull);
       runtime.release(1);
+      expect(runtime.commitPromptStart(1), isNull);
       expect(runtime.commitScope(1), isNull);
       expect(runtime.isProjectTaskCommitPreparation(1), isFalse);
       await capture(runtime, 1, codeReview: false, prepare: true, scope: scope);
@@ -84,6 +95,47 @@ void main() {
       expect(runtime.isProjectTaskCommitPreparation(1), isFalse);
     },
   );
+
+  test(
+    'commit terminal flags survive teardown and require the matching owner',
+    () async {
+      final runtime = PrimaryTurnRouteRuntime();
+      await capture(runtime, 1, codeReview: false, prepare: true);
+      runtime.recordCommitTerminal(1, 'task', true);
+      runtime.release(1);
+      expect(runtime.takeCommitTerminal(1, 'other'), isNull);
+      expect(runtime.takeCommitTerminal(1, 'task')?.completedNormally, isTrue);
+      expect(runtime.takeCommitTerminal(1, 'task'), isNull);
+      await capture(runtime, 2, codeReview: false, commit: true);
+      runtime.recordCommitTerminal(2, 'task', false);
+      runtime.release(2);
+      expect(runtime.takeCommitTerminal(2, 'task')?.completedNormally, isFalse);
+    },
+  );
+  test(
+    'ordinary turns and recaptured generations cannot supply stale flags',
+    () async {
+      final runtime = PrimaryTurnRouteRuntime();
+      await capture(runtime, 1, codeReview: false);
+      runtime.recordCommitTerminal(1, 'task', true);
+      expect(runtime.takeCommitTerminal(1, 'task'), isNull);
+      await capture(runtime, 2, codeReview: false, commit: true);
+      runtime.recordCommitTerminal(2, 'task', true);
+      await capture(runtime, 2, codeReview: false, prepare: true);
+      expect(runtime.takeCommitTerminal(2, 'task'), isNull);
+    },
+  );
+  test('unconsumed commit terminal flags have bounded retention', () async {
+    final runtime = PrimaryTurnRouteRuntime();
+    for (var generation = 1; generation <= 17; generation++) {
+      await capture(runtime, generation, codeReview: false, commit: true);
+      runtime.recordCommitTerminal(generation, 'task', true);
+      runtime.release(generation);
+    }
+    expect(runtime.takeCommitTerminal(1, 'task'), isNull);
+    expect(runtime.takeCommitTerminal(2, 'task')?.completedNormally, isTrue);
+    expect(runtime.takeCommitTerminal(17, 'task')?.completedNormally, isTrue);
+  });
 
   test('a subtask step is neither implementation nor review', () async {
     // Session 80dc7079: subtask turns lost the implementation turn's

@@ -2,6 +2,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
+import 'package:caverno/features/project_farm/application/project_task_commit_turn_evidence.dart';
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_git_state.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -373,10 +374,10 @@ void main() {
     expect(
       commitPrompts.single,
       allOf(
-        contains('Source: ROADMAP.md:4'),
+        contains('Source: /repo/ROADMAP.md:4'),
         contains('index is already prepared'),
         contains('- /repo/lib/task.dart'),
-        contains('Do not push'),
+        contains('Do not edit files, change staging, push, publish'),
         // Session f4269d8c: copying the log's run-on subjects produced a
         // 150-character subject holding the whole body.
         contains('at most 72 characters'),
@@ -423,6 +424,64 @@ void main() {
       expect(commitPrompts, isEmpty);
     },
   );
+
+  for (final gate in ['completed', 'active', 'disabled', 'budget']) {
+    test(
+      'idle recovery requires a completed enabled goal with budget: $gate',
+      () async {
+        var conversation = initial();
+        var preparations = 0;
+        var reads = 0;
+        var committed = false;
+        final workflow = cleanTaskWorkflow(
+          read: () => conversation,
+          update: (next) => conversation = next,
+          commit: (_) async {
+            committed = true;
+            return true;
+          },
+          readGitState: (_) async => ProjectTaskGitState(
+            head: committed ? 'after' : 'before',
+            dirtyPaths: [],
+          ),
+          prepareCommit: (_, _) async {
+            preparations++;
+            conversation = conversation.copyWith(
+              goal: conversation.goal!.copyWith(
+                status: gate == 'active'
+                    ? ConversationGoalStatus.active
+                    : ConversationGoalStatus.completed,
+                enabled: gate != 'disabled',
+                turnBudget: gate == 'budget' ? 1 : 0,
+                turnsUsed: gate == 'budget' ? 1 : 0,
+              ),
+            );
+            return true;
+          },
+          readCommitTurnEvidence: () => const ProjectTaskCommitTurnEvidence(
+            completedNormally: true,
+            mutationAttempted: false,
+            failed: false,
+          ),
+          readCommitSnapshot: (scope) async => ProjectTaskCommitSnapshot(
+            head: committed ? 'after' : 'before',
+            indexFingerprint: reads++ < 2 ? 'baseline' : 'prepared',
+            fileFingerprints: {for (final file in scope.paths) file: 'same'},
+            stagedPaths: preparations < 2 ? {} : scope.paths,
+            unstagedPaths: {},
+          ),
+        );
+        expect(
+          await workflow.run(),
+          gate == 'completed'
+              ? ProjectTaskReviewResult.committed
+              : ProjectTaskReviewResult.stopped,
+        );
+        expect(preparations, gate == 'completed' ? 2 : 1);
+        expect(committed, gate == 'completed');
+      },
+    );
+  }
 
   test('unrelated staged work stops before preparation or commit', () async {
     var conversation = initial();
@@ -586,6 +645,7 @@ ProjectTaskReviewWorkflow cleanTaskWorkflow({
   Future<bool> Function(String, ProjectTaskCommitScope)? prepareCommit,
   Future<ProjectTaskCommitSnapshot?> Function(ProjectTaskCommitScope)?
   readCommitSnapshot,
+  ProjectTaskCommitTurnEvidence? Function()? readCommitTurnEvidence,
 }) {
   final now = DateTime(2026);
   var calls = 0;
@@ -596,6 +656,7 @@ ProjectTaskReviewWorkflow cleanTaskWorkflow({
     isWaitingForUser: () => false,
     commit: (prompt, scope) => commit(prompt),
     projectRoot: '/repo',
+    readCommitTurnEvidence: readCommitTurnEvidence,
     prepareCommit: prepareCommit ?? (_, _) async => true,
     readCommitSnapshot:
         readCommitSnapshot ??

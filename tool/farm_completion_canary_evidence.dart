@@ -67,12 +67,27 @@ List<String> farmCompletionEvidenceGaps(
           _count(counts['commit']) != 0 ||
           _count(counts['prepare']) != 0 ||
           _list(record['preparationSnapshots']).isNotEmpty ||
-          record['commitPermit'] != null) {
+          record['commitPermit'] != null ||
+          _list(record['commitChecks']).isNotEmpty ||
+          _list(record['commitPermits']).isNotEmpty) {
         gaps.add('$name did not stop before Git mutation.');
       }
     } else {
       if (!_hasNativePreparation(record)) {
         gaps.add('$name lacks accepted native commit preparation evidence.');
+      }
+      if (!_hasBoundedCommitTurns(record)) {
+        gaps.add('$name lacks safe, bounded commit phase evidence.');
+      }
+      if (_list(record['gitExecutions']).where((entry) {
+            final execution = _map(entry);
+            return execution['mutation'] == true &&
+                _map(
+                  execution['arguments'],
+                )['command'].toString().startsWith('commit ');
+          }).length !=
+          1) {
+        gaps.add('$name lacks exactly one native commit execution.');
       }
       if (_list(record['gitExecutions']).any((entry) {
         final execution = _map(entry);
@@ -105,7 +120,7 @@ List<String> farmCompletionEvidenceGaps(
 
 bool _hasNativePreparation(Map<String, dynamic> record) {
   final snapshots = _list(record['preparationSnapshots']);
-  if (snapshots.length != 2) return false;
+  if (snapshots.length < 2 || snapshots.length > 3) return false;
   final before = _map(snapshots.first);
   final after = _map(snapshots.last);
   final permit = _map(record['commitPermit']);
@@ -135,6 +150,74 @@ bool _hasNativePreparation(Map<String, dynamic> record) {
       _list(after['taskUnstagedPaths']).isEmpty &&
       permit['taskUnstagedPaths'] is List &&
       _list(permit['taskUnstagedPaths']).isEmpty;
+}
+
+bool _sameSnapshot(Object? left, Object? right) {
+  final a = _map(left);
+  final b = _map(right);
+  final hashes = _map(a['fileFingerprints']);
+  final other = _map(b['fileFingerprints']);
+  return a['head'] is String &&
+      a['head'] == b['head'] &&
+      a['indexFingerprint'] is String &&
+      a['indexFingerprint'] == b['indexFingerprint'] &&
+      a['roadmapComplete'] == b['roadmapComplete'] &&
+      hashes.length == 2 &&
+      other.length == 2 &&
+      hashes.keys.every((file) => hashes[file] == other[file]) &&
+      ['stagedPaths', 'taskUnstagedPaths'].every(
+        (key) =>
+            a[key] is List &&
+            b[key] is List &&
+            _list(a[key]).join(',') == _list(b[key]).join(','),
+      );
+}
+
+bool _hasBoundedCommitTurns(Map<String, dynamic> record) {
+  final turns = _list(record['turns']);
+  final preparing = turns
+      .where((turn) => _map(turn)['stage'] == 'prepare')
+      .toList();
+  final committing = turns
+      .where((turn) => _map(turn)['stage'] == 'commit')
+      .toList();
+  final snapshots = _list(record['preparationSnapshots']);
+  final permits = _list(record['commitPermits']);
+  final checks = _list(record['commitChecks']);
+  if (preparing.isEmpty ||
+      preparing.length > 2 ||
+      committing.isEmpty ||
+      committing.length > 2 ||
+      snapshots.length != preparing.length + 1 ||
+      checks.length != committing.length ||
+      permits.length != committing.length) {
+    return false;
+  }
+  for (final phase in [preparing, committing]) {
+    if (phase.any((turn) {
+      final evidence = _map(_map(turn)['phaseEvidence']);
+      return _count(_map(turn)['livePrimaryCalls']) < 1 ||
+          evidence['completedNormally'] != true ||
+          evidence['failed'] != false;
+    })) {
+      return false;
+    }
+    if (phase.length == 2 &&
+        _map(_map(phase.first)['phaseEvidence'])['mutationAttempted'] !=
+            false) {
+      return false;
+    }
+  }
+  if (preparing.length == 2 && !_sameSnapshot(snapshots[0], snapshots[1])) {
+    return false;
+  }
+  if (committing.length == 2 && !_sameSnapshot(permits.first, checks.first)) {
+    return false;
+  }
+  return permits.every(
+        (permit) => _sameSnapshot(permit, record['commitPermit']),
+      ) &&
+      _map(checks.last)['head'] == record['finalHead'];
 }
 
 Map<String, dynamic> reconcileFarmCompletionEvidence(

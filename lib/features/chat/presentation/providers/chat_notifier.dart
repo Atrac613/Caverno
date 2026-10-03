@@ -26,6 +26,7 @@ import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
+import '../../../project_farm/application/project_task_commit_turn_evidence.dart';
 import '../../../project_farm/data/project_task_commit_reader.dart';
 import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
@@ -1831,121 +1832,6 @@ class ChatNotifier extends Notifier<ChatState> {
       arguments: arguments,
       loadProjectRoot: _getActiveProjectRootPath,
     );
-  }
-
-  List<Message> _prepareMessagesForLLM({
-    bool forceCompaction = false,
-    List<Map<String, dynamic>>? toolDefinitionsOverride,
-    required int interactionGeneration,
-    String? participantRolePrompt,
-  }) {
-    // Before the snapshot is read, because committing is what puts an
-    // interruption where that read finds it.
-    _commitPendingTurnSteering(interactionGeneration);
-    final ownerSnapshot = _turnOwnerSnapshotForGeneration(
-      interactionGeneration,
-    );
-    if (ownerSnapshot == null) {
-      throw StateError(
-        'Turn owner snapshot unavailable: $interactionGeneration',
-      );
-    }
-    final currentConversation = _conversationForId(
-      ownerSnapshot.owner.conversationId,
-    );
-    final hiddenPrompt = ownerSnapshot.hiddenPrompt;
-    final temporalReferenceContext = ownerSnapshot.temporalReferenceContext;
-    final sourceMessages = ownerSnapshot.messages;
-    final messages =
-        ConversationPlanExecutionCoordinator.filterSupersededTaskExecutionTurns(
-              messages: sourceMessages.where((message) => !message.isStreaming),
-              currentExecutionPrompt: hiddenPrompt?.content,
-            )
-            .map(_messagePersistence.sanitizeMessageForModelHistory)
-            .where(_messagePersistence.shouldKeepMessageForModelHistory)
-            .toList();
-    final modelSwitchHandoffBrief = _modelSwitchHandoffs.take(
-      ownerSnapshot.owner,
-    );
-    final shouldForceCompaction = _modelSwitchHandoffs.consumePromptCompaction(
-      owner: ownerSnapshot.owner,
-      forceCompaction: forceCompaction,
-      hasModelSwitchHandoff: modelSwitchHandoffBrief != null,
-    );
-    final promptMessages = <Message>[
-      _createSystemMessage(
-        conversation: currentConversation,
-        ownerSnapshot: ownerSnapshot,
-        participantRolePrompt: participantRolePrompt,
-        toolNamesOverride: toolDefinitionsOverride == null
-            ? null
-            : ToolDefinitionSearchService.toolNamesFromDefinitions(
-                toolDefinitionsOverride,
-              ).toList(),
-      ),
-    ];
-    if (temporalReferenceContext != null) {
-      promptMessages.add(
-        Message(
-          id: 'system_temporal',
-          content: temporalReferenceContext,
-          role: MessageRole.system,
-          timestamp: DateTime.now(),
-        ),
-      );
-    }
-    final modelSwitchHandoffMessage = _modelSwitchHandoffs.createPromptMessage(
-      modelSwitchHandoffBrief,
-    );
-    if (modelSwitchHandoffMessage != null) {
-      promptMessages.add(modelSwitchHandoffMessage);
-    }
-    final promptBudget = _promptTokenBudget.budgetFor(
-      _settings,
-      ownerSnapshot.owner.conversationId,
-    );
-    final compactionArtifact = promptBudget.resolveArtifact(
-      conversation: currentConversation,
-      messages: messages,
-      forceCompaction: shouldForceCompaction,
-    );
-    if (compactionArtifact?.hasContent ?? false) {
-      promptMessages.add(
-        Message(
-          id: 'system_compaction',
-          content:
-              'Earlier conversation summary for omitted turns:\n'
-              '${compactionArtifact!.normalizedSummary!}\n\n'
-              'Treat this summary as context for the trimmed transcript that follows.',
-          role: MessageRole.system,
-          timestamp: DateTime.now(),
-        ),
-      );
-    }
-    final retainedMessages = ConversationCompactionService.retainMessages(
-      messages: messages,
-      artifact: compactionArtifact,
-    );
-    final result = [...promptMessages, ...retainedMessages];
-    if (hiddenPrompt != null) {
-      result.add(hiddenPrompt);
-    }
-    // Last, so an interruption is not read as one more remark filed behind the
-    // work already in flight.
-    final steeringDirective = _turnSteeringDirectiveMessage(
-      ownerSnapshot.owner,
-    );
-    if (steeringDirective != null) {
-      result.add(steeringDirective);
-    }
-    // Recorded before the pressure update overwrites it, so the pair handed to
-    // the next turn describes this exact request.
-    _promptTokenBudget.recordEstimate(ownerSnapshot.owner, result);
-    _updateContextTokenPressureState(
-      pressure: promptBudget.assess(result),
-      compactionActive: compactionArtifact?.hasContent ?? false,
-    );
-    return result;
   }
 
   void _updateContextTokenPressureState({

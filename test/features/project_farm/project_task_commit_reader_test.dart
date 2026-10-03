@@ -55,6 +55,17 @@ void main() {
       expect(prepared.stagedPaths, scope.paths);
     },
   );
+  test('recovery identity rejects native file and index changes', () async {
+    expect(scope.sameCapturedState(baseline, await read()), isTrue);
+    await write('unrelated.txt', 'another unrelated unstaged edit');
+    expect(scope.sameCapturedState(baseline, await read()), isTrue);
+    await write('roadmap.md', '- [x] Implement task\n');
+    expect(scope.sameCapturedState(baseline, await read()), isFalse);
+    await write('roadmap.md', '- [ ] Implement task\n');
+    expect(scope.sameCapturedState(baseline, await read()), isTrue);
+    await git(['add', '--', 'unrelated.txt']);
+    expect(scope.sameCapturedState(baseline, await read()), isFalse);
+  });
   test('rejects a missing roadmap update before commit', () async {
     await git(['add', '--', 'task.txt']);
     expect(

@@ -1641,7 +1641,7 @@ CodingProject _pendingBatchProject(String rootPath) {
 
 ProviderContainer _pendingBatchContainer({
   required CodingProject project,
-  required _QueuedToolLoopChatDataSource dataSource,
+  required ChatDataSource dataSource,
   required McpToolService toolService,
   required AppLifecycleService appLifecycleService,
   required SettingsNotifier Function() settingsOverride,

@@ -97,6 +97,25 @@ accepted preparation, then recheck owner validity before executing Git. The
 post-commit HEAD/dirty-path gate remains necessary: these checks do not provide
 an atomic transaction against external writers or OS containment for Git.
 
+Preparation and commit handoffs repeat only the task title, source quote,
+allowed paths and captured native state, rather than the full implementation
+objective and its older instructions. Their history starts at the native
+owner-bound phase input; older messages, goal/workflow instructions, session
+memory and stored compaction or model-switch summaries are excluded from these
+requests. Current-turn tool evidence and steering remain available, while
+workspace instructions and approval gates are preserved. A missing input
+boundary fails closed. Each phase permits one recovery only after a classified normal turn
+with no mutation attempt or native tool failure, and unchanged native HEAD,
+index and task-file fingerprints. Recovery also requires a selected thread,
+no pending user input, and an enabled completed goal with remaining budget.
+Unknown observations prohibit recovery. Abnormal or capped exits, refusals,
+malformed calls, failed tools and changed state stop. A changed HEAD never triggers a second
+commit. The observations are fixed at turn termination, retained for at most
+16 turns and consumed only by their matching conversation and generation;
+consuming the tool ledger cannot erase a denial from the recovery decision.
+Harness-authored inspection notices are guidance rather than native failures,
+but originating write attempts still prohibit recovery.
+
 Successful cases require recorded goal completion, ready/clean markers in saved
 responses, a real HEAD change, exactly the two task files in the commit, and an
 unrelated pre-existing edit left dirty and unstaged. An independently issued,
@@ -117,7 +136,10 @@ diagnostic artifacts. Fixture repositories are deleted on completion or failure.
 The runner requires all three tests and live primary HTTP on every applicable
 stage, including preparation (the injected first implementation is excluded).
 Its independent evidence gate also requires native before/after preparation and
-a matching accepted index, and rejects Git writes in the wrong phase. The gate
+a matching accepted index, typed phase observations, unchanged native evidence
+for any recovery, and exactly one native commit. It rejects Git writes in the
+wrong phase or more than two turns in either commit phase. Every real turn,
+including recovery, must record a live primary request. The gate
 downgrades missing, offline or skipped evidence to
 `result=failed` and `mainReadiness.status=blocked`.
 
@@ -128,7 +150,10 @@ and a fresh `CAVERNO_FARM_COMPLETION_REPORT_DIR`. Run
 It uses real fixture file, contained process and Git tools, but never qualifies
 as live evidence. Its review model replies deliberately omit tool calls, so a
 passing preflight also proves that the production harness supplies the current
-file reads before requesting the review result.
+file reads before requesting the review result. The normal case also omits
+initial preparation actions, and the repair case reports a staged-diff inspection
+and commit without executing them. Their single recoveries must use real tools;
+the failed-verification case must never start either phase.
 
 The 2026-10-03 baseline with `qwen3.8-27b-exl3` passed 2/3 cases in
 `build/integration_test_reports/farm_completion_live_canary.yK83YR`.
@@ -205,6 +230,54 @@ evidence gate remain failed; this model's bounded live completion is not ready.
 Focused native/dispatcher regressions and the real-tool offline preflight pass,
 but do not replace the missing live completion evidence. Earlier failures are
 retained.
+
+The first bounded-recovery run in
+`build/integration_test_reports/farm_completion_live_canary.YSaAWv` passed 1/3.
+Both positive cases prepared the native index but then claimed a successful
+commit without any Git call. Their synthetic unverified-inspection notices were
+incorrectly counted as tool execution failures, so recovery was suppressed.
+The observation policy now distinguishes declared harness guidance from native
+failure while retaining every originating mutation attempt. The negative case
+stopped without Git mutation. This failed artifact is retained; it does not
+establish live readiness.
+
+The next run in
+`build/integration_test_reports/farm_completion_live_canary.4nCIAd` passed 1/3.
+Both positive commit phases correctly admitted one unchanged, mutation-free recovery,
+but both turns in each phase claimed completion without a commit call and
+exhausted the bound. The negative case stopped without Git mutation.
+The prompt boundary now excludes the earlier transcript and system-level task
+and memory instructions for preparation and commit, rather than only shortening
+the latest handoff. The failed run is retained; its results are not superseded
+by offline fixture success.
+
+The context-boundary run in
+`build/integration_test_reports/farm_completion_live_canary.ogRU8B` passed 1/3.
+Both positive cases issued current staged-diff reads and an actual commit request,
+but the fixture approver denied their valid `feat(fixture)` subjects and bodies
+containing parentheses and brackets. No refused Git write executed or triggered
+a recovery. The fixture authority now documents and accepts the repository's
+Conventional Commit types and optional scope, still requiring exactly two `-m`
+arguments, a bounded subject/body, the fixture root and the commit phase.
+Native `Error:` results without JSON also explicitly stop recovery. This failed
+run remains available and does not establish live readiness.
+
+The final run with aligned fixture commit authority in
+`build/integration_test_reports/farm_completion_live_canary.sjxvXA` passed 2/3.
+Both positive workflows completed native preparation, issued a real current
+staged-diff read and exactly one local commit containing `fixture.py` and
+`roadmap.md`, preserved the unrelated dirty file, and passed the independent
+seven-input oracle. Every real turn used primary HTTP. `reviewRepair` persisted
+valid live memory throughout, and `failedVerification` stopped before either
+commit phase with unchanged HEAD and no Git mutation. `normal` failed the strict
+memory gate because its preparation-turn memory draft was invalid JSON and
+required the existing fallback; the other three drafts were valid. The runner,
+summary and independent evidence gate remain failed and readiness remains
+blocked. All fixture roots were removed and the managed relay closed.
+Focused owner/native/goal regressions and the real-tool offline recovery cases
+pass, but cannot replace that remaining live memory evidence. Earlier failure
+artifacts are retained. These results cover the final-task path, not UI or
+automatic scheduling.
 
 
 ## Software Farm Step Recovery Canary

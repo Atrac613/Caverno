@@ -119,6 +119,27 @@ void main() {
     );
     expect(
       value.canGit(
+        'commit -m "feat(fixture): clamp values to inclusive [0, 10]" -m "Constrain clamp() to [0, 10], including negative inputs."',
+        value.fixture.root.path,
+      ),
+      isTrue,
+    );
+    for (final command in [
+      'commit -m "Unconventional subject" -m "Body"',
+      'commit -m "fix: ${'x' * 70}" -m "Body"',
+      'commit -m "fix: clamp" -m ""',
+      'commit -m "fix: clamp" -m "Body" --amend',
+    ]) {
+      expect(value.canGit(command, value.fixture.root.path), isFalse);
+    }
+    value.stage = 'prepare';
+    expect(
+      value.canGit('commit -m "fix: clamp" -m "Body"', value.fixture.root.path),
+      isFalse,
+    );
+    value.stage = 'commit';
+    expect(
+      value.canGit(
         'commit -m "fix: clamp fixture values"',
         value.fixture.root.path,
       ),

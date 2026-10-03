@@ -12,6 +12,7 @@ import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
+import '../application/project_task_commit_turn_evidence.dart';
 import '../application/project_task_inheritance.dart';
 import '../application/project_task_review_turn_runner.dart';
 import '../application/project_task_review_workflow.dart';
@@ -94,6 +95,7 @@ final class ProjectTaskReviewLauncher {
         ),
         waitForCompletion: notifier.waitForTurnCompletion,
       );
+      ProjectTaskCommitTurnEvidence? commitTurnEvidence;
       ProjectTaskStepTurnRunner step(
         bool Function(ConversationGoal goal) admits, {
         Future<void> Function()? reactivate,
@@ -118,7 +120,14 @@ final class ProjectTaskReviewLauncher {
                 languageCode: languageCode,
                 purpose: purpose,
               ),
-        waitForCompletion: notifier.waitForTurnCompletion,
+        waitForCompletion: (owner) async {
+          await notifier.waitForTurnCompletion(owner);
+          if (commitScope != null) {
+            commitTurnEvidence = notifier.takeProjectTaskCommitTurnEvidence(
+              owner,
+            );
+          }
+        },
       );
       final conversations = ref.read(conversationsNotifierProvider.notifier);
       final inherited = projectRoot == null || projectRoot.isEmpty
@@ -166,16 +175,23 @@ final class ProjectTaskReviewLauncher {
         send: runner.send,
         projectRoot: projectRoot,
         readCommitSnapshot: const ProjectTaskCommitReader().read,
-        prepareCommit: (prompt, scope) => step(
-          ProjectTaskStepTurnRunner.completedGoal,
-          purpose: PrimaryTurnPurpose.projectTaskCommitPreparation,
-          commitScope: scope,
-        ).send(prompt),
-        commit: (prompt, scope) => step(
-          ProjectTaskStepTurnRunner.completedGoal,
-          purpose: PrimaryTurnPurpose.projectTaskCommit,
-          commitScope: scope,
-        ).send(prompt),
+        readCommitTurnEvidence: () => commitTurnEvidence,
+        prepareCommit: (prompt, scope) {
+          commitTurnEvidence = null;
+          return step(
+            ProjectTaskStepTurnRunner.completedGoal,
+            purpose: PrimaryTurnPurpose.projectTaskCommitPreparation,
+            commitScope: scope,
+          ).send(prompt);
+        },
+        commit: (prompt, scope) {
+          commitTurnEvidence = null;
+          return step(
+            ProjectTaskStepTurnRunner.completedGoal,
+            purpose: PrimaryTurnPurpose.projectTaskCommit,
+            commitScope: scope,
+          ).send(prompt);
+        },
         sendStep: step(
           ProjectTaskStepTurnRunner.activeGoal,
           reactivate: () => conversations.markCurrentGoalStatus(
