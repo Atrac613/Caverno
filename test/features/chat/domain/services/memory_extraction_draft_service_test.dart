@@ -19,6 +19,7 @@ void main() {
         for (final raw in [
           '',
           '{"summary":"All subtasks complete.","open_loops":[],"memories":[{"text":"All work verified.","type":"fact"}]}',
+          '{"summary":"All subtasks complete.","open_loops":[],"profile":{},"memories":[{"text":"All work verified.","type":"fact"}]',
         ]) {
           final draft = MemoryExtractionDraftService.parseDraft(
             raw,

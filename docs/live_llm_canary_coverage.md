@@ -279,6 +279,26 @@ pass, but cannot replace that remaining live memory evidence. Earlier failure
 artifacts are retained. These results cover the final-task path, not UI or
 automatic scheduling.
 
+The preparation memory response in `sjxvXA` contained all four extraction
+sections with complete values, but omitted the final root `}`. The parser now
+recovers this form only when appending that one delimiter produces a valid
+object with a string summary, list open loops, map profile and list memories.
+It does not supply missing sections, strings, array endings or nested values.
+Recovery is reported through the existing repaired-JSON callback, and native
+task-status guards still override unsupported completion claims. The raw
+response remains available in the ignored canary evidence.
+
+The follow-up run with `qwen3.8-27b-exl3` in
+`build/integration_test_reports/farm_completion_live_canary.SOEFtl` passed 3/3;
+the runner, summary and independent evidence gate passed with no gaps. Both
+positive cases committed exactly the two task files, preserved unrelated work
+and passed the independent oracle and Hive reopen checks. Of eleven memory
+responses, ten were valid raw JSON and one in `normal` again omitted only the
+root brace; the production parser recovered it without rule-based fallback.
+`failedVerification` stopped with unchanged HEAD and zero Git executions. The
+fixture roots were removed and the dynamic relay closed. This establishes the
+final-task canary scope only; UI and automatic scheduling remain unverified.
+
 
 ## Software Farm Step Recovery Canary
 
