@@ -17,6 +17,29 @@ void main() {
     expect(policy.applies(goal: goal, implementationTurn: false), isFalse);
     expect(policy.applies(goal: null, implementationTurn: true), isFalse);
   });
+  test(
+    'status separates accepted implementation from pending review and commit',
+    () {
+      expect(
+        policy.prompt,
+        contains(
+          'review, roadmap update and commit are not remaining implementation work',
+        ),
+      );
+      expect(
+        policy.prompt,
+        contains(
+          'Never report completion without captured change and successful verification evidence',
+        ),
+      );
+      expect(
+        policy.prompt,
+        contains(
+          'PROJECT_TASK_READY_FOR_REVIEW; omit it while incomplete or blocked',
+        ),
+      );
+    },
+  );
   test('missing or incomplete acknowledgement requires one status request', () {
     for (final ack in [
       null,

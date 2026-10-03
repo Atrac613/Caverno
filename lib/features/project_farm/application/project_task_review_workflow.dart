@@ -5,6 +5,7 @@ import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
+import '../../chat/domain/services/project_task_implementation_instructions.dart';
 import '../../chat/presentation/slash_commands/slash_command_prompt_template.dart';
 import '../domain/entities/project_task_git_state.dart';
 import '../domain/project_task_progress.dart';
@@ -130,7 +131,7 @@ final class ProjectTaskReviewWorkflow {
 
 $objective
 
-Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification.$_inheritedNote Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item's status unchanged: both happen in a separate step after review. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
+Read the cited roadmap and relevant code, make the smallest complete change, and run relevant verification.$_inheritedNote ${ProjectTaskImplementationInstructions.completionScope} Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item's status unchanged: both happen in a separate step after review. When implementation and verification are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.''';
 
     for (var repairRound = 0; repairRound <= maxRepairRounds; repairRound++) {
       if (repairRound > 0) {
@@ -186,7 +187,7 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
           return _stop('the implementation captured no reviewable file change');
         }
         implementation =
-            '''The previous implementation turn captured no reviewable file change. Any claimed edits or test results without tool evidence are unverified. Inspect the current files, then perform the remaining implementation with file tools and run relevant verification. Do not repeat the same whole-file reads. Respect approval and user-input gates. If the task is blocked or already complete, explain the evidence and omit $_ready. End with exactly $_ready only after the work and verification are actually complete.''';
+            '''The previous implementation turn captured no reviewable file change. Any claimed edits or test results without tool evidence are unverified. Inspect the current files, then perform the remaining implementation with file tools and run relevant verification. ${ProjectTaskImplementationInstructions.completionScope} Do not repeat the same whole-file reads. Respect approval and user-input gates. If the task is blocked or already complete, explain the evidence and omit $_ready. End with exactly $_ready only after the work and verification are actually complete.''';
       }
 
       final patch = await _reviewPatch(after!);
@@ -238,7 +239,7 @@ If review is incomplete, omit both markers.''';
       // cleanup restored a logger's level and propagate but not its
       // handlers, three rounds running, so the task ended uncommitted.
       implementation =
-          '''Fix the actionable findings from the dedicated code review below. Inspect the cited code and fix the underlying defect behind each finding, not only the cited line: where the same reasoning applies to closely related state, cases, or code paths in this task's changes, fix those too, because the next review reads the whole patch again. Keep repairs task-related, and rerun relevant verification. Respect approval and user-input gates. Do not commit, push, or publish. End with the exact line $_ready only when the fixes and verification are complete; otherwise explain what remains and omit the line.
+          '''Fix the actionable findings from the dedicated code review below. Inspect the cited code and fix the underlying defect behind each finding, not only the cited line: where the same reasoning applies to closely related state, cases, or code paths in this task's changes, fix those too, because the next review reads the whole patch again. Keep repairs task-related, and rerun relevant verification. ${ProjectTaskImplementationInstructions.completionScope} Respect approval and user-input gates. Do not commit, push, or publish. End with the exact line $_ready only when the fixes and verification are complete; otherwise explain what remains and omit the line.
 
 ${ContentParser.stripModelHistoryArtifacts(review.content)}''';
     }
@@ -374,7 +375,7 @@ ${paths.map((path) => '- $path').join('\n')}''';
             '${subtask.targetFiles.isEmpty ? '' : ' (likely files: ${subtask.targetFiles.join(', ')})'}',
     ].join('\n');
     final scope = last
-        ? 'Do the last subtask now, then confirm the whole task is complete and verified. Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item\'s status unchanged: both happen in a separate step after review. When implementation and verification of the whole task are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.'
+        ? 'Do the last subtask now, then confirm the whole task is complete and verified. ${ProjectTaskImplementationInstructions.completionScope} Respect all approval and user-input gates. Do not commit, push, or publish, and leave the roadmap item\'s status unchanged: both happen in a separate step after review. When implementation and verification of the whole task are finished, end your final response with the exact line $_ready. If anything remains incomplete, explain it and omit that line.'
         : 'Do only subtask ${index + 1} now. Make its change with file tools and run verification relevant to it. Respect all approval and user-input gates. Do not start later subtasks, do not mark the goal complete, do not commit, push, or publish, and leave the roadmap item\'s status unchanged. When this subtask is finished, end your final response with the exact line $_subtaskDone. If it cannot be finished, explain why and omit that line.';
     return '''Implement this roadmap task in the current coding project, one subtask at a time:
 

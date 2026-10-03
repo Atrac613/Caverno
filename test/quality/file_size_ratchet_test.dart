@@ -146,7 +146,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/coding_future_action_detector.dart': 100,
   'lib/features/chat/domain/services/project_task_completion_evidence.dart': 45,
   'lib/features/chat/domain/services/structured_coding_task_recovery_policy.dart':
-      37,
+      29,
   'lib/features/chat/domain/services/tool_outcome_snapshot.dart': 23,
   // -4, to 87: the status request's tools, prompt and call acceptance moved
   // to StatusRecoveryVerification.

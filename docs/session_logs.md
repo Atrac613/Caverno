@@ -188,6 +188,14 @@ status is missing or reports remaining work. This request offers only
 `update_goal`; subsequent work follows the normal tool and approval gates.
 The status elicitation also sets a function `tool_choice` for `update_goal`;
 its acknowledgement follow-up does not force another status call.
+At this boundary `update_goal(completed: true)` records completion of the required
+implementation or repair and verification, so dedicated review may begin.
+Pending review, roadmap bookkeeping and commit are later workflow stages, not
+remaining implementation work. The status request instructs accepted completion
+to end the visible response with `PROJECT_TASK_READY_FOR_REVIEW`; failed verification and concrete blockers
+retain their existing evidence gates and cannot emit that marker. The workflow
+records a committed outcome separately after checking HEAD and task file status.
+
 Exactly one valid `update_goal` call is accepted. Missing status, other tools,
 or invalid arguments receive one protocol correction and one retry. Rejected
 calls are never dispatched; a second violation records missing status.

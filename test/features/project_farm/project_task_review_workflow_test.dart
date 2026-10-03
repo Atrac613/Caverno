@@ -101,6 +101,20 @@ void main() {
     expect(await workflow.run(), ProjectTaskReviewResult.committed);
     expect(routes, [false, true, false, true]);
     expect(prompts[1], contains('```diff'));
+    for (final implementation in [prompts[0], prompts[2]]) {
+      expect(
+        implementation,
+        contains(
+          'review, roadmap update and commit are not remaining implementation work',
+        ),
+      );
+      expect(
+        implementation,
+        contains(
+          'Never report completion without captured change and successful verification evidence',
+        ),
+      );
+    }
     expect(prompts[2], contains('Fix a null case.'));
     // Session 40851e45: narrow repairs left a neighbouring variant for the
     // next review, three rounds running.
