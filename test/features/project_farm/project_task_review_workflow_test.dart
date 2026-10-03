@@ -104,6 +104,7 @@ void main() {
     for (final review in [prompts[1], prompts[3]]) {
       expect(review, contains('Begin this review turn by calling read_file'));
       expect(review, contains('wait for successful results'));
+      expect(review, endsWith('- lib/task.dart'));
       expect(
         review,
         contains('historical evidence, not current review inspections'),

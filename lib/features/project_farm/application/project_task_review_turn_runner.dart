@@ -31,10 +31,9 @@ final class ProjectTaskReviewTurnRunner {
       if (!codeReview || _reviewFinished(priorMessageCount) || attempt == 1) {
         return true;
       }
-      prompt =
-          '''The previous review did not produce an accepted terminal review result. Perform the read-only review again through inspection tools: begin by calling read_file on the changed files and wait for successful results. Earlier responses and reads are historical evidence. Reconcile the task patch with the current files, then report findings and verification limits. End with PROJECT_TASK_REVIEW_CLEAN only for a complete review with no actionable findings, or PROJECT_TASK_REVIEW_FINDINGS for actionable findings. If inspection is unavailable or review remains incomplete, explain why and omit both markers. Do not edit files, commit, or change Git state.
+      prompt = '''$prompt
 
-$prompt''';
+The previous review did not produce an accepted terminal review result. Perform the read-only review again through inspection tools: begin by calling read_file on the changed files listed above and wait for successful results. Earlier responses and reads are historical evidence. Reconcile the task patch with the current files, then report findings and verification limits. End with PROJECT_TASK_REVIEW_CLEAN only for a complete review with no actionable findings, or PROJECT_TASK_REVIEW_FINDINGS for actionable findings. If inspection is unavailable or review remains incomplete, explain why and omit both markers. Do not edit files, commit, or change Git state.''';
     }
     return false;
   }

@@ -211,7 +211,10 @@ $patch
 After your findings and verification limits, end with exactly one of these lines:
 $_clean — only when there are no actionable findings and the patch was reviewable
 $_findings — when there are actionable findings
-If review is incomplete, omit both markers.''';
+If review is incomplete, omit both markers.
+
+Start by calling read_file for these task files, then wait for results before producing review prose:
+${_taskPaths(after).map((path) => '- $path').join('\n')}''';
       _report(_progress.copyWith(phase: ProjectTaskPhase.review));
       final beforeReviewCount = after.messages.length;
       if (!await send(reviewPrompt, codeReview: true)) {
