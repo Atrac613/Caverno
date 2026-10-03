@@ -178,6 +178,7 @@ class FinalAnswerClaimDetector {
   ToolResultInfo? buildUnverifiedReadOnlyInspectionClaimToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
+    List<String> requiredFilePaths = const [],
   }) {
     final candidate = claimCandidate(candidateResponse).trim();
     // Farm review markers assert a completed file review regardless of prose.
@@ -197,7 +198,17 @@ class FinalAnswerClaimDetector {
         : toolResults;
     if ((!taskReview &&
             !looksLikeCompletedReadOnlyInspectionClaim(candidate)) ||
-        hasSuccessfulReadOnlyInspectionResult(inspections)) {
+        (hasSuccessfulReadOnlyInspectionResult(inspections) &&
+            (!taskReview ||
+                requiredFilePaths.every(
+                  (path) => inspections.any(
+                    (result) =>
+                        result.arguments['path'] == path &&
+                        !result.fromEarlierLoop &&
+                        result.changesSinceCapture.isEmpty &&
+                        hasSuccessfulReadOnlyInspectionResult([result]),
+                  ),
+                )))) {
       return null;
     }
     // An answer built from the web is not a claim about local state, and no
@@ -225,6 +236,8 @@ class FinalAnswerClaimDetector {
         ...ToolResultOrigin.harness.marker,
         'error':
             'The local file or project state claim is unverified. No successful read_file, inspect_file, list_directory, find_files, search_files, or read-only local_execute_command result is available for the claimed inspection.',
+        if (taskReview && requiredFilePaths.isNotEmpty)
+          'requiredFilePaths': requiredFilePaths,
         'claimedResponse': clipForDiagnostic(candidate),
       }),
     );

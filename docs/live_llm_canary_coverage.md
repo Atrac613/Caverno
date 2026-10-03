@@ -56,10 +56,21 @@ commit purposes. The configured review endpoint uses the same selected live
 model while preserving the separate production review route. No decomposition
 is injected or requested: these cases exercise the final task boundary.
 
-Dedicated reviews are instructed to inspect the changed files in the current
-review turn; earlier implementation reads do not prove a current inspection.
-Farm terminal review markers require successful current-turn file inspection
-evidence even when the response avoids an explicit inspection claim.
+Dedicated Farm reviews start with harness-issued `read_file` calls for the task's
+captured and inherited file paths, resolved against the turn owner's project.
+Deliberately deleted files are reviewed through the patch and surrounding code,
+so they are excluded from required content reads; a later recreation restores
+the read prerequisite.
+The normal read-only tool dispatcher and current-turn ledger execute and record
+these prerequisites before the review model receives their results. Ordinary
+reviews and implementation turns do not use this bootstrap. Every new review,
+including a repair review or retry, obtains fresh reads; earlier implementation
+reads do not prove a current inspection. Farm terminal review markers require
+successful current-turn file inspection of every target, even when the response
+avoids an explicit inspection claim. Missing, denied or unreadable targets keep
+the review incomplete. Historical or stale results cannot satisfy the gate.
+A review route without tool support or the `read_file` definition stops with an
+inspection error before requesting an unsupported terminal review.
 An incomplete review is retried once through the same read-only route, within
 the existing goal budget and input gates. A second incomplete result still
 stops before commit; recovery does not accept a marker followed by a claim guard.
@@ -89,7 +100,9 @@ A model-free wiring preflight is available with
 and a fresh `CAVERNO_FARM_COMPLETION_REPORT_DIR`. Run
 `tool/flutter_test_quiet.sh --no-pub tool/canaries/farm_completion_live_canary_test.dart`.
 It uses real fixture file, contained process and Git tools, but never qualifies
-as live evidence.
+as live evidence. Its review model replies deliberately omit tool calls, so a
+passing preflight also proves that the production harness supplies the current
+file reads before requesting the review result.
 
 The 2026-10-03 baseline with `qwen3.8-27b-exl3` passed 2/3 cases in
 `build/integration_test_reports/farm_completion_live_canary.yK83YR`.
@@ -109,8 +122,30 @@ After the commit-scope repair, the final run in
 and the independent oracle. `failedVerification` stopped without Git mutation.
 `reviewRepair` stopped before commit because both the second review and its one
 retry omitted current file inspection; the terminal markers were rejected.
-Readiness remains blocked for this model. All earlier failure artifacts are
+That run remained blocked for this model. All earlier failure artifacts are
 retained for diagnosis.
+
+After adding harness-issued current-file inspection, the run in
+`build/integration_test_reports/farm_completion_live_canary.wtIjfa` passed 2/3.
+Both reviews in `reviewRepair` received fresh successful file reads, and the
+live model found and repaired the defect and accepted the repaired code.
+The commit stage instead committed before marking the roadmap done, leaving
+its later roadmap edit uncommitted. The native completion gate rejected that
+partial commit; the result remains failed. `normal` and `failedVerification`
+passed. This establishes inspection recovery, not full live readiness.
+
+The final run after tool-unavailable and deletion-selection checks in
+`build/integration_test_reports/farm_completion_live_canary.qu1Olp` passed all
+3/3 cases with `qwen3.8-27b-exl3`. Each dedicated review received fresh
+harness-issued file reads, including both reviews in `reviewRepair`. Both
+positive cases committed exactly `fixture.py` and `roadmap.md`, preserved the
+unrelated dirty file, passed the independent seven-input oracle and persisted
+valid live memory responses. The negative case remained blocked without a
+review or Git mutation. The runner, summary and independent evidence gate all
+returned success; fixture roots were removed and the managed relay exited.
+This satisfies the bounded final-task canary for this run. It does not erase
+the earlier partial-commit failure or prove automatic scheduling or UI behavior.
+
 
 ## Software Farm Step Recovery Canary
 

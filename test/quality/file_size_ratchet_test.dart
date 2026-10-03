@@ -66,7 +66,8 @@ const Map<String, int> _lineBudgets = {
   // -57, to 8,630: the saved-validation repair check is a pure function of
   // tool results and moved to application/runtime, paying for the pending-edit
   // budget extension at the tool-loop limit.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8630,
+  // Review inspection and initial tool selection live in a bounded helper.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8627,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the

@@ -165,6 +165,7 @@ import '../../domain/services/post_saved_validation_tool_policy.dart';
 import '../../domain/services/printed_tool_call_recovery.dart';
 import '../../domain/services/process_start_result_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
+import '../../domain/services/project_task_review_inspection.dart';
 import '../../domain/services/project_task_step_completion_policy.dart';
 import '../../domain/services/project_task_terminal_status.dart';
 import '../../domain/services/proposal_option_extraction.dart';
@@ -315,6 +316,7 @@ part 'chat_notifier_planning_research.dart';
 part 'chat_notifier_prompt_context.dart';
 part 'chat_notifier_python_attachment_repair.dart';
 part 'chat_notifier_response_finalization.dart';
+part 'chat_notifier_review_inspection.dart';
 part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
@@ -3435,6 +3437,7 @@ class ChatNotifier extends Notifier<ChatState> {
       await _handleTurnOwnerSnapshotUnavailable(generation);
       return;
     }
+    if (await _rejectTaskReviewWithoutInspection(generation)) return;
     try {
       _runWithLlmSessionLogContextForGeneration(generation, () {
         final stream =
@@ -3865,33 +3868,13 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       _logAllowedToolDefinitions(allTools);
 
-      final prefixStableToolLoop = _settings.enablePrefixStableToolLoop;
-      final initialToolSelection = prefixStableToolLoop
-          ? ToolDefinitionSearchSelection(
-              toolSearchEnabled: false,
-              toolDefinitions: allTools,
-              selectedToolNames:
-                  ToolDefinitionSearchService.toolNamesFromDefinitions(
-                    allTools,
-                  ),
-            )
-          : ToolDefinitionSearchService.buildInitialSelection(allTools);
-      if (prefixStableToolLoop) {
-        appLog(
-          '[Tool] Prefix-stable tool loop enabled; using a fixed full tool list',
-        );
-      }
-      if (initialToolSelection.toolSearchEnabled) {
-        appLog(
-          '[ToolSearch] Enabled dynamic tool loading. Initial tools: '
-          '${ToolDefinitionSearchService.toolNamesFromDefinitions(initialToolSelection.toolDefinitions).toList()}',
-        );
-      }
+      final initialToolSelection = _initialToolSelection(allTools);
       nativeToolFallbackDefinitions = initialToolSelection.toolDefinitions;
       final stableLoopToolDefinitions =
-          prefixStableToolLoop || allowedToolNames != null
+          _settings.enablePrefixStableToolLoop || allowedToolNames != null
           ? initialToolSelection.toolDefinitions
           : null;
+      if (await _startTaskReviewInspection(generation, allTools)) return;
       final streamedMessages =
           _activeResponseMessagesForGeneration(generation) ?? state.messages;
       final streamedMessageIndex = streamedMessages.isEmpty
@@ -4235,11 +4218,11 @@ class ChatNotifier extends Notifier<ChatState> {
             owner: turnOwner,
           );
         } else {
-          final unverifiedInspectionClaim = _claims
-              .buildUnverifiedReadOnlyInspectionClaimToolResult(
-                candidateResponse: hiddenAssistantEvidence,
-                toolResults: const [],
-              );
+          final unverifiedInspectionClaim = _guardReviewInspection(
+            candidateResponse: hiddenAssistantEvidence,
+            toolResults: const [],
+            generation: generation,
+          );
           if (unverifiedInspectionClaim != null) {
             _turnToolResults.setCompleted(turnOwner, [
               unverifiedInspectionClaim,
@@ -6758,11 +6741,11 @@ class ChatNotifier extends Notifier<ChatState> {
             owner: turnOwner,
           );
         } else {
-          final unverifiedInspectionClaim = _claims
-              .buildUnverifiedReadOnlyInspectionClaimToolResult(
-                candidateResponse: streamedFinalAnswer,
-                toolResults: finalToolResults,
-              );
+          final unverifiedInspectionClaim = _guardReviewInspection(
+            candidateResponse: streamedFinalAnswer,
+            toolResults: finalToolResults,
+            generation: interactionGeneration,
+          );
           if (unverifiedInspectionClaim != null) {
             finalToolResults.add(unverifiedInspectionClaim);
             finalCompletionEvidenceIsCurrent = false;

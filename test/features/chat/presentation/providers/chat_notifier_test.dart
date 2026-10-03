@@ -53,6 +53,7 @@ import 'package:caverno/features/chat/domain/services/tool_definition_search_ser
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -102,6 +103,7 @@ part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_participant_turns_part.dart';
 part 'chat_notifier_pending_batch_part.dart';
 part 'chat_notifier_project_task_steps_part.dart';
+part 'chat_notifier_review_inspection_part.dart';
 part 'chat_notifier_persistence_part.dart';
 part 'chat_notifier_planning_contract_part.dart';
 part 'chat_notifier_printed_tool_call_part.dart';
@@ -180,6 +182,7 @@ void main() {
   registerChatNotifierCommandDedupTests();
   registerChatNotifierPendingBatchTests();
   registerChatNotifierProjectTaskStepTests();
+  registerChatNotifierReviewInspectionTests();
   registerChatNotifierParticipantTurnTests();
   registerChatNotifierGoalAutoContinueTests();
   registerChatNotifierSavedWorkflowGuardrailTests();

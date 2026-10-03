@@ -46,6 +46,45 @@ void main() {
     });
   }
 
+  test(
+    'Farm completion requires every target from current successful reads',
+    () {
+      ToolResultInfo read(
+        String path, {
+        bool failed = false,
+        bool historical = false,
+        bool stale = false,
+      }) => ToolResultInfo(
+        id: path,
+        name: 'read_file',
+        arguments: {'path': path},
+        result: failed ? '{"ok":false,"error":"denied"}' : '{"content":"code"}',
+        fromEarlierLoop: historical,
+        changesSinceCapture: stale ? ['write_file /repo/b.py'] : const [],
+      );
+      for (final results in [
+        [read('/repo/a.py')],
+        [read('/repo/a.py'), read('/repo/b.py', failed: true)],
+        [read('/repo/a.py'), read('/repo/b.py', historical: true)],
+        [read('/repo/a.py'), read('/repo/b.py', stale: true)],
+        [read('/repo/a.py'), read('/repo/b.py')],
+      ]) {
+        final guard = detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+          candidateResponse: 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
+          toolResults: results,
+          requiredFilePaths: ['/repo/a.py', '/repo/b.py'],
+        );
+        expect(
+          guard == null,
+          results.length == 2 &&
+              !results.last.fromEarlierLoop &&
+              results.last.changesSinceCapture.isEmpty &&
+              !results.last.result.contains('denied'),
+        );
+      }
+    },
+  );
+
   for (final exitCode in <int?>[null, 1, 0]) {
     test('delegated command evidence uses observed exit code $exitCode', () {
       final result = ToolResultInfo(

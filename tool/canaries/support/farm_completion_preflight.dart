@@ -50,12 +50,8 @@ final class FarmCompletionPreflight {
   ChatCompletionResult next() {
     final current = index++;
     if (stage == 'review') {
-      if (current == 0) {
-        return calls([
-          call('read_file', {'path': '${fixture.root.path}/fixture.py'}),
-          call('read_file', {'path': '${fixture.root.path}/roadmap.md'}),
-        ]);
-      }
+      // Deliberately omit model-authored reads: production must supply the
+      // current task-file inspection before this terminal reply is requested.
       return ChatCompletionResult(content: report, finishReason: 'stop');
     }
     if (stage == 'commit') {
