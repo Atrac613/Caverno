@@ -6,6 +6,8 @@ import 'package:caverno/features/project_farm/application/project_task_review_wo
 import 'package:caverno/features/project_farm/domain/entities/project_task_git_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/project_task_commit_test_support.dart';
+
 void main() {
   final now = DateTime(2026);
   var commits = 0;
@@ -61,7 +63,11 @@ void main() {
     var implementationCount = 0;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
-      commit: commitTurn,
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
       readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
@@ -138,7 +144,11 @@ void main() {
     var calls = 0;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
-      commit: commitTurn,
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
       readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
@@ -166,7 +176,11 @@ void main() {
     var completed = true;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
-      commit: commitTurn,
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
       readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
@@ -207,7 +221,11 @@ void main() {
     final prompts = <String>[];
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
-      commit: commitTurn,
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
       readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
@@ -247,7 +265,11 @@ void main() {
     final routes = <bool>[];
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
-      commit: commitTurn,
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
       readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
@@ -283,7 +305,11 @@ void main() {
     var calls = 0;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
-      commit: commitTurn,
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
       readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => true,
@@ -311,7 +337,11 @@ void main() {
     var calls = 0;
     final workflow = ProjectTaskReviewWorkflow(
       conversationId: 'task',
-      commit: commitTurn,
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
       readGitState: gitState,
       readConversation: () => conversation,
       isSelected: () => selected,
@@ -344,8 +374,8 @@ void main() {
       commitPrompts.single,
       allOf(
         contains('Source: ROADMAP.md:4'),
-        contains('mark it done'),
-        contains('- lib/task.dart'),
+        contains('index is already prepared'),
+        contains('- /repo/lib/task.dart'),
         contains('Do not push'),
         // Session f4269d8c: copying the log's run-on subjects produced a
         // 150-character subject holding the whole body.
@@ -353,6 +383,77 @@ void main() {
         contains('second -m paragraph'),
       ),
     );
+  });
+
+  test(
+    'missing roadmap preparation stops before the commit callback',
+    () async {
+      var conversation = initial();
+      var inspections = 0;
+      var preparations = 0;
+      final workflow = cleanTaskWorkflow(
+        read: () => conversation,
+        update: (next) => conversation = next,
+        commit: commitTurn,
+        readGitState: gitState,
+        prepareCommit: (_, _) async {
+          preparations++;
+          return true;
+        },
+        readCommitSnapshot: (scope) async {
+          inspections++;
+          final snapshot = fakeTaskCommitSnapshot(
+            scope,
+            (await gitState([]))!.head,
+          );
+          return inspections == 1
+              ? snapshot
+              : ProjectTaskCommitSnapshot(
+                  head: snapshot.head,
+                  indexFingerprint: 'prepared-index',
+                  fileFingerprints: snapshot.fileFingerprints,
+                  stagedPaths: scope.reviewedPaths,
+                  unstagedPaths: {},
+                );
+        },
+      );
+      expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+      expect(preparations, 1);
+      expect(workflow.stopReason, contains('roadmap update is missing'));
+      expect(commitPrompts, isEmpty);
+    },
+  );
+
+  test('unrelated staged work stops before preparation or commit', () async {
+    var conversation = initial();
+    var preparations = 0;
+    final workflow = cleanTaskWorkflow(
+      read: () => conversation,
+      update: (next) => conversation = next,
+      commit: commitTurn,
+      readGitState: gitState,
+      prepareCommit: (_, _) async {
+        preparations++;
+        return true;
+      },
+      readCommitSnapshot: (scope) async {
+        final snapshot = fakeTaskCommitSnapshot(
+          scope,
+          (await gitState([]))!.head,
+        );
+        return ProjectTaskCommitSnapshot(
+          head: snapshot.head,
+          indexFingerprint: 'index',
+          fileFingerprints: snapshot.fileFingerprints,
+          stagedPaths: {...scope.paths, '/repo/unrelated.txt'},
+          unstagedPaths: {},
+        );
+      },
+    );
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(workflow.stopReason, contains('unrelated staged'));
+    expect(preparations, 0);
+    expect(commitPrompts, isEmpty);
   });
 
   test('does not commit an incomplete or guarded review', () async {
@@ -429,7 +530,9 @@ void main() {
       },
     );
     expect(await workflow.run(), ProjectTaskReviewResult.stopped);
-    expect(inspectedPaths.first, ['lib/task.dart']);
+    expect(inspectedPaths.firstWhere((paths) => paths.isNotEmpty), [
+      'lib/task.dart',
+    ]);
     expect(inspectedPaths.last, ['lib/task.dart', 'ROADMAP.md']);
     expect(workflow.stopReason, contains('ROADMAP.md'));
   });
@@ -480,6 +583,9 @@ ProjectTaskReviewWorkflow cleanTaskWorkflow({
   required Future<bool> Function(String) commit,
   required Future<ProjectTaskGitState?> Function(List<String>) readGitState,
   String reviewResponse = 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
+  Future<bool> Function(String, ProjectTaskCommitScope)? prepareCommit,
+  Future<ProjectTaskCommitSnapshot?> Function(ProjectTaskCommitScope)?
+  readCommitSnapshot,
 }) {
   final now = DateTime(2026);
   var calls = 0;
@@ -488,7 +594,13 @@ ProjectTaskReviewWorkflow cleanTaskWorkflow({
     readConversation: read,
     isSelected: () => true,
     isWaitingForUser: () => false,
-    commit: commit,
+    commit: (prompt, scope) => commit(prompt),
+    projectRoot: '/repo',
+    prepareCommit: prepareCommit ?? (_, _) async => true,
+    readCommitSnapshot:
+        readCommitSnapshot ??
+        (scope) async =>
+            fakeTaskCommitSnapshot(scope, (await readGitState([]))!.head),
     readGitState: readGitState,
     send: (_, {required codeReview}) async {
       calls++;

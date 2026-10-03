@@ -8,6 +8,8 @@ import 'package:caverno/features/project_farm/domain/entities/project_task_git_s
 import 'package:caverno/features/project_farm/domain/project_task_progress.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/project_task_commit_test_support.dart';
+
 void main() {
   final now = DateTime(2026);
   const subtasks = [
@@ -83,6 +85,10 @@ void main() {
     String subtaskReply = 'Done.\nPROJECT_TASK_SUBTASK_DONE',
     bool finalTurnEdits = true,
   }) => ProjectTaskReviewWorkflow(
+    projectRoot: '/repo',
+    prepareCommit: (_, _) async => true,
+    readCommitSnapshot: (scope) async =>
+        fakeTaskCommitSnapshot(scope, 'head-$commits'),
     conversationId: 'task',
     readConversation: () => conversation,
     isSelected: () => true,
@@ -107,7 +113,7 @@ void main() {
       }
       return true;
     },
-    commit: (_) async {
+    commit: (_, _) async {
       commits++;
       return true;
     },
@@ -212,6 +218,10 @@ void main() {
 
   test('runs the task as one step when decomposition gives nothing', () async {
     final run = ProjectTaskReviewWorkflow(
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, 'head-$commits'),
       conversationId: 'task',
       readConversation: () => conversation,
       isSelected: () => true,
@@ -229,7 +239,7 @@ void main() {
             : reply('Verified.\nPROJECT_TASK_READY_FOR_REVIEW', withDiff: true);
         return true;
       },
-      commit: (_) async {
+      commit: (_, _) async {
         commits++;
         return true;
       },
@@ -247,6 +257,10 @@ void main() {
     // Coding verification marks the subtask blocked when the turn's tests
     // fail; the model's done marker must not overwrite that verdict.
     final run = ProjectTaskReviewWorkflow(
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, 'head-$commits'),
       conversationId: 'task',
       readConversation: () => conversation,
       isSelected: () => true,
@@ -269,7 +283,7 @@ void main() {
       markSubtaskDone: (id) async => marked.add(id),
       onProgress: reports.add,
       send: (prompt, {required codeReview}) async => true,
-      commit: (_) async => true,
+      commit: (_, _) async => true,
       readGitState: (_) async => null,
     );
 
@@ -285,6 +299,10 @@ void main() {
     // Session b2971ae0: the re-run made no edit because the work was done.
     final commitPrompts = <String>[];
     final run = ProjectTaskReviewWorkflow(
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, 'head-$commits'),
       conversationId: 'task',
       readConversation: () => conversation,
       isSelected: () => true,
@@ -307,7 +325,7 @@ void main() {
               );
         return true;
       },
-      commit: (prompt) async {
+      commit: (prompt, scope) async {
         commitPrompts.add(prompt);
         commits++;
         return true;
@@ -341,6 +359,10 @@ void main() {
     final requested = <List<String>>[];
     ProjectTaskReviewWorkflow workflow({required bool readsGit}) =>
         ProjectTaskReviewWorkflow(
+          projectRoot: '/repo',
+          prepareCommit: (_, _) async => true,
+          readCommitSnapshot: (scope) async =>
+              fakeTaskCommitSnapshot(scope, 'head-$commits'),
           conversationId: 'task',
           readConversation: () => conversation,
           isSelected: () => true,
@@ -353,7 +375,7 @@ void main() {
                 : reply('Verified.\nPROJECT_TASK_READY_FOR_REVIEW');
             return true;
           },
-          commit: (_) async {
+          commit: (_, _) async {
             commits++;
             return true;
           },
@@ -397,6 +419,10 @@ void main() {
       // the two before it, and the per-turn change check refused completion.
       final recorded = <List<String>>[];
       final run = ProjectTaskReviewWorkflow(
+        projectRoot: '/repo',
+        prepareCommit: (_, _) async => true,
+        readCommitSnapshot: (scope) async =>
+            fakeTaskCommitSnapshot(scope, 'head-$commits'),
         conversationId: 'task',
         readConversation: () => conversation,
         isSelected: () => true,
@@ -413,7 +439,7 @@ void main() {
               : reply('Verified.\nPROJECT_TASK_READY_FOR_REVIEW');
           return true;
         },
-        commit: (_) async {
+        commit: (_, _) async {
           commits++;
           return true;
         },

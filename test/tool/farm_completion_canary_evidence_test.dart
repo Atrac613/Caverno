@@ -10,6 +10,17 @@ void main() {
     'skippedCount': 0,
     'mainReadiness': {'status': 'ready'},
   };
+  Map<String, dynamic> prepared() => {
+    'head': 'before',
+    'indexFingerprint': 'native-index-hash',
+    'fileFingerprints': {
+      'fixture.py': 'code-hash',
+      'roadmap.md': 'roadmap-hash',
+    },
+    'stagedPaths': ['fixture.py', 'roadmap.md'],
+    'taskUnstagedPaths': [],
+    'roadmapComplete': true,
+  };
   Map<String, Map<String, dynamic>> records() => {
     for (final name in farmCompletionCases)
       name: {
@@ -19,7 +30,11 @@ void main() {
         'liveMemoryCalls': 1,
         'callsByStage': {
           'implementation': 1,
-          if (name != 'failedVerification') ...{'review': 1, 'commit': 1},
+          if (name != 'failedVerification') ...{
+            'review': 1,
+            'prepare': 1,
+            'commit': 1,
+          },
           if (name == 'reviewRepair') 'repair': 1,
         },
         'nativeExecutions': [
@@ -31,6 +46,10 @@ void main() {
         'initialHead': 'before',
         'finalHead': name == 'failedVerification' ? 'before' : 'after',
         'gitExecutions': [],
+        'preparationSnapshots': name == 'failedVerification'
+            ? []
+            : [prepared(), prepared()],
+        'commitPermit': name == 'failedVerification' ? null : prepared(),
         'oracle': {'exit_code': 0},
         'changedFiles': 'fixture.py\nroadmap.md',
         'finalStatus': ' M unrelated.txt',
@@ -40,6 +59,33 @@ void main() {
   };
   test('accepts all required live paths and scoped commits', () {
     expect(farmCompletionEvidenceGaps(summary, records()), isEmpty);
+  });
+  test('rejects missing or altered native preparation', () {
+    for (final field in ['preparationSnapshots', 'commitPermit']) {
+      final cases = records();
+      cases['normal']!.remove(field);
+      expect(
+        farmCompletionEvidenceGaps(summary, cases),
+        contains('normal lacks accepted native commit preparation evidence.'),
+      );
+    }
+    final cases = records();
+    (cases['normal']!['commitPermit'] as Map)['indexFingerprint'] = 'changed';
+    expect(farmCompletionEvidenceGaps(summary, cases), isNotEmpty);
+  });
+  test('rejects commit execution during preparation', () {
+    final cases = records();
+    cases['normal']!['gitExecutions'] = [
+      {
+        'stage': 'prepare',
+        'mutation': true,
+        'arguments': {'command': 'commit -m "too early"'},
+      },
+    ];
+    expect(
+      farmCompletionEvidenceGaps(summary, cases),
+      contains('normal executed Git mutations outside their task phase.'),
+    );
   });
   test('rejects skipped tests and missing cases', () {
     expect(

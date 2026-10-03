@@ -19,6 +19,36 @@ class _ToolEnabledLoggingNoConfirmSettingsNotifier extends SettingsNotifier {
 }
 
 void registerChatNotifierGitGuardrailTests() {
+  test('failed-command correction notice keeps the original answer', () {
+    const claims = FinalAnswerClaimDetector();
+    const notice =
+        'A command exited with non-zero exit code 1, so any success, upload, '
+        'release, pass, or completion claim is unverified. Treat the command '
+        'as failed until a later command-execution tool result exits '
+        'successfully.';
+    const original =
+        'Release completed successfully.\n\n'
+        '1. Ran the build\n2. Uploaded the archive\n3. Tagged the release';
+
+    final corrected = claims.messageContentWithPrependedClaimCorrectionNotice(
+      original,
+      notice,
+    );
+
+    // The original answer stays visible and the correction comes first.
+    expect(corrected, startsWith(notice));
+    expect(corrected, contains(original));
+
+    // Running the guard again must not stack a second copy of the notice.
+    expect(
+      claims.messageContentWithPrependedClaimCorrectionNotice(
+        corrected,
+        notice,
+      ),
+      corrected,
+    );
+  });
+
   test('worktree conversations scope project tools to the worktree root', () {
     final localController = StreamController<String>();
     final appLifecycleService = _MockAppLifecycleService();

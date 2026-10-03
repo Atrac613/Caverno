@@ -263,7 +263,7 @@ void main() {
               finalBoundary++;
               return false;
             },
-            commit: (_) async =>
+            commit: (_, _) async =>
                 throw StateError('Commit is outside this canary'),
             readGitState: (_) async =>
                 throw StateError('Git is outside this canary'),

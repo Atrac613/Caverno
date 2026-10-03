@@ -1,3 +1,4 @@
+import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
 import '../../domain/entities/video_attachment_draft.dart';
 import 'chat_state.dart' show ChatInteractionOrigin;
 import 'primary_turn_purpose.dart';
@@ -20,10 +21,12 @@ class QueuedChatMessage {
     this.remoteDeviceId,
     this.conversationId,
     this.purpose = PrimaryTurnPurpose.conversation,
+    this.projectTaskCommitScope,
   });
 
   final String? conversationId;
   final PrimaryTurnPurpose purpose;
+  final ProjectTaskCommitScope? projectTaskCommitScope;
   final String id;
   final String content;
   final String? modelContent;
@@ -40,30 +43,8 @@ class QueuedChatMessage {
   final String? remoteDeviceId;
   bool get hasImage => imageBase64 != null && imageBase64!.isNotEmpty;
   bool get hasVideo => video != null;
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        other is QueuedChatMessage &&
-            id == other.id &&
-            content == other.content &&
-            modelContent == other.modelContent &&
-            attachmentPath == other.attachmentPath &&
-            imageBase64 == other.imageBase64 &&
-            imageMimeType == other.imageMimeType &&
-            originalImagePath == other.originalImagePath &&
-            originalImageMimeType == other.originalImageMimeType &&
-            video == other.video &&
-            languageCode == other.languageCode &&
-            isVoiceMode == other.isVoiceMode &&
-            bypassPlanMode == other.bypassPlanMode &&
-            origin == other.origin &&
-            remoteDeviceId == other.remoteDeviceId &&
-            conversationId == other.conversationId &&
-            purpose == other.purpose;
-  }
-
-  @override
-  int get hashCode => Object.hash(
+  // One field tuple keeps equality and hashing aligned as queued context grows.
+  Object get _equalityValues => (
     id,
     content,
     modelContent,
@@ -80,5 +61,12 @@ class QueuedChatMessage {
     remoteDeviceId,
     conversationId,
     purpose,
+    projectTaskCommitScope,
   );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QueuedChatMessage && _equalityValues == other._equalityValues;
+  @override
+  int get hashCode => _equalityValues.hashCode;
 }

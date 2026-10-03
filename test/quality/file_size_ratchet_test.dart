@@ -67,7 +67,8 @@ const Map<String, int> _lineBudgets = {
   // tool results and moved to application/runtime, paying for the pending-edit
   // budget extension at the tool-loop limit.
   // Review inspection and initial tool selection live in a bounded helper.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8627,
+  // Dispatch and native commit scope checks are kept in a bounded part.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8585,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
@@ -525,7 +526,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/pending_ask_user_question.dart': 46,
   'lib/features/chat/presentation/providers/pending_tool_approval_projection.dart':
       54,
-  'lib/features/chat/presentation/providers/queued_chat_message.dart': 87,
+  'lib/features/chat/presentation/providers/queued_chat_message.dart': 72,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
   // -28: clearing an answered approval out of ChatState is a per-type dispatch

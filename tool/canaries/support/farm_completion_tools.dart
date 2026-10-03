@@ -124,7 +124,7 @@ final class FarmCompletionScope {
   bool canWrite(String path) =>
       fixture.writable(path) &&
       (path.endsWith('/roadmap.md')
-          ? stage == 'commit'
+          ? stage == 'prepare'
           : ['implementation', 'repair'].contains(stage));
   bool canGit(String command, String cwd) {
     if (cwd != fixture.root.path ||
@@ -206,7 +206,7 @@ final class FarmCompletionScope {
           );
     }
     if (args.join(' ') == 'rev-parse HEAD') return true;
-    if (stage != 'commit') {
+    if (!['prepare', 'commit'].contains(stage)) {
       return false;
     }
     if ((args.length == 3 || args.length == 4) &&

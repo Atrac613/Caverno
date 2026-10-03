@@ -43,6 +43,7 @@ List<String> farmCompletionEvidenceGaps(
             if (name != 'reviewRepair') 'implementation',
             'review',
             if (name == 'reviewRepair') 'repair',
+            'prepare',
             'commit',
           ];
     if (required.any((stage) => _count(counts[stage]) < 1)) {
@@ -63,10 +64,28 @@ List<String> farmCompletionEvidenceGaps(
           _list(
             record['gitExecutions'],
           ).any((entry) => _map(entry)['mutation'] != false) ||
-          _count(counts['commit']) != 0) {
+          _count(counts['commit']) != 0 ||
+          _count(counts['prepare']) != 0 ||
+          _list(record['preparationSnapshots']).isNotEmpty ||
+          record['commitPermit'] != null) {
         gaps.add('$name did not stop before Git mutation.');
       }
     } else {
+      if (!_hasNativePreparation(record)) {
+        gaps.add('$name lacks accepted native commit preparation evidence.');
+      }
+      if (_list(record['gitExecutions']).any((entry) {
+        final execution = _map(entry);
+        if (execution['mutation'] == false) return false;
+        final command = _map(execution['arguments'])['command'];
+        return command is! String ||
+            !(execution['stage'] == 'prepare' &&
+                    command.startsWith('add -- ') ||
+                execution['stage'] == 'commit' &&
+                    command.startsWith('commit -m '));
+      })) {
+        gaps.add('$name executed Git mutations outside their task phase.');
+      }
       if (record['result'] != 'committed' ||
           record['finalHead'] == record['initialHead'] ||
           _map(record['oracle'])['exit_code'] != 0 ||
@@ -84,6 +103,40 @@ List<String> farmCompletionEvidenceGaps(
   return gaps;
 }
 
+bool _hasNativePreparation(Map<String, dynamic> record) {
+  final snapshots = _list(record['preparationSnapshots']);
+  if (snapshots.length != 2) return false;
+  final before = _map(snapshots.first);
+  final after = _map(snapshots.last);
+  final permit = _map(record['commitPermit']);
+  const files = ['fixture.py', 'roadmap.md'];
+  final hashes = _map(after['fileFingerprints']);
+  final permitted = _map(permit['fileFingerprints']);
+  return before['head'] == record['initialHead'] &&
+      after['head'] == before['head'] &&
+      permit['head'] == after['head'] &&
+      after['indexFingerprint'] is String &&
+      (after['indexFingerprint'] as String).isNotEmpty &&
+      permit['indexFingerprint'] == after['indexFingerprint'] &&
+      hashes.length == files.length &&
+      permitted.length == files.length &&
+      files.every(
+        (file) =>
+            hashes[file] is String &&
+            (hashes[file] as String).isNotEmpty &&
+            hashes[file] == permitted[file],
+      ) &&
+      _map(before['fileFingerprints'])['fixture.py'] == hashes['fixture.py'] &&
+      _list(after['stagedPaths']).join(',') == files.join(',') &&
+      _list(permit['stagedPaths']).join(',') == files.join(',') &&
+      after['roadmapComplete'] == true &&
+      permit['roadmapComplete'] == true &&
+      after['taskUnstagedPaths'] is List &&
+      _list(after['taskUnstagedPaths']).isEmpty &&
+      permit['taskUnstagedPaths'] is List &&
+      _list(permit['taskUnstagedPaths']).isEmpty;
+}
+
 Map<String, dynamic> reconcileFarmCompletionEvidence(
   Map<String, dynamic> input,
   Map<String, Map<String, dynamic>> cases,
@@ -96,7 +149,7 @@ Map<String, dynamic> reconcileFarmCompletionEvidence(
       'requiredScenarios': farmCompletionCases,
       'gaps': gaps,
       'scope':
-          'Final implementation, dedicated review, repair and native local Git commit; UI and automatic scheduler excluded',
+          'Final implementation, dedicated review, repair, native preparation and local Git commit; UI and automatic scheduler excluded',
     },
     if (gaps.isNotEmpty) ...{
       'flutterResult': input['result'],

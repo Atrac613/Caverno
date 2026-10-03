@@ -1,4 +1,5 @@
 import '../../../../core/types/assistant_mode.dart';
+import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/domain/services/mesh_endpoint_router.dart';
@@ -26,11 +27,14 @@ final class PrimaryTurnRouteRuntime {
   final Set<int> _projectTaskImplementations = {};
   final Set<int> _projectTaskSteps = {};
   final Set<int> _projectTaskCommits = {};
+  final Set<int> _projectTaskCommitPreparations = {};
+  final Map<int, ProjectTaskCommitScope> _projectTaskCommitScopes = {};
 
   Future<void> capture({
     required int generation,
     required AppSettings settings,
     PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
+    ProjectTaskCommitScope? projectTaskCommitScope,
     required AssistantMode assistantMode,
     required ChatDataSource primaryDataSource,
     required EndpointHealthTracker health,
@@ -94,6 +98,16 @@ final class PrimaryTurnRouteRuntime {
       generation,
       purpose == PrimaryTurnPurpose.projectTaskCommit,
     );
+    _mark(
+      _projectTaskCommitPreparations,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskCommitPreparation,
+    );
+    if (projectTaskCommitScope != null) {
+      _projectTaskCommitScopes[generation] = projectTaskCommitScope;
+    } else {
+      _projectTaskCommitScopes.remove(generation);
+    }
     if (codeReview) {
       _codeReviews.add(generation);
     } else {
@@ -163,11 +177,17 @@ final class PrimaryTurnRouteRuntime {
   bool isProjectTaskCommit(int generation) =>
       _projectTaskCommits.contains(generation);
 
+  bool isProjectTaskCommitPreparation(int generation) =>
+      _projectTaskCommitPreparations.contains(generation);
+  ProjectTaskCommitScope? commitScope(int generation) =>
+      _projectTaskCommitScopes[generation];
+
   /// Any project-task turn the farm workflow settles by a structured marker.
   bool isProjectTaskTurn(int generation) =>
       isProjectTaskImplementation(generation) ||
       isProjectTaskStep(generation) ||
-      isProjectTaskCommit(generation);
+      isProjectTaskCommit(generation) ||
+      isProjectTaskCommitPreparation(generation);
 
   static void _mark(Set<int> set, int generation, bool member) =>
       member ? set.add(generation) : set.remove(generation);
@@ -176,6 +196,8 @@ final class PrimaryTurnRouteRuntime {
     _projectTaskImplementations.remove(generation);
     _projectTaskSteps.remove(generation);
     _projectTaskCommits.remove(generation);
+    _projectTaskCommitPreparations.remove(generation);
+    _projectTaskCommitScopes.remove(generation);
     _routes.remove(generation);
     _codeReviews.remove(generation);
   }

@@ -104,6 +104,13 @@ extension ChatNotifierGitHandlers on ChatNotifier {
     }
     final expired = _expiredApproval(toolCall.name, approvalCache);
     if (expired != null) return expired;
+    final commitFailure = await _recheckTaskCommitBeforeExecution(
+      toolCall,
+      approvalCache,
+    );
+    if (commitFailure != null) return commitFailure;
+    final revoked = _expiredApproval(toolCall.name, approvalCache);
+    if (revoked != null) return revoked;
     final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: gitArguments,

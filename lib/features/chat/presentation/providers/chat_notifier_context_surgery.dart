@@ -104,10 +104,12 @@ extension ChatNotifierPrimaryModelRouting on ChatNotifier {
     required Conversation? conversation,
     required bool bypassPlanMode,
     required PrimaryTurnPurpose purpose,
+    ProjectTaskCommitScope? projectTaskCommitScope,
   }) => _primaryRoutes.capture(
     generation: owner.interactionGeneration,
     settings: _settings,
     purpose: purpose,
+    projectTaskCommitScope: projectTaskCommitScope,
     assistantMode: bypassPlanMode
         ? AssistantMode.coding
         : _resolveAssistantMode(currentConversation: conversation),

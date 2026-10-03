@@ -21,6 +21,8 @@ import 'package:caverno/features/project_farm/application/project_task_review_tu
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
 import 'package:caverno/features/project_farm/application/project_task_step_turn_runner.dart';
 import 'package:caverno/features/project_farm/data/project_git_status_reader.dart';
+import 'package:caverno/features/project_farm/data/project_task_commit_reader.dart';
+import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,6 +131,32 @@ void main() {
         String? outcome;
         final turns = <Map<String, dynamic>>[];
         final phases = <String>[];
+        final preparationSnapshots = <Map<String, dynamic>>[];
+        Map<String, dynamic>? commitPermit;
+        Map<String, dynamic> snapshotEvidence(
+          ProjectTaskCommitSnapshot snapshot,
+        ) {
+          String relative(String file) => file.substring(root.path.length + 1);
+          return {
+            'head': snapshot.head,
+            'indexFingerprint': snapshot.indexFingerprint,
+            'fileFingerprints': {
+              for (final entry in snapshot.fileFingerprints.entries)
+                relative(entry.key): entry.value,
+            },
+            'stagedPaths': snapshot.stagedPaths.map(relative).toList()..sort(),
+            'taskUnstagedPaths': snapshot.unstagedPaths
+                .where(
+                  (file) =>
+                      file == '${root.path}/fixture.py' ||
+                      file == '${root.path}/roadmap.md',
+                )
+                .map(relative)
+                .toList(),
+            'roadmapComplete': snapshot.roadmapAlreadyDone,
+          };
+        }
+
         Map<String, dynamic>? oracle;
         var passed = false;
         try {
@@ -211,16 +239,21 @@ void main() {
             ),
             waitForCompletion: wait,
           );
-          final commit = ProjectTaskStepTurnRunner(
+          ProjectTaskStepTurnRunner commitRunner(
+            ProjectTaskCommitScope scope,
+            bool preparing,
+          ) => ProjectTaskStepTurnRunner(
             readConversation: readTask,
             isSelected: selected,
             isWaitingForUser: waiting,
             admits: ProjectTaskStepTurnRunner.completedGoal,
-            sendTurn: (prompt) => notifier.sendMessage(
+            sendTurn: (prompt) => notifier.sendProjectTaskCommit(
               prompt,
+              scope,
               languageCode: 'en',
-              bypassPlanMode: true,
-              purpose: PrimaryTurnPurpose.projectTaskCommit,
+              purpose: preparing
+                  ? PrimaryTurnPurpose.projectTaskCommitPreparation
+                  : PrimaryTurnPurpose.projectTaskCommit,
             ),
             waitForCompletion: wait,
           );
@@ -241,10 +274,26 @@ void main() {
               tools.scope.stage = stage;
               return runner.send(prompt, codeReview: codeReview);
             },
-            commit: (prompt) {
+            projectRoot: root.path,
+            readCommitSnapshot: (scope) async {
+              final snapshot = await const ProjectTaskCommitReader().read(
+                scope,
+              );
+              if (snapshot != null) {
+                preparationSnapshots.add(snapshotEvidence(snapshot));
+              }
+              return snapshot;
+            },
+            prepareCommit: (prompt, scope) {
+              source.beginTurn('prepare');
+              tools.scope.stage = 'prepare';
+              return commitRunner(scope, true).send(prompt);
+            },
+            commit: (prompt, scope) {
+              commitPermit = snapshotEvidence(scope.prepared!);
               source.beginTurn('commit');
               tools.scope.stage = 'commit';
-              return commit.send(prompt);
+              return commitRunner(scope, false).send(prompt);
             },
             readGitState: (paths) => gitReader.readTaskState(root.path, paths),
             readTaskPatch: (paths) => gitReader.readTaskPatch(root.path, paths),
@@ -310,6 +359,10 @@ void main() {
           );
           expect(reviews.length, lessThanOrEqualTo(acceptedReviews.length * 2));
           expect(
+            turns.where((turn) => turn['stage'] == 'prepare'),
+            hasLength(failed ? 0 : 1),
+          );
+          expect(
             turns.where((turn) => turn['stage'] == 'commit'),
             hasLength(failed ? 0 : 1),
           );
@@ -343,7 +396,7 @@ void main() {
               expect(turn['head'], fixture.initialHead);
             }
             expect(turn['answer'], isNot(contains('[Tool dispatch error:')));
-            if (turn['stage'] != 'commit') {
+            if (!['prepare', 'commit'].contains(turn['stage'])) {
               expect(turn['roadmap'], farmCompletionRoadmap);
             }
           }
@@ -579,6 +632,8 @@ void main() {
                 'turns': turns,
                 'nativeExecutions': tools.nativeExecutions,
                 'gitExecutions': tools.gitExecutions,
+                'preparationSnapshots': preparationSnapshots,
+                'commitPermit': commitPermit,
                 'approvals': approver?.decisions,
                 'oracle': oracle,
                 'persistedConversation': saved?.toJson(),

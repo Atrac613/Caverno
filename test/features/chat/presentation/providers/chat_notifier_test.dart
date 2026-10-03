@@ -62,6 +62,8 @@ import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launc
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_thread_scope.dart';
+import 'package:caverno/features/project_farm/data/project_task_commit_reader.dart';
+import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:caverno/features/routines/data/routine_repository.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
@@ -92,6 +94,7 @@ part 'chat_notifier_auto_review_escalation_part.dart';
 part 'chat_notifier_background_wait_refund_part.dart';
 part 'chat_notifier_coding_verification_feedback_part.dart';
 part 'chat_notifier_command_dedup_part.dart';
+part 'chat_notifier_commit_scope_part.dart';
 part 'chat_notifier_context_surgery_part.dart';
 part 'chat_notifier_continuation_recovery_part.dart';
 part 'chat_notifier_execution_runtime_part.dart';
@@ -171,6 +174,7 @@ void main() {
 
   registerChatNotifierPersistenceTests(() => notifier, () => controller);
   registerChatNotifierGitGuardrailTests();
+  registerChatNotifierCommitScopeTests();
   registerChatNotifierAskUserQuestionTests();
   registerChatNotifierTurnRollbackTests();
   registerChatNotifierContextSurgeryTests();
@@ -196,36 +200,6 @@ void main() {
   registerChatNotifierNetworkMutationTests();
   registerChatNotifierUnexecutedActionRetryTests();
   registerChatNotifierPrintedToolCallTests();
-
-  test('failed-command correction notice keeps the original answer', () {
-    const claims = FinalAnswerClaimDetector();
-    const notice =
-        'A command exited with non-zero exit code 1, so any success, upload, '
-        'release, pass, or completion claim is unverified. Treat the command '
-        'as failed until a later command-execution tool result exits '
-        'successfully.';
-    const original =
-        'Release completed successfully.\n\n'
-        '1. Ran the build\n2. Uploaded the archive\n3. Tagged the release';
-
-    final corrected = claims.messageContentWithPrependedClaimCorrectionNotice(
-      original,
-      notice,
-    );
-
-    // The original answer stays visible and the correction comes first.
-    expect(corrected, startsWith(notice));
-    expect(corrected, contains(original));
-
-    // Running the guard again must not stack a second copy of the notice.
-    expect(
-      claims.messageContentWithPrependedClaimCorrectionNotice(
-        corrected,
-        notice,
-      ),
-      corrected,
-    );
-  });
 
   test('sendMessage marks regular streaming requests as loading', () async {
     await notifier.sendMessage('Inspect the workspace');

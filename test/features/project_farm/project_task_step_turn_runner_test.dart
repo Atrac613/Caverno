@@ -49,6 +49,18 @@ void main() {
     expect(conversation.goal!.status, ConversationGoalStatus.completed);
   });
 
+  test('completed goals still respect disablement and budget', () async {
+    for (final goal in [
+      conversation.goal!.copyWith(enabled: false),
+      conversation.goal!.copyWith(turnBudget: 1, turnsUsed: 1),
+      conversation.goal!.copyWith(tokenBudget: 10, tokenUsage: 10),
+    ]) {
+      conversation = conversation.copyWith(goal: goal);
+      expect(await runner.send('Commit'), isFalse);
+    }
+    expect(sends, 0);
+  });
+
   test('does not commit an unfinished goal', () async {
     conversation = conversation.copyWith(
       goal: conversation.goal!.copyWith(status: ConversationGoalStatus.active),

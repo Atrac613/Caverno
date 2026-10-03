@@ -22,7 +22,7 @@ void main() {
   test('roadmap mutation is admitted only after clean review', () {
     final value = scope();
     expect(value.canWrite('/private/tmp/farm-scope/roadmap.md'), isFalse);
-    value.stage = 'commit';
+    value.stage = 'prepare';
     expect(value.canWrite('/private/tmp/farm-scope/roadmap.md'), isTrue);
     expect(value.canWrite('/private/tmp/farm-scope/fixture.py'), isFalse);
   });

@@ -14,6 +14,9 @@ enum PrimaryTurnPurpose {
   /// tool call (session 80dc7079).
   projectTaskStep,
 
+  /// Updates roadmap bookkeeping and stages the reviewed task; never commits.
+  projectTaskCommitPreparation,
+
   /// Commits the reviewed task patch after implementation has completed.
   projectTaskCommit,
 

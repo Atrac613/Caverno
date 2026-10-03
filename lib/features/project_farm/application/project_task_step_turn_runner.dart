@@ -32,7 +32,9 @@ final class ProjectTaskStepTurnRunner {
 
   /// The commit turn runs only after implementation completed the goal.
   static bool completedGoal(ConversationGoal goal) =>
-      goal.status == ConversationGoalStatus.completed;
+      goal.enabled &&
+      goal.status == ConversationGoalStatus.completed &&
+      !goal.budgetExceeded;
 
   final Conversation? Function() readConversation;
   final bool Function() isSelected;

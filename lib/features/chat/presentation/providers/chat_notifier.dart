@@ -26,6 +26,8 @@ import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
+import '../../../project_farm/data/project_task_commit_reader.dart';
+import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/external_tool_hook_service.dart';
@@ -303,6 +305,7 @@ part 'chat_notifier_browser_handlers.dart';
 part 'chat_notifier_cancellation.dart';
 part 'chat_notifier_coding_continuation_recovery.dart';
 part 'chat_notifier_coding_verification_feedback.dart';
+part 'chat_notifier_commit_scope.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_error_handling.dart';
@@ -2400,6 +2403,7 @@ class ChatNotifier extends Notifier<ChatState> {
           : null,
       conversationId: ownerConversationId,
       purpose: purpose,
+      projectTaskCommitScope: ProjectTaskCommitScope.forEnqueue,
     );
     // Only when the user asked to interrupt. Queueing stays the default
     // because "run this after" is a different intent from "do this instead",
@@ -2664,6 +2668,7 @@ class ChatNotifier extends Notifier<ChatState> {
         conversation: currentConversation,
         bypassPlanMode: bypassPlanMode,
         purpose: queuedMessage.purpose,
+        projectTaskCommitScope: queuedMessage.projectTaskCommitScope,
       );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return turnOwner;
@@ -3852,7 +3857,9 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     final fileTools = _mcpToolService?..beginChatFileTurnCheckpoint(turnOwner);
     try {
-      allowedToolNames ??= _readOnlyReviewToolNames(generation);
+      allowedToolNames ??=
+          _commitScopeToolNames(generation) ??
+          _readOnlyReviewToolNames(generation);
       final allTools = _toolDefinitionsAllowedBy(allowedToolNames);
       _activeResponseRegistry.setTools(
         generation,
@@ -7502,55 +7509,6 @@ class ChatNotifier extends Notifier<ChatState> {
     List<ToolResultInfo> toolResults,
   ) => _toolLoopRecoveryPolicy
       .toolResultsMentionExactNonZeroExitCodeExpectation(toolResults);
-
-  /// Dispatches tools while intercepting SSH calls that require confirmation.
-  Future<McpToolResult> _dispatchToolCall(
-    ToolCallInfo toolCall, {
-    int? interactionGeneration,
-    String? projectRoot,
-  }) async {
-    final approvalCache = _approvalCacheForGeneration(interactionGeneration);
-    if (interactionGeneration != null && approvalCache == null) {
-      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
-    }
-    return TurnProjectRoot.runScoped(
-      projectRoot == null
-          ? _turnProjectRootFor(interactionGeneration)
-          : TurnProjectRoot(projectRoot),
-      () => TurnGeneration.runScoped(
-        interactionGeneration,
-        () => TurnThread.runScoped(
-          interactionGeneration == null
-              ? null
-              : _activeResponseConversationIdForGeneration(
-                  interactionGeneration,
-                ),
-          () => ChatToolDispatcher(
-            enforcePlanningPolicy: (toolCall) =>
-                _enforcePlanningToolPolicy(toolCall, interactionGeneration),
-            enforceNetworkReadTaint: (toolCall) =>
-                _enforceNetworkReadTaint(toolCall, approvalCache),
-            handleComputerUseAction: _ownerComputerUseHandler(approvalCache),
-            handleComputerUseObservation:
-                _handleComputerUseActionWithoutApproval,
-            handleBrowserAction: _ownerBrowserActionHandler(approvalCache),
-            handleBrowserObservation: _handleBrowserActionWithoutApproval,
-            handleNetworkMutation: _ownerNetworkMutationHandler(approvalCache),
-            handlerRegistry: _buildToolHandlerRegistry(
-              interactionGeneration: interactionGeneration,
-              approvalCache: approvalCache,
-              projectRoot: projectRoot,
-            ),
-            executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
-              name: toolCall.name,
-              arguments: toolCall.arguments,
-            ),
-            validateArguments: _mcpToolService?.checkToolArguments,
-          ).dispatch(toolCall),
-        ),
-      ),
-    );
-  }
 
   /// [owner] selects the owner-bound execution facade, which dispatches by
   /// identity rather than tool name; [approvalOwner] only says who to ask when

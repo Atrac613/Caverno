@@ -7,8 +7,10 @@ import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/domain/services/project_task_implementation_instructions.dart';
 import '../../chat/presentation/slash_commands/slash_command_prompt_template.dart';
+import '../domain/entities/project_task_commit_scope.dart';
 import '../domain/entities/project_task_git_state.dart';
 import '../domain/project_task_progress.dart';
+import 'project_task_commit_preparation.dart';
 
 /// Runs the user-started task through decomposition, implementation one
 /// subtask per turn, the dedicated review route, and a commit of the reviewed
@@ -22,6 +24,9 @@ final class ProjectTaskReviewWorkflow {
     required this.isWaitingForUser,
     required this.send,
     required this.commit,
+    this.prepareCommit,
+    this.readCommitSnapshot,
+    this.projectRoot,
     required this.readGitState,
     this.decompose,
     this.sendStep,
@@ -40,7 +45,15 @@ final class ProjectTaskReviewWorkflow {
 
   /// Sends the commit turn. The commit itself is a model tool call, so it
   /// passes through the same approval gate as any other git write.
-  final Future<bool> Function(String prompt) commit;
+  final Future<bool> Function(String prompt, ProjectTaskCommitScope scope)
+  commit;
+  final Future<bool> Function(String prompt, ProjectTaskCommitScope scope)?
+  prepareCommit;
+  final Future<ProjectTaskCommitSnapshot?> Function(
+    ProjectTaskCommitScope scope,
+  )?
+  readCommitSnapshot;
+  final String? projectRoot;
 
   /// Reads HEAD and the status of [paths]; null when git cannot be read.
   final Future<ProjectTaskGitState?> Function(List<String> paths) readGitState;
@@ -266,20 +279,49 @@ ${ContentParser.stripModelHistoryArtifacts(review.content)}''';
       return _stop('git state could not be read before the commit');
     }
     if (!_canContinue(readConversation())) return _stop(_notContinuable);
-    final prompt =
-        '''The dedicated review found no actionable findings. Finish this roadmap task by recording it in the repository:
-
-$objective
-
-1. Open the cited roadmap entry. If it is not already marked done, mark it done following that document's own conventions. Change nothing else in the roadmap.
-2. Inspect git status and the diff, then stage only the task files listed below and the roadmap file. Do not stage unrelated pre-existing changes.
-3. Commit with a message that follows this repository's commit conventions. Keep the subject to one short line of at most 72 characters and put any details in a second -m paragraph (git_execute_command keeps quoted arguments together), even if earlier commits in the log ran their details into the subject. Do not push, publish, amend, or rewrite history.
-
-Respect all approval gates. If the commit cannot be made, explain why.
-
-Task files:
-${paths.map((path) => '- $path').join('\n')}''';
-    if (!await commit(prompt)) {
+    final root = projectRoot;
+    final scope = root == null
+        ? null
+        : ProjectTaskCommitScope.fromObjective(
+            conversationId: conversationId,
+            projectRoot: root,
+            objective: objective,
+            reviewedPaths: paths,
+          );
+    final prepare = prepareCommit;
+    final inspect = readCommitSnapshot;
+    if (scope == null || prepare == null || inspect == null) {
+      return _stop(
+        'native commit preparation is unavailable or the roadmap source is invalid',
+      );
+    }
+    final baseline = await inspect(scope);
+    if (baseline == null || baseline.head != before.head) {
+      return _stop('git state could not be captured for commit preparation');
+    }
+    if (baseline.stagedPaths.difference(scope.paths).isNotEmpty) {
+      return _stop(
+        'the index includes unrelated staged files before preparation',
+      );
+    }
+    if (!_canContinue(readConversation())) return _stop(_notContinuable);
+    const preparation = ProjectTaskCommitPreparation();
+    if (!await prepare(preparation.prompt(objective, scope), scope)) {
+      return _stop('the commit preparation turn did not complete');
+    }
+    if (!_canContinue(readConversation())) return _stop(_notContinuable);
+    final prepared = await inspect(scope);
+    if (prepared == null) {
+      return _stop('prepared commit state could not be read');
+    }
+    final problem = scope.preparationProblem(baseline, prepared);
+    if (problem != null) return _stop(problem);
+    if (!_canContinue(readConversation())) return _stop(_notContinuable);
+    final authorized = scope.authorize(prepared);
+    if (!await commit(
+      preparation.commitPrompt(objective, authorized),
+      authorized,
+    )) {
       return _stop('the commit turn did not complete');
     }
     if (!_canContinue(readConversation())) return _stop(_notContinuable);

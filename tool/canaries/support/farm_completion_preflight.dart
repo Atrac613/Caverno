@@ -54,7 +54,7 @@ final class FarmCompletionPreflight {
       // current task-file inspection before this terminal reply is requested.
       return ChatCompletionResult(content: report, finishReason: 'stop');
     }
-    if (stage == 'commit') {
+    if (stage == 'prepare') {
       return switch (current) {
         0 => calls([
           write('roadmap.md', farmCompletionRoadmap.replaceFirst('[ ]', '[x]')),
@@ -65,15 +65,30 @@ final class FarmCompletionPreflight {
             'working_directory': fixture.root.path,
           }),
         ]),
-        2 => calls([
+        _ => ChatCompletionResult(
+          content: 'Roadmap and index prepared.',
+          finishReason: 'stop',
+        ),
+      };
+    }
+    if (stage == 'commit') {
+      if (current == 0) {
+        return calls([
           call('git_execute_command', {
-            'command':
-                'commit -m "fix: clamp fixture values" -m "Constrain values to the roadmap interval."',
+            'command': 'diff --cached',
             'working_directory': fixture.root.path,
           }),
-        ]),
-        _ => ChatCompletionResult(content: report, finishReason: 'stop'),
-      };
+        ]);
+      }
+      return current == 1
+          ? calls([
+              call('git_execute_command', {
+                'command':
+                    'commit -m "fix: clamp fixture values" -m "Constrain values to the roadmap interval."',
+                'working_directory': fixture.root.path,
+              }),
+            ])
+          : ChatCompletionResult(content: report, finishReason: 'stop');
     }
     if (current == 0) {
       return calls([

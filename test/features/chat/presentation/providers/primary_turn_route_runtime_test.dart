@@ -1,6 +1,7 @@
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
+import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,15 +32,20 @@ void main() {
     bool implementation = false,
     bool step = false,
     bool commit = false,
+    bool prepare = false,
+    ProjectTaskCommitScope? scope,
   }) => runtime.capture(
     generation: generation,
     settings: settings,
-    purpose: PrimaryTurnPurpose.of(
-      codeReview: codeReview,
-      projectTaskImplementation: implementation,
-      projectTaskStep: step,
-      projectTaskCommit: commit,
-    ),
+    projectTaskCommitScope: scope,
+    purpose: prepare
+        ? PrimaryTurnPurpose.projectTaskCommitPreparation
+        : PrimaryTurnPurpose.of(
+            codeReview: codeReview,
+            projectTaskImplementation: implementation,
+            projectTaskStep: step,
+            projectTaskCommit: commit,
+          ),
     assistantMode: AssistantMode.coding,
     primaryDataSource: _MockChatDataSource(),
     health: EndpointHealthTracker(),
@@ -50,6 +56,33 @@ void main() {
       logError: (_, _) {},
     ),
     record: (_) async {},
+  );
+
+  test(
+    'preparation scope is generation-owned and released or recaptured',
+    () async {
+      final runtime = PrimaryTurnRouteRuntime();
+      final scope = ProjectTaskCommitScope(
+        conversationId: 'task',
+        projectRoot: '/repo',
+        roadmapPath: '/repo/roadmap.md',
+        reviewedPaths: ['/repo/task.txt'],
+      );
+      await capture(runtime, 1, codeReview: false, prepare: true, scope: scope);
+      await capture(runtime, 2, codeReview: false);
+      expect(runtime.isProjectTaskCommitPreparation(1), isTrue);
+      expect(runtime.isProjectTaskCommit(1), isFalse);
+      expect(runtime.isProjectTaskTurn(1), isTrue);
+      expect(runtime.commitScope(1), same(scope));
+      expect(runtime.commitScope(2), isNull);
+      runtime.release(1);
+      expect(runtime.commitScope(1), isNull);
+      expect(runtime.isProjectTaskCommitPreparation(1), isFalse);
+      await capture(runtime, 1, codeReview: false, prepare: true, scope: scope);
+      await capture(runtime, 1, codeReview: false);
+      expect(runtime.commitScope(1), isNull);
+      expect(runtime.isProjectTaskCommitPreparation(1), isFalse);
+    },
   );
 
   test('a subtask step is neither implementation nor review', () async {

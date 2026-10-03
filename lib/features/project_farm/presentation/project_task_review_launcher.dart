@@ -17,6 +17,8 @@ import '../application/project_task_review_turn_runner.dart';
 import '../application/project_task_review_workflow.dart';
 import '../application/project_task_step_turn_runner.dart';
 import '../data/project_git_status_reader.dart';
+import '../data/project_task_commit_reader.dart';
+import '../domain/entities/project_task_commit_scope.dart';
 import 'providers/project_task_progress_provider.dart';
 import 'providers/roadmap_snapshot_providers.dart';
 
@@ -96,18 +98,26 @@ final class ProjectTaskReviewLauncher {
         bool Function(ConversationGoal goal) admits, {
         Future<void> Function()? reactivate,
         PrimaryTurnPurpose purpose = PrimaryTurnPurpose.projectTaskStep,
+        ProjectTaskCommitScope? commitScope,
       }) => ProjectTaskStepTurnRunner(
         readConversation: readTask,
         isSelected: selected,
         isWaitingForUser: waiting,
         admits: admits,
         reactivateCompleted: reactivate,
-        sendTurn: (prompt) => notifier.sendMessage(
-          prompt,
-          languageCode: languageCode,
-          bypassPlanMode: true,
-          purpose: purpose,
-        ),
+        sendTurn: (prompt) => commitScope == null
+            ? notifier.sendMessage(
+                prompt,
+                languageCode: languageCode,
+                bypassPlanMode: true,
+                purpose: purpose,
+              )
+            : notifier.sendProjectTaskCommit(
+                prompt,
+                commitScope,
+                languageCode: languageCode,
+                purpose: purpose,
+              ),
         waitForCompletion: notifier.waitForTurnCompletion,
       );
       final conversations = ref.read(conversationsNotifierProvider.notifier);
@@ -154,10 +164,18 @@ final class ProjectTaskReviewLauncher {
         isSelected: selected,
         isWaitingForUser: waiting,
         send: runner.send,
-        commit: step(
+        projectRoot: projectRoot,
+        readCommitSnapshot: const ProjectTaskCommitReader().read,
+        prepareCommit: (prompt, scope) => step(
+          ProjectTaskStepTurnRunner.completedGoal,
+          purpose: PrimaryTurnPurpose.projectTaskCommitPreparation,
+          commitScope: scope,
+        ).send(prompt),
+        commit: (prompt, scope) => step(
           ProjectTaskStepTurnRunner.completedGoal,
           purpose: PrimaryTurnPurpose.projectTaskCommit,
-        ).send,
+          commitScope: scope,
+        ).send(prompt),
         sendStep: step(
           ProjectTaskStepTurnRunner.activeGoal,
           reactivate: () => conversations.markCurrentGoalStatus(
