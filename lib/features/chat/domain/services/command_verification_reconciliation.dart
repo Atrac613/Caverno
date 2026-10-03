@@ -19,11 +19,7 @@ abstract final class CommandVerificationReconciliation {
     final supersededIds = <String>{};
     for (var index = results.length - 1; index >= 0; index--) {
       final result = results[index];
-      final scope = VerificationScope.of(
-        result,
-        _decode(result.result),
-        isVerification: isVerification,
-      );
+      final scope = scopeOf(result);
       if (scope == null) continue;
       if (successfulScopes.contains(scope.key)) {
         supersededIds.add(result.id);
@@ -94,6 +90,13 @@ abstract final class CommandVerificationReconciliation {
     }
     return current;
   }
+
+  static VerificationScope? scopeOf(ToolResultInfo result) =>
+      VerificationScope.of(
+        result,
+        _decode(result.result),
+        isVerification: isVerification,
+      );
 
   /// A terminal poll is dated by its dispatch, not by when it was observed.
   static Set<String> staleBackgroundResultIds(List<ToolResultInfo> results) {

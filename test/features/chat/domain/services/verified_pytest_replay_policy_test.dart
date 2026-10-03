@@ -134,6 +134,27 @@ void main() {
       isNotNull,
     );
   });
+  test('does not replay a different reporting mode as an exact result', () {
+    final quiet = ToolResultInfo(
+      id: 'quiet',
+      name: success.name,
+      arguments: {
+        'command': '.venv/bin/python -m pytest test.py -q',
+        'working_directory': root,
+      },
+      result: '{"stdout":"6 passed in 0.1s"}',
+      outcome: const ToolOutcome(exitCode: 0),
+    );
+    expect(
+      VerifiedPytestReplayPolicy.reuse(
+        call: call,
+        results: [failure, quiet],
+        pendingCalls: [call],
+        projectRoot: root,
+      ),
+      isNull,
+    );
+  });
   for (final output in ['=== 6 passed in 3.05s ===', 'done']) {
     test('validates counts when the result uses the project directory', () {
       final candidate = ToolResultInfo(

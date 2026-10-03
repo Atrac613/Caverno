@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import 'literal_shell_words.dart';
 import 'pytest_shell_invocation.dart';
 import 'pytest_test_outcome_parser.dart';
+import 'pytest_verification_scope.dart';
 
 /// A deliberately small command grammar; unsupported shell syntax stays unknown.
 final class PytestVerificationIdentity {
@@ -22,6 +23,9 @@ final class PytestVerificationIdentity {
   final List<String> words;
 
   String get replayCommand => words.map(LiteralShellWords.quote).join(' ');
+
+  /// Verification ignores verbosity; [key] preserves the reporting arguments.
+  String get verificationKey => PytestVerificationScope.key(directory, words);
 
   static PytestVerificationIdentity? parse(String command, String directory) {
     final invocation = PytestShellInvocation.parse(command, directory);

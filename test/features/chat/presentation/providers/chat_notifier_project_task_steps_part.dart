@@ -13,6 +13,7 @@ void registerChatNotifierProjectTaskStepTests() {
     'failed then prose memory failure',
     'optional environment lookup',
     'optional runtime lookup',
+    'pytest reporting changed',
   ]) {
     test('project subtask finalization and memory: $scenario', () async {
       final root = await Directory.systemTemp.createTemp('caverno_subtask_');
@@ -24,7 +25,10 @@ void registerChatNotifierProjectTaskStepTests() {
       final detached = scenario.endsWith(' detached');
       final fails = mode.startsWith('failed') || mode == 'blocked verification';
       final readOnly = mode == 'read-only done';
-      final command = 'cd ${root.path} && python3 -c "assert 1 == 1"';
+      final reportingChanged = mode == 'pytest reporting changed';
+      final command = reportingChanged
+          ? 'cd ${root.path} && python3 -m pytest test_fixture.py -v 2>&1 | tail -20'
+          : 'cd ${root.path} && python3 -c "assert 1 == 1"';
       final gate = detached ? Completer<void>() : null;
       final source = _ProjectTaskStepDataSource(
         scenario: mode,
@@ -53,6 +57,15 @@ void registerChatNotifierProjectTaskStepTests() {
               arguments: {'command': command},
             ),
           ],
+          if (reportingChanged)
+            ToolCallInfo(
+              id: 'project-runner',
+              name: 'local_execute_command',
+              arguments: {
+                'command':
+                    'cd ${root.path} && .venv/bin/python -m pytest test_fixture.py -q 2>&1 | tail -15',
+              },
+            ),
           if (mode.startsWith('optional '))
             ToolCallInfo(
               id: 'environment',
@@ -159,7 +172,7 @@ void registerChatNotifierProjectTaskStepTests() {
         service.verifications,
         mode == 'failed then passed'
             ? 2
-            : mode.startsWith('optional ')
+            : mode.startsWith('optional ') || reportingChanged
             ? 2
             : readOnly
             ? 0
@@ -344,6 +357,34 @@ class _ProjectTaskStepToolService extends _PendingBatchMcpToolService {
     }
     executedToolNames.add(name);
     verifications++;
+    if (arguments['command'].toString().contains('-m pytest')) {
+      final passed = arguments['command'].toString().contains(
+        '.venv/bin/python',
+      );
+      return McpToolResult(
+        toolName: name,
+        isSuccess: true,
+        result: jsonEncode({
+          ...arguments,
+          'working_directory': root.path,
+          'exit_code': passed ? 0 : 1,
+          'stdout': passed
+              ? '53 passed in 3.08s'
+              : 'python3: No module named pytest',
+        }),
+        outcome: ToolOutcome(
+          exitCode: passed ? 0 : 1,
+          testOutcome: passed
+              ? ToolTestOutcome(
+                  passedCount: 53,
+                  failedCount: 0,
+                  skippedCount: 0,
+                  command: arguments['command'] as String,
+                )
+              : null,
+        ),
+      );
+    }
     if (arguments['command'].toString().contains('-m pip show') ||
         arguments['command'].toString().contains('which -a')) {
       return McpToolResult(

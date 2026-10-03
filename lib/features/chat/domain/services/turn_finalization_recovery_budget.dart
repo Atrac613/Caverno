@@ -3,7 +3,6 @@ import 'dart:convert';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
 import 'command_verification_reconciliation.dart';
-import 'pytest_verification_identity.dart';
 
 /// Bounds recovery while reserving status reports for finished verification.
 final class TurnFinalizationRecoveryBudget {
@@ -49,15 +48,12 @@ final class TurnFinalizationRecoveryBudget {
           (result.outcome?.effectiveTestFailedCount ?? 0) == 0 &&
           (result.outcome?.diagnosticErrorCount ?? 0) == 0 &&
           const CodingCommandOutputIssueDetector().detect(result) == null) {
-        final identity = PytestVerificationIdentity.parse(
-          result.arguments['command']?.toString() ?? '',
-          result.arguments['working_directory']?.toString() ?? '',
-        );
+        final scope = CommandVerificationReconciliation.scopeOf(result);
         final tests = result.outcome?.testOutcome;
         verifications.add(
           jsonEncode([
             result.name,
-            identity?.key ?? result.arguments,
+            scope?.key ?? result.arguments,
             if (tests != null)
               [tests.passedCount, tests.failedCount, tests.skippedCount],
           ]),

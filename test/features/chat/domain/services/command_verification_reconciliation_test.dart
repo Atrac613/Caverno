@@ -101,7 +101,8 @@ void main() {
         'candidate',
         switch (variant) {
           'other target' => '.venv/bin/python -m pytest other.py -v',
-          'other flags' => '.venv/bin/python -m pytest test_retry.py -q',
+          'other flags' =>
+            '.venv/bin/python -m pytest test_retry.py -v -k retry',
           'unknown shell' =>
             '.venv/bin/python -m pytest test_retry.py -v && echo done',
           _ => '.venv/bin/python -m pytest test_retry.py -v',
@@ -489,6 +490,44 @@ void main() {
         '.venv/bin/python verify_logging.py && .venv/bin/python -m pytest -q';
     const cleaned = 'rm -f test_verify_log.log watcher.log && $verifier';
 
+    for (final prefix in [
+      '',
+      'cd /workspace && ',
+      'cd /workspace && python3 verify_logging.py && ',
+    ]) {
+      test('settles the same checks after a reporting change: $prefix', () {
+        const targets = 'test_a.py test_b.py';
+        final failed = command(
+          'system-runner',
+          '${prefix}python3 -m pytest $targets -v 2>&1 | tail -20',
+          exitCode: 1,
+          stdout: 'python3: No module named pytest',
+        );
+        final passed = command(
+          'project-runner',
+          '$prefix.venv/bin/python -m pytest $targets -q 2>&1 | tail -15',
+          stdout: '53 passed in 3.08s',
+        );
+        final results = [failed, passed];
+        expect(
+          CommandVerificationReconciliation.currentResults(
+            results,
+          ).map((r) => r.id),
+          ['project-runner'],
+        );
+        final evidence = ToolResultPromptBuilder.completionEvidence(results);
+        expect(evidence.hasSuccessfulExecutionVerification, isTrue);
+        expect(evidence.hasFailedExecutionVerification, isFalse);
+        expect(evidence.unresolvedErrorCount, 0);
+        expect(const UnresolvedVerificationFailure().describe(results), isNull);
+        expect(
+          results,
+          hasLength(2),
+          reason: 'the raw audit ledger is retained',
+        );
+      });
+    }
+
     test('a failed multi-runtime lookup neither verifies nor blocks work', () {
       final lookup = command(
         'runtime-lookup',
@@ -681,7 +720,7 @@ void main() {
               'test_watcher.py',
               'test_other.py',
             ),
-            'different flags' => venvScripts.replaceFirst('-v', '-q'),
+            'different flags' => venvScripts.replaceFirst('-v', '-v -k state'),
             'different directory' => venvScripts.replaceFirst(
               '/workspace',
               '/other',
@@ -747,7 +786,7 @@ void main() {
             '/workspace',
             '/other',
           ),
-          'different runner flags' => workingChain.replaceFirst('-q', '-v'),
+          'different runner flags' => workingChain.replaceFirst('-q', '-q -x'),
           _ => workingChain,
         };
         final candidate = command(

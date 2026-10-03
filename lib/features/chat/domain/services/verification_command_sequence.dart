@@ -22,7 +22,7 @@ final class VerificationCommandSequence {
 
   String _stepKey(String step) {
     final pytest = PytestVerificationIdentity.parse(step, directory);
-    if (pytest != null) return pytest.key;
+    if (pytest != null) return pytest.verificationKey;
     final words = LiteralShellWords.parse(step);
     if (words != null &&
         words.length >= 2 &&

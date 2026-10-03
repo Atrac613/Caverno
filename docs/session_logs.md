@@ -218,6 +218,11 @@ evidence contradicts it, but cannot accept a rejected invocation. After a
 rejection, successful verification still requires a new valid `update_goal`
 completion call. Edits and different passing checks do not settle an earlier
 verification failure; it remains blocking until its matching check passes.
+Pytest checks match across unambiguous reporting verbosity switches (`-v`, `-q`,
+`--verbose`, and `--quiet`). Test targets, selection and execution options,
+option values, and effective working directories must still match. Captured
+output reuse retains the original reporting arguments; verbosity changes do
+not renew implementation recovery. A failure after a passing run remains open.
 Identical goal-status arguments can be evaluated again after a file edit or
 verification command changes the captured state. Status calls and inspections
 alone do not renew their duplicate-call allowance.

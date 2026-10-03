@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart';
 import 'package:caverno/features/chat/domain/services/turn_finalization_recovery_budget.dart';
@@ -9,11 +11,17 @@ void main() {
     String id, {
     String command = 'python -m pytest test.py',
     int failed = 0,
+    bool directoryInResult = false,
   }) => ToolResultInfo(
     id: id,
     name: 'local_execute_command',
-    arguments: {'command': command, 'working_directory': '/project'},
-    result: '{}',
+    arguments: {
+      'command': command,
+      if (!directoryInResult) 'working_directory': '/project',
+    },
+    result: jsonEncode({
+      if (directoryInResult) 'working_directory': '/project',
+    }),
     outcome: ToolOutcome(
       exitCode: 0,
       testOutcome: ToolTestOutcome(
@@ -93,6 +101,32 @@ void main() {
       isFalse,
     );
   });
+  for (final directoryInResult in [false, true]) {
+    test(
+      'reporting changes do not renew implementation recovery: $directoryInResult',
+      () {
+        final budget = TurnFinalizationRecoveryBudget();
+        final verbose = verified(
+          'verbose',
+          command: 'python -m pytest test.py -v',
+          directoryInResult: directoryInResult,
+        );
+        final quiet = verified(
+          'quiet',
+          command: '.venv/bin/python -m pytest test.py -q',
+          directoryInResult: directoryInResult,
+        );
+        expect(
+          budget.claim(1, structuredTask: true, results: [verbose]),
+          isTrue,
+        );
+        expect(
+          budget.claim(1, structuredTask: true, results: [verbose, quiet]),
+          isFalse,
+        );
+      },
+    );
+  }
   test('a failed recovery verification permits only one status report', () {
     final budget = TurnFinalizationRecoveryBudget();
     ToolResultInfo failed(String id) => ToolResultInfo(

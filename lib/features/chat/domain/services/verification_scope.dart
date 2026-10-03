@@ -82,7 +82,7 @@ final class VerificationScope {
     if (pytest != null) {
       final counts = outcome?.testOutcome ?? pytest.counts(commandOutput);
       return VerificationScope._(
-        pytest.key,
+        pytest.verificationKey,
         ranClean &&
             counts != null &&
             counts.passedCount > 0 &&
@@ -99,7 +99,7 @@ final class VerificationScope {
             ]),
       ranClean,
       coveredKeys: [
-        if (sequence?.terminalPytest case final runner?) runner.key,
+        if (sequence?.terminalPytest case final runner?) runner.verificationKey,
       ],
     );
   }
