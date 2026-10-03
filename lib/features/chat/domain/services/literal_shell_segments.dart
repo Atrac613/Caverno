@@ -1,6 +1,6 @@
 /// Splits literal command lists while keeping quoted program arguments intact.
 abstract final class LiteralShellSegments {
-  static List<String>? parse(String source) {
+  static List<String>? parse(String source, {bool allowFallbacks = false}) {
     final segments = <String>[];
     String? quote;
     var start = 0;
@@ -13,13 +13,13 @@ abstract final class LiteralShellSegments {
       if (char == "'" || char == '"') {
         quote = char;
       } else if (char == ';' ||
-          char == '&' &&
+          (char == '&' || allowFallbacks && char == '|') &&
               index + 1 < source.length &&
-              source[index + 1] == '&') {
+              source[index + 1] == char) {
         final segment = source.substring(start, index).trim();
         if (segment.isEmpty) return null;
         segments.add(segment);
-        if (char == '&') index++;
+        if (char != ';') index++;
         start = index + 1;
       }
     }

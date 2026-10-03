@@ -124,6 +124,10 @@ void main() {
                 'python3 -m pip show pytest 2>/dev/null | head -3',
             exitCode: 1,
           ),
+          inspection(
+            'local_execute_command',
+            'ls .venv/bin/python* 2>/dev/null || ls venv/bin/python*',
+          ),
           inspection('git_execute_command', 'status'),
           inspection('git_execute_command', 'diff HEAD -- test.py'),
           inspection('git_execute_command', 'log --oneline -5'),
@@ -161,7 +165,9 @@ void main() {
         id: 'metadata',
         name: 'local_execute_command',
         arguments: const {
-          'command': 'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
+          'command':
+              'ls .venv/bin/python* 2>/dev/null || which python3 && '
+              'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
         },
         result: '{}',
         outcome: const ToolOutcome(exitCode: 1),

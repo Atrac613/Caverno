@@ -314,6 +314,11 @@ Literal `python -m pip show <packages>` and `pip show <packages>` queries are
 also inspection, including stderr discarded to `/dev/null` and an output-only
 `head` or `tail` limiter. An absent optional package can produce a nonzero exit
 without blocking completion or requiring installation into another interpreter.
+Inspection-only `||` fallback branches and literal `ls` path globs (`*`, `?`)
+are accepted when every branch is an environment query. Expansions, writable
+redirections, package installation, and actual checks remain outside this rule.
+Package imports still prevent cached pytest result reuse because importing a
+package can change runtime state.
 These evidence rules leave command approval classification unchanged.
 Structured task-status recovery reuses the working interpreter and directory
 from captured successful checks when requesting a complete chain rerun. Once
