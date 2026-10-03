@@ -792,6 +792,12 @@ only one.
 - The execution path is the one the 4c two-project canary exercised live.
 - An unattended pass has not been run against the user's real projects,
   because it would create real worktrees and branches.
+- A synthetic unattended scheduler/worktree canary was added on 2026-10-04.
+  Native worktree creation, live HTTP, file edits and contained verification
+  ran, but the exact newline oracle still failed after one bounded repair.
+  Live unattended readiness remains blocked; see
+  [the canary coverage record](live_llm_canary_coverage.md#software-farm-unattended-worktree-canary)
+  for artifacts and the injected environment/proposal boundaries.
 
 ### FARM6: Pull Requests
 

@@ -17,6 +17,58 @@ settings, or feature-specific execution behavior.
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 | Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, the LL16 sampler trials, a 95% saturation high-water signal, and separately versioned `ladder-v2` effective-context stages — scored with `cavernobench` and written to `benchmark_run.json` | New ladder axes or stages require evidence and a ladder-only version bump | Run after changing any probe, scoring table, or ladder stage, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
 
+## Software Farm Unattended Worktree Canary
+
+`tool/run_farm_unattended_live_canary.sh --quiet-output` connects the real
+`IdleMaintenanceScheduler` and `FarmUnattendedRunner` to the production
+launcher, worktree task scheduler, Git preparer, orchestrator and executor.
+It uses one synthetic repository without remotes, disabled hooks/signing,
+fixture preferences, an injected idle environment and a fixed verified task
+proposal. The production LL13 delegate uses the selected live endpoint, scoped
+file tools and native macOS contained verification. A pre-HTTP guard rejects
+user-home and Caverno context. No user project is dispatched.
+
+Run with the usual loaded-model preflight and managed relay:
+
+```bash
+CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1 \
+CAVERNO_LLM_API_KEY=no-key \
+CAVERNO_LLM_MODEL=replace-with-loaded-model-id \
+CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1 \
+tool/with_live_llm_loopback.sh -- tool/run_farm_unattended_live_canary.sh --quiet-output
+```
+
+Acceptance requires exactly one dispatch, successful real HTTP, a real review
+branch/worktree, the exact greeting including its newline, an unchanged
+verifier/roadmap, a green native oracle, unchanged source and worktree HEAD,
+persisted task state and the daily-limit ledger. Cleanup removes only the
+synthetic repository's worktrees. The independent evidence gate blocks the
+summary for absent or contradictory evidence. This excludes OS idle detection,
+the full maintenance-provider pipeline, live roadmap/proposal generation,
+UI, review/commit and cross-project scheduling.
+
+The 2026-10-04 `qwen3.8-27b-exl3` runs remain failed:
+
+- `farm_unattended_live_canary.paWZOg`: the test widget binding intercepted
+  HTTP; the canary now avoids that binding.
+- `farm_unattended_live_canary.gosi1N`: five successful HTTP calls and a real
+  worktree edit, but the greeting lacked its required newline. Native
+  verification failed; no live readiness was established.
+- `farm_unattended_live_canary.JNax1p`: nine successful HTTP calls with the
+  bounded verification repair. Both native checks failed on the same newline
+  requirement. Native API tool arguments omitted the newline despite the
+  reason claiming to add it. The failed verifier and edited file are retained
+  in ignored evidence, and the synthetic scratch tree was removed.
+
+The LL13 delegate now permits one repair only after an observed nonzero command
+exit, then reruns the same declared verification command. It retains the
+initial failure in the verification summary. Timeout, unavailable containment
+and cancellation never trigger repair; another failure stays unverified.
+The worktree and verifier regression suites passed 82 tests and static analysis.
+Independent gate controls rejected wrong HEAD, missing HTTP, wrong content,
+failed verification and absent evidence. The live gate remains blocked; no
+acceptance condition was relaxed and no unchanged live run was repeated.
+
 ## Software Farm Completion Canary
 
 This complements the intermediate-step canary with three required cases:
