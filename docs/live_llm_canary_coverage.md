@@ -12,9 +12,105 @@ settings, or feature-specific execution behavior.
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_chat_background_process_live_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, background process lifecycle (including `process_start`, repeated `process_wait`, observed running-state progress reporting, and zero-exit completion), content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction, subagent delegation via spawn_subagent (sync, child tool use, background result recovery) | Native tool-role compatibility, broad multi-turn continuity beyond focused parser recovery, and routine/cleanup-safety behavior beyond dedicated focused flows | Keep the chat canary suite in every model switch baseline; use `docs/long_running_process_mvp_tasks.md` when process tooling, cleanup behavior, or background-command safety changes |
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_suggestion_live_canary.sh`, `tool/run_coding_todo_app_mvp_live_canary.sh`, `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`, `tool/run_coding_word_frequency_live_canary.sh`, `tool/run_coding_markdown_toc_live_canary.sh`, `tool/run_coding_markdown_toc_exact_short_live_canary.sh`, `tool/run_coding_expense_tracker_live_canary.sh`, `tool/run_coding_weather_code_live_canary.sh`, `tool/run_coding_overwrite_transparency_live_canary.sh`, `tool/run_coding_output_feedback_live_canary.sh`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_turn_steering_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal suggestion artifact preservation, Dart-pinned MVP assembly covering CRUD persistence, deterministic text processing, Markdown structure, exact money aggregation, and CSV export, Open-Meteo WMO weather-code interpretation across saved reports, final answers, and memory extraction, write_file existing-file update transparency in final answers, zero-exit command output feedback and artifact repair, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test with exact-short TODO and Markdown TOC prompts, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, mid-turn interruption redirecting a running turn against a queued-message control arm, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused MVP, coding-goal, weather-code, overwrite-transparency, output-feedback, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, tool-result interpretation, diagnostic or verification feedback, command output guardrails, file/Git side effects, or completion/blocker inference |
 | Software Farm intermediate steps | `tool/run_farm_step_recovery_live_canary.sh` | Actual `ProjectTaskReviewWorkflow` and `ProjectTaskStepTurnRunner` driving `ChatNotifier`, native contained Python verification, optional failed environment lookup, missing-execution recovery, unresolved verification and concrete unissued-command blocking, saved answers, real LLM memory extraction, Hive reopen and next-subtask progression | Fixed decomposition; final implementation, review, commit, unattended scheduler and UI are excluded | Run after changing subtask completion, verification reconciliation or session memory guards |
+| Software Farm final completion | `tool/run_farm_completion_live_canary.sh` | Production workflow and turn runners driving ChatNotifier final implementation, dedicated read-only review, repair, native contained verification, fresh scoped Git approvals, roadmap update, real local commit, memory extraction and Hive reopen | UI, automatic scheduler, model decomposition and cross-project scheduling are excluded; the repair case injects its initial implementation and completion report | Run after changing implementation completion, review, repair or commit gates |
 | Anabasis (orchestrator) | `tool/run_anabasis_delegation_live_canary.sh` (default `live_anabasis_delegation_admission`; `CAVERNO_ANABASIS_SCENARIO=live_anabasis_acceptance` for the acceptance half) | A parent turn against a saved, approved, unstarted plan whose open questions are answered: the delegation queue rendered with `[workflow_task_id: …]`, admission of a ready task and its saved contract reaching the child, the delegated-results block naming each id by the parameter that consumes it, reading a child back across turns, and the parent recording a semantic acceptance. The runner decides three ways -- delegated, nothing offered (exit 77, inconclusive), or offered and not taken (failure) -- and reports acceptance without gating on it | Worktree delegation is not dispatched, so no `WorktreeAgentTask` is audited; the queue's four preconditions make the window narrow, so an inconclusive run is normal | Run both scenarios after changing the admission gate, the parent authority boundary, the acceptance handler, or anything in the parent's prompt. **Delegate work a child can finish**: six runs on the implementation scenario measured a parent correctly refusing to judge unfinished work, and the acceptance arrived on the first run of the reading scenario |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 | Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, the LL16 sampler trials, a 95% saturation high-water signal, and separately versioned `ladder-v2` effective-context stages — scored with `cavernobench` and written to `benchmark_run.json` | New ladder axes or stages require evidence and a ladder-only version bump | Run after changing any probe, scoring table, or ladder stage, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
+
+## Software Farm Completion Canary
+
+This complements the intermediate-step canary with three required cases:
+
+- `normal`: the live model implements, verifies, reviews and commits.
+- `reviewRepair`: the initial implementation and its completion report are
+  injected, writing an upper-bound clamp that misses negative inputs and running
+  a deliberately partial verifier.
+  The live model must identify the defect in the dedicated review, repair it,
+  verify again, report a clean second review and commit.
+- `failedVerification`: an immutable verifier requires an unavailable external
+  flag. The model must report incomplete work; no review or Git mutation may run.
+
+```bash
+CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1 \
+CAVERNO_LLM_API_KEY=no-key \
+CAVERNO_LLM_MODEL=replace-with-loaded-model-id \
+CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1 \
+tool/with_live_llm_loopback.sh -- tool/run_farm_completion_live_canary.sh --quiet-output
+```
+
+Each case creates a fresh Git repository in canonical system temporary storage,
+with synthetic local identity, no remotes, disabled hooks and signing, fresh Hive
+stores and fixture-only settings. The datasource rejects outbound home paths and
+repository context before HTTP. Reads cover named fixture text only, file effects
+are restricted to `fixture.py` and the post-review `roadmap.md`, and shell execution
+accepts only the immutable verifier through production macOS containment,
+including read-only review verification. Git is an independent native route:
+its command scope permits bounded status/diff/log reads, named task-file staging
+(together or individually, including restaging after an edit) and
+a new commit after review, each write with a fresh fixture approval.
+This is not a claim of OS containment for Git.
+
+The actual `ProjectTaskReviewWorkflow`, `ProjectTaskReviewTurnRunner` and
+`ProjectTaskStepTurnRunner` run final implementation, read-only code review and
+commit purposes. The configured review endpoint uses the same selected live
+model while preserving the separate production review route. No decomposition
+is injected or requested: these cases exercise the final task boundary.
+
+Dedicated reviews are instructed to inspect the changed files in the current
+review turn; earlier implementation reads do not prove a current inspection.
+Farm terminal review markers require successful current-turn file inspection
+evidence even when the response avoids an explicit inspection claim.
+An incomplete review is retried once through the same read-only route, within
+the existing goal budget and input gates. A second incomplete result still
+stops before commit; recovery does not accept a marker followed by a claim guard.
+Successful cases require recorded goal completion, ready/clean markers in saved
+responses, a real HEAD change, exactly the two task files in the commit, and an
+unrelated pre-existing edit left dirty and unstaged. An independently issued,
+contained oracle checks seven inputs after the commit. Optional model requests
+outside the fixture authority may be denied; a denial must not reach the native
+model execution ledger. The independently issued oracle remains a separate
+post-commit check. The failed case requires nonzero verification, incomplete
+saved response and memory verdict, unchanged
+HEAD and roadmap, and no Git mutation. All turns use real memory extraction and
+are checked after reopening Hive. The canary callbacks await asynchronous
+memory persistence between turns so each evidence snapshot is complete.
+
+`fixtures/<case>/evidence.json` contains stage observations, native results,
+approval decisions, Git state, oracle, reopened conversation/memory and outbound
+synthetic request packets. Treat these ignored reports and session logs as local
+diagnostic artifacts. Fixture repositories are deleted on completion or failure.
+The runner requires all three tests and live primary HTTP on every applicable
+stage (the injected first implementation is excluded). Its independent evidence
+gate downgrades missing, offline or skipped evidence to
+`result=failed` and `mainReadiness.status=blocked`.
+
+A model-free wiring preflight is available with
+`CAVERNO_FARM_COMPLETION_OFFLINE_PREFLIGHT=1`, the three `CAVERNO_LLM_*` values,
+and a fresh `CAVERNO_FARM_COMPLETION_REPORT_DIR`. Run
+`tool/flutter_test_quiet.sh --no-pub tool/canaries/farm_completion_live_canary_test.dart`.
+It uses real fixture file, contained process and Git tools, but never qualifies
+as live evidence.
+
+The 2026-10-03 baseline with `qwen3.8-27b-exl3` passed 2/3 cases in
+`build/integration_test_reports/farm_completion_live_canary.yK83YR`.
+`reviewRepair` passed after one incomplete-review retry, including current file
+inspections, a real commit and the independent oracle. `failedVerification`
+stopped without Git mutation. `normal` failed: its review-turn memory draft
+omitted the final JSON closing brace and required the production rule-based
+fallback, and its native commit included only `fixture.py`, leaving `roadmap.md`
+staged. The workflow's commit gate now checks file edits captured during the
+commit turn as well as the implementation files, so incomplete bookkeeping
+cannot report completion. The strict live result remains failed and
+main readiness remains blocked; successful commits do not supersede that gap.
+
+After the commit-scope repair, the final run in
+`build/integration_test_reports/farm_completion_live_canary.MnpQpQ` also passed
+2/3. `normal` passed current inspection, the two-file commit, memory persistence
+and the independent oracle. `failedVerification` stopped without Git mutation.
+`reviewRepair` stopped before commit because both the second review and its one
+retry omitted current file inspection; the terminal markers were rejected.
+Readiness remains blocked for this model. All earlier failure artifacts are
+retained for diagnosis.
 
 ## Software Farm Step Recovery Canary
 
