@@ -283,7 +283,11 @@ ${paths.map((path) => '- $path').join('\n')}''';
       return _stop('the commit turn did not complete');
     }
     if (!_canContinue(readConversation())) return _stop(_notContinuable);
-    final after = await readGitState(paths);
+    final committedPaths = {
+      ...paths,
+      ..._taskPaths(readConversation()!),
+    }.toList();
+    final after = await readGitState(committedPaths);
     if (after == null) {
       return _stop('git state could not be read after the commit');
     }

@@ -394,6 +394,46 @@ void main() {
     expect(workflow.stopReason, contains('no new commit'));
   });
 
+  test('checks roadmap edits captured during the commit turn', () async {
+    var conversation = initial();
+    var committed = false;
+    final inspectedPaths = <List<String>>[];
+    final workflow = cleanTaskWorkflow(
+      read: () => conversation,
+      update: (value) => conversation = value,
+      commit: (_) async {
+        committed = true;
+        conversation = conversation.copyWith(
+          turnDiffs: [
+            ...conversation.turnDiffs,
+            diff(2).copyWith(
+              files: const [
+                TurnDiffFile(
+                  filePath: 'ROADMAP.md',
+                  unifiedPatch: '-[ ]\n+[x]',
+                ),
+              ],
+            ),
+          ],
+        );
+        return true;
+      },
+      readGitState: (paths) async {
+        inspectedPaths.add([...paths]);
+        return ProjectTaskGitState(
+          head: committed ? 'new-head' : 'old-head',
+          dirtyPaths: committed && paths.contains('ROADMAP.md')
+              ? const ['ROADMAP.md']
+              : const [],
+        );
+      },
+    );
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(inspectedPaths.first, ['lib/task.dart']);
+    expect(inspectedPaths.last, ['lib/task.dart', 'ROADMAP.md']);
+    expect(workflow.stopReason, contains('ROADMAP.md'));
+  });
+
   test('stops when task files remain uncommitted', () async {
     var conversation = initial();
     var head = 'before';
