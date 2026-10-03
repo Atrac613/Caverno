@@ -11,9 +11,70 @@ settings, or feature-specific execution behavior.
 |---------|------------------|------------------|-----------|----------|
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_chat_background_process_live_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, background process lifecycle (including `process_start`, repeated `process_wait`, observed running-state progress reporting, and zero-exit completion), content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction, subagent delegation via spawn_subagent (sync, child tool use, background result recovery) | Native tool-role compatibility, broad multi-turn continuity beyond focused parser recovery, and routine/cleanup-safety behavior beyond dedicated focused flows | Keep the chat canary suite in every model switch baseline; use `docs/long_running_process_mvp_tasks.md` when process tooling, cleanup behavior, or background-command safety changes |
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_suggestion_live_canary.sh`, `tool/run_coding_todo_app_mvp_live_canary.sh`, `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`, `tool/run_coding_word_frequency_live_canary.sh`, `tool/run_coding_markdown_toc_live_canary.sh`, `tool/run_coding_markdown_toc_exact_short_live_canary.sh`, `tool/run_coding_expense_tracker_live_canary.sh`, `tool/run_coding_weather_code_live_canary.sh`, `tool/run_coding_overwrite_transparency_live_canary.sh`, `tool/run_coding_output_feedback_live_canary.sh`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_turn_steering_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal suggestion artifact preservation, Dart-pinned MVP assembly covering CRUD persistence, deterministic text processing, Markdown structure, exact money aggregation, and CSV export, Open-Meteo WMO weather-code interpretation across saved reports, final answers, and memory extraction, write_file existing-file update transparency in final answers, zero-exit command output feedback and artifact repair, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test with exact-short TODO and Markdown TOC prompts, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, mid-turn interruption redirecting a running turn against a queued-message control arm, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused MVP, coding-goal, weather-code, overwrite-transparency, output-feedback, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, tool-result interpretation, diagnostic or verification feedback, command output guardrails, file/Git side effects, or completion/blocker inference |
+| Software Farm intermediate steps | `tool/run_farm_step_recovery_live_canary.sh` | Actual `ProjectTaskReviewWorkflow` and `ProjectTaskStepTurnRunner` driving `ChatNotifier`, native contained Python verification, optional failed environment lookup, missing-execution recovery, unresolved verification and concrete unissued-command blocking, saved answers, real LLM memory extraction, Hive reopen and next-subtask progression | Fixed decomposition; final implementation, review, commit, unattended scheduler and UI are excluded | Run after changing subtask completion, verification reconciliation or session memory guards |
 | Anabasis (orchestrator) | `tool/run_anabasis_delegation_live_canary.sh` (default `live_anabasis_delegation_admission`; `CAVERNO_ANABASIS_SCENARIO=live_anabasis_acceptance` for the acceptance half) | A parent turn against a saved, approved, unstarted plan whose open questions are answered: the delegation queue rendered with `[workflow_task_id: …]`, admission of a ready task and its saved contract reaching the child, the delegated-results block naming each id by the parameter that consumes it, reading a child back across turns, and the parent recording a semantic acceptance. The runner decides three ways -- delegated, nothing offered (exit 77, inconclusive), or offered and not taken (failure) -- and reports acceptance without gating on it | Worktree delegation is not dispatched, so no `WorktreeAgentTask` is audited; the queue's four preconditions make the window narrow, so an inconclusive run is normal | Run both scenarios after changing the admission gate, the parent authority boundary, the acceptance handler, or anything in the parent's prompt. **Delegate work a child can finish**: six runs on the implementation scenario measured a parent correctly refusing to judge unfinished work, and the acceptance arrived on the first run of the reading scenario |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 | Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, the LL16 sampler trials, a 95% saturation high-water signal, and separately versioned `ladder-v2` effective-context stages — scored with `cavernobench` and written to `benchmark_run.json` | New ladder axes or stages require evidence and a ladder-only version bump | Run after changing any probe, scoring table, or ladder stage, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
+
+## Software Farm Step Recovery Canary
+
+Run the four required scenarios with the exact loaded model ID. On macOS with
+an HTTP LAN endpoint, use the managed loopback wrapper as described in
+[`live_llm_canary_agent_runbook.md`](live_llm_canary_agent_runbook.md):
+
+```bash
+export CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1
+export CAVERNO_LLM_API_KEY=no-key
+export CAVERNO_LLM_MODEL=qwen3.8-27b-exl3
+export CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1
+tool/with_live_llm_loopback.sh -- tool/run_farm_step_recovery_live_canary.sh --quiet-output
+```
+
+The initial fault is scripted and labeled in evidence; recovery, final reports
+and memory extraction use the real endpoint. The scratch project is outside the
+repository and uses fresh conversation and memory boxes. Outgoing requests
+reject user-home paths, repository agent guidance and real session-log paths.
+Only fixture reads and the exact verifier/probe commands are authorized; each
+command follows the native approval and containment route. No dependencies are
+installed. Projects are removed after each scenario; synthetic logs, reopened
+persistence and evidence remain under the ignored report directory.
+
+- `environmentLookup`: a real verifier passes before a deliberately failing
+  read-only Python metadata query with `||` fallback branches. No structured
+  verification recovery should be necessary.
+- `missingExecution`: a read-only prelude claims an unexecuted command completed.
+  The real model must execute the verifier before the subtask can advance.
+- `failedVerification`: a real verifier fails on an unavailable prerequisite.
+  The subtask, persisted answer and memory must remain incomplete.
+- `unissuedCommand`: a final response contains a concrete unissued command for
+  `tool/unavailable.py`. A passing verifier must not clear the outstanding
+  command or advance the task.
+
+Positive cases must complete two intermediate subtasks and reach an intentionally
+stopped final implementation boundary. Negative cases must stop at the first
+subtask. Every case checks saved answers and guarded memory summaries, then
+awaits the asynchronous memory write, then closes and reopens Hive to verify
+persistence. This does not prove the final
+implementation/review/commit path, automatic scheduling or physical UI behavior.
+
+The runner writes `canary_summary.json`, `flutter_test.jsonl`, session logs and
+`fixtures/<scenario>/evidence.json`. `farmStepEvidence` requires all four tests
+without skips, activated fixtures, HTTP primary and memory calls, and passing
+persistence assertions. Its separate exit status prevents an absent scenario
+from qualifying even if Flutter reports a successful partial run.
+
+An offline preflight uses the same production workflow and native commands with
+deterministic model replies; it never qualifies as live evidence:
+
+```bash
+CAVERNO_FARM_STEP_OFFLINE_PREFLIGHT=1 \
+CAVERNO_LLM_BASE_URL=http://127.0.0.1:1/v1 CAVERNO_LLM_API_KEY=offline \
+CAVERNO_LLM_MODEL=offline CAVERNO_FARM_STEP_REPORT_DIR=/tmp/farm-step-preflight-new \
+tool/flutter_test_quiet.sh --no-pub tool/canaries/farm_step_recovery_live_canary_test.dart
+```
+
+Choose a fresh report directory for each preflight. The live runner creates one
+automatically.
 
 ## LL39 Capability Benchmark Canary
 
