@@ -11,6 +11,8 @@ void main() {
         'python3 -m pip show pytest 2>/dev/null | head -3',
     '.venv/bin/python -m pip show pytest wheel | tail -n 10',
     'pip3 show pytest',
+    'cd /project && ls -a && which -a python3 python3.12 python3.13',
+    'which -a python3 pytest 2>/dev/null',
   ]) {
     test('accepts literal inspection: $command', () {
       expect(LiteralEnvironmentInspectionPolicy.applies(command), isTrue);
@@ -32,6 +34,12 @@ void main() {
     r'ls $(touch result.txt)',
     'ls `touch result.txt`',
     'which --all python3',
+    'which -a',
+    'which -a -s python3',
+    'which python3 -a',
+    'which -a python3 > result.txt',
+    'which -a python3 && python3 verify.py',
+    r'which -a $(touch result.txt)',
     'ls || true',
     'ls | tail -20',
     'ls &',

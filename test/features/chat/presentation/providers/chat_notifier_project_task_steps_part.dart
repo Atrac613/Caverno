@@ -12,6 +12,7 @@ void registerChatNotifierProjectTaskStepTests() {
     'failed then passed detached',
     'failed then prose memory failure',
     'optional environment lookup',
+    'optional runtime lookup',
   ]) {
     test('project subtask finalization and memory: $scenario', () async {
       final root = await Directory.systemTemp.createTemp('caverno_subtask_');
@@ -52,13 +53,14 @@ void registerChatNotifierProjectTaskStepTests() {
               arguments: {'command': command},
             ),
           ],
-          if (mode == 'optional environment lookup')
+          if (mode.startsWith('optional '))
             ToolCallInfo(
               id: 'environment',
               name: 'local_execute_command',
               arguments: {
-                'command':
-                    'cd ${root.path} && python3 -m pip show pytest 2>/dev/null | head -3',
+                'command': mode == 'optional runtime lookup'
+                    ? 'cd ${root.path} && ls -a && which -a python3 python3.12 python3.13'
+                    : 'cd ${root.path} && python3 -m pip show pytest 2>/dev/null | head -3',
               },
             ),
           if (mode == 'premature goal completion')
@@ -157,7 +159,7 @@ void registerChatNotifierProjectTaskStepTests() {
         service.verifications,
         mode == 'failed then passed'
             ? 2
-            : mode == 'optional environment lookup'
+            : mode.startsWith('optional ')
             ? 2
             : readOnly
             ? 0
@@ -342,7 +344,8 @@ class _ProjectTaskStepToolService extends _PendingBatchMcpToolService {
     }
     executedToolNames.add(name);
     verifications++;
-    if (arguments['command'].toString().contains('-m pip show')) {
+    if (arguments['command'].toString().contains('-m pip show') ||
+        arguments['command'].toString().contains('which -a')) {
       return McpToolResult(
         toolName: name,
         isSuccess: true,

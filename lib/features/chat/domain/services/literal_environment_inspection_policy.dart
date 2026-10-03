@@ -34,8 +34,8 @@ abstract final class LiteralEnvironmentInspectionPolicy {
         'ls' => true,
         'pwd' => args.isEmpty,
         'which' =>
-          args.isNotEmpty &&
-              args.every(
+          (args.firstOrNull == '-a' ? args.skip(1) : args).isNotEmpty &&
+              (args.firstOrNull == '-a' ? args.skip(1) : args).every(
                 (arg) =>
                     RegExp(r'^[a-zA-Z0-9_.-]+$').hasMatch(arg) &&
                     !arg.startsWith('-'),

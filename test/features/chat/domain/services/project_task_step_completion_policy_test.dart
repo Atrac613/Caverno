@@ -35,19 +35,25 @@ void main() {
   );
   // An inline Python verifier with no working_directory argument reproduces
   // the failed check in the investigated session without its sensitive data.
-  ToolResultInfo verify(String id, int exit, {String? command}) =>
-      ToolResultInfo(
-        id: id,
-        name: 'local_execute_command',
-        arguments: {
-          'command': command ?? 'cd /project && python3 -c "assert 1 == 1"',
-        },
-        result: jsonEncode({
-          'exit_code': exit,
-          'stdout': exit == 0 ? 'Verified.' : 'INCONSISTENCIES FOUND',
-        }),
-        outcome: ToolOutcome(exitCode: exit),
-      );
+  ToolResultInfo verify(
+    String id,
+    int exit, {
+    String? command,
+    String? stdout,
+    String? directory,
+  }) => ToolResultInfo(
+    id: id,
+    name: 'local_execute_command',
+    arguments: {
+      'command': command ?? 'cd /project && python3 -c "assert 1 == 1"',
+    },
+    result: jsonEncode({
+      'exit_code': exit,
+      'working_directory': ?directory,
+      'stdout': stdout ?? (exit == 0 ? 'Verified.' : 'INCONSISTENCIES FOUND'),
+    }),
+    outcome: ToolOutcome(exitCode: exit),
+  );
   ProjectTaskTerminalStatus status(
     List<ToolResultInfo> results, {
     String response = done,
@@ -104,6 +110,38 @@ void main() {
       ]).completionAccepted,
       isFalse,
     );
+  });
+  test('optional runtime lookup does not stall a verified subtask', () {
+    final results = [
+      changed('edit'),
+      verify(
+        'pytest-missing',
+        1,
+        command: 'cd /project && python3 -m pytest -q',
+        directory: '/project',
+      ),
+      verify(
+        'lookup',
+        1,
+        command:
+            'cd /project && ls -a && which -a python3 python3.12 python3.13',
+      ),
+    ];
+    expect(status(results).completionAccepted, isFalse);
+    final verdict = status([
+      ...results,
+      verify(
+        'pytest-passed',
+        0,
+        command: 'cd /project && .venv/bin/python -m pytest -q',
+        directory: '/project',
+        stdout: '53 passed in 0.1s',
+      ),
+    ]);
+    expect(verdict.completionAccepted, isTrue, reason: verdict.gaps.join('\n'));
+    expect(verdict.gaps, isEmpty);
+    expect(goal.status, ConversationGoalStatus.active);
+    expect(verdict.correctResponse(done), done);
   });
   test('execution must follow the latest mutation', () {
     expect(

@@ -489,6 +489,35 @@ void main() {
         '.venv/bin/python verify_logging.py && .venv/bin/python -m pytest -q';
     const cleaned = 'rm -f test_verify_log.log watcher.log && $verifier';
 
+    test('a failed multi-runtime lookup neither verifies nor blocks work', () {
+      final lookup = command(
+        'runtime-lookup',
+        'cd /workspace && ls -a && which -a python3 python3.12 python3.13',
+        exitCode: 1,
+        stdout: '.venv\n/usr/bin/python3\n',
+      );
+      expect(CommandVerificationReconciliation.isVerification(lookup), isFalse);
+      final onlyLookup = ToolResultPromptBuilder.completionEvidence([lookup]);
+      expect(onlyLookup.hasExecutionVerification, isFalse);
+      expect(onlyLookup.hasSuccessfulExecutionVerification, isFalse);
+      expect(onlyLookup.hasFailedExecutionVerification, isFalse);
+      expect(const UnresolvedVerificationFailure().describe([lookup]), isNull);
+      final failed = command('failed', 'python3 -m pytest -q', exitCode: 1);
+      expect(
+        const UnresolvedVerificationFailure().describe([failed, lookup]),
+        contains('python3 -m pytest'),
+      );
+      final passed = command('passed', '.venv/bin/python -m pytest -q');
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        failed,
+        lookup,
+        passed,
+      ]);
+      expect(evidence.hasSuccessfulExecutionVerification, isTrue);
+      expect(evidence.hasFailedExecutionVerification, isFalse);
+      expect(evidence.unresolvedErrorCount, 0);
+    });
+
     test('a missing optional package is inspection rather than verification', () {
       final lookup = command(
         'environment',
