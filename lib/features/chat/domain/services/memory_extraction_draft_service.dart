@@ -7,6 +7,7 @@ import 'memory_extraction_json_parser.dart';
 import 'project_task_terminal_status.dart';
 import 'session_memory_service.dart';
 import 'tool_result_prompt_builder.dart';
+import 'unexecuted_command_claim_reconciliation.dart';
 
 class MemoryExtractionDraftService {
   MemoryExtractionDraftService._();
@@ -160,6 +161,9 @@ class MemoryExtractionDraftService {
     UserMemoryProfile profile, {
     List<ToolResultInfo> toolResults = const [],
   }) {
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final buffer = StringBuffer()
       ..writeln('Current profile:')
       ..writeln('- persona: ${profile.persona.join(' | ')}')

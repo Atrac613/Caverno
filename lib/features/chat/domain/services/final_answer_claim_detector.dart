@@ -5,8 +5,10 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'narrated_transcript_claim_guard.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_definition_search_service.dart';
+import 'unexecuted_command_claim_reconciliation.dart';
 
 class FinalAnswerClaimDetector {
   const FinalAnswerClaimDetector({
@@ -154,6 +156,18 @@ class FinalAnswerClaimDetector {
         'ok': false,
         'code': 'unexecuted_command_action',
         ...ToolResultOrigin.harness.marker,
+        // This lexical notice reports missing evidence, not a concrete call.
+        // Future actions and opaque JSON arguments must remain unresolved.
+        if (!looksLikeFutureAction &&
+            !candidate.contains('{') &&
+            ContentParser.extractCompletedToolCalls(
+              candidateResponse,
+            ).isEmpty &&
+            !const NarratedTranscriptClaimGuard()
+                .assess(candidateResponse: candidate, toolResults: const [])
+                .hasUnexecutedCommands)
+          'evidence_requirement':
+              UnexecutedCommandClaimReconciliation.evidenceRequirement,
         'error':
             'The requested command was not executed. No matching successful local_execute_command, process_start, process_status, process_wait, run_tests, git_execute_command, or ssh_execute_command tool result is available for the claimed action.',
         'claimedResponse': clipForDiagnostic(candidate),
@@ -754,17 +768,19 @@ class FinalAnswerClaimDetector {
   }
 
   bool hasUnexecutedCommandActionResult(List<ToolResultInfo> toolResults) {
-    return toolResults.any((toolResult) {
-      try {
-        final decoded = jsonDecode(toolResult.result);
-        if (decoded is Map<String, dynamic>) {
-          return decoded['code'] == 'unexecuted_command_action';
+    return UnexecutedCommandClaimReconciliation.currentResults(toolResults).any(
+      (toolResult) {
+        try {
+          final decoded = jsonDecode(toolResult.result);
+          if (decoded is Map<String, dynamic>) {
+            return decoded['code'] == 'unexecuted_command_action';
+          }
+        } catch (_) {
+          return false;
         }
-      } catch (_) {
         return false;
-      }
-      return false;
-    });
+      },
+    );
   }
 
   bool hasUnverifiedReadOnlyInspectionClaimResult(

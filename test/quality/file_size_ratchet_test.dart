@@ -1097,6 +1097,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/literal_environment_inspection_policy.dart':
       32,
   'lib/features/chat/domain/services/environment_query_words_policy.dart': 58,
+  'lib/features/chat/domain/services/unexecuted_command_claim_reconciliation.dart':
+      46,
   // -8: the status protocol violation moved to StatusRecoveryVerification,
   // beside the acceptance rule it reports on.
   'lib/features/chat/presentation/providers/coding_continuation_recovery_request.dart':

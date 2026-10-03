@@ -213,6 +213,14 @@ passing command did not settle.
 The `coding_task_status_*` turn transforms record the reconciled acknowledgement.
 The exit record is written after goal reconciliation so it includes that status.
 Only `coding_task_status_completionRecorded` settles the implementation status.
+A lexical completion notice created solely because no command execution was
+captured records `evidence_requirement=successful_verification_after_claim`.
+A later typed, terminal, passing verification settles that absence-of-evidence
+notice in completion, final-message, prompt, and memory views. Raw audit results
+remain intact. Earlier successes, reused output, environment queries, stale
+background observations, future-action promises, concrete unissued calls, and
+legacy notices without that explicit requirement do not settle it. Verification
+failures and file-save requirements keep their independent completion gates.
 Final reconciliation can revoke an earlier accepted completion when later
 evidence contradicts it, but cannot accept a rejected invocation. After a
 rejection, successful verification still requires a new valid `update_goal`

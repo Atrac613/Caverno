@@ -7,6 +7,7 @@ void registerChatNotifierProjectTaskStepTests() {
     'failed then repeated read',
     'missing marker only',
     'read-only done',
+    'read-only then verified',
     'premature goal completion',
     'blocked verification',
     'failed then passed detached',
@@ -21,12 +22,16 @@ void registerChatNotifierProjectTaskStepTests() {
       final root = await Directory.systemTemp.createTemp('caverno_subtask_');
       addTearDown(() => root.delete(recursive: true));
       final project = _pendingBatchProject(root.path);
+      if (scenario == 'read-only then verified') {
+        await File('${root.path}/policy.md').writeAsString('Fixture policy.\n');
+      }
       final mode = scenario
           .replaceAll(' detached', '')
           .replaceAll(' memory failure', '');
       final detached = scenario.endsWith(' detached');
       final fails = mode.startsWith('failed') || mode == 'blocked verification';
-      final readOnly = mode == 'read-only done';
+      final recoveredClaim = mode == 'read-only then verified';
+      final readOnly = mode.startsWith('read-only');
       final reportingChanged = mode == 'pytest reporting changed';
       final command = reportingChanged
           ? 'cd ${root.path} && python3 -m pytest test_fixture.py -v 2>&1 | tail -20'
@@ -90,7 +95,9 @@ void registerChatNotifierProjectTaskStepTests() {
             ),
         ],
         finalAnswerChunks: [
-          fails || mode == 'missing marker only'
+          recoveredClaim
+              ? 'The local command completed.\nPROJECT_TASK_SUBTASK_DONE'
+              : fails || mode == 'missing marker only'
               ? 'Let me run a more targeted check.'
               : 'Subtask complete.\nPROJECT_TASK_SUBTASK_DONE',
         ],
@@ -156,7 +163,7 @@ void registerChatNotifierProjectTaskStepTests() {
       expect(memory.updateCount, 1);
       expect(
         source.recoveryCount,
-        fails || mode == 'missing marker only' ? 1 : 0,
+        fails || mode == 'missing marker only' || recoveredClaim ? 1 : 0,
       );
       expect(
         memory.drafts.single!.summary,
@@ -180,6 +187,8 @@ void registerChatNotifierProjectTaskStepTests() {
             ? 2
             : mode.startsWith('optional ') || reportingChanged
             ? 2
+            : recoveredClaim
+            ? 1
             : readOnly
             ? 0
             : 1,
@@ -194,6 +203,22 @@ void registerChatNotifierProjectTaskStepTests() {
                 ),
               ),
           isTrue,
+        );
+      }
+      if (recoveredClaim) {
+        expect(service.executedToolNames, [
+          'read_file',
+          'local_execute_command',
+        ]);
+        expect(
+          source.memoryMessages.last.content,
+          isNot(
+            contains('result={"ok":false,"code":"unexecuted_command_action"'),
+          ),
+        );
+        expect(
+          memory.drafts.single!.openLoops.join(' '),
+          isNot(contains('missing command-execution')),
         );
       }
       if (fails) {
@@ -244,7 +269,9 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    if (scenario == 'failed then passed' && recoveryCount > 0) {
+    if ((scenario == 'failed then passed' ||
+            scenario == 'read-only then verified') &&
+        recoveryCount > 0) {
       return Stream.fromIterable([
         'Verified.\nPROJECT_TASK_SUBTASK_DONE',
       ]).asCompletion();
@@ -275,7 +302,9 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
       }
       // After a successful recovered verifier, the normal follow-up supplies
       // a settled marker; failures reproduce the logged promise-only ending.
-      if (recoveryCount > 0 && scenario == 'failed then passed') {
+      if (recoveryCount > 0 &&
+          (scenario == 'failed then passed' ||
+              scenario == 'read-only then verified')) {
         return ChatCompletionResult(
           content: 'Verified.\nPROJECT_TASK_SUBTASK_DONE',
           finishReason: 'stop',
@@ -294,7 +323,8 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
     recoveryCount++;
     recoveryMessages.addAll(messages.map((message) => message.content));
     recoveryMessages.addAll(toolResults.map((result) => result.result));
-    if (scenario == 'failed then passed') {
+    if (scenario == 'failed then passed' ||
+        scenario == 'read-only then verified') {
       return ChatCompletionResult(
         content: '',
         finishReason: 'tool_calls',

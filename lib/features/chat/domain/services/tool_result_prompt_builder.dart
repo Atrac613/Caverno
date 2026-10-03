@@ -9,6 +9,7 @@ import 'coding_command_output_issue_detector.dart';
 import 'command_verification_reconciliation.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'unexecuted_command_claim_reconciliation.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
 
@@ -856,6 +857,9 @@ class ToolResultPromptBuilder {
     final staleBackgroundResults =
         CommandVerificationReconciliation.staleBackgroundResultIds(toolResults);
     toolResults = CommandVerificationReconciliation.currentResults(toolResults);
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final lastMutationIndexByPath = _lastSuccessfulFileMutationIndexByPath(
       toolResults,
     );
@@ -1337,6 +1341,9 @@ class ToolResultPromptBuilder {
     Map<String, String> descriptionsByName = const {},
   }) {
     toolResults = CommandVerificationReconciliation.currentResults(toolResults);
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final sections = toolResults.map((toolResult) {
       final buffer = StringBuffer()..writeln('[Tool: ${toolResult.name}]');
       final description = descriptionsByName[toolResult.name];
