@@ -183,6 +183,49 @@ void main() {
       expect(verified.ackOutcome, GoalUpdateAckOutcome.completionRecorded);
     });
 
+    test('package discovery does not block a verified inherited task', () {
+      final goal = _goal().copyWith(
+        projectTaskAutoReview: true,
+        projectTaskInheritedPaths: const ['/repo/app.py'],
+      );
+      final lookup = ToolResultInfo(
+        id: 'metadata',
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
+        },
+        result: '{"stdout":"ModuleNotFoundError: No module named pytest"}',
+        outcome: const ToolOutcome(exitCode: 1),
+      );
+      expect(
+        _handle(
+          goal: goal,
+          arguments: const {'completed': true},
+          ownerToolResults: [lookup],
+        ).ackOutcome,
+        GoalUpdateAckOutcome.completionRejected,
+        reason: 'discovery alone never verifies implementation',
+      );
+      final verification = ToolResultInfo(
+        id: 'verify',
+        name: 'local_execute_command',
+        arguments: const {
+          'command': '.venv/bin/python -m pytest -q',
+          'working_directory': '/repo',
+        },
+        result: '{"stdout":"53 passed in 0.1s"}',
+        outcome: const ToolOutcome(exitCode: 0),
+      );
+      expect(
+        _handle(
+          goal: goal,
+          arguments: const {'completed': true},
+          ownerToolResults: [lookup, verification],
+        ).ackOutcome,
+        GoalUpdateAckOutcome.completionRecorded,
+      );
+    });
+
     test('names the unresolved failed verification in the rejection', () {
       ToolResultInfo run(String id, String command, int exitCode) =>
           ToolResultInfo(

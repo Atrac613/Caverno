@@ -1,11 +1,14 @@
 import 'package:path/path.dart' as path;
 
+import 'literal_shell_segments.dart';
 import 'literal_shell_words.dart';
+import 'pytest_metadata_inspection_policy.dart';
 
 /// Recognizes literal environment queries without expansion or writable output.
 abstract final class LiteralEnvironmentInspectionPolicy {
-  static bool applies(String command) {
-    final segments = command.split(RegExp(r'&&|;'));
+  static bool applies(String command, {bool allowPackageImports = true}) {
+    final segments = LiteralShellSegments.parse(command);
+    if (segments == null) return false;
     for (final segment in segments) {
       final query = segment.trim();
       final limiter = RegExp(r'\s*\|\s*(?:head|tail)\s+-(?:n\s*)?[1-9]\d*\s*$');
@@ -14,7 +17,7 @@ abstract final class LiteralEnvironmentInspectionPolicy {
         query
             .replaceFirst(limiter, '')
             .trim()
-            .replaceFirst(RegExp(r'\s+2>\s*/dev/null\s*$'), ''),
+            .replaceFirst(RegExp(r'\s+(?:2>\s*/dev/null|2>&1)\s*$'), ''),
       );
       if (words == null) return false;
       final executable = words.first;
@@ -47,8 +50,10 @@ abstract final class LiteralEnvironmentInspectionPolicy {
         _ =>
           pipMetadata ||
               (python &&
-                  args.length == 1 &&
-                  const {'--version', '-V'}.contains(args.single)),
+                  (allowPackageImports &&
+                          PytestMetadataInspectionPolicy.applies(args) ||
+                      args.length == 1 &&
+                          const {'--version', '-V'}.contains(args.single))),
       };
       if (!valid) return false;
     }

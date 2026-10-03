@@ -2,6 +2,17 @@ import 'package:caverno/features/chat/domain/services/literal_environment_inspec
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('import metadata is not a guarantee of unchanged execution state', () {
+    const command = 'python3 -c "import pytest; print(pytest.__file__)"';
+    expect(LiteralEnvironmentInspectionPolicy.applies(command), isTrue);
+    expect(
+      LiteralEnvironmentInspectionPolicy.applies(
+        command,
+        allowPackageImports: false,
+      ),
+      isFalse,
+    );
+  });
   for (final command in [
     'cd /project && ls -a && which python3 && python3 --version '
         '&& ls .venv 2>/dev/null; which pytest',
@@ -13,6 +24,10 @@ void main() {
     'pip3 show pytest',
     'cd /project && ls -a && which -a python3 python3.12 python3.13',
     'which -a python3 pytest 2>/dev/null',
+    "cd '/project; rm data' && ls",
+    'ls -d /project/.venv /project/venv 2>/dev/null; which pytest 2>/dev/null; '
+        'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
+    'ls -d /project/.venv && /project/.venv/bin/python -c "import pytest; print(\'pytest\', pytest.__version__)"',
   ]) {
     test('accepts literal inspection: $command', () {
       expect(LiteralEnvironmentInspectionPolicy.applies(command), isTrue);
@@ -46,7 +61,14 @@ void main() {
     'ls;',
     'ls &&',
     'ls\npython3 fix.py',
-    "cd '/project; rm data' && ls",
+    'python3 -c "import pytest; pytest.main()"',
+    'python3 -c "import pytest; assert pytest.__version__ == \'1\'"',
+    'python3 -c "import pytest; print(pytest.__file__); open(\'result\', \'w\')"',
+    'python3 -c "import pytest; print(pytest.__file__)" > result.txt',
+    r'python3 -c "import pytest; print(pytest.__file__) $(touch result)"',
+    'python3 -c "import pytest; print(pytest.__file__)" && python3 verify.py',
+    'python3 -c "import pytest; print(pytest.__file__)";',
+    'python3 -c "import pytest; print(pytest.__file__)',
   ]) {
     test('rejects unknown syntax: $command', () {
       expect(LiteralEnvironmentInspectionPolicy.applies(command), isFalse);

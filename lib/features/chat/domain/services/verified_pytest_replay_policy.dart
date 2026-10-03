@@ -5,8 +5,7 @@ import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
 import 'duplicate_tool_result_reuse_payload.dart';
 import 'executed_verifier_replay_policy.dart';
-import 'literal_environment_inspection_policy.dart';
-import 'literal_shell_words.dart';
+import 'pytest_replay_state_policy.dart';
 import 'pytest_verification_identity.dart';
 
 /// Reuses a later passing verifier when a turn returns to its failed runner.
@@ -29,7 +28,8 @@ abstract final class VerifiedPytestReplayPolicy {
     if (requested == null ||
         pendingCalls.any(
           (pending) =>
-              pending.id != call.id && _couldChangeState(pending, projectRoot),
+              pending.id != call.id &&
+              PytestReplayStatePolicy.mayChange(pending, projectRoot),
         )) {
       return null;
     }
@@ -43,7 +43,9 @@ abstract final class VerifiedPytestReplayPolicy {
       }
       final identity = _identity(result, projectRoot);
       if (identity?.key != requested.key) {
-        if (_couldChangeState(_call(result), projectRoot)) return null;
+        if (PytestReplayStatePolicy.mayChange(_call(result), projectRoot)) {
+          return null;
+        }
         continue;
       }
       if (_failed(result)) return null;
@@ -78,7 +80,10 @@ abstract final class VerifiedPytestReplayPolicy {
               .take(index - priorFailure - 1)
               .any(
                 (between) =>
-                    _couldChangeState(_call(between), projectRoot) ||
+                    PytestReplayStatePolicy.mayChange(
+                      _call(between),
+                      projectRoot,
+                    ) ||
                     between.outcome?.fileMutations.any(
                           (change) => change.changed == true,
                         ) ==
@@ -134,39 +139,6 @@ abstract final class VerifiedPytestReplayPolicy {
       hashes[read.path] = read.contentHash;
     }
     return false;
-  }
-
-  static bool _couldChangeState(ToolCallInfo call, String? root) {
-    if (const {
-      'read_file',
-      'list_directory',
-      'coding_output_feedback',
-      'update_goal',
-      'coding_continuation_recovery',
-    }.contains(call.name)) {
-      return false;
-    }
-    final command = call.arguments['command']?.toString() ?? '';
-    if (call.name == 'local_execute_command' &&
-        call.arguments['background'] != true) {
-      return PytestVerificationIdentity.parse(
-                command,
-                call.arguments['working_directory']?.toString() ?? root ?? '',
-              ) ==
-              null &&
-          !LiteralEnvironmentInspectionPolicy.applies(command);
-    }
-    if (call.name == 'git_execute_command') {
-      final words = LiteralShellWords.parse(command);
-      return words == null ||
-          !const {'status', 'diff', 'log'}.contains(words.first) ||
-          words.any(
-            (word) => RegExp(
-              r'^--(?:output(?:=|$)|ext-diff$|textconv$)',
-            ).hasMatch(word),
-          );
-    }
-    return true;
   }
 
   static bool _failed(ToolResultInfo result) =>

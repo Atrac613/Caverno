@@ -223,6 +223,10 @@ Pytest checks match across unambiguous reporting verbosity switches (`-v`, `-q`,
 option values, and effective working directories must still match. Captured
 output reuse retains the original reporting arguments; verbosity changes do
 not renew implementation recovery. A failure after a passing run remains open.
+Literal pytest package-location and version probes are environment inspection,
+including when the queried interpreter lacks pytest. They neither verify code
+nor create a failed verification scope. Because Python imports may execute
+module hooks, these probes still prevent cached execution-result reuse.
 Identical goal-status arguments can be evaluated again after a file edit or
 verification command changes the captured state. Status calls and inspections
 alone do not renew their duplicate-call allowance.

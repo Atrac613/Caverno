@@ -1089,7 +1089,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/pytest_shell_invocation.dart': 31,
   'lib/features/chat/domain/services/pytest_test_outcome_parser.dart': 24,
   'lib/features/chat/domain/services/executed_verifier_replay_policy.dart': 63,
-  'lib/features/chat/domain/services/verified_pytest_replay_policy.dart': 202,
+  'lib/features/chat/domain/services/verified_pytest_replay_policy.dart': 174,
+  'lib/features/chat/domain/services/pytest_replay_state_policy.dart': 43,
+  'lib/features/chat/domain/services/literal_shell_segments.dart': 30,
+  'lib/features/chat/domain/services/pytest_metadata_inspection_policy.dart': 11,
   'lib/features/chat/domain/services/literal_environment_inspection_policy.dart':
       37,
   // -8: the status protocol violation moved to StatusRecoveryVerification,

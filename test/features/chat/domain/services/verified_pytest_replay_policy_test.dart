@@ -155,6 +155,35 @@ void main() {
       isNull,
     );
   });
+  for (final afterSuccess in [false, true]) {
+    test('package import probes prevent stale output reuse: $afterSuccess', () {
+      final metadata = ToolResultInfo(
+        id: 'metadata',
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
+        },
+        result: '{}',
+        outcome: const ToolOutcome(exitCode: 1),
+      );
+      expect(
+        VerifiedPytestReplayPolicy.reuse(
+          call: call,
+          results: [
+            failure,
+            if (!afterSuccess) metadata,
+            success,
+            if (afterSuccess) metadata,
+          ],
+          pendingCalls: [call],
+          projectRoot: root,
+        ),
+        isNull,
+        reason:
+            'module import hooks can change state even during metadata lookup',
+      );
+    });
+  }
   for (final output in ['=== 6 passed in 3.05s ===', 'done']) {
     test('validates counts when the result uses the project directory', () {
       final candidate = ToolResultInfo(

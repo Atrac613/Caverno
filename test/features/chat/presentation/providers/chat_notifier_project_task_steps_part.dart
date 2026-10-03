@@ -13,6 +13,7 @@ void registerChatNotifierProjectTaskStepTests() {
     'failed then prose memory failure',
     'optional environment lookup',
     'optional runtime lookup',
+    'optional pytest metadata lookup',
     'pytest reporting changed',
   ]) {
     test('project subtask finalization and memory: $scenario', () async {
@@ -73,6 +74,8 @@ void registerChatNotifierProjectTaskStepTests() {
               arguments: {
                 'command': mode == 'optional runtime lookup'
                     ? 'cd ${root.path} && ls -a && which -a python3 python3.12 python3.13'
+                    : mode == 'optional pytest metadata lookup'
+                    ? 'ls -d ${root.path}/.venv ${root.path}/venv 2>/dev/null; which pytest 2>/dev/null; python3 -c "import pytest; print(pytest.__file__)" 2>&1'
                     : 'cd ${root.path} && python3 -m pip show pytest 2>/dev/null | head -3',
               },
             ),
@@ -386,7 +389,8 @@ class _ProjectTaskStepToolService extends _PendingBatchMcpToolService {
       );
     }
     if (arguments['command'].toString().contains('-m pip show') ||
-        arguments['command'].toString().contains('which -a')) {
+        arguments['command'].toString().contains('which -a') ||
+        arguments['command'].toString().contains('pytest.__file__')) {
       return McpToolResult(
         toolName: name,
         isSuccess: true,
@@ -394,7 +398,7 @@ class _ProjectTaskStepToolService extends _PendingBatchMcpToolService {
           ...arguments,
           'working_directory': root.path,
           'exit_code': 1,
-          'stdout': '',
+          'stdout': 'ModuleNotFoundError: No module named \'pytest\'',
         }),
         outcome: const ToolOutcome(exitCode: 1),
       );

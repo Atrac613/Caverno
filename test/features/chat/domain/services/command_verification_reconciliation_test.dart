@@ -490,6 +490,51 @@ void main() {
         '.venv/bin/python verify_logging.py && .venv/bin/python -m pytest -q';
     const cleaned = 'rm -f test_verify_log.log watcher.log && $verifier';
 
+    test('pytest metadata is not a check or a failed verification scope', () {
+      final lookup = command(
+        'pytest-location',
+        'ls -d /workspace/.venv /workspace/venv 2>/dev/null; which pytest 2>/dev/null; '
+            'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
+        exitCode: 1,
+        stdout:
+            'Traceback (most recent call last):\nModuleNotFoundError: No module named \'pytest\'',
+      );
+      expect(CommandVerificationReconciliation.isVerification(lookup), isFalse);
+      final inspectionOnly = ToolResultPromptBuilder.completionEvidence([
+        lookup,
+      ]);
+      expect(inspectionOnly.hasExecutionVerification, isFalse);
+      expect(inspectionOnly.hasFailedExecutionVerification, isFalse);
+      expect(const UnresolvedVerificationFailure().describe([lookup]), isNull);
+      final failed = command(
+        'failed',
+        'python3 verify_logging.py && python3 -m pytest -q',
+        exitCode: 1,
+      );
+      final partial = command('partial', '.venv/bin/python -m pytest -q');
+      expect(
+        const UnresolvedVerificationFailure().describe([
+          failed,
+          lookup,
+          partial,
+        ]),
+        isNotNull,
+      );
+      final passed = command(
+        'passed',
+        'python3 verify_logging.py && .venv/bin/python -m pytest -q',
+      );
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        failed,
+        lookup,
+        partial,
+        passed,
+      ]);
+      expect(evidence.hasSuccessfulExecutionVerification, isTrue);
+      expect(evidence.hasFailedExecutionVerification, isFalse);
+      expect(evidence.unresolvedErrorCount, 0);
+    });
+
     for (final prefix in [
       '',
       'cd /workspace && ',
