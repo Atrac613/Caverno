@@ -8,6 +8,7 @@ void registerChatNotifierProjectTaskStepTests() {
     'missing marker only',
     'read-only done',
     'read-only then verified',
+    'read-only opaque then verified',
     'premature goal completion',
     'blocked verification',
     'failed then passed detached',
@@ -22,7 +23,8 @@ void registerChatNotifierProjectTaskStepTests() {
       final root = await Directory.systemTemp.createTemp('caverno_subtask_');
       addTearDown(() => root.delete(recursive: true));
       final project = _pendingBatchProject(root.path);
-      if (scenario == 'read-only then verified') {
+      if (scenario.startsWith('read-only') &&
+          scenario.endsWith('then verified')) {
         await File('${root.path}/policy.md').writeAsString('Fixture policy.\n');
       }
       final mode = scenario
@@ -30,7 +32,8 @@ void registerChatNotifierProjectTaskStepTests() {
           .replaceAll(' memory failure', '');
       final detached = scenario.endsWith(' detached');
       final fails = mode.startsWith('failed') || mode == 'blocked verification';
-      final recoveredClaim = mode == 'read-only then verified';
+      final opaqueClaim = mode == 'read-only opaque then verified';
+      final recoveredClaim = mode == 'read-only then verified' || opaqueClaim;
       final readOnly = mode.startsWith('read-only');
       final reportingChanged = mode == 'pytest reporting changed';
       final command = reportingChanged
@@ -95,7 +98,9 @@ void registerChatNotifierProjectTaskStepTests() {
             ),
         ],
         finalAnswerChunks: [
-          recoveredClaim
+          opaqueClaim
+              ? 'The local command completed.\n{"command":"python3 unavailable.py"}\nPROJECT_TASK_SUBTASK_DONE'
+              : recoveredClaim
               ? 'The local command completed.\nPROJECT_TASK_SUBTASK_DONE'
               : fails || mode == 'missing marker only'
               ? 'Let me run a more targeted check.'
@@ -153,7 +158,7 @@ void registerChatNotifierProjectTaskStepTests() {
       final answer = conversation.messages
           .lastWhere((message) => message.role == MessageRole.assistant)
           .content;
-      final accepted = !fails || mode == 'failed then passed';
+      final accepted = !fails && !opaqueClaim || mode == 'failed then passed';
       expect(
         conversation.goal!.status,
         mode == 'blocked verification'
@@ -205,7 +210,7 @@ void registerChatNotifierProjectTaskStepTests() {
           isTrue,
         );
       }
-      if (recoveredClaim) {
+      if (recoveredClaim && !opaqueClaim) {
         expect(service.executedToolNames, [
           'read_file',
           'local_execute_command',
@@ -219,6 +224,17 @@ void registerChatNotifierProjectTaskStepTests() {
         expect(
           memory.drafts.single!.openLoops.join(' '),
           isNot(contains('missing command-execution')),
+        );
+      }
+      if (opaqueClaim) {
+        expect(source.commandRetryCount, 1);
+        expect(
+          source.memoryMessages.last.content,
+          contains('result={"ok":false,"code":"unexecuted_command_action"'),
+        );
+        expect(
+          source.memoryMessages.last.content,
+          contains('Required subtask tool actions remain unexecuted.'),
         );
       }
       if (fails) {
@@ -260,6 +276,7 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
   final Future<void>? firstResponseGate;
   final firstRequestReached = Completer<void>();
   int recoveryCount = 0;
+  int commandRetryCount = 0;
   final List<String> recoveryMessages = [];
 
   @override
@@ -294,6 +311,34 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    if (scenario == 'read-only opaque then verified' &&
+        commandRetryCount == 0 &&
+        toolResults.any(
+          (result) => result.result.contains(
+            'unexecuted_command_action_retry_required',
+          ),
+        )) {
+      commandRetryCount++;
+      return ChatCompletionResult(
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'opaque-retry-verifier',
+            name: 'local_execute_command',
+            arguments: {'command': command},
+          ),
+        ],
+      );
+    }
+    if (scenario == 'read-only opaque then verified' &&
+        commandRetryCount > 0 &&
+        !messages.last.id.startsWith('structured_project_subtask_recovery_')) {
+      return ChatCompletionResult(
+        content: 'Verified.\nPROJECT_TASK_SUBTASK_DONE',
+        finishReason: 'stop',
+      );
+    }
     if (messages.isEmpty ||
         !messages.last.id.startsWith('structured_project_subtask_recovery_')) {
       if (!firstRequestReached.isCompleted) {

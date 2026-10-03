@@ -27,7 +27,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       return null;
     }
     batchToolResults.add(promptFeedback);
-    executedToolResults.add(promptFeedback);
+    _turnToolResults.track(owner, executedToolResults..add(promptFeedback));
     onBlockingFeedbackPrepared?.call();
     _turnEnd.addTransform(owner, transformId);
     appLog(logMessage);
