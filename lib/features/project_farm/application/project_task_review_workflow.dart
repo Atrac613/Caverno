@@ -202,7 +202,7 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
       final reviewPrompt =
           '''${template.expand(args: 'Only the task changes in the patch below', commandName: 'review')}
 
-The patch below is this task's change to the files its file tools edited${inheritedFiles.isEmpty ? '' : ', including changes an earlier run of this task left uncommitted'}. Review these changes and relevant surrounding code. Do not review unrelated pre-existing changes in the working tree. If the patch cannot be reconciled with the working tree, explain the limit and do not report a clean review.
+The patch below is this task's change to the files its file tools edited${inheritedFiles.isEmpty ? '' : ', including changes an earlier run of this task left uncommitted'}. Review these changes and relevant surrounding code. Begin this review turn by calling read_file on the relevant changed files; wait for successful results and reconcile the patch with their current contents before giving findings or reporting a clean review. Do not answer directly from the supplied patch or conversation history. Reads from earlier implementation or repair turns are historical evidence, not current review inspections. Do not review unrelated pre-existing changes in the working tree. If the patch cannot be reconciled with the working tree, explain the limit and do not report a clean review.
 
 ```diff
 $patch

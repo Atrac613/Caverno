@@ -101,6 +101,14 @@ void main() {
     expect(await workflow.run(), ProjectTaskReviewResult.committed);
     expect(routes, [false, true, false, true]);
     expect(prompts[1], contains('```diff'));
+    for (final review in [prompts[1], prompts[3]]) {
+      expect(review, contains('Begin this review turn by calling read_file'));
+      expect(review, contains('wait for successful results'));
+      expect(
+        review,
+        contains('historical evidence, not current review inspections'),
+      );
+    }
     for (final implementation in [prompts[0], prompts[2]]) {
       expect(
         implementation,
@@ -346,6 +354,29 @@ void main() {
     );
   });
 
+  test('does not commit an incomplete or guarded review', () async {
+    for (final response in [
+      'Review is incomplete.',
+      'PROJECT_TASK_REVIEW_CLEAN\nInspection is unverified.',
+    ]) {
+      var conversation = initial();
+      var attemptedCommit = false;
+      final workflow = cleanTaskWorkflow(
+        read: () => conversation,
+        update: (value) => conversation = value,
+        commit: (_) async {
+          attemptedCommit = true;
+          return true;
+        },
+        readGitState: gitState,
+        reviewResponse: response,
+      );
+      expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+      expect(attemptedCommit, isFalse);
+      expect(workflow.stopReason, contains('review ended without'));
+    }
+  });
+
   test('stops when the commit turn made no commit', () async {
     // The reported defect: a clean review ended the workflow with the task
     // uncommitted, and the dashboard moved on to the next roadmap item.
@@ -407,6 +438,7 @@ ProjectTaskReviewWorkflow cleanTaskWorkflow({
   required void Function(Conversation) update,
   required Future<bool> Function(String) commit,
   required Future<ProjectTaskGitState?> Function(List<String>) readGitState,
+  String reviewResponse = 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
 }) {
   final now = DateTime(2026);
   var calls = 0;
@@ -427,7 +459,7 @@ ProjectTaskReviewWorkflow cleanTaskWorkflow({
             Message(
               id: 'assistant-$calls',
               content: codeReview
-                  ? 'No findings.\nPROJECT_TASK_REVIEW_CLEAN'
+                  ? reviewResponse
                   : 'Verified.\nPROJECT_TASK_READY_FOR_REVIEW',
               role: MessageRole.assistant,
               timestamp: now,

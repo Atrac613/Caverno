@@ -1,6 +1,9 @@
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../../chat/domain/entities/chat_turn_owner.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/conversation_goal.dart';
+import '../../chat/domain/entities/message.dart';
 
 /// Requires accepted implementation completion before starting task review.
 final class ProjectTaskReviewTurnRunner {
@@ -22,6 +25,39 @@ final class ProjectTaskReviewTurnRunner {
   final Future<void> Function(ChatTurnOwner) waitForCompletion;
 
   Future<bool> send(String prompt, {required bool codeReview}) async {
+    for (var attempt = 0; attempt < (codeReview ? 2 : 1); attempt++) {
+      final priorMessageCount = readConversation()?.messages.length ?? 0;
+      if (!await _sendOnce(prompt, codeReview: codeReview)) return false;
+      if (!codeReview || _reviewFinished(priorMessageCount) || attempt == 1) {
+        return true;
+      }
+      prompt =
+          '''The previous review did not produce an accepted terminal review result. Perform the read-only review again through inspection tools: begin by calling read_file on the changed files and wait for successful results. Earlier responses and reads are historical evidence. Reconcile the task patch with the current files, then report findings and verification limits. End with PROJECT_TASK_REVIEW_CLEAN only for a complete review with no actionable findings, or PROJECT_TASK_REVIEW_FINDINGS for actionable findings. If inspection is unavailable or review remains incomplete, explain why and omit both markers. Do not edit files, commit, or change Git state.
+
+$prompt''';
+    }
+    return false;
+  }
+
+  bool _reviewFinished(int priorMessageCount) {
+    final messages = readConversation()?.messages.skip(priorMessageCount);
+    if (messages == null) return false;
+    for (final message in messages.toList().reversed) {
+      if (message.role != MessageRole.assistant ||
+          message.isStreaming ||
+          message.error != null) {
+        continue;
+      }
+      final last = ContentParser.stripModelHistoryArtifacts(
+        message.content,
+      ).trimRight().split('\n').last.trim();
+      return last == 'PROJECT_TASK_REVIEW_CLEAN' ||
+          last == 'PROJECT_TASK_REVIEW_FINDINGS';
+    }
+    return false;
+  }
+
+  Future<bool> _sendOnce(String prompt, {required bool codeReview}) async {
     if (!isSelected() || isWaitingForUser()) return false;
     final goal = readConversation()?.goal;
     if (goal == null ||
