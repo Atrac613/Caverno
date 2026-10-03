@@ -9,6 +9,43 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const detector = FinalAnswerClaimDetector();
 
+  for (final marker in [
+    'PROJECT_TASK_REVIEW_CLEAN',
+    'PROJECT_TASK_REVIEW_FINDINGS',
+  ]) {
+    test('requires current file inspection for Farm marker $marker', () {
+      for (final results in <List<ToolResultInfo>>[
+        [],
+        [_result('read_file', '{"ok":false,"error":"missing"}')],
+        [_result('git_execute_command', '{"exit_code":0,"stdout":"patch"}')],
+        [_result('list_directory', '{"entries":[]}')],
+        [_result('search_web', '{"results":[{"title":"Clamp"}]}')],
+      ]) {
+        final guarded = detector
+            .buildUnverifiedReadOnlyInspectionClaimToolResult(
+              candidateResponse: 'No findings.\n$marker',
+              toolResults: results,
+            );
+        expect(guarded, isNotNull);
+        expect(
+          jsonDecode(guarded!.result)['code'],
+          'unverified_read_only_inspection_claim',
+        );
+      }
+      for (final tool in ['read_file', 'inspect_file']) {
+        expect(
+          detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+            candidateResponse: 'No findings.\n$marker',
+            toolResults: [
+              _result(tool, '{"path":"fixture.py","content":"code"}'),
+            ],
+          ),
+          isNull,
+        );
+      }
+    });
+  }
+
   for (final exitCode in <int?>[null, 1, 0]) {
     test('delegated command evidence uses observed exit code $exitCode', () {
       final result = ToolResultInfo(

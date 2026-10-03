@@ -180,8 +180,24 @@ class FinalAnswerClaimDetector {
     required List<ToolResultInfo> toolResults,
   }) {
     final candidate = claimCandidate(candidateResponse).trim();
-    if (!looksLikeCompletedReadOnlyInspectionClaim(candidate) ||
-        hasSuccessfulReadOnlyInspectionResult(toolResults)) {
+    // Farm review markers assert a completed file review regardless of prose.
+    final taskReview = const {
+      'PROJECT_TASK_REVIEW_CLEAN',
+      'PROJECT_TASK_REVIEW_FINDINGS',
+    }.contains(candidate.split('\n').last.trim());
+    final inspections = taskReview
+        ? toolResults
+              .where(
+                (result) => const {
+                  'read_file',
+                  'inspect_file',
+                }.contains(result.name.trim().toLowerCase()),
+              )
+              .toList()
+        : toolResults;
+    if ((!taskReview &&
+            !looksLikeCompletedReadOnlyInspectionClaim(candidate)) ||
+        hasSuccessfulReadOnlyInspectionResult(inspections)) {
       return null;
     }
     // An answer built from the web is not a claim about local state, and no
@@ -190,7 +206,8 @@ class FinalAnswerClaimDetector {
     // which a web-research turn would call. Judging that answer on the text
     // alone means judging it on nothing. The turn's own tool results already
     // say which domain it was working in, so ask them instead of the prose.
-    if (hasSuccessfulWebRetrievalResult(toolResults) &&
+    if (!taskReview &&
+        hasSuccessfulWebRetrievalResult(toolResults) &&
         !mentionsLocalFilesystemPath(candidate)) {
       return null;
     }
