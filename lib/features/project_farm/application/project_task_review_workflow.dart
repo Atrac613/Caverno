@@ -446,7 +446,9 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
   }
 
   String _lastLine(String content) {
-    final line = content.trimRight().split('\n').last.trim();
+    final line = ContentParser.stripModelHistoryArtifacts(
+      content,
+    ).trimRight().split('\n').last.trim();
     return line.length <= 120 ? line : '${line.substring(0, 120)}...';
   }
 
@@ -466,7 +468,10 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
   }
 
   bool _endsWithMarker(String content, String marker) =>
-      content.trimRight().split('\n').last.trim() == marker;
+      ContentParser.stripModelHistoryArtifacts(
+        content,
+      ).trimRight().split('\n').last.trim() ==
+      marker;
 
   Future<String?> _reviewPatch(Conversation conversation) async {
     final files =

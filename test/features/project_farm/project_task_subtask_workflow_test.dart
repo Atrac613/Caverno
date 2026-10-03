@@ -115,6 +115,39 @@ void main() {
         ProjectTaskGitState(head: 'head-$commits', dirtyPaths: const []),
   );
 
+  test(
+    'a saved memory update after the subtask marker permits progression',
+    () async {
+      expect(
+        await workflow(
+          subtaskReply:
+              'Verified.\nPROJECT_TASK_SUBTASK_DONE\n'
+              '<tool_use>{"name":"memory_update","arguments":{"summaryUpdated":true}}</tool_use>',
+        ).run(),
+        ProjectTaskReviewResult.committed,
+      );
+      expect(stepPrompts, hasLength(2));
+      expect(marked, [
+        'project-subtask-1',
+        'project-subtask-2',
+        'project-subtask-3',
+      ]);
+    },
+  );
+
+  test('visible text after a marker still blocks progression', () async {
+    expect(
+      await workflow(
+        subtaskReply:
+            'PROJECT_TASK_SUBTASK_DONE\nRemaining work is unresolved.\n'
+            '<tool_use>{"name":"memory_update","arguments":{}}</tool_use>',
+      ).run(),
+      ProjectTaskReviewResult.stopped,
+    );
+    expect(marked, isEmpty);
+    expect(sendPrompts, isEmpty);
+  });
+
   test('runs one turn per subtask and records each as done', () async {
     expect(await workflow().run(), ProjectTaskReviewResult.committed);
 
