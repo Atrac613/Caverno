@@ -22,8 +22,8 @@ final class FarmUnattendedSummary {
 /// gate). For a project to be advanced, all of these must hold, and every one
 /// is mechanical:
 /// - the user turned unattended runs on and the daily limit is not spent;
-/// - the user declared at least one allowed command as not executing project
-///   code, and that command is the one used, never a test;
+/// - the user declared an allowed unattended verification command; project
+///   code runs only through the verification runner's workspace containment;
 /// - the Run in background gates pass: a verified task, a proposal naming it
 ///   `unattended`, and no unfinished background task in the project.
 ///
@@ -104,9 +104,20 @@ final class FarmUnattendedRunner {
       if (isCancelled()) break;
       final proposal = await _refreshProposal(project, snapshot);
       if (isCancelled()) break;
+      // Model calls can outlive settings changes or another recorded run.
+      // Recheck authority at dispatch instead of using the pre-call policy.
+      final currentPolicy = _repository.policyFor(project.id);
+      if (currentPolicy == null || !currentPolicy.allowsUnattendedRuns) {
+        await skip('unattended_disabled');
+        continue;
+      }
+      if (_runsToday(project.id) >= currentPolicy.dailyRunLimit) {
+        await skip('daily_limit');
+        continue;
+      }
       final item = startableItem(snapshot, proposal);
       final blocker = backgroundRunBlocker(
-        policy: policy,
+        policy: currentPolicy,
         proposal: proposal,
         item: item,
         projectTasks: _tasks().where(
@@ -117,12 +128,12 @@ final class FarmUnattendedRunner {
         await skip(blocker.name, taskId: item?.id ?? '');
         continue;
       }
-      final command = policy.unattendedCommand!;
+      final command = currentPolicy.unattendedCommand!;
       final task = await runProjectTaskInBackground(
         enqueue: _enqueue,
         startReady: _startReady,
         project: project,
-        policy: policy,
+        policy: currentPolicy,
         item: item!,
         roadmapPath: snapshot!.roadmapPath,
         verificationCommand: command,

@@ -752,12 +752,16 @@ only in LL18's window: idle, on AC power, at night. For each project,
 4. **Starts a run only when all the Run in background gates pass:** a
    verified task, a proposal naming it `unattended`, and no unfinished
    background task in the project. The run uses the user-authorized
-   command and requires enforced workspace containment.
+   command and requires enforced workspace containment. After the model calls,
+   the runner rereads the current policy and daily run count before enqueueing.
+   Revoked permission records `unattended_disabled`; a newly spent limit records
+   `daily_limit`. Command selection uses the current policy.
 5. **Records every start and every skip** of an opted-in project in the
    ledger, with its reason.
 
-Between projects it polls the maintenance cancel handle, so a returning user
-stops the pass.
+Between projects and after each model call it polls the maintenance cancel
+handle, so a returning user stops the pass before another task is enqueued.
+This is a dispatch boundary, not cancellation of an already enqueued task.
 
 **Settings.** The dashboard's Background runs card has an **Unattended**
 dialog with an on/off switch (off by default), runs per day, and per-command
@@ -777,6 +781,14 @@ only one.
 **Evidence.**
 - Unit tests cover opt-in, the daily limit, each gate, command selection,
   cancellation, and the ledger.
+- On 2026-10-04, 55 focused Farm and maintenance tests passed with static
+  analysis. Integration tests connect the real `IdleMaintenanceScheduler` to
+  `FarmUnattendedRunner` with controlled model callbacks and an injected idle
+  environment: one dispatch per idle window, gated projects, and cancellation
+  during a pending proposal. Policy and daily-limit changes during proposal
+  generation are covered. Enqueue/start callbacks are recorded substitutes;
+  these tests do not prove live model calls, OS idle detection or native
+  worktree execution from the unattended scheduler.
 - The execution path is the one the 4c two-project canary exercised live.
 - An unattended pass has not been run against the user's real projects,
   because it would create real worktrees and branches.
