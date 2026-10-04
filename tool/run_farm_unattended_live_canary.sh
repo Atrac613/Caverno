@@ -63,6 +63,8 @@ gaps = []
 try:
     evidence = json.loads((root / 'fixtures/evidence.json').read_text())
     task = evidence.get('task', {})
+    maintenance = evidence.get('maintenanceProbe', {})
+    reports = maintenance.get('reports', [])
     probe = evidence.get('proposalProbe', {})
     positive = probe.get('positive', {})
     negative = probe.get('negative', {})
@@ -83,10 +85,11 @@ try:
                 and isinstance(line, int) and 1 <= line <= len(lines)
                 and bool(item.get('quote')) and normalize(item['quote']) in normalize(lines[line - 1]))
     checks = {
-        'fixture passed and removed': evidence.get('schemaVersion') == 3 and evidence.get('passed') is True and evidence.get('scratchRemoved') is True,
+        'fixture passed and removed': evidence.get('schemaVersion') == 4 and evidence.get('passed') is True and evidence.get('scratchRemoved') is True,
         'one real HTTP dispatch': evidence.get('dispatchCount') == 1 and evidence.get('successfulHttpCalls', 0) > 0,
         'live proposal routing': evidence.get('proposalHttpCalls', 0) >= 2 and positive.get('taskId') == 'GR1' and positive.get('automatability') == 'unattended' and positive.get('error') is None and negative.get('taskId') in ('', 'HUMAN') and negative.get('automatability') == 'needsHuman' and negative.get('error') is None,
         'live grounded extraction': evidence.get('snapshotHttpCalls', 0) >= 2 and grounded('synthetic', 'GR1') and grounded('human-fixture', 'HUMAN'),
+        'production maintenance wiring': maintenance.get('foregroundReportCount') == 0 and maintenance.get('backgroundIdleSeconds', 0) >= 600 and maintenance.get('sameWindowReportCount') == 1 and maintenance.get('resumedIdleSeconds') == 0 and maintenance.get('resumedReportCount') == 1 and maintenance.get('stageNames') == ['farm_advance'] and len(reports) == 1 and reports[0].get('title') == 'Idle maintenance: 1 done' and '| farm_advance | completed |' in reports[0].get('body', ''),
         'human gate': probe.get('negativeEnqueueCalls') == 0 and probe.get('negativeStartCalls') == 0 and probe.get('negativeLedger', {}).get('detail') == 'needsHuman',
         'native verification': task.get('status') == 'completed' and task.get('verifiedGreen') is True and 'UNATTENDED_ORACLE_OK' in task.get('verificationSummary', ''),
         'exact file evidence': [entry['path'] for entry in task.get('changedFiles', [])] == ['greeting.txt'] and task['changedFiles'][0]['content'] == 'hello from unattended\n' and task.get('changedFileEvidenceTruncated') is False,
@@ -97,7 +100,7 @@ try:
     gaps = [name for name, passed in checks.items() if not passed]
 except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
     gaps = [f'Missing or malformed native evidence: {type(error).__name__}']
-summary['farmUnattendedEvidence'] = {'passed': not gaps, 'gaps': gaps, 'scope': 'Injected idle environment and fixture access; live roadmap extraction and production proposals, real launcher, scheduler, worktree, LLM, contained verifier and persistence'}
+summary['farmUnattendedEvidence'] = {'passed': not gaps, 'gaps': gaps, 'scope': 'Synthetic lifecycle callbacks, fixture AC/access and report sink; production maintenance providers and Farm stage, live roadmap extraction and production proposals, real launcher, scheduler, worktree, LLM, contained verifier and persistence'}
 if gaps:
     summary['result'] = 'failed'
     summary['mainReadiness'] = {'status': 'blocked', 'note': '; '.join(gaps)}

@@ -817,6 +817,15 @@ only one.
   a physical-device decline with zero enqueue/start. OS idle and fixture
   access remain injected; large-document outline extraction is not covered.
 
+- The maintenance-provider extension `farm_unattended_live_canary.tEIzvY`
+  passed the production scheduler/pipeline providers and selected
+  `farm_advance` stage. Foreground blocked dispatch, synthetic background
+  duration admitted one task, the same window did not repeat, and resume
+  reset idle to zero. Native worktree verification remained green. Lifecycle
+  events, AC state and report sink are fixtures; other maintenance stages,
+  OS event delivery and overnight timer behavior remain unverified. The
+  current idle signal is app background duration, not system-wide HID idle.
+
 ### FARM6: Pull Requests
 
 Status: `later`

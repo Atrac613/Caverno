@@ -20,10 +20,14 @@ settings, or feature-specific execution behavior.
 ## Software Farm Unattended Worktree Canary
 
 `tool/run_farm_unattended_live_canary.sh --quiet-output` connects the real
-`IdleMaintenanceScheduler` and `FarmUnattendedRunner` to the production
+`idleMaintenanceSchedulerProvider`, the production maintenance pipeline and
+its `farm_advance` stage connect `FarmUnattendedRunner` to the production
 launcher, worktree task scheduler, Git preparer, orchestrator and executor.
 It uses one synthetic repository without remotes, disabled hooks/signing,
-fixture preferences, an injected idle environment and fixture access grants.
+fixture preferences, synthetic lifecycle callbacks, fixture AC/access grants
+and a recording notification sink. The production idle environment computes
+background duration from the real lifecycle service; foreground and resumed
+states block the gate. Other maintenance stages are excluded.
 The production `RoadmapSnapshotService` discovers each synthetic roadmap,
 extracts it live, verifies its quotes and persists the snapshot. The production
 `ProjectProposalService` and structured completion adapter generate both
@@ -49,18 +53,22 @@ persisted task state and the daily-limit ledger. Cleanup removes only the
 synthetic repository's worktrees. The independent evidence gate blocks the
 summary for absent or contradictory evidence. A physical-device negative case
 must produce `needsHuman`, may select its listed item or abstain with an empty
-task id, and must never enqueue or start. Evidence schema version 3 requires
+task id, and must never enqueue or start. Evidence schema version 4 requires
 both live extraction and proposal HTTP calls, source SHA-256 and quote/line
-agreement, and the negative admission/ledger record.
-This excludes OS idle detection,
-the full maintenance-provider pipeline, host bookmark authorization,
+agreement, and the negative admission/ledger record. It also requires a
+foreground block, sufficient background duration, exactly one completed Farm
+report, no same-window repeat and zero idle on resume.
+This excludes real OS lifecycle event delivery, system-wide HID idle,
+other maintenance stages, real battery and notification plugins,
+host bookmark authorization,
 UI, review/commit and cross-project scheduling. The short synthetic roadmaps
 exercise direct extraction; large-document outline extraction is not covered.
 
 The 2026-10-04 `qwen3.8-27b-exl3` runs remain failed:
 
 - `farm_unattended_live_canary.paWZOg`: the test widget binding intercepted
-  HTTP; the canary now avoids that binding.
+  HTTP; later lifecycle coverage preserves the original HTTP overrides when
+  initializing that binding.
 - `farm_unattended_live_canary.gosi1N`: five successful HTTP calls and a real
   worktree edit, but the greeting lacked its required newline. Native
   verification failed; no live readiness was established.
@@ -149,6 +157,32 @@ resolved it as `ROADMAP.md`. The gate now permits both fixture filenames while
 still requiring matching source hash, model, verified id and quote/line.
 OS idle detection, host bookmark authorization, outline extraction and the
 full maintenance-provider pipeline remain outside this canary's scope.
+
+The 2026-10-04 maintenance-provider extension
+`farm_unattended_live_canary.tEIzvY` passed the test, summary and independent
+gate on `qwen3.8-27b-exl3`, with two extraction, two proposal and five execution
+HTTP calls. It uses the production scheduler provider, pipeline provider,
+selected `farm_advance` callback, lifecycle service and background-duration
+environment. Foreground produced no report; synthetic background duration was
+660 seconds, followed by one completed Farm dispatch report. The same window
+produced no second report, and resume reset idle to zero. The native worktree
+oracle and all prior admission/persistence checks passed; the scratch tree and
+relay were removed. Related lifecycle, environment, scheduler, stage and Farm
+suites passed 55 tests; static analysis passed. Eight gate controls accepted
+valid evidence and rejected absent maintenance evidence, a foreground report,
+insufficient idle, a repeat, nonzero resumed idle, a wrong stage and a failed
+report.
+
+The preceding `farm_unattended_live_canary.RSLlBd` remains failed: initializing
+the Flutter test binding installed its default HTTP mock, so no real HTTP
+completed and the pipeline reported a failed stage. The canary now preserves
+the original HTTP overrides, as existing lifecycle-based live canaries do,
+and records report content even when an assertion fails. The only selected
+maintenance stage is `farm_advance`; other stages and refresh-key calculation
+remain excluded. Lifecycle callbacks, the background timestamp, AC state and
+notification sink are fixtures. This does not prove native OS event delivery,
+system-wide HID idle, real power/notification plugins or overnight timer
+behavior. Production uses app background duration as its current idle proxy.
 
 ## Software Farm Completion Canary
 

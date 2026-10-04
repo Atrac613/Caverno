@@ -14,8 +14,6 @@ import 'package:caverno/features/chat/presentation/providers/worktree_agent_task
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_orchestrator.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_verification_runner.dart';
-import 'package:caverno/features/maintenance/domain/entities/idle_maintenance_config.dart';
-import 'package:caverno/features/maintenance/domain/services/idle_maintenance_scheduler.dart';
 import 'package:caverno/features/project_farm/application/farm_unattended_runner.dart';
 import 'package:caverno/features/project_farm/data/roadmap_snapshot_repository.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_farm_policy.dart';
@@ -26,11 +24,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/farm_unattended_maintenance_probe.dart';
 import 'support/farm_unattended_proposal_probe.dart';
 import 'support/farm_unattended_snapshot_probe.dart';
 import 'support/farm_unattended_support.dart';
 
 void main() {
+  final originalHttpOverrides = HttpOverrides.current;
+  TestWidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = originalHttpOverrides;
   final env = Platform.environment;
   test(
     'live unattended Farm dispatch creates and verifies a real worktree',
@@ -46,10 +48,10 @@ void main() {
       final snapshotClient = FarmFixtureClient();
       FarmUnattendedSnapshotProbe? snapshots;
       ProviderContainer? container;
-      IdleMaintenanceScheduler? scheduler;
+      FarmUnattendedMaintenanceProbe? maintenance;
       WorktreeAgentTask? task;
       var passed = false;
-      final evidence = <String, Object?>{'schemaVersion': 3, 'passed': false};
+      final evidence = <String, Object?>{'schemaVersion': 4, 'passed': false};
       try {
         await File('${root.path}/greeting.txt').writeAsString('hello\n');
         await File('${root.path}/roadmap.md').writeAsString(
@@ -227,21 +229,8 @@ print("UNATTENDED_ORACLE_OK")
           },
           now: () => now,
         );
-        scheduler = IdleMaintenanceScheduler(
-          environment: FarmIdleEnvironment(),
-          configProvider: () => const IdleMaintenanceConfig(
-            enabled: true,
-            windowStartMinutes: 120,
-            windowEndMinutes: 360,
-            minIdle: Duration(minutes: 10),
-            requireAcPower: true,
-          ),
-          run: (handle) async {
-            await farm.run(isCancelled: () => handle.isCancelled);
-          },
-        );
-        await scheduler.tick();
-        await scheduler.drain();
+        maintenance = FarmUnattendedMaintenanceProbe(farm);
+        await maintenance.openAfterForegroundCheck();
         expect(runs, hasLength(1));
         final result = await runs.single;
         evidence['proposalProbe'] = await proposals.checkHumanGate(project);
@@ -322,8 +311,7 @@ print("UNATTENDED_ORACLE_OK")
         final persisted = WorktreeAgentTaskRepository(prefs).loadAll().single;
         expect(persisted.status, WorktreeAgentTaskStatus.completed);
         expect(persisted.verifiedGreen, isTrue);
-        await scheduler.tick();
-        await scheduler.drain();
+        await maintenance.checkNoRepeatAndResume();
         expect(runs, hasLength(1));
         final limit = await farm.run(isCancelled: () => false);
         expect(limit.started, 0);
@@ -347,7 +335,7 @@ print("UNATTENDED_ORACLE_OK")
         });
         passed = true;
       } finally {
-        scheduler?.stop();
+        maintenance?.dispose();
         container?.dispose();
         client.close();
         proposalClient.close();
@@ -375,6 +363,7 @@ print("UNATTENDED_ORACLE_OK")
           'passed': passed,
           'scratchRemoved': !scratch.existsSync(),
           'wireToolCalls': client.wireToolCalls,
+          'maintenanceProbe': maintenance?.evidence,
           'snapshotProbe': snapshots?.evidence,
           'snapshotResponses': snapshotClient.wireMessages,
           'snapshotHttpCalls': snapshotClient.successfulCalls,
