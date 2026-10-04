@@ -826,6 +826,16 @@ only one.
   OS event delivery and overnight timer behavior remain unverified. The
   current idle signal is app background duration, not system-wide HID idle.
 
+- Foreground return now synchronously latches maintenance cancellation via
+  the production lifecycle provider. The native macOS host canary
+  `farm_foreground_host.ZGRPE9` observed real background/resume events and a
+  five-second timer-driven pending proposal; it drained 69 ms after window
+  restore with zero enqueue/start. Re-backgrounding does not revive the pass.
+  Related suites passed 53 tests and analysis; the live-model regression
+  `farm_unattended_live_canary.f8wvq3` also passed. This stops further dispatch,
+  not already-started worktrees or in-flight HTTP. Overnight windows, real
+  AC/notification plugins and signed release behavior remain unverified.
+
 ### FARM6: Pull Requests
 
 Status: `later`

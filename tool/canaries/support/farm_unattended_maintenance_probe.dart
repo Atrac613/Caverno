@@ -22,10 +22,16 @@ class _FixturePower implements PowerStateProbe {
 /// Keeps the production provider, lifecycle proxy, Farm stage and report path.
 /// Other maintenance stages and the platform notification sink are excluded.
 class FarmUnattendedMaintenanceProbe {
-  FarmUnattendedMaintenanceProbe(FarmUnattendedRunner farm) {
-    lifecycle = AppLifecycleService(
-      clock: () => DateTime.now().subtract(const Duration(minutes: 11)),
-    );
+  FarmUnattendedMaintenanceProbe(
+    FarmUnattendedRunner farm, {
+    AppLifecycleService? lifecycleService,
+    Duration minIdle = const Duration(minutes: 10),
+  }) {
+    lifecycle =
+        lifecycleService ??
+        AppLifecycleService(
+          clock: () => DateTime.now().subtract(const Duration(minutes: 11)),
+        );
     stages = ProviderContainer(
       overrides: [farmUnattendedRunnerProvider.overrideWithValue(farm)],
     );
@@ -37,11 +43,11 @@ class FarmUnattendedMaintenanceProbe {
         appLifecycleServiceProvider.overrideWithValue(lifecycle),
         powerStateProbeProvider.overrideWithValue(_FixturePower()),
         idleMaintenanceConfigProvider.overrideWithValue(
-          const IdleMaintenanceConfig(
+          IdleMaintenanceConfig(
             enabled: true,
             windowStartMinutes: 0,
             windowEndMinutes: 0,
-            minIdle: Duration(minutes: 10),
+            minIdle: minIdle,
             requireAcPower: true,
           ),
         ),

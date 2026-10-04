@@ -184,6 +184,52 @@ notification sink are fixtures. This does not prove native OS event delivery,
 system-wide HID idle, real power/notification plugins or overnight timer
 behavior. Production uses app background duration as its current idle proxy.
 
+## Farm Foreground Cancellation Host Canary
+
+Run `tool/run_farm_foreground_host_canary.sh --quiet-output` on macOS. It builds
+and launches an integration-test host window, then hides and restores that
+window through `window_manager`. No lifecycle callback or scheduler tick is
+injected. A real five-second scheduler timer enters the production Farm stage
+with a fixed, valid proposal held in flight. Native foreground return must
+cancel that pass before the next timer; releasing the proposal must produce
+zero enqueue/start and a cancellation report. The host report's
+`resumeToDrainMs` measures from the window-restore request through run drain.
+The independent gate rejects missing events, a late drain, any dispatch or an
+absent cancellation report.
+
+`AppLifecycleService` now synchronously notifies background/foreground changes.
+The scheduler provider subscribes and latches active-run cancellation on
+foreground return without stopping polling. A quick return to background
+does not revive the pending proposal. Cancellation reports retain the number
+of tasks already started or skipped. This prevents further dispatch; it does
+not terminate already-started worktrees or abort the outstanding model HTTP
+request, which unwinds when its response arrives.
+
+The host fixture uses a fixed pending proposal, synthetic preferences and
+project metadata, fixture AC state, a short idle threshold and a recording
+notification sink. No real project, LLM or verification command is dispatched.
+It complements the live LLM unattended canary rather than replacing it.
+System-wide HID idle, overnight window/timer behavior, other maintenance stages,
+real AC/notification plugins and signed release behavior remain unverified.
+
+On 2026-10-04, `farm_foreground_host.ZGRPE9` passed its native test and
+independent gate: background then foreground events were observed, the real
+timer started the pending proposal, and window restore through run drain took
+69 ms, below the next five-second tick. Enqueue/start were both zero and the
+report retained `started 0, skipped 0`. The earlier `farm_foreground_host.4f5adL`
+also passed (67 ms) before the report gained explicit counts. Six gate controls
+accepted valid evidence and rejected a missing resume event, late cancellation,
+enqueue, start and a missing report. Related lifecycle, provider, stage,
+scheduler and Farm suites passed 53 tests, including cancellation without a
+manual tick and quick re-backgrounding; static analysis passed.
+
+`farm_unattended_live_canary.f8wvq3` passed the live-model regression after the
+foreground listener was wired, with two extraction, two proposal and five
+worktree execution HTTP calls on `qwen3.8-27b-exl3`. The exact native oracle,
+human-only decline, persistence, daily limit and cleanup passed. Its relay
+closed. The final host run adds cancellation-count reporting; the positive
+live-model path is unchanged by that reporting branch.
+
 ## Software Farm Completion Canary
 
 This complements the intermediate-step canary with three required cases:

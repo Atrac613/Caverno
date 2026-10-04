@@ -151,6 +151,13 @@ class IdleMaintenanceScheduler {
     _appliedRefreshKey = null;
   }
 
+  /// Latches cancellation on user activity without stopping periodic polling.
+  /// A quick return to background must not revive a pending model request.
+  void cancelActiveRun() {
+    _activeHandle?.cancel();
+    _allowedLastTick = false;
+  }
+
   /// Awaits the in-progress run, if any, so callers (and tests) can wait for a
   /// cancelled run to finish unwinding.
   Future<void> drain() async {

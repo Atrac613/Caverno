@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/agents_md_loader.dart';
+import '../../../../core/services/notification_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../chat/data/repositories/retry_until_green_report_repository.dart';
 import '../../../chat/data/repositories/worktree_agent_task_repository.dart';
@@ -576,6 +577,11 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
         final summary = await ref
             .read(farmUnattendedRunnerProvider)
             .run(isCancelled: () => context.isCancelled);
+        if (context.isCancelled) {
+          return MaintenanceStageOutcome.skipped(
+            'cancelled before further dispatch; ${summary.detail}',
+          );
+        }
         if (summary.started == 0 && summary.skipped == 0) {
           return const MaintenanceStageOutcome.skipped(
             'no project opted in to unattended runs',
@@ -858,6 +864,13 @@ final idleMaintenanceSchedulerProvider = Provider<IdleMaintenanceScheduler>((
     },
     refreshKeyProvider: warmupRefreshKey,
   );
+  final lifecycle = ref.watch(appLifecycleServiceProvider);
+  void onLifecycleChanged() {
+    if (!lifecycle.isInBackground) scheduler.cancelActiveRun();
+  }
+
+  lifecycle.addListener(onLifecycleChanged);
+  ref.onDispose(() => lifecycle.removeListener(onLifecycleChanged));
   ref.onDispose(scheduler.dispose);
   return scheduler;
 });
