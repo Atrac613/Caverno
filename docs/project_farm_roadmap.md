@@ -836,6 +836,18 @@ only one.
   not already-started worktrees or in-flight HTTP. Overnight windows, real
   AC/notification plugins and signed release behavior remain unverified.
 
+- Unattended tasks now register held (`needsRecovery`) and are admitted only
+  after persistence and a fresh cancellation/policy/command/limit check.
+  Registry changes during admission leave the task held, avoiding stale state
+  publication; rejection records the planned branch and requires manual
+  recovery. The run handle rechecks time/config/power gates without waiting
+  for another polling tick. The native registration case
+  `farm_foreground_host.LziEst` passed with one held task and zero starts;
+  `farm_unattended_live_canary.EI0KzH` passed the normal live admission path.
+  Related suites passed 59 tests and analysis. Running-task termination,
+  overnight windows and physical power/notification plugins remain outside
+  this evidence.
+
 ### FARM6: Pull Requests
 
 Status: `later`

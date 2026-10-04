@@ -119,45 +119,50 @@ void main() {
       await repository.savePolicy(_policy('off', enabled: false));
     });
 
-    FarmUnattendedRunner runner({Future<void> Function()? duringProposal}) =>
-        FarmUnattendedRunner(
-          repository: repository,
-          projects: () => projects,
-          refreshSnapshot: (project) async {
-            modelCalls.add('snapshot ${project.id}');
-            return _snapshot(project.id);
-          },
-          refreshProposal: (project, snapshot) async {
-            modelCalls.add('proposal ${project.id}');
-            await duringProposal?.call();
-            return _proposal(
-              project.id,
-              label: labels[project.id] ?? 'unattended',
+    FarmUnattendedRunner runner({
+      Future<void> Function()? duringProposal,
+      Future<void> Function()? duringEnqueue,
+    }) => FarmUnattendedRunner(
+      repository: repository,
+      projects: () => projects,
+      refreshSnapshot: (project) async {
+        modelCalls.add('snapshot ${project.id}');
+        return _snapshot(project.id);
+      },
+      refreshProposal: (project, snapshot) async {
+        modelCalls.add('proposal ${project.id}');
+        await duringProposal?.call();
+        return _proposal(project.id, label: labels[project.id] ?? 'unattended');
+      },
+      tasks: () => tasks,
+      enqueue:
+          ({
+            required title,
+            required prompt,
+            required codingProjectId,
+            required projectRootPath,
+            required verificationCommand,
+            required acceptanceCriteria,
+          }) async {
+            enqueued.add('$codingProjectId $verificationCommand');
+            await duringEnqueue?.call();
+            return WorktreeAgentTask(
+              id: 't-$codingProjectId',
+              branchName: 'agent/$codingProjectId',
+              worktreePath: '/wt/$codingProjectId',
+              codingProjectId: codingProjectId,
+              createdAt: _now,
+              updatedAt: _now,
             );
           },
-          tasks: () => tasks,
-          enqueue:
-              ({
-                required title,
-                required prompt,
-                required codingProjectId,
-                required projectRootPath,
-                required verificationCommand,
-                required acceptanceCriteria,
-              }) async {
-                enqueued.add('$codingProjectId $verificationCommand');
-                return WorktreeAgentTask(
-                  id: 't-$codingProjectId',
-                  branchName: 'agent/$codingProjectId',
-                  worktreePath: '/wt/$codingProjectId',
-                  codingProjectId: codingProjectId,
-                  createdAt: _now,
-                  updatedAt: _now,
-                );
-              },
-          startReady: startedRoots.add,
-          now: () => _now,
-        );
+      admit: (task, canStart, start) async {
+        if (!canStart()) return false;
+        start();
+        return true;
+      },
+      startReady: startedRoots.add,
+      now: () => _now,
+    );
 
     test(
       'advances only opted-in projects whose proposal is unattended',
@@ -181,6 +186,41 @@ void main() {
         expect(ledger.every((r) => r.trigger == 'unattended'), isTrue);
       },
     );
+
+    for (final reason in ['cancel', 'disabled', 'command', 'limit']) {
+      test('holds after registration when admission closes: $reason', () async {
+        projects = [_project('a')];
+        var cancelled = false;
+        final summary = await runner(
+          duringEnqueue: () async {
+            if (reason == 'cancel') cancelled = true;
+            if (reason == 'disabled') {
+              await repository.savePolicy(_policy('a', enabled: false));
+            }
+            if (reason == 'command') {
+              await repository.savePolicy(_policy('a', unattended: []));
+            }
+            if (reason == 'limit') {
+              await repository.appendFarmRun(
+                FarmRunRecord(
+                  id: 'other-run',
+                  projectId: 'a',
+                  at: _now,
+                  trigger: 'unattended',
+                  outcome: 'enqueued',
+                ),
+              );
+            }
+          },
+        ).run(isCancelled: () => cancelled);
+        expect(enqueued, hasLength(1));
+        expect(startedRoots, isEmpty);
+        expect(summary.started, 0);
+        expect(summary.skipped, 1);
+        expect(repository.farmRuns().last.outcome, 'held');
+        expect(repository.farmRuns().last.branch, 'agent/a');
+      });
+    }
 
     test('stops at the daily limit', () async {
       await runner().run(isCancelled: () => false);

@@ -50,6 +50,12 @@ final class FarmUnattendedRunner {
       required List<String> acceptanceCriteria,
     })
     enqueue,
+    required Future<bool> Function(
+      WorktreeAgentTask task,
+      bool Function() canStart,
+      void Function() start,
+    )
+    admit,
     required void Function(String projectRootPath) startReady,
     DateTime Function()? now,
   }) : _repository = repository,
@@ -58,6 +64,7 @@ final class FarmUnattendedRunner {
        _refreshProposal = refreshProposal,
        _tasks = tasks,
        _enqueue = enqueue,
+       _admit = admit,
        _startReady = startReady,
        _now = now ?? DateTime.now;
 
@@ -76,6 +83,12 @@ final class FarmUnattendedRunner {
     required List<String> acceptanceCriteria,
   })
   _enqueue;
+  final Future<bool> Function(
+    WorktreeAgentTask,
+    bool Function(),
+    void Function(),
+  )
+  _admit;
   final void Function(String projectRootPath) _startReady;
   final DateTime Function() _now;
 
@@ -131,13 +144,40 @@ final class FarmUnattendedRunner {
       final command = currentPolicy.unattendedCommand!;
       final task = await runProjectTaskInBackground(
         enqueue: _enqueue,
-        startReady: _startReady,
+        startReady: (_) {},
         project: project,
         policy: currentPolicy,
         item: item!,
         roadmapPath: snapshot!.roadmapPath,
         verificationCommand: command,
       );
+      bool canStart() {
+        final latest = _repository.policyFor(project.id);
+        return !isCancelled() &&
+            latest != null &&
+            latest.allowsUnattendedRuns &&
+            latest.unattendedCommand == command &&
+            _runsToday(project.id) < latest.dailyRunLimit &&
+            !_tasks().any(
+              (other) =>
+                  other.id != task.id &&
+                  other.codingProjectId == project.id &&
+                  !other.isTerminal,
+            );
+      }
+
+      if (!await _admit(task, canStart, () => _startReady(project.rootPath))) {
+        skipped++;
+        await _record(
+          project,
+          'held',
+          detail: 'admission_closed',
+          taskId: item.id,
+          command: command,
+          branch: task.branchName,
+        );
+        continue;
+      }
       started++;
       await _record(
         project,

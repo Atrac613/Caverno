@@ -103,6 +103,11 @@ class FarmUnattendedProposalProbe {
             enqueueCalls++;
             throw StateError('Physical-device fixture must never enqueue');
           },
+      admit: (task, canStart, start) async {
+        if (!canStart()) return false;
+        start();
+        return true;
+      },
       startReady: (_) {
         startCalls++;
       },

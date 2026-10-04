@@ -277,6 +277,7 @@ final farmUnattendedRunnerProvider = Provider<FarmUnattendedRunner>((ref) {
                     .read(worktreeAgentTaskLauncherProvider)
                     .enqueue(
                       WorktreeAgentTaskLaunchRequest(
+                        deferStart: true,
                         title: title,
                         prompt: prompt,
                         codingProjectId: codingProjectId,
@@ -286,6 +287,9 @@ final farmUnattendedRunnerProvider = Provider<FarmUnattendedRunner>((ref) {
                       ),
                     ))
                 .task,
+    admit: (task, canStart, start) => ref
+        .read(worktreeAgentTaskRegistryNotifierProvider.notifier)
+        .admitHeldTask(task.id, canStart: canStart, start: start),
     startReady: (projectRootPath) => unawaited(
       ref
           .read(worktreeAgentTaskOrchestratorProvider)

@@ -205,6 +205,7 @@ print("UNATTENDED_ORACLE_OK")
                           .read(worktreeAgentTaskLauncherProvider)
                           .enqueue(
                             WorktreeAgentTaskLaunchRequest(
+                              deferStart: true,
                               title: title,
                               prompt: prompt,
                               codingProjectId: codingProjectId,
@@ -215,6 +216,9 @@ print("UNATTENDED_ORACLE_OK")
                             ),
                           ))
                       .task,
+          admit: (task, canStart, start) => active
+              .read(worktreeAgentTaskRegistryNotifierProvider.notifier)
+              .admitHeldTask(task.id, canStart: canStart, start: start),
           startReady: (root) {
             runs.add(
               active

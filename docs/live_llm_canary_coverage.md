@@ -190,9 +190,11 @@ Run `tool/run_farm_foreground_host_canary.sh --quiet-output` on macOS. It builds
 and launches an integration-test host window, then hides and restores that
 window through `window_manager`. No lifecycle callback or scheduler tick is
 injected. A real five-second scheduler timer enters the production Farm stage
-with a fixed, valid proposal held in flight. Native foreground return must
-cancel that pass before the next timer; releasing the proposal must produce
-zero enqueue/start and a cancellation report. The host report's
+with a fixed, valid proposal. Its enqueue adapter persists a real held task
+and waits before returning. Native foreground return must cancel that pass
+before the next timer; completing registration must leave exactly one held
+task, zero starts and a cancellation report. Evidence schema version 2
+requires both in-memory and persisted `needsRecovery` status. The host report's
 `resumeToDrainMs` measures from the window-restore request through run drain.
 The independent gate rejects missing events, a late drain, any dispatch or an
 absent cancellation report.
@@ -229,6 +231,37 @@ worktree execution HTTP calls on `qwen3.8-27b-exl3`. The exact native oracle,
 human-only decline, persistence, daily limit and cleanup passed. Its relay
 closed. The final host run adds cancellation-count reporting; the positive
 live-model path is unchanged by that reporting branch.
+
+Unattended registration now uses `deferStart` to persist tasks directly as
+`needsRecovery` with an admission note. The registry keeps the task unavailable
+to scheduler selection while persisting readiness, rechecks authority and
+registry stability, then publishes queued state and calls start without an
+asynchronous gap. A closed gate or concurrent registry update restores the
+held task. Farm rechecks cancellation, current policy/command, daily limit and
+other active project tasks after registration; rejection records `held` with
+the task id, command and planned branch. Held tasks remain blocked after
+restart and require explicit manual recovery. No new status or storage schema
+was introduced, and interactive background launches keep their existing path.
+
+The scheduler's run handle now also checks the live idle/time/power/config gate
+when cancellation is queried, rather than relying solely on the next polling
+tick. A detected gate closure latches cancellation even if conditions reopen.
+Clock, disabled-config and AC-loss tests cover this on-demand check; Farm
+registration tests cover return, policy/command changes and daily-limit races.
+
+The final 2026-10-04 host run `farm_foreground_host.LziEst` passed the test and
+independent gate: one registered task remained `needsRecovery` in memory and
+storage, with zero starts; restore through drain took 65 ms. The preceding
+`farm_foreground_host.KSypkL` also passed the same registration case. Six gate
+controls accepted valid evidence and rejected a queued in-memory task, a queued
+persisted task, any start, missing registration and a late drain. Related Farm,
+launcher, registry, scheduler and cancellation suites passed 59 tests, including
+concurrent registry changes during persistence; static analysis passed.
+`farm_unattended_live_canary.EI0KzH` passed on `qwen3.8-27b-exl3` with two live
+extraction, two proposal and 5 execution HTTP calls, real native verification,
+persistence and cleanup. Its dynamic relay closed. The host case uses fixed
+model output; the live case separately proves normal held-to-start admission.
+Neither dispatches a user project or tests stopping an already-running task.
 
 ## Software Farm Completion Canary
 
