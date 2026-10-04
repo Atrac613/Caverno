@@ -19,7 +19,6 @@ import 'package:caverno/features/maintenance/domain/services/idle_maintenance_sc
 import 'package:caverno/features/project_farm/application/farm_unattended_runner.dart';
 import 'package:caverno/features/project_farm/data/roadmap_snapshot_repository.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_farm_policy.dart';
-import 'package:caverno/features/project_farm/domain/entities/roadmap_snapshot.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -28,6 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/farm_unattended_proposal_probe.dart';
+import 'support/farm_unattended_snapshot_probe.dart';
 import 'support/farm_unattended_support.dart';
 
 void main() {
@@ -43,15 +43,17 @@ void main() {
       final root = await Directory('${scratch.path}/project').create();
       final client = FarmFixtureClient();
       final proposalClient = FarmFixtureClient();
+      final snapshotClient = FarmFixtureClient();
+      FarmUnattendedSnapshotProbe? snapshots;
       ProviderContainer? container;
       IdleMaintenanceScheduler? scheduler;
       WorktreeAgentTask? task;
       var passed = false;
-      final evidence = <String, Object?>{'schemaVersion': 2, 'passed': false};
+      final evidence = <String, Object?>{'schemaVersion': 3, 'passed': false};
       try {
         await File('${root.path}/greeting.txt').writeAsString('hello\n');
         await File('${root.path}/roadmap.md').writeAsString(
-          '- [ ] GR1: Set greeting.txt to hello from unattended.\n',
+          '# Synthetic roadmap\n\nNext: GR1\n\n- [ ] GR1: Set greeting.txt to exactly hello from unattended followed by a newline. Edit only greeting.txt; preserve verify.py, python and roadmap.md.\n',
         );
         const verifier = '''from pathlib import Path
 assert Path("greeting.txt").read_text() == "hello from unattended\\n"
@@ -157,6 +159,18 @@ print("UNATTENDED_ORACLE_OK")
           ],
         );
         final active = container;
+        snapshots = FarmUnattendedSnapshotProbe(
+          repository: repository,
+          source: ChatRemoteDataSource(
+            baseUrl: settings.baseUrl,
+            apiKey: settings.apiKey,
+            httpClient: snapshotClient,
+          ),
+          model: settings.model,
+          scratchRoot: scratch.path,
+          now: now,
+        );
+        final snapshotProbe = snapshots;
         final proposals = FarmUnattendedProposalProbe(
           repository: repository,
           source: ChatRemoteDataSource(
@@ -166,27 +180,13 @@ print("UNATTENDED_ORACLE_OK")
           ),
           model: settings.model,
           now: now,
+          snapshots: snapshotProbe,
         );
         final runs = <Future<WorktreeAgentTaskRunResult>>[];
         final farm = FarmUnattendedRunner(
           repository: repository,
           projects: () => [project],
-          refreshSnapshot: (_) async => RoadmapSnapshot(
-            projectId: project.id,
-            roadmapPath: 'roadmap.md',
-            contentSha256: 'fixture',
-            extractorVersion: 1,
-            model: 'fixed-fixture',
-            extractedAt: now,
-            status: RoadmapSnapshotStatus.verified,
-            recommended: const RoadmapItemSnapshot(
-              id: 'GR1',
-              title: 'Greeting',
-              quote:
-                  'Set greeting.txt to exactly hello from unattended followed by a newline. Edit only greeting.txt; preserve verify.py, python and roadmap.md.',
-              line: 1,
-            ),
-          ),
+          refreshSnapshot: snapshotProbe.refresh,
           refreshProposal: proposals.refresh,
           tasks: () =>
               active.read(worktreeAgentTaskRegistryNotifierProvider).tasks,
@@ -351,6 +351,7 @@ print("UNATTENDED_ORACLE_OK")
         container?.dispose();
         client.close();
         proposalClient.close();
+        snapshotClient.close();
         // This removes only worktrees owned by the disposable synthetic repo.
         final listing = await farmFixtureGit(root.path, [
           'worktree',
@@ -374,6 +375,9 @@ print("UNATTENDED_ORACLE_OK")
           'passed': passed,
           'scratchRemoved': !scratch.existsSync(),
           'wireToolCalls': client.wireToolCalls,
+          'snapshotProbe': snapshots?.evidence,
+          'snapshotResponses': snapshotClient.wireMessages,
+          'snapshotHttpCalls': snapshotClient.successfulCalls,
           'proposalResponses': proposalClient.wireMessages,
           'proposalHttpCalls': proposalClient.successfulCalls,
         });

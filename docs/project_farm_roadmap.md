@@ -810,6 +810,13 @@ only one.
   candidate was declined with `needsHuman`, zero enqueue/start and a skip
   ledger entry. Roadmap snapshots and the idle environment remain injected.
 
+- The live-extraction extension `farm_unattended_live_canary.uFmSV1` passed
+  production roadmap discovery, live extraction, source quote verification
+  and snapshot persistence before proposal admission and native execution.
+  Two extraction and two proposal HTTP calls produced a green file edit and
+  a physical-device decline with zero enqueue/start. OS idle and fixture
+  access remain injected; large-document outline extraction is not covered.
+
 ### FARM6: Pull Requests
 
 Status: `later`

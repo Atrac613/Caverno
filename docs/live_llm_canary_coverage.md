@@ -23,9 +23,11 @@ settings, or feature-specific execution behavior.
 `IdleMaintenanceScheduler` and `FarmUnattendedRunner` to the production
 launcher, worktree task scheduler, Git preparer, orchestrator and executor.
 It uses one synthetic repository without remotes, disabled hooks/signing,
-fixture preferences, an injected idle environment and fixed verified roadmap
-snapshots. The production `ProjectProposalService` and structured completion
-adapter generate both proposals live. The production LL13 delegate uses the
+fixture preferences, an injected idle environment and fixture access grants.
+The production `RoadmapSnapshotService` discovers each synthetic roadmap,
+extracts it live, verifies its quotes and persists the snapshot. The production
+`ProjectProposalService` and structured completion adapter generate both
+proposals live. The production LL13 delegate uses the
 selected live endpoint, scoped file tools and native macOS contained
 verification. A pre-HTTP guard rejects
 user-home and Caverno context. No user project is dispatched.
@@ -47,11 +49,13 @@ persisted task state and the daily-limit ledger. Cleanup removes only the
 synthetic repository's worktrees. The independent evidence gate blocks the
 summary for absent or contradictory evidence. A physical-device negative case
 must produce `needsHuman`, may select its listed item or abstain with an empty
-task id, and must never enqueue or start. Evidence schema version 2 requires
-both live proposal HTTP calls and the negative admission/ledger record.
+task id, and must never enqueue or start. Evidence schema version 3 requires
+both live extraction and proposal HTTP calls, source SHA-256 and quote/line
+agreement, and the negative admission/ledger record.
 This excludes OS idle detection,
-the full maintenance-provider pipeline, live roadmap extraction,
-UI, review/commit and cross-project scheduling.
+the full maintenance-provider pipeline, host bookmark authorization,
+UI, review/commit and cross-project scheduling. The short synthetic roadmaps
+exercise direct extraction; large-document outline extraction is not covered.
 
 The 2026-10-04 `qwen3.8-27b-exl3` runs remain failed:
 
@@ -125,6 +129,26 @@ accepts either allowed task id while still requiring `needsHuman` and zero
 enqueue/start. No production behavior or positive native oracle was changed.
 OS idle detection and roadmap extraction remain injected; live proposal
 generation is now exercised through the production service and adapter.
+
+The 2026-10-04 live-extraction extension
+`farm_unattended_live_canary.uFmSV1` passed the test, summary and independent
+gate on `qwen3.8-27b-exl3`: two extraction, two proposal and five worktree
+execution HTTP calls. Both documents went through production file discovery,
+extraction, quote verification and persisted snapshots. The positive task was
+verified green; the physical-device proposal abstained with `needsHuman` and
+zero enqueue/start. The exact newline, unchanged HEAD, daily limit and cleanup
+checks passed, and the dynamic relay closed. Seven gate controls accepted
+valid evidence and rejected missing extraction HTTP, a missing snapshot,
+a wrong hash, an invented quote, a wrong line and a wrong task id. Related
+snapshot, proposal and admission suites passed 28 tests; static analysis passed.
+
+The preceding `farm_unattended_live_canary.WSdUPP` passed its live test but
+remains a failed overall artifact: the independent gate required lowercase
+`roadmap.md`, while production discovery on the case-insensitive macOS fixture
+resolved it as `ROADMAP.md`. The gate now permits both fixture filenames while
+still requiring matching source hash, model, verified id and quote/line.
+OS idle detection, host bookmark authorization, outline extraction and the
+full maintenance-provider pipeline remain outside this canary's scope.
 
 ## Software Farm Completion Canary
 

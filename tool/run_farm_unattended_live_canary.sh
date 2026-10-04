@@ -54,7 +54,7 @@ fvm dart run tool/live_llm_canary_summary.dart \
   >"${RUN_DIR}/summary.log" 2>&1
 SUMMARY_STATUS=$?
 python3 - "${RUN_DIR}" >"${RUN_DIR}/evidence_gate.log" 2>&1 <<'PYGATE'
-import json, sys
+import hashlib, json, re, sys
 from pathlib import Path
 root = Path(sys.argv[1])
 summary_path = root / 'canary_summary.json'
@@ -67,10 +67,26 @@ try:
     positive = probe.get('positive', {})
     negative = probe.get('negative', {})
     task_ledger = [run for run in evidence.get('ledger', []) if run.get('projectId') == 'synthetic']
+    def grounded(project_id, task_id):
+        entry = evidence.get('snapshotProbe', {}).get(project_id, {})
+        snapshot = entry.get('snapshot', {})
+        document = entry.get('document', '')
+        item = snapshot.get('recommended') or {}
+        line = item.get('line')
+        lines = document.splitlines()
+        normalize = lambda text: re.sub(r'\s+', ' ', text).strip().lower()
+        return (snapshot.get('status') == 'verified' and snapshot.get('error') is None
+                and snapshot.get('roadmapPath') in ('roadmap.md', 'ROADMAP.md')
+                and snapshot.get('model') == summary.get('model')
+                and snapshot.get('contentSha256') == hashlib.sha256(document.encode()).hexdigest()
+                and item.get('id') == task_id and item.get('verified') is True
+                and isinstance(line, int) and 1 <= line <= len(lines)
+                and bool(item.get('quote')) and normalize(item['quote']) in normalize(lines[line - 1]))
     checks = {
-        'fixture passed and removed': evidence.get('schemaVersion') == 2 and evidence.get('passed') is True and evidence.get('scratchRemoved') is True,
+        'fixture passed and removed': evidence.get('schemaVersion') == 3 and evidence.get('passed') is True and evidence.get('scratchRemoved') is True,
         'one real HTTP dispatch': evidence.get('dispatchCount') == 1 and evidence.get('successfulHttpCalls', 0) > 0,
         'live proposal routing': evidence.get('proposalHttpCalls', 0) >= 2 and positive.get('taskId') == 'GR1' and positive.get('automatability') == 'unattended' and positive.get('error') is None and negative.get('taskId') in ('', 'HUMAN') and negative.get('automatability') == 'needsHuman' and negative.get('error') is None,
+        'live grounded extraction': evidence.get('snapshotHttpCalls', 0) >= 2 and grounded('synthetic', 'GR1') and grounded('human-fixture', 'HUMAN'),
         'human gate': probe.get('negativeEnqueueCalls') == 0 and probe.get('negativeStartCalls') == 0 and probe.get('negativeLedger', {}).get('detail') == 'needsHuman',
         'native verification': task.get('status') == 'completed' and task.get('verifiedGreen') is True and 'UNATTENDED_ORACLE_OK' in task.get('verificationSummary', ''),
         'exact file evidence': [entry['path'] for entry in task.get('changedFiles', [])] == ['greeting.txt'] and task['changedFiles'][0]['content'] == 'hello from unattended\n' and task.get('changedFileEvidenceTruncated') is False,
@@ -81,7 +97,7 @@ try:
     gaps = [name for name, passed in checks.items() if not passed]
 except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
     gaps = [f'Missing or malformed native evidence: {type(error).__name__}']
-summary['farmUnattendedEvidence'] = {'passed': not gaps, 'gaps': gaps, 'scope': 'Injected idle environment and verified snapshots; live production proposals, real launcher, scheduler, worktree, LLM, contained verifier and persistence'}
+summary['farmUnattendedEvidence'] = {'passed': not gaps, 'gaps': gaps, 'scope': 'Injected idle environment and fixture access; live roadmap extraction and production proposals, real launcher, scheduler, worktree, LLM, contained verifier and persistence'}
 if gaps:
     summary['result'] = 'failed'
     summary['mainReadiness'] = {'status': 'blocked', 'note': '; '.join(gaps)}

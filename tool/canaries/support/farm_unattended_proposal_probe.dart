@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/project_farm/application/farm_unattended_runner.dart';
@@ -9,13 +11,16 @@ import 'package:caverno/features/project_farm/domain/entities/roadmap_snapshot.d
 import 'package:caverno/features/project_farm/presentation/providers/roadmap_snapshot_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Real production structured completion; only the verified snapshot is fixed.
+import 'farm_unattended_snapshot_probe.dart';
+
+/// Real production structured proposals from live verified snapshots.
 class FarmUnattendedProposalProbe {
   FarmUnattendedProposalProbe({
     required this.repository,
     required ChatDataSource source,
     required String model,
     required this.now,
+    required this.snapshots,
   }) : service = ProjectProposalService(
          repository: repository,
          complete: () => structuredRoadmapCompletion(source, model: model),
@@ -26,6 +31,7 @@ class FarmUnattendedProposalProbe {
   final RoadmapSnapshotRepository repository;
   final ProjectProposalService service;
   final DateTime now;
+  final FarmUnattendedSnapshotProbe snapshots;
   ProjectProposal? positive;
 
   Future<ProjectProposal?> refresh(
@@ -45,9 +51,19 @@ class FarmUnattendedProposalProbe {
     expect(positive?.error, isNull);
     expect(positive?.taskId, 'GR1');
     expect(positive?.automatability, 'unattended');
+    final humanRoot = await Directory(
+      '${Directory(original.rootPath).parent.path}/human-project',
+    ).create();
+    await File('${humanRoot.path}/roadmap.md').writeAsString(
+      '# Physical device roadmap\n\nNext: HUMAN\n\n'
+      '- [ ] HUMAN: A person must connect a physical phone and speak into '
+      'its microphone to verify recorded audio. File edits or a test command '
+      'cannot complete this physical device check.\n',
+    );
     final human = original.copyWith(
       id: 'human-fixture',
       name: 'physical-device-fixture',
+      rootPath: humanRoot.path,
     );
     await repository.savePolicy(
       ProjectFarmPolicy(
@@ -59,31 +75,13 @@ class FarmUnattendedProposalProbe {
         updatedAt: now,
       ),
     );
-    final snapshot = RoadmapSnapshot(
-      projectId: human.id,
-      roadmapPath: 'roadmap.md',
-      contentSha256: 'human-fixture',
-      extractorVersion: 1,
-      model: 'fixed-fixture',
-      extractedAt: now,
-      status: RoadmapSnapshotStatus.verified,
-      recommended: const RoadmapItemSnapshot(
-        id: 'HUMAN',
-        title: 'Physical device microphone check',
-        line: 1,
-        quote:
-            'Next: HUMAN. A person must connect a physical phone and speak '
-            'into its microphone to verify recorded audio. File edits or a '
-            'test command cannot complete this physical device check.',
-      ),
-    );
     ProjectProposal? negative;
     var enqueueCalls = 0;
     var startCalls = 0;
     final runner = FarmUnattendedRunner(
       repository: repository,
       projects: () => [human],
-      refreshSnapshot: (_) async => snapshot,
+      refreshSnapshot: snapshots.refresh,
       refreshProposal: (project, snapshot) async {
         negative = await service.refresh(
           project: project,
