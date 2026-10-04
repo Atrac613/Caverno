@@ -55,6 +55,16 @@ block from its first top-level `assert` onward. Changed or removed checks remain
 unresolved. Bounded local command output retains its start and end so a long
 traceback does not discard the final exception.
 
+Completion evidence also recognizes Python stdin scripts supplied by one quoted
+here-document, with an optional literal `cd ... &&` prefix. Their executed exit
+status counts as verification without changing command approval or containment.
+These scripts retain their entire command as the verification scope; a changed
+script cannot settle a failed invocation. Expandable delimiters, extra shell
+commands, and package metadata queries do not qualify through this rule.
+Plain "the README was modified" summaries can refer to a uniquely changed
+`README.md`, `README.rst`, or `README.txt` when no extensionless `README` exists.
+Explicit paths and ambiguous document variants retain their own mutation gates.
+
 Each line is one JSON object with schema name
 `caverno_llm_session_log_entry`. Entries include:
 

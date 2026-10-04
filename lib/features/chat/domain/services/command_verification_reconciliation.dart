@@ -6,6 +6,7 @@ import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'inline_python_verification_contract.dart';
 import 'literal_environment_inspection_policy.dart';
+import 'literal_python_stdin_verification.dart';
 import 'masked_inspection_command_policy.dart';
 import 'pytest_verification_identity.dart';
 import 'shell_exit_status_report.dart';
@@ -154,6 +155,7 @@ abstract final class CommandVerificationReconciliation {
           MaskedInspectionCommandPolicy.applies(command)) {
         return false;
       }
+      if (LiteralPythonStdinVerification.applies(command)) return true;
       final directory =
           (decoded?['working_directory'] ??
                   result.arguments['working_directory'])

@@ -9,6 +9,8 @@ void registerChatNotifierProjectTaskStepTests() {
     'read-only done',
     'read-only then verified',
     'read-only opaque then verified',
+    'edited then stdin retry',
+    'edited then stdin retry detached',
     'premature goal completion',
     'blocked verification',
     'failed then passed detached',
@@ -33,11 +35,20 @@ void registerChatNotifierProjectTaskStepTests() {
       final detached = scenario.endsWith(' detached');
       final fails = mode.startsWith('failed') || mode == 'blocked verification';
       final opaqueClaim = mode == 'read-only opaque then verified';
+      final stdinRetry = mode == 'edited then stdin retry';
       final recoveredClaim = mode == 'read-only then verified' || opaqueClaim;
       final readOnly = mode.startsWith('read-only');
       final reportingChanged = mode == 'pytest reporting changed';
       final command = reportingChanged
           ? 'cd ${root.path} && python3 -m pytest test_fixture.py -v 2>&1 | tail -20'
+          : stdinRetry
+          ? "cd ${root.path} && python3 - <<'PY'\n"
+                'import sys\n'
+                'from pathlib import Path\n'
+                "if Path('README.md').read_text() != 'Fixture policy.\\n':\n"
+                '    sys.exit(1)\n'
+                "print('All checks passed.')\n"
+                'PY'
           : 'cd ${root.path} && python3 -c "assert 1 == 1"';
       final gate = detached ? Completer<void>() : null;
       final source = _ProjectTaskStepDataSource(
@@ -57,15 +68,17 @@ void registerChatNotifierProjectTaskStepTests() {
               id: 'edit',
               name: 'write_file',
               arguments: {
-                'path': '${root.path}/policy.md',
+                'path':
+                    '${root.path}/${stdinRetry ? 'README.md' : 'policy.md'}',
                 'content': 'Fixture policy.\n',
               },
             ),
-            ToolCallInfo(
-              id: 'verify',
-              name: 'local_execute_command',
-              arguments: {'command': command},
-            ),
+            if (!stdinRetry)
+              ToolCallInfo(
+                id: 'verify',
+                name: 'local_execute_command',
+                arguments: {'command': command},
+              ),
           ],
           if (reportingChanged)
             ToolCallInfo(
@@ -102,6 +115,8 @@ void registerChatNotifierProjectTaskStepTests() {
               ? 'The local command completed.\n{"command":"python3 unavailable.py"}\nPROJECT_TASK_SUBTASK_DONE'
               : recoveredClaim
               ? 'The local command completed.\nPROJECT_TASK_SUBTASK_DONE'
+              : stdinRetry
+              ? 'Updated: README.md.\nThe local command completed.\nPROJECT_TASK_SUBTASK_DONE'
               : fails || mode == 'missing marker only'
               ? 'Let me run a more targeted check.'
               : 'Subtask complete.\nPROJECT_TASK_SUBTASK_DONE',
@@ -237,6 +252,24 @@ void registerChatNotifierProjectTaskStepTests() {
           contains('Required subtask tool actions remain unexecuted.'),
         );
       }
+      if (stdinRetry) {
+        expect(source.commandRetryCount, 1);
+        expect(service.executedToolNames, [
+          'write_file',
+          'local_execute_command',
+        ]);
+        expect(answer, isNot(contains('Deliverable claim check:')));
+        expect(
+          source.memoryMessages.last.content,
+          isNot(
+            contains('result={"ok":false,"code":"unexecuted_command_action"'),
+          ),
+        );
+        expect(
+          memory.drafts.single!.openLoops.join(' '),
+          isNot(contains('missing command-execution')),
+        );
+      }
       if (fails) {
         expect(
           source.recoveryMessages.join('\n'),
@@ -287,8 +320,9 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
     int? maxTokens,
   }) {
     if ((scenario == 'failed then passed' ||
-            scenario == 'read-only then verified') &&
-        recoveryCount > 0) {
+                scenario == 'read-only then verified') &&
+            recoveryCount > 0 ||
+        scenario == 'edited then stdin retry' && commandRetryCount > 0) {
       return Stream.fromIterable([
         'Verified.\nPROJECT_TASK_SUBTASK_DONE',
       ]).asCompletion();
@@ -311,7 +345,8 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    if (scenario == 'read-only opaque then verified' &&
+    if ((scenario == 'read-only opaque then verified' ||
+            scenario == 'edited then stdin retry') &&
         commandRetryCount == 0 &&
         toolResults.any(
           (result) => result.result.contains(
@@ -320,18 +355,21 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
         )) {
       commandRetryCount++;
       return ChatCompletionResult(
-        content: '',
+        content: scenario == 'edited then stdin retry'
+            ? 'The README was modified earlier this turn; I will verify it.'
+            : '',
         finishReason: 'tool_calls',
         toolCalls: [
           ToolCallInfo(
-            id: 'opaque-retry-verifier',
+            id: 'retry-verifier',
             name: 'local_execute_command',
             arguments: {'command': command},
           ),
         ],
       );
     }
-    if (scenario == 'read-only opaque then verified' &&
+    if ((scenario == 'read-only opaque then verified' ||
+            scenario == 'edited then stdin retry') &&
         commandRetryCount > 0 &&
         !messages.last.id.startsWith('structured_project_subtask_recovery_')) {
       return ChatCompletionResult(

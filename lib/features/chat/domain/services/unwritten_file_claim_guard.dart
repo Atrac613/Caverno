@@ -159,6 +159,12 @@ class UnwrittenFileClaimGuard {
     caseSensitive: false,
     unicode: true,
   );
+  static final RegExp _plainReadmeMutation = RegExp(
+    r'(?<![\w`*\[(])README\s+'
+    r'(?:(?:was|were)|(?:has|have)\s+been|(?:is|are)\s+now)\s+'
+    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|modified|written)\b',
+    caseSensitive: false,
+  );
 
   UnwrittenFileClaimAssessment assess({
     required String candidateResponse,
@@ -176,6 +182,7 @@ class UnwrittenFileClaimGuard {
       normalizedRoot,
     );
     final writtenText = _writtenTextByPath(toolResults, normalizedRoot);
+    final exists = pathExists ?? (path) => File(path).existsSync();
     final claimedPaths = <String, String>{};
     var insideFence = false;
     var insideMutationTable = false;
@@ -232,12 +239,20 @@ class UnwrittenFileClaimGuard {
         }
         final absolutePath = _resolveInsideRoot(reference.path, normalizedRoot);
         if (absolutePath != null) {
+          if (_isBackedReadmeShorthand(
+            reference.path,
+            absolutePath,
+            line,
+            successfullyMutatedPaths,
+            exists,
+          )) {
+            continue;
+          }
           claimedPaths.putIfAbsent(absolutePath, () => reference.path);
         }
       }
     }
 
-    final exists = pathExists ?? (path) => File(path).existsSync();
     final claims = <UnwrittenFileClaim>[];
     for (final entry in claimedPaths.entries) {
       if (successfullyMutatedPaths.contains(entry.key)) {
@@ -348,6 +363,38 @@ class UnwrittenFileClaimGuard {
       if (line.contains(name) && text.contains(path)) return true;
     }
     return false;
+  }
+
+  /// Plain prose can call README.md "the README", but an explicit file path
+  /// or an existing extensionless README must retain its own mutation gate.
+  bool _isBackedReadmeShorthand(
+    String reference,
+    String absolutePath,
+    String line,
+    Set<String> mutatedPaths,
+    bool Function(String path) exists,
+  ) {
+    if (reference.toUpperCase() != 'README' ||
+        !_plainReadmeMutation.hasMatch(line) ||
+        exists(absolutePath)) {
+      return false;
+    }
+    final normalizedLine = line.toLowerCase();
+    if (const [
+      '`readme`',
+      '"readme"',
+      "'readme'",
+      '[readme]',
+      '*readme*',
+    ].any(normalizedLine.contains)) {
+      return false;
+    }
+    final documents = [
+      for (final extension in const ['md', 'rst', 'txt'])
+        if (mutatedPaths.contains('$absolutePath.$extension'))
+          '$absolutePath.$extension',
+    ];
+    return documents.length == 1 && exists(documents.single);
   }
 
   /// Text each successful file mutation wrote, keyed by resolved path.

@@ -52,6 +52,48 @@ void main() {
     expect(assessment.buildNotice(), contains('was not modified in this turn'));
   });
 
+  test('a plain README summary refers to one changed document', () {
+    final assessment = guard.assess(
+      candidateResponse:
+          'The README was modified earlier this turn; I re-read it.',
+      toolResults: [successfulWrite('README.md')],
+      projectRoot: root,
+      pathExists: (path) => path == '$root/README.md',
+    );
+
+    expect(assessment.claims, isEmpty);
+  });
+
+  for (final scenario in [
+    'existing extensionless file',
+    'explicit path',
+    'mixed explicit path',
+    'unbacked document',
+    'missing changed document',
+    'ambiguous documents',
+  ]) {
+    test('keeps a README mutation claim for $scenario', () {
+      final assessment = guard.assess(
+        candidateResponse: scenario == 'explicit path'
+            ? '`README` was modified.'
+            : scenario == 'mixed explicit path'
+            ? 'The README was modified; `README` was created.'
+            : 'The README was modified earlier this turn.',
+        toolResults: [
+          if (scenario != 'unbacked document') successfulWrite('README.md'),
+          if (scenario == 'ambiguous documents') successfulWrite('README.rst'),
+        ],
+        projectRoot: root,
+        pathExists: (path) =>
+            scenario != 'missing changed document' &&
+                path == '$root/README.md' ||
+            scenario == 'existing extensionless file' && path == '$root/README',
+      );
+
+      expect(assessment.claims.single.displayPath, 'README');
+    });
+  }
+
   test('flags completed Modified labels without file mutation evidence', () {
     final assessment = guard.assess(
       candidateResponse:
