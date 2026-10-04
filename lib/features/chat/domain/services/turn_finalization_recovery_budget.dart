@@ -3,17 +3,51 @@ import 'dart:convert';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
 import 'command_verification_reconciliation.dart';
+import 'unresolved_verification_failure.dart';
 
 /// Bounds recovery while reserving status reports for finished verification.
 final class TurnFinalizationRecoveryBudget {
   final _attempts = <int, Set<String>>{};
   final _verificationResultsAtRequest = <int, Set<String>>{};
+  final _verificationRepairAttempts = <int, Set<String>>{};
+  final _verificationRepairPendingStatus = <int>{};
+  static const maxVerificationRepairAttempts = 2;
 
-  /// A finished verification owes a status report even when it failed.
+  bool canRepairVerification(int generation, List<ToolResultInfo> results) {
+    final failure = const UnresolvedVerificationFailure().latest(results);
+    if (failure == null ||
+        _wasReused(failure) ||
+        !_terminalVerificationIds(results).contains(failure.id)) {
+      return false;
+    }
+    final attempts = _verificationRepairAttempts[generation] ?? const {};
+    return attempts.length < maxVerificationRepairAttempts &&
+        !attempts.contains(failure.id);
+  }
+
+  /// Fresh failed executions can request bounded repair, independently of
+  /// status-only recovery. Reads, cached results and new hashes cannot renew it.
+  bool claimVerificationRepair(int generation, List<ToolResultInfo> results) {
+    if (!canRepairVerification(generation, results)) return false;
+    final failure = const UnresolvedVerificationFailure().latest(results)!;
+    _verificationRepairAttempts
+        .putIfAbsent(generation, () => {})
+        .add(failure.id);
+    _verificationResultsAtRequest[generation] = _terminalVerificationIds(
+      results,
+    );
+    _verificationRepairPendingStatus.add(generation);
+    return true;
+  }
+
+  /// A finished verification or declined repair still owes a status report.
   bool needsVerificationStatus(int generation, List<ToolResultInfo> results) {
     final previous = _verificationResultsAtRequest[generation];
-    return previous != null &&
-        _terminalVerificationIds(results).any((id) => !previous.contains(id));
+    return _verificationRepairPendingStatus.contains(generation) ||
+        (previous != null &&
+            _terminalVerificationIds(
+              results,
+            ).any((id) => !previous.contains(id)));
   }
 
   /// Failed outcomes permit only a control request whose tools the recovery
@@ -73,6 +107,7 @@ final class TurnFinalizationRecoveryBudget {
     }
     if (!attempts.add(key)) return false;
     _verificationResultsAtRequest[generation] = terminalIds;
+    _verificationRepairPendingStatus.remove(generation);
     return true;
   }
 
@@ -101,10 +136,14 @@ final class TurnFinalizationRecoveryBudget {
   void remove(int generation) {
     _attempts.remove(generation);
     _verificationResultsAtRequest.remove(generation);
+    _verificationRepairAttempts.remove(generation);
+    _verificationRepairPendingStatus.remove(generation);
   }
 
   void clear() {
     _attempts.clear();
     _verificationResultsAtRequest.clear();
+    _verificationRepairAttempts.clear();
+    _verificationRepairPendingStatus.clear();
   }
 }

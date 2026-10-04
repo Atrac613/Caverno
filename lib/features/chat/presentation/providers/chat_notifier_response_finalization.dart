@@ -162,7 +162,8 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
       return;
     }
 
-    if (_primaryRoutes.isProjectTaskStep(generation)) {
+    if (_primaryRoutes.isProjectTaskStep(generation) ||
+        _primaryRoutes.isProjectTaskImplementation(generation)) {
       final candidate = _resolveTurnFinalMessage(activeMessages.last, owner);
       if (await _recoverBeforeTurnFinalizationIfNeeded(
         generation: generation,

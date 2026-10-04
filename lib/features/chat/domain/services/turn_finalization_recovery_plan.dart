@@ -2,10 +2,12 @@ import '../entities/conversation_goal.dart';
 import '../entities/tool_call_info.dart';
 import 'goal_update_ack.dart';
 import 'project_task_step_completion_policy.dart';
+import 'project_verification_repair_policy.dart';
 import 'status_recovery_verification.dart';
 import 'structured_coding_task_recovery_policy.dart';
 import 'turn_finalization_delegation_recovery.dart';
 import 'turn_finalization_recovery_policy.dart';
+import 'unresolved_verification_failure.dart';
 
 typedef FinalizationRecoveryToolSelection = ({
   List<Map<String, dynamic>> tools,
@@ -20,6 +22,7 @@ final class TurnFinalizationRecoveryPlan {
     required ConversationGoal? goal,
     required bool implementationTurn,
     bool terminalStatusOnly = false,
+    bool allowVerificationRepair = false,
     bool stepTurn = false,
     required bool boundarySafe,
     required GoalUpdateAckOutcome? acknowledgement,
@@ -81,7 +84,14 @@ final class TurnFinalizationRecoveryPlan {
       prefixStable: prefixStable,
       pendingDelegation: pendingDelegation,
     );
-    final status = structuredTask
+    verificationRepair =
+        shouldRecover &&
+        (structuredTask || structuredStep) &&
+        allowVerificationRepair &&
+        const UnresolvedVerificationFailure().latest(completedResults) !=
+            null &&
+        !terminalStatusOnly;
+    final status = structuredTask && !verificationRepair
         ? _verification.request(
             allTools,
             completedResults,
@@ -90,21 +100,29 @@ final class TurnFinalizationRecoveryPlan {
             statusOnly: terminalStatusOnly,
           )
         : null;
-    requestTools = status?.tools ?? selection.tools;
+    requestTools = verificationRepair
+        ? ProjectVerificationRepairPolicy.tools(allTools)
+        : status?.tools ?? selection.tools;
     if (requestTools.isEmpty) shouldRecover = false;
-    forcedCode = structuredStep
+    forcedCode = verificationRepair
+        ? ProjectVerificationRepairPolicy.recoveryCode
+        : structuredStep
         ? ProjectTaskStepCompletionPolicy.recoveryCode
         : structuredTask
         ? 'structured_coding_task_status'
         : selection.forcedCode;
-    prompt = stepStatus == null
+    prompt = verificationRepair
+        ? ProjectVerificationRepairPolicy.prompt
+        : stepStatus == null
         ? status?.prompt
         : stepPolicy.prompt(stepStatus);
   }
 
   static const _verification = StatusRecoveryVerification();
 
-  bool acceptsCalls(List<ToolCallInfo> calls) => structuredStep
+  bool acceptsCalls(List<ToolCallInfo> calls) => verificationRepair
+      ? ProjectVerificationRepairPolicy.accepts(calls, requestTools)
+      : structuredStep
       ? const ProjectTaskStepCompletionPolicy().acceptsCalls(
           calls,
           requestTools,
@@ -113,6 +131,7 @@ final class TurnFinalizationRecoveryPlan {
 
   late final bool structuredTask;
   late final bool structuredStep;
+  late final bool verificationRepair;
   late final bool skipFinalAnswer;
   late bool shouldRecover;
   late final FinalizationRecoveryToolSelection selection;

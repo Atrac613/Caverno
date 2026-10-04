@@ -311,6 +311,15 @@ final class CodingContinuationRecoveryPolicy {
   /// Wording per recovery code. An unknown code reads as prose continuation,
   /// and a code without its own lead uses the prose lead.
   static const _texts = <String, _RecoveryText>{
+    'project_verification_repair': (
+      label: 'project verification repair recovery',
+      reason: 'A captured project verification failure remains unresolved.',
+      error:
+          'The failed verification needs diagnosis and an authorized repair.',
+      action:
+          'Diagnose the captured failure, repair task-related code and rerun the same check, or report an evidenced external blocker.',
+      lead: null,
+    ),
     'structured_project_subtask': (
       label: 'structured project subtask recovery',
       reason: 'The intermediate project subtask has unresolved requirements.',

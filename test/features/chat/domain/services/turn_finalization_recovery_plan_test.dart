@@ -2,6 +2,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/turn_finalization_recovery_plan.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -25,26 +26,125 @@ void main() {
     bool offerStatus = true,
     bool terminalStatusOnly = false,
     bool offerExecution = false,
+    bool repair = false,
+    List<ToolResultInfo> results = const [],
   }) => TurnFinalizationRecoveryPlan(
     goal: goal,
     implementationTurn: implementation,
     terminalStatusOnly: terminalStatusOnly,
+    allowVerificationRepair: repair,
     stepTurn: step,
     boundarySafe: boundary,
     acknowledgement: ack,
     parentTurn: false,
     response: response,
-    completedResults: [],
+    completedResults: results,
     hasSavedValidation: false,
     hasGitLifecycle: false,
     skipCompletedAnswer: true,
     allTools: [
       tool('write_file'),
+      if (repair) ...[
+        tool('read_file'),
+        tool('edit_file'),
+        tool('git_execute_command'),
+        tool('send_email'),
+      ],
       if (offerStatus) tool('update_goal'),
       if (offerExecution) ...[tool('local_execute_command'), tool('run_tests')],
     ],
     prefixStable: true,
   );
+
+  test('repair exposes project tools while preserving terminal boundaries', () {
+    final results = [
+      ToolResultInfo(
+        id: 'failed',
+        name: 'local_execute_command',
+        arguments: const {'command': 'python watcher.py --dry-run'},
+        result: '{"stdout":"HTTP Error 404: Not Found"}',
+        outcome: const ToolOutcome(exitCode: 1),
+      ),
+    ];
+    final recovery = plan(repair: true, results: results, offerExecution: true);
+    expect(recovery.shouldRecover, isTrue);
+    expect(recovery.verificationRepair, isTrue);
+    expect(recovery.forcedCode, 'project_verification_repair');
+    final names = recovery.requestTools.map(
+      (tool) => (tool['function'] as Map)['name'],
+    );
+    expect(
+      names,
+      containsAll(['read_file', 'write_file', 'local_execute_command']),
+    );
+    expect(names, isNot(contains('git_execute_command')));
+    expect(names, isNot(contains('send_email')));
+    expect(
+      recovery.acceptsCalls([
+        ToolCallInfo(
+          id: 'edit',
+          name: 'write_file',
+          arguments: const {'path': 'client.py'},
+        ),
+      ]),
+      isTrue,
+    );
+    expect(
+      recovery.acceptsCalls([
+        ToolCallInfo(id: 'external', name: 'send_email', arguments: const {}),
+      ]),
+      isFalse,
+    );
+    expect(
+      recovery.acceptsCalls([
+        ToolCallInfo(
+          id: 'premature-completion',
+          name: 'update_goal',
+          arguments: const {'completed': true},
+        ),
+      ]),
+      isFalse,
+    );
+    expect(plan(repair: true).verificationRepair, isFalse);
+    for (final ack in [
+      GoalUpdateAckOutcome.blockerLogged,
+      GoalUpdateAckOutcome.completionRecorded,
+    ]) {
+      expect(
+        plan(repair: true, results: results, ack: ack).shouldRecover,
+        isFalse,
+      );
+    }
+    expect(
+      plan(repair: true, results: results, boundary: false).shouldRecover,
+      isFalse,
+    );
+    final status = plan(
+      repair: true,
+      results: results,
+      terminalStatusOnly: true,
+      offerExecution: true,
+    );
+    expect(status.verificationRepair, isFalse);
+    expect(status.requestTools.single['function'], {'name': 'update_goal'});
+    final step = plan(
+      implementation: false,
+      step: true,
+      repair: true,
+      results: results,
+    );
+    expect(step.verificationRepair, isTrue);
+    expect(
+      step.acceptsCalls([
+        ToolCallInfo(
+          id: 'completion',
+          name: 'update_goal',
+          arguments: const {'completed': true},
+        ),
+      ]),
+      isFalse,
+    );
+  });
 
   test('implementation metadata overrides apparent completion prose', () {
     for (final response in [

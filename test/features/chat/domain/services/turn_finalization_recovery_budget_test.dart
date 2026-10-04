@@ -7,6 +7,81 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  ToolResultInfo failedVerification(String id) => ToolResultInfo(
+    id: id,
+    name: 'local_execute_command',
+    arguments: const {'command': 'python watcher.py --dry-run'},
+    result: '{"stdout":"HTTP Error 404: Not Found"}',
+    outcome: const ToolOutcome(exitCode: 1),
+  );
+
+  test('fresh failures allow two repairs then one terminal status', () {
+    final budget = TurnFinalizationRecoveryBudget();
+    final first = failedVerification('first');
+    final second = failedVerification('second');
+    final third = failedVerification('third');
+    expect(budget.claimVerificationRepair(1, [first]), isTrue);
+    expect(budget.needsVerificationStatus(1, [first]), isTrue);
+    expect(budget.canRepairVerification(1, [first]), isFalse);
+    expect(budget.claimVerificationRepair(1, [first, second]), isTrue);
+    final results = [first, second, third];
+    expect(budget.canRepairVerification(1, results), isFalse);
+    expect(budget.needsVerificationStatus(1, results), isTrue);
+    expect(
+      budget.claim(1, structuredTask: true, results: results, statusOnly: true),
+      isTrue,
+    );
+    expect(budget.claimVerificationRepair(1, results), isFalse);
+    expect(budget.claimVerificationRepair(2, results), isTrue);
+    budget.remove(1);
+    expect(budget.claimVerificationRepair(1, results), isTrue);
+    budget.clear();
+    expect(budget.claimVerificationRepair(2, results), isTrue);
+  });
+
+  test('reads, mutations and cached failures cannot renew repair', () {
+    final budget = TurnFinalizationRecoveryBudget();
+    final failed = failedVerification('failed');
+    expect(budget.claimVerificationRepair(1, [failed]), isTrue);
+    final results = [
+      failed,
+      ToolResultInfo(
+        id: 'read',
+        name: 'read_file',
+        arguments: {},
+        result: 'code',
+      ),
+      ToolResultInfo(
+        id: 'changed',
+        name: 'write_file',
+        arguments: {},
+        result: '{}',
+        outcome: const ToolOutcome(
+          fileMutations: [
+            ToolFileMutation(
+              path: '/project/source.py',
+              changed: true,
+              contentHash: 'new',
+            ),
+          ],
+        ),
+      ),
+    ];
+    expect(budget.canRepairVerification(1, results), isFalse);
+    final reused = ToolResultInfo(
+      id: 'reused',
+      name: failed.name,
+      arguments: failed.arguments,
+      result: DuplicateToolResultReusePayload().build(
+        failed,
+        currentToolCallId: 'reused',
+      ),
+      outcome: failed.outcome,
+    );
+    expect(budget.canRepairVerification(1, [...results, reused]), isFalse);
+    expect(budget.canRepairVerification(2, [reused]), isFalse);
+  });
+
   ToolResultInfo verified(
     String id, {
     String command = 'python -m pytest test.py',

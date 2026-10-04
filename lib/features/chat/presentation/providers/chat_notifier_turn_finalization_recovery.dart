@@ -34,7 +34,10 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     final allTools = mcpToolService.getOpenAiToolDefinitions();
     if (allTools.isEmpty) return false;
     _synchronizeGoalAutoContinueSafeBoundary();
+    final allowVerificationRepair = _turnFinalizationRecoveryGenerations
+        .canRepairVerification(generation, completedResults);
     final terminalStatusOnly =
+        !allowVerificationRepair &&
         _primaryRoutes.isProjectTaskImplementation(generation) &&
         _turnFinalizationRecoveryGenerations.needsVerificationStatus(
           generation,
@@ -46,6 +49,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
         generation,
       ),
       terminalStatusOnly: terminalStatusOnly,
+      allowVerificationRepair: allowVerificationRepair,
       stepTurn: _primaryRoutes.isProjectTaskStep(generation),
       boundarySafe: _turnRuntimeGoalSafeBoundary
           .captureFor(owner, withinTurn: true)
@@ -91,12 +95,18 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
       return false;
     }
 
-    if (!_turnFinalizationRecoveryGenerations.claim(
-      generation,
-      structuredTask: structuredTask || plan.structuredStep,
-      results: completedResults,
-      statusOnly: terminalStatusOnly,
-    )) {
+    final claimed = plan.verificationRepair
+        ? _turnFinalizationRecoveryGenerations.claimVerificationRepair(
+            generation,
+            completedResults,
+          )
+        : _turnFinalizationRecoveryGenerations.claim(
+            generation,
+            structuredTask: structuredTask || plan.structuredStep,
+            results: completedResults,
+            statusOnly: terminalStatusOnly,
+          );
+    if (!claimed) {
       return false;
     }
     appLog('[TurnFinalization] Requesting recovery before saving response');
@@ -115,6 +125,15 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     if (!recoveryResult.hasToolCalls ||
         !plan.acceptsCalls(recoveryResult.toolCalls!)) {
       _recordHiddenEvidence(owner, recoveryResult.content);
+      if (plan.verificationRepair) {
+        // No work ran. Fall through to the bounded status protocol rather
+        // than saving an answer with neither repair nor an acknowledgement.
+        return _recoverBeforeTurnFinalizationIfNeeded(
+          generation: generation,
+          finalizedMessages: finalizedMessages,
+          shouldDropLastAssistant: shouldDropLastAssistant,
+        );
+      }
       if (plan.structuredStep) {
         final status = const ProjectTaskStepCompletionPolicy().status(
           response: recoveryResult.content,

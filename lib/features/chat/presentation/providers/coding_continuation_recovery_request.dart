@@ -4,6 +4,7 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/coding_continuation_recovery_policy.dart';
+import '../../domain/services/project_verification_repair_policy.dart';
 import '../../domain/services/reasoning_only_stop.dart';
 import '../../domain/services/status_recovery_verification.dart';
 import '../../domain/services/structured_task_status_evidence.dart';
@@ -47,7 +48,11 @@ abstract final class CodingContinuationRecoveryRequest {
           candidateResponse: candidateResponse,
           recoveryCode: recoveryCode,
         ),
-        structured || structuredStep ? executedResults : const [],
+        structured ||
+                structuredStep ||
+                recoveryCode == ProjectVerificationRepairPolicy.recoveryCode
+            ? executedResults
+            : const [],
       );
       final correctiveFeedback = violation == null
           ? feedback

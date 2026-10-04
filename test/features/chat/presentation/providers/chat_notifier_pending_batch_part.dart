@@ -489,7 +489,13 @@ void registerChatNotifierPendingBatchTests() {
                 tools.length == 1 &&
                 (tools.single['function'] as Map)['name'] == 'update_goal',
           ),
-          hasLength(1),
+          hasLength(
+            scenario.retryExit == 0
+                ? 1
+                : scenario.reportBlocked
+                ? 0
+                : 2,
+          ),
         );
         expect(target.readAsStringSync(), 'pass\n');
       },
@@ -1682,6 +1688,49 @@ class _ProjectTaskTerminalDataSource extends _QueuedToolLoopChatDataSource {
 
   final bool extractionFails;
   final List<Message> memoryMessages = [];
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    // Additional recovery requests must not invent new execution evidence.
+    // A scripted completion still goes through the normal rejection gate.
+    if (_toolLoopResponses.isEmpty) {
+      _toolLoopResponses.add(
+        messages.last.id.startsWith('structured_coding_task_status_recovery_')
+            ? ChatCompletionResult(
+                content: '',
+                finishReason: 'tool_calls',
+                toolCalls: [
+                  ToolCallInfo(
+                    id: 'fixture-unresolved-status',
+                    name: 'update_goal',
+                    arguments: const {'completed': true},
+                  ),
+                ],
+              )
+            : ChatCompletionResult(
+                content: 'No additional fixture work was performed.',
+                finishReason: 'stop',
+              ),
+      );
+    }
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
 
   @override
   Future<ChatCompletionResult> createChatCompletion({

@@ -246,6 +246,24 @@ evidence, with at most three recovery boundaries per turn and two requests
 per boundary. Repeated reads and equivalent verifier results do not renew
 this budget.
 
+Before a Project Farm implementation or subtask ends with an unresolved
+verification failure, a separate repair recovery can offer the existing project
+read, edit and execution tools. It carries the failed command, directory and
+output in `capturedEvidence.unresolvedVerification`, asks for an evidenced cause,
+an authorized repair and the same verification chain, and retains all approval
+and containment gates. At most two fresh failed executions per turn can open
+this recovery; repeated reads, mutations and cached results do not renew it.
+The log label is `project verification repair recovery`, with turn transform
+`coding_continuation_recovery_project_verification_repair`. A DNS or HTTP error
+does not establish a configuration cause by itself. User settings, credentials
+and product choices must be preserved. An accepted blocker still ends the loop,
+and failed verification still prevents completion. A completion call alone is
+refused at the repair boundary; a new status report follows captured repair
+verification. A declined repair still receives a bounded status opportunity.
+After repair attempts are exhausted, terminal status recovery remains
+control-only when a verification has finished or a repair request still owes
+an acknowledgement.
+
 The status request's feedback result carries `capturedEvidence`: the paths
 the turn changed, and the latest finished non-git command with its exit, an
 output tail, and whether it ran after the latest change. The carried tail

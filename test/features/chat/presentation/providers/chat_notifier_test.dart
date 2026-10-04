@@ -107,6 +107,7 @@ part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_participant_turns_part.dart';
 part 'chat_notifier_pending_batch_part.dart';
 part 'chat_notifier_project_task_steps_part.dart';
+part 'chat_notifier_project_verification_repair_part.dart';
 part 'chat_notifier_review_inspection_part.dart';
 part 'chat_notifier_persistence_part.dart';
 part 'chat_notifier_planning_contract_part.dart';
@@ -188,6 +189,7 @@ void main() {
   registerChatNotifierPendingBatchTests();
   registerChatNotifierBlockedGoalTests();
   registerChatNotifierProjectTaskStepTests();
+  registerChatNotifierProjectVerificationRepairTests();
   registerChatNotifierReviewInspectionTests();
   registerChatNotifierParticipantTurnTests();
   registerChatNotifierGoalAutoContinueTests();
