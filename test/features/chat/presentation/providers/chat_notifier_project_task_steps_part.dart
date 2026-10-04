@@ -20,6 +20,8 @@ void registerChatNotifierProjectTaskStepTests() {
     'optional pytest metadata lookup',
     'optional fallback environment lookup',
     'pytest reporting changed',
+    'pytest transcript through tail',
+    'pytest transcript through tail detached',
   ]) {
     test('project subtask finalization and memory: $scenario', () async {
       final root = await Directory.systemTemp.createTemp('caverno_subtask_');
@@ -39,7 +41,10 @@ void registerChatNotifierProjectTaskStepTests() {
       final recoveredClaim = mode == 'read-only then verified' || opaqueClaim;
       final readOnly = mode.startsWith('read-only');
       final reportingChanged = mode == 'pytest reporting changed';
-      final command = reportingChanged
+      final pytestTranscript = mode == 'pytest transcript through tail';
+      final command = pytestTranscript
+          ? 'cd ${root.path} && .venv/bin/python -m pytest test_fixture.py -v 2>&1 | tail -30'
+          : reportingChanged
           ? 'cd ${root.path} && python3 -m pytest test_fixture.py -v 2>&1 | tail -20'
           : stdinRetry
           ? "cd ${root.path} && python3 - <<'PY'\n"
@@ -111,7 +116,9 @@ void registerChatNotifierProjectTaskStepTests() {
             ),
         ],
         finalAnswerChunks: [
-          opaqueClaim
+          pytestTranscript
+              ? '```\n\$ .venv/bin/python -m pytest test_fixture.py -v\n53 passed in 3.08s\n```\nPROJECT_TASK_SUBTASK_DONE'
+              : opaqueClaim
               ? 'The local command completed.\n{"command":"python3 unavailable.py"}\nPROJECT_TASK_SUBTASK_DONE'
               : recoveredClaim
               ? 'The local command completed.\nPROJECT_TASK_SUBTASK_DONE'
@@ -201,6 +208,17 @@ void registerChatNotifierProjectTaskStepTests() {
             ? endsWith('PROJECT_TASK_SUBTASK_DONE')
             : isNot(endsWith('PROJECT_TASK_SUBTASK_DONE')),
       );
+      if (pytestTranscript) {
+        expect(answer, isNot(contains('Transcript claim check:')));
+        expect(
+          source.memoryMessages.last.content,
+          contains('subtaskCompleted'),
+        );
+        expect(
+          source.toolResultBatches.expand((batch) => batch).map((r) => r.name),
+          isNot(contains('narrated_transcript_check')),
+        );
+      }
       expect(
         service.verifications,
         mode == 'failed then passed'

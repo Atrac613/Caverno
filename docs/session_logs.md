@@ -189,6 +189,13 @@ neutralized on screen. Before concluding the model misled the user, reproduce
 the turn with a `sendMessage` test and assert on `state.messages.last.content`
 rather than trusting the logged `response.content`.
 
+Terminal-transcript command matching accepts a literal trailing output-only
+`tail -N` or `tail -n N`, with an optional stderr merge. Omitting that display
+wrapper from the answer does not make the underlying issued command unexecuted.
+Different runners, targets and arguments, other pipelines, dynamic counts and
+writable redirects remain distinct. This matching does not establish successful
+verification or change execution approval.
+
 For streaming operations wrapped by `SessionLoggingChatDataSource`, `stream_end`
 means Caverno finished reading the stream and wrote the accumulated text to the
 log. It is not an interruption signal by itself. Treat it as suspicious only
