@@ -39,6 +39,43 @@ ToolResultInfo _read(String path) => ToolResultInfo(
 void main() {
   const evidence = StructuredTaskStatusEvidence();
 
+  test(
+    'retains launch authority without inferring it from model arguments',
+    () {
+      for (final boundary in [
+        {'kind': 'macos_workspace_sandbox', 'network': 'denied'},
+        {'kind': 'host', 'network': 'not_restricted_by_workspace_sandbox'},
+        null,
+      ]) {
+        final summary = evidence.summarize([
+          ToolResultInfo(
+            id: 'network-failure',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'python3 watcher.py --dry-run',
+              'execution_scope': 'host',
+            },
+            result: jsonEncode({
+              'exit_code': 1,
+              'stdout': 'socket.gaierror: DNS resolution failed',
+              'execution_boundary': ?boundary,
+            }),
+            outcome: const ToolOutcome(exitCode: 1),
+          ),
+        ])!;
+        for (final key in ['latestExecution', 'unresolvedVerification']) {
+          final execution = summary[key] as Map;
+          expect(execution['succeeded'], isFalse);
+          if (boundary == null) {
+            expect(execution, isNot(contains('executionBoundary')));
+          } else {
+            expect(execution['executionBoundary'], boundary);
+          }
+        }
+      }
+    },
+  );
+
   test('states the writes and the verification that followed them', () {
     // Session 1d76c878: the status request carried four reads and neither
     // the written test files nor the passing pytest run.

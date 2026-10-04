@@ -132,6 +132,8 @@ final class StructuredTaskStatusEvidence {
       if (result.outcome?.exitCode != null)
         'exitCode': result.outcome!.exitCode,
       'reportedExitCode': ?reportedExit,
+      if (decoded?['execution_boundary'] is Map)
+        'executionBoundary': decoded!['execution_boundary'],
       if (outputIssue != null) 'failureReason': outputIssue.summary,
       'outputTail': _clip(_output(result), maxOutputTailChars, keepEnd: true),
     };

@@ -79,6 +79,7 @@ void main() {
     );
     expect(names, isNot(contains('git_execute_command')));
     expect(names, isNot(contains('send_email')));
+    expect(names, isNot(contains('update_goal')));
     expect(
       recovery.acceptsCalls([
         ToolCallInfo(
@@ -106,6 +107,21 @@ void main() {
       isFalse,
     );
     expect(plan(repair: true).verificationRepair, isFalse);
+    for (final arguments in [
+      {'completed': false, 'blocked_reason': 'The sandbox has no network.'},
+      {'completed': false, 'message': 'Further work remains.'},
+    ]) {
+      expect(
+        recovery.acceptsCalls([
+          ToolCallInfo(
+            id: 'premature-status',
+            name: 'update_goal',
+            arguments: arguments,
+          ),
+        ]),
+        isFalse,
+      );
+    }
     for (final ack in [
       GoalUpdateAckOutcome.blockerLogged,
       GoalUpdateAckOutcome.completionRecorded,

@@ -19,7 +19,7 @@ typedef RecoveryCompletionCreator =
       required List<Map<String, dynamic>> tools,
     });
 
-/// Requests control status without dispatching a model's protocol violations.
+/// Requests bounded recovery without dispatching protocol violations.
 abstract final class CodingContinuationRecoveryRequest {
   static Future<ChatCompletionResult?> run({
     required String candidateResponse,
@@ -34,11 +34,12 @@ abstract final class CodingContinuationRecoveryRequest {
     required bool Function() isCurrent,
   }) async {
     final structured = recoveryCode == 'structured_coding_task_status';
+    final repair = recoveryCode == ProjectVerificationRepairPolicy.recoveryCode;
     final structuredStep = recoveryCode == 'structured_project_subtask';
     const policy = CodingContinuationRecoveryPolicy();
     Map<String, dynamic>? violation;
     ChatCompletionResult? rejected;
-    for (var attempt = 0; attempt < (structured ? 2 : 1); attempt++) {
+    for (var attempt = 0; attempt < (structured || repair ? 2 : 1); attempt++) {
       if (!isCurrent()) return null;
       // The carried tail can omit the very writes and verification a status
       // report is judged on (session 1d76c878), so the request states them.
@@ -48,11 +49,7 @@ abstract final class CodingContinuationRecoveryRequest {
           candidateResponse: candidateResponse,
           recoveryCode: recoveryCode,
         ),
-        structured ||
-                structuredStep ||
-                recoveryCode == ProjectVerificationRepairPolicy.recoveryCode
-            ? executedResults
-            : const [],
+        structured || structuredStep || repair ? executedResults : const [],
       );
       final correctiveFeedback = violation == null
           ? feedback
@@ -88,12 +85,18 @@ abstract final class CodingContinuationRecoveryRequest {
         ),
       );
       if (!isCurrent()) return null;
-      if (!structured) return response;
+      if (!structured && !repair) return response;
       final calls = response.toolCalls ?? [];
       const verification = StatusRecoveryVerification();
-      if (verification.accepts(calls, tools)) return response;
+      if (repair
+          ? ProjectVerificationRepairPolicy.accepts(calls, tools)
+          : verification.accepts(calls, tools)) {
+        return response;
+      }
       rejected = response;
-      violation = verification.violation(calls, tools);
+      violation = repair
+          ? ProjectVerificationRepairPolicy.violation(calls, tools)
+          : verification.violation(calls, tools);
     }
     return ChatCompletionResult(
       content: rejected!.content,

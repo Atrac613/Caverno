@@ -22,6 +22,7 @@ abstract final class LocalShellProcessRunner {
     required int maxOutputChars,
     String? observationTag,
     String? scratchDirectory,
+    Map<String, dynamic>? executionBoundary,
   }) async {
     final process = await startLocalShellProcess(
       executable: shellExecutable,
@@ -50,6 +51,7 @@ abstract final class LocalShellProcessRunner {
         stdout: stdout,
         stderr: stderr,
         observationTag: observationTag,
+        executionBoundary: executionBoundary,
       );
     } on TimeoutException {
       final processTerminated = await _terminateTimedOutProcess(process);
@@ -71,6 +73,7 @@ abstract final class LocalShellProcessRunner {
         timeout: timeout,
         processTerminated: processTerminated,
         observationTag: observationTag,
+        executionBoundary: executionBoundary,
       );
     }
   }
@@ -104,6 +107,7 @@ abstract final class LocalShellProcessRunner {
     Duration? timeout,
     bool? processTerminated,
     String? observationTag,
+    Map<String, dynamic>? executionBoundary,
   }) {
     final diagnostics = timedOut || exitCode == null || exitCode == 0
         ? const <Map<String, dynamic>>[]
@@ -115,6 +119,7 @@ abstract final class LocalShellProcessRunner {
     final result = jsonEncode({
       'command': command,
       'working_directory': workingDirectory,
+      'execution_boundary': ?executionBoundary,
       'exit_code': ?exitCode,
       'stdout': stdout.text,
       'stderr': stderr.text,

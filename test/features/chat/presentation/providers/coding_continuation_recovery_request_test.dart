@@ -28,6 +28,122 @@ void main() {
           ),
         ],
       );
+  for (final variant in ['blocker', 'mixed', 'missing', 'unoffered', 'valid']) {
+    test('repair corrects $variant before dispatching project work', () async {
+      final feedbacks = <List<ToolResultInfo>>[];
+      const projectTools = [
+        {
+          'type': 'function',
+          'function': {'name': 'read_file'},
+        },
+        {
+          'type': 'function',
+          'function': {'name': 'local_execute_command'},
+        },
+      ];
+      final hostCall = ToolCallInfo(
+        id: 'approved-route-request',
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'python3 watcher.py --dry-run',
+          'execution_scope': 'host',
+        },
+      );
+      final result = await CodingContinuationRecoveryRequest.run(
+        candidateResponse: 'DNS resolution failed in the sandbox.',
+        recoveryCode: 'project_verification_repair',
+        forcedPrompt: 'Diagnose before reporting status.',
+        generation: 1,
+        tools: projectTools,
+        executedResults: [],
+        buildBaseMessages: (_) => [],
+        carryResults: (feedback) => [feedback],
+        isCurrent: () => true,
+        create:
+            ({
+              required logLabel,
+              required interactionGeneration,
+              required buildMessages,
+              required toolResults,
+              required assistantContent,
+              required tools,
+            }) async {
+              feedbacks.add(toolResults);
+              if (feedbacks.length == 2 || variant == 'valid') {
+                return ChatCompletionResult(
+                  content: '',
+                  finishReason: 'tool_calls',
+                  toolCalls: [hostCall],
+                );
+              }
+              final blocker = ToolCallInfo(
+                id: 'premature-blocker',
+                name: 'update_goal',
+                arguments: const {
+                  'completed': false,
+                  'blocked_reason': 'The sandbox has no network.',
+                },
+              );
+              return ChatCompletionResult(
+                content: '',
+                finishReason: variant == 'missing' ? 'stop' : 'tool_calls',
+                toolCalls: switch (variant) {
+                  'blocker' => [blocker],
+                  'mixed' => [hostCall, blocker],
+                  'unoffered' => response('send_email').toolCalls,
+                  _ => null,
+                },
+              );
+            },
+      );
+      expect(result!.toolCalls, [hostCall]);
+      expect(result.toolCalls!.single.arguments['execution_scope'], 'host');
+      expect(feedbacks, hasLength(variant == 'valid' ? 1 : 2));
+      if (variant != 'valid') {
+        final corrected = jsonDecode(feedbacks.last.single.result) as Map;
+        expect(corrected['protocol_violation']['executed'], isFalse);
+        expect(corrected['requiredAction'], contains('offered project tool'));
+        expect(
+          corrected['requiredAction'],
+          isNot(contains('Call only update_goal')),
+        );
+      }
+    });
+  }
+
+  test('repeated repair blockers are bounded and never dispatched', () async {
+    var requests = 0;
+    final result = await CodingContinuationRecoveryRequest.run(
+      candidateResponse: 'Blocked.',
+      recoveryCode: 'project_verification_repair',
+      forcedPrompt: 'Diagnose.',
+      generation: 1,
+      tools: const [
+        {
+          'type': 'function',
+          'function': {'name': 'read_file'},
+        },
+      ],
+      executedResults: [],
+      buildBaseMessages: (_) => [],
+      carryResults: (feedback) => [feedback],
+      isCurrent: () => true,
+      create:
+          ({
+            required logLabel,
+            required interactionGeneration,
+            required buildMessages,
+            required toolResults,
+            required assistantContent,
+            required tools,
+          }) async {
+            requests++;
+            return response('update_goal');
+          },
+    );
+    expect(requests, 2);
+    expect(result!.hasToolCalls, isFalse);
+  });
   for (final variant in [
     'unoffered',
     'missing',

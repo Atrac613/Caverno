@@ -277,8 +277,8 @@ final class CodingContinuationRecoveryPolicy {
     );
   }
 
-  /// [feedback] restated after a rejected status response, naming the
-  /// violation and the only accepted call.
+  /// [feedback] restated after a rejected recovery response, naming the
+  /// violation and the required action.
   ToolResultInfo withProtocolCorrection(
     ToolResultInfo feedback,
     Map<String, dynamic> violation,
@@ -287,8 +287,9 @@ final class CodingContinuationRecoveryPolicy {
       ...jsonDecode(feedback.result) as Map<String, dynamic>,
       'protocol_violation': violation,
       'requiredAction':
+          violation['required_action'] ??
           'The rejected calls were not executed. Call only '
-          'update_goal once with completed as a JSON boolean.',
+              'update_goal once with completed as a JSON boolean.',
     }),
   );
 

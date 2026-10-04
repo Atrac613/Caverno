@@ -217,6 +217,11 @@ void registerChatNotifierPendingBatchTests() {
                 content: '<think>The task is finished.</think>',
                 finishReason: 'stop',
               ),
+              if (!scenario.passDryRun)
+                ChatCompletionResult(
+                  content: 'No project repair action is returned.',
+                  finishReason: 'stop',
+                ),
               ChatCompletionResult(
                 content: '',
                 toolCalls: [
@@ -372,6 +377,18 @@ void registerChatNotifierPendingBatchTests() {
               finishReason: 'tool_calls',
             ),
             ChatCompletionResult(content: 'Ready.', finishReason: 'stop'),
+            if (scenario.retryExit != 0)
+              ChatCompletionResult(
+                content: '',
+                toolCalls: [
+                  ToolCallInfo(
+                    id: 'diagnose-before-status',
+                    name: 'read_file',
+                    arguments: {'path': target.path},
+                  ),
+                ],
+                finishReason: 'tool_calls',
+              ),
             ChatCompletionResult(
               content: '',
               toolCalls: [
@@ -411,6 +428,13 @@ void registerChatNotifierPendingBatchTests() {
           ],
           'run_tests': [],
           'update_goal': [],
+          'read_file': [
+            McpToolResult(
+              toolName: 'read_file',
+              isSuccess: true,
+              result: jsonEncode({'path': target.path, 'content': 'pass\n'}),
+            ),
+          ],
         });
         final memory = _TrackingSessionMemoryService();
         final lifecycle = _MockAppLifecycleService();
@@ -489,13 +513,7 @@ void registerChatNotifierPendingBatchTests() {
                 tools.length == 1 &&
                 (tools.single['function'] as Map)['name'] == 'update_goal',
           ),
-          hasLength(
-            scenario.retryExit == 0
-                ? 1
-                : scenario.reportBlocked
-                ? 0
-                : 2,
-          ),
+          hasLength(scenario.reportBlocked ? 0 : 1),
         );
         expect(target.readAsStringSync(), 'pass\n');
       },

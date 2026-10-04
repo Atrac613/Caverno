@@ -8,6 +8,45 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   _diagnosticsTests();
   group('typed execution result', () {
+    test('records actual launch authority on failure and timeout', () async {
+      if (Platform.isWindows) return;
+      for (final contained in [false, true]) {
+        if (contained &&
+            (!Platform.isMacOS ||
+                !File('/usr/bin/sandbox-exec').existsSync())) {
+          continue;
+        }
+        final root = await Directory.systemTemp.createTemp('command_boundary_');
+        addTearDown(() => root.delete(recursive: true));
+        for (final timeout in [false, true]) {
+          final execution = await LocalShellTools.executeResult(
+            command: timeout ? 'sleep 2' : 'exit 7',
+            workingDirectory: root.path,
+            containmentRoot: contained ? root.path : null,
+            timeout: timeout
+                ? const Duration(milliseconds: 100)
+                : const Duration(seconds: 5),
+          );
+          final payload = jsonDecode(execution.result) as Map;
+          final boundary = payload['execution_boundary'] as Map;
+          expect(
+            boundary['kind'],
+            contained ? 'macos_workspace_sandbox' : 'host',
+          );
+          expect(
+            boundary['network'],
+            contained ? 'denied' : 'not_restricted_by_workspace_sandbox',
+          );
+          expect(boundary['fallbackToHost'], isFalse);
+          if (contained) expect(boundary['hostRetryRequiresApproval'], isTrue);
+          if (timeout) {
+            expect(payload['timed_out'], isTrue);
+          } else {
+            expect(payload['exit_code'], 7);
+          }
+        }
+      }
+    });
     test(
       'internal ls preserves directory names and hidden filtering',
       () async {

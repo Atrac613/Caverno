@@ -26,6 +26,19 @@ final class LocalShellLaunchPlan {
 
   String? get scratchDirectory => sandbox?.scratch.path;
 
+  Map<String, dynamic> get executionBoundary => sandbox != null
+      ? {
+          'kind': 'macos_workspace_sandbox',
+          'network': 'denied',
+          'fallbackToHost': false,
+          'hostRetryRequiresApproval': true,
+        }
+      : {
+          'kind': 'host',
+          'network': 'not_restricted_by_workspace_sandbox',
+          'fallbackToHost': false,
+        };
+
   Future<void> dispose() async => sandbox?.dispose();
 
   Future<Process> start(String workingDirectory) async {

@@ -256,10 +256,20 @@ this recovery; repeated reads, mutations and cached results do not renew it.
 The log label is `project verification repair recovery`, with turn transform
 `coding_continuation_recovery_project_verification_repair`. A DNS or HTTP error
 does not establish a configuration cause by itself. User settings, credentials
-and product choices must be preserved. An accepted blocker still ends the loop,
-and failed verification still prevents completion. A completion call alone is
-refused at the repair boundary; a new status report follows captured repair
-verification. A declined repair still receives a bounded status opportunity.
+and product choices must be preserved. The first repair request offers project
+tools without `update_goal`: immediate completion, progress and blocker calls
+are refused before dispatch. A missing or invalid response receives one protocol
+correction and one retry; neither retry renews the execution recovery budget.
+After a diagnostic or execution tool returns, the normal loop can report a
+concrete blocker. An accepted blocker still ends the loop, and failed
+verification still prevents completion. A declined repair still receives a
+bounded status opportunity after its protocol retry is exhausted.
+Foreground native command results record `execution_boundary` from the actual
+launch plan, including a workspace sandbox's denied network authority. Captured
+execution summaries retain this as `executionBoundary`. A sandbox DNS failure
+does not prove the host or remote service is unavailable. Live verification
+that needs network access must request `execution_scope: host` through the
+existing fresh approval gate; repair never silently retries outside containment.
 After repair attempts are exhausted, terminal status recovery remains
 control-only when a verification has finished or a repair request still owes
 an acknowledgement.

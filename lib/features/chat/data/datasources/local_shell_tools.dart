@@ -235,6 +235,7 @@ class LocalShellTools {
         timeout: timeout,
         observationTag: launch.observationTag,
         scratchDirectory: launch.scratchDirectory,
+        executionBoundary: launch.executionBoundary,
       );
     } catch (e) {
       return FirstPartyToolExecutionResult.payloadOnly(

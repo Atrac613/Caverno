@@ -4,6 +4,7 @@ void registerChatNotifierProjectVerificationRepairTests() {
   for (final mode in [
     'repaired',
     'detached',
+    'premature blocker',
     'external blocker',
     'no repair action',
   ]) {
@@ -29,6 +30,7 @@ void registerChatNotifierProjectVerificationRepairTests() {
         verify: verify,
         external: external,
         declined: declined,
+        prematureBlocker: mode == 'premature blocker',
         replyGate: gate?.future,
         initialToolCalls: [verify('initial-failure')],
         toolLoopResponses: [
@@ -142,7 +144,8 @@ void registerChatNotifierProjectVerificationRepairTests() {
       final answer = conversation.messages
           .lastWhere((message) => message.role == MessageRole.assistant)
           .content;
-      expect(source.repairRequests, external && !declined ? 2 : 1);
+      final expectedRequests = external || mode == 'premature blocker' ? 2 : 1;
+      expect(source.repairRequests, expectedRequests);
       expect(service.commands, everyElement(command));
       expect(
         service.commands,
@@ -183,7 +186,7 @@ void registerChatNotifierProjectVerificationRepairTests() {
         service.executedEditNewTexts,
         external ? isEmpty : ['/valid/search'],
       );
-      expect(source.repairEvidence, hasLength(external && !declined ? 2 : 1));
+      expect(source.repairEvidence, hasLength(expectedRequests));
       expect(source.repairEvidence.first, contains('HTTP Error 404'));
       expect(source.repairEvidence.first, contains(command));
       if (peerId != null) {
@@ -209,12 +212,14 @@ class _ProjectVerificationRepairDataSource
     required this.verify,
     required this.external,
     required this.declined,
+    required this.prematureBlocker,
     this.replyGate,
   });
   final File client;
   final ToolCallInfo Function(String) verify;
   final bool external;
   final bool declined;
+  final bool prematureBlocker;
   final Future<void>? replyGate;
   final firstFollowUpReached = Completer<void>();
   int repairRequests = 0;
@@ -241,6 +246,7 @@ class _ProjectVerificationRepairDataSource
         names,
         containsAll(['read_file', 'edit_file', 'local_execute_command']),
       );
+      expect(names, isNot(contains('update_goal')));
       expect(
         messages.last.content,
         contains('establish the cause from evidence'),
@@ -255,6 +261,22 @@ class _ProjectVerificationRepairDataSource
         client.parent.path,
       );
       repairEvidence.add(feedback.result);
+      if (prematureBlocker && repairRequests == 1) {
+        return ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'premature-blocker',
+              name: 'update_goal',
+              arguments: const {
+                'completed': false,
+                'blocked_reason': 'The sandbox has no network.',
+              },
+            ),
+          ],
+        );
+      }
       if (declined) {
         return ChatCompletionResult(
           content: 'The external fixture service needs to be restored.',
