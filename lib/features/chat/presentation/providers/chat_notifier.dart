@@ -314,6 +314,7 @@ part 'chat_notifier_execution_runtime.dart';
 part 'chat_notifier_final_answer_recovery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_goal_auto_continue.dart';
+part 'chat_notifier_goal_blocker_boundary.dart';
 part 'chat_notifier_local_file_handlers.dart';
 part 'chat_notifier_participant_turns.dart';
 part 'chat_notifier_planning_research.dart';
@@ -5219,6 +5220,9 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
       if (batchResult.hasTextResponse) {
+        if (_recordedGoalBlocker(turnOwner) != null) {
+          currentToolCalls = [];
+        }
         hasTextResponse = true;
         break;
       }

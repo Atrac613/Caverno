@@ -43,7 +43,9 @@ final class ProjectTaskTerminalStatus {
 
   String correctResponse(String content) {
     if (completionAccepted) return content;
-    if (isSubtask || outcome == GoalUpdateAckOutcome.completionRejected) {
+    if (isSubtask ||
+        outcome == GoalUpdateAckOutcome.completionRejected ||
+        outcome == GoalUpdateAckOutcome.blockerLogged) {
       return incompleteResponse;
     }
     final report = content

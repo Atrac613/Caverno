@@ -274,7 +274,10 @@ This complements the intermediate-step canary with three required cases:
   The live model must identify the defect in the dedicated review, repair it,
   verify again, report a clean second review and commit.
 - `failedVerification`: an immutable verifier requires an unavailable external
-  flag. The model must report incomplete work; no review or Git mutation may run.
+  flag. The model must record `blocked_reason`; no review or Git mutation may run.
+  The saved goal must remain blocked, and the terminal harness verdict captured
+  from memory input must retain `blockerLogged`, false completion and a concrete
+  reason. The independent gate rejects absent or superseded blocker evidence.
 
 ```bash
 CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1 \
@@ -544,6 +547,25 @@ root brace; the production parser recovered it without rule-based fallback.
 `failedVerification` stopped with unchanged HEAD and zero Git executions. The
 fixture roots were removed and the dynamic relay closed. This establishes the
 final-task canary scope only; UI and automatic scheduling remain unverified.
+
+On 2026-10-04, the working tree based on `3f773d138` added a terminal boundary
+for an accepted goal blocker. The initial run in
+`build/integration_test_reports/farm_completion_live_canary.wUqHSD` passed 3/3
+but exposed an extra loop-exhaustion gap after the intentional blocked stop.
+Clearing the completed batch at that boundary removed the misleading gap.
+The final run with `qwen3.8-27b-exl3` in
+`build/integration_test_reports/farm_completion_live_canary.CPC5MY` passed 3/3;
+the runner, summary and independent evidence gate passed with no gaps.
+`failedVerification` retained the real native exit 1, the blocked goal and the
+harness `blockerLogged` verdict with false completion and a concrete reason.
+It performed zero Git executions and preserved HEAD. Both positive cases
+committed exactly the two task files, preserved unrelated work and passed the
+seven-input oracle and Hive reopen checks. All eleven memory extractions
+completed without fallback. The fixture roots were removed and the managed
+relay closed. Local verification passed 586 relevant tests, static analysis
+and all three offline completion cases. One unrelated existing fallback test
+was reproduced on unchanged `3f773d138` and excluded from that regression run.
+UI and automatic scheduling remain outside this evidence.
 
 
 ## Software Farm Step Recovery Canary

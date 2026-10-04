@@ -57,7 +57,19 @@ void main() {
                 },
               ],
         'turns': name == 'failedVerification'
-            ? []
+            ? [
+                {
+                  'stage': 'implementation',
+                  'goalStatus': 'blocked',
+                  'taskStatus': {
+                    'result_origin': 'harness',
+                    'scope': 'implementation',
+                    'status': 'blockerLogged',
+                    'completionAccepted': false,
+                    'gaps': ['The fixture prerequisite is unavailable.'],
+                  },
+                },
+              ]
             : [
                 for (final stage in ['prepare', 'commit'])
                   {
@@ -89,6 +101,37 @@ void main() {
   };
   test('accepts all required live paths and scoped commits', () {
     expect(farmCompletionEvidenceGaps(summary, records()), isEmpty);
+  });
+  test('rejects missing or superseded terminal blocker evidence', () {
+    for (final change in [
+      (Map turn) => turn['goalStatus'] = 'active',
+      (Map turn) => turn['stage'] = 'review',
+      (Map turn) => turn.remove('taskStatus'),
+      (Map turn) => turn['taskStatus']['result_origin'] = 'model',
+      (Map turn) => turn['taskStatus']['status'] = 'rejectedInactive',
+      (Map turn) => turn['taskStatus']['completionAccepted'] = true,
+      (Map turn) => turn['taskStatus']['gaps'] = [],
+      (Map turn) => turn['taskStatus']['gaps'] = [''],
+    ]) {
+      final cases = records();
+      change((cases['failedVerification']!['turns'] as List).single as Map);
+      expect(
+        farmCompletionEvidenceGaps(summary, cases),
+        contains('failedVerification lacks the recorded terminal blocker.'),
+      );
+    }
+    for (final turns in [
+      [],
+      [null],
+      [{}, {}],
+    ]) {
+      final cases = records();
+      cases['failedVerification']!['turns'] = turns;
+      expect(
+        farmCompletionEvidenceGaps(summary, cases),
+        contains('failedVerification lacks the recorded terminal blocker.'),
+      );
+    }
   });
   test('rejects missing or altered native preparation', () {
     for (final field in ['preparationSnapshots', 'commitPermit']) {

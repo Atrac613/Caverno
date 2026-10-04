@@ -59,6 +59,20 @@ List<String> farmCompletionEvidenceGaps(
       gaps.add('$name lacks native containment evidence.');
     }
     if (failed) {
+      final turns = _list(record['turns']);
+      final turn = turns.length == 1 ? _map(turns.single) : const {};
+      final status = _map(turn['taskStatus']);
+      final reasons = _list(status['gaps']);
+      if (turn['stage'] != 'implementation' ||
+          turn['goalStatus'] != 'blocked' ||
+          status['result_origin'] != 'harness' ||
+          status['scope'] != 'implementation' ||
+          status['status'] != 'blockerLogged' ||
+          status['completionAccepted'] != false ||
+          reasons.isEmpty ||
+          reasons.any((reason) => reason is! String || reason.trim().isEmpty)) {
+        gaps.add('$name lacks the recorded terminal blocker.');
+      }
       if (record['result'] != 'stopped' ||
           record['finalHead'] != record['initialHead'] ||
           _list(

@@ -210,6 +210,10 @@ The status elicitation also sets a function `tool_choice` for `update_goal`;
 its acknowledgement follow-up does not force another status call.
 At this boundary `update_goal(completed: true)` records completion of the required
 implementation or repair and verification, so dedicated review may begin.
+An accepted `blocked_reason` ends the current tool loop. Later calls from the
+same turn, including calls in that batch and calls embedded in response content,
+are refused before execution or approval. The recorded blocker remains the
+terminal status, and the saved answer and memory cannot report task completion.
 Pending review, roadmap bookkeeping and commit are later workflow stages, not
 remaining implementation work. The status request instructs accepted completion
 to end the visible response with `PROJECT_TASK_READY_FOR_REVIEW`; failed verification and concrete blockers

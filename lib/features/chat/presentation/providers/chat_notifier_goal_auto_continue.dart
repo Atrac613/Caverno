@@ -174,6 +174,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     final owner = _turnOwnerForGeneration(interactionGeneration);
     final conversation = _conversationForGeneration(interactionGeneration);
     if (owner == null || conversation == null) return null;
+    if (_recordedGoalBlocker(owner) != null) return null;
     final context = _goalTrackerContext(
       owner: owner,
       conversation: conversation,

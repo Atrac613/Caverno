@@ -194,6 +194,11 @@ extension ChatNotifierCommitScope on ChatNotifier {
     if (interactionGeneration != null && approvalCache == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
+    final blockerRefusal = _refuseToolAfterGoalBlocker(
+      toolCall,
+      interactionGeneration: interactionGeneration,
+    );
+    if (blockerRefusal != null) return blockerRefusal;
     final commitFailure = _enforceCommitScopeTool(
       toolCall,
       interactionGeneration,

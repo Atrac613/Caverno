@@ -192,6 +192,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (call) async {
+        final blockerRefusal = _refuseToolAfterGoalBlocker(
+          call,
+          interactionGeneration: interactionGeneration,
+        );
+        if (blockerRefusal != null) return blockerRefusal;
         // The guards below cast arguments, so a mistyped one must be caught
         // here: session e3a9f3f0's write_file content object threw in one.
         final argumentCheck = _mcpToolService?.checkToolArguments(call);
@@ -667,6 +672,20 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           );
         }
       }
+    }
+
+    final blockedResponse = _recordedGoalBlockerResponse(owner);
+    if (blockedResponse != null) {
+      _appendRecoveredAssistantResponse(
+        blockedResponse,
+        interactionGeneration: interactionGeneration,
+      );
+      return ToolLoopBatchExecutionResult.textResponse(
+        batchToolResults: batchToolResults,
+        pendingBatchCalls: pendingBatchCalls,
+        commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
+      );
     }
 
     final diagnosticFeedback = await _buildCodingDiagnosticFeedbackToolResult(

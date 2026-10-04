@@ -49,11 +49,7 @@ void main() {
         isNull,
       );
     });
-    for (final outcome in [
-      null,
-      GoalUpdateAckOutcome.progressLogged,
-      GoalUpdateAckOutcome.blockerLogged,
-    ]) {
+    for (final outcome in [null, GoalUpdateAckOutcome.progressLogged]) {
       test(
         'unaccepted status retains the work report without readiness: $outcome',
         () {
@@ -73,6 +69,30 @@ void main() {
         },
       );
     }
+    test('a recorded blocker replaces later completion claims', () {
+      final answer = service
+          .replaceUnacceptedProjectTaskCompletion(
+            _assistantMessages(
+              'All subtasks and verification completed.\nPROJECT_TASK_READY_FOR_REVIEW',
+            ),
+            ProjectTaskTerminalStatus(
+              outcome: GoalUpdateAckOutcome.blockerLogged,
+              gaps: ['The dry-run cannot reach the fixture API.'],
+            ),
+          )!
+          .messages
+          .last
+          .content;
+      expect(
+        answer,
+        allOf(
+          contains('The dry-run cannot reach the fixture API.'),
+          contains('completion was not recorded'),
+          isNot(contains('All subtasks and verification completed.')),
+          isNot(contains('PROJECT_TASK_READY_FOR_REVIEW')),
+        ),
+      );
+    });
   });
 
   group('FinalAnswerMessageNoticeService transform IDs', () {

@@ -211,6 +211,13 @@ void main() {
             await conversationBox.flush();
             await memoryBox.flush();
             final saved = repository.getById(conversation.id)!;
+            const statusPrefix = 'Recorded project task status: ';
+            final statusLine = source.memoryInputs.last
+                .split('\n')
+                .firstWhere(
+                  (line) => line.startsWith(statusPrefix),
+                  orElse: () => '',
+                );
             turns.add({
               'stage': source.stage,
               'livePrimaryCalls': source.currentTurnLiveCalls,
@@ -218,6 +225,9 @@ void main() {
                   .lastWhere((message) => message.role == MessageRole.assistant)
                   .content,
               'goalStatus': saved.goal!.status.name,
+              'taskStatus': statusLine.isEmpty
+                  ? null
+                  : jsonDecode(statusLine.substring(statusPrefix.length)),
               'fixtureCode': File('${root.path}/fixture.py').readAsStringSync(),
               'head': await fixture.git(['rev-parse', 'HEAD']),
               'roadmap': File('${root.path}/roadmap.md').readAsStringSync(),
@@ -448,10 +458,7 @@ void main() {
             );
           }
           if (failed) {
-            expect(
-              readTask()!.goal!.status,
-              isNot(ConversationGoalStatus.completed),
-            );
+            expect(readTask()!.goal!.status, ConversationGoalStatus.blocked);
             expect(
               ContentParser.stripModelHistoryArtifacts(
                 turns.single['answer'] as String,
@@ -460,7 +467,14 @@ void main() {
             );
             expect(
               turns.single['memoryInput'],
-              contains('"completionAccepted":false'),
+              allOf(
+                contains('"completionAccepted":false'),
+                contains('"status":"blockerLogged"'),
+              ),
+            );
+            expect(
+              (turns.single['taskStatus'] as Map)['gaps'],
+              isNot(contains('the tool loop stopped before the work converged')),
             );
             expect(
               tools.gitExecutions.where((entry) => entry['mutation'] != false),
