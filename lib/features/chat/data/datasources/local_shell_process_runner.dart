@@ -6,6 +6,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/services/dart_diagnostic_line_parser.dart';
 import '../../domain/services/pytest_verification_identity.dart';
+import 'bounded_command_output.dart';
 import 'first_party_tool_execution_result.dart';
 import 'local_shell_launch_plan.dart';
 import 'shell_write_observation.dart';
@@ -28,8 +29,8 @@ abstract final class LocalShellProcessRunner {
       workingDirectory: workingDirectory,
       scratchDirectory: scratchDirectory,
     );
-    final stdout = _BoundedOutputBuffer(maxOutputChars);
-    final stderr = _BoundedOutputBuffer(maxOutputChars);
+    final stdout = BoundedCommandOutput(maxOutputChars);
+    final stderr = BoundedCommandOutput(maxOutputChars);
     final stdoutSubscription = process.stdout
         .transform(utf8.decoder)
         .listen(stdout.add);
@@ -96,8 +97,8 @@ abstract final class LocalShellProcessRunner {
   static FirstPartyToolExecutionResult _encodeProcessResult({
     required String command,
     required String workingDirectory,
-    required _BoundedOutputBuffer stdout,
-    required _BoundedOutputBuffer stderr,
+    required BoundedCommandOutput stdout,
+    required BoundedCommandOutput stderr,
     int? exitCode,
     bool timedOut = false,
     Duration? timeout,
@@ -203,28 +204,4 @@ abstract final class LocalShellProcessRunner {
     final milliseconds = timeout.inMilliseconds;
     return '$milliseconds ${milliseconds == 1 ? 'millisecond' : 'milliseconds'}';
   }
-}
-
-class _BoundedOutputBuffer {
-  _BoundedOutputBuffer(this.maxLength);
-
-  final int maxLength;
-  final StringBuffer _buffer = StringBuffer();
-  bool truncated = false;
-
-  void add(String chunk) {
-    final remaining = maxLength - _buffer.length;
-    if (remaining <= 0) {
-      truncated = true;
-      return;
-    }
-    if (chunk.length <= remaining) {
-      _buffer.write(chunk);
-      return;
-    }
-    _buffer.write(chunk.substring(0, remaining));
-    truncated = true;
-  }
-
-  String get text => _buffer.toString();
 }

@@ -44,4 +44,33 @@ void main() {
     );
     expect(failure.describe([_run('a', suite, 0)]), isNull);
   });
+
+  test(
+    'an inline fixture failure names a repair path instead of exact replay',
+    () {
+      const command = '''python3 -c "from worker import missing
+records = missing()
+assert '[INFO]' in records
+"''';
+      final result = ToolResultInfo(
+        id: 'inline-failed',
+        name: 'local_execute_command',
+        arguments: const {'command': command, 'working_directory': '/w'},
+        result: jsonEncode({
+          'command': command,
+          'working_directory': '/w',
+          'exit_code': 1,
+        }),
+        outcome: ToolOutcome(exitCode: 1),
+      );
+      final gap = failure.describe([result]);
+      expect(gap, contains('tool call inline-failed'));
+      expect(gap, contains('Repair its fixture'));
+      expect(
+        gap,
+        contains('source block from the first top-level assert onward'),
+      );
+      expect(gap, contains('Dropping or weakening checks'));
+    },
+  );
 }

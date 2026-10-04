@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'inline_python_verification_contract.dart';
 import 'shell_exit_status_report.dart';
 import 'tool_call_execution_policy.dart';
 import 'unresolved_verification_failure.dart';
@@ -24,6 +25,7 @@ final class StructuredTaskStatusEvidence {
   static const maxListedChanges = 20;
   static const maxCommandChars = 200;
   static const maxOutputTailChars = 600;
+  static const maxFailedCommandChars = 12000;
 
   /// [feedback] with the summary of [results] added as `capturedEvidence`.
   ToolResultInfo attachTo(
@@ -60,9 +62,9 @@ final class StructuredTaskStatusEvidence {
       }
     }
     if (changedPaths.isEmpty && latestExecutionIndex < 0) return null;
-    final unresolvedFailure = const UnresolvedVerificationFailure().describe(
-      results,
-    );
+    const failures = UnresolvedVerificationFailure();
+    final unresolvedFailure = failures.describe(results);
+    final failedVerification = failures.latest(results);
     return {
       'fileChanges': changedPaths.length <= maxListedChanges
           ? changedPaths
@@ -73,6 +75,10 @@ final class StructuredTaskStatusEvidence {
             latestExecutionIndex > latestChangeIndex,
       },
       'unresolvedVerificationFailure': ?unresolvedFailure,
+      if (failedVerification != null)
+        'unresolvedVerification': _describeFailedVerification(
+          failedVerification,
+        ),
     };
   }
 
@@ -128,6 +134,34 @@ final class StructuredTaskStatusEvidence {
       'reportedExitCode': ?reportedExit,
       if (outputIssue != null) 'failureReason': outputIssue.summary,
       'outputTail': _clip(_output(result), maxOutputTailChars, keepEnd: true),
+    };
+  }
+
+  Map<String, dynamic> _describeFailedVerification(ToolResultInfo result) {
+    final decoded = _executionPolicy.tryDecodeMap(result.result);
+    final command =
+        decoded?['command']?.toString() ??
+        _executionPolicy.toolCommandArgument(result.arguments) ??
+        result.name;
+    final directory =
+        (decoded?['working_directory'] ?? result.arguments['working_directory'])
+            ?.toString() ??
+        '';
+    return {
+      ..._describeExecution(result),
+      'toolCallId': result.id,
+      // The short gap preview cannot identify or reconstruct a long inline
+      // verifier. Keep its literal source beside the latest passing check.
+      'command': command.length <= maxFailedCommandChars
+          ? command
+          : '${command.substring(0, maxFailedCommandChars - 3)}...',
+      'commandTruncated': command.length > maxFailedCommandChars,
+      'workingDirectory': directory,
+      'repairableInlineFixture':
+          InlinePythonVerificationContract.parse(command, directory) != null,
+      if (decoded?['stdout_truncated'] == true ||
+          decoded?['stderr_truncated'] == true)
+        'outputTruncated': true,
     };
   }
 

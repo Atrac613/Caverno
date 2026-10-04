@@ -128,6 +128,12 @@ void main() {
     );
     expect(open.prompt, contains('captured successful checks'));
     expect(open.prompt, contains('full failed verification chain'));
+    expect(open.prompt, contains('capturedEvidence.unresolvedVerification'));
+    expect(
+      open.prompt,
+      contains('entire source block from that assert onward'),
+    );
+    expect(open.prompt, contains('Do not drop or weaken checks'));
     expect(open.prompt, isNot(contains('latest change has no successful')));
     final closed = verification.request(
       allTools,

@@ -124,6 +124,11 @@ final class StatusRecoveryVerification {
       'completed work and reuse existing tool results. Use the interpreter '
       'and working directory of captured successful checks. Rerun the full '
       'failed verification chain with its prerequisite checks; a successful '
-      'result from another check does not settle it. Keep the visible '
+      'result from another check does not settle it. Use capturedEvidence.'
+      'unresolvedVerification for the failed command, working directory, and '
+      'output tail. If repairableInlineFixture is true, repair the fixture '
+      'before its first top-level assert while preserving the interpreter, '
+      'imported modules, and the entire source block from that assert onward. '
+      'Do not drop or weaken checks. Keep the visible '
       'response in the conversation language.';
 }

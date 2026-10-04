@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/structured_task_status_evidence.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -102,6 +103,96 @@ void main() {
       summary['unresolvedVerificationFailure'],
       contains('app.py --dry-run'),
     );
+    final failed = summary['unresolvedVerification'] as Map;
+    expect(failed['command'], 'python3 app.py --dry-run');
+    expect(failed['exitCode'], 2);
+    expect(failed['succeeded'], isFalse);
+    expect(failed['outputTail'], 'usage error');
+  });
+
+  test(
+    'carries a failed inline verifier verbatim beside the later success',
+    () {
+      final command =
+          '''python3 -c "from worker import emit
+records = emit()
+${'# fixture details\n' * 40}assert '[INFO]' in records, 'INFO missing'
+assert 'worker' in records, 'module missing'
+" 2>&1''';
+      final result = ToolResultInfo(
+        id: 'inline-failure',
+        name: 'local_execute_command',
+        arguments: {'command': command, 'working_directory': '/workspace'},
+        result: jsonEncode({
+          'command': command,
+          'working_directory': '/workspace',
+          'exit_code': 1,
+          'stdout':
+              '${'traceback detail\n' * 50}AssertionError: module missing',
+        }),
+        outcome: ToolOutcome(exitCode: 1),
+      );
+      final summary = evidence.summarize([
+        result,
+        _command('python3 -m pytest -q', 0, '53 passed'),
+      ])!;
+      final failed = summary['unresolvedVerification'] as Map;
+      expect(failed['toolCallId'], 'inline-failure');
+      expect(failed['command'], command);
+      expect(failed['commandTruncated'], isFalse);
+      expect(failed['workingDirectory'], '/workspace');
+      expect(failed['repairableInlineFixture'], isTrue);
+      expect(failed['outputTail'], endsWith('AssertionError: module missing'));
+      expect((summary['latestExecution'] as Map)['succeeded'], isTrue);
+    },
+  );
+
+  test('bounds failed command source and explicitly reports truncation', () {
+    final summary = evidence.summarize([
+      _command("python3 -c \"${'x' * 16000}\"", 1, 'failed'),
+    ])!;
+    final failed = summary['unresolvedVerification'] as Map;
+    expect(failed['commandTruncated'], isTrue);
+    expect(
+      (failed['command'] as String).length,
+      StructuredTaskStatusEvidence.maxFailedCommandChars,
+    );
+  });
+
+  test('compact recovery budgeting retains a repairable failed command', () {
+    final command =
+        '''python3 -c "from worker import missing
+${'# fixture details\n' * 110}records = missing()
+assert '[INFO]' in records, 'INFO missing'
+assert 'worker' in records, 'module missing'
+" 2>&1''';
+    final failed = ToolResultInfo(
+      id: 'inline-failure',
+      name: 'local_execute_command',
+      arguments: {'command': command, 'working_directory': '/workspace'},
+      result: jsonEncode({'exit_code': 1, 'stdout': 'ImportError: missing'}),
+      outcome: ToolOutcome(exitCode: 1),
+    );
+    final feedback = evidence.attachTo(
+      ToolResultInfo(
+        id: 'status',
+        name: 'coding_continuation_recovery',
+        arguments: const {},
+        result: '{"ok":false,"code":"structured_coding_task_status"}',
+      ),
+      [failed, _command('python3 -m pytest -q', 0, '53 passed')],
+    );
+    final budgeted = ToolResultPromptBuilder.budgetToolResults(
+      [feedback],
+      mode: ToolResultPromptBudgetMode.compact,
+      summaryFirst: true,
+    );
+    final payload = jsonDecode(budgeted.single.result) as Map;
+    final captured = payload['capturedEvidence'] as Map;
+    final unresolved = captured['unresolvedVerification'] as Map;
+    expect(unresolved['command'], command);
+    expect(unresolved['outputTail'], 'ImportError: missing');
+    expect(unresolved['repairableInlineFixture'], isTrue);
   });
 
   test('masked runtime errors also remain failed in captured evidence', () {

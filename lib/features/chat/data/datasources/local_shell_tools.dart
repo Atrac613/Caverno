@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:path/path.dart' as path;
 
+import 'bounded_command_output.dart';
 import 'filesystem_tools.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
@@ -837,18 +838,16 @@ class LocalShellTools {
     final stderr = stderrBuffer.toString();
     final stdoutTruncated = stdout.length > _maxOutputChars;
     final stderrTruncated = stderr.length > _maxOutputChars;
+    final boundedStdout = BoundedCommandOutput(_maxOutputChars)..add(stdout);
+    final boundedStderr = BoundedCommandOutput(_maxOutputChars)..add(stderr);
 
     return FirstPartyToolExecutionResult(
       result: jsonEncode({
         'command': command,
         'working_directory': workingDirectory,
         'exit_code': exitCode,
-        'stdout': stdoutTruncated
-            ? stdout.substring(0, _maxOutputChars)
-            : stdout,
-        'stderr': stderrTruncated
-            ? stderr.substring(0, _maxOutputChars)
-            : stderr,
+        'stdout': boundedStdout.text,
+        'stderr': boundedStderr.text,
         'executed_internally': true,
         if (stdoutTruncated) 'stdout_truncated': true,
         if (stderrTruncated) 'stderr_truncated': true,

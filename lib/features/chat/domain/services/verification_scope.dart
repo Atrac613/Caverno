@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
+import 'inline_python_verification_contract.dart';
 import 'pytest_verification_identity.dart';
 import 'shell_exit_status_report.dart';
 import 'verification_command_sequence.dart';
@@ -11,9 +12,10 @@ import 'verification_command_sequence.dart';
 /// Which verification a command result is, and whether that run passed.
 ///
 /// A later passing run of the same scope settles an earlier failed one; a
-/// different command passing never does. Pytest runs share a scope across
-/// interpreter spellings and need parsed passing counts. Any other command a
-/// classifier rates as verification is scoped to its exact command and
+/// different check passing never does. Pytest runs share a scope across
+/// interpreter spellings and need parsed passing counts. Literal inline Python
+/// checks retain their assertion block and imported modules across fixture
+/// repairs. Other commands rated as verification use their exact command and
 /// working directory: before, only pytest was ever reconciled, so a failed
 /// `watcher.py --dry-run` or verifier script stayed failed for the rest of the
 /// turn even after the very same command passed (session d0c0462c).
@@ -22,11 +24,13 @@ final class VerificationScope {
     this.key,
     this.passed, {
     this.coveredKeys = const [],
+    this.inlineContract,
   });
 
   final String key;
   final bool passed;
   final List<String> coveredKeys;
+  final InlinePythonVerificationContract? inlineContract;
 
   static VerificationScope? of(
     ToolResultInfo result,
@@ -90,14 +94,21 @@ final class VerificationScope {
       );
     }
     if (!isVerification(result) || command.trim().isEmpty) return null;
+    final inline = InlinePythonVerificationContract.parse(command, directory);
     return VerificationScope._(
       sequence?.terminalPytest != null
           ? sequence!.key
-          : jsonEncode([
-              directory.trim(),
-              command.replaceAll(RegExp(r'\s+'), ' ').trim(),
-            ]),
+          : inline?.key ??
+                jsonEncode([
+                  directory.trim(),
+                  // Whitespace in an inline script can change its checks or its
+                  // control flow; unsupported forms must retain their exact text.
+                  command.contains('\n') || RegExp(r'\s-c\s').hasMatch(command)
+                      ? command.trim()
+                      : command.replaceAll(RegExp(r'\s+'), ' ').trim(),
+                ]),
       ranClean,
+      inlineContract: inline,
       coveredKeys: [
         if (sequence?.terminalPytest case final runner?) runner.verificationKey,
       ],

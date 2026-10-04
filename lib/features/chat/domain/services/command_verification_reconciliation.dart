@@ -4,6 +4,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'inline_python_verification_contract.dart';
 import 'literal_environment_inspection_policy.dart';
 import 'masked_inspection_command_policy.dart';
 import 'pytest_verification_identity.dart';
@@ -16,16 +17,23 @@ abstract final class CommandVerificationReconciliation {
   static List<ToolResultInfo> currentResults(List<ToolResultInfo> results) {
     final staleBackgroundResults = staleBackgroundResultIds(results);
     final successfulScopes = <String>{};
+    final successfulInlineContracts = <InlinePythonVerificationContract>[];
     final supersededIds = <String>{};
     for (var index = results.length - 1; index >= 0; index--) {
       final result = results[index];
       final scope = scopeOf(result);
       if (scope == null) continue;
-      if (successfulScopes.contains(scope.key)) {
+      final inline = scope.inlineContract;
+      if (successfulScopes.contains(scope.key) ||
+          (inline != null &&
+              successfulInlineContracts.any(
+                (passed) => passed.covers(inline),
+              ))) {
         supersededIds.add(result.id);
       }
       if (scope.passed && !staleBackgroundResults.contains(result.id)) {
         successfulScopes.addAll([scope.key, ...scope.coveredKeys]);
+        if (inline != null) successfulInlineContracts.add(inline);
       }
     }
     if (supersededIds.isEmpty) return results;

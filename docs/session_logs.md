@@ -45,6 +45,16 @@ Session logs use bounded local retention by default:
 
 ## Entry Format
 
+For rejected project-task completion, structured status recovery includes
+`capturedEvidence.unresolvedVerification`: the failed tool call, literal command
+(bounded to 12,000 characters), working directory, and output tail. Inspect this
+alongside the latest successful check; a different passing check does not settle
+the failure. A supported literal inline Python verifier can repair its fixture
+while retaining the interpreter, directory, imported modules, and entire source
+block from its first top-level `assert` onward. Changed or removed checks remain
+unresolved. Bounded local command output retains its start and end so a long
+traceback does not discard the final exception.
+
 Each line is one JSON object with schema name
 `caverno_llm_session_log_entry`. Entries include:
 

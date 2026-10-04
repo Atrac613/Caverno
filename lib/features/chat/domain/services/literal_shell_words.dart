@@ -1,7 +1,14 @@
 /// Parses literal shell words without expansion, comments or escapes; path globs are opt-in.
 abstract final class LiteralShellWords {
-  static List<String>? parse(String source, {bool allowPathGlobs = false}) {
-    if (source.contains('\n') || source.contains('\r')) return null;
+  static List<String>? parse(
+    String source, {
+    bool allowPathGlobs = false,
+    bool allowQuotedNewlines = false,
+  }) {
+    if (source.contains('\r') ||
+        (!allowQuotedNewlines && source.contains('\n'))) {
+      return null;
+    }
     final words = <String>[];
     var index = 0;
     while (index < source.length) {
@@ -22,6 +29,7 @@ abstract final class LiteralShellWords {
           buffer.write(literal);
           index = end + 1;
         } else {
+          if (char == '\n') return null;
           if (RegExp(r'[;&|<>`()\$\\*?~#\[\]{}]').hasMatch(char) &&
               !(allowPathGlobs && '*?'.contains(char))) {
             return null;
@@ -33,6 +41,7 @@ abstract final class LiteralShellWords {
     }
     return words.isEmpty ? null : words;
   }
+
   static String quote(String word) =>
       RegExp(r'^[a-zA-Z0-9_./:=+-]+$').hasMatch(word)
       ? word
