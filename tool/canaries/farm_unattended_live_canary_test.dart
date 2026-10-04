@@ -42,6 +42,7 @@ class _IdleEnvironment implements IdleMaintenanceEnvironment {
 class _FixtureClient extends http.BaseClient {
   final http.Client _inner = http.Client();
   int successfulCalls = 0;
+  final wireToolCalls = <Object?>[];
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final body = await request.finalize().toBytes();
@@ -55,8 +56,22 @@ class _FixtureClient extends http.BaseClient {
       ..headers.addAll(request.headers)
       ..bodyBytes = body;
     final response = await _inner.send(forwarded);
-    if (response.statusCode == 200) successfulCalls++;
-    return response;
+    final bytes = await response.stream.toBytes();
+    if (response.statusCode == 200) {
+      successfulCalls++;
+      final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+      for (final choice in decoded['choices'] as List<dynamic>) {
+        final message = choice['message'] as Map<String, dynamic>;
+        wireToolCalls.addAll(message['tool_calls'] as List<dynamic>? ?? []);
+      }
+    }
+    return http.StreamedResponse(
+      Stream.value(bytes),
+      response.statusCode,
+      headers: response.headers,
+      reasonPhrase: response.reasonPhrase,
+      request: response.request,
+    );
   }
 
   @override
@@ -378,6 +393,7 @@ print("UNATTENDED_ORACLE_OK")
         evidence.addAll({
           'passed': passed,
           'scratchRemoved': !scratch.existsSync(),
+          'wireToolCalls': client.wireToolCalls,
         });
         await File(
           '${report.path}/evidence.json',

@@ -69,6 +69,20 @@ Independent gate controls rejected wrong HEAD, missing HTTP, wrong content,
 failed verification and absent evidence. The live gate remains blocked; no
 acceptance condition was relaxed and no unchanged live run was repeated.
 
+The wire-capture follow-up `farm_unattended_live_canary.jPLhsL` also failed
+with nine successful HTTP calls. Captured native HTTP tool arguments for all
+three writes already lacked the newline, before the SDK or Caverno decoder.
+The running TabbyAPI Qwen parser strips parameter values and its shared
+coercer strips again. Synthetic XML reproduces that loss. A prepared upstream
+patch preserves plain strings after removing the template's single paired LF
+frame; it passes ten synthetic cases on the exact patched source. Applicability
+was checked against the server checkout without applying it. Caverno native
+argument decoding and actual file writes preserve whitespace in 55 focused
+tests. See [the prepared patch and checker](../tool/patches/README.md).
+The server remains unchanged and live readiness remains blocked; the original
+generated model token stream was not captured, so wire evidence alone cannot
+separate model output from upstream parser transformations for each write.
+
 ## Software Farm Completion Canary
 
 This complements the intermediate-step canary with three required cases:

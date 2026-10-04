@@ -113,6 +113,16 @@ void main() {
     expect(directory.existsSync(), isTrue);
   });
 
+  test(
+    'writeFile preserves leading and trailing whitespace byte for byte',
+    () async {
+      final path = '${tempDir.path}/whitespace.txt';
+      const content = '  hello\n\t\n';
+      await FilesystemTools.writeFile(path: path, content: content);
+      expect(await File(path).readAsBytes(), utf8.encode(content));
+    },
+  );
+
   test('writeFile reports whether the content actually changed', () async {
     // A byte-identical rewrite is otherwise indistinguishable from a real one:
     // same bytes_written, same success. Without this fact the model can loop on

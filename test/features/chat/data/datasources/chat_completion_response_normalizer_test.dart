@@ -6,6 +6,23 @@ void main() {
   const normalizer = ChatCompletionResponseNormalizer();
 
   group('normalize', () {
+    test('preserves native file content whitespace exactly', () {
+      final result = normalizer.normalize(
+        content: null,
+        reasoning: null,
+        nativeToolCalls: [
+          _nativeCall(
+            id: 'write-whitespace',
+            name: 'write_file',
+            arguments: r'{"path":"greeting.txt","content":"  hello\n\t\n"}',
+          ),
+        ],
+        finishReason: 'tool_calls',
+        advertisedTools: _tools('write_file'),
+      );
+      expect(result.toolCalls!.single.arguments['content'], '  hello\n\t\n');
+    });
+
     test('uses empty content and stop when provider fields are absent', () {
       final result = normalizer.normalize(
         content: null,
