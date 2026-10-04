@@ -449,15 +449,28 @@ class ToolResultPromptBuilder {
       return budgeted;
     }
 
-    final perResultTarget = math.max(
-      1200,
-      (budget.maxTotalResultChars / budgeted.length).floor(),
-    );
-    return budgeted
-        .map(
-          (toolResult) => toolResult.withResult(
+    // Preserve the newest current range read before sharing the remaining
+    // budget with history. Otherwise a requested small range can lose the
+    // very lines needed for the next edit even after a targeted re-read.
+    final freshRangeIndex = _latestFreshRangeReadIndex(sourceToolResults);
+    final reservedChars = freshRangeIndex == null
+        ? 0
+        : budgeted[freshRangeIndex].result.length;
+    final historyTarget =
+        ((budget.maxTotalResultChars - reservedChars) /
+                (budgeted.length - (freshRangeIndex == null ? 0 : 1)))
+            .floor();
+    final perResultTarget = freshRangeIndex == null
+        ? math.max(1200, historyTarget)
+        : historyTarget;
+    return [
+      for (var index = 0; index < budgeted.length; index++)
+        if (index == freshRangeIndex)
+          budgeted[index]
+        else
+          budgeted[index].withResult(
             _truncateTextWithMiddle(
-              toolResult.result,
+              budgeted[index].result,
               maxChars: perResultTarget,
               // The per-result pass hands back a read_more_hint; this whole-list
               // pass used to cut the serialized text with no way back, so a
@@ -470,8 +483,32 @@ class ToolResultPromptBuilder {
                   'offset and limit rather than repeating the same call.',
             ),
           ),
-        )
-        .toList(growable: false);
+    ];
+  }
+
+  static int? _latestFreshRangeReadIndex(List<ToolResultInfo> results) {
+    final supersededPaths = <String>{};
+    for (var index = results.length - 1; index >= 0; index--) {
+      final result = results[index];
+      supersededPaths.addAll(
+        result.outcome?.fileMutations
+                .where((mutation) => mutation.changed == true)
+                .map((mutation) => mutation.path) ??
+            const <String>[],
+      );
+      if (result.name != 'read_file') continue;
+      final payload = _tryDecodeJsonMap(result.result);
+      final path = payload?['path'];
+      if (path is! String || !supersededPaths.add(path)) continue;
+      if (payload?['content'] is String &&
+          !result.fromEarlierLoop &&
+          result.changesSinceCapture.isEmpty &&
+          (result.arguments['offset'] is int ||
+              result.arguments['limit'] is int)) {
+        return index;
+      }
+    }
+    return null;
   }
 
   /// Substring shared by every prompt-budget truncation notice.

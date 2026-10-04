@@ -112,6 +112,110 @@ void main() {
     );
   }
 
+  test('settles a terminal subtask report mentioning later verification', () {
+    const response =
+        'Subtask implementation complete. Verification has not run. '
+        'I will run the local command to test in the next subtask.\nPROJECT_TASK_SUBTASK_DONE';
+    final pending = detector.buildUnexecutedCommandActionToolResult(
+      candidateResponse: response,
+      toolResults: const [],
+      isProjectSubtask: true,
+    )!;
+    expect(
+      jsonDecode(pending.result)['evidence_requirement'],
+      UnexecutedCommandClaimReconciliation.evidenceRequirement,
+    );
+    expect(detector.hasUnexecutedCommandActionResult([pending]), isTrue);
+    expect(
+      detector.hasUnexecutedCommandActionResult([pending, verification()]),
+      isFalse,
+    );
+    expect(
+      detector.hasUnexecutedCommandActionResult([verification(), pending]),
+      isTrue,
+    );
+    expect(
+      detector.buildUnexecutedCommandActionToolResult(
+        candidateResponse: response,
+        toolResults: [verification()],
+        isProjectSubtask: true,
+      ),
+      isNull,
+    );
+    final edit = ToolResultInfo(
+      id: 'edit',
+      name: 'edit_file',
+      arguments: const {},
+      result: '{"changed":true}',
+      outcome: const ToolOutcome(
+        fileMutations: [
+          ToolFileMutation(path: '/project/verify.py', changed: true),
+        ],
+      ),
+    );
+    expect(
+      detector.buildUnexecutedCommandActionToolResult(
+        candidateResponse: response,
+        toolResults: [verification(), edit],
+        isProjectSubtask: true,
+      ),
+      isNotNull,
+    );
+    expect(
+      detector.buildUnexecutedCommandActionToolResult(
+        candidateResponse: response,
+        toolResults: [
+          verification(payload: {'execution_reused': true}),
+        ],
+        isProjectSubtask: true,
+      ),
+      isNotNull,
+    );
+    final ordinary = detector.buildUnexecutedCommandActionToolResult(
+      candidateResponse: response,
+      toolResults: const [],
+    )!;
+    expect(
+      detector.hasUnexecutedCommandActionResult([ordinary, verification()]),
+      isTrue,
+    );
+    expect(
+      MemoryExtractionDraftService.buildInput(
+        <Message>[],
+        UserMemoryProfile.empty(),
+        toolResults: [pending, verification()],
+      ),
+      isNot(contains('code":"unexecuted_command_action')),
+    );
+  });
+
+  for (final response in [
+    'I will run the local command.',
+    'Implementation complete. I will run the local command.\n'
+        '{"command":"python3 missing.py"}\nPROJECT_TASK_SUBTASK_DONE',
+    'Implementation complete. I will run the local command.\n'
+        '```text\n\$ python3 missing.py\nchecks passed\n```\nPROJECT_TASK_SUBTASK_DONE',
+  ]) {
+    test(
+      'subtask context preserves concrete calls and nonterminal promises: $response',
+      () {
+        final pending = detector.buildUnexecutedCommandActionToolResult(
+          candidateResponse: response,
+          toolResults: const [],
+          isProjectSubtask: true,
+        )!;
+        expect(
+          jsonDecode(pending.result),
+          isNot(contains('evidence_requirement')),
+        );
+        expect(
+          detector.hasUnexecutedCommandActionResult([pending, verification()]),
+          isTrue,
+        );
+      },
+    );
+  }
+
   test('unknown result text cannot settle a missing execution', () {
     final unknown = ToolResultInfo(
       id: 'unknown',

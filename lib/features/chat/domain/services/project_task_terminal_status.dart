@@ -8,7 +8,8 @@ final class ProjectTaskTerminalStatus {
   ProjectTaskTerminalStatus({
     required this.outcome,
     List<String> gaps = const [],
-  }) : gaps = List.unmodifiable(gaps),
+  }) : gapCodes = const [],
+       gaps = List.unmodifiable(gaps),
        subtaskId = null,
        _subtaskAccepted = null;
 
@@ -16,12 +17,16 @@ final class ProjectTaskTerminalStatus {
     required String? taskId,
     required bool accepted,
     List<String> gaps = const [],
-  }) : outcome = null,
+    List<String> gapCodes = const [],
+  }) : gapCodes = List.unmodifiable(gapCodes),
+       outcome = null,
        subtaskId = taskId,
        _subtaskAccepted = accepted,
        gaps = List.unmodifiable(gaps);
 
   static const toolName = 'coding_task_status';
+  static const subtaskDoneMarker = 'PROJECT_TASK_SUBTASK_DONE';
+  final List<String> gapCodes;
   final GoalUpdateAckOutcome? outcome;
   final List<String> gaps;
   final String? subtaskId;
@@ -79,6 +84,7 @@ final class ProjectTaskTerminalStatus {
     'completionAccepted': completionAccepted,
     if (isSubtask) 'subtaskId': subtaskId,
     'gaps': gaps,
+    if (gapCodes.isNotEmpty) 'gapCodes': gapCodes,
   };
 
   ToolResultInfo toToolResult(String id) => ToolResultInfo(
@@ -107,6 +113,9 @@ final class ProjectTaskTerminalStatus {
                 payload['completionAccepted'] == true &&
                 gaps.isEmpty,
             gaps: gaps,
+            gapCodes: payload['gapCodes'] is List
+                ? (payload['gapCodes'] as List).whereType<String>().toList()
+                : const [],
           );
         }
         GoalUpdateAckOutcome? outcome;

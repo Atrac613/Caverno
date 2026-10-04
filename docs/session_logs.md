@@ -49,6 +49,11 @@ Session logs use bounded local retention by default:
 acceptance or rejection, and workflow stops in the owning conversation's log.
 `projectTaskDecision` includes the phase, decision, fixed gate reason, native
 HEAD/index comparison booleans, path counts and turn evidence when available.
+Rejected intermediate subtasks retain their owner-scoped harness verdict before
+checking the rewritten response marker. The workflow decision carries stable
+`gapCodes` such as `unexecuted_actions` and `verification_failed`; missing or
+mismatched verdicts carry `missing_subtask_status`. These codes contain no task
+text, commands, or file paths.
 Selection, busy, approval and question flags distinguish admission failures.
 These events contain no roadmap text, commands or file paths and respect the
 session logging setting. A HEAD advance still requires the workflow's final
@@ -211,6 +216,12 @@ markup fragment; a heredoc must not remove the final task or subtask marker from
 the saved response, completion assessment or memory input. Actual unfinished
 thinking and tool tags retain their existing incomplete-content behavior.
 
+When the whole result list exceeds its prompt budget, the newest current
+`read_file` range receives its bounded payload before older results share the
+remaining budget. Carried reads, reads followed by a mutation to the same file,
+and superseded observations receive no reservation. Structured outcomes remain
+attached when payload text is shortened.
+
 For streaming operations wrapped by `SessionLoggingChatDataSource`, `stream_end`
 means Caverno finished reading the stream and wrote the accumulated text to the
 log. It is not an interruption signal by itself. Treat it as suspicious only
@@ -303,6 +314,14 @@ remain intact. Earlier successes, reused output, environment queries, stale
 background observations, future-action promises, concrete unissued calls, and
 legacy notices without that explicit requirement do not settle it. Verification
 failures and file-save requirements keep their independent completion gates.
+For an intermediate project subtask, a terminal subtask report that also mentions
+later verification can receive the same evidence-absence requirement. The caller
+must identify the turn as a project subtask and the report must end with the
+subtask marker. Concrete unissued tool calls, command transcripts, opaque JSON,
+and nonterminal or ordinary-chat future promises retain their own gates. A fresh
+successful verifier after the latest captured mutation prevents a new absence
+notice; reused output and stale background observations cannot do so. This
+settles only the current subtask and leaves the overall goal active.
 Final reconciliation can revoke an earlier accepted completion when later
 evidence contradicts it, but cannot accept a rejected invocation. After a
 rejection, successful verification still requires a new valid `update_goal`

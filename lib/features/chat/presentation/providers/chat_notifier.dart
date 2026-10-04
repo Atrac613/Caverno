@@ -4055,6 +4055,7 @@ class ChatNotifier extends Notifier<ChatState> {
             ? _claims.buildUnexecutedCommandActionToolResult(
                 candidateResponse: hiddenAssistantEvidence,
                 toolResults: const [],
+                isProjectSubtask: _primaryRoutes.isProjectTaskStep(generation),
               )
             : null;
         if (unexecutedCommandAction != null) {
@@ -6608,6 +6609,9 @@ class ChatNotifier extends Notifier<ChatState> {
             ? _claims.buildUnexecutedCommandActionToolResult(
                 candidateResponse: streamedFinalAnswer,
                 toolResults: finalToolResults,
+                isProjectSubtask: _primaryRoutes.isProjectTaskStep(
+                  interactionGeneration,
+                ),
               )
             : null;
         if (unexecutedCommandAction != null) {

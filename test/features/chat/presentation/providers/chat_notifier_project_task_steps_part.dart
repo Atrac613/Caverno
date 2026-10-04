@@ -8,6 +8,8 @@ void registerChatNotifierProjectTaskStepTests() {
     'missing marker only',
     'read-only done',
     'read-only then verified',
+    'read-only later subtask then verified',
+    'read-only later subtask then verified detached',
     'read-only opaque then verified',
     'edited then stdin retry',
     'edited then stdin retry detached',
@@ -30,7 +32,7 @@ void registerChatNotifierProjectTaskStepTests() {
       addTearDown(() => root.delete(recursive: true));
       final project = _pendingBatchProject(root.path);
       if (scenario.startsWith('read-only') &&
-          (scenario.endsWith('then verified') ||
+          (scenario.replaceAll(' detached', '').endsWith('then verified') ||
               scenario.contains('heredoc transcript'))) {
         await File('${root.path}/policy.md').writeAsString('Fixture policy.\n');
       }
@@ -41,7 +43,9 @@ void registerChatNotifierProjectTaskStepTests() {
       final fails = mode.startsWith('failed') || mode == 'blocked verification';
       final opaqueClaim = mode == 'read-only opaque then verified';
       final stdinRetry = mode == 'edited then stdin retry';
-      final recoveredClaim = mode == 'read-only then verified' || opaqueClaim;
+      final laterSubtask = mode == 'read-only later subtask then verified';
+      final recoveredClaim =
+          mode == 'read-only then verified' || opaqueClaim || laterSubtask;
       final readOnly = mode.startsWith('read-only');
       final reportingChanged = mode == 'pytest reporting changed';
       final pytestTranscript = mode == 'pytest transcript through tail';
@@ -134,6 +138,9 @@ void registerChatNotifierProjectTaskStepTests() {
               ? '```\n\$ .venv/bin/python -m pytest test_fixture.py -v\n53 passed in 3.08s\n```\nPROJECT_TASK_SUBTASK_DONE'
               : opaqueClaim
               ? 'The local command completed.\n{"command":"python3 unavailable.py"}\nPROJECT_TASK_SUBTASK_DONE'
+              : laterSubtask
+              ? 'Subtask implementation complete. Verification has not run. '
+                    'I will run the local command to test in the next subtask.\nPROJECT_TASK_SUBTASK_DONE'
               : recoveredClaim
               ? 'The local command completed.\nPROJECT_TASK_SUBTASK_DONE'
               : stdinRetry
@@ -186,7 +193,12 @@ void registerChatNotifierProjectTaskStepTests() {
         conversations.selectConversation(other.id);
         gate!.complete();
       }
-      await pending;
+      final owner = await pending;
+      if (laterSubtask) {
+        final status = notifier.takeProjectTaskSubtaskStatus(owner!);
+        expect(status?.completionAccepted, isTrue);
+        expect(status?.gapCodes, isEmpty);
+      }
       await memory.firstUpdate.future.timeout(const Duration(seconds: 5));
       final conversation = container
           .read(conversationsNotifierProvider)
@@ -352,7 +364,8 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
     int? maxTokens,
   }) {
     if ((scenario == 'failed then passed' ||
-                scenario == 'read-only then verified') &&
+                (scenario == 'read-only then verified' ||
+                    scenario == 'read-only later subtask then verified')) &&
             recoveryCount > 0 ||
         scenario == 'edited then stdin retry' && commandRetryCount > 0) {
       return Stream.fromIterable([
@@ -419,7 +432,8 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
       // a settled marker; failures reproduce the logged promise-only ending.
       if (recoveryCount > 0 &&
           (scenario == 'failed then passed' ||
-              scenario == 'read-only then verified')) {
+              (scenario == 'read-only then verified' ||
+                  scenario == 'read-only later subtask then verified'))) {
         return ChatCompletionResult(
           content: 'Verified.\nPROJECT_TASK_SUBTASK_DONE',
           finishReason: 'stop',
@@ -439,7 +453,8 @@ class _ProjectTaskStepDataSource extends _ProjectTaskTerminalDataSource {
     recoveryMessages.addAll(messages.map((message) => message.content));
     recoveryMessages.addAll(toolResults.map((result) => result.result));
     if (scenario == 'failed then passed' ||
-        scenario == 'read-only then verified') {
+        (scenario == 'read-only then verified' ||
+            scenario == 'read-only later subtask then verified')) {
       return ChatCompletionResult(
         content: '',
         finishReason: 'tool_calls',

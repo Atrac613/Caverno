@@ -13,7 +13,7 @@ import 'unresolved_verification_failure.dart';
 final class ProjectTaskStepCompletionPolicy {
   const ProjectTaskStepCompletionPolicy();
 
-  static const doneMarker = 'PROJECT_TASK_SUBTASK_DONE';
+  static const doneMarker = ProjectTaskTerminalStatus.subtaskDoneMarker;
   static const recoveryCode = 'structured_project_subtask';
 
   bool applies({required ConversationGoal? goal, required bool stepTurn}) =>
@@ -41,25 +41,34 @@ final class ProjectTaskStepCompletionPolicy {
                 results.skip(lastChange + 1).toList(),
               ).hasSuccessfulExecutionVerification;
     final failure = const UnresolvedVerificationFailure().describe(results);
-    final gaps = <String>[
+    final requirements = <(String, String)>[
       if (ContentParser.stripModelHistoryArtifacts(
             response,
           ).trimRight().split('\n').last.trim() !=
           doneMarker)
-        'The subtask has no terminal $doneMarker line.',
+        ('missing_marker', 'The subtask has no terminal $doneMarker line.'),
       if (failure != null || evidence.hasFailedExecutionVerification)
-        failure ??
-            'Subtask execution verification failed and has not passed since.',
+        (
+          'verification_failed',
+          failure ??
+              'Subtask execution verification failed and has not passed since.',
+        ),
       if (evidence.unresolvedErrorCount > 0)
-        'Subtask verification has ${evidence.unresolvedErrorCount} unresolved errors.',
+        (
+          'unresolved_diagnostics',
+          'Subtask verification has ${evidence.unresolvedErrorCount} unresolved errors.',
+        ),
       if ((changed ||
               evidence.mutatedWithoutExecutionVerification ||
               evidence.unverifiedChangePaths.isNotEmpty ||
               evidence.hasExecutionVerification) &&
           !freshVerification)
-        changed
-            ? 'The subtask needs successful execution verification after its latest change.'
-            : 'The subtask needs successful terminal execution verification.',
+        (
+          'verification_missing',
+          changed
+              ? 'The subtask needs successful execution verification after its latest change.'
+              : 'The subtask needs successful terminal execution verification.',
+        ),
       if (evidence.hasUnexecutedActionClaim ||
           evidence.unexecutedToolNames.any(
             (name) =>
@@ -68,14 +77,18 @@ final class ProjectTaskStepCompletionPolicy {
                     .capabilityClass !=
                 ToolCapabilityClass.readOnlyInspection,
           ))
-        'Required subtask tool actions remain unexecuted.',
+        (
+          'unexecuted_actions',
+          'Required subtask tool actions remain unexecuted.',
+        ),
       if (goal?.status == ConversationGoalStatus.blocked)
-        goal?.blockedReason ?? 'The project task is blocked.',
+        ('goal_blocked', goal?.blockedReason ?? 'The project task is blocked.'),
     ];
     return ProjectTaskTerminalStatus.subtask(
       taskId: taskId,
-      accepted: gaps.isEmpty,
-      gaps: gaps,
+      accepted: requirements.isEmpty,
+      gaps: requirements.map((requirement) => requirement.$2).toList(),
+      gapCodes: requirements.map((requirement) => requirement.$1).toList(),
     );
   }
 

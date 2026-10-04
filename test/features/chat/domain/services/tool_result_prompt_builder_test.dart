@@ -330,6 +330,78 @@ void main() {
       );
     });
 
+    for (final freshness in [
+      'current',
+      'crowded',
+      'carried',
+      'changed',
+      'mutated',
+    ]) {
+      test('range-read budget allocation respects $freshness evidence', () {
+        final content = List.filled(8000, 'r').join();
+        final results = [
+          for (var i = 0; i < (freshness == 'crowded' ? 50 : 6); i++)
+            ToolResultInfo(
+              id: 'history-$i',
+              name: 'read_file',
+              arguments: {'path': '/project/history-$i.py'},
+              result: jsonEncode({
+                'path': '/project/history-$i.py',
+                'content': List.filled(9000, 'h').join(),
+              }),
+            ),
+          ToolResultInfo(
+            id: 'range',
+            name: 'read_file',
+            arguments: {
+              'path': '/project/current.py',
+              'offset': 100,
+              'limit': 40,
+            },
+            result: jsonEncode({
+              'path': '/project/current.py',
+              'content': content,
+            }),
+            fromEarlierLoop: freshness == 'carried',
+            changesSinceCapture: freshness == 'changed'
+                ? ['edit_file /project/current.py']
+                : const [],
+          ),
+          if (freshness == 'mutated')
+            ToolResultInfo(
+              id: 'mutation',
+              name: 'edit_file',
+              arguments: const {},
+              result: '{"changed":true}',
+              outcome: const ToolOutcome(
+                fileMutations: [
+                  ToolFileMutation(path: '/project/current.py', changed: true),
+                ],
+              ),
+            ),
+        ];
+        final budgeted = ToolResultPromptBuilder.budgetToolResults(results);
+        final range = budgeted.firstWhere((result) => result.id == 'range');
+        if (freshness == 'current' || freshness == 'crowded') {
+          expect(jsonDecode(range.result)['content'], content);
+        } else {
+          expect(
+            range.result,
+            contains(ToolResultPromptBuilder.promptBudgetReductionMarker),
+          );
+        }
+        expect(
+          budgeted.first.result,
+          contains(ToolResultPromptBuilder.promptBudgetReductionMarker),
+        );
+        expect(
+          budgeted.fold<int>(0, (n, result) => n + result.result.length),
+          lessThanOrEqualTo(48000),
+        );
+        expect(budgeted.last.outcome, same(results.last.outcome));
+      });
+    }
+
     test('dedupes tool definitions by name', () {
       final tools = [
         {

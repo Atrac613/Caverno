@@ -11,6 +11,7 @@ import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/primary_route_chat_datasource.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/primary_model_router.dart';
+import '../../domain/services/project_task_terminal_status.dart';
 import 'primary_turn_purpose.dart';
 
 export 'primary_turn_purpose.dart';
@@ -33,6 +34,7 @@ final class PrimaryTurnRouteRuntime {
   final Map<int, ProjectTaskCommitScope> _projectTaskCommitScopes = {};
   final Map<int, String> _commitPromptStarts = {};
   final Map<int, (String, ProjectTaskCommitTurnEvidence)> _commitTerminals = {};
+  final Map<int, (String, ProjectTaskTerminalStatus)> _subtaskTerminals = {};
 
   Future<void> capture({
     required int generation,
@@ -48,6 +50,7 @@ final class PrimaryTurnRouteRuntime {
     required PrimaryRouteRecorder record,
   }) async {
     _commitTerminals.remove(generation);
+    _subtaskTerminals.remove(generation);
     _commitPromptStarts.remove(generation);
     if ((purpose == PrimaryTurnPurpose.projectTaskCommitPreparation ||
             purpose == PrimaryTurnPurpose.projectTaskCommit) &&
@@ -227,6 +230,28 @@ final class PrimaryTurnRouteRuntime {
     final entry = _commitTerminals[generation];
     if (entry?.$1 != conversationId) return null;
     _commitTerminals.remove(generation);
+    return entry!.$2;
+  }
+
+  void recordSubtaskTerminal(
+    int generation,
+    String conversationId,
+    ProjectTaskTerminalStatus status,
+  ) {
+    if (!isProjectTaskStep(generation) || !status.isSubtask) return;
+    _subtaskTerminals[generation] = (conversationId, status);
+    if (_subtaskTerminals.length > 16) {
+      _subtaskTerminals.remove(_subtaskTerminals.keys.first);
+    }
+  }
+
+  ProjectTaskTerminalStatus? takeSubtaskTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _subtaskTerminals[generation];
+    if (entry?.$1 != conversationId) return null;
+    _subtaskTerminals.remove(generation);
     return entry!.$2;
   }
 

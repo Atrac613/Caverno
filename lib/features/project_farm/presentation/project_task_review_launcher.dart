@@ -13,6 +13,7 @@ import '../../chat/domain/entities/conversation_plan_artifact.dart';
 import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/domain/services/conversation_plan_document_builder.dart';
+import '../../chat/domain/services/project_task_terminal_status.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
@@ -101,6 +102,7 @@ final class ProjectTaskReviewLauncher {
         waitForCompletion: notifier.waitForTurnCompletion,
       );
       ProjectTaskCommitTurnEvidence? commitTurnEvidence;
+      ProjectTaskTerminalStatus? subtaskStatus;
       ProjectTaskStepTurnRunner step(
         bool Function(ConversationGoal goal) admits, {
         Future<void> Function()? reactivate,
@@ -127,6 +129,9 @@ final class ProjectTaskReviewLauncher {
               ),
         waitForCompletion: (owner) async {
           await notifier.waitForTurnCompletion(owner);
+          if (purpose == PrimaryTurnPurpose.projectTaskStep) {
+            subtaskStatus = notifier.takeProjectTaskSubtaskStatus(owner);
+          }
           if (commitScope != null) {
             commitTurnEvidence = notifier.takeProjectTaskCommitTurnEvidence(
               owner,
@@ -232,12 +237,16 @@ final class ProjectTaskReviewLauncher {
             commitScope: scope,
           ).send(prompt);
         },
-        sendStep: step(
-          ProjectTaskStepTurnRunner.activeGoal,
-          reactivate: () => conversations.markCurrentGoalStatus(
-            status: ConversationGoalStatus.active,
-          ),
-        ).send,
+        readSubtaskStatus: () => subtaskStatus,
+        sendStep: (prompt) {
+          subtaskStatus = null;
+          return step(
+            ProjectTaskStepTurnRunner.activeGoal,
+            reactivate: () => conversations.markCurrentGoalStatus(
+              status: ConversationGoalStatus.active,
+            ),
+          ).send(prompt);
+        },
         // The subtasks become the thread's execution tasks, so the Plan Mode
         // progress rows and the execution snapshot in the prompt show them.
         // They are saved without a plan review by user decision (2026-10-01)

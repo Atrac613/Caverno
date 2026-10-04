@@ -7,6 +7,7 @@ import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/domain/services/project_task_implementation_instructions.dart';
+import '../../chat/domain/services/project_task_terminal_status.dart';
 import '../../chat/presentation/slash_commands/slash_command_prompt_template.dart';
 import '../domain/entities/project_task_commit_scope.dart';
 import '../domain/entities/project_task_git_state.dart';
@@ -33,6 +34,7 @@ final class ProjectTaskReviewWorkflow {
     required this.readGitState,
     this.decompose,
     this.sendStep,
+    this.readSubtaskStatus,
     this.markSubtaskDone,
     this.onProgress,
     this.onDecision,
@@ -72,6 +74,7 @@ final class ProjectTaskReviewWorkflow {
   /// Sends a subtask turn before the last one. These turns are judged by
   /// their marker, not by goal completion, which only the last turn records.
   final Future<bool> Function(String prompt)? sendStep;
+  final ProjectTaskTerminalStatus? Function()? readSubtaskStatus;
 
   /// Records a subtask as completed in the thread's execution progress.
   final Future<void> Function(String taskId)? markSubtaskDone;
@@ -367,6 +370,22 @@ ${ContentParser.stripModelHistoryArtifacts(review.content)}''';
     }
     final after = readConversation();
     if (!_canContinue(after)) return _stop(_notContinuable);
+    final status = readSubtaskStatus?.call();
+    if (readSubtaskStatus != null &&
+        (status?.isSubtask != true ||
+            status?.subtaskId != subtasks[index].id)) {
+      return _stop(
+        'subtask $number has no matching harness verdict',
+        gapCodes: const ['missing_subtask_status'],
+      );
+    }
+    if (status?.isSubtask == true && !status!.completionAccepted) {
+      return _stop(
+        'subtask $number was rejected by the harness: ${status.gaps.join('; ')}',
+        gateReason: 'subtask $number was rejected by the harness',
+        gapCodes: status.gapCodes,
+      );
+    }
     final response = _lastAssistant(after!, before!.messages.length);
     if (response == null) {
       return _stop('the turn for subtask $number saved no assistant response');
@@ -490,17 +509,24 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
   static const _notContinuable =
       'the task thread is no longer selected or is waiting for the user';
 
-  ProjectTaskReviewResult _stop(String reason) {
+  ProjectTaskReviewResult _stop(
+    String reason, {
+    String? gateReason,
+    List<String> gapCodes = const [],
+  }) {
     stopReason = reason;
     onDecision?.call({
       'phase': 'workflow',
       'decision': 'stopped',
-      'reason': reason
-          .split('(last line:')
-          .first
-          .split('failed verification:')
-          .first
-          .trim(),
+      if (gapCodes.isNotEmpty) 'gapCodes': gapCodes,
+      'reason':
+          gateReason ??
+          reason
+              .split('(last line:')
+              .first
+              .split('failed verification:')
+              .first
+              .trim(),
     });
     _report(
       _progress.copyWith(

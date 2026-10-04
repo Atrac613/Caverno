@@ -1,5 +1,6 @@
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -184,6 +185,26 @@ void main() {
       expect(runtime.isProjectTaskImplementation(1), isFalse);
     },
   );
+
+  test('subtask verdict survives teardown and is owner scoped', () async {
+    final runtime = PrimaryTurnRouteRuntime();
+    await capture(runtime, 7, codeReview: false, step: true);
+    final status = ProjectTaskTerminalStatus.subtask(
+      taskId: 'step',
+      accepted: false,
+      gaps: ['Required subtask tool actions remain unexecuted.'],
+      gapCodes: ['unexecuted_actions'],
+    );
+    runtime.recordSubtaskTerminal(7, 'task', status);
+    runtime.release(7);
+    expect(runtime.takeSubtaskTerminal(7, 'other'), isNull);
+    expect(runtime.takeSubtaskTerminal(7, 'task'), same(status));
+    expect(runtime.takeSubtaskTerminal(7, 'task'), isNull);
+    await capture(runtime, 8, codeReview: false, step: true);
+    runtime.recordSubtaskTerminal(8, 'task', status);
+    await capture(runtime, 8, codeReview: false);
+    expect(runtime.takeSubtaskTerminal(8, 'task'), isNull);
+  });
 
   test('remembers a review turn until its route is released', () async {
     final runtime = PrimaryTurnRouteRuntime();

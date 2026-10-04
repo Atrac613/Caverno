@@ -3,6 +3,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
+import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_git_state.dart';
 import 'package:caverno/features/project_farm/domain/project_task_progress.dart';
@@ -84,6 +85,9 @@ void main() {
   ProjectTaskReviewWorkflow workflow({
     String subtaskReply = 'Done.\nPROJECT_TASK_SUBTASK_DONE',
     bool finalTurnEdits = true,
+    ProjectTaskTerminalStatus? subtaskStatus,
+    bool statusRequired = false,
+    void Function(Map<String, Object?>)? onDecision,
   }) => ProjectTaskReviewWorkflow(
     projectRoot: '/repo',
     prepareCommit: (_, _) async => true,
@@ -94,6 +98,10 @@ void main() {
     isSelected: () => true,
     isWaitingForUser: () => false,
     decompose: (_) async => subtasks,
+    readSubtaskStatus: statusRequired || subtaskStatus != null
+        ? () => subtaskStatus
+        : null,
+    onDecision: onDecision,
     sendStep: (prompt) async {
       stepPrompts.add(prompt);
       reply(subtaskReply, withDiff: true);
@@ -206,6 +214,52 @@ void main() {
     expect(reports.last.phase, ProjectTaskPhase.implement);
     expect(reports.last.outcome, ProjectTaskOutcome.stopped);
   });
+
+  test(
+    'reports the harness rejection before the rewritten marker gap',
+    () async {
+      final decisions = <Map<String, Object?>>[];
+      final run = workflow(
+        subtaskReply: 'The current project subtask remains incomplete.',
+        subtaskStatus: ProjectTaskTerminalStatus.subtask(
+          taskId: 'project-subtask-1',
+          accepted: false,
+          gaps: ['Required subtask tool actions remain unexecuted.'],
+          gapCodes: ['unexecuted_actions'],
+        ),
+        onDecision: decisions.add,
+      );
+      expect(await run.run(), ProjectTaskReviewResult.stopped);
+      expect(
+        run.stopReason,
+        contains('Required subtask tool actions remain unexecuted.'),
+      );
+      expect(run.stopReason, isNot(contains('does not end with')));
+      final decision = decisions.firstWhere(
+        (value) => value['decision'] == 'stopped',
+      );
+      expect(decision['reason'], 'subtask 1 was rejected by the harness');
+      expect(decision['gapCodes'], ['unexecuted_actions']);
+      expect(marked, isEmpty);
+      expect(sendPrompts, isEmpty);
+    },
+  );
+
+  for (final verdict in [
+    null,
+    ProjectTaskTerminalStatus.subtask(taskId: 'other-task', accepted: true),
+  ]) {
+    test(
+      'does not advance without the current subtask verdict: ${verdict?.subtaskId}',
+      () async {
+        final run = workflow(subtaskStatus: verdict, statusRequired: true);
+        expect(await run.run(), ProjectTaskReviewResult.stopped);
+        expect(run.stopReason, 'subtask 1 has no matching harness verdict');
+        expect(marked, isEmpty);
+        expect(sendPrompts, isEmpty);
+      },
+    );
+  }
 
   test('accepts a last subtask that only verifies earlier edits', () async {
     // The change check counts from before the first subtask, so a final

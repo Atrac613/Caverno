@@ -5,6 +5,13 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierResponseFinalization on ChatNotifier {
+  ProjectTaskTerminalStatus? takeProjectTaskSubtaskStatus(
+    ChatTurnOwner owner,
+  ) => _primaryRoutes.takeSubtaskTerminal(
+    owner.interactionGeneration,
+    owner.conversationId,
+  );
+
   void _failResponseMessagesMissing(int generation) => _failRuntimeTurn(
     generation,
     code: 'response_messages_missing',
@@ -93,6 +100,11 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
               : ConversationPlanExecutionCoordinator.executionFocusTask(
                   conversation,
                 )?.id,
+        );
+        _primaryRoutes.recordSubtaskTerminal(
+          owner.interactionGeneration,
+          owner.conversationId,
+          status,
         );
         _turnToolResults.addContent(
           owner,

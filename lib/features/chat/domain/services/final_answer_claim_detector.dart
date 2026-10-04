@@ -4,8 +4,10 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
+import 'command_verification_reconciliation.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'narrated_transcript_claim_guard.dart';
+import 'project_task_terminal_status.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_definition_search_service.dart';
 import 'unexecuted_command_claim_reconciliation.dart';
@@ -129,6 +131,7 @@ class FinalAnswerClaimDetector {
   ToolResultInfo? buildUnexecutedCommandActionToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
+    bool isProjectSubtask = false,
   }) {
     final candidate = claimCandidate(candidateResponse).trim();
     final looksLikeFutureAction = looksLikeFutureCommandExecutionAction(
@@ -145,6 +148,23 @@ class FinalAnswerClaimDetector {
       return null;
     }
 
+    final terminalSubtaskReport =
+        isProjectSubtask &&
+        candidate.split('\n').last.trim() ==
+            ProjectTaskTerminalStatus.subtaskDoneMarker;
+    final missingEvidenceOnly =
+        (!looksLikeFutureAction || terminalSubtaskReport) &&
+        !candidate.contains('{') &&
+        ContentParser.extractCompletedToolCalls(candidateResponse).isEmpty &&
+        !const NarratedTranscriptClaimGuard()
+            .assess(candidateResponse: candidate, toolResults: const [])
+            .hasUnexecutedCommands;
+    if (terminalSubtaskReport &&
+        missingEvidenceOnly &&
+        _hasFreshSubtaskVerification(toolResults)) {
+      return null;
+    }
+
     return ToolResultInfo(
       id: 'unexecuted_command_action_${DateTime.now().microsecondsSinceEpoch}',
       name: 'local_execute_command',
@@ -157,15 +177,9 @@ class FinalAnswerClaimDetector {
         'code': 'unexecuted_command_action',
         ...ToolResultOrigin.harness.marker,
         // This lexical notice reports missing evidence, not a concrete call.
-        // Future actions and opaque JSON arguments must remain unresolved.
-        if (!looksLikeFutureAction &&
-            !candidate.contains('{') &&
-            ContentParser.extractCompletedToolCalls(
-              candidateResponse,
-            ).isEmpty &&
-            !const NarratedTranscriptClaimGuard()
-                .assess(candidateResponse: candidate, toolResults: const [])
-                .hasUnexecutedCommands)
+        // A terminal intermediate-subtask report may mention later verification.
+        // Concrete calls and ordinary future promises retain their own gates.
+        if (missingEvidenceOnly)
           'evidence_requirement':
               UnexecutedCommandClaimReconciliation.evidenceRequirement,
         'error':
@@ -173,6 +187,29 @@ class FinalAnswerClaimDetector {
         'claimedResponse': clipForDiagnostic(candidate),
       }),
     );
+  }
+
+  bool _hasFreshSubtaskVerification(List<ToolResultInfo> results) {
+    final lastChange = results.lastIndexWhere(
+      (result) =>
+          result.outcome?.fileMutations.any(
+            (mutation) => mutation.changed == true,
+          ) ==
+          true,
+    );
+    final stale = CommandVerificationReconciliation.staleBackgroundResultIds(
+      results,
+    );
+    return results.skip(lastChange + 1).any((result) {
+      if (stale.contains(result.id)) return false;
+      try {
+        final payload = jsonDecode(result.result);
+        if (payload is Map && payload['execution_reused'] == true) return false;
+      } on FormatException {
+        return false;
+      }
+      return CommandVerificationReconciliation.scopeOf(result)?.passed == true;
+    });
   }
 
   ToolResultInfo? buildUnverifiedReadOnlyInspectionClaimToolResult({
