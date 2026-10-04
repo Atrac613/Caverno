@@ -66,7 +66,7 @@ initial failure in the verification summary. Timeout, unavailable containment
 and cancellation never trigger repair; another failure stays unverified.
 The worktree and verifier regression suites passed 82 tests and static analysis.
 Independent gate controls rejected wrong HEAD, missing HTTP, wrong content,
-failed verification and absent evidence. The live gate remains blocked; no
+failed verification and absent evidence. That live gate remained blocked; no
 acceptance condition was relaxed and no unchanged live run was repeated.
 
 The wire-capture follow-up `farm_unattended_live_canary.jPLhsL` also failed
@@ -79,9 +79,25 @@ frame; it passes ten synthetic cases on the exact patched source. Applicability
 was checked against the server checkout without applying it. Caverno native
 argument decoding and actual file writes preserve whitespace in 55 focused
 tests. See [the prepared patch and checker](../tool/patches/README.md).
-The server remains unchanged and live readiness remains blocked; the original
+At that stage the server remained unchanged and live readiness was blocked; the original
 generated model token stream was not captured, so wire evidence alone cannot
 separate model output from upstream parser transformations for each write.
+
+After explicit user approval, the upstream patch was applied with a rollback
+copy and passed all ten source-level cases before restarting the EXL3 backend
+through its existing supervisor. The model target remained
+`qwen3.8-27b-exl3`. The unchanged acceptance run
+`farm_unattended_live_canary.Pw8ZFI` passed 1/1 with five successful HTTP calls,
+one automatic dispatch, a real review branch/worktree, exact newline-bearing
+HTTP content and file bytes, and initial native oracle success without repair.
+Source and worktree HEAD remained unchanged, only `greeting.txt` was dirty,
+persisted task state was green, and the second pass recorded `daily_limit`.
+The independent evidence gate passed without gaps; scratch worktrees were
+removed and the dynamic relay closed. This establishes only the injected
+idle/proposal scope described above, not OS idle detection, live proposal
+generation, UI or the full maintenance-provider pipeline. The older failed
+artifacts remain retained. See the patch README for deployment hashes and
+rollback location.
 
 ## Software Farm Completion Canary
 

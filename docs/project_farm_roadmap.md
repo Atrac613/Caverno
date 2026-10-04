@@ -798,6 +798,12 @@ only one.
   Live unattended readiness remains blocked; see
   [the canary coverage record](live_llm_canary_coverage.md#software-farm-unattended-worktree-canary)
   for artifacts and the injected environment/proposal boundaries.
+- Following the user-approved upstream parser repair and EXL3 restart,
+  `farm_unattended_live_canary.Pw8ZFI` passed the same acceptance and independent
+  evidence gate. It proves synthetic idle dispatch through real native worktree
+  creation, live model editing, contained verification, persisted task state
+  and the daily limit. OS idle detection and live proposal generation remain
+  injected boundaries; no unattended run was made against a user project.
 
 ### FARM6: Pull Requests
 
