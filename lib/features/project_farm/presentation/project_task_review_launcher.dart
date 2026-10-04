@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/types/workspace_mode.dart';
+import '../../chat/data/datasources/llm_session_log_store.dart';
+import '../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../chat/data/repositories/conversation_listing_codec.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/conversation_goal.dart';
@@ -175,6 +180,41 @@ final class ProjectTaskReviewLauncher {
         send: runner.send,
         projectRoot: projectRoot,
         readCommitSnapshot: const ProjectTaskCommitReader().read,
+        onDecision: (decision) {
+          final settings = ref.read(settingsNotifierProvider);
+          if (!LlmSessionLogStore.isEnabled(
+                settingsEnabled: settings.enableLlmSessionLogs,
+              ) ||
+              settings.demoMode) {
+            return;
+          }
+          final owner = readTask();
+          final state = ref.read(chatNotifierProvider);
+          unawaited(
+            ref
+                .read(llmSessionLogStoreProvider)
+                .recordProjectTaskDecision(
+                  context: LlmSessionLogContext(
+                    workspaceMode: owner?.workspaceMode ?? WorkspaceMode.coding,
+                    sessionId: conversationId,
+                    conversationId: conversationId,
+                    phase: 'project_task_workflow',
+                  ),
+                  decision: {
+                    ...decision,
+                    'selected': selected(),
+                    'busy': notifier.isConversationBusy(conversationId),
+                    'awaitingApproval': notifier.isConversationAwaitingApproval(
+                      conversationId,
+                    ),
+                    'pendingQuestion':
+                        state.pendingAskUserQuestion?.conversationId ==
+                        conversationId,
+                  },
+                  at: DateTime.now(),
+                ),
+          );
+        },
         readCommitTurnEvidence: () => commitTurnEvidence,
         prepareCommit: (prompt, scope) {
           commitTurnEvidence = null;
@@ -280,6 +320,28 @@ final class ProjectTaskReviewLauncher {
           'chat.project_task_review_stopped'.tr(),
       });
     } catch (error) {
+      final settings = ref.read(settingsNotifierProvider);
+      if (LlmSessionLogStore.isEnabled(
+            settingsEnabled: settings.enableLlmSessionLogs,
+          ) &&
+          !settings.demoMode) {
+        await ref
+            .read(llmSessionLogStoreProvider)
+            .recordProjectTaskDecision(
+              context: LlmSessionLogContext(
+                workspaceMode: conversation.workspaceMode,
+                sessionId: conversationId,
+                conversationId: conversationId,
+                phase: 'project_task_workflow',
+              ),
+              decision: {
+                'phase': 'workflow',
+                'decision': 'stopped',
+                'reason': 'workflow_exception',
+              },
+              at: DateTime.now(),
+            );
+      }
       if (isMounted()) {
         showMessage(
           'chat.project_task_review_error'.tr(

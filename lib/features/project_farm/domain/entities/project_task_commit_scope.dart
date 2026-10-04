@@ -11,6 +11,8 @@ final class ProjectTaskCommitSnapshot {
     required Set<String> stagedPaths,
     required Set<String> unstagedPaths,
     this.roadmapAlreadyDone = false,
+    this.roadmapEntryIdentity,
+    this.roadmapReferenceCaptured = false,
   }) : fileFingerprints = Map.unmodifiable(fileFingerprints),
        stagedPaths = Set.unmodifiable(stagedPaths),
        unstagedPaths = Set.unmodifiable(unstagedPaths);
@@ -20,6 +22,8 @@ final class ProjectTaskCommitSnapshot {
   final Set<String> stagedPaths;
   final Set<String> unstagedPaths;
   final bool roadmapAlreadyDone;
+  final String? roadmapEntryIdentity;
+  final bool roadmapReferenceCaptured;
 }
 
 final class ProjectTaskCommitScope {
@@ -97,6 +101,16 @@ final class ProjectTaskCommitScope {
           before.fileFingerprints[file] != after.fileFingerprints[file],
     )) {
       return 'the reviewed task files changed during commit preparation';
+    }
+    if (before.roadmapReferenceCaptured &&
+        sourceQuote != null &&
+        RegExp(r'^\s*(?:[-*+]\s+)?\[[ xX]\]\s+').hasMatch(sourceQuote!) &&
+        before.roadmapEntryIdentity == null) {
+      return 'the cited roadmap entry could not be resolved before preparation';
+    }
+    if (before.roadmapEntryIdentity != null &&
+        before.roadmapEntryIdentity != after.roadmapEntryIdentity) {
+      return 'the cited roadmap entry changed during commit preparation';
     }
     if (after.stagedPaths.isEmpty) return 'no task changes are staged';
     if (after.stagedPaths.difference(paths).isNotEmpty) {

@@ -45,6 +45,15 @@ Session logs use bounded local retention by default:
 
 ## Entry Format
 
+`project_task_decision` records native Farm preparation and commit attempts,
+acceptance or rejection, and workflow stops in the owning conversation's log.
+`projectTaskDecision` includes the phase, decision, fixed gate reason, native
+HEAD/index comparison booleans, path counts and turn evidence when available.
+Selection, busy, approval and question flags distinguish admission failures.
+These events contain no roadmap text, commands or file paths and respect the
+session logging setting. A HEAD advance still requires the workflow's final
+native task-cleanliness check before reporting completion.
+
 For rejected project-task completion, structured status recovery includes
 `capturedEvidence.unresolvedVerification`: the failed tool call, literal command
 (bounded to 12,000 characters), working directory, and output tail. Inspect this

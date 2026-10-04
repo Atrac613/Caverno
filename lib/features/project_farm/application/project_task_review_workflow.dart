@@ -35,11 +35,13 @@ final class ProjectTaskReviewWorkflow {
     this.sendStep,
     this.markSubtaskDone,
     this.onProgress,
+    this.onDecision,
     this.inheritedFiles = const [],
     this.recordPriorChanges,
     this.readTaskPatch,
   });
 
+  final void Function(Map<String, Object?> decision)? onDecision;
   final String conversationId;
   final Conversation? Function() readConversation;
   final bool Function() isSelected;
@@ -310,6 +312,7 @@ ${ContentParser.stripModelHistoryArtifacts(review.content)}''';
     }
     if (!_canContinue(readConversation())) return _stop(_notContinuable);
     final problem = await ProjectTaskCommitSequence(
+      onDecision: onDecision,
       prepare: prepare,
       commit: commit,
       inspect: inspect,
@@ -443,6 +446,11 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
 
   void _report(ProjectTaskProgress progress) {
     _progress = progress;
+    onDecision?.call({
+      'phase': progress.phase.name,
+      'decision': 'progress',
+      'outcome': progress.outcome.name,
+    });
     onProgress?.call(progress);
   }
 
@@ -484,6 +492,16 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
 
   ProjectTaskReviewResult _stop(String reason) {
     stopReason = reason;
+    onDecision?.call({
+      'phase': 'workflow',
+      'decision': 'stopped',
+      'reason': reason
+          .split('(last line:')
+          .first
+          .split('failed verification:')
+          .first
+          .trim(),
+    });
     _report(
       _progress.copyWith(
         outcome: ProjectTaskOutcome.stopped,

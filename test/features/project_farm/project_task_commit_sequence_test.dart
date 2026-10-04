@@ -40,6 +40,7 @@ void main() {
     unstagedPaths: ready ? {} : {'/repo/task.py'},
     roadmapAlreadyDone: ready,
   );
+  late List<Map<String, Object?>> decisions;
   late List<String> prompts;
   late List<ProjectTaskCommitScope> permits;
   late ProjectTaskCommitTurnEvidence? evidence;
@@ -48,6 +49,7 @@ void main() {
   var continuable = true;
   var recoverable = true;
   setUp(() {
+    decisions = [];
     prompts = [];
     permits = [];
     evidence = idle;
@@ -60,6 +62,7 @@ void main() {
     ProjectTaskCommitTurnEvidence? commitEvidence = idle,
     bool Function()? continuing,
   }) => ProjectTaskCommitSequence(
+    onDecision: decisions.add,
     prepare: (prompt, scope) async {
       preparations++;
       prompts.add(prompt);
@@ -209,6 +212,27 @@ void main() {
       expect(commits, 1);
     }
   });
+  test('native refusal logs its cause and never starts a commit', () async {
+    final reason = await run([
+      snapshot(ready: true, task: 'changed'),
+    ], preparationEvidence: mutation);
+    expect(reason, contains('reviewed task files changed'));
+    expect(commits, 0);
+    expect(decisions.where((entry) => entry['phase'] == 'commit'), isEmpty);
+    expect(
+      decisions,
+      contains(
+        allOf(
+          containsPair('phase', 'preparation'),
+          containsPair('decision', 'rejected'),
+          containsPair('nativeStateAvailable', true),
+          containsPair('reason', reason),
+        ),
+      ),
+    );
+    expect(decisions.last, containsPair('decision', 'stopped'));
+  });
+
   test('budget or admission gate blocks recovery', () async {
     recoverable = false;
     expect(await run([snapshot()]), isNotNull);

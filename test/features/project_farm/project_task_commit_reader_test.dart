@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:caverno/features/project_farm/application/project_task_commit_sequence.dart';
+import 'package:caverno/features/project_farm/application/project_task_commit_turn_evidence.dart';
 import 'package:caverno/features/project_farm/data/project_task_commit_reader.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -213,6 +215,123 @@ void main() {
     await write('roadmap.md', '- [x] Implement "quoted" task\n');
     expect((await read()).roadmapAlreadyDone, isTrue);
   });
+  Future<void> shortTitleScope() async {
+    scope = ProjectTaskCommitScope.fromObjective(
+      conversationId: 'task',
+      projectRoot: root.path,
+      objective: 'Source: roadmap.md:1\n"[ ] **Logging**"',
+      reviewedPaths: ['task.txt'],
+    )!;
+    await write(
+      'roadmap.md',
+      '- [ ] **Logging** — Replace print with logging\n',
+    );
+    baseline = await read();
+  }
+
+  test('short title commits described entry through native sequence', () async {
+    await shortTitleScope();
+    final decisions = <Map<String, Object?>>[];
+    var commits = 0;
+    const evidence = ProjectTaskCommitTurnEvidence(
+      completedNormally: true,
+      mutationAttempted: true,
+      failed: false,
+    );
+    final problem = await ProjectTaskCommitSequence(
+      prepare: (_, _) async {
+        await write(
+          'roadmap.md',
+          '- [x] **Logging** — Replace print with logging\n',
+        );
+        await git(['add', '--', 'task.txt', 'roadmap.md']);
+        return true;
+      },
+      commit: (_, permit) async {
+        expect(permit.commitProblem(await read()), isNull);
+        commits++;
+        await git([
+          '-c',
+          'core.hooksPath=/dev/null',
+          'commit',
+          '-qm',
+          'fix: logging',
+        ]);
+        return true;
+      },
+      inspect: reader.read,
+      readEvidence: () => evidence,
+      canContinue: () => true,
+      canRecover: () => true,
+      onDecision: decisions.add,
+    ).run('Logging', scope, baseline);
+    expect(problem, isNull);
+    expect(commits, 1);
+    final after = await read();
+    expect(after.head, isNot(baseline.head));
+    expect(after.stagedPaths, isEmpty);
+    expect(after.unstagedPaths.intersection(scope.paths), isEmpty);
+    expect(after.unstagedPaths, contains('${root.path}/unrelated.txt'));
+    expect(decisions, contains(containsPair('decision', 'head_advanced')));
+    expect(
+      decisions.where((e) => e['phase'] == 'preparation'),
+      contains(containsPair('roadmapIdentityMatched', true)),
+    );
+  });
+
+  test(
+    'short title refuses duplicate titles and replacement descriptions',
+    () async {
+      await shortTitleScope();
+      await write(
+        'roadmap.md',
+        '- [x] **Logging** — Different task\n- [x] **Logging** — Replace print with logging\n',
+      );
+      expect((await read()).roadmapAlreadyDone, isFalse);
+      await write('roadmap.md', '- [x] **Logging** — Different task\n');
+      await git(['add', '--', 'task.txt', 'roadmap.md']);
+      expect(
+        scope.preparationProblem(baseline, await read()),
+        contains('entry changed'),
+      );
+    },
+  );
+
+  test(
+    'short title survives line movement with unchanged native identity',
+    () async {
+      await shortTitleScope();
+      await write(
+        'roadmap.md',
+        '# Roadmap\n- [x] **Logging** — Replace print with logging\n',
+      );
+      await git(['add', '--', 'task.txt', 'roadmap.md']);
+      expect(scope.preparationProblem(baseline, await read()), isNull);
+    },
+  );
+
+  test(
+    'ambiguous baseline cannot become another task during preparation',
+    () async {
+      await shortTitleScope();
+      await write(
+        'roadmap.md',
+        '- [ ] **Logging**\n- [ ] **Logging** — Replace print with logging\n',
+      );
+      baseline = await read();
+      expect(baseline.roadmapEntryIdentity, isNull);
+      await write(
+        'roadmap.md',
+        '- [x] **Logging** — Replace print with logging\n',
+      );
+      await git(['add', '--', 'task.txt', 'roadmap.md']);
+      expect(
+        scope.preparationProblem(baseline, await read()),
+        contains('could not be resolved'),
+      );
+    },
+  );
+
   test('invalid repository and outside roadmap fail closed', () async {
     expect(
       ProjectTaskCommitScope.fromObjective(

@@ -446,6 +446,32 @@ class LlmSessionLogStore {
   /// finalized (the conversation store holds the final, post-transform UI
   /// content), so the LLM session log and the on-screen conversation can be
   /// traced to each other without inferring from leaked notice prose.
+  /// Native Farm decisions, without roadmap text, commands or file paths.
+  Future<void> recordProjectTaskDecision({
+    required LlmSessionLogContext context,
+    required Map<String, Object?> decision,
+    required DateTime at,
+  }) async {
+    try {
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': _utcTimestamp(at),
+        'build': BuildInfo.toJson(),
+        'context': context.toJson(),
+        'operation': 'project_task_decision',
+        'projectTaskDecision': decision,
+      };
+      await _appendLine(
+        context: context,
+        line: '${jsonEncode(_redactValue(entry))}\n',
+        at: at,
+      );
+    } catch (error) {
+      appLog('[SessionLog] Failed to write project-task decision: $error');
+    }
+  }
+
   Future<void> recordTurnExit({
     required LlmSessionLogContext? context,
     required String reason,

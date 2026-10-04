@@ -72,30 +72,42 @@ final class ProjectTaskCommitReader {
       }
       final roadmap = roadmapContent;
       if (roadmap == null) return null;
-      bool alreadyDone() {
-        final quote = scope.sourceQuote;
-        if (quote == null || quote.isEmpty) {
-          return false;
+      String identity(String value) => value
+          .replaceFirst(RegExp(r'^\s*(?:[-*+]\s+)?\[[ xX]\]\s*'), '')
+          .trim();
+      final quote = scope.sourceQuote;
+      final expected = quote == null ? null : identity(quote);
+      final lines = roadmap.split('\n');
+      final checkbox = RegExp(r'^\s*(?:[-*+]\s+)?\[[ xX]\]\s+');
+      final exact = lines
+          .where(
+            (line) => checkbox.hasMatch(line) && identity(line) == expected,
+          )
+          .toList();
+      String? entry;
+      final sourceLine = scope.sourceLine;
+      if (expected != null) {
+        if (RegExp(r'^\*\*[^*]+\*\*$').hasMatch(expected)) {
+          // A complete bold title can abbreviate a described entry only when
+          // unique. Capture the full identity to reject later substitutions.
+          final candidates = lines.where((line) {
+            final value = identity(line);
+            return checkbox.hasMatch(line) &&
+                (value == expected ||
+                    (value.startsWith(expected) &&
+                        RegExp(
+                          r'^\s+[—–-]\s+\S',
+                        ).hasMatch(value.substring(expected.length))));
+          }).toList();
+          if (candidates.length == 1) entry = candidates.single;
+        } else if (sourceLine != null &&
+            sourceLine > 0 &&
+            sourceLine <= lines.length &&
+            exact.contains(lines[sourceLine - 1])) {
+          entry = lines[sourceLine - 1];
+        } else if (exact.length == 1) {
+          entry = exact.single;
         }
-        String identity(String value) => value
-            .replaceFirst(RegExp(r'^\s*(?:[-*+]\s+)?\[[ xX]\]\s*'), '')
-            .trim();
-        final expected = identity(quote);
-        final lines = roadmap.split('\n');
-        final sourceLine = scope.sourceLine;
-        final matching = lines.where((line) => identity(line) == expected);
-        final candidates =
-            sourceLine != null &&
-                sourceLine > 0 &&
-                sourceLine <= lines.length &&
-                identity(lines[sourceLine - 1]) == expected
-            ? [lines[sourceLine - 1]]
-            : matching.length == 1
-            ? matching
-            : const <String>[];
-        return candidates.any(
-          (line) => RegExp(r'^\s*(?:[-*+]\s+)?\[[xX]\]\s+').hasMatch(line),
-        );
       }
 
       if ((await git(['rev-parse', 'HEAD'])).trim() != head ||
@@ -108,7 +120,11 @@ final class ProjectTaskCommitReader {
         fileFingerprints: Map.unmodifiable(files),
         stagedPaths: Set.unmodifiable(staged),
         unstagedPaths: Set.unmodifiable(unstaged),
-        roadmapAlreadyDone: alreadyDone(),
+        roadmapReferenceCaptured: true,
+        roadmapEntryIdentity: entry == null ? null : identity(entry),
+        roadmapAlreadyDone:
+            entry != null &&
+            RegExp(r'^\s*(?:[-*+]\s+)?\[[xX]\]\s+').hasMatch(entry),
       );
     } on Object {
       return null;
