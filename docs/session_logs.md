@@ -196,6 +196,12 @@ Different runners, targets and arguments, other pipelines, dynamic counts and
 writable redirects remain distinct. This matching does not establish successful
 verification or change execution approval.
 
+Content parsing preserves shell heredocs and multiline code containing literal
+less-than signs. Streamed partial-tag detection applies only to a trailing
+markup fragment; a heredoc must not remove the final task or subtask marker from
+the saved response, completion assessment or memory input. Actual unfinished
+thinking and tool tags retain their existing incomplete-content behavior.
+
 For streaming operations wrapped by `SessionLoggingChatDataSource`, `stream_end`
 means Caverno finished reading the stream and wrote the accumulated text to the
 log. It is not an interruption signal by itself. Treat it as suspicious only

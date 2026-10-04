@@ -22,13 +22,16 @@ void registerChatNotifierProjectTaskStepTests() {
     'pytest reporting changed',
     'pytest transcript through tail',
     'pytest transcript through tail detached',
+    'read-only heredoc transcript',
+    'read-only heredoc transcript detached',
   ]) {
     test('project subtask finalization and memory: $scenario', () async {
       final root = await Directory.systemTemp.createTemp('caverno_subtask_');
       addTearDown(() => root.delete(recursive: true));
       final project = _pendingBatchProject(root.path);
       if (scenario.startsWith('read-only') &&
-          scenario.endsWith('then verified')) {
+          (scenario.endsWith('then verified') ||
+              scenario.contains('heredoc transcript'))) {
         await File('${root.path}/policy.md').writeAsString('Fixture policy.\n');
       }
       final mode = scenario
@@ -42,7 +45,10 @@ void registerChatNotifierProjectTaskStepTests() {
       final readOnly = mode.startsWith('read-only');
       final reportingChanged = mode == 'pytest reporting changed';
       final pytestTranscript = mode == 'pytest transcript through tail';
-      final command = pytestTranscript
+      final heredocTranscript = mode == 'read-only heredoc transcript';
+      final command = heredocTranscript
+          ? "cd ${root.path} && python3 - <<'PY'\nassert 1 == 1\nprint('Verified.')\nPY"
+          : pytestTranscript
           ? 'cd ${root.path} && .venv/bin/python -m pytest test_fixture.py -v 2>&1 | tail -30'
           : reportingChanged
           ? 'cd ${root.path} && python3 -m pytest test_fixture.py -v 2>&1 | tail -20'
@@ -67,6 +73,12 @@ void registerChatNotifierProjectTaskStepTests() {
               id: 'inspect',
               name: 'read_file',
               arguments: {'path': '${root.path}/policy.md'},
+            ),
+          if (heredocTranscript)
+            ToolCallInfo(
+              id: 'verify',
+              name: 'local_execute_command',
+              arguments: {'command': command},
             ),
           if (!readOnly) ...[
             ToolCallInfo(
@@ -116,7 +128,9 @@ void registerChatNotifierProjectTaskStepTests() {
             ),
         ],
         finalAnswerChunks: [
-          pytestTranscript
+          heredocTranscript
+              ? "```sh\n\$ python3 - <<'PY'\nassert 1 == 1\nprint('Verified.')\nPY\n```\nVerified.\nPROJECT_TASK_SUBTASK_DONE"
+              : pytestTranscript
               ? '```\n\$ .venv/bin/python -m pytest test_fixture.py -v\n53 passed in 3.08s\n```\nPROJECT_TASK_SUBTASK_DONE'
               : opaqueClaim
               ? 'The local command completed.\n{"command":"python3 unavailable.py"}\nPROJECT_TASK_SUBTASK_DONE'
@@ -208,7 +222,7 @@ void registerChatNotifierProjectTaskStepTests() {
             ? endsWith('PROJECT_TASK_SUBTASK_DONE')
             : isNot(endsWith('PROJECT_TASK_SUBTASK_DONE')),
       );
-      if (pytestTranscript) {
+      if (pytestTranscript || heredocTranscript) {
         expect(answer, isNot(contains('Transcript claim check:')));
         expect(
           source.memoryMessages.last.content,
@@ -225,7 +239,7 @@ void registerChatNotifierProjectTaskStepTests() {
             ? 2
             : mode.startsWith('optional ') || reportingChanged
             ? 2
-            : recoveredClaim
+            : recoveredClaim || heredocTranscript
             ? 1
             : readOnly
             ? 0
