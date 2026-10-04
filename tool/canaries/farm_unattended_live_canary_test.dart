@@ -15,76 +15,20 @@ import 'package:caverno/features/chat/presentation/providers/worktree_agent_task
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_verification_runner.dart';
 import 'package:caverno/features/maintenance/domain/entities/idle_maintenance_config.dart';
-import 'package:caverno/features/maintenance/domain/services/idle_maintenance_environment.dart';
 import 'package:caverno/features/maintenance/domain/services/idle_maintenance_scheduler.dart';
 import 'package:caverno/features/project_farm/application/farm_unattended_runner.dart';
 import 'package:caverno/features/project_farm/data/roadmap_snapshot_repository.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_farm_policy.dart';
-import 'package:caverno/features/project_farm/domain/entities/project_proposal.dart';
 import 'package:caverno/features/project_farm/domain/entities/roadmap_snapshot.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _IdleEnvironment implements IdleMaintenanceEnvironment {
-  @override
-  DateTime now() => DateTime(2026, 10, 4, 3);
-  @override
-  Duration idleFor() => const Duration(hours: 1);
-  @override
-  bool onAcPower() => true;
-}
-
-class _FixtureClient extends http.BaseClient {
-  final http.Client _inner = http.Client();
-  int successfulCalls = 0;
-  final wireToolCalls = <Object?>[];
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final body = await request.finalize().toBytes();
-    final text = utf8.decode(body);
-    for (final forbidden in ['/Users/', 'Caverno agent guide', '.caverno/']) {
-      if (text.contains(forbidden)) {
-        throw StateError('Non-fixture HTTP payload');
-      }
-    }
-    final forwarded = http.Request(request.method, request.url)
-      ..headers.addAll(request.headers)
-      ..bodyBytes = body;
-    final response = await _inner.send(forwarded);
-    final bytes = await response.stream.toBytes();
-    if (response.statusCode == 200) {
-      successfulCalls++;
-      final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      for (final choice in decoded['choices'] as List<dynamic>) {
-        final message = choice['message'] as Map<String, dynamic>;
-        wireToolCalls.addAll(message['tool_calls'] as List<dynamic>? ?? []);
-      }
-    }
-    return http.StreamedResponse(
-      Stream.value(bytes),
-      response.statusCode,
-      headers: response.headers,
-      reasonPhrase: response.reasonPhrase,
-      request: response.request,
-    );
-  }
-
-  @override
-  void close() => _inner.close();
-}
-
-Future<String> _git(String root, List<String> args) async {
-  final result = await Process.run('git', args, workingDirectory: root);
-  if (result.exitCode != 0) {
-    throw StateError('Fixture Git failed: ${result.stderr}');
-  }
-  return result.stdout.toString().trim();
-}
+import 'support/farm_unattended_proposal_probe.dart';
+import 'support/farm_unattended_support.dart';
 
 void main() {
   final env = Platform.environment;
@@ -97,12 +41,13 @@ void main() {
       await report.create(recursive: true);
       final scratch = await Directory.systemTemp.createTemp('farm_unattended_');
       final root = await Directory('${scratch.path}/project').create();
-      final client = _FixtureClient();
+      final client = FarmFixtureClient();
+      final proposalClient = FarmFixtureClient();
       ProviderContainer? container;
       IdleMaintenanceScheduler? scheduler;
       WorktreeAgentTask? task;
       var passed = false;
-      final evidence = <String, Object?>{'schemaVersion': 1, 'passed': false};
+      final evidence = <String, Object?>{'schemaVersion': 2, 'passed': false};
       try {
         await File('${root.path}/greeting.txt').writeAsString('hello\n');
         await File('${root.path}/roadmap.md').writeAsString(
@@ -122,16 +67,20 @@ print("UNATTENDED_ORACLE_OK")
         await Link(
           '${root.path}/python',
         ).create(File(python).resolveSymbolicLinksSync());
-        await _git(root.path, ['init', '-b', 'main']);
-        await _git(root.path, ['config', 'user.name', 'Canary']);
-        await _git(root.path, [
+        await farmFixtureGit(root.path, ['init', '-b', 'main']);
+        await farmFixtureGit(root.path, ['config', 'user.name', 'Canary']);
+        await farmFixtureGit(root.path, [
           'config',
           'user.email',
           'canary@example.invalid',
         ]);
-        await _git(root.path, ['config', 'commit.gpgsign', 'false']);
-        await _git(root.path, ['config', 'core.hooksPath', '/dev/null']);
-        await _git(root.path, [
+        await farmFixtureGit(root.path, ['config', 'commit.gpgsign', 'false']);
+        await farmFixtureGit(root.path, [
+          'config',
+          'core.hooksPath',
+          '/dev/null',
+        ]);
+        await farmFixtureGit(root.path, [
           'add',
           '--',
           'greeting.txt',
@@ -139,17 +88,20 @@ print("UNATTENDED_ORACLE_OK")
           'verify.py',
           'python',
         ]);
-        await _git(root.path, [
+        await farmFixtureGit(root.path, [
           'commit',
           '-m',
           'test: initialize synthetic fixture',
         ]);
-        final initialHead = await _git(root.path, ['rev-parse', 'HEAD']);
+        final initialHead = await farmFixtureGit(root.path, [
+          'rev-parse',
+          'HEAD',
+        ]);
         // This Flutter test lives under tool/canaries rather than test/.
         // ignore: invalid_use_of_visible_for_testing_member
         SharedPreferences.setMockInitialValues({});
         final prefs = await SharedPreferences.getInstance();
-        final now = _IdleEnvironment().now();
+        final now = FarmIdleEnvironment().now();
         final project = CodingProject(
           id: 'synthetic',
           name: 'synthetic',
@@ -205,6 +157,16 @@ print("UNATTENDED_ORACLE_OK")
           ],
         );
         final active = container;
+        final proposals = FarmUnattendedProposalProbe(
+          repository: repository,
+          source: ChatRemoteDataSource(
+            baseUrl: settings.baseUrl,
+            apiKey: settings.apiKey,
+            httpClient: proposalClient,
+          ),
+          model: settings.model,
+          now: now,
+        );
         final runs = <Future<WorktreeAgentTaskRunResult>>[];
         final farm = FarmUnattendedRunner(
           repository: repository,
@@ -225,13 +187,7 @@ print("UNATTENDED_ORACLE_OK")
               line: 1,
             ),
           ),
-          refreshProposal: (_, _) async => ProjectProposal(
-            projectId: project.id,
-            inputHash: 'fixture',
-            proposedAt: now,
-            taskId: 'GR1',
-            automatability: 'unattended',
-          ),
+          refreshProposal: proposals.refresh,
           tasks: () =>
               active.read(worktreeAgentTaskRegistryNotifierProvider).tasks,
           enqueue:
@@ -272,7 +228,7 @@ print("UNATTENDED_ORACLE_OK")
           now: () => now,
         );
         scheduler = IdleMaintenanceScheduler(
-          environment: _IdleEnvironment(),
+          environment: FarmIdleEnvironment(),
           configProvider: () => const IdleMaintenanceConfig(
             enabled: true,
             windowStartMinutes: 120,
@@ -288,6 +244,8 @@ print("UNATTENDED_ORACLE_OK")
         await scheduler.drain();
         expect(runs, hasLength(1));
         final result = await runs.single;
+        evidence['proposalProbe'] = await proposals.checkHumanGate(project);
+        evidence['proposalHttpCalls'] = proposalClient.successfulCalls;
         expect(result.schedule.failed, isEmpty);
         expect(result.schedule.started, hasLength(1));
         task = active
@@ -299,9 +257,12 @@ print("UNATTENDED_ORACLE_OK")
           'task': task.toJson(),
           'executionError': result.executions.single.errorMessage,
           'initialHead': initialHead,
-          'finalHead': await _git(root.path, ['rev-parse', 'HEAD']),
-          'worktreeHead': await _git(task.worktreePath, ['rev-parse', 'HEAD']),
-          'worktreeStatus': await _git(task.worktreePath, [
+          'finalHead': await farmFixtureGit(root.path, ['rev-parse', 'HEAD']),
+          'worktreeHead': await farmFixtureGit(task.worktreePath, [
+            'rev-parse',
+            'HEAD',
+          ]),
+          'worktreeStatus': await farmFixtureGit(task.worktreePath, [
             'status',
             '--porcelain',
           ]),
@@ -331,17 +292,27 @@ print("UNATTENDED_ORACLE_OK")
           File('${root.path}/roadmap.md').readAsStringSync(),
         );
         expect(
-          await _git(task.worktreePath, ['rev-parse', '--abbrev-ref', 'HEAD']),
+          await farmFixtureGit(task.worktreePath, [
+            'rev-parse',
+            '--abbrev-ref',
+            'HEAD',
+          ]),
           task.branchName,
         );
         expect(
-          await _git(task.worktreePath, ['rev-parse', 'HEAD']),
+          await farmFixtureGit(task.worktreePath, ['rev-parse', 'HEAD']),
           initialHead,
         );
-        expect(await _git(root.path, ['rev-parse', 'HEAD']), initialHead);
-        expect(await _git(root.path, ['status', '--porcelain']), isEmpty);
         expect(
-          (await _git(root.path, [
+          await farmFixtureGit(root.path, ['rev-parse', 'HEAD']),
+          initialHead,
+        );
+        expect(
+          await farmFixtureGit(root.path, ['status', '--porcelain']),
+          isEmpty,
+        );
+        expect(
+          (await farmFixtureGit(root.path, [
             'worktree',
             'list',
             '--porcelain',
@@ -363,9 +334,12 @@ print("UNATTENDED_ORACLE_OK")
           'task': persisted.toJson(),
           'ledger': repository.farmRuns().map((r) => r.toJson()).toList(),
           'initialHead': initialHead,
-          'finalHead': await _git(root.path, ['rev-parse', 'HEAD']),
-          'worktreeHead': await _git(task.worktreePath, ['rev-parse', 'HEAD']),
-          'worktreeStatus': await _git(task.worktreePath, [
+          'finalHead': await farmFixtureGit(root.path, ['rev-parse', 'HEAD']),
+          'worktreeHead': await farmFixtureGit(task.worktreePath, [
+            'rev-parse',
+            'HEAD',
+          ]),
+          'worktreeStatus': await farmFixtureGit(task.worktreePath, [
             'status',
             '--porcelain',
           ]),
@@ -376,8 +350,9 @@ print("UNATTENDED_ORACLE_OK")
         scheduler?.stop();
         container?.dispose();
         client.close();
+        proposalClient.close();
         // This removes only worktrees owned by the disposable synthetic repo.
-        final listing = await _git(root.path, [
+        final listing = await farmFixtureGit(root.path, [
           'worktree',
           'list',
           '--porcelain',
@@ -386,7 +361,12 @@ print("UNATTENDED_ORACLE_OK")
             in listing.split('\n').where((l) => l.startsWith('worktree '))) {
           final path = line.substring(9);
           if (path != root.path && path.startsWith('${scratch.path}/')) {
-            await _git(root.path, ['worktree', 'remove', '--force', path]);
+            await farmFixtureGit(root.path, [
+              'worktree',
+              'remove',
+              '--force',
+              path,
+            ]);
           }
         }
         await scratch.delete(recursive: true);
@@ -394,6 +374,8 @@ print("UNATTENDED_ORACLE_OK")
           'passed': passed,
           'scratchRemoved': !scratch.existsSync(),
           'wireToolCalls': client.wireToolCalls,
+          'proposalResponses': proposalClient.wireMessages,
+          'proposalHttpCalls': proposalClient.successfulCalls,
         });
         await File(
           '${report.path}/evidence.json',

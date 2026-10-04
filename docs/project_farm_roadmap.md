@@ -804,6 +804,11 @@ only one.
   creation, live model editing, contained verification, persisted task state
   and the daily limit. OS idle detection and live proposal generation remain
   injected boundaries; no unattended run was made against a user project.
+- The live-proposal extension `farm_unattended_live_canary.C097B4` then passed
+  with the production proposal service and structured completion adapter.
+  The file-edit candidate was admitted and verified; the physical-device
+  candidate was declined with `needsHuman`, zero enqueue/start and a skip
+  ledger entry. Roadmap snapshots and the idle environment remain injected.
 
 ### FARM6: Pull Requests
 

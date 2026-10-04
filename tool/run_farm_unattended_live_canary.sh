@@ -63,19 +63,25 @@ gaps = []
 try:
     evidence = json.loads((root / 'fixtures/evidence.json').read_text())
     task = evidence.get('task', {})
+    probe = evidence.get('proposalProbe', {})
+    positive = probe.get('positive', {})
+    negative = probe.get('negative', {})
+    task_ledger = [run for run in evidence.get('ledger', []) if run.get('projectId') == 'synthetic']
     checks = {
-        'fixture passed and removed': evidence.get('passed') is True and evidence.get('scratchRemoved') is True,
+        'fixture passed and removed': evidence.get('schemaVersion') == 2 and evidence.get('passed') is True and evidence.get('scratchRemoved') is True,
         'one real HTTP dispatch': evidence.get('dispatchCount') == 1 and evidence.get('successfulHttpCalls', 0) > 0,
+        'live proposal routing': evidence.get('proposalHttpCalls', 0) >= 2 and positive.get('taskId') == 'GR1' and positive.get('automatability') == 'unattended' and positive.get('error') is None and negative.get('taskId') in ('', 'HUMAN') and negative.get('automatability') == 'needsHuman' and negative.get('error') is None,
+        'human gate': probe.get('negativeEnqueueCalls') == 0 and probe.get('negativeStartCalls') == 0 and probe.get('negativeLedger', {}).get('detail') == 'needsHuman',
         'native verification': task.get('status') == 'completed' and task.get('verifiedGreen') is True and 'UNATTENDED_ORACLE_OK' in task.get('verificationSummary', ''),
         'exact file evidence': [entry['path'] for entry in task.get('changedFiles', [])] == ['greeting.txt'] and task['changedFiles'][0]['content'] == 'hello from unattended\n' and task.get('changedFileEvidenceTruncated') is False,
         'unchanged source and worktree HEAD': evidence['initialHead'] == evidence['finalHead'] == evidence['worktreeHead'],
         'review branch only': task['branchName'].startswith('feature/') and evidence['worktreeStatus'] == 'M greeting.txt',
-        'daily limit ledger': [run['outcome'] for run in evidence['ledger']] == ['enqueued', 'skipped'] and evidence['ledger'][-1]['detail'] == 'daily_limit',
+        'daily limit ledger': [run['outcome'] for run in task_ledger] == ['enqueued', 'skipped'] and task_ledger[-1]['detail'] == 'daily_limit',
     }
     gaps = [name for name, passed in checks.items() if not passed]
 except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
     gaps = [f'Missing or malformed native evidence: {type(error).__name__}']
-summary['farmUnattendedEvidence'] = {'passed': not gaps, 'gaps': gaps, 'scope': 'Injected idle environment and task proposal; real launcher, scheduler, worktree, LLM, contained verifier and persistence'}
+summary['farmUnattendedEvidence'] = {'passed': not gaps, 'gaps': gaps, 'scope': 'Injected idle environment and verified snapshots; live production proposals, real launcher, scheduler, worktree, LLM, contained verifier and persistence'}
 if gaps:
     summary['result'] = 'failed'
     summary['mainReadiness'] = {'status': 'blocked', 'note': '; '.join(gaps)}

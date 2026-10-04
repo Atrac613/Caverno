@@ -23,9 +23,11 @@ settings, or feature-specific execution behavior.
 `IdleMaintenanceScheduler` and `FarmUnattendedRunner` to the production
 launcher, worktree task scheduler, Git preparer, orchestrator and executor.
 It uses one synthetic repository without remotes, disabled hooks/signing,
-fixture preferences, an injected idle environment and a fixed verified task
-proposal. The production LL13 delegate uses the selected live endpoint, scoped
-file tools and native macOS contained verification. A pre-HTTP guard rejects
+fixture preferences, an injected idle environment and fixed verified roadmap
+snapshots. The production `ProjectProposalService` and structured completion
+adapter generate both proposals live. The production LL13 delegate uses the
+selected live endpoint, scoped file tools and native macOS contained
+verification. A pre-HTTP guard rejects
 user-home and Caverno context. No user project is dispatched.
 
 Run with the usual loaded-model preflight and managed relay:
@@ -43,8 +45,12 @@ branch/worktree, the exact greeting including its newline, an unchanged
 verifier/roadmap, a green native oracle, unchanged source and worktree HEAD,
 persisted task state and the daily-limit ledger. Cleanup removes only the
 synthetic repository's worktrees. The independent evidence gate blocks the
-summary for absent or contradictory evidence. This excludes OS idle detection,
-the full maintenance-provider pipeline, live roadmap/proposal generation,
+summary for absent or contradictory evidence. A physical-device negative case
+must produce `needsHuman`, may select its listed item or abstain with an empty
+task id, and must never enqueue or start. Evidence schema version 2 requires
+both live proposal HTTP calls and the negative admission/ledger record.
+This excludes OS idle detection,
+the full maintenance-provider pipeline, live roadmap extraction,
 UI, review/commit and cross-project scheduling.
 
 The 2026-10-04 `qwen3.8-27b-exl3` runs remain failed:
@@ -98,6 +104,27 @@ idle/proposal scope described above, not OS idle detection, live proposal
 generation, UI or the full maintenance-provider pipeline. The older failed
 artifacts remain retained. See the patch README for deployment hashes and
 rollback location.
+
+The 2026-10-04 live-proposal follow-up
+`farm_unattended_live_canary.C097B4` passed the test, summary and independent
+gate: two successful proposal HTTP calls and five worktree execution HTTP
+calls. The file-edit proposal chose `GR1` as `unattended`; the physical-device
+proposal returned an empty task id with `needsHuman`, a valid contract
+abstention. Its enqueue/start counts were zero and its ledger recorded
+`needsHuman`. The positive native oracle, exact newline, persisted green task,
+unchanged HEAD and daily-limit checks still passed. Six independent gate
+controls accepted valid evidence and rejected missing proposal HTTP, an
+unlisted positive id, a negative start, absent negative evidence and changed
+HEAD. The scratch tree and dynamic relay were removed. Related proposal and
+admission suites passed 25 tests and static analysis.
+
+The preceding `farm_unattended_live_canary.CD2PdZ` remains retained as failed:
+its negative-case assertion required the model to select `HUMAN`, even though
+the production proposal contract explicitly permits abstention. The test now
+accepts either allowed task id while still requiring `needsHuman` and zero
+enqueue/start. No production behavior or positive native oracle was changed.
+OS idle detection and roadmap extraction remain injected; live proposal
+generation is now exercised through the production service and adapter.
 
 ## Software Farm Completion Canary
 
