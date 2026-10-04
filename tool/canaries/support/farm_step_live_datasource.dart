@@ -16,6 +16,7 @@ final class FarmStepLiveDataSource extends ChatDataSource
   bool preludeUsed = false;
   bool preludeFollowupUsed = false;
   bool faultAnswerUsed = false;
+  bool readmeShorthandPreludeUsed = false;
   int livePrimaryCalls = 0;
   int liveMemoryCalls = 0;
   int recoveryCalls = 0;
@@ -93,13 +94,24 @@ final class FarmStepLiveDataSource extends ChatDataSource
                 name: 'read_file',
                 arguments: {'path': 'policy.md'},
               ),
+              if (scenario.stdin)
+                ToolCallInfo(
+                  id: 'fixture-edit',
+                  name: 'edit_file',
+                  arguments: {
+                    'path': 'README.md',
+                    'old_text': farmStepReadmeBefore,
+                    'new_text': farmStepReadmeAfter,
+                  },
+                ),
               if (scenario != FarmStepScenario.missingExecution &&
-                  scenario != FarmStepScenario.unissuedCommand)
+                  scenario != FarmStepScenario.unissuedCommand &&
+                  scenario != FarmStepScenario.stdinVerification)
                 ToolCallInfo(
                   id: 'fixture-verify',
                   name: 'local_execute_command',
                   arguments: {
-                    'command': farmStepVerify,
+                    'command': fixture.verificationCommand,
                     'working_directory': fixture.root.path,
                   },
                 ),
@@ -138,7 +150,9 @@ final class FarmStepLiveDataSource extends ChatDataSource
     if (!faultAnswerUsed &&
         fixture.scenario != FarmStepScenario.environmentLookup) {
       faultAnswerUsed = true;
-      final content = fixture.scenario == FarmStepScenario.missingExecution
+      final content =
+          fixture.scenario == FarmStepScenario.missingExecution ||
+              fixture.scenario == FarmStepScenario.stdinVerification
           ? 'The local command completed.\nPROJECT_TASK_SUBTASK_DONE'
           : fixture.scenario == FarmStepScenario.unissuedCommand
           ? 'The local command completed.\n{"command":".venv/bin/python tool/unavailable.py"}\nPROJECT_TASK_SUBTASK_DONE'
@@ -200,6 +214,24 @@ final class FarmStepLiveDataSource extends ChatDataSource
     observe(toolResults);
     if (!preludeFollowupUsed) {
       preludeFollowupUsed = true;
+      if (fixture.scenario.stdin) {
+        return ChatCompletionResult(
+          content:
+              'The README was modified earlier this turn; I am checking its content.',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'fixture-readme-read',
+              name: 'read_file',
+              arguments: {'path': 'README.md'},
+            ),
+          ],
+        );
+      }
+      return ChatCompletionResult(content: '', finishReason: 'stop');
+    }
+    if (fixture.scenario.stdin && !readmeShorthandPreludeUsed) {
+      readmeShorthandPreludeUsed = true;
       return ChatCompletionResult(content: '', finishReason: 'stop');
     }
     if (messages.any(

@@ -7,7 +7,7 @@ import '../../tool/farm_step_canary_evidence.dart';
 void main() {
   Map<String, dynamic> summary() => {
     'result': 'passed',
-    'passedCount': 4,
+    'passedCount': farmStepScenarioNames.length,
     'failedCount': 0,
     'skippedCount': 0,
   };
@@ -20,9 +20,24 @@ void main() {
         'liveHttp': true,
         'livePrimaryCalls': 1,
         'liveMemoryCalls': 1,
+        if (name == 'stdinVerification' ||
+            name == 'failedStdinVerification') ...{
+          'completedSubtasks': name == 'stdinVerification'
+              ? ['first', 'second']
+              : [],
+          'finalBoundaryReached': name == 'stdinVerification' ? 1 : 0,
+          'stdinEvidence': {
+            'changedPath': 'README.md',
+            'changed': true,
+            'readmeShorthandPreludeUsed': true,
+            'verificationAfterMutation': true,
+            'verificationCommand': ".venv/bin/python - <<'PY'\nassert True\nPY",
+            'exitCodes': name == 'stdinVerification' ? [0, 0] : [1],
+          },
+        },
       },
   };
-  test('requires all four live evidence records', () {
+  test('requires all six live evidence records', () {
     expect(farmStepEvidenceGaps(summary(), cases()), isEmpty);
     final missing = cases()..remove('unissuedCommand');
     expect(
@@ -30,6 +45,35 @@ void main() {
       contains('unissuedCommand'),
     );
   });
+  test(
+    'stdin cases require ordered mutation, fresh execution and progression',
+    () {
+      for (final name in ['stdinVerification', 'failedStdinVerification']) {
+        for (final field in [
+          'changed',
+          'readmeShorthandPreludeUsed',
+          'verificationAfterMutation',
+          'exitCodes',
+          'verificationCommand',
+        ]) {
+          final records = cases();
+          (records[name]!['stdinEvidence'] as Map).remove(field);
+          expect(
+            farmStepEvidenceGaps(summary(), records),
+            contains(contains(name)),
+          );
+        }
+        final records = cases();
+        records[name]!['finalBoundaryReached'] = name == 'stdinVerification'
+            ? 0
+            : 1;
+        expect(
+          farmStepEvidenceGaps(summary(), records),
+          contains(contains(name)),
+        );
+      }
+    },
+  );
   test('missing live evidence downgrades the published summary', () {
     final input = {
       ...summary(),
@@ -43,6 +87,31 @@ void main() {
     expect(input['result'], 'passed');
     expect((input['mainReadiness'] as Map)['status'], 'ready');
     expect(reconcileFarmStepEvidence(input, cases())['result'], 'passed');
+  });
+  test('stdin exit codes must prove the expected success or failure', () {
+    for (final name in ['stdinVerification', 'failedStdinVerification']) {
+      for (final codes
+          in name == 'stdinVerification'
+              ? [
+                  <int>[],
+                  [0],
+                  [1, 0],
+                  [null, null],
+                ]
+              : [
+                  <int>[],
+                  [0],
+                  [1, 0],
+                  [null],
+                ]) {
+        final records = cases();
+        (records[name]!['stdinEvidence'] as Map)['exitCodes'] = codes;
+        expect(
+          farmStepEvidenceGaps(summary(), records),
+          contains(contains(name)),
+        );
+      }
+    }
   });
 
   test('skipped and failed tests never qualify as live evidence', () {

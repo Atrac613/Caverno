@@ -184,16 +184,17 @@ void main() {
             ConversationWorkflowTask(
               id: 'first',
               title: 'Verify existing policy and settle the injected fault',
-              targetFiles: const ['policy.md'],
+              targetFiles: [fixture.targetFile],
               validationCommand: scenario == FarmStepScenario.unissuedCommand
                   ? ''
-                  : farmStepVerify,
+                  : fixture.verificationCommand,
             ),
-            const ConversationWorkflowTask(
+            ConversationWorkflowTask(
               id: 'second',
-              title: 'Read policy.md and independently rerun the same verifier',
-              targetFiles: ['policy.md'],
-              validationCommand: farmStepVerify,
+              title:
+                  'Read ${fixture.targetFile} and independently rerun the same verifier',
+              targetFiles: [fixture.targetFile],
+              validationCommand: fixture.verificationCommand,
             ),
             const ConversationWorkflowTask(
               id: 'final',
@@ -305,16 +306,19 @@ void main() {
           );
           expect(natives, isNotEmpty);
           final verifiers = natives
-              .where((result) => result.arguments['command'] == farmStepVerify)
+              .where(
+                (result) =>
+                    result.arguments['command'] == fixture.verificationCommand,
+              )
               .toList();
           expect(verifiers, isNotEmpty);
           for (final verifier in verifiers) {
             final payload = jsonDecode(verifier.result) as Map;
             expect(
               payload['exit_code'],
-              scenario == FarmStepScenario.failedVerification ? isNot(0) : 0,
+              scenario.failsVerification ? isNot(0) : 0,
             );
-            if (scenario != FarmStepScenario.failedVerification) {
+            if (!scenario.failsVerification) {
               expect(payload['stdout'], contains('FARM_STEP_VERIFIED'));
             }
             expect(toolService.nativeExecutions, isNotEmpty);
@@ -335,6 +339,45 @@ void main() {
               ),
               isTrue,
             );
+          }
+          if (scenario.stdin) {
+            expect(source.readmeShorthandPreludeUsed, isTrue);
+            final edit = source.results['fixture-edit']!;
+            expect(edit.outcome!.fileMutations.single.changed, isTrue);
+            expect(
+              edit.outcome!.fileMutations.single.path,
+              '${root.path}/README.md',
+            );
+            expect(
+              File('${root.path}/README.md').readAsStringSync(),
+              farmStepReadmeAfter,
+            );
+            final ordered = source.results.values.toList();
+            expect(
+              ordered.indexOf(verifiers.first),
+              greaterThan(ordered.indexOf(edit)),
+            );
+            if (scenario.accepted) {
+              expect(verifiers.length, greaterThanOrEqualTo(2));
+              for (final observation in observations) {
+                expect(
+                  observation['answer'],
+                  isNot(contains('Deliverable claim check:')),
+                );
+                expect(
+                  observation['memoryInput'],
+                  isNot(contains('"code":"unexecuted_command_action"')),
+                );
+                expect(
+                  observation['memoryInput'],
+                  isNot(
+                    contains(
+                      'Required subtask tool actions remain unexecuted.',
+                    ),
+                  ),
+                );
+              }
+            }
           }
           if (scenario == FarmStepScenario.unissuedCommand) {
             expect(
@@ -385,7 +428,9 @@ void main() {
           for (final entry in beforeFiles.entries) {
             expect(
               File('${root.path}/${entry.key}').readAsStringSync(),
-              entry.value,
+              scenario.stdin && entry.key == 'README.md'
+                  ? farmStepReadmeAfter
+                  : entry.value,
             );
           }
           expect(File('${root.path}/pending.txt').existsSync(), isFalse);
@@ -454,6 +499,36 @@ void main() {
                 'livePrimaryCalls': source.livePrimaryCalls,
                 'liveMemoryCalls': source.liveMemoryCalls,
                 'recoveryCalls': source.recoveryCalls,
+                if (scenario.stdin)
+                  'stdinEvidence': {
+                    'readmeShorthandPreludeUsed':
+                        source.readmeShorthandPreludeUsed,
+                    'changedPath': 'README.md',
+                    'changed': source
+                        .results['fixture-edit']
+                        ?.outcome
+                        ?.fileMutations
+                        .single
+                        .changed,
+                    'verificationAfterMutation':
+                        source.results.containsKey('fixture-edit') &&
+                        source.results.values.toList().indexWhere(
+                              (result) =>
+                                  result.arguments['command'] ==
+                                  fixture.verificationCommand,
+                            ) >
+                            source.results.keys.toList().indexOf(
+                              'fixture-edit',
+                            ),
+                    'verificationCommand': fixture.verificationCommand,
+                    'exitCodes': [
+                      for (final execution in toolService.nativeExecutions)
+                        if ((execution['arguments'] as Map)['command'] ==
+                            fixture.verificationCommand)
+                          (jsonDecode(execution['result'] as String)
+                              as Map)['exit_code'],
+                    ],
+                  },
                 'completedSubtasks': marked,
                 'finalBoundaryReached': finalBoundary,
                 'stopReason': observations.isEmpty ? 'No saved turn' : null,
@@ -471,6 +546,7 @@ void main() {
                         'name': item.name,
                         'arguments': item.arguments,
                         'result': item.result,
+                        'outcome': item.outcome?.toJson(),
                       },
                     )
                     .toList(),

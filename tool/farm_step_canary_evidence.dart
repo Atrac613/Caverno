@@ -6,6 +6,8 @@ const farmStepScenarioNames = [
   'missingExecution',
   'failedVerification',
   'unissuedCommand',
+  'stdinVerification',
+  'failedStdinVerification',
 ];
 
 /// An absent/skipped case or a model-free run cannot qualify as live evidence.
@@ -15,10 +17,10 @@ List<String> farmStepEvidenceGaps(
 ) {
   final gaps = <String>[];
   if (summary['result'] != 'passed' ||
-      summary['passedCount'] != 4 ||
+      summary['passedCount'] != farmStepScenarioNames.length ||
       summary['skippedCount'] != 0 ||
       summary['failedCount'] != 0) {
-    gaps.add('All four required live tests must pass without skips.');
+    gaps.add('All six required live tests must pass without skips.');
   }
   for (final name in farmStepScenarioNames) {
     final record = cases[name];
@@ -30,6 +32,32 @@ List<String> farmStepEvidenceGaps(
         (record['livePrimaryCalls'] as num? ?? 0) < 1 ||
         (record['liveMemoryCalls'] as num? ?? 0) < 1) {
       gaps.add('$name lacks passing live execution and persistence evidence.');
+    }
+    if (name == 'stdinVerification' || name == 'failedStdinVerification') {
+      final proof = record?['stdinEvidence'];
+      final codes = proof is Map ? proof['exitCodes'] : null;
+      final accepted = name == 'stdinVerification';
+      if (proof is! Map ||
+          proof['changedPath'] != 'README.md' ||
+          proof['changed'] != true ||
+          proof['readmeShorthandPreludeUsed'] != true ||
+          proof['verificationAfterMutation'] != true ||
+          !(proof['verificationCommand'] is String &&
+              (proof['verificationCommand'] as String).contains(
+                " - <<'PY'\n",
+              )) ||
+          codes is! List ||
+          codes.isEmpty ||
+          (accepted
+              ? codes.length < 2 || codes.any((code) => code != 0)
+              : codes.any((code) => code is! int || code == 0)) ||
+          record?['finalBoundaryReached'] != (accepted ? 1 : 0) ||
+          jsonEncode(record?['completedSubtasks']) !=
+              jsonEncode(accepted ? ['first', 'second'] : [])) {
+        gaps.add(
+          '$name lacks ordered README mutation, native stdin verification, and progression evidence.',
+        );
+      }
     }
   }
   return gaps;
@@ -93,7 +121,7 @@ Future<void> main(List<String> args) async {
   );
   stdout.writeln(
     gaps.isEmpty
-        ? 'All four Farm step live evidence records passed.'
+        ? 'All six Farm step live evidence records passed.'
         : gaps.join('\n'),
   );
   if (gaps.isNotEmpty) {

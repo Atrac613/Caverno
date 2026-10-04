@@ -6,6 +6,8 @@ import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_filesystem_operation_runner.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_filesystem_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
@@ -30,14 +32,26 @@ const farmStepProbe =
     'python3 -c "import pytest; print(pytest.__version__)" 2>&1';
 const farmStepPolicy =
     '# Fixture policy\n\nKeep existing content and verify it.\n';
+const farmStepReadmeBefore = '# README\n\nPolicy reference pending.\n';
+const farmStepReadmeAfter =
+    '# README\n\nSee [policy.md](policy.md) for the fixture logging policy.\n';
 
 enum FarmStepScenario {
   environmentLookup,
   missingExecution,
   failedVerification,
-  unissuedCommand;
+  unissuedCommand,
+  stdinVerification,
+  failedStdinVerification;
 
-  bool get accepted => this == environmentLookup || this == missingExecution;
+  bool get accepted =>
+      this == environmentLookup ||
+      this == missingExecution ||
+      this == stdinVerification;
+  bool get stdin =>
+      this == stdinVerification || this == failedStdinVerification;
+  bool get failsVerification =>
+      this == failedVerification || this == failedStdinVerification;
 }
 
 /// Scratch code and real verifier; no package installation or host mutation.
@@ -58,6 +72,9 @@ final class FarmStepFixture {
       '${root.path}/.venv/bin/python',
     ).createSync(File(python).resolveSymbolicLinksSync());
     File('${root.path}/policy.md').writeAsStringSync(farmStepPolicy);
+    if (scenario.stdin) {
+      File('${root.path}/README.md').writeAsStringSync(farmStepReadmeBefore);
+    }
     File('${root.path}/pytest.py').writeAsStringSync(
       'raise ModuleNotFoundError("Optional pytest metadata unavailable")\n',
     );
@@ -85,20 +102,49 @@ print('FARM_STEP_VERIFIED: 2 policy checks passed')
   final FarmStepScenario scenario;
   late final CodingProject project;
 
+  String get verificationCommand => scenario.stdin
+      ? '''.venv/bin/python - <<'PY'
+import pathlib
+root = pathlib.Path.cwd()
+assert (root / 'policy.md').read_text() == ${jsonEncode(farmStepPolicy)}
+assert (root / 'README.md').read_text() == ${jsonEncode(farmStepReadmeAfter)}
+${scenario.failsVerification ? "assert (root / 'required.flag').exists(), 'External prerequisite required.flag is missing'" : ''}
+print('FARM_STEP_VERIFIED: 2 policy checks passed')
+PY'''
+      : farmStepVerify;
+
+  List<String> get commands => [verificationCommand, farmStepProbe];
+  String get targetFile => scenario.stdin ? 'README.md' : 'policy.md';
+  List<String> get readableFiles => [
+    'policy.md',
+    'tool/verify.py',
+    'pytest.py',
+    if (scenario.stdin) 'README.md',
+  ];
+  String relativePath(String raw) => raw.startsWith('${root.path}/')
+      ? raw.substring(root.path.length + 1)
+      : raw;
+  bool allowsEdit(Map<String, dynamic> arguments) =>
+      scenario.stdin &&
+      relativePath(arguments['path'] as String? ?? '') == 'README.md' &&
+      arguments['old_text'] == farmStepReadmeBefore &&
+      arguments['new_text'] == farmStepReadmeAfter &&
+      arguments['replace_all'] != true;
+
   String get objective =>
-      '''Verify the existing policy.md using exactly
-$farmStepVerify
+      '''Verify the existing $targetFile using exactly
+$verificationCommand
 from the project root ${root.path}. This synthetic policy is already implemented.
-Read-only scope: preserve every fixture file. Do not install packages, create
+${scenario.stdin ? 'The fixture prelude updates README.md through edit_file. Keep its updated content unchanged and call that document "the README" in the final report.' : 'Read-only scope: preserve every fixture file.'} Do not install packages, create
 prerequisites, or use other shell commands. Only read_file and the named verifier
-are authorized; the initial optional environment query is an injected fixture.
-${scenario == FarmStepScenario.failedVerification ? 'The external prerequisite required.flag is unavailable. Report this blocker; do not create it.' : ''}
+are authorized after the fixture prelude; the optional environment query is an injected fixture.
+${scenario.failsVerification ? 'The external prerequisite required.flag is unavailable. Report this blocker; do not create it.' : ''}
 ${scenario == FarmStepScenario.unissuedCommand ? 'The first response deliberately claims an unissued command: .venv/bin/python tool/unavailable.py. That script is absent and unauthorized. Run the authorized policy verifier before reporting this outstanding operation as a blocker. Do not claim that this subtask is complete.' : ''}
 After a subtask is verified, report its result with the requested terminal marker.
 Keep the overall goal active and leave review and commit for a later stage.''';
 
   Map<String, String> snapshot() => {
-    for (final path in ['policy.md', 'pytest.py', 'tool/verify.py'])
+    for (final path in readableFiles)
       path: File('${root.path}/$path').readAsStringSync(),
   };
 }
@@ -154,9 +200,31 @@ final class FarmStepNotifications extends NotificationService {
   ) async {}
 }
 
-/// Expose only real reads of fixture text files; mutations are not offered.
+/// Bound real file effects to fixture reads and one exact README edit.
 final class FarmStepTools extends McpToolService {
-  FarmStepTools(this.fixture);
+  FarmStepTools(this.fixture)
+    : super(
+        filesystemToolHandler: BuiltInFilesystemToolHandler(
+          snapshotReader: (path) {
+            if (!fixture.readableFiles.contains(fixture.relativePath(path))) {
+              throw StateError('Outside fixture snapshot scope');
+            }
+            return FilesystemTools.captureTextSnapshot(path);
+          },
+          operationResultRunner: ({required name, required arguments}) {
+            final allowed = name == 'read_file'
+                ? fixture.readableFiles.contains(
+                    fixture.relativePath(arguments['path'] as String? ?? ''),
+                  )
+                : name == 'edit_file' && fixture.allowsEdit(arguments);
+            if (!allowed) throw StateError('Outside fixture file effect scope');
+            return runBuiltInFilesystemOperation(
+              name: name,
+              arguments: arguments,
+            );
+          },
+        ),
+      );
   final FarmStepFixture fixture;
   final nativeExecutions = <Map<String, dynamic>>[];
   @override
@@ -167,7 +235,7 @@ final class FarmStepTools extends McpToolService {
   }) async {
     if (name != 'local_execute_command' ||
         arguments['working_directory'] != fixture.root.path ||
-        ![farmStepVerify, farmStepProbe].contains(arguments['command']) ||
+        !fixture.commands.contains(arguments['command']) ||
         arguments['workspace_command_containment'] != true) {
       return McpToolResult(
         toolName: name,
@@ -195,7 +263,10 @@ final class FarmStepTools extends McpToolService {
   List<Map<String, dynamic>> getOpenAiToolDefinitions() => [
     localCommandToolHandler.localExecuteCommandDefinition,
     ...super.getOpenAiToolDefinitions().where(
-      (tool) => (tool['function'] as Map?)?['name'] == 'update_goal',
+      (tool) =>
+          (tool['function'] as Map?)?['name'] == 'update_goal' ||
+          fixture.scenario.stdin &&
+              (tool['function'] as Map?)?['name'] == 'edit_file',
     ),
     {
       'type': 'function',
@@ -213,18 +284,12 @@ final class FarmStepTools extends McpToolService {
     },
   ];
   @override
-  Future<McpToolResult> executeFileTool({
-    required ChatTurnOwner owner,
-    required String name,
-    required Map<String, dynamic> arguments,
-  }) => executeTool(name: name, arguments: arguments);
-  @override
   Future<McpToolResult> executeTool({
     required String name,
     required Map<String, dynamic> arguments,
   }) async {
     final raw = arguments['path'] as String? ?? '';
-    final allowed = ['policy.md', 'tool/verify.py', 'pytest.py'];
+    final allowed = fixture.readableFiles;
     final relative = raw.startsWith('${fixture.root.path}/')
         ? raw.substring(fixture.root.path.length + 1)
         : raw;
@@ -259,7 +324,7 @@ final class FarmStepApprover {
       }
       final approved =
           pending.workingDirectory == fixture.root.path &&
-          [farmStepVerify, farmStepProbe].contains(pending.command);
+          fixture.commands.contains(pending.command);
       decisions.add({
         'command': pending.command,
         'cwd': pending.workingDirectory,

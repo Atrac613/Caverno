@@ -59,7 +59,7 @@ final class FarmStepPreflightDataSource extends ChatDataSource {
             id: 'second-verify',
             name: 'local_execute_command',
             arguments: {
-              'command': farmStepVerify,
+              'command': fixture.verificationCommand,
               'working_directory': fixture.root.path,
             },
           ),
@@ -78,8 +78,13 @@ final class FarmStepPreflightDataSource extends ChatDataSource {
     int? maxTokens,
   }) async {
     if ((fixture.scenario == FarmStepScenario.missingExecution ||
-            fixture.scenario == FarmStepScenario.unissuedCommand) &&
-        !toolResults.any((result) => result.name == 'local_execute_command')) {
+            fixture.scenario == FarmStepScenario.unissuedCommand ||
+            fixture.scenario == FarmStepScenario.stdinVerification) &&
+        !toolResults.any(
+          (result) =>
+              result.name == 'local_execute_command' &&
+              result.arguments['command'] == fixture.verificationCommand,
+        )) {
       return ChatCompletionResult(
         content: '',
         finishReason: 'tool_calls',
@@ -88,7 +93,7 @@ final class FarmStepPreflightDataSource extends ChatDataSource {
             id: 'recovery-verify',
             name: 'local_execute_command',
             arguments: {
-              'command': farmStepVerify,
+              'command': fixture.verificationCommand,
               'working_directory': fixture.root.path,
             },
           ),
