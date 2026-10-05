@@ -16,6 +16,12 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     }
     final owner = _turnOwnerForGeneration(generation);
     if (owner == null) return false;
+    // A dedicated review is already terminal, including an incomplete one.
+    // Generic coding continuation must not rewrite its authoritative report.
+    if (_primaryRoutes.reviewTerminal(generation, owner.conversationId) !=
+        null) {
+      return false;
+    }
     final lastMessage = finalizedMessages.last;
     if (lastMessage.role != MessageRole.assistant ||
         !TurnFinalMessage.hasVisibleContent(lastMessage.content)) {

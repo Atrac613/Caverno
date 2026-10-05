@@ -3,6 +3,66 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierReviewInspection on ChatNotifier {
+  String projectTaskVerificationContext(String conversationId) =>
+      _primaryRoutes.verificationContext(conversationId)?.prompt ?? '';
+
+  ProjectTaskReviewVerdict? takeProjectTaskReviewVerdict(ChatTurnOwner owner) =>
+      _primaryRoutes.takeReviewTerminal(
+        owner.interactionGeneration,
+        owner.conversationId,
+      );
+
+  String? _captureProjectTaskReviewResponse({
+    required ChatTurnOwner owner,
+    required String response,
+    required String finishReason,
+    required List<ToolResultInfo> results,
+  }) {
+    final generation = owner.interactionGeneration;
+    if (!_isCodeReview(generation) ||
+        _conversationForId(owner.conversationId)?.goal?.projectTaskAutoReview !=
+            true) {
+      return null;
+    }
+    final retained = _primaryRoutes.reviewTerminal(
+      generation,
+      owner.conversationId,
+    );
+    if (retained != null) {
+      return retained.response;
+    }
+    var verdict = ProjectTaskReviewVerdict.fromResponse(response);
+    final inspection = _guardReviewInspection(
+      candidateResponse: response,
+      toolResults: results,
+      generation: generation,
+    );
+    if (inspection != null) {
+      verdict = verdict.incomplete(
+        FinalAnswerClaimDetector.unverifiedReadOnlyInspectionNotice,
+      );
+    } else if (finishReason == 'length') {
+      verdict = verdict.incomplete('The review response was truncated.');
+    } else if (verdict.disposition == ProjectTaskReviewDisposition.clean &&
+        ToolResultPromptBuilder.completionEvidence(
+          results,
+        ).hasBlockingEvidence) {
+      verdict = verdict.incomplete(
+        'The review has an unresolved verification failure.',
+      );
+    }
+    _primaryRoutes.recordReviewTerminal(
+      generation,
+      owner.conversationId,
+      verdict,
+    );
+    _turnEnd.addTransform(
+      owner,
+      'project_task_review_${verdict.disposition.name}',
+    );
+    return verdict.response;
+  }
+
   List<String> _taskReviewInspectionPaths(int generation) =>
       const ProjectTaskReviewInspection().paths(
         conversation: _conversationForGeneration(generation),

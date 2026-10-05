@@ -153,11 +153,15 @@ void main() {
       if (replies.length == 2) {
         expect(prompts.last, contains('begin by calling read_file'));
         expect(prompts.last, contains('Review task patch'));
-        expect(prompts.last, contains('omit both markers'));
         expect(
           prompts.last,
-          endsWith('Do not edit files, commit, or change Git state.'),
+          contains('"status": "clean", "findings", or "incomplete"'),
         );
+        expect(
+          prompts.last,
+          contains('Do not edit files, commit, or change Git state.'),
+        );
+        expect(prompts.last, contains('retain any unresolved findings'));
       }
     });
   }

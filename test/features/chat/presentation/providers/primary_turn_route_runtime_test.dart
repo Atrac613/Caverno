@@ -1,5 +1,6 @@
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/domain/services/project_task_review_verdict.dart';
 import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
@@ -205,6 +206,31 @@ void main() {
     await capture(runtime, 8, codeReview: false);
     expect(runtime.takeSubtaskTerminal(8, 'task'), isNull);
   });
+
+  test(
+    'review verdict survives teardown and cannot be replaced or stolen',
+    () async {
+      final runtime = PrimaryTurnRouteRuntime();
+      await capture(runtime, 31, codeReview: true);
+      final findings = ProjectTaskReviewVerdict.fromResponse(
+        'Fix Infinity.\nPROJECT_TASK_REVIEW_FINDINGS',
+      );
+      runtime.recordReviewTerminal(31, 'task', findings);
+      runtime.recordReviewTerminal(
+        31,
+        'task',
+        ProjectTaskReviewVerdict.fromResponse(
+          'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
+        ),
+      );
+      runtime.release(31);
+      expect(runtime.reviewTerminal(31, 'task'), same(findings));
+      expect(runtime.reviewTerminal(31, 'other'), isNull);
+      expect(runtime.takeReviewTerminal(31, 'other'), isNull);
+      expect(runtime.takeReviewTerminal(31, 'task'), same(findings));
+      expect(runtime.takeReviewTerminal(31, 'task'), isNull);
+    },
+  );
 
   test('remembers a review turn until its route is released', () async {
     final runtime = PrimaryTurnRouteRuntime();

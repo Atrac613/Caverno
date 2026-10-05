@@ -11,7 +11,9 @@ import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/primary_route_chat_datasource.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/primary_model_router.dart';
+import '../../domain/services/project_task_review_verdict.dart';
 import '../../domain/services/project_task_terminal_status.dart';
+import '../../domain/services/project_task_verification_context.dart';
 import 'primary_turn_purpose.dart';
 
 export 'primary_turn_purpose.dart';
@@ -35,6 +37,8 @@ final class PrimaryTurnRouteRuntime {
   final Map<int, String> _commitPromptStarts = {};
   final Map<int, (String, ProjectTaskCommitTurnEvidence)> _commitTerminals = {};
   final Map<int, (String, ProjectTaskTerminalStatus)> _subtaskTerminals = {};
+  final Map<int, (String, ProjectTaskReviewVerdict)> _reviewTerminals = {};
+  final Map<String, ProjectTaskVerificationContext> _verificationContexts = {};
 
   Future<void> capture({
     required int generation,
@@ -51,6 +55,7 @@ final class PrimaryTurnRouteRuntime {
   }) async {
     _commitTerminals.remove(generation);
     _subtaskTerminals.remove(generation);
+    _reviewTerminals.remove(generation);
     _commitPromptStarts.remove(generation);
     if ((purpose == PrimaryTurnPurpose.projectTaskCommitPreparation ||
             purpose == PrimaryTurnPurpose.projectTaskCommit) &&
@@ -254,6 +259,57 @@ final class PrimaryTurnRouteRuntime {
     _subtaskTerminals.remove(generation);
     return entry!.$2;
   }
+
+  void recordReviewTerminal(
+    int generation,
+    String conversationId,
+    ProjectTaskReviewVerdict verdict,
+  ) {
+    if (!isCodeReview(generation) || _reviewTerminals.containsKey(generation)) {
+      return;
+    }
+    _reviewTerminals[generation] = (conversationId, verdict);
+    if (_reviewTerminals.length > 16) {
+      _reviewTerminals.remove(_reviewTerminals.keys.first);
+    }
+  }
+
+  ProjectTaskReviewVerdict? takeReviewTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _reviewTerminals[generation];
+    if (entry?.$1 != conversationId) return null;
+    _reviewTerminals.remove(generation);
+    return entry!.$2;
+  }
+
+  ProjectTaskReviewVerdict? reviewTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _reviewTerminals[generation];
+    return entry?.$1 == conversationId ? entry!.$2 : null;
+  }
+
+  void recordVerificationContext(
+    int generation,
+    String conversationId,
+    List<ToolResultInfo> results,
+  ) {
+    if (!isProjectTaskImplementation(generation) &&
+        !isProjectTaskStep(generation)) {
+      return;
+    }
+    _verificationContexts[conversationId] =
+        ProjectTaskVerificationContext.fromResults(results);
+    if (_verificationContexts.length > 16) {
+      _verificationContexts.remove(_verificationContexts.keys.first);
+    }
+  }
+
+  ProjectTaskVerificationContext? verificationContext(String conversationId) =>
+      _verificationContexts[conversationId];
 
   /// Any project-task turn the farm workflow settles by a structured marker.
   bool isProjectTaskTurn(int generation) =>

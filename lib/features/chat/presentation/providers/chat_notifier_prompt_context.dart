@@ -146,6 +146,10 @@ extension ChatNotifierPromptContext on ChatNotifier {
     final commitPhase =
         ownerSnapshot != null &&
         _hasCommitScope(ownerSnapshot.owner.interactionGeneration);
+    final reviewPhase =
+        ownerSnapshot != null &&
+        _isCodeReview(ownerSnapshot.owner.interactionGeneration);
+    final isolatedPhase = commitPhase || reviewPhase;
     // LL22: pinned per turn, because a per-request minute reading mutated one
     // line inside an otherwise byte-stable ~20k-token prefix and cost a full
     // reprefill. See [TurnPromptClock].
@@ -214,7 +218,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
       assistantMode: resolvedAssistantMode,
       languageCode: resolvedLanguage,
       toolNames: toolNames,
-      sessionMemoryContext: commitPhase ? null : _sessionMemoryContext,
+      sessionMemoryContext: isolatedPhase ? null : _sessionMemoryContext,
       participantRolePrompt: participantRolePrompt,
       projectName: activeCodingProject?.name,
       projectRootPath: projectRoot,
@@ -225,17 +229,17 @@ extension ChatNotifierPromptContext on ChatNotifier {
       ),
       // KC2's environment block is withdrawn: its paired re-run regressed
       // class 4 to 100% stale (docs/knowledge_currency_track_design.md).
-      goal: commitPhase ? null : currentConversation?.goal,
-      workflowStage: commitPhase
+      goal: isolatedPhase ? null : currentConversation?.goal,
+      workflowStage: isolatedPhase
           ? ConversationWorkflowStage.idle
           : currentConversation?.workflowStage ??
                 ConversationWorkflowStage.idle,
-      workflowSpec: commitPhase
+      workflowSpec: isolatedPhase
           ? null
           : currentConversation?.projectedWorkflowSpec,
-      planArtifact: commitPhase ? null : currentConversation?.planArtifact,
-      executionSnapshot: commitPhase ? null : executionSnapshot,
-      delegatedResults: commitPhase || currentConversation == null
+      planArtifact: isolatedPhase ? null : currentConversation?.planArtifact,
+      executionSnapshot: isolatedPhase ? null : executionSnapshot,
+      delegatedResults: isolatedPhase || currentConversation == null
           ? const <String>[]
           : const DelegatedResultDigest().summaries(
               children: ref

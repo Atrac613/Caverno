@@ -2,6 +2,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
+import 'package:caverno/features/chat/domain/services/project_task_review_verdict.dart';
 import 'package:caverno/features/project_farm/application/project_task_commit_turn_evidence.dart';
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_git_state.dart';
@@ -56,6 +57,92 @@ void main() {
       ),
     ],
   );
+
+  for (final native in ['findings', 'missing', 'incomplete']) {
+    test(
+      'native review $native cannot be replaced by a clean saved summary',
+      () async {
+        var conversation = initial();
+        ProjectTaskReviewVerdict? verdict;
+        var repaired = false;
+        var reviewCount = 0;
+        final decisions = <Map<String, Object?>>[];
+        final workflow = ProjectTaskReviewWorkflow(
+          conversationId: 'task',
+          commit: (prompt, scope) => commitTurn(prompt),
+          projectRoot: '/repo',
+          prepareCommit: (_, _) async => true,
+          readCommitSnapshot: (scope) async =>
+              fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
+          readGitState: gitState,
+          readConversation: () => conversation,
+          isSelected: () => true,
+          isWaitingForUser: () => false,
+          readReviewVerdict: () => verdict,
+          readVerificationContext: () =>
+              'Historical runner: .venv/bin/python -m pytest',
+          onDecision: decisions.add,
+          send: (prompt, {required codeReview}) async {
+            final index = conversation.messages.length + 1;
+            if (codeReview) {
+              expect(
+                prompt,
+                contains('Historical runner: .venv/bin/python -m pytest'),
+              );
+              reviewCount++;
+              verdict = switch (native) {
+                'missing' => null,
+                'incomplete' => ProjectTaskReviewVerdict.fromResponse(
+                  'Inspection unavailable.',
+                ),
+                _ => ProjectTaskReviewVerdict.fromResponse(
+                  reviewCount == 1
+                      ? 'watcher.py:163: reject Infinity.\nPROJECT_TASK_REVIEW_FINDINGS'
+                      : 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
+                ),
+              };
+            } else {
+              if (reviewCount > 0) {
+                expect(prompt, contains('watcher.py:163: reject Infinity.'));
+                repaired = true;
+              }
+              conversation = conversation.copyWith(
+                turnDiffs: [...conversation.turnDiffs, diff(index)],
+              );
+            }
+            conversation = conversation.copyWith(
+              messages: [
+                ...conversation.messages,
+                assistant(
+                  codeReview
+                      ? 'No findings.\nPROJECT_TASK_REVIEW_CLEAN'
+                      : 'Verified.\nPROJECT_TASK_READY_FOR_REVIEW',
+                  index,
+                ),
+              ],
+            );
+            return true;
+          },
+        );
+        expect(
+          await workflow.run(),
+          native == 'findings'
+              ? ProjectTaskReviewResult.committed
+              : ProjectTaskReviewResult.stopped,
+        );
+        expect(repaired, native == 'findings');
+        if (native != 'findings') {
+          expect(commitPrompts, isEmpty);
+          expect(
+            decisions.singleWhere(
+              (decision) => decision['decision'] == 'stopped',
+            )['gapCodes'],
+            ['review_incomplete'],
+          );
+        }
+      },
+    );
+  }
 
   test('implements, reviews through the dedicated route, and repairs', () async {
     var conversation = initial();

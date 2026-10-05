@@ -5882,7 +5882,7 @@ void main() {
   );
 
   test(
-    'sendMessage executes unsafe pending local command after bounded recovery',
+    'sendMessage executes the declared pending command before exhaustion recovery',
     () async {
       final pendingCommand = 'find /tmp -type f -name "*.jsonl" | head -50';
       final toolLoopResponses = [
@@ -5901,48 +5901,6 @@ void main() {
             ],
             finishReason: 'tool_calls',
           ),
-        ChatCompletionResult(
-          content: 'Recover with one more project probe.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-recovery-trigger',
-              name: 'local_execute_command',
-              arguments: const {
-                'command': 'probe-recovery',
-                'working_directory': '/tmp/project',
-              },
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        ChatCompletionResult(
-          content: 'Recovery asks for one more bounded probe.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-after-recovery-1',
-              name: 'local_execute_command',
-              arguments: const {
-                'command': 'probe-after-recovery-1',
-                'working_directory': '/tmp/project',
-              },
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        ChatCompletionResult(
-          content: 'One more probe before the final search.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-after-recovery-2',
-              name: 'local_execute_command',
-              arguments: const {
-                'command': 'probe-after-recovery-2',
-                'working_directory': '/tmp/project',
-              },
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
         ChatCompletionResult(
           content: 'Search for matching logs with a shell pipeline.',
           toolCalls: [
@@ -5970,9 +5928,7 @@ void main() {
           ),
         ],
         toolLoopResponses: toolLoopResponses,
-        finalAnswerChunks: const [
-          'Final answer acknowledges the unexecuted local command.',
-        ],
+        finalAnswerChunks: const ['The declared pending command completed.'],
       );
       final toolService = _FakeMcpToolService(
         results: const {
@@ -6008,7 +5964,7 @@ void main() {
         );
         expect(
           toolService.executedToolNames,
-          List.filled(15, 'local_execute_command'),
+          List.filled(13, 'local_execute_command'),
         );
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
@@ -6017,7 +5973,16 @@ void main() {
         expect(finalPrompt, contains('[Tool: local_execute_command]'));
         expect(finalPrompt, contains('*.jsonl'));
         expect(finalPrompt, contains('head -50'));
-        expect(toolDataSource.toolResultBatches, hasLength(15));
+        expect(toolDataSource.toolResultBatches, hasLength(12));
+        expect(
+          toolDataSource.toolResultRequestMessages
+              .expand((messages) => messages)
+              .any(
+                (message) =>
+                    message.content.contains('bounded tool loop limit'),
+              ),
+          isFalse,
+        );
         final completedResults = toolNotifier.takeLatestToolResults(owner!);
         expect(
           completedResults.any(
@@ -6027,7 +5992,7 @@ void main() {
         );
         expect(
           toolNotifier.state.messages.last.content,
-          contains('Final answer acknowledges the unexecuted local command.'),
+          contains('The declared pending command completed.'),
         );
       } finally {
         toolContainer.dispose();

@@ -13,6 +13,7 @@ import '../../chat/domain/entities/conversation_plan_artifact.dart';
 import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/domain/services/conversation_plan_document_builder.dart';
+import '../../chat/domain/services/project_task_review_verdict.dart';
 import '../../chat/domain/services/project_task_terminal_status.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/coding_projects_notifier.dart';
@@ -84,6 +85,7 @@ final class ProjectTaskReviewLauncher {
                   .pendingAskUserQuestion
                   ?.conversationId ==
               conversationId;
+      ProjectTaskReviewVerdict? reviewVerdict;
       final runner = ProjectTaskReviewTurnRunner(
         readConversation: readTask,
         isSelected: selected,
@@ -91,15 +93,21 @@ final class ProjectTaskReviewLauncher {
         reactivate: () => ref
             .read(conversationsNotifierProvider.notifier)
             .markCurrentGoalStatus(status: ConversationGoalStatus.active),
-        sendTurn: (prompt, {required codeReview}) => notifier.sendMessage(
-          prompt,
-          languageCode: languageCode,
-          bypassPlanMode: true,
-          purpose: codeReview
-              ? PrimaryTurnPurpose.codeReview
-              : PrimaryTurnPurpose.projectTaskImplementation,
-        ),
-        waitForCompletion: notifier.waitForTurnCompletion,
+        sendTurn: (prompt, {required codeReview}) {
+          if (codeReview) reviewVerdict = null;
+          return notifier.sendMessage(
+            prompt,
+            languageCode: languageCode,
+            bypassPlanMode: true,
+            purpose: codeReview
+                ? PrimaryTurnPurpose.codeReview
+                : PrimaryTurnPurpose.projectTaskImplementation,
+          );
+        },
+        waitForCompletion: (owner) async {
+          await notifier.waitForTurnCompletion(owner);
+          reviewVerdict = notifier.takeProjectTaskReviewVerdict(owner);
+        },
       );
       ProjectTaskCommitTurnEvidence? commitTurnEvidence;
       ProjectTaskTerminalStatus? subtaskStatus;
@@ -183,6 +191,9 @@ final class ProjectTaskReviewLauncher {
         isSelected: selected,
         isWaitingForUser: waiting,
         send: runner.send,
+        readReviewVerdict: () => reviewVerdict,
+        readVerificationContext: () =>
+            notifier.projectTaskVerificationContext(conversationId),
         projectRoot: projectRoot,
         readCommitSnapshot: const ProjectTaskCommitReader().read,
         onDecision: (decision) {

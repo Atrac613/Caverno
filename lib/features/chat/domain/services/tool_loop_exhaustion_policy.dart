@@ -2,6 +2,7 @@ import '../entities/tool_call_info.dart';
 import 'ask_user_question_policy.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'git_write_confirmation_policy.dart';
+import 'tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: tool-loop-exhaustion-policy
 
@@ -21,6 +22,7 @@ final class ToolLoopExhaustionDecisionInput {
     required this.hasPendingFileMutation,
     required this.hasPendingWriteGitCommand,
     required this.hasPendingUserQuestion,
+    this.hasPendingCommandExecution = false,
   });
 
   factory ToolLoopExhaustionDecisionInput.fromPendingCalls({
@@ -45,6 +47,10 @@ final class ToolLoopExhaustionDecisionInput {
     hasPendingUserQuestion: pendingToolCalls.any(
       (call) => call.name.trim().toLowerCase() == askUserQuestionToolName,
     ),
+    hasPendingCommandExecution: pendingToolCalls.any(
+      (call) =>
+          const ToolCallExecutionPolicy().isCommandExecutionTool(call.name),
+    ),
   );
 
   final int iteration;
@@ -63,6 +69,7 @@ final class ToolLoopExhaustionDecisionInput {
   /// recovery reply settled it unasked. Declining recovery runs the pending
   /// batch before finalization instead, which puts the question to the user.
   final bool hasPendingUserQuestion;
+  final bool hasPendingCommandExecution;
 
   bool get iterationLimitReached => iteration >= maxIterations;
 }
@@ -93,6 +100,9 @@ final class ToolLoopExhaustionPolicy {
     if (input.hasPendingUserQuestion) {
       return false;
     }
+    // The normal final-batch path executes the declared command with its
+    // approval gate. Recovery must not replace an unexecuted verifier.
+    if (input.hasPendingCommandExecution) return false;
     return true;
   }
 }

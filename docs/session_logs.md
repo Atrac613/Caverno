@@ -45,6 +45,25 @@ Session logs use bounded local retention by default:
 
 ## Entry Format
 
+Dedicated Farm reviews return a structured report with `status`, `findings`,
+`verificationLimits`, and `summary`. The first terminal review is retained by
+turn generation and conversation, rendered directly, and handed to the workflow
+as a native verdict. A later summary cannot replace its findings or authorize a
+commit. Unmarked, malformed, conflicting, truncated, or uninspected reports
+remain incomplete; a clean report also cannot override a new failed check.
+`project_task_decision` review events record `clean`, `findings`, `incomplete`,
+or `missing`, plus `nativeVerdictAvailable`, without recording report text.
+The turn transforms are `project_task_review_<status>`.
+
+Review prompts omit implementation progress and completion instructions. They
+can carry up to three exact successful implementation verification commands and
+directories after the last captured mutation. These are historical runner
+hints, not fresh review evidence. Reused, stale, or failed results are excluded,
+and new review commands retain normal approval and containment requirements.
+Commands over 2,000 characters and directories over 512 characters are omitted.
+At tool-loop exhaustion, a declared pending command uses the existing final
+batch dispatch instead of being silently replaced by a recovery model call.
+
 `project_task_decision` records native Farm preparation and commit attempts,
 acceptance or rejection, and workflow stops in the owning conversation's log.
 `projectTaskDecision` includes the phase, decision, fixed gate reason, native

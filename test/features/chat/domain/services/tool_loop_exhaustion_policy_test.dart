@@ -194,5 +194,15 @@ void main() {
       expect(input.hasPendingUserQuestion, isTrue);
       expect(_policy.shouldRequestRecovery(input), isFalse);
     });
+
+    test('retains a pending verifier for the final approved batch', () {
+      final input = derive([
+        call('local_execute_command', {
+          'command': '.venv/bin/python -m pytest test_watcher.py -v',
+        }),
+      ]);
+      expect(input.hasPendingCommandExecution, isTrue);
+      expect(_policy.shouldRequestRecovery(input), isFalse);
+    });
   });
 }

@@ -119,6 +119,11 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
       }
     }
     final results = _turnToolResults.all(owner);
+    _primaryRoutes.recordVerificationContext(
+      owner.interactionGeneration,
+      owner.conversationId,
+      results,
+    );
     final mutation = _messageNotices.replaceUnacceptedProjectTaskCompletion(
       messages,
       ProjectTaskTerminalStatus.fromToolResults(results),

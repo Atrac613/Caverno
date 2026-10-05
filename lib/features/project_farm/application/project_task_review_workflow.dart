@@ -7,6 +7,7 @@ import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/entities/turn_diff.dart';
 import '../../chat/domain/services/project_task_implementation_instructions.dart';
+import '../../chat/domain/services/project_task_review_verdict.dart';
 import '../../chat/domain/services/project_task_terminal_status.dart';
 import '../../chat/presentation/slash_commands/slash_command_prompt_template.dart';
 import '../domain/entities/project_task_commit_scope.dart';
@@ -35,6 +36,8 @@ final class ProjectTaskReviewWorkflow {
     this.decompose,
     this.sendStep,
     this.readSubtaskStatus,
+    this.readReviewVerdict,
+    this.readVerificationContext,
     this.markSubtaskDone,
     this.onProgress,
     this.onDecision,
@@ -75,6 +78,8 @@ final class ProjectTaskReviewWorkflow {
   /// their marker, not by goal completion, which only the last turn records.
   final Future<bool> Function(String prompt)? sendStep;
   final ProjectTaskTerminalStatus? Function()? readSubtaskStatus;
+  final ProjectTaskReviewVerdict? Function()? readReviewVerdict;
+  final String Function()? readVerificationContext;
 
   /// Records a subtask as completed in the thread's execution progress.
   final Future<void> Function(String taskId)? markSubtaskDone;
@@ -230,10 +235,9 @@ The patch below is this task's change to the files its file tools edited${inheri
 $patch
 ```
 
-After your findings and verification limits, end with exactly one of these lines:
-$_clean — only when there are no actionable findings and the patch was reviewable
-$_findings — when there are actionable findings
-If review is incomplete, omit both markers.
+${ProjectTaskReviewVerdict.instructions}
+
+${readVerificationContext?.call() ?? ''}
 
 Start by calling read_file for these task files, then wait for results before producing review prose:
 ${_taskPaths(after).map((path) => '- $path').join('\n')}''';
@@ -246,10 +250,26 @@ ${_taskPaths(after).map((path) => '- $path').join('\n')}''';
       if (!_canContinue(reviewed)) return _stop(_notContinuable);
       final review = _lastAssistant(reviewed!, beforeReviewCount);
       if (review == null) return _stop('the review turn saved no response');
-      if (_endsWithMarker(review.content, _clean)) {
+      final verdict = readReviewVerdict?.call();
+      if (readReviewVerdict != null) {
+        onDecision?.call({
+          'phase': 'review',
+          'decision': verdict?.disposition.name ?? 'missing',
+          'nativeVerdictAvailable': verdict != null,
+        });
+      }
+      if (readReviewVerdict != null &&
+          (verdict == null || !verdict.isComplete)) {
+        return _stop(
+          'the dedicated review has no complete native verdict',
+          gapCodes: const ['review_incomplete'],
+        );
+      }
+      final reviewReport = verdict?.response ?? review.content;
+      if (_endsWithMarker(reviewReport, _clean)) {
         return _commit(reviewed, objective);
       }
-      if (!_endsWithMarker(review.content, _findings)) {
+      if (!_endsWithMarker(reviewReport, _findings)) {
         return _stop(
           'the review ended without $_clean or $_findings '
           '(last line: "${_lastLine(review.content)}")',
@@ -266,7 +286,7 @@ ${_taskPaths(after).map((path) => '- $path').join('\n')}''';
       implementation =
           '''Fix the actionable findings from the dedicated code review below. Inspect the cited code and fix the underlying defect behind each finding, not only the cited line: where the same reasoning applies to closely related state, cases, or code paths in this task's changes, fix those too, because the next review reads the whole patch again. Keep repairs task-related, and rerun relevant verification. ${ProjectTaskImplementationInstructions.completionScope} Respect approval and user-input gates. Do not commit, push, or publish. End with the exact line $_ready only when the fixes and verification are complete; otherwise explain what remains and omit the line.
 
-${ContentParser.stripModelHistoryArtifacts(review.content)}''';
+${ContentParser.stripModelHistoryArtifacts(reviewReport)}''';
     }
     return _stop('the repair rounds ended without a review result');
   }

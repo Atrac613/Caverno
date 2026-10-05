@@ -169,6 +169,7 @@ import '../../domain/services/printed_tool_call_recovery.dart';
 import '../../domain/services/process_start_result_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
 import '../../domain/services/project_task_review_inspection.dart';
+import '../../domain/services/project_task_review_verdict.dart';
 import '../../domain/services/project_task_step_completion_policy.dart';
 import '../../domain/services/project_task_terminal_status.dart';
 import '../../domain/services/proposal_option_extraction.dart';
@@ -5825,6 +5826,21 @@ class ChatNotifier extends Notifier<ChatState> {
               )
             : nextResult.content.trim();
         _recordHiddenEvidence(turnOwner, fallbackResponse);
+        final reviewResponse = _captureProjectTaskReviewResponse(
+          owner: turnOwner,
+          response: fallbackResponse,
+          finishReason: nextResult.finishReason,
+          results: executedToolResults,
+        );
+        if (reviewResponse != null) {
+          _replaceLastMessageContentForGeneration(
+            interactionGeneration,
+            reviewResponse,
+          );
+          currentAssistantContent = reviewResponse;
+          hasTextResponse = true;
+          break;
+        }
         final browserActionRepairResult =
             await _requestSkippedBrowserActionRepairAfterSnapshot(
               candidateResponse: fallbackResponse,

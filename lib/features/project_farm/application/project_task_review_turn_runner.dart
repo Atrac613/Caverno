@@ -4,6 +4,7 @@ import '../../chat/domain/entities/chat_turn_owner.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/conversation_goal.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/services/project_task_review_verdict.dart';
 
 /// Requires accepted implementation completion before starting task review.
 final class ProjectTaskReviewTurnRunner {
@@ -33,7 +34,8 @@ final class ProjectTaskReviewTurnRunner {
       }
       prompt = '''$prompt
 
-The previous review did not produce an accepted terminal review result. Perform the read-only review again through inspection tools: begin by calling read_file on the changed files listed above and wait for successful results. Earlier responses and reads are historical evidence. Reconcile the task patch with the current files, then report findings and verification limits. End with PROJECT_TASK_REVIEW_CLEAN only for a complete review with no actionable findings, or PROJECT_TASK_REVIEW_FINDINGS for actionable findings. If inspection is unavailable or review remains incomplete, explain why and omit both markers. Do not edit files, commit, or change Git state.''';
+The previous review did not produce an accepted terminal review result. Perform the read-only review again through inspection tools: begin by calling read_file on the changed files listed above and wait for successful results. Earlier reads are historical evidence. Reconcile the task patch with the current files and retain any unresolved findings from the previous report. Do not edit files, commit, or change Git state.
+${ProjectTaskReviewVerdict.instructions}''';
     }
     return false;
   }
