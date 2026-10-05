@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:path/path.dart' as path;
 
+import 'inline_python_verification_contract.dart';
 import 'literal_shell_words.dart';
 import 'pytest_shell_invocation.dart';
 import 'pytest_verification_identity.dart';
@@ -20,10 +21,10 @@ final class VerificationCommandSequence {
   String get key =>
       jsonEncode([directory, for (final step in steps) _stepKey(step)]);
 
-  String _stepKey(String step) {
+  String _stepKey(String step, {bool repairRuntime = false}) {
     final pytest = PytestVerificationIdentity.parse(step, directory);
     if (pytest != null) return pytest.verificationKey;
-    final words = LiteralShellWords.parse(step);
+    final words = LiteralShellWords.parse(step, allowQuotedNewlines: true);
     if (words != null &&
         words.length >= 2 &&
         RegExp(
@@ -35,8 +36,45 @@ final class VerificationCommandSequence {
       // path, argument order, and every prerequisite must still match.
       return jsonEncode(['python-script', words.skip(1).toList()]);
     }
+    if (repairRuntime &&
+        words != null &&
+        InlinePythonVerificationContract.parse(step, directory) != null) {
+      // Keep the complete program, including imports and fixture setup.
+      return jsonEncode(['python-inline', words.skip(1).toList()]);
+    }
     return step;
   }
+
+  /// Only a pytest launch failure can use this alternate runtime identity.
+  String? get runtimeRepairKey {
+    if (leadingPytest == null ||
+        path.basename(leadingPytest!.words.first) == 'pytest' ||
+        !steps
+            .skip(1)
+            .every(
+              (step) =>
+                  InlinePythonVerificationContract.parse(step, directory) !=
+                  null,
+            )) {
+      return null;
+    }
+    return jsonEncode([
+      directory,
+      for (final step in steps) _stepKey(step, repairRuntime: true),
+    ]);
+  }
+
+  PytestVerificationIdentity? get leadingPytest =>
+      PytestVerificationIdentity.parse(steps.first, directory);
+
+  String repairRuntimeWith(String interpreter) => steps
+      .map(
+        (step) => step.replaceFirst(
+          RegExp(r'''^(?:'[^']+'|"[^"]+"|\S+)'''),
+          LiteralShellWords.quote(interpreter),
+        ),
+      )
+      .join(' && ');
 
   PytestVerificationIdentity? get terminalPytest =>
       PytestVerificationIdentity.parse(terminalCommand, directory);
@@ -49,7 +87,10 @@ final class VerificationCommandSequence {
     var hasVerification = false;
     const classifier = ToolCapabilityClassifier();
     for (var index = 0; index < segments.length; index++) {
-      final words = LiteralShellWords.parse(segments[index]);
+      final words = LiteralShellWords.parse(
+        segments[index],
+        allowQuotedNewlines: true,
+      );
       if (words == null) return null;
       if (words.first == 'cd') {
         if (index != 0 ||
@@ -74,7 +115,7 @@ final class VerificationCommandSequence {
           .commandEffect;
       if (effect == ToolCommandEffect.verification ||
           effect == ToolCommandEffect.inspection) {
-        suffix.add(literal);
+        suffix.add(segments[index]);
         hasVerification |= effect == ToolCommandEffect.verification;
       } else {
         suffix.clear();

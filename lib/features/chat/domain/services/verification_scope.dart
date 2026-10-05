@@ -25,18 +25,23 @@ final class VerificationScope {
     this.passed, {
     this.coveredKeys = const [],
     this.inlineContract,
+    this.runtimeRepairKey,
+    this.runtimeLaunchFailed = false,
   });
 
   final String key;
   final bool passed;
   final List<String> coveredKeys;
   final InlinePythonVerificationContract? inlineContract;
+  final String? runtimeRepairKey;
+  final bool runtimeLaunchFailed;
 
   static VerificationScope? of(
     ToolResultInfo result,
     Map<String, dynamic>? decoded, {
     required bool Function(ToolResultInfo) isVerification,
   }) {
+    if (!isVerification(result)) return null;
     final background = const {
       'process_start',
       'process_status',
@@ -69,6 +74,13 @@ final class VerificationScope {
         (decoded?['stdout'] ?? decoded?['stdout_tail'])?.toString() ?? '';
     final commandOutput = report?.commandOutput(stdout) ?? stdout;
     final compoundCounts = sequence?.terminalPytest?.counts(commandOutput);
+    final leadingSummaries = sequence?.leadingPytest == null
+        ? const []
+        : const LineSplitter()
+              .convert(commandOutput)
+              .map(sequence!.leadingPytest!.counts)
+              .where((summary) => summary != null)
+              .toList();
     final compoundTests = outcome?.testOutcome ?? compoundCounts;
     final ranClean =
         outcome?.hasSucceedingExitCode == true &&
@@ -96,8 +108,8 @@ final class VerificationScope {
     if (!isVerification(result) || command.trim().isEmpty) return null;
     final inline = InlinePythonVerificationContract.parse(command, directory);
     return VerificationScope._(
-      sequence?.terminalPytest != null
-          ? sequence!.key
+      sequence != null
+          ? sequence.key
           : inline?.key ??
                 jsonEncode([
                   directory.trim(),
@@ -109,6 +121,23 @@ final class VerificationScope {
                 ]),
       ranClean,
       inlineContract: inline,
+      runtimeRepairKey:
+          sequence?.runtimeRepairKey != null &&
+              (!ranClean ||
+                  leadingSummaries.length == 1 &&
+                      leadingSummaries.single!.passedCount > 0 &&
+                      leadingSummaries.single!.failedCount == 0)
+          ? sequence?.runtimeRepairKey
+          : null,
+      runtimeLaunchFailed:
+          sequence?.runtimeRepairKey != null &&
+          outcome?.hasFailingExitCode == true &&
+          (outcome?.effectiveTestFailedCount ?? 0) == 0 &&
+          (outcome?.diagnosticErrorCount ?? 0) == 0 &&
+          stdout.trim().isEmpty &&
+          RegExp(
+            r'''^(?:.*[/\\])?python(?:\d+(?:\.\d+)*)?(?:\.exe)?:\s+No module named ['"]?pytest['"]?\s*$''',
+          ).hasMatch((decoded?['stderr'] ?? '').toString().trim()),
       coveredKeys: [
         if (sequence?.terminalPytest case final runner?) runner.verificationKey,
       ],

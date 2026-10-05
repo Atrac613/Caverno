@@ -78,6 +78,17 @@ final class UnresolvedVerificationFailure {
         : exit == null
         ? ''
         : ' (exit $exit)';
+    if (CommandVerificationReconciliation.scopeOf(
+          result,
+        )?.runtimeLaunchFailed ==
+        true) {
+      return 'the verification `$command` failed$exitDetail before pytest could launch. '
+          'Use capturedEvidence.unresolvedVerification.runtimeRepairCommand when available, '
+          'or replace only the Python executable in the full recorded chain with the '
+          'captured working runtime. Preserve all prerequisites, imports and checks; '
+          'run the full chain again. A different script or a standalone test pass '
+          'does not settle this failure';
+    }
     final inline = InlinePythonVerificationContract.parse(
       (payload?['command'] ?? result.arguments['command'])?.toString() ?? '',
       (payload?['working_directory'] ?? result.arguments['working_directory'])

@@ -1,6 +1,7 @@
 import '../entities/tool_call_info.dart';
 import 'reconciled_command_failure.dart';
 import 'tool_call_execution_policy.dart';
+import 'verification_metadata_query_policy.dart';
 
 /// Keeps completed progress intact while requesting the next executable action.
 final class CodingContinuationRecoveryPromptBuilder {
@@ -46,7 +47,9 @@ final class CodingContinuationRecoveryPromptBuilder {
     if (executedToolResults.isEmpty) {
       return null;
     }
-    final current = ReconciledCommandFailure.current(executedToolResults);
+    final current = ReconciledCommandFailure.current(executedToolResults)
+        .where((result) => !VerificationMetadataQueryPolicy.appliesTo(result))
+        .toList();
     final hasTimeout = current.any(_executionPolicy.toolResultTimedOut);
     final hasFailedExit = current.any(_executionPolicy.toolResultHasFailedExit);
     final hasOtherFailure = current.any(ReconciledCommandFailure.failed);

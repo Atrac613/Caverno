@@ -1,0 +1,58 @@
+import 'dart:convert';
+
+import 'package:path/path.dart' as path;
+
+import '../entities/tool_call_info.dart';
+import 'literal_environment_inspection_policy.dart';
+import 'literal_shell_segments.dart';
+import 'literal_shell_words.dart';
+
+/// Classifies execution evidence only, never approval or mutation freshness.
+abstract final class VerificationMetadataQueryPolicy {
+  static bool applies(String command) {
+    final segments = LiteralShellSegments.parse(command);
+    if (segments == null) return false;
+    return segments.every((segment) {
+      if (LiteralEnvironmentInspectionPolicy.applies(segment)) return true;
+      final query = segment
+          .trim()
+          .replaceFirst(
+            RegExp(r'\s*\|\s*(?:head|tail)\s+-(?:n\s*)?[1-9]\d*\s*$'),
+            '',
+          )
+          .replaceFirst(RegExp(r'\s+(?:2>\s*/dev/null|2>&1)\s*$'), '');
+      final words = LiteralShellWords.parse(query.trim());
+      if (words == null) return false;
+      final executable = path.basename(words.first);
+      final args = words.skip(1).toList();
+      if (RegExp(r'^python(?:\d+(?:\.\d+)*)?$').hasMatch(executable)) {
+        return args.length == 3 &&
+            args[0] == '-m' &&
+            const {'pip', 'pytest'}.contains(args[1]) &&
+            args[2] == '--version';
+      }
+      return RegExp(
+            r'^(?:pip|pytest)(?:\d+(?:\.\d+)*)?$',
+          ).hasMatch(executable) &&
+          args.length == 1 &&
+          args.single == '--version';
+    });
+  }
+
+  static bool appliesTo(ToolResultInfo result) {
+    if ((result.outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+        (result.outcome?.diagnosticErrorCount ?? 0) > 0) {
+      return false;
+    }
+    Map? payload;
+    try {
+      final decoded = jsonDecode(result.result);
+      if (decoded is Map) payload = decoded;
+    } on FormatException {
+      // Retain the literal captured request when output was budgeted.
+    }
+    return applies(
+      (payload?['command'] ?? result.arguments['command'] ?? '').toString(),
+    );
+  }
+}

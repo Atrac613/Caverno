@@ -70,6 +70,22 @@ prefix with explicit truncation and a missing-range hint. A failed edit retains
 an earlier full-file observation only when its observed content digest matches;
 unknown writes and changed or partial snapshots keep their freshness barriers.
 
+Literal Python, pip, and pytest version discovery is observation evidence,
+including bounded output in a command list. A missing package during discovery
+does not become required task verification. This evidence classification does
+not change command approval, containment, or test-reuse freshness policy; mixed
+commands that execute checks and typed test failures retain normal verification.
+
+For a literal `pytest && python -c` chain whose first pytest could not launch,
+an alternate runtime can settle the failure only after the entire unchanged
+program passes, with a captured passing pytest summary. The directory,
+prerequisites, imports, fixtures, and checks remain part of the identity. Actual
+test/assertion failures cannot use this launch-repair exception. Structured
+recovery evidence may include `unresolvedVerification.runtimeRepairCommand`,
+which preserves the original program and effective directory while substituting
+a captured working interpreter. It is a suggestion for a fresh approved
+execution, never a reused or fabricated result.
+
 Review prompts omit implementation progress and completion instructions. They
 can carry up to three exact successful implementation verification commands and
 directories after the last captured mutation. These are historical runner

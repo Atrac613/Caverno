@@ -9,6 +9,7 @@ import 'exit_status_mask.dart';
 import 'masked_inspection_command_policy.dart';
 import 'shell_exit_status_report.dart';
 import 'tool_outcome_shadow_comparison.dart';
+import 'verification_metadata_query_policy.dart';
 
 export 'coding_command_output_issue.dart' show CodingCommandOutputIssue;
 
@@ -108,6 +109,7 @@ class CodingCommandOutputIssueDetector {
         _normalizeText(decoded['working_directory']) ??
         fallbackWorkingDirectory ??
         '';
+    if (VerificationMetadataQueryPolicy.applies(command)) return null;
     final preflightIssue =
         _preflightDetector.detect(
           toolName: toolName,

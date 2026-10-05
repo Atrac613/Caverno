@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
+import 'compound_python_runtime_repair.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'inline_python_verification_contract.dart';
 import 'shell_exit_status_report.dart';
@@ -78,6 +79,7 @@ final class StructuredTaskStatusEvidence {
       if (failedVerification != null)
         'unresolvedVerification': _describeFailedVerification(
           failedVerification,
+          results,
         ),
     };
   }
@@ -139,7 +141,10 @@ final class StructuredTaskStatusEvidence {
     };
   }
 
-  Map<String, dynamic> _describeFailedVerification(ToolResultInfo result) {
+  Map<String, dynamic> _describeFailedVerification(
+    ToolResultInfo result,
+    List<ToolResultInfo> results,
+  ) {
     final decoded = _executionPolicy.tryDecodeMap(result.result);
     final command =
         decoded?['command']?.toString() ??
@@ -159,6 +164,10 @@ final class StructuredTaskStatusEvidence {
           : '${command.substring(0, maxFailedCommandChars - 3)}...',
       'commandTruncated': command.length > maxFailedCommandChars,
       'workingDirectory': directory,
+      if (CompoundPythonRuntimeRepair.suggest(result, results)
+          case final String repair)
+        if (repair.length <= maxFailedCommandChars)
+          'runtimeRepairCommand': repair,
       'repairableInlineFixture':
           InlinePythonVerificationContract.parse(command, directory) != null,
       if (decoded?['stdout_truncated'] == true ||

@@ -11,6 +11,7 @@ import 'masked_inspection_command_policy.dart';
 import 'pytest_verification_identity.dart';
 import 'shell_exit_status_report.dart';
 import 'verification_command_sequence.dart';
+import 'verification_metadata_query_policy.dart';
 import 'verification_scope.dart';
 
 /// Settles earlier invocations only after the same verification actually passes.
@@ -19,6 +20,7 @@ abstract final class CommandVerificationReconciliation {
     final staleBackgroundResults = staleBackgroundResultIds(results);
     final successfulScopes = <String>{};
     final successfulInlineContracts = <InlinePythonVerificationContract>[];
+    final successfulRuntimeRepairs = <String>{};
     final supersededIds = <String>{};
     for (var index = results.length - 1; index >= 0; index--) {
       final result = results[index];
@@ -26,6 +28,8 @@ abstract final class CommandVerificationReconciliation {
       if (scope == null) continue;
       final inline = scope.inlineContract;
       if (successfulScopes.contains(scope.key) ||
+          (scope.runtimeLaunchFailed &&
+              successfulRuntimeRepairs.contains(scope.runtimeRepairKey)) ||
           (inline != null &&
               successfulInlineContracts.any(
                 (passed) => passed.covers(inline),
@@ -34,6 +38,9 @@ abstract final class CommandVerificationReconciliation {
       }
       if (scope.passed && !staleBackgroundResults.contains(result.id)) {
         successfulScopes.addAll([scope.key, ...scope.coveredKeys]);
+        if (scope.runtimeRepairKey != null) {
+          successfulRuntimeRepairs.add(scope.runtimeRepairKey!);
+        }
         if (inline != null) successfulInlineContracts.add(inline);
       }
     }
@@ -149,9 +156,14 @@ abstract final class CommandVerificationReconciliation {
       'process_status',
       'process_wait',
     }.contains(name)) {
+      if ((result.outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          (result.outcome?.diagnosticErrorCount ?? 0) > 0) {
+        return true;
+      }
       final decoded = _decode(result.result);
       final command = _verificationCommand(result, decoded);
-      if (LiteralEnvironmentInspectionPolicy.applies(command) ||
+      if (VerificationMetadataQueryPolicy.appliesTo(result) ||
+          LiteralEnvironmentInspectionPolicy.applies(command) ||
           MaskedInspectionCommandPolicy.applies(command)) {
         return false;
       }
