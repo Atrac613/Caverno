@@ -56,6 +56,10 @@ extension ChatNotifierReviewInspection on ChatNotifier {
       owner.conversationId,
       verdict,
     );
+    _turnToolResults.addContent(
+      owner,
+      verdict.toMemoryToolResult('coding-review-status-$generation'),
+    );
     _turnEnd.addTransform(
       owner,
       'project_task_review_${verdict.disposition.name}',

@@ -23,6 +23,7 @@ final class ToolLoopExhaustionDecisionInput {
     required this.hasPendingWriteGitCommand,
     required this.hasPendingUserQuestion,
     this.hasPendingCommandExecution = false,
+    this.hasPendingFileRead = false,
   });
 
   factory ToolLoopExhaustionDecisionInput.fromPendingCalls({
@@ -51,6 +52,9 @@ final class ToolLoopExhaustionDecisionInput {
       (call) =>
           const ToolCallExecutionPolicy().isCommandExecutionTool(call.name),
     ),
+    hasPendingFileRead: pendingToolCalls.any(
+      (call) => call.name.trim().toLowerCase() == 'read_file',
+    ),
   );
 
   final int iteration;
@@ -70,6 +74,7 @@ final class ToolLoopExhaustionDecisionInput {
   /// batch before finalization instead, which puts the question to the user.
   final bool hasPendingUserQuestion;
   final bool hasPendingCommandExecution;
+  final bool hasPendingFileRead;
 
   bool get iterationLimitReached => iteration >= maxIterations;
 }
@@ -103,6 +108,9 @@ final class ToolLoopExhaustionPolicy {
     // The normal final-batch path executes the declared command with its
     // approval gate. Recovery must not replace an unexecuted verifier.
     if (input.hasPendingCommandExecution) return false;
+    // A requested read may refresh an edited file or reveal a missing range.
+    // Execute it before finalization instead of substituting an older read.
+    if (input.hasPendingFileRead) return false;
     return true;
   }
 }

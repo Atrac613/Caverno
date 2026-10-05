@@ -5507,20 +5507,6 @@ void main() {
           finishReason: 'tool_calls',
         ),
       ];
-      toolLoopResponses.addAll([
-        ChatCompletionResult(
-          content: 'Recovery still needs the target log.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-read-target-recovery',
-              name: 'read_file',
-              arguments: const {'path': '/tmp/session-log.jsonl'},
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        ChatCompletionResult(content: '', finishReason: 'stop'),
-      ]);
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -5567,6 +5553,20 @@ void main() {
         await toolNotifier.sendMessage('Find and read the interrupted log');
 
         expect(toolService.executedToolNames.last, 'read_file');
+        expect(
+          toolService.executedToolNames.where((name) => name == 'read_file'),
+          hasLength(1),
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(12));
+        expect(
+          toolDataSource.toolResultRequestMessages
+              .expand((messages) => messages)
+              .any(
+                (message) =>
+                    message.content.contains('bounded tool loop limit'),
+              ),
+          isFalse,
+        );
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
             .map((message) => message.content)
@@ -8155,7 +8155,7 @@ with open(path, "rb") as file:
   );
 
   test(
-    'buildToolLoopExhaustionRecoveryPromptForTest forbids rereading edit mismatch files when read context exists',
+    'buildToolLoopExhaustionRecoveryPromptForTest reuses inspected edit mismatch ranges',
     () {
       final prompt = notifier.buildToolLoopExhaustionRecoveryPromptForTest(
         [
@@ -8185,17 +8185,19 @@ with open(path, "rb") as file:
       expect(
         prompt,
         contains(
-          'A recent read_file result for the same path is already provided below.',
+          'A current read_file result for each failed edit path is provided below.',
         ),
       );
       expect(
         prompt,
-        contains('Do not call read_file again for the same path in this turn.'),
+        contains(
+          'If the required anchor is outside the inspected range, read that missing range with offset and limit before editing.',
+        ),
       );
       expect(
         prompt,
         contains(
-          'Use that exact file content and return only one edit_file call for the same file',
+          'Copy old_text from the inspected range, not from an older snapshot or the desired replacement.',
         ),
       );
     },
@@ -8780,8 +8782,8 @@ with open(path, "rb") as file:
           toolCalls: [
             ToolCallInfo(
               id: 'tool-13',
-              name: 'read_file',
-              arguments: const {'path': 'ping_cli_recovery.py'},
+              name: 'search_files',
+              arguments: const {'query': 'ping_cli_recovery'},
             ),
           ],
           finishReason: 'tool_calls',
@@ -8806,7 +8808,10 @@ with open(path, "rb") as file:
         ],
       );
       final toolService = _FakeMcpToolService(
-        results: const {'read_file': 'print("ping")'},
+        results: const {
+          'read_file': 'print("ping")',
+          'search_files': 'No additional matches.',
+        },
       );
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);

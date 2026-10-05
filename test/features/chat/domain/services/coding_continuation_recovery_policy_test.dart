@@ -767,7 +767,7 @@ void main() {
       expect(
         prompt,
         contains(
-          'Do not restart the task or re-run commands that already completed successfully.',
+          'Do not restart the task. Reuse settled verification unless later changes require a fresh run.',
         ),
       );
       expect(prompt, isNot(contains('Treat that response as unexecuted.')));

@@ -1362,6 +1362,90 @@ void registerChatNotifierPendingBatchTests() {
     },
   );
 
+  test(
+    'pending read refreshes an edited file instead of a stale recovery snapshot',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_pending_refresh_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final target = File('${root.path}/source.py')
+        ..writeAsStringSync('interval = 2\n');
+      ToolCallInfo read(String id) => ToolCallInfo(
+        id: id,
+        name: 'read_file',
+        arguments: {'path': target.path, 'offset': 1, 'limit': 20},
+      );
+      ToolCallInfo edit(String id, String oldText, String newText) =>
+          ToolCallInfo(
+            id: id,
+            name: 'edit_file',
+            arguments: {
+              'path': target.path,
+              'old_text': oldText,
+              'new_text': newText,
+            },
+          );
+      ChatCompletionResult response(ToolCallInfo call) => ChatCompletionResult(
+        content: '',
+        toolCalls: [call],
+        finishReason: 'tool_calls',
+      );
+      final source = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [read('initial-read')],
+        toolLoopResponses: [
+          response(edit('applied-edit', 'interval = 2\n', 'interval = 0\n')),
+          for (var index = 1; index <= 9; index++)
+            response(_pendingBatchReadCall(index, root.path)),
+          response(edit('mismatch', 'interval = 2\n', 'interval = 1\n')),
+          response(read('pending-read-fresh')),
+          response(
+            edit('stale-recovery-edit', 'interval = 0\n', 'interval = 99\n'),
+          ),
+        ],
+        finalAnswerChunks: const ['The refreshed source has interval = 0.'],
+      );
+      final service = _PendingReadRefreshToolService(root, target.path);
+      final project = _pendingBatchProject(root.path);
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = _pendingBatchContainer(
+        project: project,
+        dataSource: source,
+        toolService: service,
+        appLifecycleService: lifecycle,
+        settingsOverride: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+      _activatePendingBatchProject(container, project);
+      final notifier = container.read(chatNotifierProvider.notifier);
+      final owner = await notifier.sendMessage(
+        'Refresh the source after the failed edit.',
+      );
+      final results = notifier.takeLatestToolResults(owner!);
+      final refreshed = results.singleWhere(
+        (result) => result.id == 'pending-read-fresh',
+      );
+      expect(jsonDecode(refreshed.result)['content'], 'interval = 0');
+      expect(service.targetReadCount, 2);
+      expect(target.readAsStringSync(), 'interval = 0\n');
+      expect(service.executedEditNewTexts, isNot(contains('interval = 99\n')));
+      expect(source.toolResultBatches, hasLength(12));
+      expect(
+        source.toolResultRequestMessages
+            .expand((messages) => messages)
+            .any(
+              (message) => message.content.contains('bounded tool loop limit'),
+            ),
+        isFalse,
+      );
+      expect(
+        notifier.state.messages.last.content,
+        contains('refreshed source has interval = 0'),
+      );
+    },
+  );
+
   test('edit mismatch follow-up executes before exhaustion recovery', () async {
     final projectRoot = await Directory.systemTemp.createTemp(
       'caverno_pending_edit_recovery_',
@@ -1622,7 +1706,13 @@ List<ChatCompletionResult> _pendingBatchResponses({
       ),
     ChatCompletionResult(
       content: 'Start bounded recovery.',
-      toolCalls: [_pendingBatchReadCall(12, projectRoot)],
+      toolCalls: [
+        ToolCallInfo(
+          id: 'pending-discovery',
+          name: 'search_files',
+          arguments: {'path': projectRoot, 'query': 'fixture'},
+        ),
+      ],
       finishReason: 'tool_calls',
     ),
     ChatCompletionResult(
@@ -1887,6 +1977,32 @@ void _activateStructuredProjectTask(
 // The owner-aware delegate mirrors production: the file mutation runtime
 // executes raw mutations through the service's owner-fenced boundary, so a
 // double that only overrides executeTool never observes them.
+class _PendingReadRefreshToolService extends _PendingBatchMcpToolService {
+  _PendingReadRefreshToolService(super.root, this.targetPath);
+
+  final String targetPath;
+  int targetReadCount = 0;
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    if (name == 'read_file' &&
+        File(arguments['path'] as String).resolveSymbolicLinksSync() ==
+            File(targetPath).resolveSymbolicLinksSync()) {
+      targetReadCount++;
+      executedToolNames.add(name);
+      return McpToolResult(
+        toolName: name,
+        result: await FilesystemTools.readFile(path: targetPath),
+        isSuccess: true,
+      );
+    }
+    return super.executeTool(name: name, arguments: arguments);
+  }
+}
+
 class _PendingBatchMcpToolService extends McpToolService
     with FileTools, OwnerAwareMcpToolTestDelegate {
   _PendingBatchMcpToolService(this.root);
@@ -1941,6 +2057,14 @@ class _PendingBatchMcpToolService extends McpToolService
         'function': {
           'name': 'fail_final',
           'description': 'Fail a fixture dispatch.',
+          'parameters': {'type': 'object'},
+        },
+      },
+      {
+        'type': 'function',
+        'function': {
+          'name': 'search_files',
+          'description': 'Search fixture files.',
           'parameters': {'type': 'object'},
         },
       },

@@ -680,6 +680,7 @@ class _TestSessionMemoryService extends SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async {
     return const MemoryUpdateResult.none();
   }
@@ -702,6 +703,7 @@ class _TrackingSessionMemoryService extends _TestSessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async {
     updateCount += 1;
     updateMessages.add(List<Message>.from(messages));

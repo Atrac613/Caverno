@@ -186,6 +186,7 @@ import '../../domain/services/saved_validation_command_guard.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/secondary_completion_router.dart';
 import '../../domain/services/session_memory_service.dart';
+import '../../domain/services/session_memory_update_tracker.dart';
 import '../../domain/services/short_prompt_contract_builder.dart';
 import '../../domain/services/skill_prompt_index_builder.dart';
 import '../../domain/services/skipped_browser_action_repair_prompt.dart';
@@ -409,6 +410,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final _claimNotices = const FinalAnswerClaimNoticeApplicator();
   final _messageNotices = const FinalAnswerMessageNoticeService();
   final _memoryExtraction = const MemoryExtractionCoordinator();
+  final _memoryUpdates = SessionMemoryUpdateTracker();
   final _finalAnswerRecoveryPolicy = const FinalAnswerRecoveryPolicy();
   final _fileMutationEvidencePolicy = const FileMutationEvidencePolicy();
   final _pendingActions = const PendingActionLengthRecoveryPolicy();
@@ -5755,6 +5757,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   currentToolCalls,
                   previousToolResults: recoveryToolResults,
                   readOnlyReview: _isCodeReview(interactionGeneration),
+                  projectRoot: _projectRootForGeneration(interactionGeneration),
                 ),
                 timestamp: DateTime.now(),
               ),
@@ -7224,6 +7227,7 @@ class ChatNotifier extends Notifier<ChatState> {
       executedToolResults: executedToolResults,
       pendingToolCalls: pendingToolCalls,
       pathFromArguments: _fileMutationEvidencePolicy.argumentPath,
+      projectRoot: projectRoot,
       toolResultKey: (toolResult) =>
           ToolDedupeKeys.toolResult(toolResult, projectRoot: projectRoot),
     );
@@ -8072,7 +8076,7 @@ class ChatNotifier extends Notifier<ChatState> {
               _primaryRoutes.isProjectTaskStep(generation)),
       messages: updatedMessages,
       conversationId: turnOwner.conversationId,
-      memoryToolResults: _turnToolResults.completed(turnOwner),
+      memoryToolResults: _turnToolResults.all(turnOwner),
     );
     if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
@@ -8406,35 +8410,47 @@ class ChatNotifier extends Notifier<ChatState> {
     String targetAssistantMessageId,
     List<ToolResultInfo> toolResults,
   ) async {
-    final draft = await _extractMemoryDraftWithLlm(messagesToSave, toolResults);
-    final result = await _memoryService.updateFromConversation(
-      conversationId: currentConversationId,
-      messages: messagesToSave,
-      draft: draft,
-    );
-    if (!ref.mounted || !result.hasAnyUpdate) return;
+    final token = _memoryUpdates.begin(currentConversationId);
+    bool isCurrent() =>
+        ref.mounted && _memoryUpdates.isCurrent(currentConversationId, token);
+    try {
+      final draft = await _extractMemoryDraftWithLlm(
+        messagesToSave,
+        toolResults,
+      );
+      if (!isCurrent()) return;
+      final result = await _memoryService.updateFromConversation(
+        conversationId: currentConversationId,
+        messages: messagesToSave,
+        draft: draft,
+        isCurrent: isCurrent,
+      );
+      if (!isCurrent() || !result.hasAnyUpdate) return;
 
-    final updatedMessages = [...state.messages];
-    final targetIndex = updatedMessages.indexWhere(
-      (message) => message.id == targetAssistantMessageId,
-    );
-    if (targetIndex < 0) return;
-    final targetMessage = updatedMessages[targetIndex];
-    if (targetMessage.role != MessageRole.assistant ||
-        targetMessage.isStreaming) {
-      return;
+      final updatedMessages = [...state.messages];
+      final targetIndex = updatedMessages.indexWhere(
+        (message) => message.id == targetAssistantMessageId,
+      );
+      if (targetIndex < 0) return;
+      final targetMessage = updatedMessages[targetIndex];
+      if (targetMessage.role != MessageRole.assistant ||
+          targetMessage.isStreaming) {
+        return;
+      }
+
+      final memoryTag = MemoryUpdateToolUse.build(result);
+      if (targetMessage.content.contains(memoryTag)) return;
+
+      updatedMessages[targetIndex] = targetMessage.copyWith(
+        content: '${targetMessage.content}\n$memoryTag',
+      );
+      state = state.copyWith(messages: updatedMessages);
+
+      final normalized = updatedMessages.where((m) => !m.isStreaming).toList();
+      unawaited(_messagePersistence.persistCurrentMessages(normalized));
+    } finally {
+      _memoryUpdates.finish(currentConversationId, token);
     }
-
-    final memoryTag = MemoryUpdateToolUse.build(result);
-    if (targetMessage.content.contains(memoryTag)) return;
-
-    updatedMessages[targetIndex] = targetMessage.copyWith(
-      content: '${targetMessage.content}\n$memoryTag',
-    );
-    state = state.copyWith(messages: updatedMessages);
-
-    final normalized = updatedMessages.where((m) => !m.isStreaming).toList();
-    unawaited(_messagePersistence.persistCurrentMessages(normalized));
   }
 
   Future<MemoryExtractionDraft?> _extractMemoryDraftWithLlm(

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -305,6 +306,95 @@ void main() {
     expect(editResult.containsKey('current_content'), isFalse);
     expect(editResult['hint'], contains('Re-read'));
     expect(editResult.containsKey('new_text_present'), isFalse);
+  });
+
+  test(
+    'editFile mismatch locates a bounded exact context without applying it',
+    () async {
+      final targetPath = '${tempDir.path}/large_source.py';
+      final original =
+          '${'# padding\n' * 500}'
+          'def configure_interval():\n'
+          '    return 2\n'
+          '${'# tail\n' * 500}';
+      final file = File(targetPath)..writeAsStringSync(original);
+      final failure =
+          jsonDecode(
+                await FilesystemTools.editFile(
+                  path: targetPath,
+                  oldText: 'def configure_interval():\n    return 1\n',
+                  newText: 'def configure_interval():\n    return 0\n',
+                ),
+              )
+              as Map;
+      expect(
+        failure['content_sha256'],
+        (await sha256.bind(file.openRead()).first).toString(),
+      );
+      final context = failure['current_context'] as Map;
+      expect(context['start_line'], 498);
+      expect(context['content'], contains('    return 2\n'));
+      expect(
+        utf8.encode(context['content'] as String).length,
+        lessThanOrEqualTo(4096),
+      );
+      expect(failure['read_more_hint'], {
+        'path': targetPath,
+        'offset': 501,
+        'limit': 20,
+      });
+      expect(
+        failure['hint'],
+        contains('no approximate replacement was applied'),
+      );
+      expect(file.readAsStringSync(), original);
+    },
+  );
+
+  test(
+    'editFile mismatch does not guess a context from ambiguous anchor lines',
+    () async {
+      final targetPath = '${tempDir.path}/ambiguous_source.py';
+      final original =
+          '${'# padding\n' * 500}shared_anchor = 2\nshared_anchor = 2\n';
+      final file = File(targetPath)..writeAsStringSync(original);
+      final failure =
+          jsonDecode(
+                await FilesystemTools.editFile(
+                  path: targetPath,
+                  oldText: 'shared_anchor = 2\nmissing_line = 3\n',
+                  newText: 'replacement = 4\n',
+                ),
+              )
+              as Map;
+      expect(failure.containsKey('current_context'), isFalse);
+      expect(failure.containsKey('read_more_hint'), isFalse);
+      expect(failure['hint'], contains('no unique anchor'));
+      expect(file.readAsStringSync(), original);
+    },
+  );
+
+  test('editFile mismatch keeps context bounded for oversized lines', () async {
+    final targetPath = '${tempDir.path}/long_line.py';
+    final original = '${'x' * 5000}\ndef interval():\n    return 2\n';
+    final file = File(targetPath)..writeAsStringSync(original);
+    final failure =
+        jsonDecode(
+              await FilesystemTools.editFile(
+                path: targetPath,
+                oldText: 'def interval():\n    return 1\n',
+                newText: 'def interval():\n    return 0\n',
+              ),
+            )
+            as Map;
+    expect(failure.containsKey('current_content'), isFalse);
+    expect(failure.containsKey('current_context'), isFalse);
+    expect(failure['read_more_hint'], {
+      'path': targetPath,
+      'offset': 2,
+      'limit': 20,
+    });
+    expect(file.readAsStringSync(), original);
   });
 
   test(

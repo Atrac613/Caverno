@@ -55,6 +55,21 @@ remain incomplete; a clean report also cannot override a new failed check.
 or `missing`, plus `nativeVerdictAvailable`, without recording report text.
 The turn transforms are `project_task_review_<status>`.
 
+Native review verdicts also travel to memory extraction as a harness-origin
+`coding_review_status` result, outside the clipped conversation excerpts.
+Findings, incomplete reviews, and clean reviews retain their distinct remaining
+workflow stages even if extraction claims completion or fails. Extraction never
+turns a clean review into a committed task. Delayed memory updates are fenced per
+conversation and checked again inside the storage mutation gate.
+
+Recovery prompts and finalization share reconciled command failure scopes.
+Matching successful checks settle historical failures without removing the raw
+audit results; a later file change still requires fresh verification. When the
+carry budget cannot fit a whole source observation, it can retain an exact line
+prefix with explicit truncation and a missing-range hint. A failed edit retains
+an earlier full-file observation only when its observed content digest matches;
+unknown writes and changed or partial snapshots keep their freshness barriers.
+
 Review prompts omit implementation progress and completion instructions. They
 can carry up to three exact successful implementation verification commands and
 directories after the last captured mutation. These are historical runner
@@ -63,6 +78,27 @@ and new review commands retain normal approval and containment requirements.
 Commands over 2,000 characters and directories over 512 characters are omitted.
 At tool-loop exhaustion, a declared pending command uses the existing final
 batch dispatch instead of being silently replaced by a recovery model call.
+Pending `read_file` calls also use that dispatch so a requested refresh or
+missing range cannot be replaced by an older snapshot. Exhaustion recovery
+only describes a read as current when it matches the failed edit's normalized
+project path and no later successful mutation or command with unknown writes
+invalidates it. Re-sent reads remain labelled as history, and a current partial
+range never prohibits reading another required range.
+
+Dedicated reviews inspect the changed behavior's boundaries and failure paths
+independently of the implementation's success claims. Numeric configuration
+changes call for relevant default, zero, negative, non-finite, type-conversion
+and exception checks. Reports describe inspected or exercised paths in
+`summary` and put unperformed checks in `verificationLimits`; an existing
+passing suite alone is not independent evidence for the new behavior. These
+instructions improve review coverage but do not mechanically prove correctness.
+
+Failed edit anchors retain a `content_sha256` digest of the exact observed text,
+distinct from normal reads' path-aware `content_hash`. Large files can also carry
+a bounded `current_context` with exact line metadata and a `read_more_hint`
+located by an unambiguous unchanged anchor line or an already-present
+replacement. These are diagnostic observations only; no approximate edit is
+applied. Ambiguous anchors are not guessed, and failed edits leave files intact.
 
 `project_task_decision` records native Farm preparation and commit attempts,
 acceptance or rejection, and workflow stops in the owning conversation's log.

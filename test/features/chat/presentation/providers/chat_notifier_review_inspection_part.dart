@@ -68,6 +68,7 @@ void registerChatNotifierReviewInspectionTests() {
               : '{"content":"current code"}',
         },
       );
+      final memory = _TrackingSessionMemoryService();
       final lifecycle = _MockAppLifecycleService();
       when(() => lifecycle.isInBackground).thenReturn(false);
       final container = ProviderContainer(
@@ -85,9 +86,7 @@ void registerChatNotifierReviewInspectionTests() {
             ({required baseUrl, required apiKey, required endpointId}) =>
                 source,
           ),
-          sessionMemoryServiceProvider.overrideWithValue(
-            _TestSessionMemoryService(),
-          ),
+          sessionMemoryServiceProvider.overrideWithValue(memory),
           codingProjectsNotifierProvider.overrideWith(
             () => _FixedCodingProjectsNotifier(project),
           ),
@@ -131,6 +130,11 @@ void registerChatNotifierReviewInspectionTests() {
         );
         final verdict = notifier.takeProjectTaskReviewVerdict(owner);
         expect(verdict, isNotNull);
+        if (turn == 0) {
+          await memory.firstUpdate.future.timeout(const Duration(seconds: 5));
+          expect(memory.drafts.single!.summary, verdict!.memorySummary);
+          expect(memory.drafts.single!.openLoops, [verdict.memoryNextStep]);
+        }
         if (mode == 'structured findings') {
           expect(verdict!.disposition.name, 'findings');
           expect(

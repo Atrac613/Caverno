@@ -359,6 +359,7 @@ final class FarmStepMemory extends SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async {
     final complete = _updates.putIfAbsent(++_started, Completer<void>.new);
     try {

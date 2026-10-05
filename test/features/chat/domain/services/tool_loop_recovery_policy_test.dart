@@ -181,7 +181,7 @@ void main() {
         isWriteGitCommandToolCall: (toolCall) =>
             toolCall.name == 'git_execute_command',
       ),
-      isTrue,
+      isFalse,
     );
   });
 
@@ -249,7 +249,9 @@ void main() {
 
     expect(prompt, contains('Pending tool calls at the limit: edit_file.'));
     expect(prompt, contains('old_text did not match the current file'));
-    expect(prompt, contains('Do not call read_file again'));
+    expect(prompt, contains('Copy old_text from the inspected range'));
+    expect(prompt, contains('read that missing range with offset and limit'));
+    expect(prompt, isNot(contains('Do not call read_file again')));
   });
 
   test('records only unseen pending tool calls as unexecuted', () {

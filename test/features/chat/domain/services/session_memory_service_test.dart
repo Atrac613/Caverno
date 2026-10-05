@@ -125,6 +125,30 @@ class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
 }
 
 void main() {
+  test(
+    'obsolete extraction is rejected inside the atomic storage gate',
+    () async {
+      final repository = _InMemoryChatMemoryRepository();
+      final result = await SessionMemoryService(repository)
+          .updateFromConversation(
+            conversationId: 'obsolete',
+            messages: [
+              Message(
+                id: 'user',
+                role: MessageRole.user,
+                content: 'Review changes.',
+                timestamp: DateTime(2026),
+              ),
+            ],
+            isCurrent: () => false,
+          );
+      expect(result.hasAnyUpdate, isFalse);
+      expect(repository.atomicMutationCount, 1);
+      expect(repository.summaries, isEmpty);
+      expect(repository.memories, isEmpty);
+    },
+  );
+
   for (final raw in [
     '',
     '{"summary":"Completed task.","open_loops":[],"profile":{},"memories":[]}',

@@ -165,7 +165,8 @@ void main() {
       expect(read.hasPendingFileMutation, isFalse);
       expect(read.hasPendingWriteGitCommand, isFalse);
       expect(read.hasPendingUserQuestion, isFalse);
-      expect(_policy.shouldRequestRecovery(read), isTrue);
+      expect(read.hasPendingFileRead, isTrue);
+      expect(_policy.shouldRequestRecovery(read), isFalse);
 
       expect(derive(const []).hasPendingToolCalls, isFalse);
       expect(
@@ -204,5 +205,21 @@ void main() {
       expect(input.hasPendingCommandExecution, isTrue);
       expect(_policy.shouldRequestRecovery(input), isFalse);
     });
+
+    test(
+      'retains a requested fresh range instead of replaying old context',
+      () {
+        final input = derive([
+          call('read_file', {'path': 'source.py', 'offset': 190, 'limit': 100}),
+          call('search_files', {'query': 'query_interval'}),
+        ]);
+        expect(input.hasPendingFileRead, isTrue);
+        expect(_policy.shouldRequestRecovery(input), isFalse);
+        expect(
+          _policy.shouldRequestRecovery(derive([call('search_files')])),
+          isTrue,
+        );
+      },
+    );
   });
 }

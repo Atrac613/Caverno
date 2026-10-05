@@ -4,6 +4,7 @@ import '../entities/message.dart';
 import '../entities/session_memory.dart';
 import '../entities/tool_call_info.dart';
 import 'memory_extraction_json_parser.dart';
+import 'project_task_review_verdict.dart';
 import 'project_task_terminal_status.dart';
 import 'session_memory_service.dart';
 import 'tool_result_prompt_builder.dart';
@@ -173,6 +174,16 @@ class MemoryExtractionDraftService {
       ..writeln('Conversation log:');
 
     final taskStatus = ProjectTaskTerminalStatus.fromToolResults(toolResults);
+    final review = ProjectTaskReviewVerdict.fromToolResults(toolResults);
+    if (review != null) {
+      final verdict = jsonDecode(review.toMemoryToolResult('snapshot').result);
+      buffer
+        ..writeln('Recorded project review status: ${jsonEncode(verdict)}')
+        ..writeln(
+          'Use this harness verdict for review status and open loops. '
+          'A clean review does not establish a completed commit.',
+        );
+    }
     if (taskStatus != null) {
       buffer
         ..writeln(
@@ -318,6 +329,7 @@ class MemoryExtractionDraftService {
     String rawContent, {
     String? inputContext,
     ProjectTaskTerminalStatus? projectTaskStatus,
+    ProjectTaskReviewVerdict? projectReviewStatus,
     void Function(String message)? onRepair,
     void Function(Object error)? onError,
   }) {
@@ -326,6 +338,24 @@ class MemoryExtractionDraftService {
         draft,
         inputContext: inputContext,
       );
+      if (projectReviewStatus != null) {
+        return MemoryExtractionDraft(
+          summary: projectReviewStatus.memorySummary,
+          openLoops: [projectReviewStatus.memoryNextStep],
+          persona: guarded?.persona ?? const [],
+          preferences: guarded?.preferences ?? const [],
+          doNot: guarded?.doNot ?? const [],
+          entries: (guarded?.entries ?? const <MemoryDraftEntry>[])
+              .where(
+                (entry) => const {
+                  'persona',
+                  'preference',
+                  'constraint',
+                }.contains(entry.type),
+              )
+              .toList(growable: false),
+        );
+      }
       if (projectTaskStatus == null || !projectTaskStatus.requiresMemoryGuard) {
         return guarded;
       }

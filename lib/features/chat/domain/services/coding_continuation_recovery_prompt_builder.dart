@@ -1,4 +1,5 @@
 import '../entities/tool_call_info.dart';
+import 'reconciled_command_failure.dart';
 import 'tool_call_execution_policy.dart';
 
 /// Keeps completed progress intact while requesting the next executable action.
@@ -25,7 +26,7 @@ final class CodingContinuationRecoveryPromptBuilder {
       return [
         lead,
         progressNotice,
-        'Do not restart the task or re-run commands that already completed successfully.',
+        'Do not restart the task. Reuse settled verification unless later changes require a fresh run.',
         'Use the available tools now to investigate and resolve only the unresolved failure above, then report the final status.',
         'Do not restate the plan and do not answer with future-tense prose.',
         'Previous response: $responsePreview',
@@ -45,34 +46,23 @@ final class CodingContinuationRecoveryPromptBuilder {
     if (executedToolResults.isEmpty) {
       return null;
     }
-    final hasTimeout = executedToolResults.any(
-      _executionPolicy.toolResultTimedOut,
-    );
-    final hasFailedExit = _toolResultsContainFailedCommandValidation(
-      executedToolResults,
-    );
-    if (!hasTimeout && !hasFailedExit) {
+    final current = ReconciledCommandFailure.current(executedToolResults);
+    final hasTimeout = current.any(_executionPolicy.toolResultTimedOut);
+    final hasFailedExit = current.any(_executionPolicy.toolResultHasFailedExit);
+    final hasOtherFailure = current.any(ReconciledCommandFailure.failed);
+    if (!hasTimeout && !hasOtherFailure) {
       return null;
     }
     final problems = <String>[
       if (hasTimeout) 'a command timed out before completing',
       if (hasFailedExit) 'a command exited with a non-zero status',
+      if (hasOtherFailure && !hasFailedExit)
+        'a command reported verification failures',
     ];
     final progressClause =
         executedToolResults.any(_executionPolicy.toolResultHasSuccessfulExit)
         ? 'Some commands in this turn already completed successfully, but '
         : 'In this turn, ';
     return '$progressClause${problems.join(' and ')}.';
-  }
-
-  bool _toolResultsContainFailedCommandValidation(
-    List<ToolResultInfo> toolResults,
-  ) {
-    return toolResults.any((toolResult) {
-      if (!_executionPolicy.isCommandExecutionTool(toolResult.name)) {
-        return false;
-      }
-      return _executionPolicy.toolResultHasFailedExit(toolResult);
-    });
   }
 }

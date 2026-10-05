@@ -848,7 +848,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
           dataSource.toolResultRequestMessages[1].last.content;
       expect(
         recoveryPrompt,
-        contains('Do not restart the task or re-run commands'),
+        contains('Do not restart the task. Reuse settled verification'),
       );
       expect(
         recoveryPrompt,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:crypto/crypto.dart';
 
 import '../../data/datasources/filesystem_path_resolver.dart';
 import '../../data/datasources/git_tools.dart';
@@ -128,6 +129,7 @@ final class RecentReadResultCarry {
       }
       final call = _callFor(result);
       if (_executionPolicy.isFileMutationToolCall(call)) {
+        if (_unchangedEditSnapshot(executedToolResults, index)) continue;
         // A file tool names what it wrote, so only reads of that path are
         // known stale. Dropping everything older made a release turn lose the
         // latest tag and the commit list the moment it bumped pubspec.yaml,
@@ -190,9 +192,12 @@ final class RecentReadResultCarry {
       // that did not fit dropped every older one with it, however small. In
       // session e3a9f3f0 a 6.5 KB file read took the 178 B `git status` and
       // the 1.3 KB diff down, and the review re-ran both on the next loop.
-      if (bytes > remaining) continue;
-      remaining -= bytes;
-      carried.add((result, List<String>.unmodifiable(laterWrites)));
+      final retained = bytes <= remaining
+          ? result
+          : _boundedRead(result, remaining);
+      if (retained == null) continue;
+      remaining -= utf8.encode(retained.result).length;
+      carried.add((retained, List<String>.unmodifiable(laterWrites)));
     }
     if (carried.isEmpty) return resolved;
     return <ToolResultInfo>[
@@ -200,6 +205,92 @@ final class RecentReadResultCarry {
         _asHistory(result, changesSinceCapture: changes),
       ...resolved,
     ];
+  }
+
+  bool _unchangedEditSnapshot(List<ToolResultInfo> results, int index) {
+    final edit = results[index];
+    if (edit.name != 'edit_file' ||
+        edit.outcome?.effectiveFileChanged == true) {
+      return false;
+    }
+    final payload = _executionPolicy.tryDecodeMap(edit.result);
+    if (payload?['error'] != 'old_text was not found in the target file' &&
+        payload?['changed'] != false &&
+        payload?['already_applied'] != true) {
+      return false;
+    }
+    final digest = payload?['content_sha256'];
+    final target = _pathOf(edit);
+    if (digest is! String || target == null) return false;
+    for (final previous in results.take(index).toList().reversed) {
+      if (ToolResultOrigin.fromPayload(
+            _executionPolicy.tryDecodeMap(previous.result),
+          ) !=
+          null) {
+        continue;
+      }
+      final call = _callFor(previous);
+      if (_executionPolicy.isCommandExecutionTool(previous.name) &&
+          !_executionPolicy.isReadOnlyCommandExecutionToolCall(call) &&
+          !_executionPolicy.isRepeatableBackgroundProcessInspectionTool(call)) {
+        return false;
+      }
+      if (_executionPolicy.isFileMutationToolCall(call) &&
+          (_pathOf(previous) == null || _pathOf(previous) == target)) {
+        return false;
+      }
+      if (previous.name != 'read_file' || _pathOf(previous) != target) continue;
+      final read = _executionPolicy.tryDecodeMap(previous.result);
+      final content = read?['content'];
+      if (content is! String ||
+          read?['truncated'] == true ||
+          read?['content_truncated'] == true ||
+          (read?['offset'] ?? previous.arguments['offset'] ?? 1) != 1) {
+        continue;
+      }
+      return sha256.convert(utf8.encode(content)).toString() == digest;
+    }
+    return false;
+  }
+
+  /// Keep an exact prefix with explicit range metadata instead of losing a
+  /// whole source file when the remaining carry budget is slightly smaller.
+  ToolResultInfo? _boundedRead(ToolResultInfo result, int budget) {
+    if (result.name != 'read_file' || budget < 1024) return null;
+    final payload = _executionPolicy.tryDecodeMap(result.result);
+    final content = payload?['content'];
+    if (payload == null || content is! String || payload['error'] != null) {
+      return null;
+    }
+    final lines = content.split('\n');
+    final start = payload['offset'] ?? result.arguments['offset'] ?? 1;
+    if (start is! int || start < 1) return null;
+    ToolResultInfo? retained;
+    var low = 1;
+    var high = lines.length - 1;
+    while (low <= high) {
+      final count = (low + high) ~/ 2;
+      final body = jsonEncode({
+        ...payload,
+        'content': lines.take(count).join('\n'),
+        'offset': start,
+        'line_count': count,
+        'truncated': true,
+        'content_truncated': true,
+        'read_more_hint': {
+          'path': payload['path'] ?? result.arguments['path'],
+          'offset': start + count,
+          'limit': 60,
+        },
+      });
+      if (utf8.encode(body).length <= budget) {
+        retained = result.withResult(body);
+        low = count + 1;
+      } else {
+        high = count - 1;
+      }
+    }
+    return retained;
   }
 
   /// Marks a result as re-sent rather than newly arrived, so the request
