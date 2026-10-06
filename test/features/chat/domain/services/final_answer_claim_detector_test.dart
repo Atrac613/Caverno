@@ -9,6 +9,82 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const detector = FinalAnswerClaimDetector();
 
+  for (final marker in [
+    'PROJECT_TASK_REVIEW_CLEAN',
+    'PROJECT_TASK_REVIEW_FINDINGS',
+  ]) {
+    test('requires current file inspection for Farm marker $marker', () {
+      for (final results in <List<ToolResultInfo>>[
+        [],
+        [_result('read_file', '{"ok":false,"error":"missing"}')],
+        [_result('git_execute_command', '{"exit_code":0,"stdout":"patch"}')],
+        [_result('list_directory', '{"entries":[]}')],
+        [_result('search_web', '{"results":[{"title":"Clamp"}]}')],
+      ]) {
+        final guarded = detector
+            .buildUnverifiedReadOnlyInspectionClaimToolResult(
+              candidateResponse: 'No findings.\n$marker',
+              toolResults: results,
+            );
+        expect(guarded, isNotNull);
+        expect(
+          jsonDecode(guarded!.result)['code'],
+          'unverified_read_only_inspection_claim',
+        );
+      }
+      for (final tool in ['read_file', 'inspect_file']) {
+        expect(
+          detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+            candidateResponse: 'No findings.\n$marker',
+            toolResults: [
+              _result(tool, '{"path":"fixture.py","content":"code"}'),
+            ],
+          ),
+          isNull,
+        );
+      }
+    });
+  }
+
+  test(
+    'Farm completion requires every target from current successful reads',
+    () {
+      ToolResultInfo read(
+        String path, {
+        bool failed = false,
+        bool historical = false,
+        bool stale = false,
+      }) => ToolResultInfo(
+        id: path,
+        name: 'read_file',
+        arguments: {'path': path},
+        result: failed ? '{"ok":false,"error":"denied"}' : '{"content":"code"}',
+        fromEarlierLoop: historical,
+        changesSinceCapture: stale ? ['write_file /repo/b.py'] : const [],
+      );
+      for (final results in [
+        [read('/repo/a.py')],
+        [read('/repo/a.py'), read('/repo/b.py', failed: true)],
+        [read('/repo/a.py'), read('/repo/b.py', historical: true)],
+        [read('/repo/a.py'), read('/repo/b.py', stale: true)],
+        [read('/repo/a.py'), read('/repo/b.py')],
+      ]) {
+        final guard = detector.buildUnverifiedReadOnlyInspectionClaimToolResult(
+          candidateResponse: 'No findings.\nPROJECT_TASK_REVIEW_CLEAN',
+          toolResults: results,
+          requiredFilePaths: ['/repo/a.py', '/repo/b.py'],
+        );
+        expect(
+          guard == null,
+          results.length == 2 &&
+              !results.last.fromEarlierLoop &&
+              results.last.changesSinceCapture.isEmpty &&
+              !results.last.result.contains('denied'),
+        );
+      }
+    },
+  );
+
   for (final exitCode in <int?>[null, 1, 0]) {
     test('delegated command evidence uses observed exit code $exitCode', () {
       final result = ToolResultInfo(

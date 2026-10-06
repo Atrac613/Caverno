@@ -159,6 +159,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async {
     startOwners.add(owner);
     startCalls.add({
@@ -181,6 +182,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async => FirstPartyToolExecutionResult.payloadOnly(
     await start(
       owner: owner,
@@ -1208,14 +1210,17 @@ void main() {
       // prompt prefix. Updated when read_file gained start_page / next_page
       // for long PDFs and inspect_file began sampling ends instead of the
       // whole document, and again when search_files' `query` began saying it
-      // is literal text rather than a regular expression. A description edit
+      // is literal text rather than a regular expression, and when find_files
+      // began stating its matching, exclusion and result contract, and when
+      // search_files' `query` began honoring a leading "^" / trailing "$" as a
+      // line anchor. A description edit
       // moves the prefix once and then holds; a per-request edit would not,
       // which is what this pin is here to catch.
       expect(
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-        '76f7b1abee8d26b33e01915cfdeff32e6a340566a4cf8c55ed0390e43fa8e3a8',
+        'c1fbc5951af3ca55e90f00ff623ef78b0e9ca9d5252c8d80df7e48adcacd7fc1',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(
@@ -1423,10 +1428,9 @@ void main() {
         sha256
             .convert(utf8.encode(jsonEncode(localCommandDefinitions)))
             .toString(),
-        // Changed deliberately: process_wait documents the clamp (now
-        // 15000-120000) and tells the model to watch a multi-minute build in a
-        // handful of long waits rather than dozens of short ones.
-        '9930b97a9e6a53697a9d846fb7625d9984954ed5f5c3598b9e2d3b0512e1b87b',
+        // Changed deliberately: command tools describe enforced workspace
+        // authority and expose an explicit fresh-approval host route.
+        'daf073bf9bb28f970c013d8fd686ab2ed26d197edbac68d1d1f24ac3fc262452',
       );
 
       final localCommandStart = names.indexOf(_localCommandToolNames.first);

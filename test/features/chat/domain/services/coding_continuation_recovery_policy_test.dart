@@ -24,6 +24,8 @@ CodingContinuationRecoveryInput _input({
   bool saveSkillCompletedInGeneration = false,
   bool acceptsTerminalToolRoleBlockerResponse = false,
   String? bracketedToolRequestName,
+  bool isProjectTaskTurn = false,
+  bool reasoningOnlyRecoveryUsed = false,
 }) {
   return CodingContinuationRecoveryInput(
     candidateResponse: candidateResponse,
@@ -36,6 +38,8 @@ CodingContinuationRecoveryInput _input({
     acceptsTerminalToolRoleBlockerResponse:
         acceptsTerminalToolRoleBlockerResponse,
     bracketedToolRequestName: bracketedToolRequestName,
+    isProjectTaskTurn: isProjectTaskTurn,
+    reasoningOnlyRecoveryUsed: reasoningOnlyRecoveryUsed,
   );
 }
 
@@ -55,6 +59,82 @@ ToolResultInfo _result({
 }
 
 void main() {
+  group('reasoning-only stop', () {
+    // Session 78578870: a subtask turn ended inside <think> twice while
+    // drafting edits, and the loop took it as the turn's end.
+    const reasoningOnly =
+        '<think>Now I will edit watcher.py, then mercari.py.</think>';
+
+    test('recovers once, on project-task turns too', () {
+      expect(
+        _policy.recoveryCode(
+          _input(candidateResponse: reasoningOnly, isProjectTaskTurn: true),
+        ),
+        'reasoning_only_stop',
+      );
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: reasoningOnly,
+            reasoningOnlyRecoveryUsed: true,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('needs reasoning and an empty visible answer', () {
+      expect(_policy.recoveryCode(_input(candidateResponse: '')), isNull);
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: '<think>Done.</think>All tests pass.',
+            requireContinuationRequest: false,
+          ),
+        ),
+        isNot('reasoning_only_stop'),
+      );
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: reasoningOnly,
+            isCodingWorkspaceOrMode: false,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('project-task turns still skip prose recovery', () {
+      expect(
+        _policy.recoveryCode(
+          _input(
+            candidateResponse: 'I will inspect the Dart source.',
+            requireContinuationRequest: false,
+            isProjectTaskTurn: true,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('names the stop in its prompt and result', () {
+      final prompt = _policy.buildCodingContinuationRecoveryPrompt(
+        reasoningOnly,
+        recoveryCode: 'reasoning_only_stop',
+      );
+      expect(prompt, contains('contained only reasoning'));
+      expect(
+        _policy.recoveryLogLabel('reasoning_only_stop'),
+        'reasoning-only stop recovery',
+      );
+      expect(
+        _policy.recoveryLogLabel('anything else'),
+        'prose-only coding continuation recovery',
+      );
+    });
+  });
+
   group('CodingContinuationRecoveryInput', () {
     test('freezes the supplied tool definition list and entries', () {
       final definition = _toolDefinition('read_file');
@@ -126,6 +206,52 @@ void main() {
   });
 
   group('recoveryCode', () {
+    test('localized promises do not authorize continuation', () {
+      for (final response in [
+        'watcher.py needs another edit. Let me make the fixes:',
+        'The task remains incomplete.\n- Implement notifier.py.',
+        'The implementation is complete.\nUnexecuted verification command:\n.venv/bin/python -m pytest',
+        '`test_watcher.py` \u306b\u30d1\u30e9\u30e1\u30fc\u30bf\u3092\u8ffd\u52a0\u3057\u307e\u3059\u3002',
+      ]) {
+        expect(
+          _policy.recoveryCode(
+            _input(
+              candidateResponse: response,
+              owningTurnLatestUserText: 'Implement retry.',
+              requireContinuationRequest: false,
+            ),
+          ),
+          isNull,
+        );
+      }
+    });
+
+    test('judges the visible promise after a long thinking block', () {
+      final candidate =
+          '<think>${'The code is updated, but I cannot stop yet. ' * 800}'
+          '</think>I will implement the remaining Python code and tests.';
+      expect(
+        _policy.recoveryCode(_input(candidateResponse: candidate)),
+        'prose_only_coding_continuation',
+      );
+      expect(_policy.looksLikeProseOnlyCodingContinuation(candidate), isTrue);
+    });
+
+    test('ignores coding promises confined to thinking', () {
+      for (final response in [
+        '<think>I will implement the Python code.</think>'
+            'The Python code was implemented and tested.',
+        '<think>\u30b3\u30fc\u30c9\u3092\u4fee\u6b63\u3057\u307e\u3059\u3002</think>'
+            '\u30b3\u30fc\u30c9\u3092\u4fee\u6b63\u3057\u307e\u3057\u305f\u3002',
+      ]) {
+        expect(
+          _policy.recoveryCode(_input(candidateResponse: response)),
+          isNull,
+        );
+        expect(_policy.looksLikeProseOnlyCodingContinuation(response), isFalse);
+      }
+    });
+
     test('returns no recovery for each terminal precondition', () {
       expect(_policy.recoveryCode(_input(candidateResponse: '  ')), isNull);
       expect(
@@ -266,6 +392,30 @@ void main() {
     });
   });
 
+  test('detects visible delegation promises without reading reasoning', () {
+    expect(
+      _policy.looksLikeUnexecutedDelegation(
+        '<think>I will delegate this task.</think>\n'
+        '**タスク6を委任します。**',
+      ),
+      isTrue,
+    );
+    expect(
+      _policy.looksLikeUnexecutedDelegation(
+        '<think>I will delegate this task.</think>\n'
+        'Task 6 has not been delegated.',
+      ),
+      isFalse,
+    );
+    expect(
+      _policy.buildCodingContinuationRecoveryPrompt(
+        'タスク6を委任します。',
+        recoveryCode: 'unexecuted_delegation',
+      ),
+      contains('Call spawn_subagent now'),
+    );
+  });
+
   group('tool availability', () {
     test('recognizes every supported tool name after normalization', () {
       const supportedNames = {
@@ -380,6 +530,41 @@ void main() {
       );
     });
 
+    test('reads only future forms of check as a continuation', () {
+      // Session 4ceebb57: a finished report that asked the user to verify the
+      // upload was sent back to work because the bare stem matched it.
+      const script = [0x30b9, 0x30af, 0x30ea, 0x30d7, 0x30c8];
+      const check = [0x78ba, 0x8a8d, 0x3057];
+      String reportWith(List<int> ending) =>
+          String.fromCharCodes([...script, 0x3092, ...check, ...ending]);
+
+      // Imperative to the user ("please check") and past ("checked").
+      expect(
+        _policy.looksLikeProseOnlyCodingContinuation(
+          reportWith(const [0x3066, 0x304f, 0x3060, 0x3055, 0x3044]),
+        ),
+        isFalse,
+      );
+      expect(
+        _policy.looksLikeProseOnlyCodingContinuation(
+          reportWith(const [0x307e, 0x3057, 0x305f]),
+        ),
+        isFalse,
+      );
+      // Plain future, and the progressive and tentative futures.
+      for (final ending in const [
+        [0x307e, 0x3059],
+        [0x3066, 0x3044, 0x304d, 0x307e, 0x3059],
+        [0x3066, 0x307f, 0x307e, 0x3059],
+      ]) {
+        expect(
+          _policy.looksLikeProseOnlyCodingContinuation(reportWith(ending)),
+          isTrue,
+          reason: String.fromCharCodes(ending),
+        );
+      }
+    });
+
     test('rejects empty, blocked, incomplete, and oversized prose', () {
       expect(_policy.looksLikeProseOnlyCodingContinuation(''), isFalse);
       expect(
@@ -462,6 +647,14 @@ void main() {
   group('recovery payload copy', () {
     test('preserves every recovery-code label and payload', () {
       const expectations = {
+        'structured_coding_task_status': {
+          'label': 'structured coding task status recovery',
+          'reason':
+              'The project task has no terminal structured goal acknowledgement.',
+          'error': 'The project task needs a structured goal status report.',
+          'action':
+              'Call update_goal with a JSON boolean completed value, using the captured execution evidence.',
+        },
         'length_truncated_pending_action': {
           'label': 'length-truncated pending action recovery',
           'reason':
@@ -574,7 +767,7 @@ void main() {
       expect(
         prompt,
         contains(
-          'Do not restart the task or re-run commands that already completed successfully.',
+          'Do not restart the task. Reuse settled verification unless later changes require a fresh run.',
         ),
       );
       expect(prompt, isNot(contains('Treat that response as unexecuted.')));

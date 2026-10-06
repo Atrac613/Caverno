@@ -293,23 +293,25 @@ class LocalCommandApprovalSheet extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => Navigator.pop(
-                          context,
-                          const LocalCommandApproval(
-                            approved: true,
-                            rememberedRuleAction:
-                                LocalCommandPermissionAction.allow,
-                            rememberedRuleMatch:
-                                LocalCommandPermissionMatch.exact,
+                    if (pending.canRememberAllow) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.pop(
+                            context,
+                            const LocalCommandApproval(
+                              approved: true,
+                              rememberedRuleAction:
+                                  LocalCommandPermissionAction.allow,
+                              rememberedRuleMatch:
+                                  LocalCommandPermissionMatch.exact,
+                            ),
                           ),
+                          icon: const Icon(Icons.verified_user_outlined),
+                          label: const Text('Always Allow'),
                         ),
-                        icon: const Icon(Icons.verified_user_outlined),
-                        label: const Text('Always Allow'),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),

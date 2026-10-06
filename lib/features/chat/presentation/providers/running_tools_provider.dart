@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/services/running_tool_tracker.dart';
+import '../../domain/services/tool_work_timer.dart';
+import 'conversation_work_time_providers.dart';
 
 /// Which tools each thread's turn is running right now, keyed by conversation.
 ///
@@ -15,6 +17,13 @@ final runningToolsProvider =
     );
 
 class RunningToolsNotifier extends Notifier<Map<String, List<String>>> {
+  /// Times the same transitions for the conversation's work time totals.
+  /// Fed from here because this is the one place every tool's lifecycle
+  /// already arrives with its conversation attached.
+  late final ToolWorkTimer _timer = ToolWorkTimer(
+    approvals: ref.read(approvalWaitLedgerProvider),
+  );
+
   @override
   Map<String, List<String>> build() => const <String, List<String>>{};
 
@@ -29,6 +38,12 @@ class RunningToolsNotifier extends Notifier<Map<String, List<String>>> {
   /// the tool to, which happens on teardown races; there is nothing to record.
   void track(String? conversationId, String toolName, String lifecycleState) {
     if (conversationId == null) return;
+    _timer.track(
+      conversationId,
+      toolName,
+      lifecycleState,
+      sink: ref.read(conversationWorkTimeStoreProvider),
+    );
     final current = state[conversationId] ?? const <String>[];
     final next = RunningToolTracker.next(
       current,
@@ -51,6 +66,10 @@ class RunningToolsNotifier extends Notifier<Map<String, List<String>>> {
   /// without this the name would outlive the turn and the status row would
   /// keep announcing it.
   void clear(String conversationId) {
+    _timer.clear(
+      conversationId,
+      sink: ref.read(conversationWorkTimeStoreProvider),
+    );
     if (!state.containsKey(conversationId)) return;
     state = {...state}..remove(conversationId);
   }

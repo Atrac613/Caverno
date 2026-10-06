@@ -8,7 +8,7 @@ import 'package:flutter/widgets.dart';
 /// positives during transient states like the app switcher or Control Center.
 /// macOS also treats inactive and hidden states as background because users can
 /// leave the app running while another app has focus or the window is hidden.
-class AppLifecycleService with WidgetsBindingObserver {
+class AppLifecycleService extends ChangeNotifier with WidgetsBindingObserver {
   AppLifecycleService({DateTime Function() clock = DateTime.now})
     : _clock = clock {
     WidgetsBinding.instance.addObserver(this);
@@ -28,6 +28,7 @@ class AppLifecycleService with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasInBackground = _isInBackground;
     final inBackground =
         state == AppLifecycleState.paused ||
         (Platform.isMacOS &&
@@ -39,9 +40,12 @@ class AppLifecycleService with WidgetsBindingObserver {
       _backgroundSince = null;
     }
     _isInBackground = inBackground;
+    if (wasInBackground != inBackground) notifyListeners();
   }
 
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 }

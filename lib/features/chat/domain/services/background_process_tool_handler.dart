@@ -7,8 +7,8 @@ import 'background_process_result_ledger.dart';
 import 'background_process_start_contract.dart';
 import 'background_process_tool_contract.dart';
 import 'background_process_tool_results.dart';
+import 'local_command_execution_plan.dart';
 import 'local_command_tool_handler.dart';
-import 'out_of_root_command_paths.dart';
 import 'process_start_result_policy.dart';
 
 export 'background_process_tool_contract.dart';
@@ -90,18 +90,18 @@ final class BackgroundProcessToolHandler {
       return _results.outsideProject(request.toolName);
     }
 
-    final execution = LocalCommandExecutionRequest(
-      toolCallId: request.toolCallId,
-      toolName: request.toolName,
+    final plan = LocalCommandExecutionPlan.create(
+      request: LocalCommandToolRequest(
+        owner: request.owner,
+        toolCallId: request.toolCallId,
+        toolName: request.toolName,
+        allowedWorkingDirectoryRoot: request.allowedWorkingDirectoryRoot,
+        arguments: request.arguments,
+      ),
       command: command,
       workingDirectory: workingDirectory,
-      arguments: {
-        ...request.arguments,
-        'command': command,
-        'working_directory': workingDirectory,
-        'allowed_read_root': request.allowedWorkingDirectoryRoot,
-      },
     );
+    final execution = plan.execution;
     final permission = _permissionRuleStorePort.evaluate(
       request.owner,
       CommandPermissionRuleRequest(
@@ -109,13 +109,7 @@ final class BackgroundProcessToolHandler {
         workingDirectory: workingDirectory,
       ),
     );
-    final approvalScope = LocalCommandApprovalScope.of(
-      command: command,
-      projectRoot: request.allowedWorkingDirectoryRoot,
-      reachesNativeShell: true,
-      commandShapeRequiresApproval:
-          LocalCommandPermissionService.requiresExplicitApproval,
-    );
+    final approvalScope = plan.approvalScope;
     final requiresExplicit = approvalScope.requiresExplicitApproval;
     if (permission == CommandPermissionRuleDecision.deny) {
       return _results.failure(
@@ -126,6 +120,7 @@ final class BackgroundProcessToolHandler {
     if (_ledger.isExpired(request)) return _results.expired(request.toolName);
     if (!request.isRemoteInteraction &&
         permission == CommandPermissionRuleDecision.allow &&
+        !approvalScope.workspaceCommandContained &&
         !requiresExplicit) {
       return _executeStart(request, execution, dispatchedAt);
     }

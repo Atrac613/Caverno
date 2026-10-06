@@ -10,6 +10,7 @@ final class ModelMetadataParser {
     'maxContextLength',
     'max_model_len',
     'maxModelLen',
+    'max_input_tokens',
     'num_ctx',
     'numCtx',
     'n_ctx',

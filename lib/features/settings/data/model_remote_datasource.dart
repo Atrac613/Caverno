@@ -77,7 +77,8 @@ class ModelRemoteDataSource {
       );
     }
 
-    if (!isNvidiaNimCloud) {
+    if (!isNvidiaNimCloud &&
+        Uri.tryParse(_baseUrl)?.host.toLowerCase() != 'api.anthropic.com') {
       if (catalog.isEmpty) {
         catalog = await loadLmStudioCatalog();
       } else if (_needsSelectedContextMetadata(catalog, selectedModel)) {
@@ -860,10 +861,15 @@ class ModelRemoteDataSource {
 
   Uri _modelsUri() {
     final normalized = _stripTrailingSlash(_baseUrl);
-    if (normalized.endsWith('/models')) {
-      return Uri.parse(normalized);
+    final endpoint = normalized.endsWith('/models')
+        ? normalized
+        : '$normalized/models';
+    if (Uri.tryParse(normalized)?.host.toLowerCase() == 'api.anthropic.com') {
+      return Uri.parse(endpoint).replace(
+        queryParameters: const {'limit': '1000'},
+      );
     }
-    return Uri.parse('$normalized/models');
+    return Uri.parse(endpoint);
   }
 
   Uri _lmStudioModelsUri() {
@@ -949,6 +955,11 @@ class ModelRemoteDataSource {
     final apiKey = _apiKey.trim();
     if (apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer $apiKey';
+    }
+    if (Uri.tryParse(_baseUrl)?.host.toLowerCase() == 'api.anthropic.com') {
+      headers.remove('Authorization');
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = ApiConstants.anthropicApiVersion;
     }
     return headers;
   }

@@ -8,9 +8,11 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_tool_contract.dart';
+import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_finalization_state_registry.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_goal_completion_evidence_registry.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -443,6 +445,120 @@ void main() {
       expect(finalClaim, isFalse);
     },
   );
+
+  for (final policy in [
+    GoalCompletionPolicy.toolOrAsk,
+    GoalCompletionPolicy.ask,
+  ]) {
+    for (final reportAgain in [false, true]) {
+      test('finalizer requires a new completion after rejection '
+          '(policy: ${policy.name}, reportAgain: $reportAgain)', () async {
+        final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();
+        final finalizationState = TurnFinalizationStateRegistry();
+        final goalStore = _GoalStore();
+        final timestamp = DateTime.utc(2026, 10, 3);
+        final conversation = Conversation(
+          id: owner.conversationId,
+          title: 'Fixture project task',
+          messages: const [],
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          goal: ConversationGoal(
+            id: 'goal-a',
+            objective: 'Verify the inherited implementation',
+            projectTaskAutoReview: true,
+            projectTaskInheritedPaths: const ['/workspace/source.py'],
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          ),
+        );
+        final verification = ToolResultInfo(
+          id: 'passed-after-rejection',
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'python3 verify.py',
+            'working_directory': '/workspace',
+          },
+          result: '{"exit_code":0,"stdout":"Verification passed."}',
+          outcome: const ToolOutcome(exitCode: 0),
+        );
+        bool? completionClaimed;
+        ProjectTaskTerminalStatus? terminalStatus;
+        expect(evidenceRegistry.begin(owner), isTrue);
+        evidenceRegistry.replaceWithToolResults(owner, [verification]);
+        expect(finalizationState.begin(owner), isTrue);
+        void record(String id, GoalUpdateAckOutcome outcome) {
+          final request = GoalUpdateToolRequest(
+            owner: owner,
+            toolCallId: id,
+            toolName: canonicalGoalUpdateToolName,
+            arguments: const {'completed': true},
+          );
+          expect(
+            finalizationState.recordGoalAcknowledgement(
+              owner,
+              GoalUpdateCompletionAcknowledgement.fromRequest(
+                request: request,
+                outcome: outcome,
+                completionPolicy: policy,
+              ),
+            ),
+            isTrue,
+          );
+        }
+
+        record('rejected', GoalUpdateAckOutcome.completionRejected);
+        if (reportAgain) {
+          record(
+            'reported-after-verification',
+            policy == GoalCompletionPolicy.ask
+                ? GoalUpdateAckOutcome.confirmationRequired
+                : GoalUpdateAckOutcome.completionRecorded,
+          );
+        }
+        await TurnGoalCompletionFinalizer(
+          goalStore: goalStore,
+          recordGoalTurn:
+              ({
+                required assistantResponse,
+                required tokenUsageDelta,
+                required completionEvidence,
+                required toolCompletionClaimed,
+                required conversationId,
+              }) async {
+                completionClaimed = toolCompletionClaimed;
+              },
+        ).finalize(
+          owner: owner,
+          evidenceRegistry: evidenceRegistry,
+          finalizationState: finalizationState,
+          completedToolResults: [verification],
+          contentToolResults: const [],
+          conversation: conversation,
+          assistantResponse: 'Ready.\nPROJECT_TASK_READY_FOR_REVIEW',
+          tokenUsageDelta: 0,
+          projectTaskImplementation: true,
+          onProjectTaskStatus: (status) => terminalStatus = status,
+        );
+        expect(
+          completionClaimed,
+          reportAgain && policy == GoalCompletionPolicy.toolOrAsk,
+        );
+        if (!reportAgain) {
+          expect(
+            terminalStatus!.outcome,
+            GoalUpdateAckOutcome.completionRejected,
+          );
+          expect(terminalStatus!.gaps, contains(contains('update_goal')));
+          expect(goalStore.status, isNull);
+        } else if (policy == GoalCompletionPolicy.ask) {
+          expect(goalStore.status, ConversationGoalStatus.awaitingConfirmation);
+        } else {
+          expect(terminalStatus!.completionAccepted, isTrue);
+        }
+      });
+    }
+  }
 
   test('finalizer records turns without an active goal as a no-op', () async {
     final evidenceRegistry = TurnGoalCompletionEvidenceRegistry();

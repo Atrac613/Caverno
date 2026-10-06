@@ -105,15 +105,18 @@ abstract final class McpGoalRoutineToolDefinitions {
           'the evidence is rejected rather than silently believed. Use message '
           'to log progress, or blocked_reason only when genuinely stuck. Do '
           'not restate completion in prose instead of calling this — prose is '
-          'not how the goal is finished.',
+          'not how the goal is finished. completed is required on every call '
+          'and must be a JSON boolean literal, never a quoted string.',
       'parameters': {
         'type': 'object',
         'properties': {
           'completed': {
             'type': 'boolean',
             'description':
-                'Set true ONLY when the goal is fully achieved. The harness '
-                'verifies against tool results and may reject the claim.',
+                'Required JSON boolean. Set true ONLY when the goal is fully '
+                'achieved; otherwise set false. Never send "true", "false", '
+                '"True", or "False" as a string. The harness verifies true '
+                'against tool results and may reject the claim.',
           },
           'message': {
             'type': 'string',
@@ -128,6 +131,8 @@ abstract final class McpGoalRoutineToolDefinitions {
                 'success text here.',
           },
         },
+        'required': ['completed'],
+        'additionalProperties': false,
       },
     },
   };

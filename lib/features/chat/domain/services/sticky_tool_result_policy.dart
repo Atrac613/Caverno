@@ -1,4 +1,5 @@
 import '../entities/tool_call_info.dart';
+import 'sticky_tool_content.dart';
 import 'tool_call_execution_policy.dart';
 
 /// Decides which earlier tool results a follow-up request has to carry again.
@@ -20,8 +21,6 @@ final class StickyToolResultPolicy {
 
   final ToolCallExecutionPolicy _executionPolicy;
 
-  static const Set<String> stickyToolNames = {'ask_user_question', 'load_skill'};
-
   List<ToolResultInfo> resolve({
     required List<ToolResultInfo> batchToolResults,
     required List<ToolResultInfo> executedToolResults,
@@ -33,12 +32,12 @@ final class StickyToolResultPolicy {
     // replaces the older answer, and says nothing about a skill loaded before
     // it.
     final superseded = batchToolResults
+        .where(isStickyToolContent)
         .map((toolResult) => toolResult.name)
-        .where(stickyToolNames.contains)
         .toSet();
     final byKey = <String, ToolResultInfo>{};
     for (final toolResult in executedToolResults) {
-      if (!stickyToolNames.contains(toolResult.name) ||
+      if (!isStickyToolContent(toolResult) ||
           superseded.contains(toolResult.name)) {
         continue;
       }

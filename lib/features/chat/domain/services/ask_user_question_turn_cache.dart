@@ -1,6 +1,7 @@
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import 'ask_user_question_result_entry.dart';
+import 'ask_user_question_reuse_policy.dart';
 
 // ChatNotifier decomposition collaborator: ask-user-question-turn-cache
 
@@ -14,26 +15,11 @@ final class AskUserQuestionTurnCache {
     required String question,
     required Iterable<String> optionLabels,
   }) {
-    final entries = _entriesByOwner[owner];
-    if (entries == null || entries.isEmpty) return null;
-
-    final normalizedQuestion = normalizeAskUserQuestionText(question);
-    for (final entry in entries.reversed) {
-      if (entry.normalizedQuestion == normalizedQuestion) {
-        return entry.result;
-      }
-    }
-
-    final normalizedLabels = normalizeAskUserQuestionOptionLabels(optionLabels);
-    if (normalizedLabels.isEmpty) return null;
-    for (final entry in entries.reversed) {
-      final canReuseAcrossWording =
-          entry.result.isSuccess &&
-          (entry.optionLabels.length > 1 || normalizedLabels.length > 1) &&
-          entry.optionLabels.intersection(normalizedLabels).isNotEmpty;
-      if (canReuseAcrossWording) return entry.result;
-    }
-    return null;
+    return const AskUserQuestionReusePolicy().findReusable(
+      entries: _entriesByOwner[owner] ?? const [],
+      question: question,
+      optionLabels: optionLabels,
+    );
   }
 
   void store({
@@ -41,6 +27,7 @@ final class AskUserQuestionTurnCache {
     required String question,
     required Iterable<String> optionLabels,
     required McpToolResult result,
+    Iterable<String> selectedLabels = const [],
   }) {
     final entries = _entriesByOwner.putIfAbsent(owner, () => []);
     entries.add(
@@ -48,6 +35,7 @@ final class AskUserQuestionTurnCache {
         question: question,
         optionLabels: optionLabels,
         result: result,
+        selectedLabels: selectedLabels,
       ),
     );
   }

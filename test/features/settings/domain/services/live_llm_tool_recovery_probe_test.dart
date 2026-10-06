@@ -80,7 +80,7 @@ void main() {
       LiveLlmDiagnosticSuite.probePoints.values.fold<int>(0, (a, b) => a + b),
       LiveLlmDiagnosticSuite.probePointsTotal,
     );
-    expect(LiveLlmDiagnosticSuite.version, 11);
+    expect(LiveLlmDiagnosticSuite.version, 12);
   });
 }
 

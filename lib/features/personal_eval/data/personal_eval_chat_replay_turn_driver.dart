@@ -8,6 +8,7 @@ import '../../chat/domain/entities/tool_call_info.dart';
 import '../../routines/data/routine_tool_runner.dart';
 import '../domain/entities/personal_eval_case.dart';
 import '../domain/services/live_personal_eval_case_runner.dart';
+import '../domain/services/personal_eval_replay_tool_policy.dart';
 
 /// LL19: a live [PersonalEvalReplayTurnDriver] that drives the candidate model
 /// through a case end-to-end and captures the scoped session log.
@@ -17,7 +18,9 @@ import '../domain/services/live_personal_eval_case_runner.dart';
 /// candidate can actually read/edit files and run commands, dispatched through
 /// the same raw [McpToolService] execution routines use. This obeys the
 /// RoutineToolPolicy trust model (no interactive approval), matching how LL18
-/// will replay cases unattended.
+/// will replay cases unattended. Browser and desktop tools are withheld and
+/// refused ([PersonalEvalReplayToolPolicy]) because an unattended replay must
+/// not drive the user's screen.
 ///
 /// With no tool capabilities it falls back to a single completion: the
 /// candidate's response is still logged for scoring. Verification runs against
@@ -116,14 +119,16 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
 
   Future<void> _runTurnForRole(PersonalEvalCase evalCase) async {
     final messages = _buildMessages(evalCase);
-    final tools = _toolDefinitions?.call() ?? const <Map<String, dynamic>>[];
+    final tools = PersonalEvalReplayToolPolicy.filterDefinitions(
+      _toolDefinitions?.call() ?? const <Map<String, dynamic>>[],
+    );
     final dispatch = _dispatchToolCall;
 
     if (tools.isNotEmpty && dispatch != null) {
       await _toolRunner.execute(
         messages: messages,
         tools: tools,
-        dispatchToolCall: dispatch,
+        dispatchToolCall: PersonalEvalReplayToolPolicy.guard(dispatch),
         model: _model,
         temperature: _temperature,
         maxTokens: _maxTokens,

@@ -3,9 +3,9 @@ import 'dart:convert';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../entities/mcp_tool_entity.dart';
+import 'local_command_execution_plan.dart';
 import 'local_command_tool_contract.dart';
 import 'local_command_working_directory.dart';
-import 'out_of_root_command_paths.dart';
 
 export 'local_command_tool_contract.dart';
 
@@ -15,9 +15,11 @@ final class LocalCommandToolHandler {
     required LocalCommandExecutionPort executionPort,
     required LocalCommandApprovalPort approvalPort,
     required CommandPermissionRuleStorePort permissionRuleStorePort,
+    LocalCommandPreflight? preflight,
   }) : _executionPort = executionPort,
        _approvalPort = approvalPort,
-       _permissionRuleStorePort = permissionRuleStorePort;
+       _permissionRuleStorePort = permissionRuleStorePort,
+       _preflight = preflight;
   static const Duration defaultTimeout = localCommandDefaultTimeout;
   static const String _missingArgumentsMessage =
       'command is required and working_directory must be provided or inferred '
@@ -31,6 +33,7 @@ final class LocalCommandToolHandler {
   final LocalCommandExecutionPort _executionPort;
   final LocalCommandApprovalPort _approvalPort;
   final CommandPermissionRuleStorePort _permissionRuleStorePort;
+  final LocalCommandPreflight? _preflight;
 
   Future<McpToolResult> handle(LocalCommandToolRequest request) async {
     final command = LocalShellTools.normalizeCommand(
@@ -47,18 +50,12 @@ final class LocalCommandToolHandler {
       return _outsideProjectFailure(request.toolName);
     }
 
-    final execution = LocalCommandExecutionRequest(
-      toolCallId: request.toolCallId,
-      toolName: request.toolName,
+    final plan = LocalCommandExecutionPlan.create(
+      request: request,
       command: command,
       workingDirectory: workingDirectory,
-      arguments: {
-        ...request.arguments,
-        'command': command,
-        'working_directory': workingDirectory,
-        'allowed_read_root': request.allowedWorkingDirectoryRoot,
-      },
     );
+    final execution = plan.execution;
     final ruleRequest = CommandPermissionRuleRequest(
       command: command,
       workingDirectory: workingDirectory,
@@ -70,15 +67,7 @@ final class LocalCommandToolHandler {
       request.owner,
       ruleRequest,
     );
-    final approvalScope = LocalCommandApprovalScope.of(
-      command: command,
-      projectRoot: request.allowedWorkingDirectoryRoot,
-      reachesNativeShell:
-          argumentIsTruthy(request.arguments['background']) ||
-          !LocalShellTools.isReadOnly(command),
-      commandShapeRequiresApproval:
-          LocalCommandPermissionService.requiresExplicitApproval,
-    );
+    final approvalScope = plan.approvalScope;
     final requiresExplicitApproval = approvalScope.requiresExplicitApproval;
     if (permission == CommandPermissionRuleDecision.deny) {
       return _failure(
@@ -89,10 +78,12 @@ final class LocalCommandToolHandler {
 
     if (!request.isRemoteInteraction &&
         permission == CommandPermissionRuleDecision.allow &&
+        !approvalScope.workspaceCommandContained &&
         !requiresExplicitApproval) {
       return _execute(request, execution);
     }
-    if (!argumentIsTruthy(request.arguments['background']) &&
+    if (request.toolName != 'process_start' &&
+        !argumentIsTruthy(request.arguments['background']) &&
         LocalShellTools.isReadOnly(command) &&
         !requiresExplicitApproval) {
       return _execute(request, execution);
@@ -123,6 +114,11 @@ final class LocalCommandToolHandler {
       return _validResult(cachedDenial.value!, request.toolName);
     }
 
+    // Only where someone would be asked: the no-approval paths above reach
+    // the same fence at execution without prompting anybody.
+    if (await _preflight?.call(execution) case final refusal?) {
+      return refusal;
+    }
     final gateCompletion = await _approvalPort.resolveGate(
       request.owner,
       approvalRequest,

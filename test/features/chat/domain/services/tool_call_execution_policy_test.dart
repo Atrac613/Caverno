@@ -110,6 +110,65 @@ void main() {
       expect(hello, isNot(inline));
     });
 
+    test('reevaluates identical goal status after edits or verification', () {
+      final report = _toolCall('update_goal', {'completed': true});
+      final before = policy.toolExecutionKey(report);
+      expect(
+        policy.toolExecutionKey(report, commandRetryGeneration: 1),
+        isNot(before),
+      );
+      expect(
+        policy.toolExecutionKey(report, stateChangeGeneration: 1),
+        isNot(before),
+      );
+      expect(
+        policy.advancesStateChangeGeneration(
+          _toolCall('local_execute_command', {'command': 'python3 verify.py'}),
+        ),
+        isTrue,
+      );
+    });
+
+    test('goal status and inspection do not renew identical status calls', () {
+      final report = _toolCall('update_goal', {'completed': true});
+      expect(policy.toolExecutionKey(report), policy.toolExecutionKey(report));
+      expect(policy.shouldAllowRepeatedToolExecution(report), isFalse);
+      expect(policy.advancesCommandRetryGeneration(report), isFalse);
+      expect(policy.advancesStateChangeGeneration(report), isFalse);
+      expect(
+        policy.advancesStateChangeGeneration(
+          _toolCall('local_execute_command', {'command': 'cat source.py'}),
+        ),
+        isFalse,
+      );
+    });
+
+    test('scopes a directory listing key to file writes and commands', () {
+      // Session 1d76c878: a re-list after write_file was skipped as a
+      // duplicate, and the model concluded its new test file was missing.
+      final listing = _toolCall('list_directory', {'path': '/project'});
+      final beforeWrite = policy.toolExecutionKey(listing);
+      final afterWrite = policy.toolExecutionKey(
+        listing,
+        commandRetryGeneration: 1,
+      );
+      final afterCommand = policy.toolExecutionKey(
+        listing,
+        stateChangeGeneration: 1,
+      );
+
+      expect(policy.toolExecutionKey(listing), beforeWrite);
+      expect(afterWrite, isNot(beforeWrite));
+      expect(afterCommand, isNot(beforeWrite));
+      expect(
+        policy.toolExecutionKey(
+          _toolCall('search_files', {'path': '/project', 'pattern': 'x'}),
+          commandRetryGeneration: 1,
+        ),
+        contains('commandRetryGeneration=1'),
+      );
+    });
+
     test('adds command retry generation only for repeatable commands', () {
       final commandKey = policy.toolExecutionKey(
         _toolCall('local_execute_command', {'command': 'fvm flutter test'}),

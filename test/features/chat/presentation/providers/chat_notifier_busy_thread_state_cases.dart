@@ -37,6 +37,7 @@ class _TestSessionMemoryServiceChatNotifierBusyThreadState
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async => const MemoryUpdateResult.none();
 
   @override

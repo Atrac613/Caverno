@@ -5,7 +5,11 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue.dart';
 import 'coding_command_preflight_issue_detector.dart';
+import 'exit_status_mask.dart';
+import 'masked_inspection_command_policy.dart';
+import 'shell_exit_status_report.dart';
 import 'tool_outcome_shadow_comparison.dart';
+import 'verification_metadata_query_policy.dart';
 
 export 'coding_command_output_issue.dart' show CodingCommandOutputIssue;
 
@@ -27,7 +31,10 @@ class CodingCommandOutputIssueDetector {
     caseSensitive: false,
   );
   static final RegExp _runtimeFailurePattern = RegExp(
-    r'\b(?:uncaught exception|unhandled exception|fatal exception|assertionerror:)\b',
+    r'\b(?:uncaught exception|unhandled exception|fatal exception|assertionerror:)\b|'
+    r'^(?:(?:.*[/\\])?python(?:\d+(?:\.\d+)*)?(?:\.exe)?|ModuleNotFoundError):'
+    r'\s+No module named\b|'
+    r'^={2,}\s*(?:\d+\s+\w+,\s*)*[1-9]\d*\s+failed\b.*={2,}\s*$',
     caseSensitive: false,
   );
   static final String _cjkErrorLabel = String.fromCharCodes([
@@ -62,6 +69,7 @@ class CodingCommandOutputIssueDetector {
         toolResult.arguments['working_directory'],
       ),
       structuredExitCode: toolResult.outcome?.exitCode,
+      structuredProcessState: toolResult.outcome?.processState,
     );
   }
 
@@ -71,8 +79,18 @@ class CodingCommandOutputIssueDetector {
     String? fallbackCommand,
     String? fallbackWorkingDirectory,
     int? structuredExitCode,
+    ToolProcessState? structuredProcessState,
   }) {
     if (!_isCommandTool(toolName)) {
+      return null;
+    }
+    if (const {
+          'process_status',
+          'process_wait',
+        }.contains(toolName.trim().toLowerCase()) &&
+        (structuredProcessState != null
+            ? structuredProcessState != ToolProcessState.exited
+            : decoded['status'] != 'exited')) {
       return null;
     }
     final exitCodeResolution = resolveToolOutcomeExitCode(
@@ -91,16 +109,19 @@ class CodingCommandOutputIssueDetector {
         _normalizeText(decoded['working_directory']) ??
         fallbackWorkingDirectory ??
         '';
+    if (VerificationMetadataQueryPolicy.applies(command)) return null;
     final preflightIssue =
         _preflightDetector.detect(
           toolName: toolName,
           command: command,
           workingDirectory: workingDirectory,
         ) ??
-        _preflightDetector.detectMaskedExitStatusIssue(
-          command: command,
-          workingDirectory: workingDirectory,
-        );
+        (MaskedInspectionCommandPolicy.applies(command)
+            ? null
+            : _preflightDetector.detectMaskedExitStatusIssue(
+                command: command,
+                workingDirectory: workingDirectory,
+              ));
     if (preflightIssue != null) {
       return CodingCommandOutputIssue(
         toolName: toolName,
@@ -113,15 +134,45 @@ class CodingCommandOutputIssueDetector {
         excerpt: preflightIssue.segment,
       );
     }
+    final report = ShellExitStatusReport.parse(command);
+    if (report != null) {
+      final output =
+          (decoded['stdout'] ?? decoded['stdout_tail'])?.toString() ?? '';
+      final reportedExitCode = report.exitCode(output);
+      if (reportedExitCode != 0) {
+        return CodingCommandOutputIssue(
+          toolName: toolName,
+          command: command,
+          workingDirectory: workingDirectory,
+          exitCode: exitCode!,
+          exitCodeSource: exitCodeResolution.source,
+          source: 'stdout',
+          summary: reportedExitCode == null
+              ? 'The command exit status report is unavailable; the shell exit '
+                    'status belongs to echo.'
+              : 'Output reports a failing command exit status ($reportedExitCode).',
+          excerpt: _excerpt(
+            output,
+            (output.length - 600).clamp(0, output.length).toInt(),
+          ),
+        );
+      }
+    }
     for (final entry in const {
       'stdout': 'stdout',
+      'stdout_tail': 'stdout',
       'stderr': 'stderr',
+      'stderr_tail': 'stderr',
     }.entries) {
       final output = _normalizeText(decoded[entry.key]);
       if (output == null) {
         continue;
       }
-      final signal = _detectOutputSignal(output);
+      final signal = _detectOutputSignal(
+        output,
+        runtimeSignals:
+            report == null && const ExitStatusMask().mayHide(command),
+      );
       if (signal == null) {
         continue;
       }
@@ -154,7 +205,14 @@ class CodingCommandOutputIssueDetector {
     return jsonEncode({
       'provider': decoded?['provider'],
       'validation_status': decoded?['validation_status'],
-      'issues': issues,
+      // Invocation provenance must not change the repeated-failure signature.
+      'issues': [
+        for (final issue in issues)
+          if (issue is Map)
+            Map<String, dynamic>.from(issue)..remove('tool_call_id')
+          else
+            issue,
+      ],
     });
   }
 
@@ -170,7 +228,10 @@ class CodingCommandOutputIssueDetector {
         null;
   }
 
-  _OutputSignal? _detectOutputSignal(String output) {
+  _OutputSignal? _detectOutputSignal(
+    String output, {
+    required bool runtimeSignals,
+  }) {
     final lines = output.split(RegExp(r'\r?\n'));
     var offset = 0;
     for (final line in lines) {
@@ -195,8 +256,9 @@ class CodingCommandOutputIssueDetector {
             startIndex: offset,
           );
         }
-        if (_tracebackPattern.hasMatch(trimmed) ||
-            _runtimeFailurePattern.hasMatch(trimmed)) {
+        if (runtimeSignals &&
+            (_tracebackPattern.hasMatch(trimmed) ||
+                _runtimeFailurePattern.hasMatch(trimmed))) {
           return _OutputSignal(
             summary: 'Output contains a runtime failure signal.',
             startIndex: offset,
@@ -219,22 +281,17 @@ class CodingCommandOutputIssueDetector {
       'run_tests' ||
       'git_execute_command' ||
       'ssh_execute_command' => true,
+      'process_status' || 'process_wait' => true,
       _ => false,
     };
   }
 
-  int? _parseExitCode(dynamic value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    if (value is String) {
-      return int.tryParse(value.trim());
-    }
-    return null;
-  }
+  int? _parseExitCode(dynamic value) => switch (value) {
+    int() => value,
+    num() => value.toInt(),
+    String() => int.tryParse(value.trim()),
+    _ => null,
+  };
 
   Map<String, dynamic>? _tryDecodeMap(String value) {
     try {

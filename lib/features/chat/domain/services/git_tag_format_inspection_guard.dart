@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../data/datasources/git_tools.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
@@ -63,9 +65,13 @@ final class GitTagFormatInspectionGuard {
       return null;
     }
 
+    // Declared, so the digest stops listing the blocked tag as run: session
+    // dd50d110 went looking for a tag it never created.
     return McpToolResult(
       toolName: input.toolCall.name,
       result: jsonEncode({
+        'ok': false,
+        ...ToolResultOrigin.refusal.marker,
         'error':
             'Git tag creation requires inspecting existing tag names in this '
             'turn before creating a new tag.',

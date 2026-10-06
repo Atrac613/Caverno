@@ -4,6 +4,7 @@ import '../../data/datasources/git_tools.dart';
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'ask_user_question_text_normalization.dart';
 import 'ask_user_question_turn_cache.dart';
 import 'production_release_approval_wording_predicates.dart';
 import 'production_release_blocked_result.dart';
@@ -201,10 +202,14 @@ final class ProductionReleaseApprovalPolicy {
   }
 
   /// Whether one recorded answer approves the release identified by [token].
+  /// When [expectedOptionLabel] is supplied, the label is also bound to the
+  /// pending execution identity rather than accepting any token-bearing text.
   ///
-  /// Reads no natural language. The verdict is: the harness issued this token,
-  /// exactly one of the options actually offered carried it, and the user
-  /// selected an option carrying it.
+  /// Reads no natural language. Without an expected label, the verdict is:
+  /// the harness issued this token, exactly one of the options actually
+  /// offered carried it, and the user selected an option carrying it. With
+  /// one, both the offered and selected labels must match it exactly after
+  /// presentation-only normalization.
   ///
   /// The "exactly one offered" clause is the part that matters. The model sees
   /// the token in the blocked-release result, so nothing stops it from
@@ -220,15 +225,36 @@ final class ProductionReleaseApprovalPolicy {
     required Set<String> offeredOptionLabels,
     required McpToolResult answerResult,
     required String token,
+    String? expectedOptionLabel,
+    String? expectedQuestion,
   }) {
     final normalizedToken = token.trim().toLowerCase();
     if (normalizedToken.isEmpty) return false;
+    final normalizedExpectedLabel = expectedOptionLabel == null
+        ? null
+        : normalizeAskUserQuestionText(expectedOptionLabel);
+    if (normalizedExpectedLabel != null && normalizedExpectedLabel.isEmpty) {
+      return false;
+    }
     if (!answerResult.isSuccess) return false;
     final decoded = _decodeJsonObject(answerResult.result);
     if (decoded == null || decoded['status'] != 'answered') return false;
+    final normalizedExpectedQuestion = expectedQuestion == null
+        ? null
+        : normalizeAskUserQuestionText(expectedQuestion);
+    if (normalizedExpectedQuestion != null) {
+      final answeredQuestion = decoded['question'];
+      if (answeredQuestion is! String ||
+          normalizeAskUserQuestionText(answeredQuestion) !=
+              normalizedExpectedQuestion) {
+        return false;
+      }
+    }
 
     final carryingOffered = offeredOptionLabels.where(
-      (label) => label.toLowerCase().contains(normalizedToken),
+      (label) => normalizedExpectedLabel == null
+          ? label.toLowerCase().contains(normalizedToken)
+          : normalizeAskUserQuestionText(label) == normalizedExpectedLabel,
     );
     if (carryingOffered.length != 1) return false;
 
@@ -236,7 +262,11 @@ final class ProductionReleaseApprovalPolicy {
     if (selected is! List) return false;
     for (final option in selected) {
       final label = option is Map ? option['label'] : option;
-      if (label is String && label.toLowerCase().contains(normalizedToken)) {
+      if (label is String &&
+          (normalizedExpectedLabel == null
+              ? label.toLowerCase().contains(normalizedToken)
+              : normalizeAskUserQuestionText(label) ==
+                    normalizedExpectedLabel)) {
         return true;
       }
     }

@@ -37,8 +37,17 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
-          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
           mcpToolServiceProvider.overrideWithValue(null),
+          reasoningEffortProbeClientProvider.overrideWithValue(
+            () => MockClient((request) async {
+              final body = jsonDecode(request.body) as Map<String, dynamic>;
+              return http.Response(
+                '{}',
+                body['reasoning_effort'] == 'high' ? 400 : 200,
+              );
+            }),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -66,6 +75,8 @@ void main() {
       final profile = settings.effectiveModelCapabilityProfile;
       expect(profile, isNotNull);
       expect(profile!.model, 'auto-probed-model');
+      expect(profile.supportedReasoningEfforts, ['low', 'medium', 'xhigh']);
+      expect(profile.probeMetadata['reasoningEffortProbe'], 'validated');
       expect(
         profile.structuredOutputSupport,
         ModelStructuredOutputSupport.jsonObject,
@@ -113,7 +124,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modelCatalogProvider(
           ModelListConfig(
@@ -155,7 +166,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modelCatalogProvider(
           ModelListConfig(
@@ -221,7 +232,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modalitiesProbeClientProvider.overrideWithValue(
           () => MockClient((request) async {
@@ -286,7 +297,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        chatDataSourceFactoryProvider.overrideWithValue((_) => dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
         modalitiesProbeClientProvider.overrideWithValue(
           () => MockClient((_) async {
@@ -341,8 +352,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _InstructionOnlyDataSource(),
+        chatDataSourceFactoryProvider.overrideWithValue(
+          (_) => _InstructionOnlyDataSource(),
         ),
         mcpToolServiceProvider.overrideWithValue(null),
         modalitiesProbeClientProvider.overrideWithValue(

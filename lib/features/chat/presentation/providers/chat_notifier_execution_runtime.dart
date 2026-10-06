@@ -273,6 +273,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     int exitCode = 2,
     bool recordExit = true,
   }) {
+    _recordTaskCommitTerminal(generation, false);
     if (recordExit) {
       _recordTurnExitIfUnclassified(generation, outcome: 'failed:$code');
     }

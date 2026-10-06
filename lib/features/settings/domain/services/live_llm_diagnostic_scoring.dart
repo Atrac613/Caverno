@@ -38,7 +38,10 @@ class LiveLlmDiagnosticSuite {
   /// `multi_round_tool_loop`, while nothing measured what the model does when
   /// a tool refuses or half succeeds -- which is where Caverno's own defects
   /// have been.
-  static const version = 11;
+  /// v12 makes the tool-result integration probe request a final answer
+  /// without re-advertising the completed tool, so it measures result use
+  /// independently of the multi-round tool-loop probe.
+  static const version = 12;
 
   /// Points per probe. Weighted by how much of Caverno's agent loop the probe
   /// actually stands for: the tool-result round trip and the first tool call
@@ -65,6 +68,9 @@ class LiveLlmDiagnosticSuite {
     // model's score. Keeping it weightless also leaves probePointsTotal and
     // the suite version alone, so existing score history stays comparable.
     'video_input_modality': 0,
+    // Weightless for the same reason: whether enable_thinking survives the
+    // trip to the model is a property of the serving path, not the model.
+    'thinking_control': 0,
     'narrow_tool_call': 25,
     'update_goal_fidelity': 60,
     'tool_result_integration': 75,
