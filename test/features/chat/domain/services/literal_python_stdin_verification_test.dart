@@ -19,7 +19,7 @@ void main() {
     "cd '/workspace/project name' && python - <<'PY'",
     // Session 64bbc516: tests first, then the stdin check.
     "python3 -m pytest test_state.py -q && python3 - <<'PY'",
-    "cd /workspace && .venv/bin/python -m pytest -q && "
+    'cd /workspace && .venv/bin/python -m pytest -q && '
         ".venv/bin/python - <<'PY'",
   ]) {
     test('recognizes a literal stdin invocation: $header', () {
