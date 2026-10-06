@@ -63,6 +63,105 @@ void main() {
       expect(reused, same(result));
     });
 
+    group('a recorded selection that is no longer offered', () {
+      // A one-time approval token lives in the option label, so an ask whose
+      // token has rotated is a different decision behind identical wording.
+      // Replaying the answer naming the spent token leaves the gate demanding
+      // a token no answer can carry: session fb19ce5e gen-13 spent six release
+      // attempts and three approval prompts there.
+      const staleToken = 'rel-4b6ab1ff51f2b37d approve';
+      const freshToken = 'rel-25caeeb3f129f550 approve';
+
+      test('is not reused for the same question', () {
+        final cache = AskUserQuestionTurnCache();
+        cache.store(
+          owner: _owner(),
+          question: 'Approve the production release?',
+          optionLabels: const [staleToken],
+          result: _result(staleToken),
+          selectedLabels: const [staleToken],
+        );
+
+        expect(
+          cache.findReusable(
+            owner: _owner(),
+            question: 'Approve the production release?',
+            optionLabels: const [freshToken],
+          ),
+          isNull,
+        );
+      });
+
+      test('is not reused through a shared cancel label', () {
+        // Closing only the question-text path would fix nothing here: the two
+        // asks still overlap on the label the user was declining, and that is
+        // all cross-wording reuse asks for.
+        final cache = AskUserQuestionTurnCache();
+        cache.store(
+          owner: _owner(),
+          question: 'Approve the production release?',
+          optionLabels: const [staleToken, 'Cancel'],
+          result: _result(staleToken),
+          selectedLabels: const [staleToken],
+        );
+
+        expect(
+          cache.findReusable(
+            owner: _owner(),
+            question: 'Retry the production release?',
+            optionLabels: const [freshToken, 'Cancel'],
+          ),
+          isNull,
+        );
+      });
+
+      test('is still reused while the picked option remains on offer', () {
+        // The reason the cache exists: a model looping on one decision must
+        // not re-prompt, even when it rewords the question and varies the
+        // options around the one the user chose.
+        final cache = AskUserQuestionTurnCache();
+        final result = _result('Refactor with tests');
+        cache.store(
+          owner: _owner(),
+          question: 'Which direction should we use first?',
+          optionLabels: const ['Minimal patch', 'Refactor with tests'],
+          result: result,
+          selectedLabels: const ['Refactor with tests'],
+        );
+
+        expect(
+          cache.findReusable(
+            owner: _owner(),
+            question: 'Which direction should we use now?',
+            optionLabels: const ['UI first', 'Refactor with tests'],
+          ),
+          same(result),
+        );
+      });
+
+      test('falls back to the question when no selection was recorded', () {
+        // A cancellation and a free-text reply name no option, so there is
+        // nothing to check and the question stays the identity.
+        final cache = AskUserQuestionTurnCache();
+        final cancelled = _result('cancelled', isSuccess: false);
+        cache.store(
+          owner: _owner(),
+          question: 'Approve the production release?',
+          optionLabels: const [staleToken],
+          result: cancelled,
+        );
+
+        expect(
+          cache.findReusable(
+            owner: _owner(),
+            question: 'Approve the production release?',
+            optionLabels: const [freshToken],
+          ),
+          same(cancelled),
+        );
+      });
+    });
+
     test('returns no result when neither question nor options match', () {
       final cache = AskUserQuestionTurnCache();
       final result = _result('answer');

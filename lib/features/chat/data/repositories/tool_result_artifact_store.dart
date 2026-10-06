@@ -41,12 +41,8 @@ class ToolResultArtifactStore {
     final file = File('${directory.path}/${_buildFileName(toolResult)}');
     await file.writeAsString(toolResult.result, flush: true);
 
-    return ToolResultInfo(
-      id: toolResult.id,
-      name: toolResult.name,
-      arguments: toolResult.arguments,
-      result: _buildPersistedResultPayload(toolResult: toolResult, file: file),
-      outcome: toolResult.outcome,
+    return toolResult.withResult(
+      _buildPersistedResultPayload(toolResult: toolResult, file: file),
     );
   }
 

@@ -169,22 +169,23 @@ final class OutOfRootCommandPaths {
 
 /// Whether one local command has to be decided by a person.
 ///
-/// Pairs the boundary scan with the existing command-shape rules so callers
-/// ask once. A command that names a path outside the project earns explicit
-/// approval on that ground alone: the shell fence inspects paths only for the
-/// handful of commands Caverno runs internally, so this is the last point at
-/// which anyone looks at the path at all.
+/// Pairs static path hints with the application-derived execution boundary.
+/// Uncontained commands retain fresh manual approval. Enforced workspace
+/// commands can be reviewed automatically, including when argv names runtime
+/// dependencies outside the project; inaccessible data still fails at runtime.
 final class LocalCommandApprovalScope {
   const LocalCommandApprovalScope._({
     required this.outOfRootPaths,
     required this.requiresExplicitApproval,
     required this.requiresHostWriteApproval,
+    required this.workspaceCommandContained,
   });
 
   factory LocalCommandApprovalScope.of({
     required String command,
     required String? projectRoot,
     required bool reachesNativeShell,
+    bool hostWriteContained = false,
     required bool Function(String command) commandShapeRequiresApproval,
   }) {
     final paths = const OutOfRootCommandPaths().scan(
@@ -192,9 +193,12 @@ final class LocalCommandApprovalScope {
       projectRoot: projectRoot,
     );
     final requiresHostWriteApproval =
-        (projectRoot?.trim().isNotEmpty ?? false) && reachesNativeShell;
+        (projectRoot?.trim().isNotEmpty ?? false) &&
+        reachesNativeShell &&
+        !hostWriteContained;
     return LocalCommandApprovalScope._(
       outOfRootPaths: paths,
+      workspaceCommandContained: hostWriteContained,
       requiresExplicitApproval:
           paths.isNotEmpty ||
           requiresHostWriteApproval ||
@@ -206,12 +210,16 @@ final class LocalCommandApprovalScope {
   final List<String> outOfRootPaths;
   final bool requiresExplicitApproval;
   final bool requiresHostWriteApproval;
+  final bool workspaceCommandContained;
 
   ToolApprovalGateDecision? get requiredManualDecision =>
-      outsideProjectApproval(outOfRootPaths) ??
+      (workspaceCommandContained
+          ? null
+          : outsideProjectApproval(outOfRootPaths)) ??
       (requiresHostWriteApproval ? opaqueHostWriteApproval : null);
 
-  String? get requiredManualDecisionSource => outOfRootPaths.isNotEmpty
+  String? get requiredManualDecisionSource =>
+      !workspaceCommandContained && outOfRootPaths.isNotEmpty
       ? 'out_of_scope_path'
       : requiresHostWriteApproval
       ? 'opaque_host_write'

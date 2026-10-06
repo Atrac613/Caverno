@@ -1,0 +1,290 @@
+{
+  "schema": "caverno_kc1_cutoff_exposure_census",
+  "schemaVersion": 3,
+  "run": {
+    "model": "qwen3.8-27b-vision",
+    "endpoint": "http://192.168.100.241:1234/v1/chat/completions",
+    "temperature": 0.7,
+    "toolCatalog": "none",
+    "flutter": "3.47.4",
+    "riverpod": "3.4.3",
+    "freezed": "3.2.5",
+    "buildCommit": "9d613c364",
+    "buildDirty": false
+  },
+  "claims": 15,
+  "failures": 0,
+  "byClass": {
+    "environment": {
+      "bare": {
+        "staleRate": 0.0,
+        "unsupportedRate": 1.0,
+        "environmentExposureRate": 1.0
+      },
+      "grounded": {
+        "staleRate": 0.0,
+        "unsupportedRate": 0.0,
+        "environmentExposureRate": 1.0
+      },
+      "deltaGrounded": {
+        "staleRate": 0.0,
+        "unsupportedRate": 0.0,
+        "environmentExposureRate": 1.0
+      }
+    }
+  },
+  "arms": {
+    "bare": {
+      "staleRate": 0.0,
+      "unsupportedRate": 1.0,
+      "unscorable": 1,
+      "environmentExposureRate": 1.0,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 4,
+        "wrong": 0,
+        "unscorable": 1
+      }
+    },
+    "grounded": {
+      "staleRate": 0.0,
+      "unsupportedRate": 0.0,
+      "unscorable": 0,
+      "environmentExposureRate": 1.0,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 5,
+        "wrong": 0,
+        "unscorable": 0
+      }
+    },
+    "deltaGrounded": {
+      "staleRate": 0.0,
+      "unsupportedRate": 0.0,
+      "unscorable": 0,
+      "environmentExposureRate": 1.0,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 5,
+        "wrong": 0,
+        "unscorable": 0
+      }
+    }
+  },
+  "digestCoverage": {},
+  "records": [
+    {
+      "claim_id": "flutter-material3-default:bare:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:grounded:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:deltaGrounded:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:bare:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:grounded:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:deltaGrounded:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:bare:3",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "bare",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:grounded:3",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "grounded",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:deltaGrounded:3",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "deltaGrounded",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:bare:4",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "bare",
+      "repeat": 4,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "none",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unscorable"
+    },
+    {
+      "claim_id": "flutter-material3-default:grounded:4",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "grounded",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:deltaGrounded:4",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "deltaGrounded",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:bare:5",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "bare",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:grounded:5",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "grounded",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:deltaGrounded:5",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "deltaGrounded",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    }
+  ]
+}

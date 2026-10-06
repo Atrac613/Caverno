@@ -452,7 +452,7 @@ void main() {
     expect(report.toJson()['driftDaoDecision'], 'go');
     expect(report.toJson()['fts5Decision'], 'not_selected');
     expect(report.toJson()['productionDecision'], 'no_go');
-    expect(report.toJson()['appDatabaseSchemaVersion'], 5);
+    expect(report.toJson()['appDatabaseSchemaVersion'], 6);
     expect(report.toJson()['writesThroughDrift'], isTrue);
     expect(report.toJson()['applyRollbackPreserved'], isTrue);
     expect(report.toJson()['concurrentWritersSerialized'], isTrue);

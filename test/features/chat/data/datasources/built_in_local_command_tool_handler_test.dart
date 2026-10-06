@@ -356,11 +356,15 @@ void main() {
       // fact, so downstream consumers stop parsing stdout to find it.
       final handler = BuiltInLocalCommandToolHandler(
         foregroundCommandResultRunner:
-            ({required command, required workingDirectory}) async =>
-                const FirstPartyToolExecutionResult(
-                  result: '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
-                  outcome: ToolOutcome(exitCode: 2),
-                ),
+            ({
+              required command,
+              required workingDirectory,
+              observationRoot,
+              containmentRoot,
+            }) async => const FirstPartyToolExecutionResult(
+              result: '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
+              outcome: ToolOutcome(exitCode: 2),
+            ),
       );
 
       final result = await handler.execute(
@@ -377,11 +381,74 @@ void main() {
       expect(result.outcome?.hasFailingExitCode, isTrue);
     });
 
+    for (final command in ['python3 -c "print(1)"', 'bash tool/check.sh']) {
+      test(
+        'legacy runners cannot bypass requested containment for $command',
+        () async {
+          final root = await Directory.systemTemp.createTemp('legacy-python-');
+          addTearDown(() => root.delete(recursive: true));
+          var invoked = false;
+          final handler = BuiltInLocalCommandToolHandler(
+            foregroundCommandRunner:
+                ({required command, required workingDirectory}) async {
+                  invoked = true;
+                  return 'ran';
+                },
+          );
+
+          final result = await handler.execute(
+            owner: owner,
+            name: 'local_execute_command',
+            arguments: {
+              'command': command,
+              'working_directory': root.path,
+              'allowed_read_root': root.path,
+              'workspace_command_containment': true,
+            },
+          );
+
+          expect(invoked, isFalse);
+          expect(result.isSuccess, isFalse);
+          expect(result.errorMessage, contains('cannot contain commands'));
+        },
+      );
+    }
+
+    test(
+      'missing containment root cannot select uncontained execution',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'missing-command-root-',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final handler = BuiltInLocalCommandToolHandler();
+
+        final result = await handler.execute(
+          name: 'local_execute_command',
+          arguments: {
+            'command': "bash -c 'printf ran > unexpected.txt'",
+            'working_directory': root.path,
+            'workspace_command_containment': true,
+          },
+        );
+
+        expect(result.isSuccess, isFalse);
+        expect(
+          result.errorMessage,
+          contains('containment could not be started'),
+        );
+        expect(File('${root.path}/unexpected.txt').existsSync(), isFalse);
+      },
+    );
+
     test('reports no exit status when the command never reached one', () async {
       final handler = BuiltInLocalCommandToolHandler(
         foregroundCommandRunner:
-            ({required command, required workingDirectory}) async =>
-                'command runner unavailable',
+            ({
+              required command,
+              required workingDirectory,
+              observationRoot,
+            }) async => 'command runner unavailable',
       );
 
       final result = await handler.execute(
@@ -662,7 +729,11 @@ void main() {
       final handler = BuiltInLocalCommandToolHandler(
         backgroundProcessTools: tools,
         foregroundCommandRunner:
-            ({required command, required workingDirectory}) async => failure,
+            ({
+              required command,
+              required workingDirectory,
+              observationRoot,
+            }) async => failure,
       );
       final calls = <(String, Map<String, dynamic>)>[
         (
@@ -1090,6 +1161,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async {
     startOwners.add(owner);
     startCalls.add((
@@ -1106,6 +1178,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async => _execution(
     await start(
       owner: owner,

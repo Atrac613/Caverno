@@ -84,6 +84,7 @@ class _SlashChatNotifier extends ChatNotifier {
   int cancelCount = 0;
   int clearCount = 0;
   final List<String> sentMessages = <String>[];
+  final List<bool> sentReviewRoutes = <bool>[];
 
   @override
   ChatState build() {
@@ -118,11 +119,13 @@ class _SlashChatNotifier extends ChatNotifier {
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
+    PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
     String? remoteDeviceId,
     bool interrupt = false,
   }) async {
     sentMessages.add(content);
+    sentReviewRoutes.add(purpose == PrimaryTurnPurpose.codeReview);
     return null;
   }
 }
@@ -1821,11 +1824,6 @@ void main() {
 
     const cases = [
       (
-        command: '/review parser changes',
-        expectedLead: 'Review the following code, diff, file path',
-        expectedTarget: 'parser changes',
-      ),
-      (
         command: '/fix failing login flow',
         expectedLead: 'Fix or propose a fix for the following issue',
         expectedTarget: 'failing login flow',
@@ -1857,6 +1855,90 @@ void main() {
         contains(cases[index].expectedTarget),
       );
     }
+  });
+
+  testWidgets('/review sends a coding turn on the review route', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject(rootPath: '/tmp/project');
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      settings: AppSettings.defaults().copyWith(
+        codeReviewEndpointId: 'review-host',
+        llmEndpoints: const [
+          LlmEndpoint(
+            id: 'review-host',
+            baseUrl: 'http://review.example/v1',
+            model: 'review-model',
+          ),
+        ],
+      ),
+    );
+
+    await _submitComposerText(tester, '/review base main');
+
+    expect(chatNotifier.sentReviewRoutes, [true]);
+    expect(
+      chatNotifier.sentMessages.single,
+      contains('Review scope: base main'),
+    );
+  });
+
+  testWidgets('/review keeps input when its endpoint is unconfigured', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject(rootPath: '/tmp/project');
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(tester, '/review');
+
+    expect(chatNotifier.sentMessages, isEmpty);
+    expect(
+      find.text('Choose a code review endpoint in Model Routing first.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/review',
+    );
   });
 
   testWidgets('custom prompt slash commands send configured templates', (

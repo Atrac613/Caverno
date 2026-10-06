@@ -3,10 +3,86 @@ import 'dart:io';
 
 import 'package:caverno/core/services/browser_pinned_http_client.dart';
 import 'package:caverno/core/services/browser_session_service.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('BrowserSessionService', () {
+    test(
+      'a timed-out browser_open leaves no navigation to replay on mount',
+      () async {
+        final service = BrowserSessionService(
+          pinnedHttpClient: BrowserPinnedHttpClient(
+            addressLookup: (_) async => [InternetAddress('93.184.216.34')],
+            socketConnector: (uri, address, port) =>
+                throw StateError('unreachable'),
+          ),
+          controllerReadyTimeout: const Duration(milliseconds: 10),
+        );
+        addTearDown(service.dispose);
+        service.updateEnabled(true);
+
+        // An unattended run while the screen is locked: no frame mounts the
+        // pane, so the wait for its WebView times out.
+        final result = jsonDecode(
+          await service.openUrl('https://example.com/search?q=t-shirt'),
+        );
+
+        expect(result, containsPair('code', 'browser_not_ready'));
+        expect(service.shouldShowPanel, isFalse);
+        expect(service.currentUrl, isNull);
+
+        // Frames resume after unlock and a WebView mounts. It must not load
+        // the navigation the tool already reported as failed.
+        final controller = _RecordingWebViewController();
+        service.attachController(controller);
+
+        expect(controller.calls, isEmpty);
+      },
+    );
+
+    test('a timed-out snapshot does not leave an empty pane open', () async {
+      final service = BrowserSessionService(
+        controllerReadyTimeout: const Duration(milliseconds: 10),
+      );
+      service.updateEnabled(true);
+
+      final result = jsonDecode(await service.snapshot());
+
+      expect(result, containsPair('code', 'browser_not_ready'));
+      expect(service.isPanelOpen, isFalse);
+    });
+
+    test('a stale readiness timeout leaves a newer open armed', () async {
+      final service = BrowserSessionService(
+        controllerReadyTimeout: const Duration(milliseconds: 30),
+      );
+      service.updateEnabled(true);
+
+      final stale = service.snapshot();
+      service.closePanel();
+      final current = service.snapshot();
+
+      await stale;
+      expect(service.isPanelOpen, isTrue);
+
+      await current;
+      expect(service.isPanelOpen, isFalse);
+    });
+
+    test('closing the desktop window clears an idle browser session', () {
+      final service = BrowserSessionService();
+      service.updateEnabled(true);
+      service.open();
+      service.handleLoadStart('https://example.com/previous');
+
+      service.closePanelWhenIdle();
+
+      expect(service.isPanelOpen, isFalse);
+      expect(service.currentUrl, isNull);
+      expect(service.shouldShowPanel, isFalse);
+    });
+
     test('preserves Unicode filenames when resolving save targets', () async {
       final directory = Directory.systemTemp.createTempSync(
         'browser_save_target_',
@@ -365,17 +441,17 @@ void main() {
           service.displayUrlForTest(origin.toString()),
           'https://example.com/r/foo?t=day',
         );
-      expect(
-        service.displayUrlForTest(
-          Uri(
-            scheme: origin.scheme,
-            host: origin.host,
-            port: origin.port,
-            path: '/r/bar',
-          ).toString(),
-        ),
-        'https://example.com/r/bar',
-      );
+        expect(
+          service.displayUrlForTest(
+            Uri(
+              scheme: origin.scheme,
+              host: origin.host,
+              port: origin.port,
+              path: '/r/bar',
+            ).toString(),
+          ),
+          'https://example.com/r/bar',
+        );
       },
     );
 
@@ -395,4 +471,16 @@ void main() {
       expect(service.loadCompleterForTest!.isCompleted, isFalse);
     });
   });
+}
+
+/// Records every member the service touches; none is expected after a
+/// timed-out open.
+class _RecordingWebViewController implements InAppWebViewController {
+  final List<Invocation> calls = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    calls.add(invocation);
+    return Future<void>.value();
+  }
 }

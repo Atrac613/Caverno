@@ -116,15 +116,10 @@ class SystemPromptConstants {
       'about software or engineering.';
 
   static const String toolSearchProactiveInstruction =
-      'The Available tools list may be partial; further capabilities '
-      '(real-time or external data, files, network or device info, '
-      'past-conversation detail, or third-party integrations) can be '
-      'deferred and surfaced via tool_search. Treat tool_search as free: '
-      'call it before assuming a capability or piece of context is '
-      'unavailable, and only state that something is unavailable after '
-      'tool_search returns no match. When you cannot resolve a reference from '
-      'the current context, search rather than asking the user or declaring '
-      'the information missing.';
+      'The Available tools list may be partial: real-time or external data, '
+      'files, network or device info, past-conversation detail, and '
+      'third-party integrations can be deferred behind tool_search. Before '
+      'telling the user a capability is unavailable, check with tool_search.';
 
   static const String toolInterpretationInstruction =
       'When reasoning from tool output, interpret the tool name, description, '

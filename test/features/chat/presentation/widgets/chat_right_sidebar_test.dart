@@ -133,4 +133,68 @@ void main() {
       const Size(355, 400),
     );
   });
+
+  testWidgets('processes tab fits the companion width and mounts lazily', (
+    tester,
+  ) async {
+    var selectedTab = ChatRightSidebarTab.companion;
+    await tester.pumpWidget(
+      host(
+        SizedBox(
+          height: 400,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return ChatRightSidebarPanel(
+                availableWidth: 1400,
+                companionPanel: const Text('companion body'),
+                fileViewer: const Text('file body'),
+                processPanel: const Text('process body'),
+                selectedTab: selectedTab,
+                onSelected: (nextTab) {
+                  setState(() => selectedTab = nextTab);
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Processes'), findsOneWidget);
+    expect(find.text('process body', skipOffstage: false), findsNothing);
+
+    await tester.tap(find.text('Processes'));
+    await tester.pump();
+
+    expect(selectedTab, ChatRightSidebarTab.processes);
+    expect(find.text('process body'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a selected tab whose body is gone falls back to companion', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        SizedBox(
+          height: 400,
+          child: ChatRightSidebarPanel(
+            availableWidth: 1400,
+            companionPanel: const Text('companion body'),
+            fileViewer: null,
+            processPanel: const Text('process body'),
+            selectedTab: ChatRightSidebarTab.files,
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byType(ChatRightSidebarPanel)).width,
+      chatCompanionSidebarWidth,
+    );
+    expect(find.text('Files'), findsNothing);
+    expect(find.text('companion body'), findsOneWidget);
+  });
 }

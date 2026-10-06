@@ -227,4 +227,115 @@ void main() {
       expect(events, ['a', 'b']);
     });
   });
+
+  group('ChatCompletionRequestFallback silent response', () {
+    late ChatCompletionRequestFallback fallback;
+
+    setUp(() => fallback = ChatCompletionRequestFallback(null));
+
+    ChatStreamEvent event(String id, {String? content, String? finish}) =>
+        ChatStreamEvent.fromJson({
+          'id': id,
+          'choices': [
+            {
+              'index': 0,
+              'delta': {'role': 'assistant', 'content': ?content},
+              'finish_reason': ?finish,
+            },
+          ],
+        });
+
+    test('re-sends once when the response ended carrying nothing', () async {
+      // Session dd50d110: a tool-loop follow-up closed in 3.2 s with no
+      // content, finish reason or usage, and the loop took it for an answer.
+      final attempts = <List<ChatStreamEvent>>[
+        [event('role-only')],
+        [event('text', content: 'Committing.'), event('end', finish: 'stop')],
+      ];
+      var sends = 0;
+
+      final events = await fallback
+          .events(
+            operation: 'test',
+            send: (_) => Stream.fromIterable(attempts[sends++]),
+          )
+          .toList();
+
+      expect(sends, 2);
+      expect(events.map((e) => e.id), ['text', 'end']);
+    });
+
+    test('keeps a response that carried output or finished', () async {
+      for (final response in [
+        [event('text', content: 'partial')],
+        [event('end', content: '', finish: 'stop')],
+        [
+          ChatStreamEvent.fromJson(<String, dynamic>{
+            'id': 'usage',
+            'choices': <Map<String, dynamic>>[],
+            'usage': <String, dynamic>{
+              'prompt_tokens': 12,
+              'completion_tokens': 0,
+              'total_tokens': 12,
+            },
+          }),
+        ],
+      ]) {
+        var sends = 0;
+        final events = await fallback
+            .events(
+              operation: 'test',
+              send: (_) {
+                sends += 1;
+                return Stream.fromIterable(response);
+              },
+            )
+            .toList();
+
+        expect(sends, 1, reason: response.first.id);
+        expect(events.map((e) => e.id), [response.first.id]);
+      }
+    });
+
+    test('re-sends only once', () async {
+      var sends = 0;
+      final events = await fallback
+          .events(
+            operation: 'test',
+            send: (_) {
+              sends += 1;
+              return Stream.fromIterable([event('role-$sends')]);
+            },
+          )
+          .toList();
+
+      expect(sends, 2);
+      expect(events.map((e) => e.id), ['role-2']);
+    });
+
+    test('never re-sends a stopped turn', () async {
+      // Three of the five empty follow-ups logged by 2026-09-26 were stops.
+      final abort = Completer<void>();
+      final provider = StreamController<ChatStreamEvent>();
+      var sends = 0;
+
+      final drained = fallback
+          .events(
+            operation: 'test',
+            send: (_) {
+              sends += 1;
+              return provider.stream;
+            },
+            abort: abort.future,
+          )
+          .toList();
+
+      await pumpEventQueue();
+      abort.complete();
+
+      expect(await drained, isEmpty);
+      expect(sends, 1);
+      await provider.close();
+    });
+  });
 }

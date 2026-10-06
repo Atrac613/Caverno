@@ -15,6 +15,7 @@ milestones. An omitted row does not mean a capability is unplanned.
 |---|---|
 | Goal-driven work | [Anabasis roadmap](anabasis_roadmap.md), [Plan Mode roadmap](plan_mode_roadmap.md) |
 | Project continuity vision | [Anabasis Project Vision](anabasis_project_vision.md); independent of ANA4 completion |
+| Project dashboard and software farm | [Project Farm roadmap](project_farm_roadmap.md) |
 | Local execution, foundation, knowledge, and platform milestones | [Local LLM Agent Roadmap](local_llm_agent_roadmap.md#milestone-index) |
 | User-created Tools | [Tools MVP Roadmap](tools_mvp_roadmap.md) |
 | Terminal and conversation branching | [CLI roadmap](caverno_cli_roadmap.md), [Fork roadmap](conversation_fork_roadmap.md) |
@@ -66,6 +67,10 @@ become implementation milestones only through an explicit promotion decision.
   task decomposition, delegation, and acceptance — documented in
   `docs/anabasis_roadmap.md`, with the design in
   `docs/ANABASIS_ORCHESTRATOR_ARCHITECTURE.md`.
+- Use `FARM<number>` for the project dashboard, control-plane tools, and
+  software farm milestones documented in `docs/project_farm_roadmap.md`, which
+  promotes the project view and bounded-ongoing-operation stages of the
+  Anabasis Project Vision.
 - Use `DX<number>` for repository developer-efficiency milestones — reducing
   model-visible command output while preserving complete diagnostics —
   documented in `docs/codex_developer_efficiency_roadmap.md`.
@@ -81,7 +86,10 @@ become implementation milestones only through an explicit promotion decision.
 
 Structural review: 2026-09-13, against local main `70466c022` and the
 owning roadmap documents; the recommendation below and the LL33 row were
-refreshed 2026-09-20 against local main `0fd1276ab`. This aligns status
+refreshed 2026-09-20 against local main `0fd1276ab`, and the Project Farm rows
+and recommendation on 2026-09-26 against local main `af45d9084`. Next-slice
+selection was refreshed 2026-10-02 against local main `55c739761`, with RC1
+signed-device evidence put on hold by the user. This aligns status
 placement and current summaries; it does not rerun historical release, device,
 or live-model gates.
 `current` means unfinished track scope, not simultaneous implementation.
@@ -89,97 +97,50 @@ or live-model gates.
 
 ### Recommended Next Slice
 
-ANA4's first slice shipped on 2026-09-14, so the recommendation this block
-used to carry is done: the awaiting-you section is on screen in the both-
-workspaces list. What follows is refreshed against local main on 2026-09-20,
-after 62 commits (29 in `lib/`) landed past the last edit to this block.
+**Project Farm FARM0–FARM5 completed 2026-09-26.** The user promoted the
+project dashboard and software-farm direction and it was built in one day:
+- the dashboard;
+- the control-plane tools;
+- suggest mode;
+- background runs on LL13;
+- bounded unattended runs in the LL18 idle window.
 
-**Verified since: a truncated turn now resumes, and the instrument can see it.**
-`PendingActionLengthRecoveryPolicy` shipped able to answer a turn cut off
-mid-action and could not fire for either of two reasons in turn — its gate read
-a finish reason the regenerated answer had already overwritten (`3d1671b1b`),
-and then still required incomplete evidence that a turn which had only *looked*
-at things never leaves behind (`7284c8f86`). Both commit bodies close with
-"still unverified live", and both are out of date: the path fired on 2026-09-19
-in session `63d9042e`, on build `7284c8f86` — the very commit — carrying the
-whole chain in one `turnExit` and exiting on `pending_batch_executed`.
+Two follow-ups come before any further FARM work, and neither is a new
+milestone:
+- a check of every FARM surface in the running macOS app;
+- a review of the unreviewed diff that was merged locally (`a33200f14..af45d9084`).
 
-Neither commit could know that, because the check they name is an app-log line
-and `tool/check_fix_firings.py` reads session logs. That gap was the more
-general finding: LL33 records a transform id precisely so a guard firing stops
-being inferred from the notice it leaked into the answer, 27 logs carry one
-across 18 distinct ids, and not one of the instrument's 25 rows read them — all
-25 matched prose. A row may now be keyed on `turnExit.transforms` structurally,
-which is both stricter and cheaper than a literal: a log that merely quotes the
-id, including one produced by reading this repository, is not a firing. The
-report is 13/26.
+FARM6 waits on a token-storage decision. See
+[Project Farm roadmap](project_farm_roadmap.md).
 
-**The next slice is not the awaiting-you count. Scoping it on 2026-09-20 found
-that neither kind of item has a surface to route to.** `_buildWorkflowPanel`
-has one reference in the repository — its own declaration. Its only call site
-was deleted on 2026-04-18 by `93e867dfb`, and `0d857a595` moved the method into
-a part file a month later under an `// ignore: unused_element` that silenced
-the analyzer. Everything hangs off it and is therefore unreachable: the
-assumption confirmation (`_confirmMaterialAssumption`, the `onConfirmAssumption`
-route added by `52eae07c6` on 2026-09-18), open-question answering
-(`PlanOpenQuestionSection` with `_answerOpenQuestion` and
-`_setOpenQuestionStatus`), `_buildPlanProposalCard`, `_buildPlanDocumentCard`,
-`_buildCompactWorkflowSummary` and `_buildWorkflowTasksSection`. Each is called
-exactly once, from inside the dead panel.
+**RC1 signed-device evidence is on hold by user decision (2026-10-02).**
+RC1 is `later` and is excluded from next-slice selection until the user resumes
+this work. The iOS/Android LAN soak, background and desktop-wake reconnect,
+support-packet review, and multi-device household evidence remain required for
+product promotion; the hold does not satisfy or waive those gates. See
+[the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
-So this roadmap's claim that "the workflow panel now carries the clarification
-question and the confirmation" is true of the source and false of the running
-app, and the same is true of `AwaitingYouPanelSection`'s own comment that the
-sheet "already owns answering, with a status menu and a note editor per
-question" — its `onOpen` reaches `PlanReviewSheet`, which renders a markdown
-preview and three buttons and no questions at all. Adding `blockingAssumptions`
-to the count would point a second kind of item at the same absent destination.
+**Recommended next step: F5 boundary inventory and coverage refresh.**
+The tool-depth slice was fast-forward integrated into local main `2ee77ddb2`.
+The multi-round slice completed on 2026-10-03 in
+`feature/f5-multi-round-probe`: the service fell from 3,425 to 3,203 lines,
+and the independent 284-line probe has 100% executable-line coverage (107/107).
+Search/datetime name checks, batched discovery, execution order, repeated-call
+handling, final JSON scoring, usage and physical metrics remain unchanged.
+Catalog lookup, request settings, thinking observation and publication remain
+with the service. See
+[implementation evidence](f5_multi_round_probe_extraction_codex_task.md#implementation-evidence).
+The structured-output, recovery, depth and multi-round families selected in
+this sequence are now extracted. Refresh file sizes, churn, coverage and
+remaining boundaries before selecting another slice; F5 remains `current`.
+See [the boundary plan](large_file_refactor_plan.md#multi-round-extraction-2026-10-03).
 
-**That mount decision is made and shipped (`276a7e3c1`): move, do not
-re-mount.** `AwaitingYouSheet` is the destination the summary always described.
-It carries both kinds and only the waiting ones — open questions, and the
-blocking assumptions filtered out of the contract by `blockingAssumptionItems`
-— so it answers "what is stopping work" rather than repeating the plan.
-Answering and confirming reach the page's existing actions unchanged. A new
-mount rather than a revival, because the dead panel also held proposal cards, a
-tasks section and a compact summary the companion pane has since grown its own
-versions of. **ANA4's count landed with it**, as a union that marks the
-assumption kind apart, which settles the last half of §15's third question.
-
-This was the fourth instance of the pattern the repository keeps paying for: a
-feature complete in source and unreachable in production, its evidence gap
-recorded as unbuilt scope. Prefer the reachability check — does the entry point
-have a caller, and how does its reference count compare with its siblings —
-before scoping anything that builds on an existing surface.
-
-**That deletion landed too (`2e010dfca`), scoped per surface first.** Every
-one of the seven has a live equivalent: the tasks section is `CompanionTaskRow`
-in the companion pane; both proposal cards and the plan document card are
-`CompactPlanFooterCard` in the header, which auto-presents `PlanReviewSheet`
-and owns approve, edit and cancel; the contract's open questions and blocking
-assumptions are the sheet above; goal, constraints and acceptance criteria are
-in the plan markdown the review sheet renders, marks and all. Two have no
-equivalent and were not replaced — the workflow stage chip and the quick
-actions — but neither has been on screen since April, so nothing regressed.
-
-It came to **3,116 lines across four part files**, not the ~900 the panel body
-suggested: the task editors, replan paths, blocked-reason flows and status
-helpers behind it were each reachable only through a surface that was itself
-unreachable. `chat_page_workflow_builders.dart` is gone entirely. The ratchets
-drop to the measured values, 1801 → 1323 and 8467 → 5343.
-
-**One thing the stage raised is still open.** `workflowStage` is not dead
-code: `chat_notifier_prompt_context.dart` puts it in the system prompt, so the
-model reads it and only the user cannot see it. Whether that deserves a display
-is a product question with its own evidence need, separate from the deletion.
-
-**And one class of dead code has no instrument.** Five widget files are
-orphaned — no importer anywhere — and the analyzer cannot report it, because
-`unused_element` covers private declarations only. That is the same blindness
-that hid `plan_open_question_section` and `contract_item_list_section` for five
-months while their own tests stayed green. A repository check for a public
-widget with no importer would close it; today the only way to find one is to go
-looking.
+LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
+firings to their stored messages, so Level 3 event sourcing stays deferred. With
+RC1 evidence on hold, the Knowledge Currency track is not the fallback:
+KC1 closed on 2026-09-24, and KC2 was built, measured on a
+broadened fixture set, and parked with its block withdrawn (favourable,
+unproven). The current F5 boundary above is the device-free selection.
 
 This is an implementation recommendation, not a release sign-off.
 [Security promotion gates](#security-promotion-gates) still apply. Keep one
@@ -189,14 +150,11 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Remote Coding | RC1 | current | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | Reconnect resilience was recorded as implemented, and measuring it 2026-09-17 found three defects behind that claim. `reconnectAttempt` fell back to zero only on a successful snapshot, so one walked ladder disabled automatic reconnection for the rest of the session -- a failed manual retry left the counter at its cap and the next unexpected drop gave up with no attempt at all. The ladder itself surrendered after 2s/5s/15s, which is shorter than a desktop takes to wake, and nothing re-armed it: `lib/features/remote_coding/` had no `AppLifecycleState.resumed` hook, and opening the page rendered a Reconnect button and waited to be tapped. All three are fixed with regression tests. The remaining evidence is the iOS/Android LAN soak, support-packet review, and multi-device household check; consult the security follow-up and promotion records before release. |
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Characterize the unowned `NetworkTools` route, interface, and path-MTU cluster selected by the 2026-07-18 full boundary inventory before extracting code. |
-| Knowledge Currency | KC1 | current | Measure claim correctness, not only tool coverage: classify version-sensitive prose and code-artifact claims, compare asserted values with a fixture oracle, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. | Three measurements cover classes 2 and 4 and separate correctness from grounding. Finish the class 1 oracle and class 3 verdict shape before closing the gate; see [KC1](local_llm_agent_roadmap.md#kc1-cutoff-exposure-census) and `docs/knowledge_currency_track_design.md`. |
-| Local LLM | LL33 | current | Turn provenance: correlate the session log to the on-screen conversation (turnId + assistantMessageId) and record applied post-LLM transforms (guard notices), so log↔UI is traceable and guard firings are a direct triage signal instead of inferred from leaked notice prose. | Landed correlation keys + transform record + triage distribution. Truncation and recovery are covered -- `truncated_tool_call_arguments_feedback`, `pending_action_length_recovery`, `coding_continuation_recovery_*`, `final_answer_concise_retry` and the three unexecuted-action retries all record one -- and as of 2026-09-20 `tool/check_fix_firings.py` reads `turnExit.transforms` structurally, so a shipped guard's firing is evidence rather than an inference from the notice it leaked. That closed the instrument half of this milestone's stated goal: before it, 27 logs carried a transform across 18 ids and all 25 signature rows matched prose instead. What is left is file-save, which records no transform at all today, and Level 3 event-sourcing, still deferred. |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Multi-round slice done 2026-10-03: the diagnostic service is 3,203 lines after extracting the 284-line probe, with 107/107 executable lines covered. The verification gate, 147 relevant tests and six size checks pass. Next: refresh boundary inventory and coverage before selecting another slice. See [implementation evidence](f5_multi_round_probe_extraction_codex_task.md#implementation-evidence) and [boundary plan](large_file_refactor_plan.md#multi-round-extraction-2026-10-03). |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |
-| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | All four of §15's questions now have a persistent surface: the awaiting-you section shipped 2026-09-14 and sits in the both-workspaces list, so it does not need a coding project. **§16's mode question is answered — no fourth `WorkspaceMode`**: the parent's identity is per turn (`@anabasis` → one interaction generation carries authority, prompt block and billing role) and a mode is per conversation, which would force a per-conversation answer to a per-turn question; a conversation legitimately carries both kinds of turn. `AssistantMode` reuses `plan` for the same reason. What remains is `MaterialContractAssumptionGuard`'s `WorkspaceMode.coding` scope, held deliberately until a non-coding goal needs it, and the surface for pending confirmations. The question that blocked the surface is answered: measured 2026-09-18, a dismissal did not survive even the tool-loop iteration it was made in, because the gate's ask memory was a field on an object the turn rebuilds per iteration -- three iterations, three identical modals, one answer. `MaterialAssumptionAskMemory` now holds it per turn, keyed by owner and released in the turn teardown scope. Scoping the listing then found the surface it would point at was itself a dead end: `confirmMaterialAssumption` had exactly one caller, the gate, so an assumption could only be cleared by the interrupt raised mid-turn. The workflow panel carries the clarification question and the confirmation in source only: measured 2026-09-20, `_buildWorkflowPanel` has no caller anywhere in the repository -- its one call site was deleted on 2026-04-18 (`93e867dfb`) and the analyzer warning was silenced by an `// ignore: unused_element` a month later (`0d857a595`). Assumption confirmation, open-question answering, both proposal cards and the tasks section are each called exactly once, from inside it, so none of them renders. Shipped 2026-09-20 in `276a7e3c1`: `AwaitingYouSheet` is a new live mount carrying both kinds and only the waiting ones, and the summary now counts the union with the assumption kind marked apart. **§15's third question is fully answered.** What remains for the track is deleting the dead panel and the ~900 lines only it reaches, which is a product decision about the plan/workflow pane rather than a line-count exercise. See [ANA4](anabasis_roadmap.md#ana4-anabasis-workspace); the broader [project vision](anabasis_project_vision.md) is independent. |
+| Anabasis | ANA4 | current | Carry one goal through completion, with its state beside the conversation. | The awaiting-you surface and the dead workflow-panel deletion shipped on 2026-09-20. The remaining product question is whether the model-visible `workflowStage` deserves a user-facing display; hold that decision until there is evidence that the current plan/review surfaces leave users unable to understand the stage. |
 | Watch | WATCH5 | current | Carry a pending approval to the phone over push, actionable where the device is granted that kind. | Push delivery, lock-screen approval, and native withdrawal have hardware evidence dated 2026-09-09/10. Complete the remaining device matrix; see [WATCH5](apple_watch_roadmap.md#watch5-push-originated-notification-actions). |
 | Watch | WATCH14 | current | Browse the iPhone's paired host projects and existing threads, read a compact conversation, and dictate instructions into the selected remote thread. | Slices 1-3 provide paged browsing, compact transcripts, and destination-bound Dictation/Stop. A background-woken iPhone now reconnects the saved host, retires the old epoch, and offers an explicit Send again only after the same destination is freshly confirmed. Next: prove this on a signed locked/backgrounded iPhone/Watch pair and real desktop, plus concurrent thread changes, accessibility, and hidden tool traffic. See [WATCH14](apple_watch_roadmap.md#watch14-remote-projects-and-voice-threads). |
 
@@ -206,7 +164,6 @@ implementation slice active.
 |-------|-----------|--------|------|-------------|
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Retrieval | RAG3R | next | Determine whether a dedicated post-answer groundedness detector is materially new, locally runnable, and capable of meeting the frozen RAG3 gates. | Start with artifact, license, runtime, and one synthetic five-evidence feasibility probe for Beyond Document Grounding, MiniCheck, and FactCG. Only a runnable candidate with a credible path to p95 <= 1,200 ms may receive a separately frozen 20-case non-promotion contract. Reuse KC1's truth-versus-grounding label separation, but do not couple KC1 delivery to RAG3. No production or promotion wiring. Research: `docs/rag_groundedness_detector_research_2026-09-01.md`. |
-| Knowledge Currency | KC2 | next | Push measured toolchain and dependency ground truth into the prompt while preserving the datetime anchor that `SystemPromptBuilder` already emits unconditionally. | Content settled by KC1's second measurement 2026-09-03: carry **what changed**, not only which version — a delta block cut stale claims from 76% to 28% over 75 claims, fixing every API it covered and none it did not. The version list stays because it is what fixes class 4. The open question is now coverage, not mechanism: recency window, project imports, or the symbols a draft actually used. Extract a shared LL10 dependency inventory, attest locked versus installed versions as exact/mismatch/unverifiable, omit non-exact versions from authoritative context, cache by project/metadata fingerprints, and keep the block in the dynamic tail. |
 | Platform Vision | COMPAT1 | next | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Start with a diagnostic CLI seeded by LL9 live lifecycle evidence; keep model capability separate from endpoint protocol support. |
 | Routines | ROUTINE3 | next | In-chat `/loop <interval> <prompt>`: repeat a prompt inside the current conversation on an interval, keeping its history, tool-approval cache, workspace lease, and thread identity. Distinct from ROUTINE1's `create_routine`, which persists a catalog entity that runs against its own isolated context. | Reuse `GoalAutoContinueSafeBoundary` for the resend veto and honor the LL38 steering/queue owner-receipt contract; model-paced intervals and push-woken background ticks are follow-ups. Scoped 2026-09-01. |
 | Remote Coding | RC2 | next | Retire the notification-relay QR path now that pairing sets push up over the authenticated socket. | Gated on the WATCH5 device check, not on design: removing the fallback before the push path is proven on hardware takes away the manual re-setup route that the 2026-09-09 diagnosis needed. Delete the desktop bell and its QR dialog (`remote_coding_settings_page.dart`), `state.relayPairingPayload` with the `showQr` argument and its expiry timer, the mobile `_scanNotificationRelayCode`, and `authorizeNotificationRelayFromQr`. Keep `createNotificationRelayPairingPayload` — the WSS `requestNotificationRelay` handler calls the same method with `showQr: false`, so the challenge and delegation machinery is shared, not legacy. Keep `supportsNotificationRelaySetup` and make its false branch an explicit error: version skew between a desktop and a phone is real even when backward compatibility is not a goal, and today that branch is the only thing standing between skew and silence. The bell is also the only per-device "push configured" indicator, so replace it with text in the device subtitle. The mobile bell and status banner stay: `disable()` writes a flag that `enableAfterPairing` refuses to cross, so the bell is the only way back from an explicit disable or an OS denial, and the banner is the only surface that names `unavailable`. Decided 2026-09-09. |
@@ -224,18 +181,22 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
+| Remote Coding | RC1 | later | Add authenticated confidential transport, downgrade rejection, bounded unauthenticated connections/frames, reconnect resilience, support diagnostics, and multi-device evidence. | Signed-device evidence is on hold by user decision (2026-10-02); resume only when the user requests it. Reconnect fixes have regression tests, but the iOS/Android LAN soak, support-packet review, and multi-device household evidence remain required before product promotion. See [the P1 gate](remote_coding_p1_release_gate.md#verification-hold). |
 | Heuristic Removal | HEU4 | later | Git write confirmation. Measured 2026-08-27: 8 of 12 confirmation questions go unrecognised, including two in English and Japanese, so the assistant asks and commits without waiting. | Held deliberately: there is no token to route to, and the structural fix is moving confirmations onto `ask_user_question` rather than replacing a predicate. Blast radius is bounded by the (cacheable) git approval gate. |
 | Heuristic Removal | HEU5 | later | Replace the tool-role acceptance carve-outs. | Blocked on the tool-role regeneration measurement; do not change on current evidence. First measured misfire 2026-09-11 (session 9174dbd1): `looksLikeBackgroundProcessCompletionClaim` has CJK positive markers but CJK negatives only for failure, so a Japanese answer denying completion matched on its own denial and cost a full regeneration (24.8k prompt tokens) per poll of a ten-minute release, while the same answer in English cost nothing. Patched with the negated completion words only -- bare negation suffixes would trade the cost bug for a safety hole. |
 | Heuristic Removal | HEU6 | later | Reduce proposal, goal-suggestion, and memory-extraction prose parsing. | Largest surface, lowest stakes; may stay best-effort by decision. |
 | Caverno CLI | CLI4 | later | Package and release the terminal client with automation-grade diagnostics. | The F5 dependency is satisfied; resume with macOS archive, launcher, checksum, and packaged-process gates, and require the signed packaged doctor for promotion. |
+| Project Farm | FARM6 | later | Show pull request and CI status on the project dashboard; later let the farm open pull requests (approval-gated). | Decide where the GitHub token is stored and review the egress first. See [FARM6](project_farm_roadmap.md#farm6-pull-requests). |
 | Retrieval | RAG5 | later | Evaluate deterministic `none`/local/agent-kb/both routing in shadow before automatic retrieval changes prompts or cost. | Activate routes only after precision, recall, unnecessary-retrieval, answer-quality, latency, and token gates pass. |
 | Retrieval | RAG6 | later | Decide whether optional local reranking or ANN vector search is justified by measured quality and scale. | A documented No-Go is successful completion when 20k latency/RSS or reranker quality/VRAM gates do not justify new dependencies. |
-| Knowledge Currency | KC3 | later | Extend LL10 with installed version-delta evidence: bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. | The lookup already exists as a prototype: `tool/kc1_cutoff_oracle.dart` answers KC3's stated acceptance case — the symbol exists in both versions but the installed one deprecates it — so what KC3 adds is the LL10 response envelope and containment, not the resolution. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store. Add a new public tool name only if tool-discovery evaluation rejects an LL10 query mode; preserve containment, provenance, and response budgets. |
+| Knowledge Currency | KC2 | later | Push measured toolchain and dependency ground truth, and what those versions changed, into the prompt tail. | Parked 2026-09-24 with the block withdrawn from coding prompts (`e038f1dcc`). On sixteen KC1 fixtures (`qwen3.8-27b-exl3`) no production arm is worse than bare and the digest-carrying arms lower class 2 staleness from 59% to 36-46% and class 4 from 71% to 25%, but at 22 and 8 claims per arm the gain is not established. Re-promote only with a wider fixture set (20+ per class) or real-session evidence that stale API claims matter. The inventory, block builder, digest, import-based selection, and census production arms remain for that. |
+| Knowledge Currency | KC3 | later | Extend LL10 with installed version-delta evidence: bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. | The lookup already exists as a prototype: `tool/kc1_cutoff_oracle.dart` answers KC3's stated acceptance case — the symbol exists in both versions but the installed one deprecates it — so what KC3 adds is the LL10 response envelope and containment, not the resolution. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store. Add a new public tool name only if tool-discovery evaluation rejects an LL10 query mode; preserve containment, provenance, and response budgets. Re-scoped 2026-09-24 by the KC1 gate: the pull-side complement to KC2's pushed delta window, promoted only after a paired re-run counts what that window misses; not a class 1 remedy. |
 | Knowledge Currency | KC4 | later | Nominate cutoff-sensitive claims from visible prose, response code blocks, changed dependency-using code, and LL11 deprecation diagnostics; let only ground-truth evidence render the verdict. | The nomination stage is measured (KC1's third measurement, 2026-09-03): a symbol index catches 25 of 25 deprecation-class stale usages, misses only staleness that is not a symbol at all, and flags 14 of 30 correct answers on bare-name collisions — so the "verdict from ground truth only" clause is load-bearing, not boilerplate, and LL11 `deprecated_member_use` is what must decide. Reuse existing recovery plumbing with a bounded turn-evidence adapter for artifacts. Annotate rather than block when verification is unavailable. Shadow precision and recall must include a stale API that appears only in edited code. |
 | Knowledge Currency | KC5 | later | Record a per-model `knowledgeCutoff` date and its source so the gap can be stated as context and used to nominate verification. | Never from self-report and never treat the date as proof that a specific claim is stale. `unknown` recorded honestly beats a probed number nobody trusts; whether an LL39-style dated-fact probe can beat a static table is open. |
 | Local LLM | LL29 | later | Tool-loop failure recovery: degrade gracefully on repeated tool failures instead of aborting the whole turn (inject a recovery hint and keep iterating; hard halt is opt-in). | The original 1.6% corpus basis was withdrawn on 2026-08-06; the separate coding-canary population measured 14.2%. Keep deferred until representative evidence settles the recovery gate. See [LL29](local_llm_agent_roadmap.md#ll29-tool-loop-failure-recovery-degrade-dont-abort). |
 | Local LLM | LL32 | later | Deferred subdirectory instruction and skill discovery: surface newly reachable `CLAUDE.md` / rules / skill files as paths only, once per session, when a tool touches a path outside the startup discovery chain. | Corroborated 2026-07-21 by Grok Build shipping the same design; stays behind the Grounded Verification Track. |
 | Local LLM | LL41 | later | Deterministic goal verification contract: a goal may carry a user-declared verification command (plus acceptance criteria) whose exit code is ground truth for the auto-continue stop decision. No verifier or judge is added — LL37's "no inline stage while a user is present" decision stands. | Gate: promote only once an LL31 turn-exit triage measures how often interactive goals end in `awaitingConfirmation` or stop on `noProgress`; today's evidence is a single session, not a rate. Scoped 2026-09-01. |
+| Local LLM | LL42 | later | Measure tool-definition cost across request paths and trim oversized initial catalogs where task-scoped selection preserves tool reachability and safety. | Start with a per-path definition and actual-use census; compare reported prompt tokens and cache effects, then choose one path beyond `/review` for a bounded trial. See [LL42](local_llm_agent_roadmap.md#ll42-task-scoped-tool-definition-budgets). |
 | Platform Vision | API1 | later | Normalize Chat Completions, Responses-style APIs, and local-provider extensions into one Agent Event Core. | Promote only after the current LL backlog is stable; first slice defines the event schema and replay fixture. |
 | Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
 | Platform Vision | HOOK2 | later | Claude-like lifecycle hook flexibility with tool-event hooks, matchers, and normalized payloads. | Start with `PostToolUse` and `PostToolUseFailure` so agent-kb can archive successful and failed tool outcomes. |
@@ -350,8 +311,14 @@ and help the user choose and complete the next meaningful goal.
 
 [Anabasis Project Vision](anabasis_project_vision.md) owns this direction and
 the proposed delivery sequence. ANA4 remains the bounded single-goal workspace.
-No ANA5 or later milestone is assigned yet; promote one evidence-backed slice
-at a time after ANA4 experience identifies the next missing capability.
+No ANA5 or later milestone is assigned. On 2026-09-26 the user promoted the
+project view and bounded-ongoing-operation stages into their own track,
+`FARM<number>`, owned by the [Project Farm roadmap](project_farm_roadmap.md).
+
+## Project Farm Track
+
+Scope, acceptance criteria, milestone status, and evidence:
+[Project Farm Roadmap](project_farm_roadmap.md).
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 

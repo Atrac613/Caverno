@@ -44,6 +44,8 @@ final semanticIndexingServiceProvider = Provider<SemanticIndexingService?>((
   final model = ref.watch(settingsNotifierProvider).embeddingsModel;
   return SemanticIndexingService(
     embed: (inputs) => client.embed(inputs: inputs, model: model),
+    embedWithCancellation: (inputs, signal) =>
+        client.embed(inputs: inputs, model: model, abortSignal: signal),
     store: store,
     model: model,
   );

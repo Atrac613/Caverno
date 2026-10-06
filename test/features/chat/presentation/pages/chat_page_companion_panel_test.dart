@@ -12,6 +12,7 @@ import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
@@ -27,6 +28,8 @@ import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
+import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -162,13 +165,17 @@ class _TestChatNotifier extends ChatNotifier {
 }
 
 class _RollbackChatNotifier extends ChatNotifier {
+  _RollbackChatNotifier(this._messages);
+
+  final List<Message> _messages;
+
   @override
   ChatState build() {
     updateMcpToolService(ref.read(mcpToolServiceProvider));
     conversationId = ref
         .read(conversationsNotifierProvider)
         .currentConversationId;
-    return ChatState.initial();
+    return ChatState(messages: _messages, isLoading: false);
   }
 }
 
@@ -703,7 +710,9 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     await tester.pumpAndSettle();
 
     // The companion toggle is offered in chat too.
-    expect(find.byIcon(Icons.view_sidebar_outlined), findsOneWidget);
+    expect(find.byTooltip('Toggle companion panel'), findsOneWidget);
+    // Desktop adds the background-process tab beside the companion.
+    expect(find.text('Processes'), findsOneWidget);
     // The chat companion panel surfaces only the session log section.
     expect(find.text('Session log'), findsOneWidget);
     expect(find.text('Progress'), findsNothing);
@@ -886,6 +895,17 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     });
 
     final now = DateTime(2026, 6, 12, 9, 25);
+    final messages = List<Message>.generate(
+      32,
+      (index) => Message(
+        id: 'message-$index',
+        content:
+            'Message $index\nDetails about the current coding thread.\n'
+            'Additional context keeps the transcript scrollable.',
+        role: index.isEven ? MessageRole.user : MessageRole.assistant,
+        timestamp: now.add(Duration(minutes: index)),
+      ),
+    );
     final project = CodingProject(
       id: 'project-1',
       name: 'example_app',
@@ -935,13 +955,18 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
         settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        modelCatalogProvider.overrideWith(
+          (ref, config) async => const <ModelCatalogEntry>[],
+        ),
         conversationsNotifierProvider.overrideWith(
           () => _CompanionConversationsNotifier(conversation),
         ),
         codingProjectsNotifierProvider.overrideWith(
           () => _CompanionCodingProjectsNotifier(project),
         ),
-        chatNotifierProvider.overrideWith(_RollbackChatNotifier.new),
+        chatNotifierProvider.overrideWith(
+          () => _RollbackChatNotifier(messages),
+        ),
         mcpToolServiceProvider.overrideWithValue(rollbackService),
         routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
         codingEnvironmentProcessRunnerProvider.overrideWithValue((
@@ -981,6 +1006,16 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     );
     await tester.pumpAndSettle();
 
+    final messageList = find.byKey(const ValueKey('chat-message-list'));
+    expect(messageList, findsOneWidget);
+    ScrollPosition position() {
+      return tester.widget<ListView>(messageList).controller!.position;
+    }
+
+    await tester.drag(messageList, const Offset(0, 500));
+    await tester.pumpAndSettle();
+    expect(position().maxScrollExtent - position().pixels, greaterThan(100));
+
     expect(
       find.byKey(const ValueKey('revert-last-turn-action')),
       findsOneWidget,
@@ -1001,6 +1036,7 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
       find.text('Reverted 1 file from the last agent turn.'),
       findsOneWidget,
     );
+    expect(position().maxScrollExtent - position().pixels, lessThan(1));
     expect(find.byKey(const ValueKey('revert-last-turn-action')), findsNothing);
   });
 
@@ -1102,5 +1138,4 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     expect(find.text('Unconfirmed assumptions'), findsOneWidget);
     expect(find.text('Confirm this'), findsOneWidget);
   });
-
 }

@@ -59,6 +59,7 @@ void main() {
         'source': 'stdout',
         'summary': 'Output contains a Markdown error heading.',
         'excerpt': '# Error\nrequired artifact is missing',
+        'tool_call_id': 'call-1',
       };
       final expectedPayload = {
         'schema': 'caverno_coding_output_feedback',

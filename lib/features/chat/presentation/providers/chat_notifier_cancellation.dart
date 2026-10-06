@@ -130,12 +130,31 @@ extension ChatNotifierSteering on ChatNotifier {
   }
 
   bool _isSteerableMessage(QueuedChatMessage message) =>
-      message.modelContent == null &&
       TurnSteeringPolicy.canSteer(
         content: message.content,
         hasImage: message.hasImage,
         isVoiceMode: message.isVoiceMode,
+        hasModelContent: message.modelContent != null,
       );
+
+  /// Moves queued message [id] into its thread's running turn, as an
+  /// interrupting send would. The user picked it, so it may jump ahead of
+  /// messages queued before it. False leaves it queued.
+  bool interruptWithQueuedMessage(String id) {
+    for (final message in _queuedChatMessages.forThread(conversationId)) {
+      if (message.id != id || !_isSteerableMessage(message)) continue;
+      final owner = _steerableTurnOwner(message.conversationId);
+      if (owner == null) return false;
+      // Settle the sender's receipt with the turn the message joins before
+      // removal, which would otherwise settle it as never sent.
+      _queuedChatMessages.completeTurnOwner(message, owner);
+      _queuedChatMessages.remove(id);
+      _syncQueuedChatMessagesState();
+      _registerTurnSteering(owner, message);
+      return true;
+    }
+    return false;
+  }
 
   /// Files [message] against the running [owner] and reports the turn it
   /// joined.
@@ -347,21 +366,11 @@ extension ChatNotifierSteering on ChatNotifier {
     );
   }
 
-  /// The directive that tells the model those user turns are an interruption.
-  ///
-  /// Derived from the carried count rather than consumed, so it stays in place
-  /// for the rest of the turn instead of only for the request that first
-  /// carried the message.
-  Message? _turnSteeringDirectiveMessage(ChatTurnOwner owner) {
-    final carried = _turnSteering.carriedCount(owner);
-    if (carried == 0) return null;
-    return Message(
-      id: 'system_turn_steering_${owner.interactionGeneration}',
-      content: TurnSteeringPromptBuilder.directive(steerCount: carried),
-      role: MessageRole.system,
-      timestamp: DateTime.now(),
-    );
-  }
+  Message? _turnSteeringDirectiveMessage(ChatTurnOwner owner) =>
+      TurnSteeringPolicy.directiveMessage(
+        generation: owner.interactionGeneration,
+        carried: _turnSteering.carriedCount(owner),
+      );
 
   /// Retires [owner] and hands back whatever never reached the model.
   ///

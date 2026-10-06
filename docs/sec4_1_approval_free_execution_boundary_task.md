@@ -56,6 +56,8 @@ Status: complete on `feature/sec4-1-approval-free-execution-boundary`.
   reports `executed_internally: true`.
 - `awk`, `sed`, `grep`, `stat`, `file`, and shell-backed `git` commands never
   take the read-only shortcut.
+  (Since SEC4.4h, supported `grep` forms take it through a bounded Dart
+  implementation; shell-backed `grep` still never does.)
 - Supported `pwd`, `echo`, `ls`, `cat`, `head`, `tail`, `wc`, `find`, and `rg`
   forms retain approval-free behavior through bounded Dart implementations.
 - Unsupported `find` and `rg` expressions fail closed inside the bounded

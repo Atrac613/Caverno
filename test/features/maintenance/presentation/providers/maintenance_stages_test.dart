@@ -191,7 +191,7 @@ void main() {
 
   test(
     'wires probe -> calibrate -> eval -> objective_verify -> mine -> propose -> adopt -> '
-    'precompute -> warm_cache, warm-up last',
+    'farm_advance -> precompute -> warm_cache, warm-up last',
     () {
       expect(stages().map((s) => s.name), [
         'probe',
@@ -201,6 +201,7 @@ void main() {
         'mine',
         'propose',
         'adopt',
+        'farm_advance',
         'precompute',
         'warm_cache',
       ]);

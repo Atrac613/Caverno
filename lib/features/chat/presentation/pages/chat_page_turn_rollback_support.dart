@@ -70,6 +70,7 @@ extension _ChatPageTurnRollbackSupport on _ChatPageState {
     if (!confirmed || !mounted) {
       return;
     }
+    _threadScroll.scheduleScrollToBottom(animated: true);
 
     final result = await ref
         .read(chatNotifierProvider.notifier)

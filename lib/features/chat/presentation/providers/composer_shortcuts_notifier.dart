@@ -25,6 +25,7 @@ import 'coding_environment_snapshot_provider.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'model_usage_providers.dart';
+import 'turn_coding_project_resolver.dart';
 
 export '../../domain/services/composer_shortcut_suggestion_service.dart'
     show ComposerShortcut, ComposerShortcutKind;
@@ -158,7 +159,9 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
           conversation: conversation,
           assistantContent: assistantContent,
           languageCode: languageCode ?? preferredLanguageCode(settings),
-          repoSnapshot: isCodingWorkspace ? await _repoSnapshot() : null,
+          repoSnapshot: isCodingWorkspace
+              ? await _repoSnapshot(conversation)
+              : null,
           isCodingWorkspace: isCodingWorkspace,
         ),
       );
@@ -244,17 +247,27 @@ class ComposerShortcutsNotifier extends Notifier<ComposerShortcutsState> {
         systemLocale: PlatformDispatcher.instance.locale,
       );
 
-  /// Branch and change volume for the selected coding project, or null when
-  /// there is no project, no git, or git did not answer in time.
-  Future<ComposerShortcutRepoSnapshot?> _repoSnapshot() async {
-    final rootPath = ref
-        .read(codingProjectsNotifierProvider)
-        .selectedProject
-        ?.rootPath
-        .trim();
+  /// Branch and change volume for [conversation]'s own project -- its worktree
+  /// when it has one -- or null when there is no project, no git, or git did
+  /// not answer in time.
+  ///
+  /// This read the globally selected project's root, so a thread working in a
+  /// worktree was drafted against the main checkout's git state.
+  Future<ComposerShortcutRepoSnapshot?> _repoSnapshot(
+    Conversation? conversation,
+  ) async {
+    final rootPath = TurnCodingProjectResolver(
+      () => ref.read(codingProjectsNotifierProvider),
+      ref.read(conversationsNotifierProvider),
+    ).forConversation(conversation)?.rootPath.trim();
     if (rootPath == null || rootPath.isEmpty) return null;
     try {
-      final snapshot = await ref.read(
+      // Refresh rather than read: while the companion panel is open it keeps
+      // this provider alive, and a read returned the git state from whenever
+      // the panel first loaded. A release turn that left pubspec.yaml and its
+      // notes uncommitted was drafted against "uncommitted files: 0", which
+      // the prompt reads as "no git shortcuts".
+      final snapshot = await ref.refresh(
         codingEnvironmentSnapshotProvider(rootPath).future,
       );
       if (!snapshot.isGitRepository) return null;

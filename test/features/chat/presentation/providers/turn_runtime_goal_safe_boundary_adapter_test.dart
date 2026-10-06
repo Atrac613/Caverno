@@ -13,6 +13,31 @@ import 'package:test/test.dart';
 
 void main() {
   group('TurnRuntimeGoalSafeBoundaryAdapter', () {
+    test(
+      'within-turn recovery ignores loading but preserves approval vetoes',
+      () {
+        final fixture = _Fixture()..mountVisible('conversation-a');
+        final owner = _owner('conversation-a');
+        fixture.adapter.synchronizeVisibleState(
+          ThreadScopedChatState.empty,
+          isLoading: true,
+          error: null,
+        );
+        expect(
+          fixture.adapter.captureFor(owner, withinTurn: true).isSafe,
+          isTrue,
+        );
+        fixture.adapter.synchronizeVisibleState(
+          ThreadScopedChatState(pendingLocalCommand: _local(owner)),
+          isLoading: true,
+          error: null,
+        );
+        expect(
+          fixture.adapter.captureFor(owner, withinTurn: true).isSafe,
+          isFalse,
+        );
+      },
+    );
     test('captures visible loading, error, queue, approval, and question', () {
       final fixture = _Fixture()..mountVisible('conversation-a');
       final owner = _owner('conversation-a');

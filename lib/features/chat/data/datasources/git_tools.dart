@@ -7,6 +7,8 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../../../../core/services/login_shell_environment.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_command_path_escape_guard.dart';
+import 'git_conditional_read_only_allowlist.dart';
+import 'git_read_only_option_allowlist.dart';
 import 'project_mutation_path_fence.dart';
 import 'turn_project_root.dart';
 
@@ -60,11 +62,9 @@ class GitTools {
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
-  // -------------------------------------------------------------------------
   // Read-only detection
-  // -------------------------------------------------------------------------
 
-  /// Subcommands that are always read-only.
+  /// Inspection subcommands whose accepted option shapes are read-only.
   ///
   /// Keep [ToolCapabilityClassifier] git inspection verbs in lockstep with
   /// this set. A read-only verb missing there is recorded as produced work.
@@ -89,7 +89,6 @@ class GitTools {
     'diff-tree',
     'diff-files',
     'diff-index',
-    'ls-remote',
   };
 
   /// Subcommands that are read-only only with specific argument patterns.
@@ -107,33 +106,45 @@ class GitTools {
   /// Returns `true` when [command] is a read-only git operation that can
   /// run without user confirmation.
   static bool isReadOnly(String command) {
-    final args = splitArgs(command);
+    // Classify what actually runs: executeResult strips a trailing
+    // `| head -N` / `| tail -N` before spawning git. Left in place, the pipe
+    // and its count read as unvetted arguments, so `tag --list | head -3`
+    // fell to approval and never counted as a tag-format inspection
+    // (session 50e3f486). Any other operator means the command is refused.
+    final normalized = normalizeCommand(command);
+    final lineLimit = parseTrailingLineLimit(normalized);
+    final target = lineLimit?.command ?? normalized;
+    if (firstShellControlOperator(target) != null) return false;
+
+    final args = splitArgs(target);
     if (args.isEmpty) return false;
 
     final subcommand = args.first;
 
-    if (_readOnlySubcommands.contains(subcommand)) return true;
+    if (_readOnlySubcommands.contains(subcommand)) {
+      return GitReadOnlyOptionAllowlist.accepts(subcommand, args);
+    }
 
     if (!_conditionalSubcommands.contains(subcommand)) return false;
 
     // Conditional checks per subcommand.
     switch (subcommand) {
       case 'branch':
-        return _isBranchReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.branch(args);
       case 'tag':
-        return _isTagReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.tag(args);
       case 'stash':
-        return _isStashReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.stash(args);
       case 'config':
-        return _isConfigReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.config(args);
       case 'remote':
         return _isRemoteReadOnly(args);
       case 'symbolic-ref':
         return _isSymbolicRefReadOnly(args);
       case 'reflog':
-        return _isReflogReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.reflog(args);
       case 'fsck':
-        return _isFsckReadOnly(args);
+        return GitConditionalReadOnlyAllowlist.fsck(args);
       default:
         return false;
     }
@@ -159,8 +170,35 @@ class GitTools {
       normalized = normalized.substring(3).trimLeft();
     }
 
-    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return normalized;
+    return _collapseUnquotedWhitespace(normalized).trim();
+  }
+
+  /// Collapses whitespace runs to one space outside quotes only. Collapsing
+  /// inside them turned a commit body's line breaks into spaces, so every
+  /// multi-line `-m` paragraph landed as one line (session 80dc7079).
+  static String _collapseUnquotedWhitespace(String command) {
+    final buffer = StringBuffer();
+    String? quoteChar;
+    var pendingSpace = false;
+    for (final rune in command.runes) {
+      final c = String.fromCharCode(rune);
+      if (quoteChar == null &&
+          (c == ' ' || c == '\t' || c == '\n' || c == '\r')) {
+        pendingSpace = true;
+        continue;
+      }
+      if (pendingSpace) {
+        buffer.write(' ');
+        pendingSpace = false;
+      }
+      if (quoteChar == null && (c == '"' || c == "'")) {
+        quoteChar = c;
+      } else if (c == quoteChar) {
+        quoteChar = null;
+      }
+      buffer.write(c);
+    }
+    return buffer.toString();
   }
 
   /// Returns the first shell control operator outside quotes, if present.
@@ -206,6 +244,16 @@ class GitTools {
 
     return null;
   }
+
+  static String shellOperatorRefusalMessage(String shellOperator) =>
+      'git_execute_command accepts one git subcommand per call and runs '
+      'without a shell; operator "$shellOperator" is unsupported. Use Git '
+      'options first: `rev-list --count <range>` for commit counts, '
+      '`log -n 5` or `--max-count=5` for limits, and `--format=...` to shape '
+      'output where supported. A trailing `| head -N` or `| tail -N` is '
+      'applied by this tool. Do not retry the same command unfiltered. '
+      'If a real pipeline or redirect is required, use '
+      'local_execute_command; it asks the user for approval every time.';
 
   /// A trailing `| head -N` or `| tail -N` this tool applies to its own
   /// output instead of refusing.
@@ -283,84 +331,6 @@ class GitTools {
     return null;
   }
 
-  /// `git branch` is read-only when listing (no create/delete/rename flags
-  /// and no positional branch-name argument that would create a branch).
-  static bool _isBranchReadOnly(List<String> args) {
-    const writeFlags = {
-      '-d',
-      '-D',
-      '--delete',
-      '-m',
-      '-M',
-      '--move',
-      '-c',
-      '-C',
-      '--copy',
-      '--set-upstream-to',
-      '-u',
-      '--unset-upstream',
-      '--edit-description',
-    };
-    for (var i = 1; i < args.length; i++) {
-      final arg = args[i];
-      if (writeFlags.contains(arg)) return false;
-      if (arg.startsWith('--set-upstream-to=')) return false;
-      // A positional argument (not a flag) after `branch` means create.
-      if (!arg.startsWith('-') && i > 1) {
-        // Allow known list flags: -r, -a, -v, -vv, --list, etc.
-        continue;
-      }
-    }
-    // Check if there's a bare positional that creates a new branch.
-    final positionals = args.skip(1).where((a) => !a.startsWith('-')).toList();
-    if (positionals.isNotEmpty) return false;
-    return true;
-  }
-
-  /// `git tag` is read-only when listing (no -a, -d, -s, -f flags and no
-  /// positional tag name that would create a tag).
-  static bool _isTagReadOnly(List<String> args) {
-    const writeFlags = {'-a', '-d', '-s', '-f', '--delete', '--sign', '-u'};
-    var hasListFlag = false;
-    for (var i = 1; i < args.length; i++) {
-      final arg = args[i];
-      if (writeFlags.contains(arg)) return false;
-      if (arg == '-l' || arg == '--list' || arg.startsWith('--list=')) {
-        hasListFlag = true;
-      }
-    }
-    if (hasListFlag) return true;
-    final positionals = args.skip(1).where((a) => !a.startsWith('-')).toList();
-    if (positionals.isNotEmpty) return false;
-    return true;
-  }
-
-  /// `git stash` is read-only for `list` and `show` sub-subcommands only.
-  static bool _isStashReadOnly(List<String> args) {
-    if (args.length < 2) return false;
-    const readOnlyStashActions = {'list', 'show'};
-    return readOnlyStashActions.contains(args[1]);
-  }
-
-  /// `git config` is read-only for get/list operations only.
-  static bool _isConfigReadOnly(List<String> args) {
-    const readFlags = {
-      '--get',
-      '--get-all',
-      '--get-regexp',
-      '--list',
-      '-l',
-      '--get-urlmatch',
-    };
-    for (var i = 1; i < args.length; i++) {
-      if (readFlags.contains(args[i])) return true;
-    }
-    // Bare `git config` with just a key is a read.
-    // But `git config key value` (2 positionals) is a write.
-    final positionals = args.skip(1).where((a) => !a.startsWith('-')).toList();
-    return positionals.length <= 1;
-  }
-
   /// `git remote` is read-only when listing remotes, inspecting a remote, or
   /// resolving its URL. Pruning is read-only only in dry-run mode.
   static bool _isRemoteReadOnly(List<String> args) {
@@ -418,35 +388,6 @@ class GitTools {
       },
     );
     return positionals?.length == 1;
-  }
-
-  /// `git reflog` defaults to `show`; its explicit maintenance actions write
-  /// reflog state and therefore require approval.
-  static bool _isReflogReadOnly(List<String> args) {
-    if (args.length == 1) {
-      return true;
-    }
-    const writeActions = {'expire', 'delete', 'drop', 'write'};
-    return !writeActions.contains(args[1]);
-  }
-
-  /// `git fsck` is observational except when `--lost-found` asks Git to write
-  /// dangling objects into `.git/lost-found`.
-  static bool _isFsckReadOnly(List<String> args) {
-    for (final arg in args.skip(1)) {
-      if (_enablesFsckLostFound(arg)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  static bool _enablesFsckLostFound(String arg) {
-    if (arg == '--' || arg.startsWith('--no-')) {
-      return false;
-    }
-    final optionName = arg.split('=').first;
-    return optionName.length > 2 && '--lost-found'.startsWith(optionName);
   }
 
   static List<String>? _readOnlyPositionals(
@@ -512,7 +453,9 @@ class GitTools {
 
     // Parsed before the operator check so a trailing head/tail is applied
     // rather than refused; anything else still falls through to the refusal.
-    final lineLimit = GitTools.parseTrailingLineLimit(normalizeCommand(command));
+    final lineLimit = GitTools.parseTrailingLineLimit(
+      normalizeCommand(command),
+    );
     final shellOperator = lineLimit == null
         ? firstShellControlOperator(command)
         : null;
@@ -544,16 +487,7 @@ class GitTools {
         ...ToolResultOrigin.malformed.marker,
         'executed': false,
         'code': 'command_rejected_before_execution',
-        'error':
-            'git_execute_command accepts one git subcommand per tool call and '
-            'runs it without a shell, so the operator "$shellOperator" (pipes, '
-            'redirects, &&/;) is not supported. A trailing `| head -N` or '
-            '`| tail -N` is the exception and is applied for you. Do not retry '
-            'the same command unfiltered. Filter with git\'s own arguments '
-            'where git has one, e.g. `log -n 5 --oneline` or '
-            '`branch --list "feature/*"`. For anything else that needs a real '
-            'shell — a pipeline, a redirect, several commands — use '
-            'local_execute_command, which runs one.',
+        'error': shellOperatorRefusalMessage(shellOperator),
       });
     }
 
@@ -668,9 +602,7 @@ class GitTools {
       ).timeout(_kTimeout);
 
       final rawStdout = result.stdout as String;
-      final stdout = lineLimit == null
-          ? rawStdout
-          : lineLimit.apply(rawStdout);
+      final stdout = lineLimit == null ? rawStdout : lineLimit.apply(rawStdout);
       final stderr = result.stderr as String;
       final stdoutTruncated = stdout.length > _kMaxOutputChars;
       final stderrTruncated = stderr.length > _kMaxOutputChars;

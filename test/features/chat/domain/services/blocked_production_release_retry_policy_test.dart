@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = BlockedProductionReleaseRetryPolicy();
+  const executionIdentity = ProductionReleaseExecutionIdentity();
   final owner = ChatTurnOwner(
     conversationId: 'conv-1',
     interactionGeneration: 7,
@@ -33,6 +34,7 @@ void main() {
   BlockedProductionReleaseRetryInput inputWith({
     List<ToolResultInfo>? toolResults,
     List<String> executedCommands = const [],
+    List<String> executedReleaseIdentities = const [],
     bool approvalGranted = true,
     Set<String> attemptedSignatures = const {},
   }) {
@@ -40,6 +42,7 @@ void main() {
       owner: owner,
       ownerToolResults: toolResults ?? [blockedRelease()],
       ownerExecutedCommands: executedCommands,
+      ownerExecutedReleaseIdentities: executedReleaseIdentities,
       approvalGranted: approvalGranted,
       attemptedSignatures: attemptedSignatures,
       feedbackId: 'feedback-1',
@@ -102,6 +105,94 @@ void main() {
     );
 
     expect(disposition.plan, isNotNull);
+  });
+
+  test('canonicalizes cwd and working_directory to the same identity', () {
+    final cwdCall = ToolCallInfo(
+      id: 'cwd-release',
+      name: 'local_execute_command',
+      arguments: const {'command': releaseCommand, 'cwd': '.'},
+    );
+    final workingDirectoryCall = ToolCallInfo(
+      id: 'working-directory-release',
+      name: 'local_execute_command',
+      arguments: const {
+        'command': releaseCommand,
+        'working_directory': '/tmp/project',
+      },
+    );
+
+    expect(
+      executionIdentity.forToolCall(
+        cwdCall,
+        resolvedArguments: const {
+          'command': releaseCommand,
+          'cwd': '.',
+          'working_directory': '/tmp/project',
+        },
+      ),
+      executionIdentity.forToolCall(
+        workingDirectoryCall,
+        resolvedArguments: const {
+          'command': releaseCommand,
+          'working_directory': '/tmp/project',
+        },
+      ),
+    );
+    expect(
+      executionIdentity.forToolCall(
+        cwdCall,
+        resolvedArguments: const {
+          'command': releaseCommand,
+          'working_directory': '',
+          'cwd': '/tmp/project',
+        },
+      ),
+      executionIdentity.forToolCall(workingDirectoryCall),
+    );
+  });
+
+  test('an execution in another directory does not satisfy the retry', () {
+    final projectA = ToolCallInfo(
+      id: 'release-a',
+      name: 'local_execute_command',
+      arguments: const {
+        'command': releaseCommand,
+        'working_directory': '/tmp/project-a',
+      },
+    );
+    final projectB = ToolCallInfo(
+      id: 'release-b',
+      name: 'local_execute_command',
+      arguments: const {
+        'command': releaseCommand,
+        'working_directory': '/tmp/project-b',
+      },
+    );
+    final identityA = executionIdentity.forToolCall(projectA);
+    final identityB = executionIdentity.forToolCall(projectB);
+    final disposition = policy.evaluate(
+      BlockedProductionReleaseRetryInput(
+        owner: owner,
+        ownerToolResults: const [],
+        ownerExecutedCommands: const [releaseCommand],
+        ownerExecutedReleaseIdentities: [identityA],
+        approvalGranted: true,
+        attemptedSignatures: const {},
+        feedbackId: 'feedback-exact-identity',
+        pendingBlockedRelease: PendingBlockedRelease(
+          toolName: projectB.name,
+          command: releaseCommand,
+          executionIdentity: identityB,
+          workingDirectory: '/tmp/project-b',
+        ),
+      ),
+    );
+
+    expect(disposition.plan, isNotNull);
+    final feedback = jsonDecode(disposition.plan!.feedback.result) as Map;
+    expect(feedback['working_directory'], '/tmp/project-b');
+    expect(feedback['required_action'], contains('/tmp/project-b'));
   });
 
   test('retries only once per owner and command', () {
