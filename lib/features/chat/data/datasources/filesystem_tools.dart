@@ -653,10 +653,12 @@ class FilesystemTools {
     try {
       final matcher = _wildcardToRegExp(pattern.trim());
       final matches = <String>[];
+      final excluded = <String>[];
 
       await for (final entity in ProjectScanExclusions.files(
         directory,
         recursive: recursive,
+        onExcluded: excluded.add,
       )) {
         final relativePath = _relativePath(entity.path, directory.path);
         final fileName = entity.uri.pathSegments.isEmpty
@@ -675,6 +677,11 @@ class FilesystemTools {
         'matches': matches,
         'match_count': matches.length,
         if (matches.length >= maxResults) 'truncated': true,
+        if (matches.isEmpty)
+          ...ProjectScanExclusions.skippedDirectoryFields(
+            excluded,
+            toolName: 'find_files',
+          ),
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
@@ -744,9 +751,10 @@ class FilesystemTools {
       var scanCeilingHit = false;
       var resultLimitHit = false;
 
+      final excluded = <String>[];
       final candidates = searchesOneFile
           ? Stream<File>.value(singleFile)
-          : ProjectScanExclusions.files(directory);
+          : ProjectScanExclusions.files(directory, onExcluded: excluded.add);
       await for (final entity in candidates) {
         final relativePath = _relativePath(entity.path, scanRoot.path);
         if (fileMatcher != null &&
@@ -828,6 +836,11 @@ class FilesystemTools {
         if (resultLimitHit) 'truncated': true,
         if (scanCeilingHit) 'scan_ceiling_hit': true,
         'query_hint': ?literalQueryHint,
+        if (matches.isEmpty && !scanCeilingHit)
+          ...ProjectScanExclusions.skippedDirectoryFields(
+            excluded,
+            toolName: 'search_files',
+          ),
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(

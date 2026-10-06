@@ -125,6 +125,57 @@ void main() {
       expect(VerificationMetadataQueryPolicy.applies(command), isFalse);
     });
   }
+  // Session 1afd70a6: version queries mixed with plain reads. The probe
+  // failed only because a host interpreter was broken, and the harness made
+  // the turn repair that host instead of accepting a verified subtask.
+  const mixedProbe =
+      'cat requirements.txt; ls -a | grep -i venv; '
+      '/usr/local/bin/python3 -m pytest --version 2>&1 | head -2; '
+      '/usr/bin/python3 -m pytest --version 2>&1 | head -2';
+  test('a discovery probe mixing reads with version queries is no check', () {
+    final results = [
+      run('missing', 'python3 -m pytest test_watcher.py -q 2>&1 | tail -5', 1),
+      run('probe', mixedProbe, 120),
+      run(
+        'venv',
+        '.venv/bin/python -m pytest test_watcher.py -q 2>&1 | tail -5',
+        0,
+        stdout: '14 passed in 3.07s\n',
+      ),
+    ];
+    expect(VerificationMetadataQueryPolicy.applies(mixedProbe), isTrue);
+    expect(
+      CommandVerificationReconciliation.isVerification(results[1]),
+      isFalse,
+    );
+    expect(failure.latest(results), isNull);
+    final status = const ProjectTaskStepCompletionPolicy().status(
+      response: 'Verified.\nPROJECT_TASK_SUBTASK_DONE',
+      results: results,
+      goal: ConversationGoal(
+        id: 'g',
+        objective: 'Implement',
+        projectTaskAutoReview: true,
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      ),
+    );
+    expect(status.completionAccepted, isTrue);
+  });
+  for (final command in [
+    'cat requirements.txt; grep -n webhook watcher.py',
+    'cat requirements.txt; python3 -m pytest -q',
+    'ls; python3 -m pytest --version && python3 -m pytest -q',
+    'python3 -m pytest --version; python3 run_checks.py',
+    'cat a.txt; python3 -m pytest --version > evidence.txt',
+  ]) {
+    test(
+      'reads without a query, or with a real run, stay normal: $command',
+      () {
+        expect(VerificationMetadataQueryPolicy.applies(command), isFalse);
+      },
+    );
+  }
   test('masked availability errors stay observations, not failed feedback', () {
     final result = run(
       'metadata',

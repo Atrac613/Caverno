@@ -16,6 +16,9 @@ import 'project_mutation_path_fence.dart';
 import 'project_read_path_fence.dart';
 import 'turn_project_root.dart';
 
+export 'built_in_local_command_mutation_preflight.dart'
+    show builtInLocalCommandFenceRefusal;
+
 class LocalShellTools {
   LocalShellTools._();
 

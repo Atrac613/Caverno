@@ -716,6 +716,61 @@ void main() {
     },
   );
 
+  test('an empty scan names the excluded directories it skipped', () async {
+    // Session 17398f84: `find_files .venv/bin/python` returned no matches
+    // because `.venv` is pruned, and the model deleted the real `.venv` it
+    // thought was absent.
+    for (final path in ['watcher.py', '.venv/bin/python', '.venv/lib/x.py']) {
+      final file = File('${tempDir.path}/$path');
+      await file.parent.create(recursive: true);
+      await file.writeAsString('print("fixture")\n');
+    }
+    Future<Map> find(String pattern) async =>
+        jsonDecode(
+              await FilesystemTools.findFiles(
+                path: tempDir.path,
+                pattern: pattern,
+              ),
+            )
+            as Map;
+    Future<Map> search(String query) async =>
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: query,
+              ),
+            )
+            as Map;
+
+    final missing = await find('.venv/bin/python');
+    expect(missing['matches'], isEmpty);
+    expect(missing['excluded_directories'], ['.venv']);
+    expect(missing['excluded_directories_hint'], contains('find_files'));
+    final unseen = await search('no such text');
+    expect(unseen['excluded_directories'], ['.venv']);
+    expect(unseen['excluded_directories_hint'], contains('search_files'));
+
+    // A result that found something stays as compact as before.
+    final found = await find('watcher.py');
+    expect(found['matches'], ['watcher.py']);
+    expect(found.containsKey('excluded_directories'), isFalse);
+    expect(
+      (await search('fixture')).containsKey('excluded_directories'),
+      isFalse,
+    );
+
+    // The disclosed path is searchable when named.
+    final inside =
+        jsonDecode(
+              await FilesystemTools.findFiles(
+                path: '${tempDir.path}/.venv',
+                pattern: 'python',
+              ),
+            )
+            as Map;
+    expect(inside['matches'], ['bin/python']);
+  });
+
   test(
     'searchFiles still reports a path that is neither file nor directory',
     () async {

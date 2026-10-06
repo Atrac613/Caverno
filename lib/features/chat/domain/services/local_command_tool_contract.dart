@@ -151,6 +151,15 @@ final class LocalCommandExecutionRequest {
   }
 }
 
+/// A refusal the executor would return whatever approval is given.
+///
+/// Evaluated before any approval is requested, so neither auto-review nor a
+/// person is asked about a command that can never run. In session 1afd70a6 a
+/// user approved an escalated prompt for `ls -la /Library/... 2>&1`, and the
+/// mutation fence then refused it anyway.
+typedef LocalCommandPreflight =
+    Future<McpToolResult?> Function(LocalCommandExecutionRequest request);
+
 abstract interface class LocalCommandExecutionPort {
   Future<LocalCommandCompletion<McpToolResult>> execute(
     ChatTurnOwner owner,

@@ -15,9 +15,11 @@ final class LocalCommandToolHandler {
     required LocalCommandExecutionPort executionPort,
     required LocalCommandApprovalPort approvalPort,
     required CommandPermissionRuleStorePort permissionRuleStorePort,
+    LocalCommandPreflight? preflight,
   }) : _executionPort = executionPort,
        _approvalPort = approvalPort,
-       _permissionRuleStorePort = permissionRuleStorePort;
+       _permissionRuleStorePort = permissionRuleStorePort,
+       _preflight = preflight;
   static const Duration defaultTimeout = localCommandDefaultTimeout;
   static const String _missingArgumentsMessage =
       'command is required and working_directory must be provided or inferred '
@@ -31,6 +33,7 @@ final class LocalCommandToolHandler {
   final LocalCommandExecutionPort _executionPort;
   final LocalCommandApprovalPort _approvalPort;
   final CommandPermissionRuleStorePort _permissionRuleStorePort;
+  final LocalCommandPreflight? _preflight;
 
   Future<McpToolResult> handle(LocalCommandToolRequest request) async {
     final command = LocalShellTools.normalizeCommand(
@@ -111,6 +114,11 @@ final class LocalCommandToolHandler {
       return _validResult(cachedDenial.value!, request.toolName);
     }
 
+    // Only where someone would be asked: the no-approval paths above reach
+    // the same fence at execution without prompting anybody.
+    if (await _preflight?.call(execution) case final refusal?) {
+      return refusal;
+    }
     final gateCompletion = await _approvalPort.resolveGate(
       request.owner,
       approvalRequest,

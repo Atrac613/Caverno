@@ -501,6 +501,52 @@ void main() {
       ]);
     });
 
+    test(
+      'a fence refusal returns before auto-review or a person is asked',
+      () async {
+        // Session 1afd70a6: auto-review denied a contained out-of-root `ls`,
+        // the denial escalated to a dialog, the user approved, and the
+        // mutation fence refused the command anyway.
+        final owner = _owner('owner-a');
+        final refusal = _toolResult(
+          '{"ok":false,"code":"project_mutation_outside_root"}',
+          isSuccess: false,
+        );
+        final seen = <LocalCommandExecutionRequest>[];
+        final harness = _Harness(
+          preflight: (execution) async {
+            seen.add(execution);
+            return refusal;
+          },
+        );
+
+        final result = await harness.handler.handle(
+          _request(
+            owner: owner,
+            arguments: const {'command': 'ls -la /Library/Frameworks/ 2>&1'},
+          ),
+        );
+
+        expect(result, same(refusal));
+        expect(seen.single.arguments['allowed_read_root'], _ownerARoot);
+        expect(harness.approval.resolveCalls, isEmpty);
+        expect(harness.approval.manualCalls, isEmpty);
+        expect(harness.execution.calls, isEmpty);
+      },
+    );
+
+    test('a passing preflight leaves the approval flow unchanged', () async {
+      final owner = _owner('owner-a');
+      final harness = _Harness(preflight: (_) async => null)
+        ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+
+      await harness.handler.handle(
+        _request(owner: owner, arguments: const {'command': 'cat /etc/hosts'}),
+      );
+
+      expect(harness.approval.resolveCalls, hasLength(1));
+    });
+
     test('the manual prompt receives the reason it was asked for', () async {
       // The reason lived only in the audit file at first, so the person being
       // asked saw an ordinary command prompt and no mention of the path.
@@ -1571,7 +1617,7 @@ void main() {
 }
 
 final class _Harness {
-  _Harness()
+  _Harness({LocalCommandPreflight? preflight})
     : execution = _FakeExecutionPort(),
       approval = _FakeApprovalPort(),
       rules = _FakeRuleStore() {
@@ -1579,6 +1625,7 @@ final class _Harness {
       executionPort: execution,
       approvalPort: approval,
       permissionRuleStorePort: rules,
+      preflight: preflight,
     );
   }
 

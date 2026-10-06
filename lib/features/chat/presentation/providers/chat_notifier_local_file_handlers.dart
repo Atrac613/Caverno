@@ -472,6 +472,10 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     return LocalCommandToolHandler(
       executionPort: executionPort,
       approvalPort: approvalPort,
+      preflight: (execution) => builtInLocalCommandFenceRefusal(
+        toolName: execution.toolName,
+        arguments: execution.arguments,
+      ),
       permissionRuleStorePort: LocalCommandPermissionRuleRuntimeAdapter(
         owner: owner,
         rules: _settings.localCommandPermissionRules,

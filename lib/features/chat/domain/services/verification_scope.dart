@@ -110,15 +110,7 @@ final class VerificationScope {
     return VerificationScope._(
       sequence != null
           ? sequence.key
-          : inline?.key ??
-                jsonEncode([
-                  directory.trim(),
-                  // Whitespace in an inline script can change its checks or its
-                  // control flow; unsupported forms must retain their exact text.
-                  command.contains('\n') || RegExp(r'\s-c\s').hasMatch(command)
-                      ? command.trim()
-                      : command.replaceAll(RegExp(r'\s+'), ' ').trim(),
-                ]),
+          : inline?.key ?? _exactKey(command, directory),
       ranClean,
       inlineContract: inline,
       runtimeRepairKey:
@@ -140,7 +132,25 @@ final class VerificationScope {
           ).hasMatch((decoded?['stderr'] ?? '').toString().trim()),
       coveredKeys: [
         if (sequence?.terminalPytest case final runner?) runner.verificationKey,
+        // `&&` runs a step only after the previous one exited 0, so a passing
+        // sequence also settles an earlier standalone run of each plain step.
+        // In session 17398f84 `ruff check watcher.py && pytest -q` passed, yet
+        // the earlier failing `ruff check watcher.py` kept blocking. Pytest and
+        // inline Python steps keep their own, stricter identities.
+        for (final step in sequence?.steps ?? const <String>[])
+          if (PytestVerificationIdentity.parse(step, directory) == null &&
+              InlinePythonVerificationContract.parse(step, directory) == null)
+            _exactKey(step, directory),
       ],
     );
   }
+
+  static String _exactKey(String command, String directory) => jsonEncode([
+    directory.trim(),
+    // Whitespace in an inline script can change its checks or its control
+    // flow; unsupported forms must retain their exact text.
+    command.contains('\n') || RegExp(r'\s-c\s').hasMatch(command)
+        ? command.trim()
+        : command.replaceAll(RegExp(r'\s+'), ' ').trim(),
+  ]);
 }

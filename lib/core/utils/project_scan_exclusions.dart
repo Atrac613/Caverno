@@ -73,9 +73,13 @@ abstract final class ProjectScanExclusions {
   ///
   /// Pruning rather than filtering is the point: 72 nested checkouts is a walk
   /// large enough that listing it is itself the cost.
+  ///
+  /// [onExcluded] receives each pruned directory relative to [root], so a
+  /// caller with nothing to show can say where it did not look.
   static Stream<File> files(
     Directory root, {
     bool recursive = true,
+    void Function(String relativePath)? onExcluded,
   }) async* {
     final rootPath = root.absolute.path;
     final pending = <Directory>[root];
@@ -93,16 +97,46 @@ abstract final class ProjectScanExclusions {
           yield entity;
         } else if (entity is Directory && recursive) {
           final relative = p.relative(entity.absolute.path, from: rootPath);
-          if (excludesDirectory(relative)) continue;
+          if (excludesDirectory(relative)) {
+            onExcluded?.call(_normalize(relative));
+            continue;
+          }
           pending.add(entity);
         }
       }
     }
   }
 
-  static String _normalize(String path) =>
-      path.replaceAll(r'\', '/').replaceAll(RegExp(r'^\./'), '').replaceAll(
-        RegExp(r'/+$'),
-        '',
-      );
+  /// Result fields naming the directories an empty scan skipped, or none.
+  ///
+  /// An empty match list reads as absence. In session 17398f84
+  /// `find_files .venv/bin/python` found nothing because `.venv` is pruned,
+  /// the model concluded no environment existed, and it replaced -- then
+  /// deleted -- the project's real `.venv`.
+  static Map<String, Object> skippedDirectoryFields(
+    List<String> excluded, {
+    required String toolName,
+  }) {
+    if (excluded.isEmpty) return const {};
+    final sorted = [...excluded]
+      ..sort((a, b) {
+        final depth = '/'.allMatches(a).length - '/'.allMatches(b).length;
+        return depth != 0 ? depth : a.compareTo(b);
+      });
+    return {
+      'excluded_directories': sorted.take(_maxReportedExclusions).toList(),
+      if (sorted.length > _maxReportedExclusions)
+        'excluded_directory_count': sorted.length,
+      'excluded_directories_hint':
+          'These directories exist but were not searched. To look inside '
+          'one, call $toolName again with path set to it.',
+    };
+  }
+
+  static const int _maxReportedExclusions = 10;
+
+  static String _normalize(String path) => path
+      .replaceAll(r'\', '/')
+      .replaceAll(RegExp(r'^\./'), '')
+      .replaceAll(RegExp(r'/+$'), '');
 }

@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/command_verification_reconciliation.dart';
+import 'package:caverno/features/chat/domain/services/project_task_step_completion_policy.dart';
 import 'package:caverno/features/chat/domain/services/pytest_verification_identity.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/unresolved_verification_failure.dart';
@@ -216,6 +218,95 @@ void main() {
     expect(counts.skippedCount, 1);
   });
 
+  group('guardrail feedback on commands that verify nothing', () {
+    // Session 17398f84: an import probe and a venv setup command each got an
+    // Error diagnostic that no later pass could settle, so a subtask whose
+    // pytest run passed kept being rejected for "2 unresolved errors".
+    const guardrail = CodingCommandOutputGuardrailService();
+    final probe = command(
+      'probe',
+      'python3 -c "import pytest; print(pytest.__version__)" 2>&1; '
+          'python3 -m venv --help >/dev/null 2>&1 && echo venv-ok',
+      stdout:
+          'Traceback (most recent call last):\n'
+          "ModuleNotFoundError: No module named 'pytest'\nvenv-ok\n",
+    );
+    final setup = command(
+      'setup',
+      'python3 -m venv .venv && .venv/bin/python -m pip install --quiet '
+          'pytest 2>&1 | tail -20; echo "exit=\$?"',
+      stdout: 'exit=1\n',
+    );
+    final passed = command(
+      'passed',
+      'python3 -m pytest -q 2>&1 | tail -5',
+      stdout: '61 passed in 3.09s',
+    );
+
+    test('stays visible to the model but never blocks completion', () {
+      final probeFeedback = guardrail.buildFeedbackToolResult(
+        toolResults: [probe],
+      );
+      final setupFeedback = guardrail.buildFeedbackToolResult(
+        toolResults: [setup],
+      );
+      expect(probeFeedback, isNotNull);
+      expect(setupFeedback, isNotNull);
+      expect(CommandVerificationReconciliation.isVerification(probe), isFalse);
+      expect(CommandVerificationReconciliation.isVerification(setup), isFalse);
+      final results = [probe, probeFeedback!, setup, setupFeedback!, passed];
+
+      final evidence = ToolResultPromptBuilder.completionEvidence(results);
+      expect(evidence.unresolvedErrorCount, 0);
+      expect(evidence.hasFailedExecutionVerification, isFalse);
+      expect(evidence.hasSuccessfulExecutionVerification, isTrue);
+      expect(
+        ToolResultPromptBuilder.completionBlockerInstructions(results),
+        isEmpty,
+      );
+      expect(
+        const ProjectTaskStepCompletionPolicy()
+            .status(
+              response: 'Verified.\nPROJECT_TASK_SUBTASK_DONE',
+              results: results,
+              goal: ConversationGoal(
+                id: 'g',
+                objective: 'Implement',
+                projectTaskAutoReview: true,
+                createdAt: DateTime(2026),
+                updatedAt: DateTime(2026),
+              ),
+            )
+            .completionAccepted,
+        isTrue,
+      );
+    });
+
+    test('a flagged verification still blocks until it passes', () {
+      final masked = command(
+        'masked',
+        'python3 verify_logging.py 2>&1 | tail -5; echo done',
+        stdout: 'Traceback (most recent call last):\nAssertionError\ndone\n',
+      );
+      final feedback = guardrail.buildFeedbackToolResult(
+        toolResults: [masked],
+      )!;
+      final results = [masked, feedback, passed];
+
+      expect(
+        ToolResultPromptBuilder.completionEvidence(
+          results,
+        ).unresolvedErrorCount,
+        1,
+      );
+      final blockers = ToolResultPromptBuilder.completionBlockerInstructions(
+        results,
+      ).join('\n');
+      expect(blockers, contains('flagged by the command output guardrail'));
+      expect(blockers, isNot(contains('does not pass analysis')));
+    });
+  });
+
   group('non-pytest verification', () {
     // Session d0c0462c: only pytest runs were ever reconciled, so a failed
     // `watcher.py --dry-run` stayed failed for the rest of the turn even when
@@ -242,6 +333,56 @@ void main() {
       ]);
       expect(current.map((result) => result.id), ['pass']);
     });
+
+    // Session 17398f84: the chain passed, yet the standalone check it
+    // contains stayed failed and kept the subtask rejected.
+    const lint = 'python3 -m ruff check watcher.py';
+    const chain = '$lint && python3 -m pytest -q 2>&1 | tail -3';
+    ToolResultInfo chainRun(String id, String command, {String dir = '/w'}) =>
+        ToolResultInfo(
+          id: id,
+          name: 'local_execute_command',
+          arguments: {'command': command, 'working_directory': dir},
+          result: jsonEncode({
+            'command': command,
+            'working_directory': dir,
+            'exit_code': 0,
+            'stdout': 'All checks passed!\n61 passed in 3.09s\n',
+          }),
+          outcome: const ToolOutcome(exitCode: 0),
+        );
+
+    test('a passing && chain settles a failed run of each plain step', () {
+      final results = [run('lint', lint, 1), chainRun('chain', chain)];
+      expect(
+        CommandVerificationReconciliation.currentResults(
+          results,
+        ).map((result) => result.id),
+        ['chain'],
+      );
+      expect(const UnresolvedVerificationFailure().describe(results), isNull);
+    });
+
+    for (final (label, other) in [
+      ('another directory', chainRun('chain', chain, dir: '/elsewhere')),
+      (
+        'another file',
+        chainRun(
+          'chain',
+          'python3 -m ruff check other.py && python3 -m pytest -q 2>&1 '
+              '| tail -3',
+        ),
+      ),
+      ('a ; list', chainRun('chain', '$lint; python3 -m pytest -q')),
+    ]) {
+      test('a passing chain in $label does not settle it', () {
+        final current = CommandVerificationReconciliation.currentResults([
+          run('lint', lint, 1),
+          other,
+        ]);
+        expect(current.map((result) => result.id), contains('lint'));
+      });
+    }
 
     test('a different command passing does not', () {
       final current = CommandVerificationReconciliation.currentResults([

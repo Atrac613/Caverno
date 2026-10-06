@@ -790,7 +790,24 @@ class ToolResultPromptBuilder {
         'still needs to be done.',
       );
     }
-    if (evidence.unresolvedErrorCount > 0) {
+    final commandResultsOnly =
+        evidence.unresolvedErrorDiagnostics.isNotEmpty &&
+        evidence.unresolvedErrorDiagnostics.every(
+          (diagnostic) => diagnostic.code == 'command_output_failure',
+        );
+    if (evidence.unresolvedErrorCount > 0 && commandResultsOnly) {
+      // These come from the command output guardrail, not an analyzer. Saying
+      // "does not pass analysis" sent the model hunting for lint errors in
+      // session 17398f84.
+      lines.add(
+        'TASK NOT COMPLETE: ${evidence.unresolvedErrorCount} verification '
+        'command result(s) were flagged by the command output guardrail '
+        '(masked exit status or a failure reported in the output) and have '
+        'not passed since. Do not claim the task is complete. Name those '
+        'commands and rerun each so its exit status reports the real result, '
+        'or report what blocks it.',
+      );
+    } else if (evidence.unresolvedErrorCount > 0) {
       final pathSuffix = evidence.unresolvedErrorPaths.isEmpty
           ? ''
           : ' in ${evidence.unresolvedErrorPaths.join(', ')}';

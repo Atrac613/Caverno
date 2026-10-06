@@ -6,12 +6,21 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('ProjectScanExclusions', () {
     test('excludes the agent worktree roots, not their parents', () {
-      expect(ProjectScanExclusions.excludesDirectory('.claude/worktrees'), isTrue);
-      expect(ProjectScanExclusions.excludesDirectory('.codex/worktrees'), isTrue);
+      expect(
+        ProjectScanExclusions.excludesDirectory('.claude/worktrees'),
+        isTrue,
+      );
+      expect(
+        ProjectScanExclusions.excludesDirectory('.codex/worktrees'),
+        isTrue,
+      );
       // The rest of .claude is ordinary project content an agent is expected
       // to find: settings.json, agents/, launch.json.
       expect(ProjectScanExclusions.excludesDirectory('.claude'), isFalse);
-      expect(ProjectScanExclusions.excludesDirectory('.claude/agents'), isFalse);
+      expect(
+        ProjectScanExclusions.excludesDirectory('.claude/agents'),
+        isFalse,
+      );
     });
 
     test('excludes build output wherever it appears', () {
@@ -74,6 +83,34 @@ void main() {
           'pubspec.yaml',
         ]);
       });
+
+      test(
+        'reports each pruned directory once, relative to the root',
+        () async {
+          final excluded = <String>[];
+          await ProjectScanExclusions.files(
+            root,
+            onExcluded: excluded.add,
+          ).drain<void>();
+          excluded.sort();
+          expect(excluded, ['.claude/worktrees', '.dart_tool', 'build']);
+          expect(
+            ProjectScanExclusions.skippedDirectoryFields(
+              excluded,
+              toolName: 'find_files',
+            )['excluded_directories'],
+            ['.dart_tool', 'build', '.claude/worktrees'],
+            reason: 'shallow directories first',
+          );
+          expect(
+            ProjectScanExclusions.skippedDirectoryFields(
+              const [],
+              toolName: 'find_files',
+            ),
+            isEmpty,
+          );
+        },
+      );
 
       test('a scan rooted inside an excluded subtree still sees it', () async {
         // The exclusion applies while descending. A worktree child addressed

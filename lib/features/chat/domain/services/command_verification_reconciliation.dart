@@ -15,6 +15,13 @@ import 'verification_metadata_query_policy.dart';
 import 'verification_scope.dart';
 
 /// Settles earlier invocations only after the same verification actually passes.
+///
+/// Output-guardrail feedback on a command that is not a verification -- an
+/// environment probe or a dependency install -- stays visible to the model but
+/// never blocks: no later pass can settle it, so it would block for the rest of
+/// the turn. In session 17398f84 two such issues, from `import pytest` and a
+/// `pip install ...; echo "exit=$?"`, kept rejecting a verified subtask and
+/// sent the model linting unrelated code for an hour.
 abstract final class CommandVerificationReconciliation {
   static List<ToolResultInfo> currentResults(List<ToolResultInfo> results) {
     final staleBackgroundResults = staleBackgroundResultIds(results);
@@ -44,7 +51,14 @@ abstract final class CommandVerificationReconciliation {
         if (inline != null) successfulInlineContracts.add(inline);
       }
     }
-    if (supersededIds.isEmpty) return results;
+    final advisorySourceIds = {
+      for (final result in results)
+        if (!isVerification(result)) result.id,
+    };
+    if (supersededIds.isEmpty &&
+        !results.any((result) => result.name == 'coding_output_feedback')) {
+      return results;
+    }
     final current = <ToolResultInfo>[];
     for (var resultIndex = 0; resultIndex < results.length; resultIndex++) {
       final result = results[resultIndex];
@@ -81,10 +95,15 @@ abstract final class CommandVerificationReconciliation {
                             issue['working_directory'],
                   )
             : -1;
-        final settled = sourceId is String
-            ? supersededIds.contains(sourceId)
-            : sourceIndex >= 0 &&
-                  supersededIds.contains(results[sourceIndex].id);
+        final source = sourceId is String
+            ? sourceId
+            : sourceIndex >= 0
+            ? results[sourceIndex].id
+            : null;
+        final settled =
+            source != null &&
+            (supersededIds.contains(source) ||
+                advisorySourceIds.contains(source));
         if (!settled) retained.add(index);
       }
       if (retained.length == issues.length) {
