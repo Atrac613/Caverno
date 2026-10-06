@@ -267,7 +267,11 @@ void main() {
         'Review this action.',
       );
       expect(harness.autoReview.requests, isEmpty);
-      expect(harness.audit.records, isEmpty);
+      expect(harness.audit.records.single.outcome, 'manual_required');
+      expect(
+        harness.audit.records.single.decisionSource,
+        'default_permissions',
+      );
       expect(
         () => harness.manual.requests.single.arguments['path'] = 'poison.dart',
         throwsUnsupportedError,
@@ -325,7 +329,12 @@ void main() {
       expect(second.gateDecision, isNull);
       expect(harness.manual.requests, hasLength(1));
       expect(harness.autoReview.requests, isEmpty);
-      expect(harness.audit.records, isEmpty);
+      // The cached denial returns before the gate, so only the first manual
+      // decision is audited.
+      expect(
+        harness.audit.records.single.decisionSource,
+        'default_permissions',
+      );
     });
 
     test('reuses remembered approval with deterministic identity', () async {
@@ -374,9 +383,12 @@ void main() {
       expect(reused.gateDecision, ToolApprovalGateDecision.cachedApproval);
       expect(reused.reusedCachedApproval, isTrue);
       expect(harness.manual.requests, hasLength(1));
-      expect(harness.audit.records.single.decisionSource, 'cached_approval');
+      expect(harness.audit.records.map((record) => record.decisionSource), [
+        'default_permissions',
+        'cached_approval',
+      ]);
       expect(
-        harness.audit.records.single.arguments['reason'],
+        harness.audit.records.last.arguments['reason'],
         'different wording',
       );
       expect(harness.autoReview.requests, isEmpty);
@@ -566,12 +578,12 @@ void main() {
           outcome: ToolApprovalAutoReviewOutcome.allow,
         );
         final messages = List<Message>.generate(
-          10,
+          40,
           (index) => Message(
             id: 'message-$index',
             role: index.isEven ? MessageRole.user : MessageRole.assistant,
-            content: index == 9 ? 'x' * 950 : 'message $index',
-            timestamp: DateTime(2026, 1, index + 1),
+            content: index == 39 ? 'x' * 8100 : 'message $index',
+            timestamp: DateTime(2026, 1, 1).add(Duration(days: index)),
           ),
         );
 
@@ -603,8 +615,9 @@ void main() {
         expect(review.warningMessage, 'Review this action.');
         expect(review.preview, 'replacement preview');
         expect(review.hasUntrustedInfluence, isFalse);
-        expect(review.conversationTail, hasLength(8));
+        expect(review.conversationTail, hasLength(32));
         expect(review.conversationTail.last.content, endsWith('...'));
+        expect(review.conversationTail.last.content.length, 8003);
         expect(
           () => review.arguments['path'] = 'poison.dart',
           throwsUnsupportedError,
@@ -846,6 +859,7 @@ void main() {
         'The approval turn expired before execution',
       );
       expect(harness.audit.records.map((record) => record.decisionSource), [
+        'default_permissions',
         'cached_approval',
         'owner_expired',
       ]);

@@ -714,6 +714,9 @@ void registerChatNotifierPendingBatchTests() {
       );
       addTearDown(container.dispose);
       _activatePendingBatchProject(container, project);
+      // Uncontained shells still ask, which is every Linux CI run. The
+      // question this test asks is the replay, not the approval sheet.
+      standInForTheApprover(container);
       final notifier = container.read(chatNotifierProvider.notifier);
       await notifier.sendMessage('Verify the current implementation.');
       expect(service.executedToolNames, [
