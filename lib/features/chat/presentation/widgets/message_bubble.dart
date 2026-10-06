@@ -745,7 +745,7 @@ class _ResponseMetricsRow extends StatelessWidget {
       chips.add(
         _ResponseMetricChip(
           icon: Icons.timer_outlined,
-          label: '${elapsedSeconds.toStringAsFixed(2)}s',
+          label: _formatDuration(elapsedSeconds),
           tooltip: 'Response duration',
         ),
       );
@@ -771,6 +771,13 @@ class _ResponseMetricsRow extends StatelessWidget {
   static String _formatRate(int tokens, double elapsedSeconds) {
     final rate = tokens / elapsedSeconds;
     return rate >= 100 ? rate.toStringAsFixed(1) : rate.toStringAsFixed(2);
+  }
+
+  static String _formatDuration(double elapsedSeconds) {
+    final totalSeconds = elapsedSeconds.round();
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return minutes > 0 ? '${minutes}m ${seconds}s' : '${seconds}s';
   }
 
   static String? _formatFinishReason(String? value) {

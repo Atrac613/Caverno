@@ -14,6 +14,9 @@ abstract interface class ModelUsageSink {
   /// left null by the data source — which cannot read the session-log context
   /// without an import cycle — and resolved from the ambient context by the
   /// implementation. Callers that know the label may pass it explicitly.
+  ///
+  /// [conversationId] is captured when the request is issued, for the same
+  /// zone reason as the label; null when no conversation owns the request.
   void record({
     required String model,
     required String endpointId,
@@ -21,6 +24,7 @@ abstract interface class ModelUsageSink {
     required TokenUsage usage,
     required int durationMs,
     String? label,
+    String? conversationId,
     String? finishReason,
     bool isError = false,
   });
@@ -38,6 +42,7 @@ final class NoopModelUsageSink implements ModelUsageSink {
     required TokenUsage usage,
     required int durationMs,
     String? label,
+    String? conversationId,
     String? finishReason,
     bool isError = false,
   }) {}

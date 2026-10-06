@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:caverno/core/types/goal_completion_policy.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
@@ -42,12 +44,60 @@ void main() {
 
     test('parses arguments from the raw call', () {
       final ack = resolver.resolveCall(
-        toolCall: call(const {'blocked_reason': 'missing key'}),
+        toolCall: call(const {
+          'completed': false,
+          'blocked_reason': 'missing key',
+        }),
         goal: _goal(),
       );
 
       expect(ack.outcome, GoalUpdateAckOutcome.blockerLogged);
       expect(ack.toToolResult('update_goal').result, contains('missing key'));
+    });
+
+    test('accepts both JSON boolean values without coercion', () {
+      for (final completed in [true, false]) {
+        final ack = resolver.resolveCall(
+          toolCall: call({'completed': completed}),
+          goal: _goal(),
+        );
+        final result = ack.toToolResult('update_goal');
+
+        expect(result.isSuccess, isTrue, reason: '$completed');
+        expect(
+          ack.outcome,
+          completed
+              ? GoalUpdateAckOutcome.completionRecorded
+              : GoalUpdateAckOutcome.progressLogged,
+        );
+      }
+    });
+
+    test('rejects string booleans and retains the original type error', () {
+      for (final value in const ['True', 'true', 'False', 'false']) {
+        final ack = resolver.resolveCall(
+          toolCall: call({'completed': value}),
+          goal: _goal(),
+        );
+        final result = ack.toToolResult('update_goal');
+
+        expect(ack.outcome, GoalUpdateAckOutcome.invalidArguments);
+        expect(result.isSuccess, isFalse);
+        expect(result.errorMessage, contains('must be a JSON boolean'));
+        expect(result.errorMessage, contains(jsonEncode(value)));
+      }
+    });
+
+    test('rejects arguments not declared by the schema', () {
+      final ack = resolver.resolveCall(
+        toolCall: call(const {'completed': true, 'extra': 1}),
+        goal: _goal(),
+      );
+      final result = ack.toToolResult('update_goal');
+
+      expect(ack.outcome, GoalUpdateAckOutcome.invalidArguments);
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('unexpected field(s): extra'));
     });
   });
 

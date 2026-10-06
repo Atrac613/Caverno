@@ -248,6 +248,95 @@ void main() {
     expect(notifier.state.queuedMessages, isEmpty);
   });
 
+  test('a queued message promoted mid-stream interrupts the turn', () async {
+    final firstTurn = StreamController<String>();
+    final restarted = StreamController<String>();
+    final dataSource = _ControllableQueueChatDataSource(
+      Queue<StreamController<String>>.from([firstTurn, restarted]),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _buildContainer(
+      settings: _NoToolSettingsNotifier.new,
+      dataSource: dataSource,
+      toolService: null,
+      appLifecycleService: appLifecycleService,
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatNotifierProvider.notifier);
+    final firstSend = notifier.sendMessage('Explain the plan');
+    for (var i = 0; i < 10 && dataSource.requests.isEmpty; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    firstTurn.add('Here is the long plan, starting with');
+    await Future<void>.delayed(Duration.zero);
+    // Sent the ordinary way, so it waits behind the turn.
+    final queuedReceipt = notifier.sendMessage('Keep it under 3 lines');
+    await Future<void>.delayed(Duration.zero);
+    final queued = notifier.state.queuedMessages.single;
+    expect(dataSource.requests, hasLength(1));
+
+    expect(notifier.interruptWithQueuedMessage(queued.id), isTrue);
+    expect(notifier.state.queuedMessages, isEmpty);
+    for (var i = 0; i < 40 && dataSource.requests.length < 2; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(dataSource.requests, hasLength(2));
+    expect(
+      dataSource.requests.last
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content),
+      contains('Keep it under 3 lines'),
+    );
+
+    restarted.add('Short version.');
+    await restarted.close();
+    unawaited(firstTurn.close());
+    final turnOwner = await firstSend;
+    // The sender's receipt names the turn the message joined.
+    expect(await queuedReceipt, turnOwner);
+    for (var i = 0; i < 20; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(dataSource.requests, hasLength(2));
+    expect(
+      notifier.state.messages.map(
+        (message) => '${message.role.name}:${message.content}',
+      ),
+      [
+        'user:Explain the plan',
+        'assistant:Here is the long plan, starting with',
+        'user:Keep it under 3 lines',
+        'assistant:Short version.',
+      ],
+    );
+    expect(notifier.state.steeringMessages, isEmpty);
+    expect(notifier.state.queuedMessages, isEmpty);
+  });
+
+  test('promoting a queued message is refused when no turn runs', () async {
+    final dataSource = _ControllableQueueChatDataSource(
+      Queue<StreamController<String>>(),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = _buildContainer(
+      settings: _NoToolSettingsNotifier.new,
+      dataSource: dataSource,
+      toolService: null,
+      appLifecycleService: appLifecycleService,
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatNotifierProvider.notifier);
+    expect(notifier.interruptWithQueuedMessage('missing'), isFalse);
+    expect(notifier.state.steeringMessages, isEmpty);
+  });
+
   test('an interruption on a tools-off turn does not switch tools on', () async {
     final firstTurn = StreamController<String>();
     final restarted = StreamController<String>();
@@ -573,6 +662,7 @@ class _TestSessionMemoryService extends SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async => const MemoryUpdateResult.none();
 
   @override

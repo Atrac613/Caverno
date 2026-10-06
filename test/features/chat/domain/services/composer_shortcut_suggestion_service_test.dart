@@ -120,13 +120,58 @@ void main() {
       '{"shortcuts":['
       '{"kind":"git","label":"Force push","prompt":"Run git push --force to the remote."},'
       '{"kind":"git","label":"Reset","prompt":"Run git reset --hard HEAD~1."},'
-      '{"kind":"git","label":"Ship it","prompt":"Deploy the build to production."},'
+      '{"kind":"git","label":"Wipe","prompt":"Run rm -rf build to start clean."},'
       '{"kind":"git","label":"Commit","prompt":"Commit the staged changes."}]}',
     );
 
     expect(shortcuts, hasLength(1));
     expect(shortcuts.single.label, 'Commit');
   });
+
+  test('keeps release and deploy prompts', () {
+    // These were dropped until 2026-09-20. Running one is gated by tool
+    // approval, and a release needs its own issued token, so the button could
+    // never release unattended -- while the ban removed the most useful
+    // shortcut at the moment a release thread pauses to ask whether to go on.
+    final shortcuts = ComposerShortcutSuggestionService.parse(
+      '{"shortcuts":['
+      '{"kind":"follow_up","label":"リリースを実行","prompt":"実際のリリース実行に進んでください。"},'
+      '{"kind":"follow_up","label":"Release it","prompt":"Run the iOS and macOS release now."},'
+      '{"kind":"follow_up","label":"Release notes","prompt":"Write the release notes for this version."},'
+      '{"kind":"git","label":"Deploy","prompt":"Deploy the build to production."}]}',
+    );
+
+    expect(shortcuts.map((shortcut) => shortcut.label), [
+      'リリースを実行',
+      'Release it',
+      'Release notes',
+      'Deploy',
+    ]);
+  });
+
+  test(
+    'the prompt keeps follow_up available when git and verify are gated',
+    () {
+      // A finished release leaves a clean tree and no code change, closing git
+      // and verify at once. Without this guarantee the model answered
+      // {"shortcuts":[]} -- 29 of 45 drafts came back empty.
+      const prompt = ComposerShortcutSuggestionService.systemPrompt;
+
+      expect(prompt, contains('never restrict "follow_up"'));
+      expect(prompt, contains('always available'));
+      expect(
+        prompt,
+        contains('ends by asking the user something'),
+        reason: 'the answer to a trailing question is the obvious first chip',
+      );
+      expect(
+        prompt,
+        isNot(contains('deploying and releasing')),
+        reason:
+            'the release ban was lifted; see keeps release and deploy prompts',
+      );
+    },
+  );
 
   test('hasUsefulContext requires an assistant answer and a user message', () {
     final withUser = _conversation(messages: [_userMessage('Add the chips.')]);
@@ -186,6 +231,58 @@ void main() {
     expect(input, contains('+214 -11'));
     expect(input, contains('Add the shortcut chips.'));
     expect(input, contains('Added composer_shortcut_bar.dart'));
+  });
+
+  test('buildMessages drops reasoning so the visible answer survives', () {
+    // Shape of the 1.3.43 release turn: a long reasoning block ahead of an
+    // answer that ends by asking the user something.
+    final reasoning = 'Let me check the release state. ' * 80;
+    final messages = ComposerShortcutSuggestionService.buildMessages(
+      conversation: _conversation(messages: [_userMessage('continue')]),
+      assistantContent:
+          '<think>$reasoning</think>\n\nRelease finished.\n\n'
+          'Shall I run the commit and tag?',
+      languageCode: 'en',
+    );
+
+    final input = messages.last.content;
+    expect(input, isNot(contains('Let me check the release state.')));
+    expect(input, contains('Release finished.'));
+    expect(input, contains('Shall I run the commit and tag?'));
+  });
+
+  test('buildMessages keeps the end of an over-long answer', () {
+    final body = 'Detail line. ' * 200;
+    final messages = ComposerShortcutSuggestionService.buildMessages(
+      conversation: _conversation(messages: [_userMessage('continue')]),
+      assistantContent: '${body}Shall I run the commit and tag?',
+      languageCode: 'en',
+    );
+
+    final answer = messages.last.content
+        .split('(untrusted content):\n')
+        .last
+        .split('\n')
+        .first;
+    expect(answer.length, ComposerShortcutSuggestionService.maxAnswerLength);
+    expect(answer, startsWith('...'));
+    expect(answer, endsWith('Shall I run the commit and tag?'));
+  });
+
+  test('visibleAnswer strips closed and unterminated reasoning blocks', () {
+    expect(
+      ComposerShortcutSuggestionService.visibleAnswer(
+        '<think>a</think>Step one.<think>b</think> Done.<think>still going',
+      ),
+      'Step one.  Done.',
+    );
+    expect(
+      ComposerShortcutSuggestionService.hasUsefulContext(
+        conversation: _conversation(messages: [_userMessage('Go.')]),
+        assistantContent: '<think>only reasoning</think>',
+      ),
+      isFalse,
+    );
   });
 
   test('buildMessages tells the model to skip git without repo state', () {

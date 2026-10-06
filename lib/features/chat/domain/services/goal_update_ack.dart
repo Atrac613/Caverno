@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import '../../../../core/types/goal_completion_policy.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'project_task_completion_evidence.dart';
 import 'tool_result_prompt_builder.dart';
+import 'unresolved_verification_failure.dart';
 
 /// What the model asked the harness to do with the goal.
 enum GoalUpdateKind { progress, completion, blocker }
@@ -15,6 +19,9 @@ enum GoalUpdateKind { progress, completion, blocker }
 /// harness really did, so a rejected completion reads as a rejection and the
 /// model keeps working. See LL35 in `docs/local_llm_agent_roadmap.md`.
 enum GoalUpdateAckOutcome {
+  /// The model emitted arguments that do not satisfy the advertised schema.
+  invalidArguments,
+
   /// A `message`-only update was logged as progress.
   progressLogged,
 
@@ -46,20 +53,63 @@ class GoalUpdateInput {
     this.completed = false,
     this.message,
     this.blockedReason,
+    this.validationError,
   });
 
   /// Reads an `update_goal` tool call's raw JSON arguments.
   factory GoalUpdateInput.fromArguments(Map<String, dynamic> arguments) {
+    final completed = arguments['completed'];
+    final message = arguments['message'];
+    final blockedReason = arguments['blocked_reason'];
     return GoalUpdateInput(
-      completed: arguments['completed'] == true,
-      message: arguments['message'] as String?,
-      blockedReason: arguments['blocked_reason'] as String?,
+      completed: completed is bool && completed,
+      message: message is String ? message : null,
+      blockedReason: blockedReason is String ? blockedReason : null,
+      validationError: validateArguments(arguments),
     );
+  }
+
+  /// Returns the exact schema violation without coercing any raw value.
+  static String? validateArguments(Map<String, dynamic> arguments) {
+    if (!arguments.containsKey('completed')) {
+      return 'Invalid update_goal arguments: completed is required and must '
+          'be a JSON boolean.';
+    }
+    final completed = arguments['completed'];
+    if (completed is! bool) {
+      return 'Invalid update_goal arguments: completed must be a JSON '
+          'boolean; received ${completed.runtimeType} ${jsonEncode(completed)}.';
+    }
+    const allowedKeys = {'completed', 'message', 'blocked_reason'};
+    final unexpected =
+        arguments.keys
+            .where((key) => !allowedKeys.contains(key))
+            .toList(growable: false)
+          ..sort();
+    if (unexpected.isNotEmpty) {
+      return 'Invalid update_goal arguments: unexpected field(s): '
+          '${unexpected.join(', ')}.';
+    }
+    final message = arguments['message'];
+    if (arguments.containsKey('message') && message is! String) {
+      return 'Invalid update_goal arguments: message must be a JSON string; '
+          'received ${message.runtimeType} ${jsonEncode(message)}.';
+    }
+    final blockedReason = arguments['blocked_reason'];
+    if (arguments.containsKey('blocked_reason') && blockedReason is! String) {
+      return 'Invalid update_goal arguments: blocked_reason must be a JSON '
+          'string; received ${blockedReason.runtimeType} '
+          '${jsonEncode(blockedReason)}.';
+    }
+    return null;
   }
 
   final bool completed;
   final String? message;
   final String? blockedReason;
+  final String? validationError;
+
+  bool get isValid => validationError == null;
 
   String? get normalizedMessage {
     final trimmed = message?.trim();
@@ -114,17 +164,17 @@ class GoalUpdateAck {
   ///
   /// A rejected completion is a well-formed call the harness answered, not a
   /// tool failure, so it is a successful result whose body is the verdict —
-  /// the model reads the gaps as data. Only a genuinely inactive goal fails.
+  /// the model reads the gaps as data. An inactive goal or schema-invalid
+  /// arguments are tool failures.
   McpToolResult toToolResult(String toolName) {
+    final failed =
+        outcome == GoalUpdateAckOutcome.rejectedInactive ||
+        outcome == GoalUpdateAckOutcome.invalidArguments;
     return McpToolResult(
       toolName: toolName,
-      result: outcome == GoalUpdateAckOutcome.rejectedInactive
-          ? ''
-          : modelMessage,
-      isSuccess: outcome != GoalUpdateAckOutcome.rejectedInactive,
-      errorMessage: outcome == GoalUpdateAckOutcome.rejectedInactive
-          ? modelMessage
-          : null,
+      result: failed ? '' : modelMessage,
+      isSuccess: !failed,
+      errorMessage: failed ? modelMessage : null,
     );
   }
 }
@@ -135,8 +185,8 @@ class GoalUpdateAck {
 /// and the LL34 completion evidence, never from the prose of the response that
 /// made the claim. Until LL37 adds an adversarial verifier, "no mechanical
 /// evidence against it" is as far as a completion can be checked — so a
-/// recorded completion here is *not verified*, only *not contradicted*, and
-/// the message says so.
+/// recorded completion is not independently verified. Project implementation
+/// goals additionally require typed change and post-change execution evidence.
 class GoalUpdateAckResolver {
   const GoalUpdateAckResolver();
 
@@ -151,12 +201,14 @@ class GoalUpdateAckResolver {
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
     GoalCompletionPolicy completionPolicy = GoalCompletionPolicy.toolOrAsk,
+    List<ToolResultInfo> taskToolResults = const [],
   }) {
     return resolve(
       input: GoalUpdateInput.fromArguments(toolCall.arguments),
       goal: goal,
       evidence: evidence,
       completionPolicy: completionPolicy,
+      taskToolResults: taskToolResults,
     );
   }
 
@@ -166,7 +218,14 @@ class GoalUpdateAckResolver {
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
     GoalCompletionPolicy completionPolicy = GoalCompletionPolicy.toolOrAsk,
+    List<ToolResultInfo> taskToolResults = const [],
   }) {
+    if (!input.isValid) {
+      return GoalUpdateAck(
+        outcome: GoalUpdateAckOutcome.invalidArguments,
+        modelMessage: input.validationError!,
+      );
+    }
     if (goal == null || !goal.isActive) {
       return const GoalUpdateAck(
         outcome: GoalUpdateAckOutcome.rejectedInactive,
@@ -178,7 +237,20 @@ class GoalUpdateAckResolver {
 
     switch (input.kind) {
       case GoalUpdateKind.completion:
-        return _resolveCompletion(evidence, completionPolicy);
+        return _resolveCompletion(
+          evidence,
+          completionPolicy,
+          supersedesProgress: goal.projectTaskAutoReview,
+          taskGaps: goal.projectTaskAutoReview
+              ? const ProjectTaskCompletionEvidence().gaps(
+                  toolResults: taskToolResults,
+                  evidence: evidence,
+                  inheritedChanges: goal.projectTaskInheritedPaths.isNotEmpty,
+                )
+              : const [],
+          inheritedChanges: goal.projectTaskInheritedPaths.isNotEmpty,
+          toolResults: taskToolResults,
+        );
       case GoalUpdateKind.blocker:
         return GoalUpdateAck(
           outcome: GoalUpdateAckOutcome.blockerLogged,
@@ -208,11 +280,42 @@ class GoalUpdateAckResolver {
     }
   }
 
+  /// "Resolve these" has one reading for a missing file change: make one.
+  /// Session 7ae7632b did exactly that, editing ROADMAP.md only to create
+  /// evidence, and a task whose work already exists has no honest way to
+  /// clear that gap. Name the honest report instead.
+  static const _projectTaskGapGuidance =
+      'Do not change files only to satisfy these checks. If the task needs no '
+      'change because the work already exists, say so and report it with '
+      'blocked_reason instead.';
+
+  /// When an earlier run's uncommitted changes were carried into this task,
+  /// "the work already exists" is the expected case, not a blocker: reporting
+  /// one there stopped session b2971ae0 with the task finished but unreviewed
+  /// and uncommitted. What is owed is a verification of that work.
+  static const _inheritedTaskGapGuidance =
+      'Do not change files only to satisfy these checks. Uncommitted changes '
+      'from earlier turns or runs of this task count as this task\'s changes: '
+      'if they already complete it, run an execution command that verifies '
+      'them, then report completion again. Report a blocker only if the work '
+      'cannot be completed.';
+
   GoalUpdateAck _resolveCompletion(
     ToolResultCompletionEvidence evidence,
-    GoalCompletionPolicy completionPolicy,
-  ) {
-    final gaps = completionGaps(evidence);
+    GoalCompletionPolicy completionPolicy, {
+    required List<String> taskGaps,
+    required bool supersedesProgress,
+    bool inheritedChanges = false,
+    List<ToolResultInfo> toolResults = const [],
+  }) {
+    final gaps = [
+      ...completionGaps(
+        evidence,
+        includeRemainingWork: !supersedesProgress,
+        toolResults: toolResults,
+      ),
+      ...taskGaps,
+    ];
     if (gaps.isNotEmpty) {
       return GoalUpdateAck(
         outcome: GoalUpdateAckOutcome.completionRejected,
@@ -221,7 +324,7 @@ class GoalUpdateAckResolver {
             'Completion not recorded — the following remain outstanding:\n'
             '${gaps.map((gap) => '- $gap').join('\n')}\n'
             'The goal is still active. Resolve these and report completion '
-            'again.',
+            'again.${taskGaps.isEmpty ? '' : ' ${inheritedChanges ? _inheritedTaskGapGuidance : _projectTaskGapGuidance}'}',
       );
     }
     if (!completionPolicy.acceptsToolCompletion) {
@@ -246,7 +349,11 @@ class GoalUpdateAckResolver {
   /// Reads the LL34 completion evidence, not the response text. Order is most
   /// to least actionable. There are a fixed seven evidence sources, so the
   /// list is naturally bounded — no truncation is needed.
-  List<String> completionGaps(ToolResultCompletionEvidence evidence) {
+  List<String> completionGaps(
+    ToolResultCompletionEvidence evidence, {
+    bool includeRemainingWork = true,
+    List<ToolResultInfo> toolResults = const [],
+  }) {
     final gaps = <String>[];
 
     if (evidence.unresolvedErrorCount > 0) {
@@ -260,7 +367,10 @@ class GoalUpdateAckResolver {
       );
     }
     if (evidence.hasFailedExecutionVerification) {
-      gaps.add('the last verification command failed');
+      gaps.add(
+        const UnresolvedVerificationFailure().describe(toolResults) ??
+            'the last verification command failed',
+      );
     }
     if (evidence.boundedToolLoopExhausted) {
       gaps.add('the tool loop stopped before the work converged');
@@ -276,7 +386,7 @@ class GoalUpdateAckResolver {
     if (evidence.hasUnexecutedActionClaim) {
       gaps.add('an action was claimed in prose but never executed');
     }
-    if (evidence.hasReportedRemainingWork) {
+    if (includeRemainingWork && evidence.hasReportedRemainingWork) {
       final message = evidence.remainingWorkMessage.trim();
       gaps.add(
         message.isEmpty

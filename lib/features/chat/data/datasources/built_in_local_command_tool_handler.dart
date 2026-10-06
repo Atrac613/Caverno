@@ -1,4 +1,5 @@
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/local_command_tool_contract.dart';
@@ -10,6 +11,7 @@ import 'built_in_local_command_read_preflight.dart';
 import 'built_in_local_command_runner.dart';
 import 'built_in_local_command_tool_definitions.dart';
 import 'local_shell_git_write_guard.dart';
+import 'local_shell_launch_plan.dart';
 import 'local_shell_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
 
@@ -135,11 +137,14 @@ class BuiltInLocalCommandToolHandler {
             workingDirectory: workingDirectory,
             label: (args['label'] as String?)?.trim(),
             structuredUnavailable: true,
+            containmentRoot: commandContainmentRoot(args),
           );
         }
         final execution = await _foregroundCommandResultRunner(
           command: command,
           workingDirectory: workingDirectory,
+          observationRoot: args['allowed_read_root'] as String?,
+          containmentRoot: commandContainmentRoot(args),
         );
         // A non-zero exit is the command's outcome, not a tool failure, so the
         // result stays successful and only carries the reported exit status.

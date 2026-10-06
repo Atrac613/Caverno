@@ -18,17 +18,33 @@ void main() {
       );
     });
 
-    test('keeps built-in review prompt behavior template-backed', () {
+    test('review supports Git scopes and preserves a custom target', () {
       final template = builtInSlashCommandPromptTemplates.singleWhere(
         (template) => template.id == 'review',
       );
 
+      expect(
+        template.argumentRequirement,
+        SlashCommandArgumentRequirement.optional,
+      );
+      expect(
+        template.expand(args: '', commandName: 'review'),
+        contains('including staged, unstaged, and untracked files'),
+      );
+      expect(
+        template.expand(args: 'base main', commandName: 'review'),
+        contains('Review scope: base main'),
+      );
+      expect(
+        template.expand(args: 'commit abc123', commandName: 'review'),
+        contains('Review scope: commit abc123'),
+      );
       final expanded = template.expand(
         args: 'parser changes',
         commandName: 'review',
       );
 
-      expect(expanded, contains('Review the following code, diff, file path'));
+      expect(expanded, contains('read-only review'));
       expect(expanded, contains('parser changes'));
       expect(expanded, contains("Respond in the user's current language"));
     });

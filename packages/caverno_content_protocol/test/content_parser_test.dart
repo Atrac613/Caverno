@@ -19,7 +19,8 @@ void main() {
     test('reads a fenced call object a model printed instead of calling', () {
       // Measured on grok-4.6: it answered a delegation request with the call
       // written out in a ```json fence, so the tool never ran.
-      const content = '<think>The user wants a subagent.</think>'
+      const content =
+          '<think>The user wants a subagent.</think>'
           '```json\n'
           '{"name": "spawn_subagent", "arguments": {"description": "Summarize", '
           '"prompt": "Summarize CAVERNO_SUBAGENT_DIAGNOSTIC", "background": true}}\n'
@@ -288,6 +289,64 @@ run this first
     expect(stripped, isNot(contains('Hidden planning')));
     expect(stripped, isNot(contains('read_file')));
   });
+
+  for (final delimiter in ["'EOF'", 'EOF', '-EOF']) {
+    test('preserves a heredoc transcript and its final marker: $delimiter', () {
+      final content =
+          "<think>Private reasoning.</think>\n"
+          "Verification:\n```sh\n\$ python3 - <<$delimiter\n"
+          'assert True\nEOF\n```\nPassed.\nPROJECT_TASK_SUBTASK_DONE';
+      final parsed = ContentParser.parse(content);
+      final visible = ContentParser.stripModelHistoryArtifacts(content);
+      expect(parsed.hasIncompleteTag, isFalse);
+      expect(visible, contains('<<$delimiter'));
+      expect(visible, endsWith('PROJECT_TASK_SUBTASK_DONE'));
+      expect(visible, isNot(contains('Private reasoning.')));
+      expect(
+        ContentParser.stripToolArtifactsPreservingThinking(content),
+        endsWith('PROJECT_TASK_SUBTASK_DONE'),
+      );
+    });
+  }
+
+  for (final content in [
+    'cat <<EOF',
+    "cat <<'EOF'",
+    'cat <<<word',
+    'value <<operand',
+    'value <= 2',
+    'value < 2',
+    'value < limit\nVerified.\nPROJECT_TASK_SUBTASK_DONE',
+  ]) {
+    test('preserves literal shell and comparison syntax: $content', () {
+      expect(ContentParser.parse(content).hasIncompleteTag, isFalse);
+      expect(ContentParser.stripModelHistoryArtifacts(content), content);
+    });
+  }
+
+  for (final fragment in [
+    '<',
+    '</',
+    '<thi',
+    '<tool_',
+    '<tool_call ',
+    '<tool_call|',
+    '<|',
+    '<|tool_',
+    '<|/tool_call|',
+    '<function=read_file',
+    '<parameter=path',
+  ]) {
+    test('still hides a streamed partial tag: $fragment', () {
+      final parsed = ContentParser.parse('Visible. $fragment');
+      expect(parsed.hasIncompleteTag, isTrue);
+      expect(parsed.incompleteTagType, 'partial');
+      expect(
+        ContentParser.stripModelHistoryArtifacts('Visible. $fragment'),
+        'Visible.',
+      );
+    });
+  }
 
   test('extractCompletedToolCalls parses legacy malformed closing tokens', () {
     const content =

@@ -1,10 +1,71 @@
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/chat_tool_dispatcher.dart';
+import 'package:caverno/features/chat/domain/services/tool_argument_type_guard.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ChatToolDispatcher', () {
+    test('returns an argument failure before every other policy', () async {
+      final events = <String>[];
+      final dispatcher = _buildDispatcher(
+        events: events,
+        planningPolicy: (_) {
+          events.add('planning_policy');
+          return null;
+        },
+        validateArguments: (toolCall) =>
+            const ToolArgumentTypeGuard().check(toolCall, const {
+              'properties': {
+                'content': {'type': 'string'},
+              },
+            }),
+      );
+
+      final result = await dispatcher.dispatch(
+        ToolCallInfo(
+          id: 'call_1',
+          name: 'write_file',
+          arguments: const {
+            'content': {'a': 1},
+          },
+        ),
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(result.result, contains(ToolArgumentTypeGuard.code));
+      expect(events, isEmpty);
+    });
+
+    test('dispatches the call with decoded arguments', () async {
+      final events = <String>[];
+      ToolCallInfo? seen;
+      final dispatcher = _buildDispatcher(
+        events: events,
+        planningPolicy: (toolCall) {
+          seen = toolCall;
+          return null;
+        },
+        validateArguments: (toolCall) =>
+            const ToolArgumentTypeGuard().check(toolCall, const {
+              'properties': {
+                'allow_other': {'type': 'boolean'},
+              },
+            }),
+      );
+
+      await dispatcher.dispatch(
+        ToolCallInfo(
+          id: 'call_1',
+          name: 'ask_user_question',
+          arguments: const {'allow_other': 'True'},
+        ),
+      );
+
+      expect(seen!.arguments['allow_other'], isTrue);
+      expect(events, ['fallback']);
+    });
+
     test('returns planning policy result before other handlers', () async {
       final events = <String>[];
       final dispatcher = _buildDispatcher(
@@ -209,6 +270,7 @@ ChatToolDispatcher _buildDispatcher({
   ChatToolPlanningPolicy? planningPolicy,
   ChatToolPreflightPolicy? networkReadTaintPolicy,
   ChatToolHandlerRegistry registry = const ChatToolHandlerRegistry({}),
+  ChatToolArgumentCheck? validateArguments,
 }) {
   return ChatToolDispatcher(
     enforcePlanningPolicy: planningPolicy ?? (_) => null,
@@ -238,6 +300,7 @@ ChatToolDispatcher _buildDispatcher({
       events.add('fallback');
       return _result('fallback');
     },
+    validateArguments: validateArguments,
   );
 }
 

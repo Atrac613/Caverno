@@ -1,4 +1,5 @@
 import '../../domain/entities/mcp_tool_entity.dart';
+import 'built_in_local_command_read_preflight.dart';
 import 'local_command_mutation_guard.dart';
 import 'local_shell_tools.dart';
 
@@ -62,4 +63,24 @@ authorizeBuiltInLocalCommandMutation({
   return BuiltInLocalCommandMutationPreflight(
     arguments: {...arguments, 'working_directory': canonicalWorkingDirectory},
   );
+}
+
+/// The fence refusal [authorizeBuiltInLocalCommandRead] and
+/// [authorizeBuiltInLocalCommandMutation] would return at execution, or null.
+///
+/// Approval cannot change either outcome, so callers ask before approval.
+/// Execution still re-checks: the path may change in between.
+Future<McpToolResult?> builtInLocalCommandFenceRefusal({
+  required String toolName,
+  required Map<String, dynamic> arguments,
+}) async {
+  final readDenial = await authorizeBuiltInLocalCommandRead(
+    toolName: toolName,
+    arguments: arguments,
+  );
+  if (readDenial != null) return readDenial;
+  return (await authorizeBuiltInLocalCommandMutation(
+    toolName: toolName,
+    arguments: arguments,
+  )).deniedResult;
 }

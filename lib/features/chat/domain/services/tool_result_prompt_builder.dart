@@ -5,9 +5,11 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
-import 'coding_command_output_guardrail_service.dart';
+import 'coding_command_output_issue_detector.dart';
+import 'command_verification_reconciliation.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'unexecuted_command_claim_reconciliation.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
 
@@ -366,6 +368,28 @@ class ToolResultPromptBuilder {
     return deduped;
   }
 
+  /// Repeated whole-file reads can crowd the relevant lines out of the final
+  /// answer prompt. Keep the newest identical observation of each file.
+  static List<ToolResultInfo> dedupeReadFileResultsForAnswer(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final seen = <(String, String)>{};
+    final retained = <ToolResultInfo>[];
+    for (final toolResult in toolResults.reversed) {
+      if (toolResult.name == 'read_file') {
+        final payload = _tryDecodeJsonMap(toolResult.result);
+        final path = payload?['path'];
+        if (path is String &&
+            path.isNotEmpty &&
+            payload?['content'] is String) {
+          if (!seen.add((path, toolResult.result))) continue;
+        }
+      }
+      retained.add(toolResult);
+    }
+    return retained.reversed.toList(growable: false);
+  }
+
   static List<ToolResultInfo> budgetToolResults(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
@@ -405,18 +429,14 @@ class ToolResultPromptBuilder {
         keepImagePayload: keptImageIndexes.contains(index),
       );
       budgeted.add(
-        ToolResultInfo(
-          id: toolResult.id,
-          name: toolResult.name,
-          arguments: toolResult.arguments,
-          result: summaryFirst
+        // Budgeting shortens the payload text; it does not change what the
+        // tool reported about its own execution or where the result sits in
+        // the turn. Dropping the outcome here is what forced downstream
+        // consumers to parse an exit status back out of truncated text.
+        toolResult.withResult(
+          summaryFirst
               ? _renderSummaryFirst(toolResult, budgetedResult)
               : budgetedResult,
-          // Budgeting shortens the payload text; it does not change what the
-          // tool reported about its own execution. Dropping the outcome here
-          // is what forced downstream consumers to parse an exit status back
-          // out of a string that budgeting may since have truncated.
-          outcome: toolResult.outcome,
         ),
       );
     }
@@ -429,19 +449,28 @@ class ToolResultPromptBuilder {
       return budgeted;
     }
 
-    final perResultTarget = math.max(
-      1200,
-      (budget.maxTotalResultChars / budgeted.length).floor(),
-    );
-    return budgeted
-        .map(
-          (toolResult) => ToolResultInfo(
-            id: toolResult.id,
-            name: toolResult.name,
-            arguments: toolResult.arguments,
-            outcome: toolResult.outcome,
-            result: _truncateTextWithMiddle(
-              toolResult.result,
+    // Preserve the newest current range read before sharing the remaining
+    // budget with history. Otherwise a requested small range can lose the
+    // very lines needed for the next edit even after a targeted re-read.
+    final freshRangeIndex = _latestFreshRangeReadIndex(sourceToolResults);
+    final reservedChars = freshRangeIndex == null
+        ? 0
+        : budgeted[freshRangeIndex].result.length;
+    final historyTarget =
+        ((budget.maxTotalResultChars - reservedChars) /
+                (budgeted.length - (freshRangeIndex == null ? 0 : 1)))
+            .floor();
+    final perResultTarget = freshRangeIndex == null
+        ? math.max(1200, historyTarget)
+        : historyTarget;
+    return [
+      for (var index = 0; index < budgeted.length; index++)
+        if (index == freshRangeIndex)
+          budgeted[index]
+        else
+          budgeted[index].withResult(
+            _truncateTextWithMiddle(
+              budgeted[index].result,
               maxChars: perResultTarget,
               // The per-result pass hands back a read_more_hint; this whole-list
               // pass used to cut the serialized text with no way back, so a
@@ -454,8 +483,32 @@ class ToolResultPromptBuilder {
                   'offset and limit rather than repeating the same call.',
             ),
           ),
-        )
-        .toList(growable: false);
+    ];
+  }
+
+  static int? _latestFreshRangeReadIndex(List<ToolResultInfo> results) {
+    final supersededPaths = <String>{};
+    for (var index = results.length - 1; index >= 0; index--) {
+      final result = results[index];
+      supersededPaths.addAll(
+        result.outcome?.fileMutations
+                .where((mutation) => mutation.changed == true)
+                .map((mutation) => mutation.path) ??
+            const <String>[],
+      );
+      if (result.name != 'read_file') continue;
+      final payload = _tryDecodeJsonMap(result.result);
+      final path = payload?['path'];
+      if (path is! String || !supersededPaths.add(path)) continue;
+      if (payload?['content'] is String &&
+          !result.fromEarlierLoop &&
+          result.changesSinceCapture.isEmpty &&
+          (result.arguments['offset'] is int ||
+              result.arguments['limit'] is int)) {
+        return index;
+      }
+    }
+    return null;
   }
 
   /// Substring shared by every prompt-budget truncation notice.
@@ -737,7 +790,24 @@ class ToolResultPromptBuilder {
         'still needs to be done.',
       );
     }
-    if (evidence.unresolvedErrorCount > 0) {
+    final commandResultsOnly =
+        evidence.unresolvedErrorDiagnostics.isNotEmpty &&
+        evidence.unresolvedErrorDiagnostics.every(
+          (diagnostic) => diagnostic.code == 'command_output_failure',
+        );
+    if (evidence.unresolvedErrorCount > 0 && commandResultsOnly) {
+      // These come from the command output guardrail, not an analyzer. Saying
+      // "does not pass analysis" sent the model hunting for lint errors in
+      // session 17398f84.
+      lines.add(
+        'TASK NOT COMPLETE: ${evidence.unresolvedErrorCount} verification '
+        'command result(s) were flagged by the command output guardrail '
+        '(masked exit status or a failure reported in the output) and have '
+        'not passed since. Do not claim the task is complete. Name those '
+        'commands and rerun each so its exit status reports the real result, '
+        'or report what blocks it.',
+      );
+    } else if (evidence.unresolvedErrorCount > 0) {
       final pathSuffix = evidence.unresolvedErrorPaths.isEmpty
           ? ''
           : ' in ${evidence.unresolvedErrorPaths.join(', ')}';
@@ -804,9 +874,19 @@ class ToolResultPromptBuilder {
       )) {
         continue;
       }
+      // Read the state from the structured outcome first: budgeting can
+      // middle-truncate a long payload into text that no longer decodes, so
+      // session 4ceebb57 reported a finished release as still running. The
+      // outcome survives budgeting ([ToolResultInfo.outcome]).
       final decoded = _tryDecodeJsonMap(toolResult.result);
-      final jobId = decoded?['job_id']?.toString().trim();
-      final status = decoded?['status']?.toString().trim().toLowerCase();
+      final jobId = (decoded?['job_id'] ?? toolResult.arguments['job_id'])
+          ?.toString()
+          .trim();
+      final status = switch (toolResult.outcome?.processState) {
+        ToolProcessState.running => 'running',
+        ToolProcessState.exited => 'exited',
+        null => decoded?['status']?.toString().trim().toLowerCase(),
+      };
       if (jobId == null || jobId.isEmpty || status == null || status.isEmpty) {
         continue;
       }
@@ -828,6 +908,12 @@ class ToolResultPromptBuilder {
   static ToolResultCompletionEvidence completionEvidence(
     List<ToolResultInfo> toolResults,
   ) {
+    final staleBackgroundResults =
+        CommandVerificationReconciliation.staleBackgroundResultIds(toolResults);
+    toolResults = CommandVerificationReconciliation.currentResults(toolResults);
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final lastMutationIndexByPath = _lastSuccessfulFileMutationIndexByPath(
       toolResults,
     );
@@ -929,15 +1015,18 @@ class ToolResultPromptBuilder {
       toolResults,
       afterIndex: latestMutationIndex,
     );
+    // An edit invalidates prior success, but cannot settle a failed check.
+    // Matching successful reruns are already reconciled above.
     final hasFailedExecutionVerification = _hasFailedExecutionVerification(
       toolResults,
-      afterIndex: latestMutationIndex,
+      afterIndex: -1,
     );
     final hasSuccessfulExecutionVerification =
         !hasFailedExecutionVerification &&
         _hasSuccessfulExecutionVerification(
           toolResults,
           afterIndex: latestMutationIndex,
+          staleBackgroundResults: staleBackgroundResults,
         );
     final mutatedWithoutExecutionVerification =
         lastMutationIndexByPath.isNotEmpty && !hasExecutionVerification;
@@ -1012,15 +1101,35 @@ class ToolResultPromptBuilder {
   static bool _hasSuccessfulExecutionVerification(
     List<ToolResultInfo> toolResults, {
     required int afterIndex,
+    required Set<String> staleBackgroundResults,
   }) {
-    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+    if (CommandVerificationReconciliation.hasFailedFeedback(
+      toolResults,
+      afterIndex,
+    )) {
       return false;
     }
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) continue;
+      if (staleBackgroundResults.contains(toolResult.id)) continue;
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
+        continue;
+      }
       final normalizedName = toolResult.name.trim().toLowerCase();
       final outcome = toolResult.outcome;
+      final tests = CommandVerificationReconciliation.testOutcome(toolResult);
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded?['timed_out'] == true ||
+          const CodingCommandOutputIssueDetector().detect(toolResult) != null ||
+          (outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          (tests?.failedCount ?? 0) > 0 ||
+          (CommandVerificationReconciliation.requiresCompoundRunnerCounts(
+                toolResult,
+              ) &&
+              (tests == null || tests.passedCount == 0)) ||
+          (outcome?.diagnosticErrorCount ?? 0) > 0) {
+        continue;
+      }
       if (outcome?.processState != null) {
         if (outcome!.isProcessTerminal && outcome.hasSucceedingExitCode) {
           return true;
@@ -1033,8 +1142,11 @@ class ToolResultPromptBuilder {
         }
         continue;
       }
-      final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) continue;
+      if (_isBackgroundProcessVerificationTool(normalizedName) &&
+          decoded['status'] != 'exited') {
+        continue;
+      }
       final exitCode = decoded['exit_code'];
       if (exitCode == 0 || exitCode == '0') return true;
       if (_isBackgroundProcessVerificationTool(normalizedName)) {
@@ -1063,15 +1175,28 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     required int afterIndex,
   }) {
-    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+    if (CommandVerificationReconciliation.hasFailedFeedback(
+      toolResults,
+      afterIndex,
+    )) {
       return true;
     }
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) {
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
         continue;
       }
       final outcome = toolResult.outcome;
+      if ((outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          const CodingCommandOutputIssueDetector().detect(toolResult) != null ||
+          (CommandVerificationReconciliation.testOutcome(
+                    toolResult,
+                  )?.failedCount ??
+                  0) >
+              0 ||
+          (outcome?.diagnosticErrorCount ?? 0) > 0) {
+        return true;
+      }
       if (outcome?.processState != null) {
         if (outcome!.isProcessTerminal && outcome.hasFailingExitCode) {
           return true;
@@ -1132,7 +1257,7 @@ class ToolResultPromptBuilder {
   }) {
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) {
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
         continue;
       }
       if (toolResult.outcome?.processState != null) {
@@ -1157,25 +1282,6 @@ class ToolResultPromptBuilder {
           decoded['validationStatus'] != null) {
         return true;
       }
-    }
-    return false;
-  }
-
-  static bool _isVerificationRunToolResult(ToolResultInfo toolResult) {
-    final normalizedName = toolResult.name.trim().toLowerCase();
-    if (normalizedName == 'local_execute_command' ||
-        normalizedName == 'git_execute_command') {
-      return const ToolCapabilityClassifier()
-              .classify(toolResult.name, arguments: toolResult.arguments)
-              .commandEffect ==
-          ToolCommandEffect.verification;
-    }
-    switch (normalizedName) {
-      case 'analyze_project':
-      case 'run_tests':
-      case 'process_start':
-      case 'process_wait':
-        return true;
     }
     return false;
   }
@@ -1240,32 +1346,9 @@ class ToolResultPromptBuilder {
   }
 
   static bool _isBackgroundProcessVerificationTool(String normalizedName) =>
-      normalizedName == 'process_start' || normalizedName == 'process_wait';
-
-  static bool _hasFailedCommandOutputFeedback(
-    List<ToolResultInfo> toolResults, {
-    required int afterIndex,
-  }) {
-    for (var index = afterIndex + 1; index < toolResults.length; index++) {
-      final toolResult = toolResults[index];
-      if (toolResult.name.trim().toLowerCase() !=
-          CodingCommandOutputGuardrailService.toolName) {
-        continue;
-      }
-      final decoded = _tryDecodeJsonMap(toolResult.result);
-      if (decoded == null) {
-        continue;
-      }
-      final validationStatus = decoded['validation_status']
-          ?.toString()
-          .trim()
-          .toLowerCase();
-      if (decoded['success'] == false || validationStatus == 'failed') {
-        return true;
-      }
-    }
-    return false;
-  }
+      normalizedName == 'process_start' ||
+      normalizedName == 'process_status' ||
+      normalizedName == 'process_wait';
 
   /// Map each absolute file path to the index of the latest successful
   /// write_file/edit_file/rollback result that touched it, so analyzer
@@ -1311,6 +1394,10 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     Map<String, String> descriptionsByName = const {},
   }) {
+    toolResults = CommandVerificationReconciliation.currentResults(toolResults);
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final sections = toolResults.map((toolResult) {
       final buffer = StringBuffer()..writeln('[Tool: ${toolResult.name}]');
       final description = descriptionsByName[toolResult.name];
@@ -1759,6 +1846,8 @@ class ToolResultPromptBuilder {
         countKey: 'match_count',
         noMatchHint: _findFilesNoMatchHint,
       ),
+      'dart_analyze_feedback' || 'dart_test_feedback' =>
+        _budgetDiagnosticFeedbackResult(decoded, budget: budget),
       _ => _budgetJsonMap(decoded, budget: budget),
     };
 
@@ -1839,6 +1928,61 @@ class ToolResultPromptBuilder {
       if (!result.containsKey(countKey)) {
         result[countKey] = items.length;
       }
+    }
+    return result;
+  }
+
+  /// Keys of a diagnostic-feedback payload that describe *how* the analyzer
+  /// ran rather than *what* it found.
+  ///
+  /// `analyzer` duplicates `telemetry.attempts.last` almost verbatim, and
+  /// `language_diagnostics_bridge` reports provider/capability plumbing the
+  /// model cannot act on. Together they are the bulk of the payload.
+  static const Set<String> _diagnosticFeedbackProvenanceKeys = {
+    'analyzer',
+    'language_diagnostics_bridge',
+    'telemetry',
+  };
+
+  /// Lead a diagnostic-feedback result with the finding, not its provenance.
+  ///
+  /// The producer emits `diagnostics` last, after ~10 provenance and counter
+  /// fields, so the one line that names the broken symbol sits at the bottom of
+  /// a long JSON blob. Session c79826af shows the cost: `dart_analyze_feedback`
+  /// reported `UNDEFINED_METHOD: The method '_formatDuration' isn't defined`
+  /// one tool-result slot after the edit that caused it, and the model then
+  /// spent ten iterations text-searching for that same symbol.
+  ///
+  /// This reorders the prompt copy so `instruction` and `diagnostics` come
+  /// first and drops the provenance blocks. It changes only what the prompt
+  /// shows — `ToolResultInfo.result` keeps the full payload, so the completion
+  /// guards that read `diagnostics`/`validationStatus` off the raw result are
+  /// unaffected, as is the session log.
+  static Map<String, dynamic> _budgetDiagnosticFeedbackResult(
+    Map<String, dynamic> decoded, {
+    required _ToolResultPromptBudget budget,
+  }) {
+    final result = <String, dynamic>{};
+    for (final key in const ['instruction', 'diagnostics']) {
+      if (decoded.containsKey(key)) {
+        result[key] = decoded[key];
+      }
+    }
+    for (final entry in decoded.entries) {
+      if (result.containsKey(entry.key)) continue;
+      if (_diagnosticFeedbackProvenanceKeys.contains(entry.key)) continue;
+      result[entry.key] = entry.value;
+    }
+
+    final diagnostics = decoded['diagnostics'];
+    if (diagnostics is List && diagnostics.length > budget.maxListItems) {
+      result
+        ..['diagnostics'] = diagnostics
+            .take(budget.maxListItems)
+            .toList(growable: false)
+        ..['diagnostics_reduced_for_prompt_budget'] = true
+        ..['omitted_diagnostics_count'] =
+            diagnostics.length - budget.maxListItems;
     }
     return result;
   }

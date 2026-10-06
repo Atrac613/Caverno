@@ -24,11 +24,15 @@ abstract final class GoalCompletionElicitationPrompt {
           'the objective was actually met.',
       '',
       'Report the goal state now by calling update_goal, the only tool '
-          'available this turn:',
+          'available this turn. Every call requires completed as the JSON '
+          'boolean true or false, never the string "true", "false", "True", '
+          'or "False":',
       '- completed: true — the objective is met and you can say how it was '
           'checked.',
-      '- message — work remains; name the concrete next step.',
-      '- blocked_reason — you are genuinely stuck; name the blocker.',
+      '- completed: false with message — work remains; name the concrete next '
+          'step.',
+      '- completed: false with blocked_reason — you are genuinely stuck; name '
+          'the blocker.',
       '',
       'Answering in prose instead of calling the tool leaves the goal '
           'unresolved. Do not claim completion you did not verify: a claim '

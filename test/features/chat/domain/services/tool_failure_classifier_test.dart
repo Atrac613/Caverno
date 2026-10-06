@@ -7,6 +7,7 @@ import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_delegation_admission.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/blocked_production_release_retry_policy.dart';
 import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
 import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
 import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
@@ -272,6 +273,59 @@ void main() {
       name: 'write_file',
       arguments: const {'path': 'lib/a.dart', 'content': '// x'},
     );
+
+    test('classifies a delivered production-release refusal as a refusal', () {
+      final result = McpToolResult(
+        toolName: 'process_start',
+        result: jsonEncode({
+          'ok': false,
+          'code': blockedProductionReleaseCode,
+          'result_origin': 'refusal',
+          'required_action': 'Ask for the approval token.',
+        }),
+        // The payload was delivered to the model successfully, but the
+        // process itself never ran.
+        isSuccess: true,
+      );
+
+      expect(
+        classifier.classify(
+          ToolCallInfo(
+            id: 'release-call',
+            name: 'process_start',
+            arguments: const {'command': 'bash tool/release_ios_macos.sh'},
+          ),
+          result,
+        ),
+        ToolResultDisposition.approvalDenied,
+      );
+      final refusal = classifier.policyRefusal(result);
+      expect(refusal?.code, blockedProductionReleaseCode);
+      expect(refusal?.requiredAction, 'Ask for the approval token.');
+    });
+
+    test('keeps a successful result with a legacy refusal code successful', () {
+      final result = McpToolResult(
+        toolName: 'spawn_subagent',
+        result: jsonEncode({
+          'ok': true,
+          'code': AnabasisDelegationAdmission.refusedCode,
+        }),
+        isSuccess: true,
+      );
+
+      expect(
+        classifier.classify(
+          ToolCallInfo(
+            id: 'successful-call',
+            name: 'spawn_subagent',
+            arguments: const {'prompt': 'continue'},
+          ),
+          result,
+        ),
+        ToolResultDisposition.success,
+      );
+    });
 
     test('the parent authority guard is read by its code, not its prose', () {
       final result = const AnabasisParentAuthorityGuard().evaluate(

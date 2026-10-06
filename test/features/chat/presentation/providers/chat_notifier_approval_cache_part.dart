@@ -1,5 +1,8 @@
 part of 'chat_notifier_test.dart';
 
+bool _supportsForegroundCommandContainment() =>
+    Platform.isMacOS && File('/usr/bin/sandbox-exec').existsSync();
+
 void registerChatNotifierApprovalCacheTests() {
   test('auto-review verdicts are written to the approval audit log', () async {
     final auditDir = Directory.systemTemp.createTempSync('chat_audit_');
@@ -156,7 +159,7 @@ void registerChatNotifierApprovalCacheTests() {
     expect(notifier.state.pendingLocalCommand, isNull);
   });
 
-  test('cached command approval re-executes and audits fresh results', () async {
+  test('fresh command approvals execute and audit fresh results', () async {
     final projectRoot = await Directory.systemTemp.createTemp(
       'caverno_approval_cache_',
     );
@@ -283,9 +286,8 @@ void registerChatNotifierApprovalCacheTests() {
     await _waitForCondition(() => notifier.state.pendingFileOperation != null);
     final fileApproval = notifier.state.pendingFileOperation!;
     notifier.resolveFileOperation(id: fileApproval.id, approved: true);
-    // SEC4.4g: the repeat is asked for again rather than replayed from the
-    // cache, which is the point of the audit assertion below. Approving it is
-    // what makes the re-execution observable at all.
+    // Changed project code gets a fresh decision even when argv is unchanged.
+    final contained = _supportsForegroundCommandContainment();
     await _waitForCondition(
       () =>
           notifier.state.pendingLocalCommand != null &&
@@ -305,7 +307,7 @@ void registerChatNotifierApprovalCacheTests() {
       'local_execute_command',
     ]);
     final commandResults = dataSource.toolResultBatches
-        .expand((batch) => batch)
+        .expand(_ranInBatch)
         .where((result) => result.name == 'local_execute_command')
         .toList(growable: false);
     expect(commandResults, hasLength(2));
@@ -318,29 +320,22 @@ void registerChatNotifierApprovalCacheTests() {
         .where((line) => line.trim().isNotEmpty)
         .map((line) => jsonDecode(line) as Map<String, dynamic>)
         .toList(growable: false);
-    // The repeat is no longer served from the approval cache: SEC4.4g routes
-    // every shell command through a fresh `opaque_host_write` ask, and the
-    // audit is where that is visible. The guard this test exists for -- the
-    // second `dart analyze` returning its own output rather than replaying the
-    // first -- is asserted above and still holds.
+    // No positive cache shortcut may authorize changed project code.
     expect(
       auditEntries.where(
         (entry) =>
             entry['tool'] == 'local_execute_command' &&
             entry['decisionSource'] == 'opaque_host_write',
       ),
-      hasLength(2),
+      hasLength(contained ? 0 : 2),
     );
     expect(
-      auditEntries,
-      isNot(
-        contains(
-          allOf(
-            containsPair('tool', 'local_execute_command'),
-            containsPair('decisionSource', 'cached_approval'),
-          ),
-        ),
+      auditEntries.where(
+        (entry) =>
+            entry['tool'] == 'local_execute_command' &&
+            entry['decisionSource'] == 'cached_approval',
       ),
+      isEmpty,
     );
   });
 

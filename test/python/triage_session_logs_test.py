@@ -444,5 +444,115 @@ class TriageWorkflowFailureEvidenceTest(unittest.TestCase):
         self.assertIn("lexical_only", rendered)
 
 
+def _search_call(query):
+    return {"toolCalls": [{"name": "search_files", "arguments": {"query": query}}]}
+
+
+class SearchChurnTest(unittest.TestCase):
+    """Distinct phrasings hunting one needle — invisible to tool_loop/reread.
+
+    Modelled on session c79826af, where `_formatDuration` was searched five
+    ways over ten iterations while the answer already sat in the tool results.
+    """
+
+    def test_phrasings_of_one_symbol_collapse_onto_one_needle(self):
+        row = _analyze([
+            _completion(response=_search_call("_formatDuration")),
+            _completion(response=_search_call("_formatDuration(")),
+            _completion(response=_search_call("formatDuration")),
+            _completion(response=_search_call("static String _formatDuration")),
+        ])
+        self.assertEqual(row["search_churn_needle"], "formatduration")
+        self.assertEqual(row["search_churn_max"], 4)
+        self.assertEqual(row["search_churn"], 3)
+
+    def test_repeated_identical_query_is_not_churn(self):
+        """Byte-identical repeats are tool_loop/reread territory, not churn.
+
+        Churn counts *rephrasings*; counting identical repeats here would
+        double-score what the existing signals already catch.
+        """
+        row = _analyze([
+            _completion(response=_search_call("widget")),
+            _completion(response=_search_call("widget")),
+            _completion(response=_search_call("widget")),
+        ])
+        self.assertEqual(row["search_churn"], 0)
+
+    def test_distinct_needles_do_not_accumulate_churn(self):
+        row = _analyze([
+            _completion(response=_search_call("elapsedMilliseconds")),
+            _completion(response=_search_call("pointerLock")),
+            _completion(response=_search_call("sessionTitle")),
+        ])
+        self.assertEqual(row["search_churn"], 0)
+
+    def test_one_rephrase_is_free_and_does_not_score(self):
+        row = _analyze([
+            _completion(response=_search_call("version")),
+            _completion(response=_search_call("version:")),
+        ])
+        self.assertEqual(row["search_churn"], 1)
+        self.assertEqual(row["score"], 0)
+
+    def test_churn_beyond_the_free_allowance_scores(self):
+        """Churn contributes to the score independently of tool_loop.
+
+        The searches are interleaved with a read so the tool-name signature is
+        never consecutive — otherwise tool_loop also fires and the assertion
+        would be measuring both weights at once.
+        """
+        read = {"toolCalls": [{"name": "read_file", "arguments": {"path": "a"}}]}
+        row = _analyze([
+            _completion(response=_search_call("_formatDuration")),
+            _completion(response=read),
+            _completion(response=_search_call("_formatDuration(")),
+            _completion(response=read),
+            _completion(response=_search_call("formatDuration")),
+        ])
+        self.assertEqual(row["search_churn"], 2)
+        self.assertEqual(row["max_tool_run"], 0)
+        self.assertEqual(
+            row["score"],
+            round(
+                (row["search_churn"] - triage.SEARCH_CHURN_FREE)
+                * triage.WEIGHT_SEARCH_CHURN,
+                2,
+            ),
+        )
+
+    def test_churn_is_content_level_where_tool_loop_is_name_level(self):
+        """Four consecutive searches score the same on tool_loop either way.
+
+        Only churn separates four rephrasings of one question from four
+        searches that each asked something different — tool_loop sees the
+        identical `('search_files',)` signature in both cases.
+        """
+        hunting = _analyze([
+            _completion(response=_search_call("_formatDuration")),
+            _completion(response=_search_call("_formatDuration(")),
+            _completion(response=_search_call("formatDuration")),
+            _completion(response=_search_call("static String _formatDuration")),
+        ])
+        exploring = _analyze([
+            _completion(response=_search_call("elapsedMilliseconds")),
+            _completion(response=_search_call("pointerLock")),
+            _completion(response=_search_call("sessionTitle")),
+            _completion(response=_search_call("buildContext")),
+        ])
+        self.assertEqual(hunting["max_tool_run"], exploring["max_tool_run"])
+        self.assertEqual(hunting["search_churn"], 3)
+        self.assertEqual(exploring["search_churn"], 0)
+        self.assertGreater(hunting["score"], exploring["score"])
+
+    def test_bare_short_numeric_query_carries_no_needle(self):
+        row = _analyze([
+            _completion(response=_search_call("02")),
+            _completion(response=_search_call("13")),
+        ])
+        self.assertEqual(row["search_churn"], 0)
+        self.assertEqual(row["search_churn_needle"], "")
+
+
 if __name__ == "__main__":
     unittest.main()

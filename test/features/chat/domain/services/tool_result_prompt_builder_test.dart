@@ -8,6 +8,74 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ToolResultPromptBuilder', () {
+    test('repeated reads do not hide the middle of a review test', () {
+      ToolResultInfo read(String path, String content, String id) =>
+          ToolResultInfo(
+            id: id,
+            name: 'read_file',
+            arguments: {'path': path},
+            result: jsonEncode({'path': '/repo/$path', 'content': content}),
+          );
+
+      final testBody =
+          '${'a' * 2900}\n'
+          'st = state.load(config["state_file"])\n'
+          'assert "FAIL1" not in st["items"]\n'
+          '${'b' * 2900}';
+      final first = read('test_watcher.py', testBody, 'first');
+      final latest = read('test_watcher.py', testBody, 'latest');
+      final changed = read('test_watcher.py', 'new content', 'changed');
+      final failed = ToolResultInfo(
+        id: 'failed',
+        name: 'read_file',
+        arguments: const {'path': 'test_watcher.py'},
+        result: jsonEncode({
+          'path': '/repo/test_watcher.py',
+          'error': 'denied',
+        }),
+      );
+      expect(
+        ToolResultPromptBuilder.dedupeReadFileResultsForAnswer([
+          failed,
+          failed,
+        ]),
+        [failed, failed],
+      );
+      final results = <ToolResultInfo>[
+        for (var i = 0; i < 3; i++) ...[
+          read('watcher.py', 'w' * 6000, 'watcher-$i'),
+          i == 0 ? first : latest,
+          read('state.py', 's' * 6000, 'state-$i'),
+        ],
+        changed,
+        failed,
+      ];
+
+      expect(
+        ToolResultPromptBuilder.budgetToolResults(
+          results,
+        ).any((result) => result.result.contains('Omitted')),
+        isTrue,
+      );
+
+      final deduped = ToolResultPromptBuilder.dedupeReadFileResultsForAnswer(
+        results,
+      );
+      expect(deduped.map((result) => result.id), [
+        'watcher-2',
+        'latest',
+        'state-2',
+        'changed',
+        'failed',
+      ]);
+      final budgeted = ToolResultPromptBuilder.budgetToolResults(deduped);
+      expect(
+        budgeted.any((result) => result.result.contains('Omitted')),
+        isFalse,
+      );
+      expect(budgeted[1].result, contains('assert \\"FAIL1\\" not in st'));
+    });
+
     group('unfinished background jobs', () {
       ToolResultInfo processResult(
         String name,
@@ -55,6 +123,62 @@ void main() {
         expect(blockers, isEmpty);
       });
 
+      test('a budget-truncated exit still clears the blocker', () {
+        // Session 4ceebb57: the answer prompt reads budgeted results, and the
+        // final poll's long stdout_tail was middle-truncated into text that no
+        // longer decodes, so an earlier "running" won and a release that had
+        // exited 0 was reported as still running.
+        const jobId = 'proc_1789476972434521_1';
+        ToolResultInfo poll(String id, String status, {String tail = ''}) =>
+            ToolResultInfo(
+              id: id,
+              name: 'process_wait',
+              arguments: const {'job_id': jobId, 'wait_ms': 120000},
+              result: jsonEncode({
+                'job_id': jobId,
+                'status': status,
+                'stdout_tail': tail,
+              }),
+              outcome: ToolOutcome(
+                processState: status == 'running'
+                    ? ToolProcessState.running
+                    : ToolProcessState.exited,
+                exitCode: status == 'running' ? null : 0,
+              ),
+            );
+        ToolResultInfo logTail(int index) => ToolResultInfo(
+          id: 'tail-$index',
+          name: 'local_execute_command',
+          arguments: {'command': 'tail -n 60 build/release_logs/$index.log'},
+          result: jsonEncode({'exit_code': 0, 'stdout': 'log line\n' * 400}),
+          outcome: const ToolOutcome(exitCode: 0),
+        );
+        // Seventeen results over the total budget, the 4ceebb57 shape: the
+        // second budgeting pass cuts every result longer than the per-result
+        // share mid-JSON, while the short early polls still decode.
+        final budgeted = ToolResultPromptBuilder.budgetToolResults([
+          poll('call-1', 'running'),
+          poll('call-2', 'running'),
+          poll('call-3', 'exited', tail: 'Release workflow line\n' * 200),
+          for (var index = 0; index < 14; index += 1) logTail(index),
+        ]);
+        final exitIndex = budgeted.indexWhere((r) => r.id == 'call-3');
+        expect(
+          () => jsonDecode(budgeted[exitIndex].result),
+          throwsFormatException,
+          reason: 'the scenario needs the exit payload to stop decoding',
+        );
+
+        expect(
+          ToolResultPromptBuilder.unfinishedBackgroundJobIds(budgeted),
+          isEmpty,
+        );
+        expect(
+          ToolResultPromptBuilder.completionBlockerInstructions(budgeted),
+          isEmpty,
+        );
+      });
+
       test('reports each job whose latest status is still running', () {
         final ids = ToolResultPromptBuilder.unfinishedBackgroundJobIds([
           processResult('process_wait', {
@@ -87,6 +211,41 @@ void main() {
 
         expect(ids, isEmpty);
       });
+    });
+
+    test('budgeting keeps where a carried result sits in the turn', () {
+      // Budgeting rebuilt each result and kept only its outcome, so no carried
+      // result reached the request formatter marked as history or labelled
+      // with a later write.
+      ToolResultInfo carried(int index) => ToolResultInfo(
+        id: 'carried-$index',
+        name: 'read_file',
+        arguments: {'path': 'lib/file_$index.dart'},
+        result: jsonEncode({'content': 'x' * 30000}),
+        fromEarlierLoop: true,
+        changesSinceCapture: const ['write_file pubspec.yaml'],
+      );
+      final input = [for (var index = 0; index < 4; index += 1) carried(index)];
+
+      for (final mode in ToolResultPromptBudgetMode.values) {
+        final budgeted = ToolResultPromptBuilder.budgetToolResults(
+          input,
+          mode: mode,
+        );
+        expect(
+          budgeted.every((result) => result.fromEarlierLoop),
+          isTrue,
+          reason: '$mode',
+        );
+        expect(budgeted.map((result) => result.changesSinceCapture).toSet(), {
+          ['write_file pubspec.yaml'],
+        }, reason: '$mode');
+        expect(
+          budgeted.first.result,
+          contains(ToolResultPromptBuilder.promptBudgetReductionMarker),
+          reason: 'the case must exercise truncation, $mode',
+        );
+      }
     });
 
     test('reports which tools the prompt budget shortened', () {
@@ -170,6 +329,78 @@ void main() {
         isTrue,
       );
     });
+
+    for (final freshness in [
+      'current',
+      'crowded',
+      'carried',
+      'changed',
+      'mutated',
+    ]) {
+      test('range-read budget allocation respects $freshness evidence', () {
+        final content = List.filled(8000, 'r').join();
+        final results = [
+          for (var i = 0; i < (freshness == 'crowded' ? 50 : 6); i++)
+            ToolResultInfo(
+              id: 'history-$i',
+              name: 'read_file',
+              arguments: {'path': '/project/history-$i.py'},
+              result: jsonEncode({
+                'path': '/project/history-$i.py',
+                'content': List.filled(9000, 'h').join(),
+              }),
+            ),
+          ToolResultInfo(
+            id: 'range',
+            name: 'read_file',
+            arguments: {
+              'path': '/project/current.py',
+              'offset': 100,
+              'limit': 40,
+            },
+            result: jsonEncode({
+              'path': '/project/current.py',
+              'content': content,
+            }),
+            fromEarlierLoop: freshness == 'carried',
+            changesSinceCapture: freshness == 'changed'
+                ? ['edit_file /project/current.py']
+                : const [],
+          ),
+          if (freshness == 'mutated')
+            ToolResultInfo(
+              id: 'mutation',
+              name: 'edit_file',
+              arguments: const {},
+              result: '{"changed":true}',
+              outcome: const ToolOutcome(
+                fileMutations: [
+                  ToolFileMutation(path: '/project/current.py', changed: true),
+                ],
+              ),
+            ),
+        ];
+        final budgeted = ToolResultPromptBuilder.budgetToolResults(results);
+        final range = budgeted.firstWhere((result) => result.id == 'range');
+        if (freshness == 'current' || freshness == 'crowded') {
+          expect(jsonDecode(range.result)['content'], content);
+        } else {
+          expect(
+            range.result,
+            contains(ToolResultPromptBuilder.promptBudgetReductionMarker),
+          );
+        }
+        expect(
+          budgeted.first.result,
+          contains(ToolResultPromptBuilder.promptBudgetReductionMarker),
+        );
+        expect(
+          budgeted.fold<int>(0, (n, result) => n + result.result.length),
+          lessThanOrEqualTo(48000),
+        );
+        expect(budgeted.last.outcome, same(results.last.outcome));
+      });
+    }
 
     test('dedupes tool definitions by name', () {
       final tools = [
@@ -436,11 +667,11 @@ void main() {
           id: 'verify-runtime-behavior',
           name: 'local_execute_command',
           arguments: const {
-            'command': 'dart run bin/todo.dart done 999',
+            'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
             'working_directory': '/tmp/todo',
           },
           result: jsonEncode({
-            'command': 'dart run bin/todo.dart done 999',
+            'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
             'working_directory': '/tmp/todo',
             'exit_code': 0,
             'stdout': '',
@@ -2033,6 +2264,131 @@ void main() {
       expect(first['imageBase64'], isNot('first-image'));
       expect(first['image_omitted_for_prompt_budget'], isTrue);
       expect(second['imageBase64'], 'latest-image');
+    });
+
+    group('diagnostic feedback payload ordering', () {
+      // The exact dart_analyze_feedback payload from session c79826af, where
+      // the model went on to spend ten iterations text-searching for the very
+      // symbol this result already named.
+      Map<String, Object?> analyzeFeedbackPayload() => {
+        'schema': 'caverno_dart_analyze_feedback',
+        'provider': 'dart_analyzer',
+        'instruction':
+            'These new code diagnostics were detected after the latest file '
+            'edits. Fix relevant errors or warnings before claiming the '
+            'coding task is complete.',
+        'project_root': '/repo',
+        'changed_paths': ['lib/a.dart'],
+        'baseline_applied': true,
+        'baseline_diagnostic_count': 0,
+        'current_diagnostic_count': 1,
+        'existing_diagnostic_count': 0,
+        'diagnostic_count': 1,
+        'new_diagnostic_count': 1,
+        'language_diagnostics_bridge': {
+          'provider': 'dart_analyzer',
+          'protocol': 'dart_analyzer_cli',
+          'status': 'degraded',
+          'capabilities': {
+            'diagnostics': true,
+            'document_symbols': false,
+            'go_to_definition': false,
+          },
+          'attempted_primary_provider': 'lsp_json_rpc',
+          'degrade_reason': 'primary_empty',
+        },
+        'telemetry': {
+          'duration_ms': 6931,
+          'command_attempt_count': 1,
+          'attempts': [
+            {
+              'executable': 'fvm',
+              'arguments': ['dart', 'analyze', '--format=machine'],
+              'exit_code': 3,
+              'duration_ms': 6929,
+              'diagnostic_count': 1,
+            },
+          ],
+        },
+        'analyzer': {
+          'executable': 'fvm',
+          'arguments': ['dart', 'analyze', '--format=machine'],
+          'exit_code': 3,
+          'duration_ms': 6929,
+        },
+        'diagnostics': [
+          {
+            'relative_path': 'lib/a.dart',
+            'severity': 'Error',
+            'line': 748,
+            'column': 18,
+            'code': 'UNDEFINED_METHOD',
+            'message':
+                "The method '_formatDuration' isn't defined for the type "
+                "'_ResponseMetricsRow'.",
+          },
+        ],
+      };
+
+      ToolResultInfo analyzeFeedback() => ToolResultInfo(
+        id: 'diag_1',
+        name: 'dart_analyze_feedback',
+        arguments: const {'project_root': '/repo'},
+        result: jsonEncode(analyzeFeedbackPayload()),
+      );
+
+      String budgetedPayload() => ToolResultPromptBuilder.budgetToolResults([
+        analyzeFeedback(),
+      ]).single.result;
+
+      test('the diagnostic leads the payload instead of trailing it', () {
+        final payload = budgetedPayload();
+        final diagnosticsAt = payload.indexOf('UNDEFINED_METHOD');
+        final countsAt = payload.indexOf('baseline_diagnostic_count');
+        expect(diagnosticsAt, greaterThanOrEqualTo(0));
+        expect(countsAt, greaterThanOrEqualTo(0));
+        expect(
+          diagnosticsAt,
+          lessThan(countsAt),
+          reason: 'the finding must precede the counters',
+        );
+      });
+
+      test('provenance blocks are dropped from the prompt copy', () {
+        final payload = budgetedPayload();
+        expect(payload, contains('UNDEFINED_METHOD'));
+        expect(payload, contains('_formatDuration'));
+        expect(payload, isNot(contains('language_diagnostics_bridge')));
+        expect(payload, isNot(contains('command_attempt_count')));
+        expect(payload, isNot(contains('degrade_reason')));
+      });
+
+      test('trimming meaningfully shrinks the payload', () {
+        // On the real c79826af payload this is 1911 -> 939 chars (51%). The
+        // fixture abbreviates telemetry.attempts, so it trims slightly less;
+        // the bar here is the guarantee, not that exact ratio.
+        final before = jsonEncode(analyzeFeedbackPayload()).length;
+        final after = budgetedPayload().length;
+        expect(after, lessThan((before * 0.6).round()));
+      });
+
+      test('the raw result keeps its provenance for the session log', () {
+        // Budgeting must not mutate the stored result: the log and the
+        // degraded-bridge signal are read from it.
+        expect(
+          analyzeFeedback().result,
+          contains('language_diagnostics_bridge'),
+        );
+      });
+
+      test('trimming does not disturb the completion guard', () {
+        // The guard reads `diagnostics` off the raw result, not the prompt
+        // copy, so dropping provenance must leave it firing.
+        final blockers = ToolResultPromptBuilder.completionBlockerInstructions([
+          analyzeFeedback(),
+        ]);
+        expect(blockers.any((b) => b.contains('TASK NOT COMPLETE')), isTrue);
+      });
     });
   });
 }

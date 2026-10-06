@@ -238,14 +238,17 @@ class SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) {
     return _repository.runAtomicMutation<MemoryUpdateResult>(
-      () => _updateFromConversation(
-        conversationId: conversationId,
-        messages: messages,
-        now: now,
-        draft: draft,
-      ),
+      () => isCurrent != null && !isCurrent()
+          ? Future.value(const MemoryUpdateResult.none())
+          : _updateFromConversation(
+              conversationId: conversationId,
+              messages: messages,
+              now: now,
+              draft: draft,
+            ),
     );
   }
 

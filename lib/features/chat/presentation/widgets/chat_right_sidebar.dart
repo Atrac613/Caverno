@@ -5,7 +5,7 @@ const double chatCompanionSidebarWidth = 344;
 const double chatFileWorkspacePanelMinWidth = 420;
 const double chatFileWorkspacePanelMaxWidth = 720;
 
-enum ChatRightSidebarTab { companion, files }
+enum ChatRightSidebarTab { companion, files, processes }
 
 class ChatRightSidebarPanel extends StatelessWidget {
   const ChatRightSidebarPanel({
@@ -15,11 +15,15 @@ class ChatRightSidebarPanel extends StatelessWidget {
     required this.fileViewer,
     required this.selectedTab,
     required this.onSelected,
+    this.processPanel,
   });
 
   final double availableWidth;
   final Widget companionPanel;
   final Widget? fileViewer;
+
+  /// Background processes of the conversation; null where none can run.
+  final Widget? processPanel;
   final ChatRightSidebarTab selectedTab;
   final ValueChanged<ChatRightSidebarTab> onSelected;
 
@@ -35,9 +39,28 @@ class ChatRightSidebarPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewer = fileViewer;
-    if (viewer == null) {
+    final processes = processPanel;
+    if (viewer == null && processes == null) {
       return SizedBox(width: _panelWidth, child: companionPanel);
     }
+    final tabs = <ChatRightSidebarTab, Widget>{
+      ChatRightSidebarTab.companion: companionPanel,
+      ChatRightSidebarTab.files: ?viewer,
+      // Mounted only while selected: the list polls the job registry, and a
+      // hidden tab has no reason to keep that timer alive.
+      ChatRightSidebarTab.processes: ?(processes == null
+          ? null
+          : selectedTab == ChatRightSidebarTab.processes
+          ? processes
+          : const SizedBox.shrink()),
+    };
+    // A tab whose body went away (the file viewer closed) falls back to the
+    // companion instead of showing nothing.
+    final activeTab = tabs.containsKey(selectedTab)
+        ? selectedTab
+        : ChatRightSidebarTab.companion;
+    // Three labelled segments do not fit the companion width with icons.
+    final showIcons = tabs.length < 3;
 
     final theme = Theme.of(context);
     return SizedBox(
@@ -53,18 +76,31 @@ class ChatRightSidebarPanel extends StatelessWidget {
                 child: SegmentedButton<ChatRightSidebarTab>(
                   key: const ValueKey('right-sidebar-tabs'),
                   showSelectedIcon: false,
-                  selected: {selectedTab},
-                  segments: const [
+                  selected: {activeTab},
+                  segments: [
                     ButtonSegment(
                       value: ChatRightSidebarTab.companion,
-                      icon: Icon(Icons.view_sidebar_outlined, size: 18),
-                      label: Text('Companion'),
+                      icon: showIcons
+                          ? const Icon(Icons.view_sidebar_outlined, size: 18)
+                          : null,
+                      label: const Text('Companion'),
                     ),
-                    ButtonSegment(
-                      value: ChatRightSidebarTab.files,
-                      icon: Icon(Icons.description_outlined, size: 18),
-                      label: Text('Files'),
-                    ),
+                    if (viewer != null)
+                      ButtonSegment(
+                        value: ChatRightSidebarTab.files,
+                        icon: showIcons
+                            ? const Icon(Icons.description_outlined, size: 18)
+                            : null,
+                        label: const Text('Files'),
+                      ),
+                    if (processes != null)
+                      ButtonSegment(
+                        value: ChatRightSidebarTab.processes,
+                        icon: showIcons
+                            ? const Icon(Icons.terminal, size: 18)
+                            : null,
+                        label: const Text('Processes'),
+                      ),
                   ],
                   onSelectionChanged: (selection) {
                     onSelected(selection.single);
@@ -75,8 +111,8 @@ class ChatRightSidebarPanel extends StatelessWidget {
             Divider(height: 1, thickness: 1, color: theme.dividerColor),
             Expanded(
               child: IndexedStack(
-                index: selectedTab == ChatRightSidebarTab.companion ? 0 : 1,
-                children: [companionPanel, viewer],
+                index: tabs.keys.toList().indexOf(activeTab),
+                children: tabs.values.toList(),
               ),
             ),
           ],

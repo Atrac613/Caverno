@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 
 import '../../../../core/constants/api_constants.dart';
-import '../../../../core/security/llm_endpoint_transport_policy.dart';
 import '../../../../core/utils/logger.dart';
 import '../../application/runtime/turn_abort_signals.dart';
 import '../../domain/entities/message.dart';
@@ -16,13 +15,14 @@ import '../../domain/entities/model_usage_sink.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/entities/video_delivery.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
-import '../../domain/services/qwen38_request_thinking_policy.dart';
+import '../../domain/services/chat_request_thinking_policy.dart';
 import 'chat_completion_request_fallback.dart';
 import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 import 'chat_datasource_client_factory.dart';
 import 'chat_message_payload_formatter.dart';
 import 'chat_request_logger.dart';
+import 'chat_request_tool_declarations.dart';
 import 'chat_response_telemetry.dart';
 import 'chat_tool_result_message_formatter.dart';
 import 'reasoning_tagged_stream_assembler.dart';
@@ -58,46 +58,43 @@ class ChatRemoteDataSource
     String? apiKey,
     String? reasoningEffort,
     bool? enableThinking,
+    bool acceptsChatTemplateKwargs = false,
     http.Client? httpClient,
     http.Client Function()? streamClientFactory,
     ModelUsageSink? usageSink,
     String endpointId = '',
     String? Function()? usageLabelResolver,
+    String? Function()? usageConversationResolver,
     VideoAttachmentResolver? videoAttachmentResolver,
     this.defaultTopP,
   }) : _videoAttachmentResolver = videoAttachmentResolver,
-       _qwen38RequestPolicy = ChatDataSourceClientFactory.thinkingPolicy(
+       _thinkingPolicy = ChatDataSourceClientFactory.thinkingPolicy((
          reasoningEffort: reasoningEffort,
          enableThinking: enableThinking,
-       ),
+         acceptsChatTemplateKwargs: acceptsChatTemplateKwargs,
+       )),
        _requestFallback = ChatCompletionRequestFallback(reasoningEffort),
        _telemetry = ChatResponseTelemetry(
          usageSink: usageSink,
          endpointId: endpointId,
          labelResolver: usageLabelResolver,
+         conversationResolver: usageConversationResolver,
        ),
-       _client = OpenAIClient.withApiKey(
-         apiKey ?? ApiConstants.defaultApiKey,
-         baseUrl: const LlmEndpointTransportPolicy().validate(
-           baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
-           apiKey: apiKey ?? ApiConstants.defaultApiKey,
-         ),
-         defaultHeaders: ApiConstants.userAgentHeaders,
-         httpClient: ChatDataSourceClientFactory.wrap(
-           httpClient ?? http.Client(),
+       _client = ChatDataSourceClientFactory.client(
+         baseUrl: baseUrl,
+         apiKey: apiKey,
+         shape: (
            reasoningEffort: reasoningEffort,
            enableThinking: enableThinking,
+           acceptsChatTemplateKwargs: acceptsChatTemplateKwargs,
          ),
-         streamClientFactory: () => ChatDataSourceClientFactory.wrap(
-           streamClientFactory?.call() ?? http.Client(),
-           reasoningEffort: reasoningEffort,
-           enableThinking: enableThinking,
-         ),
+         httpClient: httpClient,
+         streamClientFactory: streamClientFactory,
        );
 
   final OpenAIClient _client;
   final VideoAttachmentResolver? _videoAttachmentResolver;
-  final Qwen38RequestThinkingPolicy _qwen38RequestPolicy;
+  final ChatRequestThinkingPolicy _thinkingPolicy;
   final ChatCompletionRequestFallback _requestFallback;
   final ChatResponseTelemetry _telemetry;
   final double? defaultTopP;
@@ -107,10 +104,10 @@ class ChatRemoteDataSource
   /// Reads the ambient [ModelUsageRole] for the same reason the client does:
   /// the role decides whether the request may think, so a caller mirroring the
   /// effective request (session logging) has to resolve it in the same zone.
-  Qwen38RequestOverrides? qwen38RequestOverrides({
+  ChatRequestThinkingOverrides? thinkingOverrides({
     required String model,
     required int? maxTokens,
-  }) => _qwen38RequestPolicy.resolve(
+  }) => _thinkingPolicy.resolve(
     model: model,
     maxTokens: maxTokens,
     role: ModelUsageRole.current,
@@ -148,21 +145,6 @@ class ChatRemoteDataSource
     required Future<T> Function(bool includeReasoning) send,
   }) => _requestFallback.create(operation: operation, send: send);
 
-  /// Streaming counterpart of [_createWithReasoningFallback].
-  ///
-  /// Events are re-emitted with `await for` rather than `yield*` because errors
-  /// from a `yield*`-ed stream are forwarded straight to the consumer and never
-  /// enter this function's `try`, which would leave the retry unreachable.
-  ///
-  /// A retry only happens while the attempt has emitted nothing, so a rejected
-  /// request (which fails before the first event) is recovered without any risk
-  /// of replaying content the caller already received.
-  Stream<T> _streamWithReasoningFallback<T>({
-    required String operation,
-    required Stream<T> Function(bool includeReasoning) send,
-    Future<void>? abort,
-  }) => _requestFallback.stream(operation: operation, send: send, abort: abort);
-
   @visibleForTesting
   String formatToolLogSummaryForTest(List<Map<String, dynamic>> tools) {
     return _logger.formatToolLogSummary(tools);
@@ -190,19 +172,6 @@ class ChatRemoteDataSource
       first,
       second,
     );
-  }
-
-  /// Build a list of [Tool] objects from the tool definition maps.
-  List<Tool>? _buildTools(List<Map<String, dynamic>>? tools) {
-    if (tools == null) return null;
-    return tools.map((t) {
-      final function = t['function'] as Map<String, dynamic>;
-      return Tool.function(
-        name: function['name'] as String,
-        description: function['description'] as String?,
-        parameters: function['parameters'] as Map<String, dynamic>?,
-      );
-    }).toList();
   }
 
   /// Get chat completion via streaming (without tools)
@@ -241,7 +210,7 @@ class ChatRemoteDataSource
       _logger.logMessages(messages);
 
       try {
-        final stream = _streamWithReasoningFallback(
+        final stream = _requestFallback.events(
           operation: 'streamChatCompletion',
           abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
@@ -362,7 +331,7 @@ class ChatRemoteDataSource
           stripImages: _shouldStripImages(messages),
           videoUrls: await _resolveVideoUrls(messages),
         );
-        final stream = _streamWithReasoningFallback(
+        final stream = _requestFallback.events(
           operation: 'streamChatCompletionWithTools',
           abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
@@ -374,7 +343,8 @@ class ChatRemoteDataSource
               maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
               maxCompletionTokens: _requestFallback
                   .maxCompletionTokensForRequest(maxTokens),
-              tools: _buildTools(tools),
+              tools: ChatRequestToolDeclarations.tools(tools),
+              toolChoice: ChatRequestToolDeclarations.toolChoice(tools),
               streamOptions: const StreamOptions(includeUsage: true),
               reasoningEffort: _requestFallback.reasoningEffortForRequest(
                 includeReasoning,
@@ -422,6 +392,7 @@ class ChatRemoteDataSource
           toolCalls: toolCalls,
           finishReason: finishReason,
           usage: usage,
+          streamedReasoning: assembler.reasoning,
         );
         completer.complete(completion);
         _telemetry.publishRequest(
@@ -553,7 +524,8 @@ class ChatRemoteDataSource
         maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
           maxTokens,
         ),
-        tools: _buildTools(tools),
+        tools: ChatRequestToolDeclarations.tools(tools),
+        toolChoice: ChatRequestToolDeclarations.toolChoice(tools),
         responseFormat: responseFormat,
         reasoningEffort: _requestFallback.reasoningEffortForRequest(
           includeReasoning,
@@ -694,7 +666,7 @@ class ChatRemoteDataSource
     final timer = Stopwatch()..start();
     final attribution = _telemetry.captureAttribution();
     try {
-      final stream = _streamWithReasoningFallback(
+      final stream = _requestFallback.events(
         operation: 'streamWithToolResult',
         send: (includeReasoning) => _client.chat.completions.createStream(
           ChatCompletionCreateRequest(
@@ -852,7 +824,7 @@ class ChatRemoteDataSource
           assistantContent: assistantContent,
         );
 
-        final stream = _streamWithReasoningFallback(
+        final stream = _requestFallback.events(
           operation: 'streamChatCompletionWithToolResults',
           abort: abort,
           send: (includeReasoning) => _client.chat.completions.createStream(
@@ -864,7 +836,11 @@ class ChatRemoteDataSource
               maxTokens: _requestFallback.maxTokensForRequest(maxTokens),
               maxCompletionTokens: _requestFallback
                   .maxCompletionTokensForRequest(maxTokens),
-              tools: _buildTools(tools),
+              tools: ChatRequestToolDeclarations.tools(tools),
+              toolChoice: ChatRequestToolDeclarations.toolChoice(
+                tools,
+                toolResults: toolResults,
+              ),
               streamOptions: const StreamOptions(includeUsage: true),
               reasoningEffort: _requestFallback.reasoningEffortForRequest(
                 includeReasoning,
@@ -874,11 +850,7 @@ class ChatRemoteDataSource
         );
 
         final responseBuffer = StringBuffer();
-        final reasoningBuffer = StringBuffer();
-        final assembler = ReasoningTaggedStreamAssembler(
-          responseBuffer,
-          reasoning: reasoningBuffer,
-        );
+        final assembler = ReasoningTaggedStreamAssembler(responseBuffer);
         await for (final event in stream) {
           accumulator.add(event);
           final choice = event.choices?.firstOrNull;
@@ -897,9 +869,7 @@ class ChatRemoteDataSource
         _logger.logNativeToolCalls(accumulator.toolCalls);
         final normalized = _responseNormalizer.normalize(
           content: accumulator.content,
-          reasoning: reasoningBuffer.isEmpty
-              ? null
-              : reasoningBuffer.toString(),
+          reasoning: assembler.reasoning,
           nativeToolCalls: accumulator.toolCalls,
           finishReason: accumulator.finishReason?.value,
           advertisedTools: tools,
@@ -910,6 +880,7 @@ class ChatRemoteDataSource
           toolCalls: normalized.toolCalls,
           finishReason: normalized.finishReason,
           usage: usage,
+          streamedReasoning: assembler.reasoning,
         );
         completer.complete(completion);
         _telemetry.publishRequest(
@@ -981,7 +952,11 @@ class ChatRemoteDataSource
         maxCompletionTokens: _requestFallback.maxCompletionTokensForRequest(
           maxTokens,
         ),
-        tools: _buildTools(tools),
+        tools: ChatRequestToolDeclarations.tools(tools),
+        toolChoice: ChatRequestToolDeclarations.toolChoice(
+          tools,
+          toolResults: toolResults,
+        ),
         reasoningEffort: _requestFallback.reasoningEffortForRequest(
           includeReasoning,
         ),

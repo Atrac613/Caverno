@@ -1,6 +1,123 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierUnexecutedActionRetryTests() {
+  test(
+    'an unexecuted command retry retains the code already inspected',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'retry-read-context-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final file = File('${directory.path}/retry.py')
+        ..writeAsStringSync('attempts = 3');
+      final project = CodingProject(
+        id: 'retry-read-context',
+        name: 'retry-read-context',
+        rootPath: directory.path,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'inspect-retry',
+            name: 'read_file',
+            arguments: {'path': file.path},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'run-retry-tests',
+                name: 'local_execute_command',
+                arguments: {
+                  'command': 'python3 -m pytest',
+                  'working_directory': directory.path,
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunkBatches: const [
+          ['I successfully ran the local command python3 -m pytest.'],
+          ['The tests passed.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'read_file': jsonEncode({
+            'path': file.path,
+            'content': 'attempts = 3',
+          }),
+          'local_execute_command': '{"exit_code":0,"stdout":"3 passed"}',
+        },
+      );
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(lifecycle),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      standInForTheApprover(container);
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage('Inspect retry.py and run its tests');
+
+      final recovery = dataSource.toolResultBatches.singleWhere(
+        (batch) => batch.any(
+          (result) => result.result.contains(
+            'unexecuted_command_action_retry_required',
+          ),
+        ),
+      );
+      expect(recovery.map((result) => result.name), [
+        'read_file',
+        'local_execute_command',
+      ]);
+      expect(recovery.first.result, contains('attempts = 3'));
+      expect(recovery.first.fromEarlierLoop, isTrue);
+      expect(recovery.first.changesSinceCapture, isEmpty);
+      expect(toolService.executedToolNames, [
+        'read_file',
+        'local_execute_command',
+      ]);
+      expect(
+        notifier.state.messages.last.content,
+        contains('The tests passed.'),
+      );
+    },
+  );
+
   test('sendMessage dispatches the retry call for a command an answer only '
       'described', () async {
     final describedRun =

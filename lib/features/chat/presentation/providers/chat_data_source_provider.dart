@@ -10,6 +10,14 @@ import '../../data/datasources/llm_session_log_store.dart';
 import 'model_usage_providers.dart';
 import 'video_attachment_providers.dart';
 
+/// The conversation the request in scope belongs to, or null for requests no
+/// conversation owns (the context's `'unassigned'` placeholder included).
+String? usageConversationIdInScope() {
+  final id = LlmSessionLogContext.current?.conversationId?.trim();
+  if (id == null || id.isEmpty) return null;
+  return id == LlmSessionLogContext.unassignedTurn.conversationId ? null : id;
+}
+
 /// Creates a chat data source from an immutable settings snapshot.
 typedef ChatDataSourceFactory = ChatDataSource Function(AppSettings settings);
 
@@ -28,9 +36,13 @@ final chatDataSourceFactoryProvider = Provider<ChatDataSourceFactory>((ref) {
       apiKey: settings.apiKey,
       reasoningEffort: settings.reasoningEffort.apiValue,
       enableThinking: settings.enableThinking,
+      acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+        settings.baseUrl,
+      ),
       usageSink: usageSink,
       endpointId: settings.activeLlmEndpointId,
       usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
+      usageConversationResolver: usageConversationIdInScope,
       videoAttachmentResolver: (messages) => videoDelivery.resolve(
         messages,
         endpoint: Uri.parse(settings.baseUrl),
@@ -69,9 +81,13 @@ final primaryRouteEndpointDataSourceFactoryProvider =
         apiKey: apiKey,
         reasoningEffort: settings.reasoningEffort.apiValue,
         enableThinking: settings.enableThinking,
+        acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+          baseUrl,
+        ),
         usageSink: usageSink,
         endpointId: endpointId,
         usageLabelResolver: () => LlmSessionLogContext.current?.requestLabel,
+        usageConversationResolver: usageConversationIdInScope,
         videoAttachmentResolver: (messages) =>
             videoDelivery.resolve(messages, endpoint: Uri.parse(baseUrl)),
       );

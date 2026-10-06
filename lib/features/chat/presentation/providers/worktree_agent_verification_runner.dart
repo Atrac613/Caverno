@@ -1,11 +1,12 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/login_shell_environment.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../data/datasources/local_shell_launch_plan.dart';
+import '../../data/datasources/local_shell_process_runner.dart';
+import '../../domain/services/literal_shell_words.dart';
 
 typedef WorktreeAgentVerificationCommandRunner =
     Future<WorktreeAgentVerificationCommandOutput> Function(
@@ -250,80 +251,48 @@ class WorktreeAgentVerificationRunner {
     WorktreeAgentVerificationCommand command,
     Duration timeout,
   ) async {
-    Process? process;
-    try {
-      process = await Process.start(
-        command.executable,
-        command.arguments,
-        workingDirectory: command.workingDirectory,
-        environment: await LoginShellEnvironment.instance.environment(),
-      );
-      final stdout = _BoundedTextBuffer(_maxOutputChars);
-      final stderr = _BoundedTextBuffer(_maxOutputChars);
-      final stdoutSubscription = process.stdout
-          .transform(utf8.decoder)
-          .listen(stdout.add);
-      final stderrSubscription = process.stderr
-          .transform(utf8.decoder)
-          .listen(stderr.add);
-      final stdoutDone = stdoutSubscription.asFuture<void>();
-      final stderrDone = stderrSubscription.asFuture<void>();
-
-      try {
-        final exitCode = await process.exitCode.timeout(timeout);
-        await Future.wait([stdoutDone, stderrDone]);
-        return WorktreeAgentVerificationCommandOutput(
-          exitCode: exitCode,
-          stdout: stdout.text,
-          stderr: stderr.text,
-        );
-      } on TimeoutException {
-        process.kill();
-        await stdoutSubscription.cancel();
-        await stderrSubscription.cancel();
-        return const WorktreeAgentVerificationCommandOutput(
-          exitCode: -1,
-          timedOut: true,
-        );
-      }
-    } on ProcessException catch (error) {
-      return WorktreeAgentVerificationCommandOutput(
+    final commandLine = [
+      command.executable,
+      ...command.arguments,
+    ].map(LiteralShellWords.quote).join(' ');
+    final launch = await LocalShellLaunchPlan.prepare(
+      command: commandLine,
+      shellExecutable: command.executable,
+      shellArgs: command.arguments,
+      observationRoot: null,
+      containmentRoot: command.workingDirectory,
+    );
+    if (launch == null) {
+      return const WorktreeAgentVerificationCommandOutput(
         exitCode: -1,
-        startError: error.message,
+        startError:
+            'Workspace containment is unavailable; verification was not run.',
+      );
+    }
+    try {
+      final result = await LocalShellProcessRunner.execute(
+        command: commandLine,
+        workingDirectory: command.workingDirectory,
+        shellExecutable: launch.executable,
+        shellArgs: launch.args,
+        timeout: timeout,
+        maxOutputChars: _maxOutputChars,
+        scratchDirectory: launch.scratchDirectory,
+      );
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+      return WorktreeAgentVerificationCommandOutput(
+        exitCode: payload['exit_code'] as int? ?? -1,
+        stdout: payload['stdout'] as String? ?? '',
+        stderr: payload['stderr'] as String? ?? '',
+        timedOut: payload['timed_out'] == true,
       );
     } catch (error) {
       return WorktreeAgentVerificationCommandOutput(
         exitCode: -1,
         startError: error.toString(),
       );
+    } finally {
+      await launch.dispose();
     }
-  }
-}
-
-class _BoundedTextBuffer {
-  _BoundedTextBuffer(this.maxChars);
-
-  final int maxChars;
-  final _buffer = StringBuffer();
-  bool _truncated = false;
-
-  String get text => _buffer.toString();
-
-  void add(String chunk) {
-    if (_truncated || chunk.isEmpty) {
-      return;
-    }
-    final remaining = maxChars - _buffer.length;
-    if (remaining <= 0) {
-      _truncated = true;
-      return;
-    }
-    if (chunk.length <= remaining) {
-      _buffer.write(chunk);
-      return;
-    }
-    _buffer.write(chunk.substring(0, remaining));
-    _buffer.write('\n...[truncated]');
-    _truncated = true;
   }
 }

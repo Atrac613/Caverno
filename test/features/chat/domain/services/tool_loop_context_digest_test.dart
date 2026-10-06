@@ -282,6 +282,38 @@ void main() {
       expect(block, contains('ran `fvm flutter analyze`'));
     });
 
+    test('omits commands whose payload declares they never ran', () {
+      // Session dd50d110: a guard-blocked `git tag -a` carried no `ok`, was
+      // listed as run, and the model went looking for a tag it never made.
+      final block = digest.build([
+        _result('git_execute_command', {
+          'command': 'diff --cached',
+        }, result: '{"exit_code":0,"stdout":"diff --git a/x b/x","stderr":""}'),
+        _result('git_execute_command', {
+          'command': 'status --short',
+        }, result: '{"exit_code":0,"stdout":"","stderr":""}'),
+        _result(
+          'git_execute_command',
+          {'command': 'tag -a 1.3.53+67 -m "Release v1.3.53"'},
+          result:
+              '{"code":"git_tag_format_inspection_required",'
+              '"result_origin":"refusal","required_action":"tag --list"}',
+        ),
+        _result(
+          'git_execute_command',
+          {'command': 'log --oneline | head -3'},
+          result:
+              '{"executed":false,'
+              '"code":"command_rejected_before_execution"}',
+        ),
+      ]);
+
+      expect(block, contains('ran `git diff --cached`'));
+      expect(block, contains('ran `git status --short`'));
+      expect(block, isNot(contains('tag -a')));
+      expect(block, isNot(contains('log --oneline')));
+    });
+
     test('keeps a command that ran and failed', () {
       final block = digest.build([
         _result(
@@ -753,6 +785,37 @@ void main() {
       final label = RegExp(r'ran `([^`]*)`').firstMatch(block)!.group(1)!;
       expect(label, endsWith('…'));
       expect(label.length, lessThanOrEqualTo(121));
+    });
+
+    test('omits what the same request carries in full', () {
+      final read = _result('read_file', {'path': 'pubspec.yaml'});
+      final command = _result('git_execute_command', {
+        'command': 'tag --list',
+      }, exitCode: 0);
+      // Two survivors, because the digest stays silent below minEntries.
+      final other = _result('read_file', {'path': 'lib/main.dart'});
+      final another = _result('read_file', {'path': 'lib/app.dart'});
+
+      final digest = const ToolLoopContextDigest().build(
+        [read, command, other, another],
+        carried: [read, command],
+      );
+
+      // Naming a result whose body travels in the same payload would tell the
+      // model its output is absent while it sits right there.
+      expect(digest, isNot(contains('pubspec.yaml')));
+      expect(digest, isNot(contains('tag --list')));
+      expect(digest, contains('lib/main.dart'));
+      expect(digest, contains('lib/app.dart'));
+    });
+
+    test('says nothing at all when every result is carried', () {
+      final read = _result('read_file', {'path': 'pubspec.yaml'});
+
+      expect(
+        const ToolLoopContextDigest().build([read], carried: [read]),
+        isEmpty,
+      );
     });
   });
 }

@@ -14,9 +14,11 @@ final class ChatResponseTelemetry {
     ModelUsageSink? usageSink,
     String endpointId = '',
     String? Function()? labelResolver,
+    String? Function()? conversationResolver,
   }) : _usageSink = usageSink,
        _endpointId = endpointId,
-       _labelResolver = labelResolver;
+       _labelResolver = labelResolver,
+       _conversationResolver = conversationResolver;
 
   final ModelUsageSink? _usageSink;
 
@@ -24,6 +26,9 @@ final class ChatResponseTelemetry {
   /// this file does not have to import the session log store, which imports the
   /// data source in turn.
   final String? Function()? _labelResolver;
+
+  /// Supplies the owning conversation id, injected for the same reason.
+  final String? Function()? _conversationResolver;
 
   /// Which configured endpoint the owning data source talks to. Recorded
   /// alongside the model because the same model name can be served locally, by
@@ -60,8 +65,10 @@ final class ChatResponseTelemetry {
   /// Snapshots who this request belongs to. Must be called while the caller's
   /// zone is still current, i.e. when the request is issued — see
   /// [ModelUsageAttribution].
-  ModelUsageAttribution captureAttribution() =>
-      ModelUsageAttribution.capture(labelResolver: _labelResolver);
+  ModelUsageAttribution captureAttribution() => ModelUsageAttribution.capture(
+    labelResolver: _labelResolver,
+    conversationResolver: _conversationResolver,
+  );
 
   /// The single funnel every request passes through on its way out, whether it
   /// succeeded, failed, or came back through a compatibility fallback.
@@ -85,6 +92,7 @@ final class ChatResponseTelemetry {
       endpointId: _endpointId,
       role: attribution.role,
       label: attribution.label,
+      conversationId: attribution.conversationId,
       usage: metadata.usage,
       durationMs: timer.elapsedMilliseconds,
       finishReason: metadata.finishReason,

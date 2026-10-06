@@ -173,6 +173,7 @@ void main() {
     );
     expect(_payload(result), {
       'ok': false,
+      'result_origin': 'refusal',
       'code': MaterialContractAssumptionGuard.blockedCode,
       'error':
           'State mutation is blocked until the user confirms a material contract assumption.',

@@ -15,12 +15,13 @@ import 'material_assumption_confirmation_gate.dart';
 /// The Anabasis parent cannot mutate at all, so asking the user to confirm an
 /// assumption before refusing it would raise an approval whose answer changes
 /// nothing — and a confirmation, once given, is durable state the user gave for
-/// a reason that never applied.
+/// a reason that never applied. [turnScope] precedes the gate for that reason.
 final class TurnToolPolicyChain {
   const TurnToolPolicyChain({
     required this.executingRole,
     required this.assumptionGate,
     this.parentAuthority = const AnabasisParentAuthorityGuard(),
+    this.turnScope,
   });
 
   /// Read from the ambient zone by the caller and passed in, so the guards
@@ -28,6 +29,9 @@ final class TurnToolPolicyChain {
   final ModelUsageRole executingRole;
   final MaterialAssumptionConfirmationGate assumptionGate;
   final AnabasisParentAuthorityGuard parentAuthority;
+
+  /// What the turn was asked to be, such as a read-only review.
+  final McpToolResult? Function(ToolCallInfo toolCall)? turnScope;
 
   /// The refusal for [toolCall], or `null` when nothing blocks it.
   Future<McpToolResult?> evaluate(
@@ -39,6 +43,7 @@ final class TurnToolPolicyChain {
       executingRole: executingRole,
     );
     if (unauthorized != null) return unauthorized;
-    return assumptionGate.evaluate(toolCall, workspaceMode: workspaceMode);
+    return turnScope?.call(toolCall) ??
+        await assumptionGate.evaluate(toolCall, workspaceMode: workspaceMode);
   }
 }

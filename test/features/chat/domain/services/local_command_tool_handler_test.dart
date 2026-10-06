@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:caverno/features/chat/data/datasources/local_command_workspace_containment.dart';
+import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/services/local_command_tool_handler.dart';
@@ -91,6 +94,9 @@ List<({ChatTurnOwner owner, String toolCallId, String error})> _poisonScopes(
 ];
 
 void main() {
+  final containmentSupported =
+      Platform.isMacOS &&
+      File(LocalCommandWorkspaceContainment.executable).existsSync();
   group('LocalCommandToolHandler', () {
     test('recursively freezes request and execution arguments', () async {
       final owner = _owner('owner-a');
@@ -495,6 +501,52 @@ void main() {
       ]);
     });
 
+    test(
+      'a fence refusal returns before auto-review or a person is asked',
+      () async {
+        // Session 1afd70a6: auto-review denied a contained out-of-root `ls`,
+        // the denial escalated to a dialog, the user approved, and the
+        // mutation fence refused the command anyway.
+        final owner = _owner('owner-a');
+        final refusal = _toolResult(
+          '{"ok":false,"code":"project_mutation_outside_root"}',
+          isSuccess: false,
+        );
+        final seen = <LocalCommandExecutionRequest>[];
+        final harness = _Harness(
+          preflight: (execution) async {
+            seen.add(execution);
+            return refusal;
+          },
+        );
+
+        final result = await harness.handler.handle(
+          _request(
+            owner: owner,
+            arguments: const {'command': 'ls -la /Library/Frameworks/ 2>&1'},
+          ),
+        );
+
+        expect(result, same(refusal));
+        expect(seen.single.arguments['allowed_read_root'], _ownerARoot);
+        expect(harness.approval.resolveCalls, isEmpty);
+        expect(harness.approval.manualCalls, isEmpty);
+        expect(harness.execution.calls, isEmpty);
+      },
+    );
+
+    test('a passing preflight leaves the approval flow unchanged', () async {
+      final owner = _owner('owner-a');
+      final harness = _Harness(preflight: (_) async => null)
+        ..approval.gates[owner] = ToolApprovalGateDecision.fullAccess;
+
+      await harness.handler.handle(
+        _request(owner: owner, arguments: const {'command': 'cat /etc/hosts'}),
+      );
+
+      expect(harness.approval.resolveCalls, hasLength(1));
+    });
+
     test('the manual prompt receives the reason it was asked for', () async {
       // The reason lived only in the audit file at first, so the person being
       // asked saw an ordinary command prompt and no mention of the path.
@@ -540,6 +592,49 @@ void main() {
         isEmpty,
         reason: 'in-project reads must not start costing an approval round',
       );
+    });
+
+    test(
+      'a read-only git inspection keeps the fast path in a project',
+      () async {
+        // The release-prep shape that used to cost a fresh SEC4.4g approval.
+        const inspection =
+            "git tag --list '[0-9]*' --sort=-version:refname | head -3; "
+            'git log --oneline -1; git status --short; '
+            "grep -m1 '^version:' pubspec.yaml; ls docs/releases/ | tail -3";
+        final owner = _owner('owner-a');
+        final harness = _Harness();
+
+        await TurnProjectRoot.runScoped(
+          const TurnProjectRoot(_ownerARoot),
+          () => harness.handler.handle(
+            _request(owner: owner, arguments: const {'command': inspection}),
+          ),
+        );
+
+        expect(harness.execution.calls, hasLength(1));
+        expect(harness.approval.resolveCalls, isEmpty);
+      },
+    );
+
+    test('a git global option still needs a fresh approval', () async {
+      final owner = _owner('owner-a');
+      final harness = _Harness();
+
+      await TurnProjectRoot.runScoped(
+        const TurnProjectRoot(_ownerARoot),
+        () => harness.handler.handle(
+          _request(
+            owner: owner,
+            arguments: const {
+              'command': "git -c core.fsmonitor='touch marker' status",
+            },
+          ),
+        ),
+      );
+
+      expect(harness.approval.resolveCalls, hasLength(1));
+      expect(harness.approval.manualCalls, hasLength(1));
     });
 
     test('a quoted in-project path with spaces keeps its fast path', () async {
@@ -612,6 +707,128 @@ void main() {
       expect(harness.approval.resolveCalls, hasLength(1));
       expect(harness.execution.calls, hasLength(1));
     });
+
+    for (final command in [
+      'python3 watcher.py --help',
+      'bash tool/check.sh',
+      'which python3 && python3 --version',
+      'env MODE=check python3 watcher.py --help',
+      'printf ready | cat > output.txt',
+      'python3 -m pytest -q 2>&1 | tail -5',
+      '.venv/bin/python -m pytest -q 2>&1 | tail -n 5',
+      '/usr/bin/python3 -m pytest -q 2>&1 | tail -5',
+    ]) {
+      test(
+        'contained $command uses auto-review without a manual gate',
+        () async {
+          final root = await Directory.systemTemp.createTemp('python-gate-');
+          addTearDown(() => root.delete(recursive: true));
+          final owner = _owner('owner-a');
+          final harness = _Harness()
+            ..approval.gates[owner] =
+                ToolApprovalGateDecision.autoReviewAllowed;
+
+          await harness.handler.handle(
+            _request(
+              owner: owner,
+              allowedRoot: root.path,
+              defaultWorkingDirectory: root.path,
+              arguments: {'command': command},
+            ),
+          );
+
+          expect(harness.approval.resolveCalls, hasLength(1));
+          expect(
+            harness.approval.resolveCalls.single.request.requiredManualDecision,
+            isNull,
+          );
+          expect(harness.approval.manualCalls, isEmpty);
+          expect(
+            harness
+                .execution
+                .calls
+                .single
+                .request
+                .arguments['workspace_command_containment'],
+            isTrue,
+          );
+        },
+        skip: !containmentSupported,
+      );
+    }
+
+    test(
+      'the chained environment probe reaches auto-review unchanged',
+      () async {
+        final root = await Directory.systemTemp.createTemp('command-gate-');
+        addTearDown(() => root.delete(recursive: true));
+        final command =
+            'cd ${root.path} && ls -la && which python3 && python3 --version '
+            '&& ls .venv 2>/dev/null || true';
+        final owner = _owner('owner-a');
+        final harness = _Harness()
+          ..approval.gates[owner] = ToolApprovalGateDecision.autoReviewAllowed;
+
+        await harness.handler.handle(
+          _request(
+            owner: owner,
+            allowedRoot: root.path,
+            defaultWorkingDirectory: root.path,
+            arguments: {'command': command},
+          ),
+        );
+
+        final request = harness.approval.resolveCalls.single.request;
+        expect(request.requiredManualDecision, isNull);
+        expect(request.requiredManualDecisionSource, isNull);
+        expect(
+          request.execution.arguments['workspace_command_containment'],
+          isTrue,
+        );
+        expect(harness.approval.manualCalls, isEmpty);
+        expect(harness.execution.calls.single.request.command, command);
+      },
+      skip: !containmentSupported,
+    );
+
+    test(
+      'commands outside the containment route retain fresh approval',
+      () async {
+        final root = await Directory.systemTemp.createTemp('bash-gate-');
+        addTearDown(() => root.delete(recursive: true));
+        final owner = _owner('owner-a');
+        for (final arguments in [
+          {'command': 'bash tool/check.sh &'},
+          {'command': 'bash tool/check.sh', 'execution_scope': 'host'},
+          {'command': 'bash tool/release_ios_macos.sh'},
+          {'command': 'bash -c "flutter build macos"'},
+          {'command': 'ls -la && python3 --version &'},
+          {'command': 'ls -la && sh tool/release_ios_macos.sh'},
+          {'command': 'ls -la && xcodebuild -version'},
+        ]) {
+          final harness = _Harness()
+            ..rules.decisions[owner] = CommandPermissionRuleDecision.allow;
+
+          await harness.handler.handle(
+            _request(
+              owner: owner,
+              allowedRoot: root.path,
+              defaultWorkingDirectory: root.path,
+              arguments: {...arguments, 'workspace_command_containment': true},
+            ),
+          );
+
+          final request = harness.approval.resolveCalls.single.request;
+          expect(request.requiredManualDecision?.needsManual, isTrue);
+          expect(
+            request.execution.arguments['workspace_command_containment'],
+            isFalse,
+          );
+          expect(harness.approval.manualCalls, hasLength(1));
+          expect(harness.approval.rememberedResults, isEmpty);
+        }
+      },
+    );
 
     test(
       'executes a fresh manual approval without caching its result',
@@ -1400,7 +1617,7 @@ void main() {
 }
 
 final class _Harness {
-  _Harness()
+  _Harness({LocalCommandPreflight? preflight})
     : execution = _FakeExecutionPort(),
       approval = _FakeApprovalPort(),
       rules = _FakeRuleStore() {
@@ -1408,6 +1625,7 @@ final class _Harness {
       executionPort: execution,
       approvalPort: approval,
       permissionRuleStorePort: rules,
+      preflight: preflight,
     );
   }
 

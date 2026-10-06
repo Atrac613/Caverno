@@ -1,4 +1,6 @@
 import '../../../../core/types/assistant_mode.dart';
+import '../../../project_farm/application/project_task_commit_turn_evidence.dart';
+import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/domain/services/mesh_endpoint_router.dart';
@@ -7,7 +9,14 @@ import '../../../settings/presentation/providers/local_model_lifecycle_provider.
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/primary_route_chat_datasource.dart';
+import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/primary_model_router.dart';
+import '../../domain/services/project_task_review_verdict.dart';
+import '../../domain/services/project_task_terminal_status.dart';
+import '../../domain/services/project_task_verification_context.dart';
+import 'primary_turn_purpose.dart';
+
+export 'primary_turn_purpose.dart';
 
 typedef AssignedPrimaryDataSourceBuilder =
     ChatDataSource Function(ResolvedEndpoint endpoint);
@@ -17,9 +26,26 @@ typedef PrimaryRouteRecorder =
 final class PrimaryTurnRouteRuntime {
   final Map<int, (PrimaryRouteResolution, ChatDataSource)> _routes = {};
 
+  /// Turns started by `/review`, which the tool loop treats as read-only. Kept
+  /// with the route because the flag arrives here and nowhere else.
+  final Set<int> _codeReviews = {};
+  final Set<int> _projectTaskImplementations = {};
+  final Set<int> _projectTaskSteps = {};
+  final Set<int> _projectTaskCommits = {};
+  final Set<int> _projectTaskCommitPreparations = {};
+  final Map<int, ProjectTaskCommitScope> _projectTaskCommitScopes = {};
+  final Map<int, String> _commitPromptStarts = {};
+  final Map<int, (String, ProjectTaskCommitTurnEvidence)> _commitTerminals = {};
+  final Map<int, (String, ProjectTaskTerminalStatus)> _subtaskTerminals = {};
+  final Map<int, (String, ProjectTaskReviewVerdict)> _reviewTerminals = {};
+  final Map<String, ProjectTaskVerificationContext> _verificationContexts = {};
+
   Future<void> capture({
     required int generation,
     required AppSettings settings,
+    PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
+    ProjectTaskCommitScope? projectTaskCommitScope,
+    String? taskCommitPromptId,
     required AssistantMode assistantMode,
     required ChatDataSource primaryDataSource,
     required EndpointHealthTracker health,
@@ -27,17 +53,46 @@ final class PrimaryTurnRouteRuntime {
     required PrimaryRouteModelPreparer preparer,
     required PrimaryRouteRecorder record,
   }) async {
+    _commitTerminals.remove(generation);
+    _subtaskTerminals.remove(generation);
+    _reviewTerminals.remove(generation);
+    _commitPromptStarts.remove(generation);
+    if ((purpose == PrimaryTurnPurpose.projectTaskCommitPreparation ||
+            purpose == PrimaryTurnPurpose.projectTaskCommit) &&
+        taskCommitPromptId != null) {
+      _commitPromptStarts[generation] = taskCommitPromptId;
+    }
+    final codeReview = purpose == PrimaryTurnPurpose.codeReview;
+    final reviewEndpointId = settings.codeReviewEndpointId.trim();
+    if (codeReview && !settings.hasCodeReviewRoute) {
+      throw StateError(
+        'Configure a review endpoint and model in Model Routing.',
+      );
+    }
+    final routeSettings = codeReview
+        ? settings.copyWith(
+            generalPrimaryModel: settings.effectiveCodeReviewModel,
+            codingPrimaryModel: settings.effectiveCodeReviewModel,
+            planPrimaryModel: settings.effectiveCodeReviewModel,
+            generalPrimaryEndpointId: reviewEndpointId,
+            codingPrimaryEndpointId: reviewEndpointId,
+            planPrimaryEndpointId: reviewEndpointId,
+          )
+        : settings;
     final resolution = const PrimaryModelRouter().resolve(
       PrimaryRouteContext(
-        settings: settings,
+        settings: routeSettings,
         assistantMode: assistantMode,
         unhealthyEndpointIds: health.unhealthyEndpointIds,
       ),
     );
+    if (codeReview && resolution.isDemoted) {
+      throw StateError('The configured review endpoint is unavailable.');
+    }
     final assigned = resolution.endpoint.isPrimary
         ? primaryDataSource
         : buildAssignedDataSource(resolution.endpoint);
-    final dataSource = resolution.endpoint.isPrimary
+    final dataSource = resolution.endpoint.isPrimary || codeReview
         ? assigned
         : PrimaryRouteChatDataSource(
             assigned: assigned,
@@ -48,6 +103,36 @@ final class PrimaryTurnRouteRuntime {
             health: health,
           );
     _routes[generation] = (resolution, dataSource);
+    _mark(
+      _projectTaskImplementations,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskImplementation,
+    );
+    _mark(
+      _projectTaskSteps,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskStep,
+    );
+    _mark(
+      _projectTaskCommits,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskCommit,
+    );
+    _mark(
+      _projectTaskCommitPreparations,
+      generation,
+      purpose == PrimaryTurnPurpose.projectTaskCommitPreparation,
+    );
+    if (projectTaskCommitScope != null) {
+      _projectTaskCommitScopes[generation] = projectTaskCommitScope;
+    } else {
+      _projectTaskCommitScopes.remove(generation);
+    }
+    if (codeReview) {
+      _codeReviews.add(generation);
+    } else {
+      _codeReviews.remove(generation);
+    }
     await preparer.prepare(settings: settings, resolution: resolution);
     await record(resolution);
   }
@@ -100,7 +185,153 @@ final class PrimaryTurnRouteRuntime {
   AssistantMode assistantMode(int generation, AppSettings settings) =>
       _routes[generation]?.$1.context.assistantMode ?? settings.assistantMode;
 
-  void release(int generation) => _routes.remove(generation);
+  bool isCodeReview(int generation) => _codeReviews.contains(generation);
+  bool isProjectTaskImplementation(int generation) =>
+      _projectTaskImplementations.contains(generation);
+
+  /// A project-task subtask turn before the last; see
+  /// [PrimaryTurnPurpose.projectTaskStep].
+  bool isProjectTaskStep(int generation) =>
+      _projectTaskSteps.contains(generation);
+
+  bool isProjectTaskCommit(int generation) =>
+      _projectTaskCommits.contains(generation);
+
+  bool isProjectTaskCommitPreparation(int generation) =>
+      _projectTaskCommitPreparations.contains(generation);
+  ProjectTaskCommitScope? commitScope(int generation) =>
+      _projectTaskCommitScopes[generation];
+
+  String? commitPromptStart(int generation) => _commitPromptStarts[generation];
+
+  // Immutable terminal observations survive owner teardown and ledger consumption.
+  // Bound retention also covers callers that never request an observation.
+  void recordCommitTerminal(
+    int generation,
+    String conversationId,
+    bool normal, {
+    Iterable<ToolResultInfo> results = const [],
+  }) {
+    if (!isProjectTaskCommit(generation) &&
+        !isProjectTaskCommitPreparation(generation)) {
+      return;
+    }
+    _commitTerminals[generation] = (
+      conversationId,
+      ProjectTaskCommitTurnEvidence.fromResults(
+        completedNormally: normal,
+        results: results,
+      ),
+    );
+    if (_commitTerminals.length > 16) {
+      _commitTerminals.remove(_commitTerminals.keys.first);
+    }
+  }
+
+  ProjectTaskCommitTurnEvidence? takeCommitTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _commitTerminals[generation];
+    if (entry?.$1 != conversationId) return null;
+    _commitTerminals.remove(generation);
+    return entry!.$2;
+  }
+
+  void recordSubtaskTerminal(
+    int generation,
+    String conversationId,
+    ProjectTaskTerminalStatus status,
+  ) {
+    if (!isProjectTaskStep(generation) || !status.isSubtask) return;
+    _subtaskTerminals[generation] = (conversationId, status);
+    if (_subtaskTerminals.length > 16) {
+      _subtaskTerminals.remove(_subtaskTerminals.keys.first);
+    }
+  }
+
+  ProjectTaskTerminalStatus? takeSubtaskTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _subtaskTerminals[generation];
+    if (entry?.$1 != conversationId) return null;
+    _subtaskTerminals.remove(generation);
+    return entry!.$2;
+  }
+
+  void recordReviewTerminal(
+    int generation,
+    String conversationId,
+    ProjectTaskReviewVerdict verdict,
+  ) {
+    if (!isCodeReview(generation) || _reviewTerminals.containsKey(generation)) {
+      return;
+    }
+    _reviewTerminals[generation] = (conversationId, verdict);
+    if (_reviewTerminals.length > 16) {
+      _reviewTerminals.remove(_reviewTerminals.keys.first);
+    }
+  }
+
+  ProjectTaskReviewVerdict? takeReviewTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _reviewTerminals[generation];
+    if (entry?.$1 != conversationId) return null;
+    _reviewTerminals.remove(generation);
+    return entry!.$2;
+  }
+
+  ProjectTaskReviewVerdict? reviewTerminal(
+    int generation,
+    String conversationId,
+  ) {
+    final entry = _reviewTerminals[generation];
+    return entry?.$1 == conversationId ? entry!.$2 : null;
+  }
+
+  void recordVerificationContext(
+    int generation,
+    String conversationId,
+    List<ToolResultInfo> results,
+  ) {
+    if (!isProjectTaskImplementation(generation) &&
+        !isProjectTaskStep(generation)) {
+      return;
+    }
+    _verificationContexts[conversationId] =
+        ProjectTaskVerificationContext.fromResults(results);
+    if (_verificationContexts.length > 16) {
+      _verificationContexts.remove(_verificationContexts.keys.first);
+    }
+  }
+
+  ProjectTaskVerificationContext? verificationContext(String conversationId) =>
+      _verificationContexts[conversationId];
+
+  /// Any project-task turn the farm workflow settles by a structured marker.
+  bool isProjectTaskTurn(int generation) =>
+      isProjectTaskImplementation(generation) ||
+      isProjectTaskStep(generation) ||
+      isProjectTaskCommit(generation) ||
+      isProjectTaskCommitPreparation(generation);
+
+  static void _mark(Set<int> set, int generation, bool member) =>
+      member ? set.add(generation) : set.remove(generation);
+
+  void release(int generation) {
+    _commitPromptStarts.remove(generation);
+    _projectTaskImplementations.remove(generation);
+    _projectTaskSteps.remove(generation);
+    _projectTaskCommits.remove(generation);
+    _projectTaskCommitPreparations.remove(generation);
+    _projectTaskCommitScopes.remove(generation);
+    _routes.remove(generation);
+    _codeReviews.remove(generation);
+  }
+
   int get count => _routes.length;
 }
 
