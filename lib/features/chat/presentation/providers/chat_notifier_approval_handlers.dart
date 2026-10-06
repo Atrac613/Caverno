@@ -208,6 +208,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     required ToolApprovalMode mode,
     required ToolApprovalAutoReviewDomain reviewDomain,
     required bool fullAccessEligible,
+    bool workspaceCommandContained = false,
     ToolApprovalGateDecision? requiredManualDecision,
     String requiredManualDecisionSource = 'required_manual',
     Map<String, dynamic>? approvalCacheArguments,
@@ -242,6 +243,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       hasCachedApproval: hasCachedApproval,
       mode: mode,
       fullAccessEligible: fullAccessEligible,
+      workspaceCommandContained: workspaceCommandContained,
       requiredManualDecision: requiredManualDecision,
       requiredManualDecisionSource: requiredManualDecisionSource,
       review: () async => _runApprovalAutoReview(
@@ -277,8 +279,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     );
   }
 
-  /// Appends one automated approval decision to the local audit trail. Best
-  /// effort: failures never block tool execution.
+  /// Records automated decisions in the audit trail on a best-effort basis.
   Future<void> _recordApprovalAudit(
     ChatTurnOwner owner, {
     required ToolCallInfo toolCall,
@@ -353,6 +354,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     String? warningMessage,
     String? preview,
     List<String> outOfRootPaths = const [],
+    bool workspaceCommandContained = false,
     List<Message>? conversationMessages,
   }) {
     return ToolApprovalAutoReviewRequest(
@@ -366,6 +368,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       warningMessage: warningMessage,
       preview: preview,
       outOfRootPaths: outOfRootPaths,
+      workspaceCommandContained: workspaceCommandContained,
       conversationTail: ToolApprovalAutoReviewService.buildConversationTail(
         conversationMessages ??
             _activeResponseRegistry.messagesForOwner(owner) ??
@@ -423,28 +426,6 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     ToolApprovalAutoReviewDomain domain,
   ) {
     return domain == ToolApprovalAutoReviewDomain.coding;
-  }
-
-  /// The heading for a manual prompt: whatever the gate says, else [fallback].
-  String? _escalatedApprovalWarningTitle(
-    ToolApprovalGateDecision gate,
-    String? fallback,
-  ) {
-    return gate.approvalPromptTitle ?? fallback;
-  }
-
-  /// Prepends the gate's reason for asking, whatever route sent it here.
-  String? _escalatedApprovalWarningMessage(
-    ToolApprovalGateDecision gate,
-    String? fallback,
-  ) {
-    final rationale = gate.approvalPromptRationale;
-    if (rationale == null) {
-      return fallback;
-    }
-    return fallback == null || fallback.isEmpty
-        ? rationale
-        : '$rationale\n\n$fallback';
   }
 
   /// Asks the user to confirm one material contract assumption (ANA0).

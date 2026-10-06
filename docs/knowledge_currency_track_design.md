@@ -72,7 +72,8 @@ of scope here.
 - `knowledgeCutoffHumilityInstruction` says "the current date above", although
   the dynamic datetime block is appended later in the prompt. That wording is a
   small prompt-order defect, not a missing-grounding mechanism, and should be
-  corrected independently from KC2.
+  corrected independently from KC2. Fixed in `1b05243fb`: the instruction now
+  follows the datetime block in the dynamic tail.
 - **LL10 `resolve_installed_dependency`** (`done`) is the one real ground-truth
   mechanism, and it is pull-only.
 
@@ -93,7 +94,24 @@ belief*. KC3 exists for exactly this gap.
 
 ### KC1: Cutoff Exposure Census
 
-Status: `next`. Measurement instrument; ships no production behavior.
+Status: `done` (2026-09-24). Measurement instrument; ships no production
+behavior.
+
+Closed 2026-09-24 with one scope item cut: classifying real answers from both
+corpora for classes 2-4. The paired replays answered the question KC1 exists
+for (the §4 gate: class 2 does not dominate, so KC3 was re-scoped), and every
+acceptance criterion is met. The cut item was not worth its cost: the
+real-session corpus is dominated by this repository's own release work (24 of
+25 `pubspec.yaml` edits were version bumps), so a frequency drawn from it would
+describe that workload rather than coding in general, and judging API use in
+free-form answers would rebuild KC4's nomination stage. Real-use frequency is
+better read from ground truth when KC2 is evaluated: LL11
+`deprecated_member_use` diagnostics raised on code the model just edited.
+Checked the same day: the real-session corpus holds only two post-edit analyze
+feedback payloads (`caverno_dart_analyze_feedback`, deduplicated by message
+id), both `undefined_method` from one session on 2026-09-19, and no
+`deprecated_member_use`. That is too little to read a rate from, so KC2's
+evaluation rests on the paired replay until post-edit feedback accumulates.
 
 Following the LL31/LL36 precedent — build the instrument before the mechanism,
 and never implement a fix whose target has not been counted.
@@ -115,8 +133,10 @@ Scope:
   tool-catalog settings. Historical logs may seed cases but do not replace the
   paired replay.
 - Report per-class stale-claim rate, unsupported-claim rate, and detector
-  precision/recall. Do not collapse them into one aggregate that hides the
-  network/offline boundary.
+  precision/recall. For class 3, also report environment-exposure rate: the
+  fraction of scorable answers that redundantly restate an installed default.
+  Do not collapse these into one aggregate that hides the network/offline
+  boundary.
 
 Acceptance criteria:
 - A negative control passes: an arm fed deliberately stale fixtures must make
@@ -195,14 +215,20 @@ point: every one of them would have been published as a fact about the model.
    The model answered `const Color(0x80FF0000)` in eight of ten runs — neither
    idiom. Reworded to name an existing colour, the fixture scores 10 of 10.
 
-**Scope, stated rather than implied.** Classes 1 and 3 are absent, and neither
-is an oversight. Class 1 has no offline oracle by definition; sizing it needs a
-networked run. Class 3 does not decompose into a two-idiom pair, because its
-failure is an *unnecessary* line rather than a wrong one — a model setting
-`useMaterial3: true` on an SDK where it is both the default and deprecated —
-and that needs a different verdict shape. So the §4 promotion gate, which asks
-whether class 2 *dominates*, is not yet answered; what this measures is class 2
-against class 4.
+**Scope, stated rather than implied.** Class 1 had no offline oracle by
+definition; its registry-backed oracle landed 2026-09-23 (below), and sizing it
+still needs a networked run. Class 3 now
+has a separate oracle-backed verdict shape in the census tool: `required`,
+`inherited`, `unnecessary`, `wrong`, or `unscorable`. The environment fixture
+asks for a minimal Material 3 configuration without prescribing the
+`useMaterial3` assertion. It reads the installed `ThemeData.useMaterial3`
+default, treats omission on a true-default SDK as `inherited`, and reports an
+explicit redundant `true` as `unnecessary`. The paired replay exposes that
+latter case through a separate environment-exposure rate, while ordinary
+truth/staleness remains distinct. The class 3 replay is now recorded below.
+The §4 promotion gate, which asks whether class 2 *dominates*, is still open
+because class 1 has no oracle yet and one environment fixture does not size the
+whole class.
 
 #### Second measurement (2026-09-03): what KC2 should carry
 
@@ -249,16 +275,126 @@ So KC2's content is settled by measurement rather than by argument:
 
 ### KC2: Environment And Dependency Ground Truth Block
 
-Status: `next`. **Deliberately not gated on KC1**: it is deterministic, offline,
+Status: `later` (parked 2026-09-24, block withdrawn). **Deliberately not gated on KC1**: it is deterministic, offline,
 and introduces no heuristic, so there is nothing for a measurement to authorize.
 KC1 measures its effect; it does not grant it permission.
+
+Progress (2026-09-24): all five slices are done, and slice 5 is negative. `PubDependencyResolver`
+(`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
+LL10's pub lockfile parser and root resolution, shared rather than duplicated,
+and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
+as `exact` only when the lockfile version equals the version the installed
+package declares, naming manifest, lockfile, and installed-metadata sources.
+On this repository all 66 direct dependencies attest `exact`.
+`EnvironmentGroundingContextBuilder` renders the block: Flutter and Dart
+versions only when `package_config.json` and the SDK's own
+`flutter.version.json` agree, attested dependencies with versions,
+unattested ones named with versions withheld, a stated cut at 1,600
+characters, and a cache keyed on file size and mtime. Slice 3 (`a07b951fa`)
+puts the block in the dynamic tail directly after the datetime anchor, for a
+coding-capable mode with a selected project; the stable prefix is unchanged
+(tested). The gate lives in `ProjectPromptContextSource`, together with the
+repo map's, because the ChatNotifier library had one line of ratchet slack.
+Slice 4 (`749eb84d0`) appends the change digest: each attested package's
+legacy library (`lib/legacy.dart` `show` lists and `legacy/` classes) and
+its changelog's breaking entries within the installed release line, plus the
+newest deprecations of an attested Flutter SDK. The SDK scanner moved from
+the KC1 oracle into `InstalledChangeDigest`, and the oracle delegates to it.
+Breaking entries must open with the marker ("Non-breaking updates" and
+"Revert the breaking change" are not entries), and link targets, issue
+numbers, and commit hashes are stripped. Slice 5 (`50c3b7a3e`, the seventh
+KC1 measurement) ran the production block: class 2 stale 68/56/50% at the
+default/32k/64k budgets against 60% bare and 30% for the prototype digest,
+and class 4 **100% at every budget** against 75% bare and 0% for the
+prototype, because every class 4 answer used the legacy providers the
+digest's legacy line names. Decided 2026-09-24: the block is **withdrawn**
+from coding prompts (`e038f1dcc`, guarded by a test); the builder, digest,
+and census arms stay. The eighth measurement, on `qwen3.8-27b-exl3`, then
+showed the version list alone reproduces the class 4 regression (5/5 stale,
+against 0/5 for the prototype's four-entry list), so the cause is which
+dependencies the block names, not the legacy line's wording. The ninth
+measurement then tried that selection (top 8 by import breadth, `42838cda3`):
+it fixed class 4 and broke the generic riverpod case, and adding the digest
+reversed both. Cells flip 0/5 or 5/5 per prompt, so neither causal reading
+holds and five repeats are close to one observation. The tenth measurement
+broadened the set to twelve class 2 and four class 4 fixtures: no production
+arm is worse than bare in any class (class 2 59% bare against 36-46% for the
+digest-carrying arms; class 4 71% against 25%), but at these counts the
+difference is not established. The block stays withdrawn; re-promotion is a
+decision on weak, favourable evidence, or needs more fixtures still.
+
+Decision (2026-09-24): KC2 is parked at `later` with the block withdrawn.
+The broadened evidence is favourable but not established, and widening the
+fixtures far enough to establish it (20+ per class) costs more than the
+measured gain is likely to be worth. Re-promotion needs that wider set, or
+real-session evidence that stale API claims matter, which the corpus does not
+yet show.
+
+The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
+allowance of 1,600 characters, then breaking entries round-robin across
+packages) and steps with usable context. Coverage of the measured idioms on
+this repository, with `WillPopScope` (deprecated at v3.12) as the uncovered
+control at every budget:
+
+| usable context | digest cap | `withOpacity` | riverpod legacy | freezed `abstract` |
+|---|---|---|---|---|
+| < 16k | none | no | no | no |
+| unknown / 16k-32k | 1,600 | no | yes | no |
+| 32k-64k | 6,000 | yes | yes | no |
+| ≥ 64k | 10,000 | yes | yes | yes |
+
+Stated plainly: the 10,000 step was added after the 6,000 budget was seen to
+miss freezed's second breaking entry, so it is a coverage adjustment made
+with a KC1 fixture in view. The general argument for it stands on its own
+(the prototype spent ~3.8k characters on three hand-picked packages; all 31
+packages here with entries need more, and 2.5k tokens is under 4% of a 64k
+window), but slice 5 must report coverage per budget rather than only at the
+most generous one.
+
+Decided for slice 3 (2026-09-24): the cut on this repository dropped 7 of 66
+dependencies at the default cap, `freezed` among them, a KC1 fixture package.
+Rather than order by project imports, which the model's own edits would
+change and so thrash the tail, the cap steps with LL39 usable context: 400
+characters below 16k tokens (toolchain kept, dependencies dropped first, as
+scoped), 1,600 by default and up to 32k, and 3,200 from 32k, which lists all
+66 here. A step function, so profile noise does not move the bytes.
+
+Review of this plan against the roadmap, 2026-09-24:
+
+- **The measured content had not reached this scope.** KC1's second
+  measurement settled that the block must carry *what changed*, not only which
+  version (76% to 28% stale over 75 claims), and the cross-track index already
+  said so, but this scope and its acceptance listed versions only. Built as
+  written, KC2 would ship the arm that measured no class 2 improvement
+  (73%). The change digest is now in scope below, and the KC3 re-scope depends
+  on it.
+- **The paired re-run must measure the production block.** The census builds
+  its grounded arm from `groundTruthBlock` in `tool/kc1_cutoff_exposure_census.dart`,
+  not from the KC2 builder, and uses its own one-line system prompt. A re-run
+  that does not consume the builder's output measures the prototype again.
+- **The class 2/4 baseline was not frozen as an artifact.** The 2026-09-03
+  measurements survived only as tables. Resolved the same day: re-run on a
+  clean build and frozen in `docs/evidence/` (sixth KC1 measurement), with the
+  earlier findings reproduced.
+- **"The existing prompt data-perimeter policy" does not exist by that name.**
+  SEC1's classifiers cover tool content, not system-prompt blocks. The working
+  precedent is the repo map: `ChatNotifierPromptContext._repoMap` emits only
+  in coding mode for a selected project root. Slice 3 follows that gate and
+  says so, rather than citing a policy that is not there.
+- **Real-session value is unproven.** Replay is the only evidence: the
+  real-session corpus holds two post-edit analyzer payloads and no
+  deprecation diagnostic. The block costs up to ~400 tail tokens on every
+  coding request, so the slice 5 re-run is a keep-or-remove decision, not a
+  formality.
 
 Scope:
 - An `EnvironmentGroundingContextBuilder` that emits *measured* facts rather
   than a warning:
   - detected toolchain versions (Flutter/Dart, Node, Python) for class 3;
   - direct dependencies with attested installed versions and locked-version
-    provenance for class 2.
+    provenance for class 2;
+  - a digest of what those versions changed, for class 2 (added 2026-09-24;
+    see the review above).
 - Preserve the existing unconditional datetime anchor and the conditional
   relative-date expansion unchanged. KC2 starts immediately after that dynamic
   datetime block; it does not add a second timestamp.
@@ -293,7 +429,11 @@ Acceptance criteria:
   authoritative dependency list; `unverifiable` never becomes an exact claim.
 - Byte-identical block across two consecutive turns in the same project.
 - A paired KC1 re-run reports the change in class 2/3 stale-claim rate and
-  unsupported-claim rate. If neither moves, that is recorded as a negative
+  unsupported-claim rate, and the class 1 stale rate as a non-regression check.
+  The re-run's grounded arm consumes the production builder's output, not the
+  census's prototype block
+  (added 2026-09-24: the installed block can steer a new-project dependency
+  choice to the lockfile line). If neither moves, that is recorded as a negative
   result — not a reason to keep tuning the wording.
 
 Known risk (must be handled, not deferred): **the block carries authority.** If
@@ -358,9 +498,422 @@ Implications for the track order:
    which is KC3's stated acceptance criterion and the case LL10 answers wrongly.
    What it lacks is the LL10 response envelope and containment, not the lookup.
 
+#### Fourth measurement (2026-09-23): class 3 environment exposure
+
+One oracle-backed environment fixture, three arms, five repeats: 15 claims,
+`qwen3.8-27b-vision`, temperature 0.7, no tools, clean build `9d613c364`.
+Flutter 3.47.4 reports `ThemeData.useMaterial3` defaulting to `true`. The task
+asks for a minimal Material 3 configuration that preserves that installed
+default and explicitly says not to add redundant overrides. The
+[evidence record](evidence/kc1_class3_environment_exposure_2026-09-23.json)
+includes all fifteen raw answers; the exact
+[census output](evidence/kc1_class3_environment_exposure_2026-09-23_census.json)
+and [offline replay](evidence/kc1_class3_environment_exposure_2026-09-23_postgen.json)
+are retained with matching SHA-256 hashes.
+
+| arm | required | inherited | unnecessary | wrong | unscorable | exposure among scorable | unsupported |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| bare | 0 | 0 | 4 | 0 | 1 | **100%** | 100% |
+| +environment fact | 0 | 0 | 5 | 0 | 0 | **100%** | 0% |
+| +environment fact + deltas | 0 | 0 | 5 | 0 | 0 | **100%** | 0% |
+
+**The environment fact fixed attribution, not behavior.** Grounded answers are
+supported rather than absent because the prompt carries the installed default,
+but every scorable answer still wrote `useMaterial3: true`. The delta block did
+not move the result either. This is the negative result the acceptance rule
+requires preserving: do not tune the fixture wording merely because the rate
+did not improve.
+
+All 15 raw responses were inspected. Fourteen contain a literal
+`ThemeData(... useMaterial3: true)` and match `unnecessary`. The one
+`unscorable` response uses
+`copyWith(useMaterial3: existing.useMaterial3 ?? true)`, not a literal
+constructor setting, so excluding it is correct. The offline post-generation
+replay likewise labels fourteen behaviorally correct and one unscorable. Its
+bare-name nominator flags `Theme.of` through the common symbol `of`; that is the
+receiver-less false-positive class already measured above and is not used for
+the environment verdict.
+
+This closes the class 3 measurement gap for the present fixture without
+claiming population-level dominance. The remaining KC1 implementation slice is
+the class 1 network oracle.
+
+#### Class 1 instrument (2026-09-23): the registry is the oracle
+
+Class 1's correct ground is the network, but for the world facts a coding
+answer actually asserts, the network has a deterministic answer: the package
+registry. `tool/kc1_world_fact_oracle.dart` reads pub.dev's
+`/api/packages/<name>` for the latest stable release, and the census scores the
+release line a pubspec constraint names against it:
+
+- `current` — the constraint names the latest line (`^4.0.0` when 4.0.2 is
+  latest, or a range that admits it);
+- `behind` — an older line: the expired belief KC1 measures;
+- `ahead` — a version newer than anything published. Counted as not correct,
+  but kept apart so a fabrication is never read as a cutoff effect;
+- `unscorable` — no entry, `any`, conflicting entries, or an unparsed form.
+
+Truth maps `current` to `correct` and the other two to `stale`; grounding and
+provenance keep their shared meaning. Four fixtures ask for the dependency
+entries of **a new app, created today**, on the package's current stable
+release: freezed, go_router, and flutter_riverpod moved a major within the
+last year, and dio has not and is the control. The fixture names no version;
+the snapshot decides every expected value, and a stale snapshot flips the
+verdict on the same response (the negative control, tested).
+
+**The two oracles disagree, and that is kept as a measurement.** This
+repository locks freezed 3.2.5 while pub.dev's latest is 4.0.2, and Flutter
+3.47.4 against a 3.47.5 stable. A new-project answer that copies the lockfile
+is correct about this project and stale about the world. So class 1 runs its
+own arms — bare, the unchanged installed-toolchain block, and a
+`worldFactGrounded` block carrying the registry versions — and the middle arm
+measures whether the installed block drags a new-project answer back to the
+installed line. The idiom and environment fixtures keep their three arms, so
+their replay baseline is unchanged.
+
+**A world fact expires.** Each run records the snapshot it was scored against
+(source URL, publish date, fetch time) in `run.worldFacts`. Runs against
+different snapshots are not paired; `--world-facts` replays a frozen one and
+`--save-world-facts` freezes it. The snapshot fetched at build `86bf4e28c` is
+kept as [evidence](evidence/kc1_class1_world_facts_2026-09-23.json) for the
+first paired measurement. `--offline` leaves class 1 out entirely.
+
+The first live attempt on 2026-09-23 never reached the model: the `dart`
+binary had lost its macOS Local Network grant. It was restored and the
+measurement ran the next day.
+
+#### Fifth measurement (2026-09-24): class 1 world facts
+
+Four registry-backed fixtures, three arms, five repeats: 60 claims,
+`qwen3.8-27b-vision`, temperature 0.7, no tools, clean build `0b29c6b3f`,
+scored against the frozen 2026-09-23 snapshot. The
+[evidence record](evidence/kc1_class1_world_facts_2026-09-24.json) holds all
+sixty raw answers plus SHA-256 hashes of the
+[census output](evidence/kc1_class1_world_facts_2026-09-24_census.json) and
+the snapshot. No request failed.
+
+| case (latest) | bare | +installed block | +registry block |
+|---|---|---|---|
+| freezed (4.0.2; installed 3.2.5) | 5/5 behind (`^2.5.x` ×4, `^3.2.0`) | 5/5 behind (`^3.2.5` ×5) | 0/5 |
+| go_router (18.0.1; not installed) | 5/5 behind (`^14.x`) | 5/5 behind (`^14.x`) | 0/5 |
+| flutter_riverpod (3.4.3; installed 3.4.3) | 5/5 behind (`^2.x`) | 0/5 | 0/5 |
+| dio (5.11.1; control) | 0/5 | 0/4, 1 empty response | 0/5 |
+| **stale rate** | **75%** | **53%** | **0%** |
+
+**Every package that moved a major in the last year was stale in every bare
+answer: 15 of 15.** The control, whose major has not moved, was current 5 of
+5, so the fixtures discriminate rather than failing every answer. The bare
+answers are not random either: freezed was written as `^2.5.2` in three of
+five, which is a remembered version, not a guess.
+
+**The installed-toolchain block helps only where installed equals latest, and
+drags the answer to the lockfile where it does not.** flutter_riverpod went
+from 5/5 stale to 0/5 because the block's `3.4.3` happens to be the latest
+release. freezed moved from the 2.x line to the installed `^3.2.5` in all five
+answers, still one major behind, for a task that says *a new app, created
+today*. go_router, which the block does not list, did not move. This is the
+lockfile drag the grounded arm was kept to measure: a KC2 block improves a
+new-project claim only by coincidence, and can anchor it to the wrong line.
+
+**The registry block reads as attribution, not knowledge.** 20 of 20 answers
+repeated the block's exact version. That proves the claim is groundable in
+prompt context and that provenance is attributed correctly; it says nothing
+about what the model knows, because the block names the answer.
+
+**Read against the §4 gate.** The first measurement put class 2's bare stale
+rate at 58% over its fixtures; class 1's is 75% here, and 100% on the
+packages that moved. At n = 5 per cell, and with different fixtures, these do
+not rank the two classes. They do show that class 2 does **not** dominate the
+measured stale claims, and the gate's rule for that outcome is that KC3 is
+re-scoped or dropped rather than promoted.
+
+#### Decision (2026-09-24): re-scope KC3, do not drop it
+
+The gate exists so KC3 is not built on assertion frequency or on the §3.1
+argument alone. Neither is what now supports it. The second measurement
+showed the mechanism KC3 serves, installed-version change evidence, cutting
+covered class 2 claims from 9/15 stale to 3/15, while the case the digest did
+not cover stayed stale (4/5). What it did not show is that class 2 is *the*
+problem, and the fifth measurement shows it is not the only one. So KC3 keeps
+its mechanism and loses its priority claim:
+
+1. **KC3 is the pull side of KC2's delta content, scoped to coverage.** KC2
+   pushes a recency-capped digest of what the installed versions changed; the
+   measured weakness is what that window leaves out (`WillPopScope`). KC3's
+   job is the on-demand lookup for a package or symbol outside the pushed
+   window, from the same inventory and the same oracle logic, not a second
+   channel for what KC2 already carries.
+2. **KC3 is not a class 1 remedy and must not be presented as one.** It
+   answers "what did the installed version change". It cannot answer "what
+   is the current release", and the fifth measurement shows installed-version
+   evidence is at best neutral for that question: it anchored freezed to the
+   lockfile line.
+3. **Status stays `later`.** Promotion needs KC2 shipped and a paired re-run
+   showing which class 2 claims remain stale because the push window missed
+   them. That number is what KC3 would be built to reduce.
+
+Two consequences outside KC3:
+
+- **KC2 gains a class 1 non-regression check.** Its paired re-run reports the
+  class 1 stale rate alongside classes 2 and 3. The installed block did not
+  raise it here (75% bare, 53% with the block), but freezed shows the block
+  can steer a new-project choice, and the block's scope, "installed for this
+  project", is not something the model reliably respected.
+- **Class 1 has no owning milestone.** For dependency choices the ground truth
+  already exists in the toolchain: `dart pub add <package>` resolves the
+  current compatible release itself, so a version written by hand is the only
+  place this staleness can enter. Whether Caverno's coding turns add
+  dependencies by editing `pubspec.yaml` or through the package manager is
+  unmeasured; that is the question to answer before any class 1 milestone is
+  proposed. Nothing in `lib/` currently steers toward `pub add`.
+
+**Answered the same day, from the real-session corpus.** 2,872 distinct tool
+calls (deduplicated by call id from logged responses, not grepped) across 131
+session logs, 2026-06-26 to 2026-09-23:
+
+| manifest activity | calls |
+|---|---:|
+| package-manager commands (`pub add`, `npm install`, `pip install`, ...) | **0** |
+| `pubspec.yaml` edits | 25 |
+| ... of which release version bumps (`version: 1.3.x+n`) | 24 |
+| ... of which a dependency added | **1** |
+
+The one addition (session `64b978ca`, 2026-09-11) was hand-written:
+`shared_preferences: ^2.5.3`, when pub.dev's latest was 2.5.5. By this
+instrument's release-line rule that is `current`, because shared_preferences
+has stayed on 2.x since 2021.
+
+So the only entry path observed is the hand-written version, which confirms
+where class 1 staleness would enter, and it was observed once in three months
+on a package that had not moved. Real exposure is too rare to justify a class 1
+milestone on current evidence, and none is proposed. Reopen it if dependency
+additions become a regular part of coding turns. The canary corpus was not
+checked: `build/integration_test_reports` currently holds only
+`flutter test` reporter output, not session logs.
+
+#### Sixth measurement (2026-09-24): class 2 and 4 baseline, frozen
+
+The first two measurements survived only as tables, so the build order's
+"freeze the baseline before KC2 lands" step was unmet. Re-run on clean build
+`25907eb35`, before any KC2 prompt wiring: five idiom fixtures, three arms,
+five repeats, 75 claims, `qwen3.8-27b-vision`, temperature 0.7, no tools, no
+request failures. Raw answers and the census output are frozen in
+[`kc1_class24_baseline_2026-09-24.json`](evidence/kc1_class24_baseline_2026-09-24.json)
+and [its census](evidence/kc1_class24_baseline_2026-09-24_census.json).
+
+| case | in digest | bare | +versions | +deltas |
+|---|---|---|---|---|
+| flutter-pop-scope | no | 4/5 | 3/4 | 4/5 |
+| color-with-values | yes | 4/5 | 1/5 | 0/5 |
+| riverpod-notifier | yes | 2/5 | 2/5 | 1/5 |
+| freezed-abstract | yes | 2/5 | **5/5** | 1/5 |
+| repo-state-management (class 4) | no | 3/4 | 1/4 | 0/4 |
+| **class 2** | | **60%** | **58%** | **30%** |
+| **class 4** | | **75%** | **25%** | **0%** |
+
+It reproduces the 2026-09-03 findings rather than revising them: the delta
+block halves class 2 staleness and does nothing for the uncovered
+`WillPopScope`; the version list fixes class 4; and naming `freezed: 3.2.5`
+alone again made the freezed case *worse* (5/5 stale, as on 2026-09-03). One
+cell moved: color-with-values improved with versions alone (1/5), where it had
+not before, which is inside the variance recorded for the first measurement.
+
+Four answers were unscorable, and two expose a fixture gap rather than a
+model property: the class 4 patterns do not recognize `ValueNotifier` or
+riverpod's legacy `StateProvider`, both off-convention for this repository.
+Recorded, not retuned: widening a pattern after reading the result is the
+tuning the acceptance rule forbids. The other two used neither idiom
+(`@riverpod` code generation; a `PopScope`-free confirm flow).
+
+#### Seventh measurement (2026-09-24): the KC2 production block (slice 5)
+
+The paired re-run through the production builder: all ten fixtures, the
+block `EnvironmentGroundingContextBuilder` emits at three usable-context
+budgets, five repeats, 150 claims, `qwen3.8-27b-vision`, temperature 0.7, no
+tools, clean build `50c3b7a3e`, no request failures, class 1 against the
+frozen 2026-09-23 snapshot. Raw answers and the exact block bytes per arm are
+frozen in [`kc2_production_rerun_2026-09-24.json`](evidence/kc2_production_rerun_2026-09-24.json)
+and [its census](evidence/kc2_production_rerun_2026-09-24_census.json).
+Compared against the frozen baselines of the sixth, fourth, and fifth
+measurements (same model and sampler).
+
+| stale rate | bare | prototype versions | prototype deltas | production default | production 32k | production 64k |
+|---|---|---|---|---|---|---|
+| class 2 (API drift) | 60% | 58% | **30%** | 68% | 56% | 50% |
+| class 4 (this repository) | 75% | 25% | **0%** | **100%** | **100%** | **100%** |
+| class 3 exposure | 100% | 100% | 100% | 75% | 60% | 40% |
+| class 1 (world facts) | 75% | 53% | - | 50% | 50% | 50% |
+
+**The production block is a negative result, and on class 4 a regression.**
+All fifteen class 4 answers reached for riverpod, which is the part the
+dependency list gets right, and all fifteen wrote the legacy
+`StateNotifierProvider` or `StateProvider`. The baseline arms did that in one
+answer of five each. Those are exactly the names the digest's legacy line
+lists ("flutter_riverpod 3.4.3 keeps these only in its legacy library: ...").
+The prototype delta block also listed them ("riverpod moved these to legacy:
+...") and scored class 4 at 0/4, so the difference lies in what changed
+between prototype and production, and two things did at once: the legacy
+line's wording, and the context around it (three packages in the prototype,
+59-66 dependencies plus 31 packages' changelog entries in production). This
+run cannot separate them.
+
+Class 2 improves with budget (68%, 56%, 50%) but never approaches the
+prototype's 30%. freezed-abstract stayed 5/5 stale even at 64k, where its
+entry is present: coverage did not translate into behavior there. Class 3
+exposure fell from 100% to 40-75% although no production arm states the
+`useMaterial3` default; that is unexplained and, at n = 5, not a finding to
+build on. Class 1 did not regress (50% against 75% bare), for the reason the
+fifth measurement gave: flutter_riverpod's installed version happens to be
+the latest.
+
+Per the KC2 acceptance rule this is recorded as a negative result, not a cue
+to tune the wording until the numbers move. The keep-or-remove decision it
+feeds is recorded with KC2's status. (Corrected by the eighth measurement: on
+`qwen3.8-27b-exl3` the version list alone, with no legacy line, reproduces
+the class 4 regression, so the legacy-name reading above is not the cause.)
+
+#### Eighth measurement (2026-09-24): versions only, on `qwen3.8-27b-exl3`
+
+After the seventh measurement the block was withdrawn from the prompt
+(`e038f1dcc`) and the version list was measured alone: the production block
+with no change digest, the configuration a window under 16k tokens already
+gets. The model moved to `qwen3.8-27b-exl3`, the canary model from now on
+(thinking off: `reasoning_content` empty in a smoke request), so both a fresh
+prototype baseline and the production arms ran on it, clean build
+`0ad3b6040`, five repeats, no request failures. Frozen in
+[`kc2_exl3_baseline_2026-09-24.json`](evidence/kc2_exl3_baseline_2026-09-24.json)
+(150 claims) and
+[`kc2_exl3_production_2026-09-24.json`](evidence/kc2_exl3_production_2026-09-24.json)
+(100 claims), each with its census.
+
+| stale rate (exl3) | bare | prototype versions | prototype deltas | production versions only | production default |
+|---|---|---|---|---|---|
+| class 2 (API drift) | 75% | 50% | 35% | 55% | 50% |
+| class 4 (this repository) | 100% | **0%** | **0%** | **100%** | **100%** |
+| class 1 (world facts) | 75% | 50% | - | 50% | 50% |
+
+**The version list alone reproduces the class 4 regression, so the legacy
+line is not what caused it.** All five versions-only answers wrote
+`StateNotifierProvider`; the block contains no legacy name to copy. All five
+prototype-versions answers wrote `NotifierProvider`. The seventh measurement's
+reading, that the model copied the names the legacy line lists, fitted its
+data but is not needed to explain this one, and the difference that remains
+is the list itself. The prototype names four things (Flutter,
+`flutter_riverpod`, `riverpod`, `freezed`); production names 59 dependencies
+with `flutter_riverpod` among them and `riverpod` absent, because it is
+transitive. A state library that is one entry in sixty stops signalling "this
+project holds state in riverpod 3", which is the only reason the version list
+ever fixed class 4. This is a hypothesis about salience, not a measured
+mechanism, and it is a different model from the seventh measurement's.
+
+For class 2 the versions-only list behaves like the prototype's (55% against
+50%), and the digest adds little on this model (50%). Class 1 does not
+regress. **So B does not rescue the block, and it stays withdrawn.**
+
+What the two negative runs point at is the question the KC2 review left open:
+*which* dependencies the block names, not how the lines are worded. The
+prototype's win came from a short list whose entries were the libraries the
+fixtures are about. Selecting by what the project's code imports is the
+obvious candidate, and it was set aside for slice 3 because the model's own
+edits change imports and would churn the prompt tail. That trade-off now has
+evidence on the other side of it. It is recorded here as the next design
+question, not started.
+
+#### Ninth measurement (2026-09-24): import-selected lists, and what the repeats are worth
+
+The eighth measurement's reading pointed at list length, so the builder
+gained a selection by import breadth (`42838cda3`): the eight direct
+dependencies imported by the most files under `lib/`, in name order, with
+the count fixed before measuring. Two arms on `qwen3.8-27b-exl3`, clean build
+`5db403812`, five repeats, 100 claims, no failures, frozen in
+[`kc2_exl3_imported_2026-09-24.json`](evidence/kc2_exl3_imported_2026-09-24.json).
+All exl3 arms together:
+
+| exl3 | bare | prototype versions | prototype digest | production, 59 versions | production default | top 8, versions | top 8 + digest |
+|---|---|---|---|---|---|---|---|
+| class 2 stale | 75% | 50% | 35% | 55% | 50% | 75% | 40% |
+| class 4 stale | 100% | 0% | 0% | 100% | 100% | **0%** | 100% |
+| riverpod-notifier | 0/5 | 0/5 | 0/5 | 1/5 | 0/5 | **5/5** | 0/5 |
+
+The top-8 list fixed class 4 (five `NotifierProvider`), which fits the
+dilution reading. The same list *broke* the generic riverpod-notifier case,
+which the bare prompt gets right (five `StateNotifierProvider`). Adding the
+digest reversed both. Nearly every cell is 0/5 or 5/5.
+
+**What this says about the instrument, and about the two readings before
+it.** At temperature 0.7 this model returns the same idiom for the same
+prompt almost every time, so five repeats of one fixture are close to one
+observation, not five. Each cell is a single prompt flipping one way or the
+other, and small changes to the surrounding context flip it. Neither the
+seventh measurement's "the legacy names primed it" nor the eighth's "the list
+diluted it" is established; each explained one flip and the next arm flipped
+something else. Both are withdrawn as mechanisms and kept as the observations
+they are.
+
+Consequences:
+
+- The block stays withdrawn. No production variant matches the prototype,
+  which is the only arm that is not worse than bare on any riverpod case, and
+  the prototype is a hand-picked four-entry list, not something the product
+  can compute.
+- Import-based selection (`42838cda3`) stays in the builder, unwired. It is
+  deterministic and cheap (19 ms per cached call here), but it did not
+  improve the fixture set as a whole.
+- Further arm design against these five fixtures would be fitting to them.
+  What would make a KC2 result generalize is breadth: more fixtures per class,
+  so an arm's effect is a rate over many prompts rather than one prompt's
+  flip. That is a KC1 instrument change and is recorded as the prerequisite
+  for any re-promotion of KC2.
+
+#### Tenth measurement (2026-09-24): the broadened fixture set
+
+The ninth measurement's prerequisite: more prompts per class. Class 2 grew
+from 4 to 12 fixtures (SDK deprecations including typedef-level ones such as
+`MaterialState`, and breaking changes in file_picker, share_plus,
+qr_flutter, and freezed) and class 4 from 1 to 4 (`.tr()`, `Uuid()`,
+`@freezed`), each confirmed from the installed SDK, pub cache, or `lib/`
+(`cb2f0da69`). A one-repeat calibration pass read every raw answer before
+measuring and dropped one fixture and widened three patterns
+(`a3ba0ddb7`, reasons on each case). Then every arm ran on
+`qwen3.8-27b-exl3`, clean build `a3ba0ddb7`, two repeats (repeats add little,
+fixtures add much), 378 claims, no failures, frozen in
+[`kc1_wide_exl3_baseline_2026-09-24.json`](evidence/kc1_wide_exl3_baseline_2026-09-24.json)
+and [`kc2_wide_exl3_production_2026-09-24.json`](evidence/kc2_wide_exl3_production_2026-09-24.json).
+
+| stale rate | class 2 (12 cases) | class 4 (4 cases) | class 1 |
+|---|---|---|---|
+| bare | 59% (13/22) | 71% (5/7) | 75% |
+| prototype versions | 50% (11/22) | 43% (3/7) | 50% |
+| prototype digest | 30% (7/23) | 33% (2/6) | - |
+| production, versions only | 50% (12/24) | 25% (2/8) | 50% |
+| production default | 46% (11/24) | 25% (2/8) | 50% |
+| production 32k | 45% (10/22) | 25% (2/8) | 50% |
+| production 64k | 41% (9/22) | 25% (2/8) | 50% |
+| production, top 8 by imports | 55% (12/22) | 0% (0/8) | 50% |
+| production, top 8 + digest | 36% (8/22) | 25% (2/8) | 50% |
+
+**Over sixteen fixtures, no production arm is worse than bare in any class.**
+The seventh measurement's class 4 regression was one fixture: repo-state-
+management still goes stale under most production arms (2/2), while the
+three new conventions go current under all of them, so over four fixtures
+production is at 25% against 71% bare and 43% for the prototype. Class 2
+falls from 59% bare to 36-46% under the digest-carrying production arms, the
+direction the prototype showed, not its full size. Class 1 does not regress.
+
+**Not established.** The differences are counts out of 22 and 8: 13/22 bare
+against 8/22 for the top-8 digest arm, or 5/7 against 2/8, are not
+distinguishable from chance at these sizes. Per-fixture rows still flip
+whole (share-plus-instance 2/2 or 0/2 by arm; raw-keyboard 0/2 bare, 2/2
+under the full version list). The broadened set turned "the block
+regresses" into "the block helps a little, unproven", which is a change in
+what is known and not a result to promote on.
+
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
-Status: `later`. Gated on KC1 attribution.
+Status: `later`. Re-scoped 2026-09-24 by the §4 gate (see the KC1 decision
+above): the on-demand lookup for what KC2's pushed delta window does not
+cover. Promotion needs KC2 shipped and a paired re-run that counts the class 2
+claims left stale by that window.
 
 Closes §3.1 by extending `resolve_installed_dependency` through the shared KC2
 inventory and resolver rather than creating a second package-resolution path.
@@ -455,8 +1008,11 @@ can measure a cutoff empirically well enough to beat a static table. Recording
    constraint in the track.
 2. Freeze the KC1 baseline artifact, then implement KC2 while the remaining KC1
    analysis continues. KC2 needs no promotion permission, but must not erase the
-   before arm.
-3. KC3 only if KC1 shows class 2 dominates.
+   before arm. All four classes are frozen in `docs/evidence/` as of
+   2026-09-24 (classes 2 and 4 in the sixth measurement).
+3. KC3 only as the coverage complement to KC2's delta window, and only once
+   a paired re-run counts what that window misses (re-scoped 2026-09-24,
+   because KC1 did not show class 2 dominating).
 4. KC4 in shadow, deleted if imprecise.
 5. KC5 when a second model family is in regular production use; until then a
    static table for the one endpoint in use is not worth the schema change.

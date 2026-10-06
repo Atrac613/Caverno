@@ -77,6 +77,10 @@ void main() {
       reason: 'all primary modes and secondary roles use the fallback',
     );
 
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('model-routing-memory-extraction')),
+      200,
+    );
     await tester.tap(
       find.byKey(const ValueKey('model-routing-memory-extraction')),
     );

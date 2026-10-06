@@ -230,7 +230,7 @@ void main() {
 
     expect(find.text('40.00 tok/sec'), findsOneWidget);
     expect(find.text('88 tokens'), findsOneWidget);
-    expect(find.text('2.20s'), findsOneWidget);
+    expect(find.text('2s'), findsOneWidget);
     expect(find.text('Stop reason: Stop'), findsOneWidget);
   });
 

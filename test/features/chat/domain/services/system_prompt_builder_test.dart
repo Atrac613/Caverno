@@ -57,6 +57,35 @@ void main() {
     );
   });
 
+  test('places the KC2 environment block right after the datetime anchor', () {
+    const block =
+        'Project toolchain and dependencies, read from this project\'s '
+        'lockfile and installed packages.\n- Flutter SDK 3.47.4';
+    String build(String? environment) => SystemPromptBuilder.build(
+      now: DateTime.utc(2026, 9, 24, 1),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      projectRootPath: '/workspace/caverno',
+      environmentGroundingContext: environment,
+      sessionMemoryContext: 'Morning memory.',
+    );
+
+    final withBlock = build(block);
+    final datetime = withBlock.indexOf('Current local date and time');
+    final environment = withBlock.indexOf(block);
+    final memory = withBlock.indexOf('Morning memory.');
+    expect(datetime, isNonNegative);
+    expect(environment, greaterThan(datetime));
+    expect(memory, greaterThan(environment));
+    expect(
+      withBlock.substring(0, datetime),
+      build(null).substring(0, datetime),
+      reason: 'the block must stay out of the LL6/LL22 stable prefix',
+    );
+    expect(build(null), isNot(contains('Project toolchain')));
+    expect(build('   '), build(null));
+  });
+
   test('includes selected project context in coding mode prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),
@@ -348,10 +377,9 @@ Dart symbols:
       ),
     );
     expect(prompt, contains('After tool_search returns a match'));
-    expect(prompt, contains('Treat tool_search as free'));
     expect(
       prompt,
-      contains('only state that something is unavailable after tool_search'),
+      contains('capability is unavailable, check with tool_search'),
     );
   });
 
@@ -363,7 +391,7 @@ Dart symbols:
       toolNames: const ['web_search'],
     );
 
-    expect(prompt, isNot(contains('Treat tool_search as free')));
+    expect(prompt, isNot(contains('The Available tools list may be partial')));
   });
 
   test('treats MCP search tools as web search tools', () {
@@ -450,7 +478,7 @@ Dart symbols:
     expect(prompt, contains('<tool_call>{"name":"tool_name"'));
     expect(prompt, contains('weak structured-output adherence'));
     expect(prompt, contains('search-and-replace edit blocks'));
-    expect(prompt, contains('4096 usable context tokens'));
+    expect(prompt, isNot(contains('usable context tokens')));
     expect(prompt, contains('LL15 WEAK-MODEL EDIT HARNESS'));
     expect(prompt, contains('Example edit_file arguments'));
   });
@@ -901,8 +929,7 @@ Dart symbols:
       prompt,
       contains('Fix the login crash and verify the regression test'),
     );
-    expect(prompt, contains('Goal token budget remaining: 15000'));
-    expect(prompt, contains('Goal turn budget remaining: 3'));
+    expect(prompt, isNot(contains('budget remaining')));
     expect(prompt, contains('Continue moving it forward'));
     expect(prompt, contains('When the goal is complete'));
   });
@@ -928,8 +955,6 @@ Dart symbols:
       prompt,
       contains('Fix the login crash and verify the regression test'),
     );
-    expect(prompt, contains('Goal token budget remaining: 0'));
-    expect(prompt, contains('Goal turn budget remaining: 0'));
     expect(prompt, contains('The goal budget is exhausted.'));
     expect(prompt, isNot(contains('Continue moving it forward')));
     expect(prompt, isNot(contains('When the goal is complete')));
@@ -1085,6 +1110,11 @@ Dart symbols:
       final prompt = promptFor(ModelUsageRole.anabasisParent);
 
       expect(prompt, contains('You are Anabasis'));
+      expect(
+        prompt,
+        contains('An ask_user_question answer does not update the saved'),
+      );
+      expect(prompt, contains('companion panel under Waiting on you'));
       expect(prompt, contains('spawn_subagent'));
       expect(
         prompt,

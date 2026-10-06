@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/settings/domain/entities/built_in_tool_info.dart';
@@ -379,6 +380,51 @@ void main() {
             'deferred, so they would be silently hidden behind tool_search. Add '
             'each to a non-deferred BuiltInToolRegistry category, or to the '
             'deferred categories/names: $unclassified',
+      );
+    });
+
+    test('every catalog tool is present in the registry', () {
+      // The classification test above can only see tools that are already in
+      // BuiltInToolRegistry.tools, so a tool missing from the registry
+      // entirely slips past it -- the exact hole that hid accept_task, and
+      // then inspect_file, delete_file and lsp_go_to_definition. Walk the
+      // other direction: anything the model is offered must be classified.
+      //
+      // A bare McpToolService omits tools that need an injected service or
+      // repository, so this covers the always-on built-ins only. That is the
+      // set the initial selection draws from, and it is where the omissions
+      // have actually occurred.
+      final catalogNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(ToolDefinitionSearchService.toolNameFromDefinition)
+          .whereType<String>()
+          .toSet()
+        // tool_search is the discovery tool itself: it is injected by
+        // definitionsForSelectedTools rather than classified like a capability.
+        ..remove(ToolDefinitionSearchService.toolName);
+      final registryNames = BuiltInToolRegistry.tools
+          .map((info) => info.name)
+          .toSet();
+      expect(
+        catalogNames.difference(registryNames).toList()..sort(),
+        isEmpty,
+        reason:
+            'These tools are offered to the model but absent from '
+            'BuiltInToolRegistry, so the F6 classification guard cannot see '
+            'them and the initial tool-search selection silently drops them. '
+            'Add a BuiltInToolInfo entry for each.',
+      );
+    });
+
+    test('symbol navigation loads initially', () {
+      // Its description tells the model to prefer it over broad text search;
+      // deferring it behind tool_search left search_files as the only way to
+      // answer "where is this defined".
+      expect(
+        ToolDefinitionSearchService.shouldLoadInitially(
+          'lsp_go_to_definition',
+        ),
+        isTrue,
       );
     });
 

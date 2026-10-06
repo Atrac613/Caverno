@@ -251,7 +251,7 @@ Future<Rag2Fts5AdditiveIndexReport> runRag2Fts5AdditiveIndexReplay(
       usage.single.model == rag2DriftHostUsageModel &&
       usage.single.totalTokens == rag2DriftHostUsageTokens;
   final appDatabaseSchemaUnchanged =
-      schemaVersion.read<int>('user_version') == 5;
+      schemaVersion.read<int>('user_version') == 6;
   final replacementIndexedLastGeneration =
       baselineIndexedIds.length == baseline.chunks.length &&
       indexedChunkIds.length == updated.chunks.length &&
@@ -756,7 +756,7 @@ final class Rag2Fts5AdditiveIndexReport {
     'sqliteTokenizer': rag2Fts5SqliteTokenizer,
     'retrievalDecision': 'not_evaluated',
     'productionDecision': 'no_go',
-    'appDatabaseSchemaVersion': 5,
+    'appDatabaseSchemaVersion': 6,
     'fixtureId': fixtureId,
     'declarationIdentity': declarationIdentity,
     'reopenedGeneration': reopenedGeneration,

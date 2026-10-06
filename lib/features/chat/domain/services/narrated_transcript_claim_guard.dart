@@ -1,4 +1,6 @@
 import '../entities/tool_call_info.dart';
+import 'literal_shell_words.dart';
+import 'pytest_shell_invocation.dart';
 import 'tool_call_execution_policy.dart';
 
 /// Detects fabricated terminal transcripts in a final answer: fenced code
@@ -222,7 +224,13 @@ class NarratedTranscriptClaimGuard {
   }
 
   String _normalizeSegment(String segment) {
-    return segment
+    final unwrapped = PytestShellInvocation.withoutOutputWrapper(segment);
+    // A finite tail changes the displayed output, not the issued command.
+    // Keep other pipelines, expansions and writable redirects distinct.
+    final literalSegment = LiteralShellWords.parse(unwrapped) == null
+        ? segment
+        : unwrapped;
+    return literalSegment
         .replaceAll(_strippedRedirect, ' ')
         .replaceAll(_whitespaceRun, ' ')
         .trim();

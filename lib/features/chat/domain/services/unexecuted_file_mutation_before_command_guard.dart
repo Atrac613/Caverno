@@ -45,11 +45,20 @@ final class UnexecutedFileMutationBeforeCommandGuard {
       FinalAnswerClaimDetector();
   static const GitWorkingTreeChangeEvidence _gitChangeEvidence =
       GitWorkingTreeChangeEvidence();
+  static final RegExp _standalonePackageInstall = RegExp(
+    r'^(?:python(?:3(?:\.[0-9]+)?)\s+-m\s+)?pip(?:3)?\s+install\s+'
+    r'(?:--quiet\s+)?[A-Za-z0-9][A-Za-z0-9_.-]*'
+    r'(?:==[A-Za-z0-9_.+-]+)?(?:\s+--quiet)?$',
+  );
 
   McpToolResult? evaluate(UnexecutedFileMutationGuardInput input) {
     final toolCall = input.toolCall;
     if (!_executionPolicy.isCommandExecutionTool(toolCall.name) ||
         _executionPolicy.isReadOnlyCommandExecutionToolCall(toolCall)) {
+      return null;
+    }
+    final command = _executionPolicy.toolCommandArgument(toolCall.arguments);
+    if (command != null && _standalonePackageInstall.hasMatch(command.trim())) {
       return null;
     }
     if (input.pendingToolCalls.any((pendingToolCall) {

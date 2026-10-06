@@ -1,13 +1,15 @@
 import 'dart:async';
 
-import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/ssh_auth_credential.dart';
+import 'local_command_approval.dart';
 
-// The outstanding-approval registry moved out when this file reached its
-// ratchet ceiling; re-exported so every existing importer still sees it.
+// The outstanding-approval registry and LocalCommandApproval moved out when
+// this file reached its ratchet ceiling; re-exported so every existing
+// importer still sees them.
+export 'local_command_approval.dart';
 export 'pending_tool_approval_registry.dart';
 
 enum ChatInteractionOrigin { local, remote }
@@ -169,6 +171,7 @@ class PendingLocalCommand extends PendingToolApproval<LocalCommandApproval> {
     required this.warningTitle,
     required this.warningMessage,
     required super.completer,
+    this.canRememberAllow = true,
     super.origin,
     super.remoteDeviceId,
   });
@@ -179,24 +182,13 @@ class PendingLocalCommand extends PendingToolApproval<LocalCommandApproval> {
   final String? warningTitle;
   final String? warningMessage;
 
+  /// False when an allow would be discarded: SEC4.4g approvals are fresh
+  /// every time, so offering "Always Allow" would promise what never happens.
+  final bool canRememberAllow;
+
   @override
   LocalCommandApproval get cancellationValue =>
       const LocalCommandApproval(approved: false);
-}
-
-class LocalCommandApproval {
-  const LocalCommandApproval({
-    required this.approved,
-    this.rememberedRuleAction,
-    this.rememberedRuleMatch,
-  });
-
-  final bool approved;
-  final LocalCommandPermissionAction? rememberedRuleAction;
-  final LocalCommandPermissionMatch? rememberedRuleMatch;
-
-  bool get shouldRemember =>
-      rememberedRuleAction != null && rememberedRuleMatch != null;
 }
 
 /// Decision for a macOS computer-use action approval request.

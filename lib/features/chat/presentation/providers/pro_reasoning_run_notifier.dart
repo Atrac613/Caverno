@@ -27,6 +27,7 @@ import '../../domain/services/pro_reasoning_prompt_builder.dart';
 import '../../domain/services/pro_reasoning_run_coordinator.dart';
 import '../../domain/services/pro_reasoning_synthesis_recovery.dart';
 import '../../domain/services/secondary_completion_router.dart';
+import 'chat_data_source_provider.dart';
 import 'chat_notifier.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
@@ -676,7 +677,9 @@ class ProReasoningRunNotifier extends Notifier<ProReasoningRunState> {
       baseUrl: baseUrl,
       apiKey: apiKey,
       reasoningEffort: settings.reasoningEffort.apiValue,
+      acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(baseUrl),
       usageSink: ref.read(modelUsageSinkProvider),
+      usageConversationResolver: usageConversationIdInScope,
     ),
   );
 

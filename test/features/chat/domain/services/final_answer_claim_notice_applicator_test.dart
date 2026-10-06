@@ -42,6 +42,24 @@ void main() {
     expect(result.transformIds, isEmpty);
   });
 
+  test('judges claims on the visible answer, not the reasoning', () {
+    // Session 1d76c878: a reasoning line paraphrasing `git status` was read
+    // as a completed-write list and the honest answer below got a notice
+    // about four files it never claimed.
+    const content =
+        '<think>Git status shows:\n'
+        '- Modified: ROADMAP.md, mercari.py, watcher.py\n'
+        '</think>\n'
+        'All requested tests pass.';
+
+    final result = applicator.apply(
+      _input(candidateContent: content, projectRoot: ownerRoot.path),
+    );
+
+    expect(result.content, content);
+    expect(result.transformIds, isEmpty);
+  });
+
   test('applies the unwritten-file notice independently', () {
     const content = 'Created: `lib/new.dart`.';
 
@@ -58,6 +76,26 @@ void main() {
     expect(result.transformIds, [
       FinalAnswerClaimNoticeApplicator.unwrittenFileTransformId,
     ]);
+  });
+
+  test('qualifies an unsupported ready claim after duplicate reads', () {
+    const content =
+        '**Modified: `mercari.py`**\n\n'
+        'PROJECT_TASK_READY_FOR_REVIEW';
+
+    final result = applicator.apply(
+      _input(candidateContent: content, projectRoot: ownerRoot.path),
+    );
+
+    expect(
+      result.transformIds,
+      contains(FinalAnswerClaimNoticeApplicator.unwrittenFileTransformId),
+    );
+    expect(result.content, contains('Deliverable claim check:'));
+    expect(
+      result.content.trimRight(),
+      isNot(endsWith('PROJECT_TASK_READY_FOR_REVIEW')),
+    );
   });
 
   test('applies the narrated-transcript notice independently', () {

@@ -20,6 +20,25 @@ const _updatedHash =
 const _projectId = 'rag2-storage-replay-project';
 
 void main() {
+  // These two tests ran the replay three times between them: twice for the
+  // idempotency check, and a third time only to read the artifacts off disk.
+  // One shared run serves both, because the second run writes the same
+  // artifacts as the first -- the property the idempotency test asserts, so a
+  // regression there still fails loudly.
+  late final Directory sharedOutput;
+  setUpAll(
+    () => sharedOutput = Directory.systemTemp.createTempSync(
+      'rag2-sqlite-shared-',
+    ),
+  );
+  tearDownAll(() => sharedOutput.deleteSync(recursive: true));
+  late final sharedOptions = Rag2SqliteDurabilityOptions(
+    fixturePath: _fixturePath,
+    outDir: sharedOutput.path,
+    storeRoot: '${sharedOutput.path}/store',
+  );
+  late final sharedReplay = runRag2SqliteDurabilityReplay(sharedOptions);
+
   test('reopens the last committed generation from a new connection', () async {
     final output = Directory.systemTemp.createTempSync('rag2-sqlite-reopen-');
     addTearDown(() => output.deleteSync(recursive: true));
@@ -59,71 +78,63 @@ void main() {
     );
   });
 
-  test(
-    'recovers generation 1 after a killed uncommitted writer',
-    () async {
-      final output = Directory.systemTemp.createTempSync('rag2-sqlite-crash-');
-      addTearDown(() => output.deleteSync(recursive: true));
-      final snapshots = await _snapshots();
-      final path = '${output.path}/store.sqlite';
-      final store = Rag2SqliteGenerationStore(
-        databasePath: path,
-        projectId: _projectId,
-      );
-      await store.apply(
-        declarationIdentity: _identity,
-        snapshot: snapshots.baseline,
-      );
-      store.close();
+  test('recovers generation 1 after a killed uncommitted writer', () async {
+    final output = Directory.systemTemp.createTempSync('rag2-sqlite-crash-');
+    addTearDown(() => output.deleteSync(recursive: true));
+    final snapshots = await _snapshots();
+    final path = '${output.path}/store.sqlite';
+    final store = Rag2SqliteGenerationStore(
+      databasePath: path,
+      projectId: _projectId,
+    );
+    await store.apply(
+      declarationIdentity: _identity,
+      snapshot: snapshots.baseline,
+    );
+    store.close();
 
-      final generation = await recoverAfterKilledUncommittedWrite(
+    final generation = await recoverAfterKilledUncommittedWrite(
+      fixturePath: _fixturePath,
+      databasePath: path,
+      projectId: _projectId,
+      declarationIdentity: _identity,
+    );
+
+    expect(generation?.generation, 1);
+    expect(generation?.snapshot.snapshotHash, _baselineHash);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('serializes concurrent writers onto increasing generations', () async {
+    final output = Directory.systemTemp.createTempSync(
+      'rag2-sqlite-concurrent-',
+    );
+    addTearDown(() => output.deleteSync(recursive: true));
+    final path = '${output.path}/store.sqlite';
+    await Future.wait([
+      applyRag2SqliteSnapshotInChild(
         fixturePath: _fixturePath,
         databasePath: path,
-        projectId: _projectId,
-        declarationIdentity: _identity,
-      );
-
-      expect(generation?.generation, 1);
-      expect(generation?.snapshot.snapshotHash, _baselineHash);
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
-
-  test(
-    'serializes concurrent writers onto increasing generations',
-    () async {
-      final output = Directory.systemTemp.createTempSync(
-        'rag2-sqlite-concurrent-',
-      );
-      addTearDown(() => output.deleteSync(recursive: true));
-      final path = '${output.path}/store.sqlite';
-      await Future.wait([
-        applyRag2SqliteSnapshotInChild(
-          fixturePath: _fixturePath,
-          databasePath: path,
-          snapshotIndex: 0,
-        ),
-        applyRag2SqliteSnapshotInChild(
-          fixturePath: _fixturePath,
-          databasePath: path,
-          snapshotIndex: 1,
-        ),
-      ]);
-
-      final store = Rag2SqliteGenerationStore(
+        snapshotIndex: 0,
+      ),
+      applyRag2SqliteSnapshotInChild(
+        fixturePath: _fixturePath,
         databasePath: path,
-        projectId: _projectId,
-      );
-      addTearDown(store.close);
-      final generation = await store.read(_identity);
-      expect(generation?.generation, 2);
-      expect(
-        generation?.snapshot.snapshotHash,
-        isIn([_baselineHash, _updatedHash]),
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+        snapshotIndex: 1,
+      ),
+    ]);
+
+    final store = Rag2SqliteGenerationStore(
+      databasePath: path,
+      projectId: _projectId,
+    );
+    addTearDown(store.close);
+    final generation = await store.read(_identity);
+    expect(generation?.generation, 2);
+    expect(
+      generation?.snapshot.snapshotHash,
+      isIn([_baselineHash, _updatedHash]),
+    );
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test(
     'rejects a generation row whose envelope disagrees with the payload',
@@ -296,40 +307,21 @@ void main() {
     );
   });
 
-  test(
-    'replays twice against the same output directory',
-    () async {
-      final output = Directory.systemTemp.createTempSync('rag2-sqlite-rerun-');
-      addTearDown(() => output.deleteSync(recursive: true));
-      final options = Rag2SqliteDurabilityOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      );
-      final first = await runRag2SqliteDurabilityReplay(options);
-      final second = await runRag2SqliteDurabilityReplay(options);
-      expect(first.contractPassed, isTrue);
-      expect(second.contractPassed, isTrue);
-      expect(second.toJson(), first.toJson());
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+  test('replays twice against the same output directory', () async {
+    final first = await sharedReplay;
+    final second = await runRag2SqliteDurabilityReplay(sharedOptions);
+    expect(first.contractPassed, isTrue);
+    expect(second.contractPassed, isTrue);
+    expect(second.toJson(), first.toJson());
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   test('writes aggregate-only reports', () async {
-    final output = Directory.systemTemp.createTempSync('rag2-sqlite-report-');
-    addTearDown(() => output.deleteSync(recursive: true));
-    final report = await runRag2SqliteDurabilityReplay(
-      Rag2SqliteDurabilityOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      ),
-    );
+    final report = await sharedReplay;
     final jsonReport = File(
-      '${output.path}/rag2_sqlite_durability.json',
+      '${sharedOutput.path}/rag2_sqlite_durability.json',
     ).readAsStringSync();
     final markdownReport = File(
-      '${output.path}/rag2_sqlite_durability.md',
+      '${sharedOutput.path}/rag2_sqlite_durability.md',
     ).readAsStringSync();
 
     expect(report.contractPassed, isTrue);

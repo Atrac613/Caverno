@@ -238,6 +238,10 @@ _ModelCapabilityProfile _$ModelCapabilityProfileFromJson(
       ) ??
       ModelVideoInputSupport.unknown,
   usableContextTokens: (json['usableContextTokens'] as num?)?.toInt() ?? 0,
+  supportedReasoningEfforts:
+      (json['supportedReasoningEfforts'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
   probedAt: json['probedAt'] == null
       ? null
       : DateTime.parse(json['probedAt'] as String),
@@ -267,6 +271,7 @@ Map<String, dynamic> _$ModelCapabilityProfileToJson(
   'videoInputSupport':
       _$ModelVideoInputSupportEnumMap[instance.videoInputSupport]!,
   'usableContextTokens': instance.usableContextTokens,
+  'supportedReasoningEfforts': instance.supportedReasoningEfforts,
   'probedAt': instance.probedAt?.toIso8601String(),
   'probeSummary': instance.probeSummary,
   'probeMetadata': instance.probeMetadata,
@@ -491,6 +496,8 @@ _LlmEndpoint _$LlmEndpointFromJson(Map<String, dynamic> json) => _LlmEndpoint(
   model: json['model'] as String? ?? '',
   enabled: json['enabled'] as bool? ?? true,
   videoInputEnabled: json['videoInputEnabled'] as bool? ?? false,
+  chatTemplateKwargsEnabled:
+      json['chatTemplateKwargsEnabled'] as bool? ?? false,
   source:
       $enumDecodeNullable(
         _$LlmEndpointSourceEnumMap,
@@ -512,6 +519,7 @@ Map<String, dynamic> _$LlmEndpointToJson(_LlmEndpoint instance) =>
       'model': instance.model,
       'enabled': instance.enabled,
       'videoInputEnabled': instance.videoInputEnabled,
+      'chatTemplateKwargsEnabled': instance.chatTemplateKwargsEnabled,
       'source': _$LlmEndpointSourceEnumMap[instance.source]!,
       'createdAt': instance.createdAt?.toIso8601String(),
     };
@@ -573,6 +581,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   approvalAutoReviewModel: json['approvalAutoReviewModel'] as String? ?? '',
   planningModel: json['planningModel'] as String? ?? '',
   proReasoningModel: json['proReasoningModel'] as String? ?? '',
+  codeReviewModel: json['codeReviewModel'] as String? ?? '',
   logAnalysisModel: json['logAnalysisModel'] as String? ?? '',
   memoryExtractionEndpointId:
       json['memoryExtractionEndpointId'] as String? ?? '',
@@ -582,6 +591,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       json['approvalAutoReviewEndpointId'] as String? ?? '',
   planningEndpointId: json['planningEndpointId'] as String? ?? '',
   proReasoningEndpointId: json['proReasoningEndpointId'] as String? ?? '',
+  codeReviewEndpointId: json['codeReviewEndpointId'] as String? ?? '',
   logAnalysisEndpointId: json['logAnalysisEndpointId'] as String? ?? '',
   googleChatWebhookUrl: json['googleChatWebhookUrl'] as String? ?? '',
   mcpUrl: json['mcpUrl'] as String? ?? '',
@@ -749,6 +759,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'approvalAutoReviewModel': instance.approvalAutoReviewModel,
   'planningModel': instance.planningModel,
   'proReasoningModel': instance.proReasoningModel,
+  'codeReviewModel': instance.codeReviewModel,
   'logAnalysisModel': instance.logAnalysisModel,
   'memoryExtractionEndpointId': instance.memoryExtractionEndpointId,
   'subagentEndpointId': instance.subagentEndpointId,
@@ -756,6 +767,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'approvalAutoReviewEndpointId': instance.approvalAutoReviewEndpointId,
   'planningEndpointId': instance.planningEndpointId,
   'proReasoningEndpointId': instance.proReasoningEndpointId,
+  'codeReviewEndpointId': instance.codeReviewEndpointId,
   'logAnalysisEndpointId': instance.logAnalysisEndpointId,
   'googleChatWebhookUrl': instance.googleChatWebhookUrl,
   'mcpUrl': instance.mcpUrl,
@@ -828,6 +840,7 @@ const _$ReasoningEffortPreferenceEnumMap = {
   ReasoningEffortPreference.low: 'low',
   ReasoningEffortPreference.medium: 'medium',
   ReasoningEffortPreference.high: 'high',
+  ReasoningEffortPreference.xhigh: 'xhigh',
 };
 
 const _$ProReasoningDepthEnumMap = {

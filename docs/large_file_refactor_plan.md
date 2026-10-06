@@ -162,6 +162,102 @@ line coverage (53,400/71,190). The recently reduced Computer Use pages remain
 paused because their coverage is above 94% and their remaining code is
 orchestration-heavy, not because of worktree ownership.
 
+### Ranking refresh (2026-09-24)
+
+The route/interface/path-MTU cluster and the seven slices after it are
+complete, so the ranking was refreshed from current `wc -l` (generated files
+excluded), 30-day commit churn, and whether `file_size_ratchet_test.dart`
+budgets the file:
+
+| File | Lines | Commits in 30 days | Budgeted |
+|------|------:|------:|:--:|
+| `lib/features/chat/presentation/providers/chat_notifier.dart` | 8,687 | 45 | yes |
+| `lib/features/settings/domain/services/live_llm_diagnostic_service.dart` | 4,843 → 4,688 | 18 | now |
+| `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart` | 3,246 | 21 | no |
+| `lib/features/remote_coding/presentation/remote_coding_page.dart` | 2,644 | 22 | no |
+| `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2,375 | 0 | yes |
+| `lib/features/chat/domain/services/tool_result_prompt_builder.dart` | 2,064 | 5 | now |
+| `lib/features/chat/data/datasources/git_tools.dart` | 2,047 | 4 | now |
+| `lib/features/chat/presentation/widgets/message_input.dart` | 2,001 | 8 | yes |
+| `lib/features/chat/data/datasources/local_shell_tools.dart` | 1,932 | 3 | now |
+| `lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart` | 1,742 | 3 | now |
+| `lib/features/remote_coding/presentation/remote_coding_client_notifier.dart` | 1,731 | 14 | no |
+
+Four of the eleven largest files had no budget, and none of them appeared in
+the tracked inventory above: they grew after the 2026-07-18 baseline. Budgets
+were added at current size for the five low-churn ones. The three Remote
+Coding files are deliberately left unbudgeted: RC1 changes them weekly, and a
+budget there would block that work rather than decompose it; rank them again
+once RC1 settles.
+
+Selected slice: the live LLM diagnostic service, the largest file after
+ChatNotifier, with no budget and moderate churn. It holds more than thirty
+probes, so the first slice took only what is pure: response scoring (integer
+sequences, code fences, unified-diff headers, the first edit-format
+mismatch, chart and quadrant grading, visible-content JSON decoding, and list
+equality) moved to `live_llm_diagnostic_response_scoring.dart`. The service
+keeps `matchedChartAnswers` and `chartValueTolerance` as forwarding members,
+so its public surface is unchanged. The service fell from 4,843 to 4,688
+lines; the 83-line scoring module reached 100.00% coverage (83/83), and the
+service is at 87.40% (1,387/1,587) under its own tests.
+
+The second slice moved the four sampler-calibration trials (tool loop,
+routine, coding, plan) into `live_llm_sampler_calibration_trials.dart`,
+behind a completion port the service binds to its model, token cap, and
+thinking observer; deciding which trials run and folding them into the report
+stays with the service. The two pure helpers the trials shared with the rest
+(`toolCallsFrom`, `looksRepetitive`) joined the response scoring module. The
+service fell from 4,688 to 4,470 lines and its budget was lowered to match;
+the 216-line trials module and the scoring module are both at 100.00% coverage
+(70/70 and 108/108), and the service is at 87.58% (1,312/1,498).
+
+The third slice took the report-evidence helpers first (token usage and
+bounded previews, used by every probe) into `live_llm_diagnostic_evidence.dart`
+(21/21 covered), and returned a doc comment the first slice had left above an
+unrelated probe. Then the quadrant, chart-reading, and tool-observation probes
+moved into `live_llm_vision_probes.dart` with their image, prompts, and
+classification labels, behind a completion port and a tool-result port; which
+probes run for which provider, and the video-modality probe (a metadata GET,
+not a generation), stay with the service. Probe ids keep their values. The
+service fell from 4,470 to 4,067 lines (budget lowered each time); the
+446-line vision module is at 91.74% (100/109) and the service at 87.81%
+(1,217/1,386). Remaining large families in the service are the tool-loop
+probes (tool depth, recovery, multi-round) and structured output.
+
+### Next boundary selection (2026-10-02)
+
+Source-only investigation against local main `55c739761` found the diagnostic
+service to be the second-largest non-generated production file, at 3,963 lines
+and exactly its budget. Its thinking observer had also been extracted after
+the three slices above; the earlier 4,067-line summary predates that move.
+
+With RC1 signed-device evidence on hold by user decision, the investigation
+selected only the structured-output probe family. The schema arm and JSON
+object fallback use one completion interface and share a bounded result
+contract. Tool-depth, recovery, and multi-round work remains separate.
+
+Implementation completed on `feature/f5-structured-output-probe` the same day:
+`live_llm_structured_output_probe.dart` is an independent 210-line module,
+and the service fell to 3,789 lines. Provider selection, reports, endpoint
+metadata IO, request settings, and thinking observation remain with the
+service. The module accepts a terminal-publication callback so a schema
+publication exception still triggers the original object fallback; object
+publication exceptions still propagate. Markers, schema, metadata, token caps,
+fallback ordering, and usage are preserved. Service and new-module ratchets
+were lowered/set to their final sizes.
+
+Verification: Flutter analysis, 128 tests in six focused suites, and three
+affected size checks passed. The new module has 100% executable-line coverage
+(52/52); the service has 87.42% (1,147/1,312) in this focused run. No live-model
+or device run was performed. See the
+[implementation evidence](f5_structured_output_probe_extraction_codex_task.md#implementation-evidence).
+
+Next: scope only the tool-recovery probe and its per-case execution boundary,
+using the existing recovery-case fixtures to freeze denial, partial-result,
+and forbidden-state behavior. Keep depth and multi-round probes for later
+slices; F5 remains `current`.
+
+
 ## Refactor Rules
 
 - Start with a plan that names the target concern, destination file, risk, and
@@ -1753,3 +1849,84 @@ When starting a slice, add the task to the roadmap or issue tracker with:
 - tests to move or add
 - similar-pattern search terms
 - rollback plan if the extraction creates behavior drift
+
+### Tool-recovery extraction (2026-10-03)
+
+The structured-output branch was fast-forward integrated into local main
+`2d2a19dfd`; the next slice runs on `feature/f5-tool-recovery-probe`.
+`live_llm_tool_recovery_probe.dart` now owns recovery scoring and per-case
+execution behind a completion port. It is 211 lines, and the diagnostic service
+fell from 3,789 to 3,605 lines. The unchanged argument matcher shared with depth
+moved into the existing response scorer. Provider skips, initial messages,
+request settings, thinking observation, elapsed time and reports stay with the
+service. Four fixture cases, final-turn catalogs, first-call-only scoring,
+scripted user-role observations, bounds, error evidence and usage are preserved.
+
+The six existing service-level recovery regressions remain unchanged. Seventeen
+isolated tests and two service integration tests cover failure scoring, refusal
+bypass, confirmation, partial-batch retries, forbidden state, premature/extra
+calls, arguments, error containment, previews, usage and request settings.
+Analysis, 128 tests across seven focused suites, and four affected size checks
+passed. The extracted module has 100% executable-line coverage (74/74); the
+service has 88.45% (1,095/1,238) in the focused run. No full Flutter-suite,
+live-model or device run was performed. See
+[implementation evidence](f5_tool_recovery_probe_extraction_codex_task.md#implementation-evidence).
+
+Next: scope the tool-depth staircase and per-rung execution contract; keep
+multi-round execution separate. RC1 signed-device verification stays on hold
+and F5 stays `current`.
+
+### Tool-depth extraction (2026-10-03)
+
+The recovery branch was fast-forward integrated into local main `4546ab9f3`.
+The next slice on `feature/f5-tool-depth-probe` moved staircase measurement and
+per-rung execution into `live_llm_tool_depth_probe.dart` behind a completion
+port. The module is 235 lines; the diagnostic service fell from 3,605 to 3,425
+lines. It returns the result and typed metrics together. Selection, capability
+skips, initial messages, request settings, thinking observation and publication
+remain with the service; the measurement's start time still precedes running
+publication. Callback exceptions still propagate.
+
+Three fixture rungs, first-failure stopping, zero suite points, warning rather
+than failed headroom, first-call-only scoring, exact observations, final requests
+without tools, case-sensitive visible final values, usage and previews are
+preserved. Five new service contract tests passed before extraction, then passed
+again with the existing regressions and 20 isolated module tests. The coverage
+verification gate passed: analysis, 135 tests in seven focused suites, workspace
+package checks and relay checks. Five affected size checks also passed. The
+extracted module has 100% executable-line coverage (79/79); the service has
+88.85% (1,036/1,166) in the focused run. No full Flutter-suite, live-model or
+device run was performed. See
+[implementation evidence](f5_tool_depth_probe_extraction_codex_task.md#implementation-evidence).
+
+Next: scope multi-round diagnostic execution and its tool-execution/report
+boundary separately. RC1 signed-device verification stays on hold and F5 stays
+`current`.
+
+### Multi-round extraction (2026-10-03)
+
+The depth branch was fast-forward integrated into local main `2ee77ddb2`.
+The slice on `feature/f5-multi-round-probe` moved multi-round measurement into
+`live_llm_multi_round_probe.dart`, with completion, follow-up and tool-execution
+ports. The module is 284 lines, and the diagnostic service fell from 3,425 to
+3,203 lines. Catalog lookup, selection, request settings, thinking observation,
+exception-to-report handling and publication remain in the service.
+
+Name checks still precede execution. Every allowed search is executed in order,
+with discovery taken from the union of results; repeated datetime calls count
+as observations but only the first executes. Final requests have no tools, and
+extra final calls warn without execution. Usage, physical metrics, IDs,
+previews, check denominators and typed-decoding exceptions are preserved.
+
+Eleven service multi-round tests passed before extraction, including six new
+binding/skip/error/publication contracts. Those and the existing regressions
+passed after extraction alongside 31 isolated tests. The coverage verification
+gate passed with 147 tests in six focused suites, analysis, package checks and
+relay checks. Six affected size checks passed. The module has 100% executable
+coverage (107/107); the service has 88.92% (947/1,065) in this focused run.
+No full Flutter-suite, live-model or device run was performed. See
+[implementation evidence](f5_multi_round_probe_extraction_codex_task.md#implementation-evidence).
+
+The four probe families selected in this sequence are now extracted. Next:
+refresh sizes, churn, coverage and remaining boundaries before selecting another
+slice. F5 stays `current`; RC1 signed-device verification remains on hold.

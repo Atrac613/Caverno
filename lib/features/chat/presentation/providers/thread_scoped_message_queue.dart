@@ -3,9 +3,7 @@ import 'dart:async';
 import '../../domain/entities/chat_turn_owner.dart';
 import 'chat_state.dart';
 
-/// Messages typed while some thread was busy, kept per thread.
-///
-/// Each entry retains its original thread and terminal owner receipt.
+/// Queued messages retain their exact thread, intent, and owner receipt.
 class ThreadScopedMessageQueue {
   final List<QueuedChatMessage> _messages = <QueuedChatMessage>[];
   final Set<String> _drainingOwners = <String>{};
@@ -79,6 +77,7 @@ class ThreadScopedMessageQueue {
               bypassPlanMode: message.bypassPlanMode,
               origin: message.origin,
               conversationId: conversationId,
+              purpose: message.purpose,
             ),
     );
     return _turnOwnerReceiptFor(message.id);

@@ -75,6 +75,18 @@ class ModelCapabilityProfileBuilder {
             .toString(),
       },
       ...ModelCapabilityPhysicalMetrics.fromReport(report),
+      // The mode every other value here was measured in. Edit-format and
+      // chart results differ by thinking mode on the same model, so a profile
+      // read without it can recommend the wrong edit format for chat.
+      'diagnosticThinkingRequested': ?report.thinkingMetrics?.requested
+          ?.toString(),
+      'diagnosticThinkingObserved': ?report.thinkingMetrics?.observed
+          .toString(),
+      'diagnosticReasoningEffort': ?report.thinkingMetrics?.requestedEffort,
+      'thinkingControl': ?_result(
+        report,
+        'thinking_control',
+      )?.metadata['thinkingControl'],
     };
     final profile = ModelCapabilityProfile(
       id: '',

@@ -31,6 +31,7 @@ class BuiltInToolRegistry {
   static const String categoryLanScan = 'lan_scan';
   static const String categorySerial = 'serial';
   static const String categoryBrowser = 'browser';
+  static const String categoryWorkspace = 'workspace';
 
   static const List<String> categories = [
     categoryDatetime,
@@ -49,6 +50,7 @@ class BuiltInToolRegistry {
     categoryLanScan,
     categorySerial,
     categoryBrowser,
+    categoryWorkspace,
   ];
 
   /// Built-in tool categories deferred from the initial tool-search selection
@@ -58,6 +60,8 @@ class BuiltInToolRegistry {
   static const Set<String> toolSearchDeferredCategories = {
     categoryComputerUse,
     categoryBrowser,
+    // FARM2: only useful when the user asks about their projects.
+    categoryWorkspace,
     categorySsh,
     categorySerial,
     categoryBle,
@@ -112,6 +116,32 @@ class BuiltInToolRegistry {
   };
 
   static const List<BuiltInToolInfo> tools = [
+    // Workspace (FARM2)
+    BuiltInToolInfo(
+      name: 'list_coding_projects',
+      descriptionKey: 'settings.tool_list_coding_projects',
+      category: categoryWorkspace,
+    ),
+    BuiltInToolInfo(
+      name: 'list_coding_threads',
+      descriptionKey: 'settings.tool_list_coding_threads',
+      category: categoryWorkspace,
+    ),
+    BuiltInToolInfo(
+      name: 'get_project_state',
+      descriptionKey: 'settings.tool_get_project_state',
+      category: categoryWorkspace,
+    ),
+    BuiltInToolInfo(
+      name: 'read_coding_thread',
+      descriptionKey: 'settings.tool_read_coding_thread',
+      category: categoryWorkspace,
+    ),
+    BuiltInToolInfo(
+      name: 'start_project_task',
+      descriptionKey: 'settings.tool_start_project_task',
+      category: categoryWorkspace,
+    ),
     // DateTime
     BuiltInToolInfo(
       name: 'get_current_datetime',
@@ -398,6 +428,15 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_read_file',
       category: categoryCoding,
     ),
+    // Missing from the registry rather than deferred on purpose, like
+    // accept_task above. The catalog offered them, the F6 guard could not see
+    // them because it only walks this list, and the initial selection left
+    // them out -- so a coding turn never saw inspect_file or delete_file.
+    BuiltInToolInfo(
+      name: 'inspect_file',
+      descriptionKey: 'settings.tool_inspect_file',
+      category: categoryCoding,
+    ),
     BuiltInToolInfo(
       name: 'write_file',
       descriptionKey: 'settings.tool_write_file',
@@ -406,6 +445,11 @@ class BuiltInToolRegistry {
     BuiltInToolInfo(
       name: 'edit_file',
       descriptionKey: 'settings.tool_edit_file',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
+      name: 'delete_file',
+      descriptionKey: 'settings.tool_delete_file',
       category: categoryCoding,
     ),
     BuiltInToolInfo(
@@ -426,6 +470,15 @@ class BuiltInToolRegistry {
     BuiltInToolInfo(
       name: 'resolve_installed_dependency',
       descriptionKey: 'settings.tool_resolve_installed_dependency',
+      category: categoryCoding,
+    ),
+    // Its description tells the model to prefer it over broad text search when
+    // navigating from a usage to its declaration -- and the initial selection
+    // omitted it for the three months after it shipped, leaving search_files as
+    // the only way to answer "where is this defined".
+    BuiltInToolInfo(
+      name: 'lsp_go_to_definition',
+      descriptionKey: 'settings.tool_lsp_go_to_definition',
       category: categoryCoding,
     ),
     BuiltInToolInfo(

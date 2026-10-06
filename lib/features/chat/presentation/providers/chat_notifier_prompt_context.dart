@@ -9,6 +9,123 @@ _executionSnapshotObservers =
     Expando<ExecutionSnapshotObserver<LlmSessionLogContext>>();
 
 extension ChatNotifierPromptContext on ChatNotifier {
+  List<Message> _prepareMessagesForLLM({
+    bool forceCompaction = false,
+    List<Map<String, dynamic>>? toolDefinitionsOverride,
+    required int interactionGeneration,
+    String? participantRolePrompt,
+  }) {
+    // Before the snapshot is read, because committing is what puts an
+    // interruption where that read finds it.
+    _commitPendingTurnSteering(interactionGeneration);
+    final ownerSnapshot = _turnOwnerSnapshotForGeneration(
+      interactionGeneration,
+    );
+    if (ownerSnapshot == null) {
+      throw StateError(
+        'Turn owner snapshot unavailable: $interactionGeneration',
+      );
+    }
+    final currentConversation = _conversationForId(
+      ownerSnapshot.owner.conversationId,
+    );
+    final hiddenPrompt = ownerSnapshot.hiddenPrompt;
+    final temporalReferenceContext = ownerSnapshot.temporalReferenceContext;
+    final sourceMessages = _commitPhaseHistory(ownerSnapshot);
+    final messages =
+        ConversationPlanExecutionCoordinator.filterSupersededTaskExecutionTurns(
+              messages: sourceMessages.where((message) => !message.isStreaming),
+              currentExecutionPrompt: hiddenPrompt?.content,
+            )
+            .map(_messagePersistence.sanitizeMessageForModelHistory)
+            .where(_messagePersistence.shouldKeepMessageForModelHistory)
+            .toList();
+    final modelSwitchHandoffBrief = _modelSwitchHandoffs.take(
+      ownerSnapshot.owner,
+    );
+    final shouldForceCompaction = _modelSwitchHandoffs.consumePromptCompaction(
+      owner: ownerSnapshot.owner,
+      forceCompaction: forceCompaction,
+      hasModelSwitchHandoff: modelSwitchHandoffBrief != null,
+    );
+    final promptMessages = <Message>[
+      _createSystemMessage(
+        conversation: currentConversation,
+        ownerSnapshot: ownerSnapshot,
+        participantRolePrompt: participantRolePrompt,
+        toolNamesOverride: toolDefinitionsOverride == null
+            ? null
+            : ToolDefinitionSearchService.toolNamesFromDefinitions(
+                toolDefinitionsOverride,
+              ).toList(),
+      ),
+    ];
+    if (temporalReferenceContext != null) {
+      promptMessages.add(
+        Message(
+          id: 'system_temporal',
+          content: temporalReferenceContext,
+          role: MessageRole.system,
+          timestamp: DateTime.now(),
+        ),
+      );
+    }
+    final modelSwitchHandoffMessage = _hasCommitScope(interactionGeneration)
+        ? null
+        : _modelSwitchHandoffs.createPromptMessage(modelSwitchHandoffBrief);
+    if (modelSwitchHandoffMessage != null) {
+      promptMessages.add(modelSwitchHandoffMessage);
+    }
+    final promptBudget = _promptTokenBudget.budgetFor(
+      _settings,
+      ownerSnapshot.owner.conversationId,
+    );
+    final compactionArtifact = promptBudget.resolveArtifact(
+      conversation: _hasCommitScope(interactionGeneration)
+          ? null
+          : currentConversation,
+      messages: messages,
+      forceCompaction: shouldForceCompaction,
+    );
+    if (compactionArtifact?.hasContent ?? false) {
+      promptMessages.add(
+        Message(
+          id: 'system_compaction',
+          content:
+              'Earlier conversation summary for omitted turns:\n'
+              '${compactionArtifact!.normalizedSummary!}\n\n'
+              'Treat this summary as context for the trimmed transcript that follows.',
+          role: MessageRole.system,
+          timestamp: DateTime.now(),
+        ),
+      );
+    }
+    final retainedMessages = ConversationCompactionService.retainMessages(
+      messages: messages,
+      artifact: compactionArtifact,
+    );
+    final result = [...promptMessages, ...retainedMessages];
+    if (hiddenPrompt != null) {
+      result.add(hiddenPrompt);
+    }
+    // Last, so an interruption is not read as one more remark filed behind the
+    // work already in flight.
+    final steeringDirective = _turnSteeringDirectiveMessage(
+      ownerSnapshot.owner,
+    );
+    if (steeringDirective != null) {
+      result.add(steeringDirective);
+    }
+    // Recorded before the pressure update overwrites it, so the pair handed to
+    // the next turn describes this exact request.
+    _promptTokenBudget.recordEstimate(ownerSnapshot.owner, result);
+    _updateContextTokenPressureState(
+      pressure: promptBudget.assess(result),
+      compactionActive: compactionArtifact?.hasContent ?? false,
+    );
+    return result;
+  }
+
   ExecutionSnapshotObserver<LlmSessionLogContext>
   get _executionSnapshotObserver => _executionSnapshotObservers[this] ??=
       ExecutionSnapshotObserver<LlmSessionLogContext>(
@@ -25,6 +142,14 @@ extension ChatNotifierPromptContext on ChatNotifier {
     TurnOwnerSnapshot? ownerSnapshot,
   }) {
     final currentConversation = conversation;
+    // Native phase handoffs supersede older goal, workflow and memory instructions.
+    final commitPhase =
+        ownerSnapshot != null &&
+        _hasCommitScope(ownerSnapshot.owner.interactionGeneration);
+    final reviewPhase =
+        ownerSnapshot != null &&
+        _isCodeReview(ownerSnapshot.owner.interactionGeneration);
+    final isolatedPhase = commitPhase || reviewPhase;
     // LL22: pinned per turn, because a per-request minute reading mutated one
     // line inside an otherwise byte-stable ~20k-token prefix and cost a full
     // reprefill. See [TurnPromptClock].
@@ -84,27 +209,37 @@ extension ChatNotifierPromptContext on ChatNotifier {
       executionSnapshot,
       ownerSnapshot,
     );
+    final capability = _primaryCapabilityProfileForGeneration(
+      ownerSnapshot?.owner.interactionGeneration,
+    );
+    final projectContext = ref.read(projectPromptContextSourceProvider);
     final content = SystemPromptBuilder.build(
       now: now,
       assistantMode: resolvedAssistantMode,
       languageCode: resolvedLanguage,
       toolNames: toolNames,
-      sessionMemoryContext: _sessionMemoryContext,
+      sessionMemoryContext: isolatedPhase ? null : _sessionMemoryContext,
       participantRolePrompt: participantRolePrompt,
       projectName: activeCodingProject?.name,
       projectRootPath: projectRoot,
-      repoMapContext: _repoMap(
+      repoMapContext: projectContext.repoMap(
         resolvedAssistantMode,
         projectRoot,
-        ownerSnapshot?.owner.interactionGeneration,
+        capability?.usableContextTokens,
       ),
-      goal: currentConversation?.goal,
-      workflowStage:
-          currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
-      workflowSpec: currentConversation?.projectedWorkflowSpec,
-      planArtifact: currentConversation?.planArtifact,
-      executionSnapshot: executionSnapshot,
-      delegatedResults: currentConversation == null
+      // KC2's environment block is withdrawn: its paired re-run regressed
+      // class 4 to 100% stale (docs/knowledge_currency_track_design.md).
+      goal: isolatedPhase ? null : currentConversation?.goal,
+      workflowStage: isolatedPhase
+          ? ConversationWorkflowStage.idle
+          : currentConversation?.workflowStage ??
+                ConversationWorkflowStage.idle,
+      workflowSpec: isolatedPhase
+          ? null
+          : currentConversation?.projectedWorkflowSpec,
+      planArtifact: isolatedPhase ? null : currentConversation?.planArtifact,
+      executionSnapshot: isolatedPhase ? null : executionSnapshot,
+      delegatedResults: isolatedPhase || currentConversation == null
           ? const <String>[]
           : const DelegatedResultDigest().summaries(
               children: ref
@@ -121,9 +256,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
       hasPythonInputAttachment:
           toolNames.contains('run_python_script') &&
           (ownerSnapshot?.hasAttachments ?? false),
-      modelCapabilityProfile: _primaryCapabilityProfileForGeneration(
-        ownerSnapshot?.owner.interactionGeneration,
-      ),
+      modelCapabilityProfile: capability,
       modelHarnessConfig: _primaryHarnessConfigForGeneration(
         ownerSnapshot?.owner.interactionGeneration,
       ),
@@ -286,27 +419,5 @@ extension ChatNotifierPromptContext on ChatNotifier {
       return null;
     }
     return ref.read(agentsMdLoaderProvider).loadForProject(projectRoot);
-  }
-
-  String? _repoMap(
-    AssistantMode assistantMode,
-    String? projectRoot,
-    int? interactionGeneration,
-  ) {
-    if (assistantMode == AssistantMode.general) return null;
-    final lspSymbolEntries = ref
-        .read(repoMapLspSymbolCacheProvider)
-        .entriesForRoot(projectRoot);
-    // LL22: serve from the precompute cache when the project signature is
-    // unchanged; otherwise this rebuilds and stores it (a cold first turn).
-    return ref
-        .read(repoMapPrecomputeCacheProvider)
-        .getOrBuild(
-          rootPath: projectRoot,
-          usableContextTokens: _primaryCapabilityProfileForGeneration(
-            interactionGeneration,
-          )?.usableContextTokens,
-          lspSymbolEntries: lspSymbolEntries,
-        );
   }
 }

@@ -154,5 +154,616 @@ class CheckFixFiringsCorpusTest(unittest.TestCase):
         self.assertIn("not yet observed", self._verdict_line(output))
 
 
+class CheckFixFiringsTransformChannelTest(unittest.TestCase):
+    """A transform row reads `turnExit.transforms`, not the log's prose.
+
+    That distinction is the whole reason the key exists. LL33 records a
+    transform id precisely so a guard firing stops being inferred from the
+    notice it leaked into the answer, and a row that fell back to a substring
+    search would re-acquire exactly the contamination LL33 removed -- a log
+    quoting the id, including one produced by reading this repository, would
+    read as a firing.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tool = _load_tool()
+        cls.head = _head_commit()
+        cls.signature_name = "pending_action_length_recovery"
+        cls.signature = cls.tool.SIGNATURES[cls.signature_name]
+        cls.transform = cls.signature["transform"]
+
+    def _write_log(self, directory, name, *, transforms=None, prose=""):
+        os.makedirs(directory, exist_ok=True)
+        grounded = {
+            "build": {"commit": self.head, "dirty": False},
+            "request": {"messages": [{"role": "user", "content": prose}]},
+            "response": {"content": prose, "finishReason": "length"},
+        }
+        lines = [grounded]
+        if transforms is not None:
+            lines.append(
+                {
+                    "build": {"commit": self.head, "dirty": False},
+                    "operation": "turn_exit",
+                    "turnExit": {
+                        "reason": "pending_batch_executed",
+                        "noVisibleAnswer": False,
+                        "transforms": transforms,
+                    },
+                }
+            )
+        path = os.path.join(directory, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            for line in lines:
+                handle.write(json.dumps(line, ensure_ascii=False) + "\n")
+        return path
+
+    def _verdict_line(self, output):
+        suffix = f"] {self.signature_name}  ({self.signature['commit']})"
+        for line in output.splitlines():
+            if line.endswith(suffix):
+                return line
+        self.fail(f"signature not reported:\n{output}")
+
+    def _run(self, wild):
+        out = io.StringIO()
+        saved = sys.argv
+        sys.argv = ["check_fix_firings.py", "--dir", wild, "--repo", REPO_ROOT]
+        try:
+            with redirect_stdout(out):
+                status = self.tool.main()
+        finally:
+            sys.argv = saved
+        self.assertEqual(status, 0, out.getvalue())
+        return out.getvalue()
+
+    def test_a_recorded_transform_is_a_firing(self):
+        with tempfile.TemporaryDirectory() as wild:
+            self._write_log(
+                wild,
+                "hit.jsonl",
+                transforms=[self.transform, "final_answer_concise_retry"],
+            )
+            output = self._run(wild)
+        self.assertTrue(
+            self._verdict_line(output).startswith("[FIRED] "),
+            self._verdict_line(output),
+        )
+
+    def test_prose_quoting_the_id_is_not_a_firing(self):
+        # The case that would be silently wrong under a substring match: this
+        # very repository's sources, a commit body and this test file all spell
+        # the id, and none of them is a turn that ran it.
+        with tempfile.TemporaryDirectory() as wild:
+            self._write_log(
+                wild,
+                "quote.jsonl",
+                transforms=None,
+                prose=f"the guard is named {self.transform} in chat_notifier",
+            )
+            output = self._run(wild)
+        self.assertIn("not yet observed", self._verdict_line(output))
+
+    def test_an_unrelated_transform_is_not_a_firing(self):
+        with tempfile.TemporaryDirectory() as wild:
+            self._write_log(
+                wild, "other.jsonl", transforms=["unwritten_file_claim_notice"]
+            )
+            output = self._run(wild)
+        self.assertIn("not yet observed", self._verdict_line(output))
+
+    def test_every_row_carries_exactly_one_evidence_key(self):
+        # A row with neither key, or both, goes dark and reads as "the code
+        # never ran" -- the one failure this instrument cannot report on
+        # itself. The module refuses to load in that state; assert the
+        # invariant here too, so the reason is written down where it is read.
+        for name, signature in self.tool.SIGNATURES.items():
+            with self.subTest(signature=name):
+                self.assertNotEqual(
+                    "match" in signature,
+                    "transform" in signature,
+                    f"{name} must carry exactly one of match/transform",
+                )
+
+
+
+class InternalGrepSignatureTest(unittest.TestCase):
+    """The internal_grep row fires on a decoded result object, never on text.
+
+    The payload shape is what LocalShellTools._executeInternally encodes and
+    the session log stores decoded under request.toolResults[].result.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(_load_tool().SIGNATURES["internal_grep"]["match"])
+
+    @staticmethod
+    def _result(command):
+        return {
+            "command": command,
+            "working_directory": "/repo",
+            "exit_code": 0,
+            "stdout": 'version: "1.3.44+58"\n',
+            "stderr": "",
+            "executed_internally": True,
+        }
+
+    def _blob(self, request):
+        return json.dumps([{"request": request}], ensure_ascii=False)
+
+    def test_a_structured_internal_grep_result_fires(self):
+        for command in ["grep -E '^version:' pubspec.yaml",
+                        'grep -n "^version:" pubspec.yaml']:
+            with self.subTest(command=command):
+                blob = self._blob(
+                    {"toolResults": [{"result": self._result(command)}]}
+                )
+                self.assertTrue(self.match(blob))
+
+    def test_the_same_result_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps(self._result("grep x a.txt"))
+        blob = self._blob({"messages": [{"role": "tool", "content": quoted}]})
+        self.assertFalse(self.match(blob))
+
+    def test_another_internal_command_does_not_fire(self):
+        blob = self._blob(
+            {"toolResults": [{"result": self._result("rg x lib")}]}
+        )
+        self.assertFalse(self.match(blob))
+
+
+class GitNativePipelineRefusalSignatureTest(unittest.TestCase):
+    """The row fires on the decoded refusal payload, never on quoted text."""
+
+    _ERROR = (
+        "git_execute_command accepts one git subcommand per call and runs "
+        'without a shell; operator "|" is unsupported. Use Git options first: '
+        "`rev-list --count <range>` for commit counts."
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["git_native_pipeline_refusal"]["match"]
+        )
+
+    @staticmethod
+    def _blob(request):
+        return json.dumps([{"request": request}], ensure_ascii=False)
+
+    def _result(self, error):
+        return {
+            "command": "git log --oneline | wc -l",
+            "working_directory": "/repo",
+            "executed": False,
+            "code": "command_rejected_before_execution",
+            "error": error,
+        }
+
+    def test_the_new_refusal_fires(self):
+        blob = self._blob({"toolResults": [{"result": self._result(self._ERROR)}]})
+        self.assertTrue(self.match(blob))
+
+    def test_the_previous_refusal_does_not_fire(self):
+        old = (
+            "git_execute_command accepts one git subcommand per tool call and "
+            "runs it without a shell"
+        )
+        blob = self._blob({"toolResults": [{"result": self._result(old)}]})
+        self.assertFalse(self.match(blob))
+
+    def test_the_same_result_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps(self._result(self._ERROR))
+        blob = self._blob({"messages": [{"role": "tool", "content": quoted}]})
+        self.assertFalse(self.match(blob))
+
+
+class ArgumentTrailingTextSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        signatures = _load_tool().SIGNATURES
+        cls.decoded = staticmethod(
+            signatures["argument_trailing_closer_decode"]["match"]
+        )
+        cls.rejected = staticmethod(
+            signatures["argument_trailing_text_rejection"]["match"]
+        )
+
+    @staticmethod
+    def _blob(arguments, result):
+        return json.dumps(
+            [{"request": {"toolResults": [{
+                "name": "ask_user_question",
+                "arguments": arguments,
+                "result": result,
+            }]}}],
+            ensure_ascii=False,
+        )
+
+    # Shape copied from session b41b57fa.
+    _CLOSER = '[{"id": "robustness", "label": "堅牢性"}]}'
+    _REJECTION = {
+        "ok": False,
+        "code": "invalid_tool_argument_type",
+        "argument": "options",
+    }
+
+    def test_a_dispatched_closer_argument_fires(self):
+        blob = self._blob({"options": self._CLOSER}, {"status": "answered"})
+        self.assertTrue(self.decoded(blob))
+
+    def test_the_same_argument_rejected_does_not_fire(self):
+        blob = self._blob({"options": self._CLOSER}, self._REJECTION)
+        self.assertFalse(self.decoded(blob))
+
+    def test_trailing_arguments_are_not_a_closer_decode(self):
+        options = '[{"id": "a"}], "allow_other": true}'
+        blob = self._blob({"options": options}, {"status": "answered"})
+        self.assertFalse(self.decoded(blob))
+
+    def test_the_named_trailing_text_fires(self):
+        result = {**self._REJECTION, "trailing_text": ', "allow_other": true}'}
+        self.assertTrue(self.rejected(self._blob({}, result)))
+
+    def test_the_older_rejection_does_not_fire(self):
+        self.assertFalse(self.rejected(self._blob({}, self._REJECTION)))
+
+
+class ToolArgumentTypeGuardSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["tool_argument_type_guard"]["match"]
+        )
+
+    @staticmethod
+    def _blob(request):
+        return json.dumps([{"request": request}], ensure_ascii=False)
+
+    _RESULT = {"ok": False, "code": "invalid_tool_argument_type", "argument": "content"}
+
+    def test_the_decoded_rejection_fires(self):
+        blob = self._blob({"toolResults": [{"result": self._RESULT}]})
+        self.assertTrue(self.match(blob))
+
+    def test_the_rejection_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps(self._RESULT)
+        blob = self._blob({"messages": [{"role": "tool", "content": quoted}]})
+        self.assertFalse(self.match(blob))
+
+
+class WriteFileContentTypeRejectionSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["write_file_content_type_rejection"]["match"]
+        )
+
+    _RESULT = {"ok": False, "code": "invalid_tool_argument_type", "argument": "content"}
+
+    @staticmethod
+    def _blob(name, result):
+        return json.dumps(
+            [{"request": {"toolResults": [{"name": name, "result": result}]}}]
+        )
+
+    def test_the_write_file_rejection_fires(self):
+        self.assertTrue(self.match(self._blob("write_file", self._RESULT)))
+
+    def test_another_tool_rejection_does_not_fire(self):
+        result = {**self._RESULT, "argument": "options"}
+        self.assertFalse(self.match(self._blob("ask_user_question", result)))
+
+    def test_the_rejection_quoted_as_text_does_not_fire(self):
+        blob = json.dumps([{"request": {"messages": [
+            {"role": "tool", "content": json.dumps(self._RESULT)}]}}])
+        self.assertFalse(self.match(blob))
+
+
+class CommandCarryAndStatusEvidenceSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        tool = _load_tool()
+        cls.carry = staticmethod(tool.SIGNATURES["carry_across_command"]["match"])
+        cls.evidence = staticmethod(
+            tool.SIGNATURES["status_request_evidence"]["match"]
+        )
+
+    @staticmethod
+    def _blob(result):
+        return json.dumps(
+            [{"request": {"toolResults": [result]}}], ensure_ascii=False
+        )
+
+    def test_a_command_label_on_a_carried_result_fires(self):
+        blob = self._blob({
+            "name": "read_file",
+            "result": {"content": "x"},
+            "changesSinceCapture": [
+                "write_file /p/a.py",
+                "local_execute_command `pytest -q`",
+            ],
+        })
+        self.assertTrue(self.carry(blob))
+
+    def test_a_file_write_label_alone_does_not_fire(self):
+        blob = self._blob({
+            "name": "read_file",
+            "result": {"content": "x"},
+            "changesSinceCapture": ["write_file /p/a.py"],
+        })
+        self.assertFalse(self.carry(blob))
+
+    def test_status_evidence_fires_from_the_parsed_result(self):
+        blob = self._blob({
+            "name": "coding_continuation_recovery",
+            "result": {"code": "structured_coding_task_status",
+                       "capturedEvidence": {"fileChanges": []}},
+        })
+        self.assertTrue(self.evidence(blob))
+
+    def test_status_evidence_quoted_as_text_does_not_fire(self):
+        blob = self._blob({
+            "name": "read_file",
+            "result": {"content": '"capturedEvidence": {}'},
+        })
+        self.assertFalse(self.evidence(blob))
+
+
+class LedgerAndGapGuidanceSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        tool = _load_tool()
+        cls.replay = staticmethod(
+            tool.SIGNATURES["verifier_replay_keeps_edit"]["match"]
+        )
+        cls.guidance = staticmethod(
+            tool.SIGNATURES["project_gap_guidance"]["match"]
+        )
+
+    @staticmethod
+    def _blob(*results):
+        return json.dumps(
+            [{"request": {"toolResults": list(results)}}], ensure_ascii=False
+        )
+
+    _REPLAY = {"id": "post_mutation_verifier_2_1", "name": "local_execute_command"}
+
+    def test_a_replay_that_labels_the_edit_fires(self):
+        read = {"id": "r", "name": "read_file",
+                "changesSinceCapture": ["edit_file /p/ROADMAP.md"]}
+        self.assertTrue(self.replay(self._blob(read, self._REPLAY)))
+
+    def test_a_replay_without_the_edit_does_not_fire(self):
+        read = {"id": "r", "name": "read_file",
+                "changesSinceCapture": ["local_execute_command `pytest`"]}
+        self.assertFalse(self.replay(self._blob(read, self._REPLAY)))
+
+    def test_an_edit_labelled_after_the_replay_request_does_not_fire(self):
+        replay = dict(self._REPLAY, changesSinceCapture=["edit_file /p/a.md"])
+        later = {"id": "r2", "name": "read_file"}
+        self.assertFalse(self.replay(self._blob(replay, later)))
+
+    def test_an_edit_label_without_a_replay_does_not_fire(self):
+        read = {"id": "r", "name": "read_file",
+                "changesSinceCapture": ["edit_file /p/ROADMAP.md"]}
+        self.assertFalse(self.replay(self._blob(read)))
+
+    def test_the_guidance_in_an_update_goal_result_fires(self):
+        result = {"name": "update_goal", "result": "Completion not recorded. "
+                  "Do not change files only to satisfy these checks."}
+        self.assertTrue(self.guidance(self._blob(result)))
+
+    def test_the_guidance_quoted_in_a_file_read_does_not_fire(self):
+        result = {"name": "read_file", "result": {"content": (
+            "Do not change files only to satisfy these checks.")}}
+        self.assertFalse(self.guidance(self._blob(result)))
+
+
+class SearchFilesLineAnchorSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["search_files_line_anchor"]["match"]
+        )
+
+    @staticmethod
+    def _blob(result):
+        return json.dumps(
+            [{"request": {"toolResults": [{"result": result}]}}],
+            ensure_ascii=False,
+        )
+
+    @staticmethod
+    def _result(query, matches):
+        return {
+            "path": "/repo",
+            "query": query,
+            "matches": matches,
+            "match_count": len(matches),
+        }
+
+    def test_an_anchored_hit_fires(self):
+        blob = self._blob(
+            self._result("^version:", ["pubspec.yaml:19: version: 1.3.48+62"])
+        )
+        self.assertTrue(self.match(blob))
+
+    def test_an_anchored_miss_does_not_fire(self):
+        self.assertFalse(self.match(self._blob(self._result("^version:", []))))
+
+    def test_an_unanchored_hit_does_not_fire(self):
+        blob = self._blob(
+            self._result("version:", ["pubspec.yaml:19: version: 1.3.48+62"])
+        )
+        self.assertFalse(self.match(blob))
+
+
+class CarryAcrossGitAddSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["carry_across_git_add"]["match"]
+        )
+
+    @staticmethod
+    def _blob(result):
+        return json.dumps(
+            [{"request": {"toolResults": [result]}}], ensure_ascii=False
+        )
+
+    def test_a_git_add_label_fires(self):
+        result = {
+            "id": "tag",
+            "name": "git_execute_command",
+            "changesSinceCapture": ["edit_file a.md", "git add a.md pubspec.yaml"],
+        }
+        self.assertTrue(self.match(self._blob(result)))
+
+    def test_a_file_write_label_does_not_fire(self):
+        result = {"id": "tag", "changesSinceCapture": ["edit_file pubspec.yaml"]}
+        self.assertFalse(self.match(self._blob(result)))
+
+    def test_the_label_quoted_as_text_does_not_fire(self):
+        quoted = json.dumps({"changesSinceCapture": ["git add a.md"]})
+        blob = json.dumps([{"request": {"messages": [{"content": quoted}]}}])
+        self.assertFalse(self.match(blob))
+
+
+class LoopLimitRecoveryCarrySignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["loop_limit_recovery_carry"]["match"]
+        )
+
+    @staticmethod
+    def _log(recovery_result_ids):
+        return json.dumps(
+            [
+                {"request": {}, "response": {"toolCalls": [{"id": "read-1"}]}},
+                {"request": {}, "response": {"toolCalls": [{"id": "read-2"}]}},
+                {"request": {}, "response": {"toolCalls": [{"id": "read-3"}]}},
+                {
+                    "request": {
+                        "messages": [
+                            {"role": "user", "content": "task"},
+                            {
+                                "role": "user",
+                                "content": "You hit the bounded tool loop limit ...",
+                            },
+                        ],
+                        "toolResults": [{"id": i} for i in recovery_result_ids],
+                    },
+                    "response": {"content": "done"},
+                },
+            ]
+        )
+
+    def test_a_carried_earlier_result_fires(self):
+        self.assertTrue(self.match(self._log(["read-1", "read-2"])))
+
+    def test_the_last_batch_alone_does_not_fire(self):
+        self.assertFalse(self.match(self._log(["read-2"])))
+
+    def test_a_log_without_recovery_does_not_fire(self):
+        self.assertFalse(self.match(json.dumps([{"request": {}, "response": {}}])))
+
+
+class GuardRefusalNotExecutedSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["guard_refusal_not_executed"]["match"]
+        )
+
+    COMMIT = 'commit -m "chore: bump"'
+
+    @classmethod
+    def _result(cls, rid, command, payload):
+        return {
+            "id": rid,
+            "name": "git_execute_command",
+            "arguments": {"command": command},
+            "result": json.dumps(payload),
+        }
+
+    @classmethod
+    def _log(cls, refusal, retry):
+        results = [cls._result("c1", cls.COMMIT, refusal)]
+        if retry is not None:
+            results.append(cls._result("c2", cls.COMMIT, retry))
+        return json.dumps([{"request": {"toolResults": results}, "response": {}}])
+
+    REFUSAL = {
+        "ok": False,
+        "result_origin": "refusal",
+        "code": "commit_without_diff_inspection_blocked",
+    }
+
+    def test_a_declared_refusal_then_a_run_fires(self):
+        self.assertTrue(self.match(self._log(self.REFUSAL, {"exit_code": 0})))
+
+    def test_the_old_undeclared_refusal_does_not_fire(self):
+        old = {"code": "commit_without_diff_inspection_blocked"}
+        self.assertFalse(self.match(self._log(old, {"exit_code": 0})))
+
+    def test_a_refusal_never_retried_does_not_fire(self):
+        self.assertFalse(self.match(self._log(self.REFUSAL, None)))
+
+    def test_a_replayed_refusal_does_not_fire(self):
+        replay = dict(self.REFUSAL, code="duplicate_tool_call_result_reused")
+        self.assertFalse(self.match(self._log(self.REFUSAL, replay)))
+
+
+class LoopLimitQuestionToUserSignatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["loop_limit_question_to_user"]["match"]
+        )
+
+    @staticmethod
+    def _log(next_operation, next_prompt):
+        return json.dumps(
+            [
+                {
+                    "operation": "streamChatCompletionWithToolResults",
+                    "request": {},
+                    "response": {"toolCalls": [{"name": "ask_user_question"}]},
+                },
+                {
+                    "operation": next_operation,
+                    "request": {"messages": [{"role": "user", "content": next_prompt}]},
+                    "response": {"content": "done"},
+                },
+            ]
+        )
+
+    def test_a_question_followed_by_the_final_answer_fires(self):
+        self.assertTrue(
+            self.match(self._log("streamChatCompletion", "Please answer ..."))
+        )
+
+    def test_a_loop_limit_recovery_does_not_fire(self):
+        self.assertFalse(
+            self.match(
+                self._log(
+                    "streamChatCompletion",
+                    "You hit the bounded tool loop limit ...",
+                )
+            )
+        )
+
+    def test_an_ordinary_follow_up_does_not_fire(self):
+        self.assertFalse(
+            self.match(
+                self._log("streamChatCompletionWithToolResults", "tool results")
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

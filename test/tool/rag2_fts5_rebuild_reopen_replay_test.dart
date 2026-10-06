@@ -22,6 +22,25 @@ const _neighborProjectId = 'rag2-fts5-rebuild-neighbor';
 const _staleHash = 'stale-hash';
 
 void main() {
+  // These two tests ran the replay three times between them: twice for the
+  // idempotency check, and a third time only to read the artifacts off disk.
+  // One shared run serves both, because the second run writes the same
+  // artifacts as the first -- the property the idempotency test asserts, so a
+  // regression there still fails loudly.
+  late final Directory sharedOutput;
+  setUpAll(
+    () => sharedOutput = Directory.systemTemp.createTempSync(
+      'rag2-fts5-rebuild-shared-',
+    ),
+  );
+  tearDownAll(() => sharedOutput.deleteSync(recursive: true));
+  late final sharedOptions = Rag2Fts5RebuildReopenOptions(
+    fixturePath: _fixturePath,
+    outDir: sharedOutput.path,
+    storeRoot: '${sharedOutput.path}/store',
+  );
+  late final sharedReplay = runRag2Fts5RebuildReopenReplay(sharedOptions);
+
   final projectIdentity = rag2ExplicitSourceRootsProjectIdentity(_projectId);
 
   test('rebuilds a cleared slot from generation 2 payload', () async {
@@ -339,38 +358,19 @@ void main() {
   });
 
   test('replays twice against the same output directory', () async {
-    final output = Directory.systemTemp.createTempSync(
-      'rag2-fts5-rebuild-twice-',
-    );
-    addTearDown(() => output.deleteSync(recursive: true));
-    final options = Rag2Fts5RebuildReopenOptions(
-      fixturePath: _fixturePath,
-      outDir: output.path,
-      storeRoot: '${output.path}/store',
-    );
-    final first = await runRag2Fts5RebuildReopenReplay(options);
-    final second = await runRag2Fts5RebuildReopenReplay(options);
+    final first = await sharedReplay;
+    final second = await runRag2Fts5RebuildReopenReplay(sharedOptions);
     expect(first.contractPassed, isTrue);
     expect(second.toJson(), first.toJson());
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('writes aggregate-only reports', () async {
-    final output = Directory.systemTemp.createTempSync(
-      'rag2-fts5-rebuild-report-',
-    );
-    addTearDown(() => output.deleteSync(recursive: true));
-    final report = await runRag2Fts5RebuildReopenReplay(
-      Rag2Fts5RebuildReopenOptions(
-        fixturePath: _fixturePath,
-        outDir: output.path,
-        storeRoot: '${output.path}/store',
-      ),
-    );
+    final report = await sharedReplay;
     final jsonReport = File(
-      '${output.path}/rag2_fts5_rebuild_reopen.json',
+      '${sharedOutput.path}/rag2_fts5_rebuild_reopen.json',
     ).readAsStringSync();
     final markdownReport = File(
-      '${output.path}/rag2_fts5_rebuild_reopen.md',
+      '${sharedOutput.path}/rag2_fts5_rebuild_reopen.md',
     ).readAsStringSync();
 
     expect(report.contractPassed, isTrue);

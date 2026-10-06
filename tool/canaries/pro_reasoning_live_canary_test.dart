@@ -557,6 +557,7 @@ final class _RecordingModelUsageSink implements ModelUsageSink {
     required TokenUsage usage,
     required int durationMs,
     String? label,
+    String? conversationId,
     String? finishReason,
     bool isError = false,
   }) {
@@ -687,6 +688,7 @@ final class _NoopSessionMemoryService extends SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async => const MemoryUpdateResult.none();
 
   @override

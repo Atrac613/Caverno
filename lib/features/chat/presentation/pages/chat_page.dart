@@ -18,6 +18,8 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
+import '../../../project_farm/presentation/project_task_review_launcher.dart';
+import '../../../project_farm/presentation/widgets/project_task_progress_section.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
@@ -38,12 +40,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/composer_assistant_mode_resolver.dart';
-import '../../domain/services/conversation_execution_recovery_service.dart';
-import '../../domain/services/conversation_plan_diff_service.dart';
-import '../../domain/services/conversation_plan_document_builder.dart';
-import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
-import '../../domain/services/conversation_task_readiness.dart';
 import '../coordinators/chat_dropped_attachments.dart';
 import '../coordinators/chat_dropped_attachments_take.dart';
 import '../coordinators/chat_page_composer_runtime_coordinator.dart';
@@ -53,7 +50,6 @@ import '../coordinators/feedback_slash_command_coordinator.dart';
 import '../coordinators/goal_slash_command_coordinator.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
 import '../coordinators/slash_command_action_coordinator.dart';
-import '../coordinators/workflow_editor_action_coordinator.dart';
 import '../coordinators/workflow_task_action_coordinator.dart';
 import '../coordinators/workflow_task_run_coordinator.dart';
 import '../providers/chat_notifier.dart';
@@ -72,11 +68,13 @@ import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/approval/approval_dialog_route.dart';
+import '../widgets/background_process_panel.dart';
 import '../widgets/chat_error_banner.dart';
 import '../widgets/chat_page_scaffold.dart';
 import '../widgets/chat_right_sidebar.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/conversation_goal_status_presentation.dart';
+import '../widgets/conversation_work_time_section.dart';
 import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/flutter_run_issue_list.dart';
 import '../widgets/local_llm_health_section.dart';
@@ -85,29 +83,21 @@ import '../widgets/message_input.dart';
 import '../widgets/message_input_send_handler.dart';
 import '../widgets/mobile_keyboard_dismiss.dart';
 import '../widgets/participant_roster_bar.dart';
+import '../widgets/plan/awaiting_you_sheet.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
-import '../widgets/plan/contract_item_list_section.dart';
-import '../widgets/plan/plan_document_approval_sheet.dart';
-import '../widgets/plan/plan_document_editor_sheet.dart';
-import '../widgets/plan/plan_execution_overview_card.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
-import '../widgets/plan/plan_markdown_preview.dart';
 import '../widgets/plan/plan_open_question_section.dart';
 import '../widgets/plan/plan_review_sheet.dart';
-import '../widgets/plan/plan_revision_history_sheet.dart';
-import '../widgets/plan/task_precondition_notice.dart';
-import '../widgets/plan/workflow_task_menu_items.dart';
 import '../widgets/pro_reasoning_progress_card.dart';
 import '../widgets/project_run_control_section.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
+import '../widgets/thread_message_list_view.dart';
 import '../widgets/token_usage_indicator.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/turn_rollback_confirmation_dialog.dart';
-import '../widgets/workflow/workflow_editor_sheet.dart';
-import '../widgets/workflow/workflow_task_editor_sheet.dart';
 import '../widgets/workflow_status_presentation.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import 'approval_dialog_presenter.dart';
@@ -123,7 +113,6 @@ part 'chat_page_header_builders.dart';
 part 'chat_page_plan_builders.dart';
 part 'chat_page_support.dart';
 part 'chat_page_turn_rollback_support.dart';
-part 'chat_page_workflow_builders.dart';
 part 'chat_page_workflow_support.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
@@ -140,14 +129,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final _workflowPanelScrollController = ScrollController();
   final ApprovalDialogPresenter _approvalDialogs = ApprovalDialogPresenter();
   final Set<String> _rolledBackTurnDiffIds = <String>{};
+  final _projectTaskReviews = ProjectTaskReviewLauncher();
   final _uuid = const Uuid();
-  String? _workflowPanelConversationId;
-  bool _isApprovedPlanExpanded = false;
   bool _isPresentingPlanReviewSheet = false;
   String? _trackedPlanGenerationConversationId;
   String? _lastAutoPresentedPlanReviewDraftKey;
   bool _wasGeneratingPlanForTrackedConversation = false;
-  bool _wasShowingPlanDraft = false;
   bool _isCompanionSidebarVisible = true;
   String _composerPrefillText = '';
   int _composerPrefillVersion = 0;
@@ -222,6 +209,47 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     setState(() {
       _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
     });
+  }
+
+  Widget _buildThreadMessageItem(
+    BuildContext context,
+    int index, {
+    required ChatState chatState,
+    required ConversationsState conversationsState,
+    required bool isCodingWorkspace,
+  }) {
+    final onReselect = isCodingWorkspace ? _pickAndActivateProject : null;
+    if (index >= chatState.messages.length) {
+      return MessageBubble(
+        key: const ValueKey('plan-status-message'),
+        message: _buildPlanStatusMessage(context, chatState: chatState),
+        onOpenFileWorkspaceViewer: _openFileWorkspaceViewer,
+        onReselectProject: onReselect,
+      );
+    }
+    final message = chatState.messages[index];
+    final turnDiff = conversationsState.currentConversation
+        ?.turnDiffForAssistantMessage(message.id);
+    final canRewind =
+        !chatState.isLoading &&
+        !message.isStreaming &&
+        index < chatState.messages.length - 1;
+    return MessageBubble(
+      key: ValueKey(message.id),
+      message: message,
+      conversationId: conversationsState.currentConversationId,
+      turnDiff: turnDiff,
+      onOpenTurnDiff: turnDiff == null
+          ? null
+          : () =>
+                _openFileWorkspaceViewer(_buildTurnDiffViewerRequest(turnDiff)),
+      onOpenFileWorkspaceViewer: _openFileWorkspaceViewer,
+      canRewind: canRewind,
+      onRewindToHere: canRewind
+          ? () => _rewindConversationToMessage(context, message)
+          : null,
+      onReselectProject: onReselect,
+    );
   }
 
   void _openDashboard() {
@@ -300,7 +328,43 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required Conversation? currentConversation,
     required ConversationsState conversationsState,
     required List<SlashCommandPromptTemplate> customPromptTemplates,
-  }) {
+  }) async {
+    if (isLoading && !invocation.definition.enabledWhileLoading) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_blocked_while_loading'.tr(),
+      );
+    }
+    if (invocation.definition.promptTemplateId == 'review' ||
+        invocation.definition.action == SlashCommandAction.review) {
+      final settings = ref.read(settingsNotifierProvider);
+      if (!isCodingWorkspace || activeProject == null) {
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_review_unavailable'.tr(),
+        );
+      }
+      if (!settings.hasCodeReviewRoute) {
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_review_not_configured'.tr(),
+        );
+      }
+      final template = builtInSlashCommandPromptTemplates.firstWhere(
+        (template) => template.id == 'review',
+      );
+      unawaited(
+        ref
+            .read(chatNotifierProvider.notifier)
+            .sendMessage(
+              template.expand(
+                args: invocation.args,
+                commandName: invocation.commandName,
+              ),
+              languageCode: context.locale.languageCode,
+              purpose: PrimaryTurnPurpose.codeReview,
+              bypassPlanMode: true,
+            ),
+      );
+      return SlashCommandExecutionResult.handled;
+    }
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
@@ -382,8 +446,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _selectDrawerConversation(String conversationId) =>
-      _workspaceNavigationCoordinator.selectConversation(conversationId);
+  Future<void> _selectDrawerConversation(String conversationId) async {
+    await _workspaceNavigationCoordinator.selectConversation(conversationId);
+    if (!mounted) return;
+    unawaited(
+      _projectTaskReviews.start(
+        ref: ref,
+        conversationId: conversationId,
+        languageCode: context.locale.languageCode,
+        isMounted: () => mounted,
+        showMessage: (message) => ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message))),
+      ),
+    );
+  }
 
   void _createDrawerChatConversation() {
     _leaveDashboard();
@@ -906,72 +983,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 context,
                                 isCodingWorkspace: isCodingWorkspace,
                               )
-                            : NotificationListener<ScrollNotification>(
-                                onNotification:
+                            : ThreadMessageListView(
+                                controller: _threadScroll.controller,
+                                onScrollNotification:
                                     _threadScroll.handleScrollNotification,
-                                child: ListView.builder(
-                                  key: const ValueKey('chat-message-list'),
-                                  controller: _threadScroll.controller,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                  ),
-                                  itemCount:
-                                      chatState.messages.length +
-                                      (shouldShowPlanStatusMessage ? 1 : 0),
-                                  itemBuilder: (context, index) {
-                                    if (index >= chatState.messages.length) {
-                                      return MessageBubble(
-                                        key: const ValueKey(
-                                          'plan-status-message',
-                                        ),
-                                        message: _buildPlanStatusMessage(
-                                          context,
-                                          chatState: chatState,
-                                        ),
-                                        onOpenFileWorkspaceViewer:
-                                            _openFileWorkspaceViewer,
-                                        onReselectProject: isCodingWorkspace
-                                            ? _pickAndActivateProject
-                                            : null,
-                                      );
-                                    }
-                                    final message = chatState.messages[index];
-                                    final turnDiff = currentConversation
-                                        ?.turnDiffForAssistantMessage(
-                                          message.id,
-                                        );
-                                    final canRewind =
-                                        !chatState.isLoading &&
-                                        !message.isStreaming &&
-                                        index < chatState.messages.length - 1;
-                                    return MessageBubble(
-                                      key: ValueKey(message.id),
-                                      message: message,
-                                      conversationId: conversationsState
-                                          .currentConversationId,
-                                      turnDiff: turnDiff,
-                                      onOpenTurnDiff: turnDiff == null
-                                          ? null
-                                          : () => _openFileWorkspaceViewer(
-                                              _buildTurnDiffViewerRequest(
-                                                turnDiff,
-                                              ),
-                                            ),
-                                      onOpenFileWorkspaceViewer:
-                                          _openFileWorkspaceViewer,
-                                      canRewind: canRewind,
-                                      onRewindToHere: canRewind
-                                          ? () => _rewindConversationToMessage(
-                                              context,
-                                              message,
-                                            )
-                                          : null,
-                                      onReselectProject: isCodingWorkspace
-                                          ? _pickAndActivateProject
-                                          : null,
-                                    );
-                                  },
-                                ),
+                                itemCount:
+                                    chatState.messages.length +
+                                    (shouldShowPlanStatusMessage ? 1 : 0),
+                                itemBuilder: (context, index) =>
+                                    _buildThreadMessageItem(
+                                      context,
+                                      index,
+                                      chatState: chatState,
+                                      conversationsState: conversationsState,
+                                      isCodingWorkspace: isCodingWorkspace,
+                                    ),
+                                scrollToBottomVisibility: isCodingWorkspace
+                                    ? _threadScroll.showScrollToBottomButton
+                                    : null,
+                                onScrollToBottom: _threadScroll.scrollToBottom,
                               ),
                       ),
                       if (!shouldShowCodingDraftComposer &&
@@ -987,10 +1017,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           canCompose &&
                           (chatState.queuedMessages.isNotEmpty ||
                               chatState.steeringMessages.isNotEmpty))
-                        QueuedMessagesStrip(
-                          messages: chatState.queuedMessages,
-                          steeringMessages: chatState.steeringMessages,
+                        QueuedMessagesStrip.forChat(
+                          chatState,
                           onRemove: chatNotifier.removeQueuedMessage,
+                          onInterrupt: chatNotifier.interruptWithQueuedMessage,
                         ),
                       if (canCompose && !shouldShowCodingDraftComposer)
                         buildMessageInput(),
@@ -1016,6 +1046,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 ?.buildViewer(
                                   onClose: _closeFileWorkspaceViewer,
                                 ),
+                            processPanel: BackgroundProcessPanel.of(
+                              sidebarConversation.id,
+                            ),
                             selectedTab: _rightSidebarTab,
                             onSelected: (selection) {
                               setState(() {
@@ -1203,7 +1236,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         :final nextTask,
       ):
         setState(() {
-          _isApprovedPlanExpanded = false;
           _composerPrefillText = '';
           _composerPrefillVersion++;
         });
@@ -1240,219 +1272,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         now: DateTime.now,
       );
 
-  Future<void> _showWorkflowEditor(
-    BuildContext context,
-    Conversation currentConversation, {
-    ConversationWorkflowStage? initialWorkflowStage,
-    ConversationWorkflowSpec? initialWorkflowSpec,
-    bool dismissWorkflowProposalOnSave = false,
-  }) async {
-    if (currentConversation.shouldPreferPlanDocument) {
-      if (currentConversation.hasPlanArtifact) {
-        await _showPlanDocumentEditor(
-          context,
-          currentConversation,
-          preferDraft: currentConversation.isPlanningSession,
-        );
-      }
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('chat.workflow_edit_blocked_by_plan'.tr())),
-        );
-      }
-      return;
-    }
-
-    final result = await showModalBottomSheet<WorkflowEditorSubmission>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) => WorkflowEditorSheet(
-        currentConversation: currentConversation,
-        initialWorkflowStage: initialWorkflowStage,
-        initialWorkflowSpec: initialWorkflowSpec,
-        workflowStageLabelBuilder: _workflowStageLabel,
-      ),
-    );
-    if (result == null) {
-      return;
-    }
-
-    final outcome = await _workflowEditorActionCoordinator.applySubmission(
-      result,
-      dismissWorkflowProposalOnSave: dismissWorkflowProposalOnSave,
-    );
-    if (context.mounted) {
-      final messageKey = switch (outcome) {
-        WorkflowEditorApplyOutcome.saved => 'chat.workflow_saved',
-        WorkflowEditorApplyOutcome.cleared => 'chat.workflow_cleared',
-      };
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(messageKey.tr())));
-    }
-  }
-
-  Future<void> _applyWorkflowProposal(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required WorkflowProposalDraft proposal,
-  }) async {
-    await _workflowEditorActionCoordinator.applyWorkflowProposal(
-      currentConversation: currentConversation,
-      proposal: proposal,
-    );
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('chat.workflow_saved'.tr())));
-    }
-  }
-
-  WorkflowEditorActionCoordinator get _workflowEditorActionCoordinator =>
-      WorkflowEditorActionCoordinator(
-        conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
-        dismissWorkflowProposal: () =>
-            ref.read(chatNotifierProvider.notifier).dismissWorkflowProposal(),
-      );
-
-  Future<void> _applyTaskProposal(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required WorkflowTaskProposalDraft proposal,
-  }) async {
-    await _workflowTaskActionCoordinator.applyTaskProposal(
-      currentConversation: currentConversation,
-      proposal: proposal,
-    );
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('chat.workflow_task_saved'.tr())));
-    }
-  }
-
-  Future<void> _runWorkflowQuickAction(
-    BuildContext context, {
-    required _WorkflowQuickAction action,
-  }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    final chatNotifier = ref.read(chatNotifierProvider.notifier);
-
-    await conversationsNotifier.updateCurrentWorkflow(
-      workflowStage: action.targetStage,
-    );
-    if (!context.mounted) {
-      return;
-    }
-
-    await chatNotifier.sendMessage(
-      action.promptKey.tr(),
-      languageCode: context.locale.languageCode,
-      bypassPlanMode: true,
-    );
-  }
-
-  Future<void> _handleWorkflowTaskMenuAction(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-    required WorkflowTaskMenuAction action,
-  }) async {
-    final outcome = await _workflowTaskActionCoordinator.handleMenuAction(
-      currentConversation: currentConversation,
-      task: task,
-      action: action,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    switch (outcome) {
-      case WorkflowTaskMenuOutcome.none:
-        return;
-      case WorkflowTaskMenuOutcome.unblocked:
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('chat.workflow_task_unblocked'.tr())),
-          );
-        }
-      case WorkflowTaskMenuOutcome.editBlockedReason:
-        await _editWorkflowTaskBlockedReason(
-          context,
-          currentConversation: currentConversation,
-          task: task,
-        );
-      case WorkflowTaskMenuOutcome.replanFromBlocker:
-        await _replanFromBlockedTask(
-          context,
-          currentConversation: currentConversation,
-          task: task,
-        );
-      case WorkflowTaskMenuOutcome.edit:
-        await _showWorkflowTaskEditor(
-          context,
-          currentConversation: currentConversation,
-          task: task,
-        );
-      case WorkflowTaskMenuOutcome.deleted:
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('chat.workflow_task_deleted'.tr())),
-          );
-        }
-    }
-  }
-
-  Future<void> _showWorkflowTaskEditor(
-    BuildContext context, {
-    required Conversation currentConversation,
-    ConversationWorkflowTask? task,
-  }) async {
-    if (currentConversation.shouldPreferPlanDocument) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('chat.workflow_task_edit_blocked_by_plan'.tr()),
-          ),
-        );
-      }
-      return;
-    }
-
-    final result = await showModalBottomSheet<WorkflowTaskEditorSubmission>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) => WorkflowTaskEditorSheet(
-        task: task,
-        statusLabelBuilder: _workflowTaskStatusLabel,
-      ),
-    );
-    if (result == null) {
-      return;
-    }
-
-    final outcome = await _workflowTaskActionCoordinator.applyEditorSubmission(
-      currentConversation: currentConversation,
-      submission: result,
-    );
-    if (!context.mounted || outcome == WorkflowTaskApplyOutcome.ignored) {
-      return;
-    }
-    final messageKey = switch (outcome) {
-      WorkflowTaskApplyOutcome.saved => 'chat.workflow_task_saved',
-      WorkflowTaskApplyOutcome.deleted => 'chat.workflow_task_deleted',
-      WorkflowTaskApplyOutcome.ignored => throw StateError(
-        'Ignored task editor outcomes do not produce notifications.',
-      ),
-    };
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(messageKey.tr())));
-  }
-
   Future<void> _setWorkflowTaskStatus({
     required Conversation currentConversation,
     required ConversationWorkflowTask task,
@@ -1481,27 +1300,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _markWorkflowTaskUnblocked(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) async {
-    await _workflowTaskActionCoordinator.setTaskStatus(
-      currentConversation: currentConversation,
-      task: task,
-      status: ConversationWorkflowTaskStatus.pending,
-      summary: 'Cleared the blocker and moved the task back to pending.',
-      blockedReason: '',
-      eventType: ConversationExecutionTaskEventType.unblocked,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('chat.workflow_task_unblocked'.tr())),
-    );
-  }
-
   WorkflowTaskActionCoordinator get _workflowTaskActionCoordinator =>
       WorkflowTaskActionCoordinator(
         conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
@@ -1511,212 +1309,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         dismissTaskProposal: () =>
             ref.read(chatNotifierProvider.notifier).dismissTaskProposal(),
       );
-
-  Future<void> _editWorkflowTaskBlockedReason(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) async {
-    if (!currentConversation.shouldPreferPlanDocument) {
-      return;
-    }
-
-    final existingReason =
-        currentConversation
-            .executionProgressForTask(task.id)
-            ?.normalizedBlockedReason ??
-        'This task is blocked and needs follow-up.';
-    final result = await _showBlockedReasonEditor(
-      context,
-      initialReason: existingReason,
-    );
-    if (result == null) {
-      return;
-    }
-
-    final nextReason = result.trim();
-    if (nextReason.isEmpty) {
-      if (!context.mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('chat.workflow_task_blocked_reason_required'.tr()),
-        ),
-      );
-      return;
-    }
-
-    await _setWorkflowTaskStatus(
-      currentConversation: currentConversation,
-      task: task,
-      status: ConversationWorkflowTaskStatus.blocked,
-      summary: 'Updated the blocker details from the approved plan flow.',
-      blockedReason: nextReason,
-      eventType: ConversationExecutionTaskEventType.blocked,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('chat.workflow_task_blocked_reason_saved'.tr())),
-    );
-  }
-
-  Future<String?> _showBlockedReasonEditor(
-    BuildContext context, {
-    required String initialReason,
-  }) async {
-    final controller = TextEditingController(text: initialReason);
-    try {
-      return await showDialog<String>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('chat.workflow_task_blocked_reason_editor_title'.tr()),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            minLines: 3,
-            maxLines: 6,
-            decoration: InputDecoration(
-              hintText: 'chat.workflow_task_blocked_reason_editor_hint'.tr(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text('common.cancel'.tr()),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text('common.save'.tr()),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      controller.dispose();
-    }
-  }
-
-  Future<void> _replanFromBlockedTask(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) async {
-    if (!currentConversation.shouldPreferPlanDocument) {
-      return;
-    }
-
-    final latestConversation =
-        ref.read(conversationsNotifierProvider).currentConversation ??
-        currentConversation;
-    final blockedReason =
-        latestConversation
-            .executionProgressForTask(task.id)
-            ?.normalizedBlockedReason ??
-        'This task is currently blocked.';
-    await _startScopedReplan(
-      context,
-      currentConversation: latestConversation,
-      task: task,
-      snackBarMessage: 'chat.workflow_task_replan_from_blocker_started'.tr(),
-      eventSummary:
-          'Started a blocker-focused replan from the approved plan flow.',
-      planningContext:
-          ConversationPlanExecutionCoordinator.buildBlockedTaskReplanContext(
-            conversation: latestConversation,
-            task: task,
-            blockedReason: blockedReason,
-          ),
-    );
-  }
-
-  Future<void> _replanCurrentTask(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) async {
-    if (!currentConversation.shouldPreferPlanDocument) {
-      return;
-    }
-
-    await _startScopedReplan(
-      context,
-      currentConversation: currentConversation,
-      task: task,
-      snackBarMessage: 'chat.plan_document_replan_current_task_started'.tr(),
-      eventSummary:
-          'Started a current-task-focused replan from the approved plan flow.',
-      planningContext:
-          ConversationPlanExecutionCoordinator.buildScopedTaskReplanContext(
-            conversation: currentConversation,
-            task: task,
-          ),
-    );
-  }
-
-  Future<void> _replanValidationPath(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) async {
-    if (!currentConversation.shouldPreferPlanDocument) {
-      return;
-    }
-
-    await _startScopedReplan(
-      context,
-      currentConversation: currentConversation,
-      task: task,
-      snackBarMessage: 'chat.plan_document_replan_validation_started'.tr(),
-      eventSummary:
-          'Started a validation-path-focused replan from the approved plan flow.',
-      planningContext:
-          ConversationPlanExecutionCoordinator.buildValidationScopedReplanContext(
-            conversation: currentConversation,
-            task: task,
-          ),
-    );
-  }
-
-  Future<void> _startScopedReplan(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-    required String snackBarMessage,
-    required String eventSummary,
-    required String planningContext,
-  }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    final chatNotifier = ref.read(chatNotifierProvider.notifier);
-    final languageCode = context.locale.languageCode;
-
-    if (!currentConversation.isPlanningSession) {
-      await conversationsNotifier.enterPlanningSession();
-    }
-
-    await conversationsNotifier.appendCurrentExecutionTaskEvent(
-      taskId: task.id,
-      eventType: ConversationExecutionTaskEventType.replanned,
-      summary: eventSummary,
-    );
-
-    await chatNotifier.generatePlanProposalWithContext(
-      languageCode: languageCode,
-      additionalPlanningContext: planningContext,
-    );
-
-    if (!context.mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
-  }
 
   String? _activeProjectRootPath() {
     final conversationsState = ref.read(conversationsNotifierProvider);
@@ -1777,24 +1369,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       outro: task.status == ConversationWorkflowTaskStatus.completed
           ? 'chat.workflow_task_review_prompt_outro'.tr()
           : 'chat.workflow_task_use_prompt_outro'.tr(),
-    ),
-  );
-
-  Future<void> _runWorkflowTaskValidation(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) => _createWorkflowTaskRunCoordinator(context).runValidation(
-    currentConversation: currentConversation,
-    task: task,
-    languageCode: context.locale.languageCode,
-    promptText: WorkflowTaskValidationPromptText(
-      intro: 'chat.workflow_task_validation_prompt_intro'.tr(
-        namedArgs: {'title': task.title},
-      ),
-      targetFilesLabel: 'chat.workflow_task_target_files'.tr(),
-      validationLabel: 'chat.workflow_task_validation'.tr(),
-      outro: 'chat.workflow_task_validation_prompt_outro'.tr(),
     ),
   );
 }
