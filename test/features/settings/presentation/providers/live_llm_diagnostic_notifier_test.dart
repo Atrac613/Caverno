@@ -22,13 +22,17 @@ import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
   test('run persists a model capability profile from the report', () async {
+    // Chat reasoning controls that must not reach the diagnostic requests.
     final initialSettings = AppSettings.defaults().copyWith(
       model: 'diagnostic-model',
+      reasoningEffort: ReasoningEffortPreference.high,
+      enableThinking: true,
       mcpEnabled: false,
       mcpUrl: '',
       mcpUrls: const <String>[],
       mcpServers: const <McpServerConfig>[],
     );
+    final requestedShapes = <AppSettings>[];
     SharedPreferences.setMockInitialValues({
       'app_settings': jsonEncode(initialSettings.toJson()),
     });
@@ -36,9 +40,10 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _TextOnlyDiagnosticDataSource(),
-        ),
+        chatDataSourceFactoryProvider.overrideWithValue((shaped) {
+          requestedShapes.add(shaped);
+          return _TextOnlyDiagnosticDataSource();
+        }),
         mcpToolServiceProvider.overrideWithValue(null),
       ],
     );
@@ -69,10 +74,64 @@ void main() {
     expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
     // Both vision shapes read the image, and the no-image control arm did not.
     expect(profile.visionSupport, ModelVisionSupport.reliable);
+    // An endpoint that cannot be sent enable_thinking runs at the server
+    // default, whatever the chat composer asked for.
+    expect(requestedShapes, isNotEmpty);
+    for (final shaped in requestedShapes) {
+      expect(shaped.enableThinking, isNull);
+      expect(shaped.reasoningEffort, ReasoningEffortPreference.automatic);
+    }
     final history = LiveLlmDiagnosticHistoryRepository(prefs).load();
     expect(history, hasLength(1));
     expect(history.single.report.model, 'diagnostic-model');
     expect(history.single.report.finishedAt, isNotNull);
+  });
+
+  test('run sends the thinking mode and effort picked on the page', () async {
+    final initialSettings = AppSettings.defaults().copyWith(
+      model: 'qwen3.8-27b-exl3',
+      reasoningEffort: ReasoningEffortPreference.low,
+      enableThinking: true,
+      mcpEnabled: false,
+      mcpUrl: '',
+      mcpUrls: const <String>[],
+      mcpServers: const <McpServerConfig>[],
+    );
+    final requestedShapes = <AppSettings>[];
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        chatDataSourceFactoryProvider.overrideWithValue((shaped) {
+          requestedShapes.add(shaped);
+          return _TextOnlyDiagnosticDataSource();
+        }),
+        mcpToolServiceProvider.overrideWithValue(null),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(liveLlmDiagnosticNotifierProvider.notifier)
+      ..setThinkingMode(LiveLlmDiagnosticThinkingMode.off)
+      ..setReasoningEffort(ReasoningEffortPreference.high);
+
+    await notifier.run();
+
+    // The first datasource is the one every scored probe goes through; the
+    // rest belong to the thinking-control probe, which varies only the mode.
+    expect(requestedShapes, isNotEmpty);
+    expect(requestedShapes.first.enableThinking, isFalse);
+    for (final shaped in requestedShapes) {
+      expect(shaped.reasoningEffort, ReasoningEffortPreference.high);
+    }
+
+    notifier.setReasoningEffort(null);
+    expect(
+      container.read(liveLlmDiagnosticNotifierProvider).reasoningEffort,
+      isNull,
+    );
   });
 
   test('run persists sampler metadata from diagnostic trials', () async {
@@ -90,8 +149,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        chatRemoteDataSourceProvider.overrideWithValue(
-          _NativeToolDiagnosticDataSource(),
+        chatDataSourceFactoryProvider.overrideWithValue(
+          (_) => _NativeToolDiagnosticDataSource(),
         ),
         mcpToolServiceProvider.overrideWithValue(McpToolService()),
       ],

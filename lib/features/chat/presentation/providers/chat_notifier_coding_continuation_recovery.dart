@@ -31,45 +31,25 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
 
     _turnEnd.addTransform(owner, 'coding_continuation_recovery_$recoveryCode');
     appLog('[Tool] Requesting coding continuation recovery: $recoveryCode');
-    final recoveryToolResult = const CodingContinuationRecoveryPolicy()
-        .buildCodingContinuationRecoveryToolResult(
-          id: '${recoveryCode}_${DateTime.now().microsecondsSinceEpoch}',
-          candidateResponse: candidateResponse,
-          recoveryCode: recoveryCode,
-        );
-    List<Message> buildRecoveryMessages(bool forceCompaction) {
-      final messages = _prepareMessagesForLLM(
+    return CodingContinuationRecoveryRequest.run(
+      candidateResponse: candidateResponse,
+      recoveryCode: recoveryCode,
+      forcedPrompt: forcedRecoveryPrompt,
+      generation: interactionGeneration,
+      tools: tools,
+      executedResults: executedToolResults,
+      buildBaseMessages: (forceCompaction) => _prepareMessagesForLLM(
         forceCompaction: forceCompaction,
         toolDefinitionsOverride: tools,
         interactionGeneration: interactionGeneration,
-      );
-      messages.add(
-        Message(
-          id: '${recoveryCode}_recovery_${DateTime.now().millisecondsSinceEpoch}',
-          role: MessageRole.user,
-          content:
-              forcedRecoveryPrompt ??
-              const CodingContinuationRecoveryPolicy()
-                  .buildCodingContinuationRecoveryPrompt(
-                    candidateResponse,
-                    recoveryCode: recoveryCode,
-                    executedToolResults: executedToolResults,
-                  ),
-          timestamp: DateTime.now(),
-        ),
-      );
-      return messages;
-    }
-
-    return _createToolResultCompletionWithContextRetry(
-      logLabel: const CodingContinuationRecoveryPolicy().recoveryLogLabel(
-        recoveryCode,
       ),
-      interactionGeneration: interactionGeneration,
-      buildMessages: buildRecoveryMessages,
-      toolResults: [recoveryToolResult],
-      assistantContent: candidateResponse.isNotEmpty ? candidateResponse : null,
-      tools: tools,
+      carryResults: (feedback) =>
+          _readResultCarryFor(interactionGeneration).resolve(
+            batchToolResults: [feedback],
+            executedToolResults: executedToolResults,
+          ),
+      create: _createToolResultCompletionWithContextRetry,
+      isCurrent: () => _isCurrentInteractionGeneration(interactionGeneration),
     );
   }
 
@@ -79,6 +59,8 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     required int interactionGeneration,
     required bool requireContinuationRequest,
   }) {
+    final visible = ContentParser.stripModelHistoryArtifacts(candidateResponse);
+    final owner = _turnOwnerForGeneration(interactionGeneration);
     final ownerSnapshot = _turnOwnerSnapshotForGeneration(
       interactionGeneration,
     );
@@ -97,9 +79,17 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
         saveSkillCompletedInGeneration:
             _lastSaveSkillGeneration == interactionGeneration,
         acceptsTerminalToolRoleBlockerResponse:
-            _shouldAcceptTerminalToolRoleBlockerResponse(candidateResponse),
+            _shouldAcceptTerminalToolRoleBlockerResponse(visible),
         bracketedToolRequestName: const UnexecutedFinalAnswerToolRequestPolicy()
-            .bracketedToolRequestName(candidateResponse),
+            .bracketedToolRequestName(visible),
+        isProjectTaskTurn: _primaryRoutes.isProjectTaskTurn(
+          interactionGeneration,
+        ),
+        reasoningOnlyRecoveryUsed:
+            owner == null ||
+            _turnEnd
+                .transforms(owner)
+                .contains('coding_continuation_recovery_reasoning_only_stop'),
       ),
     );
   }

@@ -165,6 +165,90 @@ All tests passed!
   });
 
   group('execution matching', () {
+    const pytest =
+        '.venv/bin/python -m pytest test_mercari.py test_notifier.py '
+        'test_state.py test_watcher.py -v';
+    const pytestTranscript =
+        '''
+```
+\$ $pytest
+53 passed in 3.09s
+```
+PROJECT_TASK_SUBTASK_DONE
+''';
+
+    for (final wrapper in [
+      ' | tail -30',
+      ' 2>&1 | tail -15',
+      ' | tail -n 30',
+    ]) {
+      test('matches a literal output-only tail wrapper: $wrapper', () {
+        expect(
+          guard
+              .assess(
+                candidateResponse: pytestTranscript,
+                toolResults: [
+                  executedCommand('cd /workspace/project && $pytest$wrapper'),
+                ],
+              )
+              .unexecutedCommands,
+          isEmpty,
+        );
+      });
+    }
+
+    test('matches a narrated tail wrapper to its issued command', () {
+      expect(
+        guard
+            .assess(
+              candidateResponse:
+                  '```\n\$ $pytest 2>&1 | tail -15\n53 passed\n```',
+              toolResults: [executedCommand(pytest)],
+            )
+            .unexecutedCommands,
+        isEmpty,
+      );
+    });
+
+    for (final issued in [
+      '.venv/bin/python -m pytest other_test.py -v 2>&1 | tail -30',
+      '$pytest -k selected 2>&1 | tail -30',
+      'python3 -m pytest test_mercari.py test_notifier.py '
+          'test_state.py test_watcher.py -v 2>&1 | tail -30',
+      '$pytest | sed -n 1p | tail -30',
+      '$pytest | tail -f',
+      '$pytest | tail -\$COUNT',
+      '$pytest | tail -30 > saved.txt',
+      '$pytest > saved.txt | tail -30',
+    ]) {
+      test(
+        'tail matching preserves unsupported or different commands: $issued',
+        () {
+          expect(
+            guard
+                .assess(
+                  candidateResponse: pytestTranscript,
+                  toolResults: [executedCommand(issued)],
+                )
+                .unexecutedCommands,
+            [pytest],
+          );
+        },
+      );
+    }
+
+    test('does not treat a quoted pipe as an output-only tail', () {
+      expect(
+        guard
+            .assess(
+              candidateResponse: "```\n\$ echo 'fixture'\nfixture\n```",
+              toolResults: [executedCommand("echo 'fixture | tail -30'")],
+            )
+            .unexecutedCommands,
+        ["echo 'fixture'"],
+      );
+    });
+
     test('matches a narrated command against a compound executed segment', () {
       final assessment = guard.assess(
         candidateResponse: '''

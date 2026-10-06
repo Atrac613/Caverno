@@ -56,10 +56,7 @@ final class GitToolHandler {
     if (shellOperator != null) {
       return _failure(
         input.toolName,
-        'git_execute_command accepts one Git subcommand per tool call; '
-        'shell operator "$shellOperator" is not supported. A trailing '
-        '`| head -N` or `| tail -N` is the exception. For a real pipeline or '
-        'redirect, use local_execute_command.',
+        GitTools.shellOperatorRefusalMessage(shellOperator),
       );
     }
 

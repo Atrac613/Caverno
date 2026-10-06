@@ -9,6 +9,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
+import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_request_shape.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_scoring.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_diagnostic_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -175,8 +176,9 @@ Future<_BenchmarkCanaryRun> _executeRun({
   required int index,
 }) async {
   final service = LiveLlmDiagnosticService(
-    settings: env.settings,
+    settings: env.shapedSettings(env.thinkingMode),
     chatDataSource: env.createDataSource(),
+    thinkingModeDataSource: env.createDataSource,
     mcpToolService: mcpToolService,
     effectiveContextMaxTokens: env.effectiveContextMaxTokens,
   );
@@ -316,6 +318,7 @@ File _writeArtifact(
     if (env.effectiveContextMaxTokens > 0)
       'effectiveContextMaxTokens': env.effectiveContextMaxTokens,
     'appToolProfile': env.includeAppToolProfile,
+    'thinkingMode': env.thinkingMode.name,
     'warmupMode': env.warmupMode.name,
     'warmupRepeatCount': warmupRuns.length,
     'repeatCount': runs.length,
@@ -433,6 +436,7 @@ class _BenchmarkCanaryEnv {
     required this.effectiveContextMaxTokens,
     required this.mcpServers,
     required this.includeAppToolProfile,
+    required this.thinkingMode,
   });
 
   final AppSettings settings;
@@ -446,6 +450,11 @@ class _BenchmarkCanaryEnv {
   final int effectiveContextMaxTokens;
   final List<McpServerConfig> mcpServers;
   final bool includeAppToolProfile;
+
+  /// The mode every scored request runs in. Defaults to off, not to the app
+  /// diagnostic's on: off sends exactly what this canary sent before the mode
+  /// was selectable, so its recorded history stays comparable.
+  final LiveLlmDiagnosticThinkingMode thinkingMode;
 
   static _BenchmarkCanaryEnv fromEnvironment() {
     final provider = _providerFromEnvironment();
@@ -500,18 +509,38 @@ class _BenchmarkCanaryEnv {
       includeAppToolProfile:
           Platform.environment['CAVERNO_BENCHMARK_CANARY_APP_TOOL_PROFILE'] ==
           '1',
+      thinkingMode: _thinkingModeEnv('CAVERNO_BENCHMARK_CANARY_THINKING'),
     );
   }
 
-  ChatDataSource createDataSource() {
-    return switch (settings.llmProvider) {
+  AppSettings shapedSettings(LiveLlmDiagnosticThinkingMode mode) =>
+      LiveLlmDiagnosticRequestShape.settingsFor(settings, mode);
+
+  /// A datasource pinned to [mode], or to [thinkingMode] when omitted.
+  ChatDataSource createDataSource([LiveLlmDiagnosticThinkingMode? mode]) {
+    final shaped = shapedSettings(mode ?? thinkingMode);
+    return switch (shaped.llmProvider) {
       LlmProvider.appleFoundationModels => AppleFoundationModelsDataSource(),
       LlmProvider.openAiCompatible => ChatRemoteDataSource(
-        baseUrl: settings.baseUrl,
-        apiKey: settings.apiKey,
+        baseUrl: shaped.baseUrl,
+        apiKey: shaped.apiKey,
+        reasoningEffort: shaped.reasoningEffort.apiValue,
+        enableThinking: shaped.enableThinking,
+        acceptsChatTemplateKwargs: shaped.acceptsChatTemplateKwargsFor(
+          shaped.baseUrl,
+        ),
       ),
     };
   }
+}
+
+LiveLlmDiagnosticThinkingMode _thinkingModeEnv(String name) {
+  final value = Platform.environment[name]?.trim().toLowerCase() ?? '';
+  if (value.isEmpty) return LiveLlmDiagnosticThinkingMode.off;
+  for (final mode in LiveLlmDiagnosticThinkingMode.values) {
+    if (mode.name == value) return mode;
+  }
+  throw StateError('$name must be "on" or "off", got "$value".');
 }
 
 String _requiredEnv(String name) {

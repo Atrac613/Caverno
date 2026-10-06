@@ -180,7 +180,7 @@ structurally unmotivated to build:
 | Local LLM | LL29 | later | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort). Demoted 2026-07-21: its LL31 evidence gate came back negative (`tool_failure_abort` 1.6% of 377 turns), so it waits for a triage that shows the abort path rising. **The demotion's basis is withdrawn (2026-08-06):** that 1.6% was measured on a corpus that is mostly chat, while the never-read canary tree — 452 coding turns — puts `tool_failure_abort` at **14.2%** (`docs/canary_evidence_outside_the_corpus_2026-08-06.md`). Canary fixtures are deliberately hard, so this does not re-promote the item on its own; it means the gate was answered on the population where the abort path would be rarest, and needs re-asking. Scope, unchanged: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
 | Local LLM | LL30 | done | M | LL14, LL6, LL31 | Compaction structural pre-pass, gated on LL31 triage evidence: before summarization, run a no-LLM tool-result prune — dedupe identical tool outputs, replace old ones with informative one-line summaries that keep *what happened* (`[run_command] \`flutter test\` → exit 0, 47 lines`), truncate oversized tool-call arguments inside parsed JSON so the payload stays valid, and strip stale image payloads; switch the protected tail from a fixed message count to a token budget and add an anti-thrashing back-off. Extends LL14 with the Hermes `context_compressor._prune_old_tool_results` / `_summarize_tool_result` pattern. |
 | Local LLM | LL31 | done | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
-| Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
+| Local LLM | LL33 | done | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
 | Local LLM | LL32 | later | S-M | LL4, F6 | Deferred subdirectory instruction and skill discovery: when a tool touches a path outside the startup discovery chain, walk up to the repo root for `CLAUDE.md` / `AGENTS.md` / rules and skill directories, and surface newly found files as **paths only**, once per session (or once per compaction cycle), leaving the read decision to the model. Parked pending corroboration; corroborated 2026-07-21 by Grok Build's `agents_md_tracker.rs` / `skill_discovery.rs` shipping the same design. |
 | Local LLM | LL34 | done | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: `McpToolResult` carries producer-owned command, filesystem, diagnostic, process, and verification facts from direct first-party producers; typed-first consumers retain a measured lexical fallback for outcome-free third-party MCP results. Current-turn mutations back file claims, replay paths preserve outcomes, and LL23 supplies deterministic summary-first rendering. Fresh grounded coding canaries on the configured LAN model produced five typed shadow comparisons across raw-first and summary-first runs: three exit 1 and two exit 0, all `agree`, with no missing or disagreeing verdicts. The measured model completed the summary-first MVP canary while the application default remains off. |
 | Local LLM | LL35 | done | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: lexical completion and blocker prose remain observable in shadow but cannot set terminal goal state; `update_goal(completed:/blocked_reason:/message:)` carries the harness's final mechanically reconciled verdict (accepted / still-open gaps / paused at cap), and structured saved-task completion remains authoritative. The bounded continuation selector prefers the typed active task, then the first unchecked `## Task checklist` item. `update_goal` fidelity is stored by the LL3 capability probe, LL23 declares a per-model `tool` / `tool_or_ask` / `ask` policy, and user confirmation resolves no-work or budget boundaries for models that cannot reliably close through the tool. |
@@ -190,6 +190,7 @@ structurally unmotivated to build:
 | Local LLM | LL39 | done | M | LL3, LL16, LL21 | Live capability benchmark, in two tiers: a **bounded conformance score** (versioned weight table, fixed maximum) that answers "will this model drive Caverno without breaking" and is *expected* to saturate on frontier models, plus an **unbounded capability tier reported in physical units** (ms, tok/s, turns, tokens per task) that keeps ranking capable models after conformance tops out — no second invented point total, because a synthesized unbounded score would reintroduce the arbitrary denominator the fixed maximum removed. A saturation watchdog makes the suite announce when it has stopped discriminating, and a separately versioned difficulty ladder adds headroom without moving the conformance denominator. Replaces the old moving-denominator percentage, and probes the production paths the suite never touched — vision (user-attachment *and* computer-use observation shapes), the streaming request path with TTFT / decode rate, multi-round tool loops, edit-format fidelity, `response_format` structured output, and embeddings. Closes three capability-profile axes that are consumed but never measured: `editFormatPreference` (hard-coded `unknown`), `ModelStructuredOutputSupport.jsonSchema` (unreachable from a live run), and vision (no field at all). Supplies the evidence MLIB3 badges require; protocol-level conformance stays with COMPAT1. |
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Local LLM | LL41 | later | M | LL34, LL35, LL37 | Deterministic goal verification contract: a `ConversationGoal` may carry a user-declared verification command and acceptance criteria whose exit code is ground truth for the goal auto-continue stop decision. Adds no judge and no inline panel — LL37's no-inline-stage decision stands; this is ground truth, not a verdict. Evidence-gated on an LL31 turn-exit triage of `awaitingConfirmation` and `noProgress` terminations. |
+| Local LLM | LL42 | later | S-M | F6, LL6 | Measure tool-definition cost across request paths and trim oversized initial catalogs where task-scoped selection preserves tool reachability and safety. Start with representative chat, coding, Plan Mode, Remote Coding, and routine turns; promote one measured path at a time. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
 | Retrieval | RAG3 | blocked | M | RAG2, LL5, F6, LL39 | No measured candidate is eligible. The frozen hybrid candidate failed the unavailable-evidence gate; deterministic score, intent, and cross-arm policies lack a support signal; verbose semantic filtering misses the latency gate; compact v3 misses both quality and latency gates. Current candidate families are closed. Bounded vector persistence, `search_knowledge`, prompting, promotion, and runtime wiring remain blocked. Evidence: `docs/rag3_post_v3_entry_contract_2026-09-01.md`. |
@@ -197,9 +198,9 @@ structurally unmotivated to build:
 | Retrieval | RAG4 | blocked | M | RAG1, RAG3, HOOK1, SEC1, SEC2, agent-kb provenance | Federate agent-kb memories and wiki pages without copying its raw archive or database into Caverno. Blocked upstream: `kb_search` exposes no timestamp, wiki hits carry no confidence or source agent, and archiving rejects any agent outside `{claude, codex}`. |
 | Retrieval | RAG5 | later | S-M | RAG3, RAG4, LL23 | Evaluate deterministic local/agent-kb routing in shadow before automatic retrieval changes prompts or turn cost. |
 | Retrieval | RAG6 | later | S-M | RAG5, COMPAT1, LL39 | Make evidence-backed Go/No-Go decisions for optional reranking and ANN vector search. |
-| Knowledge Currency | KC1 | current | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
-| Knowledge Currency | KC2 | next | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions and direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact. Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
-| Knowledge Currency | KC3 | later | S-M | KC1, KC2, LL10 | Installed version-delta evidence as an LL10 extension: return bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store; add a public tool name only if discovery evaluation rejects an LL10 query mode. |
+| Knowledge Currency | KC1 | done | S-M | LL39, LL31 | Cutoff exposure census with a claim oracle: classify version-sensitive prose and code-artifact claims, compare asserted and expected values, and record separate truth (`correct` / `stale` / `unscorable`) and grounding (`supported` / `contradicted` / `absent`) verdicts plus prompt/tool/none provenance. Fixed paired replays report per-class stale/unsupported rates and detector precision/recall; tool presence alone is not a correctness verdict. |
+| Knowledge Currency | KC2 | later | S-M | LL10, LL6, LL22, LL39 | Environment and dependency ground-truth block: preserve the datetime anchor already emitted unconditionally by `SystemPromptBuilder`, then add detected toolchain versions, direct dependency versions only after a shared LL10 inventory attests locked versus installed metadata as exact, and a digest of what those versions changed (the content KC1's second measurement settled). Cache by project/metadata fingerprints and emit only in the dynamic tail. Deterministic and offline, so it is **not** gated on KC1, but the baseline artifact must be frozen before KC2 lands. |
+| Knowledge Currency | KC3 | later | S-M | KC1, KC2, LL10 | Installed version-delta evidence as an LL10 extension: return bounded CHANGELOG/migration sections and declared deprecations from the attested local package source. Close the deprecated-but-still-present blind spot without a second resolver or knowledge store; add a public tool name only if discovery evaluation rejects an LL10 query mode. Re-scoped 2026-09-24 (KC1 gate: class 2 does not dominate): the pull-side complement to KC2's pushed delta window, promoted only after a paired re-run counts what that window misses. Not a class 1 remedy. |
 | Knowledge Currency | KC4 | later | M | KC1, KC3, LL11, LL36 | Cutoff-sensitive guard over visible prose, response code blocks, changed dependency-using code, and LL11 deprecation diagnostics. Heuristics and cutoff metadata nominate verification; only KC3/LL10, structured diagnostics, compile/test output, or web evidence renders a verdict. Reuse existing recovery plumbing with a bounded artifact evidence adapter, degrade to annotation when unverifiable, and promote only on measured precision and recall. |
 | Knowledge Currency | KC5 | later | S | KC2, LL39, MLIB2 | Model cutoff registry: a `knowledgeCutoff` date plus its source (`static_table` / `user_override` / `unknown`) on the capability profile, so KC2 can state the gap as context and KC4 can nominate verification. Never from self-report and never use the date as a correctness verdict. Whether an LL39-style dated-fact probe can beat a static table is an open question. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
@@ -963,11 +964,39 @@ is gone.
 
 ### KC1: Cutoff Exposure Census
 
-Status: `current`
+Status: `done` (2026-09-24)
 
-Progress as of 2026-09-05: the paired replay instrument and three measurements
-landed for classes 2 and 4. Class 1 still needs a networked oracle, and class 3
-needs a different verdict shape; the full acceptance gate remains open. See
+Closed 2026-09-24 with one scope item cut: classifying real answers from both
+corpora for classes 2-4. The paired replays answered the question KC1 exists
+for (the §4 gate: class 2 does not dominate, so KC3 was re-scoped), and every
+acceptance criterion is met. The cut item was not worth its cost: the
+real-session corpus is dominated by this repository's own release work (24 of
+25 `pubspec.yaml` edits were version bumps), so a frequency drawn from it would
+describe that workload rather than coding in general, and judging API use in
+free-form answers would rebuild KC4's nomination stage. Real-use frequency is
+better read from ground truth when KC2 is evaluated: LL11
+`deprecated_member_use` diagnostics raised on code the model just edited.
+Checked the same day: the real-session corpus holds only two post-edit analyze
+feedback payloads (`caverno_dart_analyze_feedback`, deduplicated by message
+id), both `undefined_method` from one session on 2026-09-19, and no
+`deprecated_member_use`. That is too little to read a rate from, so KC2's
+evaluation rests on the paired replay until post-edit feedback accumulates.
+
+Progress as of 2026-09-23: three measurements cover classes 2 and 4, and the
+fourth covers the oracle-backed class 3 `ThemeData.useMaterial3` fixture. All
+fourteen scorable responses redundantly asserted `useMaterial3: true`, so
+environment exposure was 100% in the bare, grounded, and delta-grounded arms;
+one bare response was unscorable. The environment fact fixed grounding
+attribution but did not change behavior, a preserved negative result rather
+than a prompt-tuning trigger. The class 1 oracle landed the same day: pub.dev's
+latest stable release scores the release line a new-project pubspec constraint
+names, against a snapshot recorded with the run. Its first measurement
+(2026-09-24, 60 claims) found every bare answer stale for the three packages
+that moved a major in the last year (15/15) and the control current (5/5); the
+installed-version block fixed one package only because installed equals latest
+and anchored freezed to the lockfile's older line. Class 2 therefore does not
+dominate the measured stale claims, and KC3 was re-scoped on 2026-09-24 rather
+than dropped: it becomes the on-demand complement to KC2's delta window. See
 [the track design](knowledge_currency_track_design.md) for the measurements
 and [the cross-track index](roadmap.md#active-focus) for the current next action.
 
@@ -1006,7 +1035,115 @@ Promotion gate:
 
 ### KC2: Environment And Dependency Ground Truth Block
 
-Status: `next`
+Status: `later` (parked 2026-09-24, block withdrawn)
+
+Progress (2026-09-24): all five slices are done, and slice 5 is negative. `PubDependencyResolver`
+(`lib/features/chat/data/datasources/pub_dependency_resolver.dart`) now holds
+LL10's pub lockfile parser and root resolution, shared rather than duplicated,
+and `DependencyInventoryService` attests each direct, non-SDK Dart dependency
+as `exact` only when the lockfile version equals the version the installed
+package declares, naming manifest, lockfile, and installed-metadata sources.
+On this repository all 66 direct dependencies attest `exact`.
+`EnvironmentGroundingContextBuilder` renders the block: Flutter and Dart
+versions only when `package_config.json` and the SDK's own
+`flutter.version.json` agree, attested dependencies with versions,
+unattested ones named with versions withheld, a stated cut at 1,600
+characters, and a cache keyed on file size and mtime. Slice 3 (`a07b951fa`)
+puts the block in the dynamic tail directly after the datetime anchor, for a
+coding-capable mode with a selected project; the stable prefix is unchanged
+(tested). The gate lives in `ProjectPromptContextSource`, together with the
+repo map's, because the ChatNotifier library had one line of ratchet slack.
+Slice 4 (`749eb84d0`) appends the change digest: each attested package's
+legacy library (`lib/legacy.dart` `show` lists and `legacy/` classes) and
+its changelog's breaking entries within the installed release line, plus the
+newest deprecations of an attested Flutter SDK. The SDK scanner moved from
+the KC1 oracle into `InstalledChangeDigest`, and the oracle delegates to it.
+Breaking entries must open with the marker ("Non-breaking updates" and
+"Revert the breaking change" are not entries), and link targets, issue
+numbers, and commit hashes are stripped. Slice 5 (`50c3b7a3e`, the seventh
+KC1 measurement) ran the production block: class 2 stale 68/56/50% at the
+default/32k/64k budgets against 60% bare and 30% for the prototype digest,
+and class 4 **100% at every budget** against 75% bare and 0% for the
+prototype, because every class 4 answer used the legacy providers the
+digest's legacy line names. Decided 2026-09-24: the block is **withdrawn**
+from coding prompts (`e038f1dcc`, guarded by a test); the builder, digest,
+and census arms stay. The eighth measurement, on `qwen3.8-27b-exl3`, then
+showed the version list alone reproduces the class 4 regression (5/5 stale,
+against 0/5 for the prototype's four-entry list), so the cause is which
+dependencies the block names, not the legacy line's wording. The ninth
+measurement then tried that selection (top 8 by import breadth, `42838cda3`):
+it fixed class 4 and broke the generic riverpod case, and adding the digest
+reversed both. Cells flip 0/5 or 5/5 per prompt, so neither causal reading
+holds and five repeats are close to one observation. The tenth measurement
+broadened the set to twelve class 2 and four class 4 fixtures: no production
+arm is worse than bare in any class (class 2 59% bare against 36-46% for the
+digest-carrying arms; class 4 71% against 25%), but at these counts the
+difference is not established. The block stays withdrawn; re-promotion is a
+decision on weak, favourable evidence, or needs more fixtures still.
+
+Decision (2026-09-24): KC2 is parked at `later` with the block withdrawn.
+The broadened evidence is favourable but not established, and widening the
+fixtures far enough to establish it (20+ per class) costs more than the
+measured gain is likely to be worth. Re-promotion needs that wider set, or
+real-session evidence that stale API claims matter, which the corpus does not
+yet show.
+
+The digest budget is spent in a fixed order (legacy lines unclipped, an SDK
+allowance of 1,600 characters, then breaking entries round-robin across
+packages) and steps with usable context. Coverage of the measured idioms on
+this repository, with `WillPopScope` (deprecated at v3.12) as the uncovered
+control at every budget:
+
+| usable context | digest cap | `withOpacity` | riverpod legacy | freezed `abstract` |
+|---|---|---|---|---|
+| < 16k | none | no | no | no |
+| unknown / 16k-32k | 1,600 | no | yes | no |
+| 32k-64k | 6,000 | yes | yes | no |
+| ≥ 64k | 10,000 | yes | yes | yes |
+
+Stated plainly: the 10,000 step was added after the 6,000 budget was seen to
+miss freezed's second breaking entry, so it is a coverage adjustment made
+with a KC1 fixture in view. The general argument for it stands on its own
+(the prototype spent ~3.8k characters on three hand-picked packages; all 31
+packages here with entries need more, and 2.5k tokens is under 4% of a 64k
+window), but slice 5 must report coverage per budget rather than only at the
+most generous one.
+
+Decided for slice 3 (2026-09-24): the cut on this repository dropped 7 of 66
+dependencies at the default cap, `freezed` among them, a KC1 fixture package.
+Rather than order by project imports, which the model's own edits would
+change and so thrash the tail, the cap steps with LL39 usable context: 400
+characters below 16k tokens (toolchain kept, dependencies dropped first, as
+scoped), 1,600 by default and up to 32k, and 3,200 from 32k, which lists all
+66 here. A step function, so profile noise does not move the bytes.
+
+Review of this plan against the roadmap, 2026-09-24:
+
+- **The measured content had not reached this scope.** KC1's second
+  measurement settled that the block must carry *what changed*, not only which
+  version (76% to 28% stale over 75 claims), and the cross-track index already
+  said so, but this scope and its acceptance listed versions only. Built as
+  written, KC2 would ship the arm that measured no class 2 improvement
+  (73%). The change digest is now in scope below, and the KC3 re-scope depends
+  on it.
+- **The paired re-run must measure the production block.** The census builds
+  its grounded arm from `groundTruthBlock` in `tool/kc1_cutoff_exposure_census.dart`,
+  not from the KC2 builder, and uses its own one-line system prompt. A re-run
+  that does not consume the builder's output measures the prototype again.
+- **The class 2/4 baseline was not frozen as an artifact.** The 2026-09-03
+  measurements survived only as tables. Resolved the same day: re-run on a
+  clean build and frozen in `docs/evidence/` (sixth KC1 measurement), with the
+  earlier findings reproduced.
+- **"The existing prompt data-perimeter policy" does not exist by that name.**
+  SEC1's classifiers cover tool content, not system-prompt blocks. The working
+  precedent is the repo map: `ChatNotifierPromptContext._repoMap` emits only
+  in coding mode for a selected project root. Slice 3 follows that gate and
+  says so, rather than citing a policy that is not there.
+- **Real-session value is unproven.** Replay is the only evidence: the
+  real-session corpus holds two post-edit analyzer payloads and no
+  deprecation diagnostic. The block costs up to ~400 tail tokens on every
+  coding request, so the slice 5 re-run is a keep-or-remove decision, not a
+  formality.
 
 Deliberately **not** gated on KC1: deterministic, offline, and heuristic-free,
 so there is nothing for a measurement to authorize. KC1 measures its effect
@@ -1036,6 +1173,13 @@ Scope:
   dependency trees on every request.
 - Emit dependency details only for an explicitly selected coding project and
   through the existing prompt data-perimeter policy.
+- A recency-capped digest of what the attested installed versions changed,
+  assembled from the installed sources rather than written by hand: SDK
+  `@Deprecated` annotations, packages' `legacy/` exports, and changelog
+  breaking entries (prototype: `tool/kc1_cutoff_oracle.dart`). Deliberately
+  general rather than per-symbol. Which changes enter the window (recency,
+  project imports, or symbols a draft used) is the open design question; what
+  the window misses is KC3's to serve on demand.
 
 Why this works where prose does not: "your knowledge may be outdated" is
 unactionable — acting on it requires already knowing what changed.
@@ -1048,9 +1192,11 @@ Acceptance criteria:
 - A lockfile/installed-metadata mismatch is labeled and omitted from the
   authoritative dependency list; `unverifiable` never becomes an exact claim.
 - Byte-identical block across two consecutive turns in the same project.
-- A paired KC1 re-run reports the API-drift/environment stale and unsupported
-  rate changes. If neither moves, that is a negative result, not a reason to
-  keep tuning the wording.
+- A paired KC1 re-run reports the API-drift stale/unsupported rates and the
+  environment stale, unsupported, and redundant-default exposure rates, plus
+  the class 1 stale rate as a non-regression check. Its grounded arm consumes
+  the production builder's output, not the census's prototype block. If none
+  moves, that is a negative result, not a reason to keep tuning the wording.
 
 Known risk, handled rather than deferred: **the block carries authority.** A
 `pubspec.lock` that is stale relative to what is actually installed makes the
@@ -1062,7 +1208,8 @@ and name both sources in the inventory result.
 
 ### KC3: Installed Version-Delta Evidence (LL10 Extension)
 
-Status: `later` — gated on KC1 attribution.
+Status: `later` — re-scoped 2026-09-24 by the KC1 gate to the coverage
+complement of KC2's delta window; see `docs/knowledge_currency_track_design.md`.
 
 Closes an LL10 blind spot. LL10's `symbol_found`
 (`installed_dependency_grounding_service.dart:533`) detects an API the model
@@ -4357,11 +4504,12 @@ to add the turn-exit producer is superseded by the shipped implementation.
 
 ### LL33: Turn Provenance (session-log ↔ on-screen conversation)
 
-Status: `current`
+Status: `done` (2026-09-23)
 
-The correlation and guard-notice baseline is complete. Remaining transform
-coverage below keeps the track current, matching the milestone index; Level 3
-event sourcing remains deferred.
+Level 1 correlation and Level 2 transform recording are complete, including the
+file-save labels, and live triage coverage joined every file-save firing back
+to the message the user saw (evidence below). Level 3 event sourcing stays
+deferred: Level 2 answered the question it was gated on.
 
 Problem:
 - The LLM session log (`*.jsonl`) records the raw LLM request/response; the
@@ -4403,9 +4551,27 @@ Source: the verification-guard investigation (the `git_execute_command`
 false-positive fix). The notice-prose detection method it relied on is exactly
 what `transforms[]` replaces with a first-class signal.
 
-Next action: extend `transforms[]` to the remaining finalization transforms
-(file-save notice, max-token truncation, finalization recovery) and consider a
-small triage join that prints the on-screen final content for a flagged turn.
+Live triage coverage (2026-09-23, real sessions under
+`~/.caverno/session_logs`, builds `f15f723f7` through `275fbb496`):
+
+| Transform | Firings | `assistantMessageId` found in `conversations` | Notice text present in the stored message |
+|---|---|---|---|
+| `unwritten_file_claim_notice` | 11 (2026-09-05 to 2026-09-23) | 11/11 | 11/11 |
+| `unexecuted_file_side_effect_notice` | 1 (2026-09-05) | 1/1 | not checked; the notice is service-worded |
+
+The join ran read-only against `caverno.sqlite`: each `turnExit` record's
+`assistantMessageId` resolved to exactly one stored message, and that message
+carried the guard's own sentence ("... was listed as created or updated but
+... "). So a logged transform now names the on-screen text it changed without
+inferring it from leaked prose, which is the gap this milestone was opened for.
+
+Observed but out of scope: all eleven unwritten-file notices were the
+"was not modified in this turn" branch and none the "does not exist" branch.
+Whether those firings are precise is an LL36/HEU3 question about the guard,
+not a provenance gap; it was not investigated here.
+
+Next action: none for LL33. Reopen Level 3 only if a triage question arises
+that a correlated `turn_exit` record plus the stored message cannot answer.
 
 ## Grounded Verification Track (LL34-LL37)
 
@@ -5772,6 +5938,44 @@ in `awaitingConfirmation` or stop on `noProgress`. LL29 was demoted when its LL3
 gate came back negative; the same standard applies here. Current evidence is a
 single session, not a rate. Scoped 2026-09-01.
 
+### LL42: Task-Scoped Tool-Definition Budgets
+
+Status: `later`
+
+Context:
+- A 2026-09-29 desktop `/review` session sent 37 tool definitions on each of
+  ten requests, although the review used three tool names. Commit `4325f188a`
+  narrowed the default review catalog to 11 definitions. The serialized
+  definition size fell from 26,660 to 11,841 characters (55.6%); actual prompt
+  tokens, cache behavior, and task quality after the change remain unmeasured.
+- F6 already defers specialized tools behind `tool_search` in the default
+  request mode. LL6's optional prefix-stable mode keeps a fixed full tool list
+  across a loop, so reducing definitions can also change cache reuse.
+
+Scope:
+- Inventory the definitions actually sent per request path and turn phase,
+  including ordinary chat, coding, Plan Mode, Remote Coding, and routines.
+  Compare definition size, provider-reported prompt tokens where available,
+  cache timing, and tools actually requested. Keep session contents private.
+- Select one high-cost path with representative evidence, then test a smaller
+  task-scoped initial catalog with `tool_search` recovery for deferred tools.
+  Preserve required tools, read-only boundaries, approval rules, and explicit
+  user-enabled capabilities.
+
+Acceptance criteria:
+- Record a reproducible before/after measurement for the chosen path, including
+  definition count and size, prompt tokens when reported, and cache/latency
+  effects where the endpoint exposes them. Do not treat character savings as
+  measured token savings.
+- Focused request-construction and tool-discovery tests prove required and
+  deferred tools remain reachable, with the same approval and safety behavior.
+  A representative task replay or live canary catches selection regressions.
+- Document a Go/No-Go decision for further paths based on measured savings and
+  task success, rather than applying one global allowlist.
+
+Next action: capture a per-path tool-definition census and compare it with
+actual tool use before choosing the first path beyond `/review`.
+
 ## Future Platform Vision Milestone Notes
 
 ### API1: Responses-Compatible Agent Event Core
@@ -6176,7 +6380,9 @@ Slice plan:
    operands with the same mutation fence when a project is selected; and
    **SEC4.4g (P0 follow-up, completed 2026-08-24)** routes opaque native-shell
    commands through a distinct fresh, non-cacheable host-write authority before
-   auto-review or Full Access. Any restored
+   auto-review or Full Access; **SEC4.4h (completed 2026-09-24)** moves
+   supported `grep` onto the bounded internal executor instead of narrowing
+   SEC4.4g. Any restored
    routine grant binds server identity, tool name, schema digest, and reviewed
    intent.
 5. **SEC4.5 — Authenticated transport.** Land as focused sub-slices:

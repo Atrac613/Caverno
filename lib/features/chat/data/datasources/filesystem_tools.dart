@@ -653,10 +653,12 @@ class FilesystemTools {
     try {
       final matcher = _wildcardToRegExp(pattern.trim());
       final matches = <String>[];
+      final excluded = <String>[];
 
       await for (final entity in ProjectScanExclusions.files(
         directory,
         recursive: recursive,
+        onExcluded: excluded.add,
       )) {
         final relativePath = _relativePath(entity.path, directory.path);
         final fileName = entity.uri.pathSegments.isEmpty
@@ -675,6 +677,11 @@ class FilesystemTools {
         'matches': matches,
         'match_count': matches.length,
         if (matches.length >= maxResults) 'truncated': true,
+        if (matches.isEmpty)
+          ...ProjectScanExclusions.skippedDirectoryFields(
+            excluded,
+            toolName: 'find_files',
+          ),
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
@@ -732,6 +739,7 @@ class FilesystemTools {
 
     try {
       final normalizedQuery = caseSensitive ? query : query.toLowerCase();
+      final anchoredQuery = _LineAnchoredQuery.parse(normalizedQuery);
       final fileMatcher = filePattern == null || filePattern.trim().isEmpty
           ? null
           : _wildcardToRegExp(filePattern.trim());
@@ -743,9 +751,10 @@ class FilesystemTools {
       var scanCeilingHit = false;
       var resultLimitHit = false;
 
+      final excluded = <String>[];
       final candidates = searchesOneFile
           ? Stream<File>.value(singleFile)
-          : ProjectScanExclusions.files(directory);
+          : ProjectScanExclusions.files(directory, onExcluded: excluded.add);
       await for (final entity in candidates) {
         final relativePath = _relativePath(entity.path, scanRoot.path);
         if (fileMatcher != null &&
@@ -776,7 +785,8 @@ class FilesystemTools {
             maxScanBytes: remainingBudget,
             onLine: (lineNo, line) {
               final haystack = caseSensitive ? line : line.toLowerCase();
-              if (haystack.contains(normalizedQuery)) {
+              if (haystack.contains(normalizedQuery) ||
+                  (anchoredQuery?.matches(haystack) ?? false)) {
                 if (matchedLinesSeen < offset) {
                   matchedLinesSeen += 1;
                   return true;
@@ -813,9 +823,7 @@ class FilesystemTools {
         if (resultLimitHit) break;
       }
 
-      final literalQueryHint = matches.isEmpty
-          ? _regexQueryHint(query)
-          : null;
+      final literalQueryHint = matches.isEmpty ? _regexQueryHint(query) : null;
       return jsonEncode({
         'path': reportedPath,
         'query': query,
@@ -828,6 +836,11 @@ class FilesystemTools {
         if (resultLimitHit) 'truncated': true,
         if (scanCeilingHit) 'scan_ceiling_hit': true,
         'query_hint': ?literalQueryHint,
+        if (matches.isEmpty && !scanCeilingHit)
+          ...ProjectScanExclusions.skippedDirectoryFields(
+            excluded,
+            toolName: 'search_files',
+          ),
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
@@ -838,32 +851,26 @@ class FilesystemTools {
     }
   }
 
-  /// Names the regex metacharacter behind an empty result, when the query
-  /// carries one.
+  /// Names the anchor behind an empty result, when the query carries one.
   ///
-  /// `query` is matched as literal text, so `^version:` can never match a line
-  /// reading `version: 1.3.34+47`. Nothing said so: the empty result came back
-  /// with the generic "no matches does not prove absence" hint, which reads as
-  /// an instruction to keep looking. In session a40d48a8 the same anchored
-  /// query was reissued **six** times against a file that plainly contained
-  /// the text, and each failure sent the turn back to read_file.
-  ///
-  /// Triggering on the metacharacter, never judging on it: the hint is only
-  /// added to a result that already found nothing, and it names the cause
-  /// rather than guessing the intended query.
+  /// Anchors are honored (see [_LineAnchoredQuery]), so reaching this means
+  /// neither the anchored nor the literal reading matched. Saying so stops the
+  /// model from reissuing the same anchored query as if the anchor had been
+  /// ignored, which is what session a40d48a8 did six times before anchors were
+  /// supported.
   static String? _regexQueryHint(String query) {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return null;
     final anchors = <String>[
       if (trimmed.startsWith('^')) r'a leading "^"',
-      if (trimmed.endsWith(r'$')) r'a trailing "\$"',
+      if (trimmed.endsWith(r'$')) r'a trailing "$"',
     ];
     if (anchors.isEmpty) return null;
-    return 'This query is matched as literal text, not as a regular '
-        'expression, and it carries ${anchors.join(' and ')}. That character '
-        'is searched for literally, so an anchored query matches nothing. '
-        'Retry with the plain substring, and narrow with file_pattern or '
-        'max_results instead of an anchor.';
+    return 'This query carries ${anchors.join(' and ')}, honored as a line '
+        'anchor; everything else is literal text, not a regular expression. '
+        'No line matched either as anchored or as literal text, so do not '
+        'reissue the same query. Try a shorter plain substring, or narrow '
+        'with file_pattern.';
   }
 
   static Future<TextFileSnapshot> captureTextSnapshot(String path) =>
@@ -1050,5 +1057,44 @@ class FilesystemTools {
         'suggestion':
             'Re-select the project folder in Coding mode, then allow access in the macOS prompt or System Settings > Privacy & Security > Files and Folders.',
     });
+  }
+}
+
+/// A query read with regex line anchors: a leading `^` and/or trailing `$`.
+///
+/// `search_files` matches literal text, yet every anchored query in the
+/// session corpus -- 66 of 66, all `^version:` from release flows -- meant a
+/// line anchor and found nothing, costing a tool-loop slot each time. Honoring
+/// just the two anchors covers that without turning the query into a regex. A
+/// line matching the literal text still matches too, so a search for a caret
+/// version constraint such as `^5.4.0` finds what it found before.
+final class _LineAnchoredQuery {
+  const _LineAnchoredQuery._(
+    this.body, {
+    required this.start,
+    required this.end,
+  });
+
+  /// Null when the query has no anchor or nothing left besides anchors.
+  static _LineAnchoredQuery? parse(String query) {
+    final start = query.startsWith('^');
+    final end = query.length > (start ? 1 : 0) && query.endsWith(r'$');
+    if (!start && !end) return null;
+    final body = query.substring(
+      start ? 1 : 0,
+      end ? query.length - 1 : query.length,
+    );
+    if (body.isEmpty) return null;
+    return _LineAnchoredQuery._(body, start: start, end: end);
+  }
+
+  final String body;
+  final bool start;
+  final bool end;
+
+  bool matches(String line) {
+    if (start && end) return line == body;
+    if (start) return line.startsWith(body);
+    return line.endsWith(body);
   }
 }

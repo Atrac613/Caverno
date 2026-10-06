@@ -52,6 +52,66 @@ void main() {
     expect(assessment.buildNotice(), contains('was not modified in this turn'));
   });
 
+  test('a plain README summary refers to one changed document', () {
+    final assessment = guard.assess(
+      candidateResponse:
+          'The README was modified earlier this turn; I re-read it.',
+      toolResults: [successfulWrite('README.md')],
+      projectRoot: root,
+      pathExists: (path) => path == '$root/README.md',
+    );
+
+    expect(assessment.claims, isEmpty);
+  });
+
+  for (final scenario in [
+    'existing extensionless file',
+    'explicit path',
+    'mixed explicit path',
+    'unbacked document',
+    'missing changed document',
+    'ambiguous documents',
+  ]) {
+    test('keeps a README mutation claim for $scenario', () {
+      final assessment = guard.assess(
+        candidateResponse: scenario == 'explicit path'
+            ? '`README` was modified.'
+            : scenario == 'mixed explicit path'
+            ? 'The README was modified; `README` was created.'
+            : 'The README was modified earlier this turn.',
+        toolResults: [
+          if (scenario != 'unbacked document') successfulWrite('README.md'),
+          if (scenario == 'ambiguous documents') successfulWrite('README.rst'),
+        ],
+        projectRoot: root,
+        pathExists: (path) =>
+            scenario != 'missing changed document' &&
+                path == '$root/README.md' ||
+            scenario == 'existing extensionless file' && path == '$root/README',
+      );
+
+      expect(assessment.claims.single.displayPath, 'README');
+    });
+  }
+
+  test('flags completed Modified labels without file mutation evidence', () {
+    final assessment = guard.assess(
+      candidateResponse:
+          '**Modified: `mercari.py`**\n'
+          '**Modified: `notifier.py`**\n'
+          'PROJECT_TASK_READY_FOR_REVIEW',
+      toolResults: const [],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(assessment.claims.map((claim) => claim.displayPath), [
+      'mercari.py',
+      'notifier.py',
+    ]);
+    expect(assessment.buildNotice(), contains('was not modified in this turn'));
+  });
+
   test('does not treat generic command success as mutation evidence', () {
     final assessment = guard.assess(
       candidateResponse: '`lib/generated.g.dart` was updated.',
@@ -77,6 +137,17 @@ void main() {
       toolResults: const [],
       projectRoot: root,
       pathExists: (path) => path == '$root/lib/prior.dart',
+    );
+
+    expect(assessment.hasClaims, isFalse);
+  });
+
+  test('ignores a file modified in a prior turn', () {
+    final assessment = guard.assess(
+      candidateResponse: '`lib/prior.dart` was modified in the previous turn.',
+      toolResults: const [],
+      projectRoot: root,
+      pathExists: (_) => true,
     );
 
     expect(assessment.hasClaims, isFalse);
@@ -336,5 +407,64 @@ void main() {
     );
 
     expect(assessment.claims.single.displayPath, 'lib/a.dart');
+  });
+
+  test('does not attribute a claim to a path inside a longer name', () {
+    // Session 1d76c878: `state.py` matched inside `test_state.py`.
+    final assessment = guard.assess(
+      candidateResponse: '1. test_state.py was created (covers state.py)',
+      toolResults: [successfulWrite('test_state.py')],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(assessment.claims, isEmpty);
+  });
+
+  test('still reads a claim for a path ending a sentence', () {
+    final assessment = guard.assess(
+      candidateResponse: 'Updated: state.py.',
+      toolResults: const [],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(assessment.claims.single.displayPath, 'state.py');
+  });
+
+  test('a path added into a written file is not a deliverable claim', () {
+    // Session 26d7db3e: "added config.json to .gitignore" flagged config.json.
+    final edit = ToolResultInfo(
+      id: 'edit',
+      name: 'edit_file',
+      arguments: {
+        'path': '.gitignore',
+        'old_text': 'state.json',
+        'new_text': 'config.json\nstate.json',
+      },
+      result: jsonEncode({'path': '$root/.gitignore', 'changed': true}),
+      outcome: ToolOutcome(
+        fileMutations: [
+          ToolFileMutation(path: '$root/.gitignore', changed: true),
+        ],
+      ),
+    );
+
+    final added = guard.assess(
+      candidateResponse:
+          '`.gitignore` に `config.json` を追加しました（`state.json` は既存）。',
+      toolResults: [edit],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+    final unrelated = guard.assess(
+      candidateResponse: '`.gitignore` と `lib/b.dart` を更新しました。',
+      toolResults: [edit],
+      projectRoot: root,
+      pathExists: (_) => true,
+    );
+
+    expect(added.claims, isEmpty);
+    expect(unrelated.claims.single.displayPath, 'lib/b.dart');
   });
 }

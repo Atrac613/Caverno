@@ -45,6 +45,111 @@ Session logs use bounded local retention by default:
 
 ## Entry Format
 
+Dedicated Farm reviews return a structured report with `status`, `findings`,
+`verificationLimits`, and `summary`. The first terminal review is retained by
+turn generation and conversation, rendered directly, and handed to the workflow
+as a native verdict. A later summary cannot replace its findings or authorize a
+commit. Unmarked, malformed, conflicting, truncated, or uninspected reports
+remain incomplete; a clean report also cannot override a new failed check.
+`project_task_decision` review events record `clean`, `findings`, `incomplete`,
+or `missing`, plus `nativeVerdictAvailable`, without recording report text.
+The turn transforms are `project_task_review_<status>`.
+
+Native review verdicts also travel to memory extraction as a harness-origin
+`coding_review_status` result, outside the clipped conversation excerpts.
+Findings, incomplete reviews, and clean reviews retain their distinct remaining
+workflow stages even if extraction claims completion or fails. Extraction never
+turns a clean review into a committed task. Delayed memory updates are fenced per
+conversation and checked again inside the storage mutation gate.
+
+Recovery prompts and finalization share reconciled command failure scopes.
+Matching successful checks settle historical failures without removing the raw
+audit results; a later file change still requires fresh verification. When the
+carry budget cannot fit a whole source observation, it can retain an exact line
+prefix with explicit truncation and a missing-range hint. A failed edit retains
+an earlier full-file observation only when its observed content digest matches;
+unknown writes and changed or partial snapshots keep their freshness barriers.
+
+Literal Python, pip, and pytest version discovery is observation evidence,
+including bounded output in a command list. A missing package during discovery
+does not become required task verification. This evidence classification does
+not change command approval, containment, or test-reuse freshness policy; mixed
+commands that execute checks and typed test failures retain normal verification.
+
+For a literal `pytest && python -c` chain whose first pytest could not launch,
+an alternate runtime can settle the failure only after the entire unchanged
+program passes, with a captured passing pytest summary. The directory,
+prerequisites, imports, fixtures, and checks remain part of the identity. Actual
+test/assertion failures cannot use this launch-repair exception. Structured
+recovery evidence may include `unresolvedVerification.runtimeRepairCommand`,
+which preserves the original program and effective directory while substituting
+a captured working interpreter. It is a suggestion for a fresh approved
+execution, never a reused or fabricated result.
+
+Review prompts omit implementation progress and completion instructions. They
+can carry up to three exact successful implementation verification commands and
+directories after the last captured mutation. These are historical runner
+hints, not fresh review evidence. Reused, stale, or failed results are excluded,
+and new review commands retain normal approval and containment requirements.
+Commands over 2,000 characters and directories over 512 characters are omitted.
+At tool-loop exhaustion, a declared pending command uses the existing final
+batch dispatch instead of being silently replaced by a recovery model call.
+Pending `read_file` calls also use that dispatch so a requested refresh or
+missing range cannot be replaced by an older snapshot. Exhaustion recovery
+only describes a read as current when it matches the failed edit's normalized
+project path and no later successful mutation or command with unknown writes
+invalidates it. Re-sent reads remain labelled as history, and a current partial
+range never prohibits reading another required range.
+
+Dedicated reviews inspect the changed behavior's boundaries and failure paths
+independently of the implementation's success claims. Numeric configuration
+changes call for relevant default, zero, negative, non-finite, type-conversion
+and exception checks. Reports describe inspected or exercised paths in
+`summary` and put unperformed checks in `verificationLimits`; an existing
+passing suite alone is not independent evidence for the new behavior. These
+instructions improve review coverage but do not mechanically prove correctness.
+
+Failed edit anchors retain a `content_sha256` digest of the exact observed text,
+distinct from normal reads' path-aware `content_hash`. Large files can also carry
+a bounded `current_context` with exact line metadata and a `read_more_hint`
+located by an unambiguous unchanged anchor line or an already-present
+replacement. These are diagnostic observations only; no approximate edit is
+applied. Ambiguous anchors are not guessed, and failed edits leave files intact.
+
+`project_task_decision` records native Farm preparation and commit attempts,
+acceptance or rejection, and workflow stops in the owning conversation's log.
+`projectTaskDecision` includes the phase, decision, fixed gate reason, native
+HEAD/index comparison booleans, path counts and turn evidence when available.
+Rejected intermediate subtasks retain their owner-scoped harness verdict before
+checking the rewritten response marker. The workflow decision carries stable
+`gapCodes` such as `unexecuted_actions` and `verification_failed`; missing or
+mismatched verdicts carry `missing_subtask_status`. These codes contain no task
+text, commands, or file paths.
+Selection, busy, approval and question flags distinguish admission failures.
+These events contain no roadmap text, commands or file paths and respect the
+session logging setting. A HEAD advance still requires the workflow's final
+native task-cleanliness check before reporting completion.
+
+For rejected project-task completion, structured status recovery includes
+`capturedEvidence.unresolvedVerification`: the failed tool call, literal command
+(bounded to 12,000 characters), working directory, and output tail. Inspect this
+alongside the latest successful check; a different passing check does not settle
+the failure. A supported literal inline Python verifier can repair its fixture
+while retaining the interpreter, directory, imported modules, and entire source
+block from its first top-level `assert` onward. Changed or removed checks remain
+unresolved. Bounded local command output retains its start and end so a long
+traceback does not discard the final exception.
+
+Completion evidence also recognizes Python stdin scripts supplied by one quoted
+here-document, with an optional literal `cd ... &&` prefix. Their executed exit
+status counts as verification without changing command approval or containment.
+These scripts retain their entire command as the verification scope; a changed
+script cannot settle a failed invocation. Expandable delimiters, extra shell
+commands, and package metadata queries do not qualify through this rule.
+Plain "the README was modified" summaries can refer to a uniquely changed
+`README.md`, `README.rst`, or `README.txt` when no extensionless `README` exists.
+Explicit paths and ambiguous document variants retain their own mutation gates.
+
 Each line is one JSON object with schema name
 `caverno_llm_session_log_entry`. Entries include:
 
@@ -53,10 +158,19 @@ Each line is one JSON object with schema name
 - Operation name such as `streamChatCompletionWithTools` or
   `createChatCompletionWithToolResults`
 - Request messages, model, temperature, max token budget, tools, and tool
-  result payloads when available. A first-party structured tool result can also
+  result payloads when available. Schema v5 also records `tool_choice`, the
+  top-level `enable_thinking` value, and `chat_template_kwargs` so strict tool
+  requests can be compared with the exact post-policy wire controls without
+  recording credentials. A first-party structured tool result can also
   carry optional `request.toolResults[].outcome` facts such as exit status,
   file change/identity, or diagnostic counts. The outcome is additive and can
   be absent for older entries and tools without a trustworthy typed fact.
+  A result re-sent from an earlier loop across later changes also carries
+  `request.toolResults[].changesSinceCapture`: the `<tool> <path>` file
+  writes, `git add <paths>`, and ``<tool> `<command>` `` for commands not
+  classified read-only that it predates. The model sees the same list stated
+  beside the result. A finished command's own result is carried too; before
+  2026-09-30 such a command dropped itself and every older result.
 - `request.label` (schema v3), naming the producer that issued the call —
   `turn opening request`, `tool-result follow-up`, `coding verification
   feedback`, `narrated transcript feedback`, `blocked production release
@@ -79,8 +193,8 @@ Each line is one JSON object with schema name
   caller's.
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`,
-  `primary_model_route`, `goal_completion_shadow`, `execution_shadow`, and
-  `tool_outcome_shadow`,
+  `primary_model_route`, `goal_completion_shadow`, `execution_shadow`,
+  `tool_outcome_shadow`, and `shell_write_observation`,
   which make non-request decisions visible in the same JSONL timeline as model
   calls.
   `turn_exit.guardDecisions` records metadata-
@@ -93,6 +207,13 @@ Each line is one JSON object with schema name
   identifiers, and diagnostic text. `tool_outcome_shadow` records the tool
   name, typed-versus-legacy exit-code agreement, both optional exit codes, and
   correlation keys. It deliberately excludes the rendered tool payload.
+  `shell_write_observation` exists only when
+  `CAVERNO_SHELL_WRITE_OBSERVATION=1` (macOS, SEC4.4i-a). It lists the paths
+  outside the project that one `local_execute_command` shell command wrote,
+  read back from seatbelt reports after the tool result, so it lands later in
+  the file than the call it names (`toolCallId`, `tag`). The kernel can drop
+  reports, so the list is a lower bound. It stores paths only, never the
+  command or its output.
   `goal_completion_shadow` records one explicit-tool-versus-lexical comparison
   for every turn that started with an active goal. Its `agreement` is `agree`
   or `disagree`; disagreement records also carry a stable `label`. Optional
@@ -153,17 +274,260 @@ neutralized on screen. Before concluding the model misled the user, reproduce
 the turn with a `sendMessage` test and assert on `state.messages.last.content`
 rather than trusting the logged `response.content`.
 
+Terminal-transcript command matching accepts a literal trailing output-only
+`tail -N` or `tail -n N`, with an optional stderr merge. Omitting that display
+wrapper from the answer does not make the underlying issued command unexecuted.
+Different runners, targets and arguments, other pipelines, dynamic counts and
+writable redirects remain distinct. This matching does not establish successful
+verification or change execution approval.
+
+Content parsing preserves shell heredocs and multiline code containing literal
+less-than signs. Streamed partial-tag detection applies only to a trailing
+markup fragment; a heredoc must not remove the final task or subtask marker from
+the saved response, completion assessment or memory input. Actual unfinished
+thinking and tool tags retain their existing incomplete-content behavior.
+
+When the whole result list exceeds its prompt budget, the newest current
+`read_file` range receives its bounded payload before older results share the
+remaining budget. Carried reads, reads followed by a mutation to the same file,
+and superseded observations receive no reservation. Structured outcomes remain
+attached when payload text is shortened.
+
 For streaming operations wrapped by `SessionLoggingChatDataSource`, `stream_end`
 means Caverno finished reading the stream and wrote the accumulated text to the
 log. It is not an interruption signal by itself. Treat it as suspicious only
 when paired with an explicit `error`, an empty or visibly incomplete final
 answer, or a tool-loop limit prompt without a usable final answer.
 
-For coding turns, `coding_action_promise_without_tool` means the final response
-looked like a promise to inspect, edit, run, port, or otherwise continue work
-while no tool call was emitted. Treat it as the continuation-stall signature:
-the turn should be recovered before the response is saved or used for memory
-extraction.
+Coding prose warnings (`coding_action_promise_without_tool` and
+`coding_task_incomplete`) inspect visible text after removing thinking and tool
+artifacts. They are advisory diagnostics: their language-dependent patterns do
+not authorize project-task continuation or change the summary result.
+A summary result of `complete` in an older log means a final response exists;
+it does not certify implementation or verification success.
+
+Project Farm implementation turns carry explicit turn metadata. Before their
+final response is saved, the harness requests `update_goal` when typed
+status is missing or reports remaining work. This request offers only
+`update_goal`; subsequent work follows the normal tool and approval gates.
+The status elicitation also sets a function `tool_choice` for `update_goal`;
+its acknowledgement follow-up does not force another status call.
+At this boundary `update_goal(completed: true)` records completion of the required
+implementation or repair and verification, so dedicated review may begin.
+An accepted `blocked_reason` ends the current tool loop. Later calls from the
+same turn, including calls in that batch and calls embedded in response content,
+are refused before execution or approval. The recorded blocker remains the
+terminal status, and the saved answer and memory cannot report task completion.
+Pending review, roadmap bookkeeping and commit are later workflow stages, not
+remaining implementation work. The status request instructs accepted completion
+to end the visible response with `PROJECT_TASK_READY_FOR_REVIEW`; failed verification and concrete blockers
+retain their existing evidence gates and cannot emit that marker. The workflow
+records a committed outcome separately after checking HEAD and task file status.
+
+Exactly one valid `update_goal` call is accepted. Missing status, other tools,
+or invalid arguments receive one protocol correction and one retry. Rejected
+calls are never dispatched; a second violation records missing status.
+An accepted completion requires captured file changes and a successful terminal
+execution after the latest change, with no unresolved contradictory evidence.
+A progress report can resume the tool loop; a blocker, approval, user question,
+budget cap, or already accepted completion prevents this recovery. Dedicated
+review turns and ordinary chat do not opt into this protocol through prose.
+Another status request requires new mutation hashes or successful verification
+evidence, with at most three recovery boundaries per turn and two requests
+per boundary. Repeated reads and equivalent verifier results do not renew
+this budget.
+
+Before a Project Farm implementation or subtask ends with an unresolved
+verification failure, a separate repair recovery can offer the existing project
+read, edit and execution tools. It carries the failed command, directory and
+output in `capturedEvidence.unresolvedVerification`, asks for an evidenced cause,
+an authorized repair and the same verification chain, and retains all approval
+and containment gates. At most two fresh failed executions per turn can open
+this recovery; repeated reads, mutations and cached results do not renew it.
+The log label is `project verification repair recovery`, with turn transform
+`coding_continuation_recovery_project_verification_repair`. A DNS or HTTP error
+does not establish a configuration cause by itself. User settings, credentials
+and product choices must be preserved. The first repair request offers project
+tools without `update_goal`: immediate completion, progress and blocker calls
+are refused before dispatch. A missing or invalid response receives one protocol
+correction and one retry; neither retry renews the execution recovery budget.
+After a diagnostic or execution tool returns, the normal loop can report a
+concrete blocker. An accepted blocker still ends the loop, and failed
+verification still prevents completion. A declined repair still receives a
+bounded status opportunity after its protocol retry is exhausted.
+Foreground native command results record `execution_boundary` from the actual
+launch plan, including a workspace sandbox's denied network authority. Captured
+execution summaries retain this as `executionBoundary`. A sandbox DNS failure
+does not prove the host or remote service is unavailable. Live verification
+that needs network access must request `execution_scope: host` through the
+existing fresh approval gate; repair never silently retries outside containment.
+After repair attempts are exhausted, terminal status recovery remains
+control-only when a verification has finished or a repair request still owes
+an acknowledgement.
+
+The status request's feedback result carries `capturedEvidence`: the paths
+the turn changed, and the latest finished non-git command with its exit, an
+output tail, and whether it ran after the latest change. The carried tail
+alone can omit both. `succeeded` also checks command output failure evidence,
+timeouts, and typed test or diagnostic failures. A recognized shell status
+report adds `reportedExitCode` separately from the shell's own `exitCode`.
+`unresolvedVerificationFailure` identifies a failed check that an unrelated
+passing command did not settle.
+
+The `coding_task_status_*` turn transforms record the reconciled acknowledgement.
+The exit record is written after goal reconciliation so it includes that status.
+Only `coding_task_status_completionRecorded` settles the implementation status.
+A lexical completion notice created solely because no command execution was
+captured records `evidence_requirement=successful_verification_after_claim`.
+A later typed, terminal, passing verification settles that absence-of-evidence
+notice in completion, final-message, prompt, and memory views. Raw audit results
+remain intact. Earlier successes, reused output, environment queries, stale
+background observations, future-action promises, concrete unissued calls, and
+legacy notices without that explicit requirement do not settle it. Verification
+failures and file-save requirements keep their independent completion gates.
+For an intermediate project subtask, a terminal subtask report that also mentions
+later verification can receive the same evidence-absence requirement. The caller
+must identify the turn as a project subtask and the report must end with the
+subtask marker. Concrete unissued tool calls, command transcripts, opaque JSON,
+and nonterminal or ordinary-chat future promises retain their own gates. A fresh
+successful verifier after the latest captured mutation prevents a new absence
+notice; reused output and stale background observations cannot do so. This
+settles only the current subtask and leaves the overall goal active.
+Final reconciliation can revoke an earlier accepted completion when later
+evidence contradicts it, but cannot accept a rejected invocation. After a
+rejection, successful verification still requires a new valid `update_goal`
+completion call. Edits and different passing checks do not settle an earlier
+verification failure; it remains blocking until its matching check passes.
+Pytest checks match across unambiguous reporting verbosity switches (`-v`, `-q`,
+`--verbose`, and `--quiet`). Test targets, selection and execution options,
+option values, and effective working directories must still match. Captured
+output reuse retains the original reporting arguments; verbosity changes do
+not renew implementation recovery. A failure after a passing run remains open.
+Literal pytest package-location and version probes are environment inspection,
+including when the queried interpreter lacks pytest. They neither verify code
+nor create a failed verification scope. Because Python imports may execute
+module hooks, these probes still prevent cached execution-result reuse.
+Identical goal-status arguments can be evaluated again after a file edit or
+verification command changes the captured state. Status calls and inspections
+alone do not renew their duplicate-call allowance.
+Other recorded statuses produce `coding_task_status_unresolved` and an
+`incomplete` summary. A later terminal turn supersedes an earlier unresolved
+status. Language-dependent diagnostics remain visible as history.
+The same reconciled verdict is carried as a harness-origin `coding_task_status`
+result to memory extraction. An implementation answer whose completion was
+rejected is replaced with its recorded completion gaps. Other unaccepted statuses
+retain the work report with an incomplete notice; none can emit
+`PROJECT_TASK_READY_FOR_REVIEW`.
+Extraction starts after this correction is saved. Its summary and open loops
+retain the incomplete verdict even if the secondary model claims completion,
+returns no draft, or fails. Profile updates remain eligible; untyped task facts
+from an unaccepted extraction are omitted.
+
+Intermediate Project Farm turns use a separate subtask verdict. A terminal
+`PROJECT_TASK_SUBTASK_DONE` line is accepted only when captured changes have
+successful execution verification after the latest change and no unresolved
+verification failure, diagnostics, or unexecuted actions remain. Read-only
+investigation subtasks do not need artificial file mutations. A missing marker
+or execution gap triggers bounded recovery through the normal tools and approval
+gates; repeated reads do not renew its budget. A marker-only correction can
+finish a verified subtask without rerunning tools. An intermediate turn cannot
+complete the overall goal with `update_goal(completed: true)`.
+
+The `coding_subtask_status_completed` and `coding_subtask_status_incomplete`
+transforms record this verdict; the latter yields an `incomplete` log summary.
+An unaccepted answer is replaced with the subtask's remaining requirements.
+Memory extraction receives the harness verdict before it runs and preserves
+the current subtask's status even if its model reports the whole task complete
+or extraction fails. A completed subtask still leaves the overall task active.
+The post-review commit has its own turn purpose and does not require a subtask
+marker. Project-root searches and repository maps skip `.venv` and
+`__pycache__`; explicitly rooting a search inside them still permits inspection.
+
+Approval and verification evidence classify a command separately. A literal
+`&&` sequence can provide verification after its final mutation, such as
+`rm -f scratch.log && python verify_logging.py && python -m pytest -q`, while
+the entire command still requires its original mutation authority. A later
+mutation, masked exit, unsupported shell syntax, timeout, running process, or
+failed runner counts cannot provide that evidence. A compound sequence ending
+in pytest also requires recognized positive passing counts.
+Its terminal stderr merge (`2>&1`), output-only `tail`, and literal separator
+echoes do not change its identity. A successful rerun in the same working
+directory can use a captured working pytest interpreter and can also switch
+the interpreter of literal Python script prerequisites. Every script path,
+argument, prerequisite order, and runner argument must still match. Interpreter
+options and module prerequisites retain their exact identity. Running only
+pytest does not settle a failed chain that also contained other verification.
+A passing full chain can settle its terminal runner's earlier failure as well.
+
+Background verification results use the originating command and absolute working
+directory, with a recorded job identity, to reconcile against a later successful
+execution. A monitor without origin metadata does not settle another command's
+failure. A poll observed after an edit cannot verify that edit unless its job
+was dispatched after the edit. Legacy nonterminal status payloads cannot count
+as successful execution.
+
+Command output feedback records its source `tool_call_id`. Completion evidence
+and final-answer prompts supersede an earlier pytest invocation only when a
+later invocation in the same absolute working directory verifies the same
+pytest arguments with a terminal typed zero exit and positive passing runner
+counts, without failed tests or output issues. Python executable selection and
+a trailing output-only `tail -N` pipeline may differ. Other targets, options,
+directories, unknown shell syntax, and unknown outcomes do not settle the old
+diagnostic. Original tool results remain in the log and execution ledger.
+One literal `cd <directory> &&` prefix is resolved before comparison; quoted
+literal paths and arguments are supported without shell expansion. Successful
+pytest replay candidates retain the actual runner and effective directory,
+omitting only the recognized directory and output wrappers. Failed pytest
+invocations do not replace a captured working verifier.
+If the model returns to an earlier failed runner, the harness may reuse a later
+passing result for the same directory and pytest arguments. It requires no
+observed mutation or unknown command between failure and success or after
+success, no changed read hash, no later failure, and no pending mutation.
+The result identifies the captured runner, source call, and requested command
+and explicitly marks execution reuse; it does not claim a new execution.
+
+Optional environment inspection composed solely of literal `cd`, `ls`, `pwd`,
+`which`, and Python version queries may end in `|| true` without producing a
+task failure. It never counts as verification. Unknown commands, mutations,
+masked checks, and actual runtime failure output retain their diagnostics.
+Literal `python -m pip show <packages>` and `pip show <packages>` queries are
+also inspection, including stderr discarded to `/dev/null` and an output-only
+`head` or `tail` limiter. An absent optional package can produce a nonzero exit
+without blocking completion or requiring installation into another interpreter.
+Inspection-only `||` fallback branches and literal `ls` path globs (`*`, `?`)
+are accepted when every branch is an environment query. Expansions, writable
+redirections, package installation, and actual checks remain outside this rule.
+Package imports still prevent cached pytest result reuse because importing a
+package can change runtime state.
+These evidence rules leave command approval classification unchanged.
+Structured task-status recovery reuses the working interpreter and directory
+from captured successful checks when requesting a complete chain rerun. Once
+that rerun succeeds, the request offers only `update_goal` to settle task state.
+If a verification finishes after a status-recovery request, the next boundary
+offers only `update_goal` even when the verification failed. Its typed terminal
+outcome permits one status report without treating failure as implementation
+progress. The report still passes the normal completion gate; it can record
+remaining work or a concrete blocker. Repeated reads and reused results do not
+renew this allowance, and it shares the existing three-boundary recovery cap.
+
+A zero exit code from a pipeline is not successful verification when its output
+reports a Python missing module or failed pytest tests. These output diagnostics
+identify execution failures rather than infer the user's or model's intent.
+For a literal command followed by an exit-status echo, the final numeric report
+must establish zero; echo's own exit does not establish success. The recognized
+`PIPESTATUS[0]` form supports one output-only `head` or `tail` limiter. Missing
+reports remain unverified. A proven successful rerun can settle the same command
+and its output feedback in the same working directory. The report is removed
+before reading terminal pytest counts, which still require positive passing
+counts. A zero reported command exit permits intentional exception output from
+logging verification scripts.
+
+The summary reports `all_calls_discarded` when the latest recorded turn ended
+after repeated tool calls were skipped, even if a final answer exists. This
+is a tool-loop stop, not proof that the requested task is complete. Check the
+mutation and verification results. An `unwritten_file_claim` warning records
+the corresponding turn-exit guard; raw model claims alone are not file-change
+evidence.
 
 ## Recommended Next Improvements
 

@@ -46,6 +46,29 @@ void main() {
   }
 
   group('WorktreeAgentTaskRegistryNotifier', () {
+    test('a cancel survives the run finishing or failing afterwards', () async {
+      final finished = await registerTask();
+      await notifier().markRunning(finished.id);
+      await notifier().cancel(finished.id);
+      await notifier().markCompleted(finished.id, verifiedGreen: true);
+      expect(
+        state().tasks.singleWhere((t) => t.id == finished.id).status,
+        WorktreeAgentTaskStatus.cancelled,
+      );
+
+      final failing = await registerTask(
+        branchName: 'feature/other',
+        worktreePath: '/tmp/caverno-worktrees/other',
+      );
+      await notifier().markRunning(failing.id);
+      await notifier().cancel(failing.id);
+      await notifier().markFailed(failing.id, 'boom');
+      expect(
+        state().tasks.singleWhere((t) => t.id == failing.id).status,
+        WorktreeAgentTaskStatus.cancelled,
+      );
+    });
+
     test('registerTask stores a queued worktree task', () async {
       final task = await registerTask();
 

@@ -63,6 +63,7 @@ class _MutableMcpToolService extends McpToolService {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   // All-day window so the gate allows regardless of wall-clock time.
   const enabledConfig = IdleMaintenanceConfig(
     enabled: true,

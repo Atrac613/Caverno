@@ -11,9 +11,643 @@ settings, or feature-specific execution behavior.
 |---------|------------------|------------------|-----------|----------|
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_chat_background_process_live_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, background process lifecycle (including `process_start`, repeated `process_wait`, observed running-state progress reporting, and zero-exit completion), content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction, subagent delegation via spawn_subagent (sync, child tool use, background result recovery) | Native tool-role compatibility, broad multi-turn continuity beyond focused parser recovery, and routine/cleanup-safety behavior beyond dedicated focused flows | Keep the chat canary suite in every model switch baseline; use `docs/long_running_process_mvp_tasks.md` when process tooling, cleanup behavior, or background-command safety changes |
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_suggestion_live_canary.sh`, `tool/run_coding_todo_app_mvp_live_canary.sh`, `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`, `tool/run_coding_word_frequency_live_canary.sh`, `tool/run_coding_markdown_toc_live_canary.sh`, `tool/run_coding_markdown_toc_exact_short_live_canary.sh`, `tool/run_coding_expense_tracker_live_canary.sh`, `tool/run_coding_weather_code_live_canary.sh`, `tool/run_coding_overwrite_transparency_live_canary.sh`, `tool/run_coding_output_feedback_live_canary.sh`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_turn_steering_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal suggestion artifact preservation, Dart-pinned MVP assembly covering CRUD persistence, deterministic text processing, Markdown structure, exact money aggregation, and CSV export, Open-Meteo WMO weather-code interpretation across saved reports, final answers, and memory extraction, write_file existing-file update transparency in final answers, zero-exit command output feedback and artifact repair, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test with exact-short TODO and Markdown TOC prompts, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, mid-turn interruption redirecting a running turn against a queued-message control arm, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused MVP, coding-goal, weather-code, overwrite-transparency, output-feedback, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, tool-result interpretation, diagnostic or verification feedback, command output guardrails, file/Git side effects, or completion/blocker inference |
+| Software Farm intermediate steps | `tool/run_farm_step_recovery_live_canary.sh` | Actual `ProjectTaskReviewWorkflow` and `ProjectTaskStepTurnRunner` driving `ChatNotifier`, native contained Python verification, optional failed environment lookup, missing-execution recovery, real README mutation with quoted Python stdin verification, unresolved verification and concrete unissued-command blocking, saved answers, real LLM memory extraction, Hive reopen and next-subtask progression | Fixed decomposition; final implementation, review, commit, unattended scheduler and UI are excluded | Run after changing subtask completion, verification reconciliation or session memory guards |
+| Software Farm final completion | `tool/run_farm_completion_live_canary.sh` | Production workflow and turn runners driving ChatNotifier final implementation, dedicated read-only review, repair, native contained verification, fresh scoped Git approvals, separate native commit preparation, roadmap update, real local commit, memory extraction and Hive reopen | UI, automatic scheduler, model decomposition and cross-project scheduling are excluded; the repair case injects its initial implementation and completion report | Run after changing implementation completion, review, repair or commit gates |
 | Anabasis (orchestrator) | `tool/run_anabasis_delegation_live_canary.sh` (default `live_anabasis_delegation_admission`; `CAVERNO_ANABASIS_SCENARIO=live_anabasis_acceptance` for the acceptance half) | A parent turn against a saved, approved, unstarted plan whose open questions are answered: the delegation queue rendered with `[workflow_task_id: …]`, admission of a ready task and its saved contract reaching the child, the delegated-results block naming each id by the parameter that consumes it, reading a child back across turns, and the parent recording a semantic acceptance. The runner decides three ways -- delegated, nothing offered (exit 77, inconclusive), or offered and not taken (failure) -- and reports acceptance without gating on it | Worktree delegation is not dispatched, so no `WorktreeAgentTask` is audited; the queue's four preconditions make the window narrow, so an inconclusive run is normal | Run both scenarios after changing the admission gate, the parent authority boundary, the acceptance handler, or anything in the parent's prompt. **Delegate work a child can finish**: six runs on the implementation scenario measured a parent correctly refusing to judge unfinished work, and the acceptance arrived on the first run of the reading scenario |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 | Capability benchmark (LL39) | `tool/run_live_llm_benchmark_canary.sh` | The whole `LiveLlmDiagnosticService` suite against a real endpoint: instruction contract, JSON Schema with JSON object fallback, production streaming path with TTFT and guarded decode rate, exact preservation, edit-format fidelity, optional embeddings and effective-context physical metrics, both vision message shapes with the no-image control arm, tool call, goal-update fidelity, tool-result integration, a sequential multi-round loop, harness selection, tool search, subagent, remote MCP exposure, the LL16 sampler trials, a 95% saturation high-water signal, and separately versioned `ladder-v2` effective-context stages — scored with `cavernobench` and written to `benchmark_run.json` | New ladder axes or stages require evidence and a ladder-only version bump | Run after changing any probe, scoring table, or ladder stage, and before trusting a new model's stored profile. Set `CAVERNO_EMBEDDINGS_MODEL` or `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to include the expensive optional probes, and use `CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT` to measure the run-to-run spread in one command |
+
+## Software Farm Unattended Worktree Canary
+
+`tool/run_farm_unattended_live_canary.sh --quiet-output` connects the real
+`idleMaintenanceSchedulerProvider`, the production maintenance pipeline and
+its `farm_advance` stage connect `FarmUnattendedRunner` to the production
+launcher, worktree task scheduler, Git preparer, orchestrator and executor.
+It uses one synthetic repository without remotes, disabled hooks/signing,
+fixture preferences, synthetic lifecycle callbacks, fixture AC/access grants
+and a recording notification sink. The production idle environment computes
+background duration from the real lifecycle service; foreground and resumed
+states block the gate. Other maintenance stages are excluded.
+The production `RoadmapSnapshotService` discovers each synthetic roadmap,
+extracts it live, verifies its quotes and persists the snapshot. The production
+`ProjectProposalService` and structured completion adapter generate both
+proposals live. The production LL13 delegate uses the
+selected live endpoint, scoped file tools and native macOS contained
+verification. A pre-HTTP guard rejects
+user-home and Caverno context. No user project is dispatched.
+
+Run with the usual loaded-model preflight and managed relay:
+
+```bash
+CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1 \
+CAVERNO_LLM_API_KEY=no-key \
+CAVERNO_LLM_MODEL=replace-with-loaded-model-id \
+CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1 \
+tool/with_live_llm_loopback.sh -- tool/run_farm_unattended_live_canary.sh --quiet-output
+```
+
+Acceptance requires exactly one dispatch, successful real HTTP, a real review
+branch/worktree, the exact greeting including its newline, an unchanged
+verifier/roadmap, a green native oracle, unchanged source and worktree HEAD,
+persisted task state and the daily-limit ledger. Cleanup removes only the
+synthetic repository's worktrees. The independent evidence gate blocks the
+summary for absent or contradictory evidence. A physical-device negative case
+must produce `needsHuman`, may select its listed item or abstain with an empty
+task id, and must never enqueue or start. Evidence schema version 4 requires
+both live extraction and proposal HTTP calls, source SHA-256 and quote/line
+agreement, and the negative admission/ledger record. It also requires a
+foreground block, sufficient background duration, exactly one completed Farm
+report, no same-window repeat and zero idle on resume.
+This excludes real OS lifecycle event delivery, system-wide HID idle,
+other maintenance stages, real battery and notification plugins,
+host bookmark authorization,
+UI, review/commit and cross-project scheduling. The short synthetic roadmaps
+exercise direct extraction; large-document outline extraction is not covered.
+
+The 2026-10-04 `qwen3.8-27b-exl3` runs remain failed:
+
+- `farm_unattended_live_canary.paWZOg`: the test widget binding intercepted
+  HTTP; later lifecycle coverage preserves the original HTTP overrides when
+  initializing that binding.
+- `farm_unattended_live_canary.gosi1N`: five successful HTTP calls and a real
+  worktree edit, but the greeting lacked its required newline. Native
+  verification failed; no live readiness was established.
+- `farm_unattended_live_canary.JNax1p`: nine successful HTTP calls with the
+  bounded verification repair. Both native checks failed on the same newline
+  requirement. Native API tool arguments omitted the newline despite the
+  reason claiming to add it. The failed verifier and edited file are retained
+  in ignored evidence, and the synthetic scratch tree was removed.
+
+The LL13 delegate now permits one repair only after an observed nonzero command
+exit, then reruns the same declared verification command. It retains the
+initial failure in the verification summary. Timeout, unavailable containment
+and cancellation never trigger repair; another failure stays unverified.
+The worktree and verifier regression suites passed 82 tests and static analysis.
+Independent gate controls rejected wrong HEAD, missing HTTP, wrong content,
+failed verification and absent evidence. That live gate remained blocked; no
+acceptance condition was relaxed and no unchanged live run was repeated.
+
+The wire-capture follow-up `farm_unattended_live_canary.jPLhsL` also failed
+with nine successful HTTP calls. Captured native HTTP tool arguments for all
+three writes already lacked the newline, before the SDK or Caverno decoder.
+The running TabbyAPI Qwen parser strips parameter values and its shared
+coercer strips again. Synthetic XML reproduces that loss. A prepared upstream
+patch preserves plain strings after removing the template's single paired LF
+frame; it passes ten synthetic cases on the exact patched source. Applicability
+was checked against the server checkout without applying it. Caverno native
+argument decoding and actual file writes preserve whitespace in 55 focused
+tests. See [the prepared patch and checker](../tool/patches/README.md).
+At that stage the server remained unchanged and live readiness was blocked; the original
+generated model token stream was not captured, so wire evidence alone cannot
+separate model output from upstream parser transformations for each write.
+
+After explicit user approval, the upstream patch was applied with a rollback
+copy and passed all ten source-level cases before restarting the EXL3 backend
+through its existing supervisor. The model target remained
+`qwen3.8-27b-exl3`. The unchanged acceptance run
+`farm_unattended_live_canary.Pw8ZFI` passed 1/1 with five successful HTTP calls,
+one automatic dispatch, a real review branch/worktree, exact newline-bearing
+HTTP content and file bytes, and initial native oracle success without repair.
+Source and worktree HEAD remained unchanged, only `greeting.txt` was dirty,
+persisted task state was green, and the second pass recorded `daily_limit`.
+The independent evidence gate passed without gaps; scratch worktrees were
+removed and the dynamic relay closed. This establishes only the injected
+idle/proposal scope described above, not OS idle detection, live proposal
+generation, UI or the full maintenance-provider pipeline. The older failed
+artifacts remain retained. See the patch README for deployment hashes and
+rollback location.
+
+The 2026-10-04 live-proposal follow-up
+`farm_unattended_live_canary.C097B4` passed the test, summary and independent
+gate: two successful proposal HTTP calls and five worktree execution HTTP
+calls. The file-edit proposal chose `GR1` as `unattended`; the physical-device
+proposal returned an empty task id with `needsHuman`, a valid contract
+abstention. Its enqueue/start counts were zero and its ledger recorded
+`needsHuman`. The positive native oracle, exact newline, persisted green task,
+unchanged HEAD and daily-limit checks still passed. Six independent gate
+controls accepted valid evidence and rejected missing proposal HTTP, an
+unlisted positive id, a negative start, absent negative evidence and changed
+HEAD. The scratch tree and dynamic relay were removed. Related proposal and
+admission suites passed 25 tests and static analysis.
+
+The preceding `farm_unattended_live_canary.CD2PdZ` remains retained as failed:
+its negative-case assertion required the model to select `HUMAN`, even though
+the production proposal contract explicitly permits abstention. The test now
+accepts either allowed task id while still requiring `needsHuman` and zero
+enqueue/start. No production behavior or positive native oracle was changed.
+OS idle detection and roadmap extraction remain injected; live proposal
+generation is now exercised through the production service and adapter.
+
+The 2026-10-04 live-extraction extension
+`farm_unattended_live_canary.uFmSV1` passed the test, summary and independent
+gate on `qwen3.8-27b-exl3`: two extraction, two proposal and five worktree
+execution HTTP calls. Both documents went through production file discovery,
+extraction, quote verification and persisted snapshots. The positive task was
+verified green; the physical-device proposal abstained with `needsHuman` and
+zero enqueue/start. The exact newline, unchanged HEAD, daily limit and cleanup
+checks passed, and the dynamic relay closed. Seven gate controls accepted
+valid evidence and rejected missing extraction HTTP, a missing snapshot,
+a wrong hash, an invented quote, a wrong line and a wrong task id. Related
+snapshot, proposal and admission suites passed 28 tests; static analysis passed.
+
+The preceding `farm_unattended_live_canary.WSdUPP` passed its live test but
+remains a failed overall artifact: the independent gate required lowercase
+`roadmap.md`, while production discovery on the case-insensitive macOS fixture
+resolved it as `ROADMAP.md`. The gate now permits both fixture filenames while
+still requiring matching source hash, model, verified id and quote/line.
+OS idle detection, host bookmark authorization, outline extraction and the
+full maintenance-provider pipeline remain outside this canary's scope.
+
+The 2026-10-04 maintenance-provider extension
+`farm_unattended_live_canary.tEIzvY` passed the test, summary and independent
+gate on `qwen3.8-27b-exl3`, with two extraction, two proposal and five execution
+HTTP calls. It uses the production scheduler provider, pipeline provider,
+selected `farm_advance` callback, lifecycle service and background-duration
+environment. Foreground produced no report; synthetic background duration was
+660 seconds, followed by one completed Farm dispatch report. The same window
+produced no second report, and resume reset idle to zero. The native worktree
+oracle and all prior admission/persistence checks passed; the scratch tree and
+relay were removed. Related lifecycle, environment, scheduler, stage and Farm
+suites passed 55 tests; static analysis passed. Eight gate controls accepted
+valid evidence and rejected absent maintenance evidence, a foreground report,
+insufficient idle, a repeat, nonzero resumed idle, a wrong stage and a failed
+report.
+
+The preceding `farm_unattended_live_canary.RSLlBd` remains failed: initializing
+the Flutter test binding installed its default HTTP mock, so no real HTTP
+completed and the pipeline reported a failed stage. The canary now preserves
+the original HTTP overrides, as existing lifecycle-based live canaries do,
+and records report content even when an assertion fails. The only selected
+maintenance stage is `farm_advance`; other stages and refresh-key calculation
+remain excluded. Lifecycle callbacks, the background timestamp, AC state and
+notification sink are fixtures. This does not prove native OS event delivery,
+system-wide HID idle, real power/notification plugins or overnight timer
+behavior. Production uses app background duration as its current idle proxy.
+
+## Farm Foreground Cancellation Host Canary
+
+Run `tool/run_farm_foreground_host_canary.sh --quiet-output` on macOS. It builds
+and launches an integration-test host window, then hides and restores that
+window through `window_manager`. No lifecycle callback or scheduler tick is
+injected. A real five-second scheduler timer enters the production Farm stage
+with a fixed, valid proposal. Its enqueue adapter persists a real held task
+and waits before returning. Native foreground return must cancel that pass
+before the next timer; completing registration must leave exactly one held
+task, zero starts and a cancellation report. Evidence schema version 2
+requires both in-memory and persisted `needsRecovery` status. The host report's
+`resumeToDrainMs` measures from the window-restore request through run drain.
+The independent gate rejects missing events, a late drain, any dispatch or an
+absent cancellation report.
+
+`AppLifecycleService` now synchronously notifies background/foreground changes.
+The scheduler provider subscribes and latches active-run cancellation on
+foreground return without stopping polling. A quick return to background
+does not revive the pending proposal. Cancellation reports retain the number
+of tasks already started or skipped. This prevents further dispatch; it does
+not terminate already-started worktrees or abort the outstanding model HTTP
+request, which unwinds when its response arrives.
+
+The host fixture uses a fixed pending proposal, synthetic preferences and
+project metadata, fixture AC state, a short idle threshold and a recording
+notification sink. No real project, LLM or verification command is dispatched.
+It complements the live LLM unattended canary rather than replacing it.
+System-wide HID idle, overnight window/timer behavior, other maintenance stages,
+real AC/notification plugins and signed release behavior remain unverified.
+
+On 2026-10-04, `farm_foreground_host.ZGRPE9` passed its native test and
+independent gate: background then foreground events were observed, the real
+timer started the pending proposal, and window restore through run drain took
+69 ms, below the next five-second tick. Enqueue/start were both zero and the
+report retained `started 0, skipped 0`. The earlier `farm_foreground_host.4f5adL`
+also passed (67 ms) before the report gained explicit counts. Six gate controls
+accepted valid evidence and rejected a missing resume event, late cancellation,
+enqueue, start and a missing report. Related lifecycle, provider, stage,
+scheduler and Farm suites passed 53 tests, including cancellation without a
+manual tick and quick re-backgrounding; static analysis passed.
+
+`farm_unattended_live_canary.f8wvq3` passed the live-model regression after the
+foreground listener was wired, with two extraction, two proposal and five
+worktree execution HTTP calls on `qwen3.8-27b-exl3`. The exact native oracle,
+human-only decline, persistence, daily limit and cleanup passed. Its relay
+closed. The final host run adds cancellation-count reporting; the positive
+live-model path is unchanged by that reporting branch.
+
+Unattended registration now uses `deferStart` to persist tasks directly as
+`needsRecovery` with an admission note. The registry keeps the task unavailable
+to scheduler selection while persisting readiness, rechecks authority and
+registry stability, then publishes queued state and calls start without an
+asynchronous gap. A closed gate or concurrent registry update restores the
+held task. Farm rechecks cancellation, current policy/command, daily limit and
+other active project tasks after registration; rejection records `held` with
+the task id, command and planned branch. Held tasks remain blocked after
+restart and require explicit manual recovery. No new status or storage schema
+was introduced, and interactive background launches keep their existing path.
+
+The scheduler's run handle now also checks the live idle/time/power/config gate
+when cancellation is queried, rather than relying solely on the next polling
+tick. A detected gate closure latches cancellation even if conditions reopen.
+Clock, disabled-config and AC-loss tests cover this on-demand check; Farm
+registration tests cover return, policy/command changes and daily-limit races.
+
+The final 2026-10-04 host run `farm_foreground_host.LziEst` passed the test and
+independent gate: one registered task remained `needsRecovery` in memory and
+storage, with zero starts; restore through drain took 65 ms. The preceding
+`farm_foreground_host.KSypkL` also passed the same registration case. Six gate
+controls accepted valid evidence and rejected a queued in-memory task, a queued
+persisted task, any start, missing registration and a late drain. Related Farm,
+launcher, registry, scheduler and cancellation suites passed 59 tests, including
+concurrent registry changes during persistence; static analysis passed.
+`farm_unattended_live_canary.EI0KzH` passed on `qwen3.8-27b-exl3` with two live
+extraction, two proposal and 5 execution HTTP calls, real native verification,
+persistence and cleanup. Its dynamic relay closed. The host case uses fixed
+model output; the live case separately proves normal held-to-start admission.
+Neither dispatches a user project or tests stopping an already-running task.
+
+## Software Farm Completion Canary
+
+This complements the intermediate-step canary with three required cases:
+
+- `normal`: the live model implements, verifies, reviews and commits.
+- `reviewRepair`: the initial implementation and its completion report are
+  injected, writing an upper-bound clamp that misses negative inputs and running
+  a deliberately partial verifier.
+  The live model must identify the defect in the dedicated review, repair it,
+  verify again, report a clean second review and commit.
+- `failedVerification`: an immutable verifier requires an unavailable external
+  flag. The model must record `blocked_reason`; no review or Git mutation may run.
+  The saved goal must remain blocked, and the terminal harness verdict captured
+  from memory input must retain `blockerLogged`, false completion and a concrete
+  reason. The independent gate rejects absent or superseded blocker evidence.
+
+```bash
+CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1 \
+CAVERNO_LLM_API_KEY=no-key \
+CAVERNO_LLM_MODEL=replace-with-loaded-model-id \
+CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1 \
+tool/with_live_llm_loopback.sh -- tool/run_farm_completion_live_canary.sh --quiet-output
+```
+
+Each case creates a fresh Git repository in canonical system temporary storage,
+with synthetic local identity, no remotes, disabled hooks and signing, fresh Hive
+stores and fixture-only settings. The datasource rejects outbound home paths and
+repository context before HTTP. Reads cover named fixture text only, file effects
+are restricted to `fixture.py` and the post-review `roadmap.md`, and shell execution
+accepts only the immutable verifier through production macOS containment,
+including read-only review verification. Git is an independent native route:
+its command scope permits bounded status/diff/log reads, named task-file staging
+(together or individually, including restaging after an edit) and
+a new commit after review, each write with a fresh fixture approval.
+This is not a claim of OS containment for Git.
+
+The actual `ProjectTaskReviewWorkflow`, `ProjectTaskReviewTurnRunner` and
+`ProjectTaskStepTurnRunner` run final implementation, read-only code review,
+commit preparation and commit purposes. The configured review endpoint uses the same selected live
+model while preserving the separate production review route. No decomposition
+is injected or requested: these cases exercise the final task boundary.
+
+Dedicated Farm reviews start with harness-issued `read_file` calls for the task's
+captured and inherited file paths, resolved against the turn owner's project.
+Deliberately deleted files are reviewed through the patch and surrounding code,
+so they are excluded from required content reads; a later recreation restores
+the read prerequisite.
+The normal read-only tool dispatcher and current-turn ledger execute and record
+these prerequisites before the review model receives their results. Ordinary
+reviews and implementation turns do not use this bootstrap. Every new review,
+including a repair review or retry, obtains fresh reads; earlier implementation
+reads do not prove a current inspection. Farm terminal review markers require
+successful current-turn file inspection of every target, even when the response
+avoids an explicit inspection claim. Missing, denied or unreadable targets keep
+the review incomplete. Historical or stale results cannot satisfy the gate.
+A review route without tool support or the `read_file` definition stops with an
+inspection error before requesting an unsupported terminal review.
+An incomplete review is retried once through the same read-only route, within
+the existing goal budget and input gates. A second incomplete result still
+stops before commit; recovery does not accept a marker followed by a claim guard.
+After a clean review, a separate preparation turn may edit only the cited
+roadmap and stage named task paths. It cannot commit or invoke a shell. Fixed
+native Git and file reads capture HEAD, the full index fingerprint, staged and
+unstaged paths, and reviewed file fingerprints before and after preparation.
+Preparation stops if the implementation changed, task edits remain unstaged,
+the index contains unrelated paths, or the roadmap update is missing. For a
+quoted Markdown checkbox item, the cited entry must be checked; its source line
+or an unambiguous relocated match identifies it, so a duplicate completed item
+cannot hide the pending task. An already checked item needs no artificial edit.
+Other roadmap conventions still rely on the model for completion semantics and
+require an actual staged roadmap update. A missing or unreadable roadmap fails
+closed.
+
+Accepted preparation is immutable typed context captured on the queued message
+and owned by the turn generation. A separate commit turn permits read-only
+inspection and a new commit with separate subject/body arguments, and forbids
+file edits, staging, shell execution and history changes. The existing approval
+and current-turn staged-diff inspection gates remain in force. After approval,
+fixed native reads recheck HEAD, the full index and task files against the
+accepted preparation, then recheck owner validity before executing Git. The
+post-commit HEAD/dirty-path gate remains necessary: these checks do not provide
+an atomic transaction against external writers or OS containment for Git.
+
+Preparation and commit handoffs repeat only the task title, source quote,
+allowed paths and captured native state, rather than the full implementation
+objective and its older instructions. Their history starts at the native
+owner-bound phase input; older messages, goal/workflow instructions, session
+memory and stored compaction or model-switch summaries are excluded from these
+requests. Current-turn tool evidence and steering remain available, while
+workspace instructions and approval gates are preserved. A missing input
+boundary fails closed. Each phase permits one recovery only after a classified normal turn
+with no mutation attempt or native tool failure, and unchanged native HEAD,
+index and task-file fingerprints. Recovery also requires a selected thread,
+no pending user input, and an enabled completed goal with remaining budget.
+Unknown observations prohibit recovery. Abnormal or capped exits, refusals,
+malformed calls, failed tools and changed state stop. A changed HEAD never triggers a second
+commit. The observations are fixed at turn termination, retained for at most
+16 turns and consumed only by their matching conversation and generation;
+consuming the tool ledger cannot erase a denial from the recovery decision.
+Harness-authored inspection notices are guidance rather than native failures,
+but originating write attempts still prohibit recovery.
+
+Successful cases require recorded goal completion, ready/clean markers in saved
+responses, a real HEAD change, exactly the two task files in the commit, and an
+unrelated pre-existing edit left dirty and unstaged. An independently issued,
+contained oracle checks seven inputs after the commit. Optional model requests
+outside the fixture authority may be denied; a denial must not reach the native
+model execution ledger. The independently issued oracle remains a separate
+post-commit check. The failed case requires nonzero verification, incomplete
+saved response and memory verdict, unchanged
+HEAD and roadmap, and no Git mutation. All turns use real memory extraction and
+are checked after reopening Hive. The canary callbacks await asynchronous
+memory persistence between turns so each evidence snapshot is complete.
+
+`fixtures/<case>/evidence.json` contains stage observations, native results,
+approval decisions, native preparation snapshots and accepted commit scope,
+Git state, oracle, reopened conversation/memory and outbound
+synthetic request packets. Treat these ignored reports and session logs as local
+diagnostic artifacts. Fixture repositories are deleted on completion or failure.
+The runner requires all three tests and live primary HTTP on every applicable
+stage, including preparation (the injected first implementation is excluded).
+Its independent evidence gate also requires native before/after preparation and
+a matching accepted index, typed phase observations, unchanged native evidence
+for any recovery, and exactly one native commit. It rejects Git writes in the
+wrong phase or more than two turns in either commit phase. Every real turn,
+including recovery, must record a live primary request. The gate
+downgrades missing, offline or skipped evidence to
+`result=failed` and `mainReadiness.status=blocked`.
+
+A model-free wiring preflight is available with
+`CAVERNO_FARM_COMPLETION_OFFLINE_PREFLIGHT=1`, the three `CAVERNO_LLM_*` values,
+and a fresh `CAVERNO_FARM_COMPLETION_REPORT_DIR`. Run
+`tool/flutter_test_quiet.sh --no-pub tool/canaries/farm_completion_live_canary_test.dart`.
+It uses real fixture file, contained process and Git tools, but never qualifies
+as live evidence. Its review model replies deliberately omit tool calls, so a
+passing preflight also proves that the production harness supplies the current
+file reads before requesting the review result. The normal case also omits
+initial preparation actions, and the repair case reports a staged-diff inspection
+and commit without executing them. Their single recoveries must use real tools;
+the failed-verification case must never start either phase.
+
+The 2026-10-03 baseline with `qwen3.8-27b-exl3` passed 2/3 cases in
+`build/integration_test_reports/farm_completion_live_canary.yK83YR`.
+`reviewRepair` passed after one incomplete-review retry, including current file
+inspections, a real commit and the independent oracle. `failedVerification`
+stopped without Git mutation. `normal` failed: its review-turn memory draft
+omitted the final JSON closing brace and required the production rule-based
+fallback, and its native commit included only `fixture.py`, leaving `roadmap.md`
+staged. The workflow's commit gate now checks file edits captured during the
+commit turn as well as the implementation files, so incomplete bookkeeping
+cannot report completion. The strict live result remains failed and
+main readiness remains blocked; successful commits do not supersede that gap.
+
+After the commit-scope repair, the final run in
+`build/integration_test_reports/farm_completion_live_canary.MnpQpQ` also passed
+2/3. `normal` passed current inspection, the two-file commit, memory persistence
+and the independent oracle. `failedVerification` stopped without Git mutation.
+`reviewRepair` stopped before commit because both the second review and its one
+retry omitted current file inspection; the terminal markers were rejected.
+That run remained blocked for this model. All earlier failure artifacts are
+retained for diagnosis.
+
+After adding harness-issued current-file inspection, the run in
+`build/integration_test_reports/farm_completion_live_canary.wtIjfa` passed 2/3.
+Both reviews in `reviewRepair` received fresh successful file reads, and the
+live model found and repaired the defect and accepted the repaired code.
+The commit stage instead committed before marking the roadmap done, leaving
+its later roadmap edit uncommitted. The native completion gate rejected that
+partial commit; the result remains failed. `normal` and `failedVerification`
+passed. This establishes inspection recovery, not full live readiness.
+
+The final run after tool-unavailable and deletion-selection checks in
+`build/integration_test_reports/farm_completion_live_canary.qu1Olp` passed all
+3/3 cases with `qwen3.8-27b-exl3`. Each dedicated review received fresh
+harness-issued file reads, including both reviews in `reviewRepair`. Both
+positive cases committed exactly `fixture.py` and `roadmap.md`, preserved the
+unrelated dirty file, passed the independent seven-input oracle and persisted
+valid live memory responses. The negative case remained blocked without a
+review or Git mutation. The runner, summary and independent evidence gate all
+returned success; fixture roots were removed and the managed relay exited.
+This satisfies the bounded final-task canary for this run. It does not erase
+the earlier partial-commit failure or prove automatic scheduling or UI behavior.
+
+The first run with separate native preparation in
+`build/integration_test_reports/farm_completion_live_canary.8g6PmH` passed 1/3.
+`normal` returned review text without preparing any changes; native inspection
+stopped before the commit turn because the index was empty. `reviewRepair`
+prepared both task files but its commit response claimed success without a Git
+commit call; HEAD remained unchanged and the native completion gate stopped.
+`failedVerification` stopped without Git mutation. The runner, summary and
+independent evidence gate all remained failed; these rejected completion claims
+do not count as live readiness. The fixture roots were removed and the relay
+closed.
+
+The subsequent run in
+`build/integration_test_reports/farm_completion_live_canary.t3TnVH` also passed
+1/3. It exposed a native source-quote parsing defect: the quoted roadmap entry
+was extended through later quoted commit arguments, so `normal` was rejected
+despite correctly staging the checked task. The parser now reads the source
+quote paragraph and preserves embedded quotes; a real Git regression covers
+later quoted command text. `reviewRepair` did not stage changes and stopped;
+`failedVerification` again stopped without Git mutation. This failed run is
+retained and does not prove readiness.
+The final run after the quote repair in
+`build/integration_test_reports/farm_completion_live_canary.thP2o7` passed 1/3.
+`normal` passed native preparation with exactly the two task files staged and
+the cited task checked, but its commit turn issued no Git call; HEAD stayed
+unchanged and completion was rejected. One of its four memory drafts was also
+invalid JSON. `reviewRepair` returned no preparation actions, leaving the index
+empty; it stopped before any Git mutation. `failedVerification` stopped with
+unchanged HEAD and no preparation or commit turn. All fixture roots were
+removed and the managed relay closed. The runner, summary and independent
+evidence gate remain failed; this model's bounded live completion is not ready.
+Focused native/dispatcher regressions and the real-tool offline preflight pass,
+but do not replace the missing live completion evidence. Earlier failures are
+retained.
+
+The first bounded-recovery run in
+`build/integration_test_reports/farm_completion_live_canary.YSaAWv` passed 1/3.
+Both positive cases prepared the native index but then claimed a successful
+commit without any Git call. Their synthetic unverified-inspection notices were
+incorrectly counted as tool execution failures, so recovery was suppressed.
+The observation policy now distinguishes declared harness guidance from native
+failure while retaining every originating mutation attempt. The negative case
+stopped without Git mutation. This failed artifact is retained; it does not
+establish live readiness.
+
+The next run in
+`build/integration_test_reports/farm_completion_live_canary.4nCIAd` passed 1/3.
+Both positive commit phases correctly admitted one unchanged, mutation-free recovery,
+but both turns in each phase claimed completion without a commit call and
+exhausted the bound. The negative case stopped without Git mutation.
+The prompt boundary now excludes the earlier transcript and system-level task
+and memory instructions for preparation and commit, rather than only shortening
+the latest handoff. The failed run is retained; its results are not superseded
+by offline fixture success.
+
+The context-boundary run in
+`build/integration_test_reports/farm_completion_live_canary.ogRU8B` passed 1/3.
+Both positive cases issued current staged-diff reads and an actual commit request,
+but the fixture approver denied their valid `feat(fixture)` subjects and bodies
+containing parentheses and brackets. No refused Git write executed or triggered
+a recovery. The fixture authority now documents and accepts the repository's
+Conventional Commit types and optional scope, still requiring exactly two `-m`
+arguments, a bounded subject/body, the fixture root and the commit phase.
+Native `Error:` results without JSON also explicitly stop recovery. This failed
+run remains available and does not establish live readiness.
+
+The final run with aligned fixture commit authority in
+`build/integration_test_reports/farm_completion_live_canary.sjxvXA` passed 2/3.
+Both positive workflows completed native preparation, issued a real current
+staged-diff read and exactly one local commit containing `fixture.py` and
+`roadmap.md`, preserved the unrelated dirty file, and passed the independent
+seven-input oracle. Every real turn used primary HTTP. `reviewRepair` persisted
+valid live memory throughout, and `failedVerification` stopped before either
+commit phase with unchanged HEAD and no Git mutation. `normal` failed the strict
+memory gate because its preparation-turn memory draft was invalid JSON and
+required the existing fallback; the other three drafts were valid. The runner,
+summary and independent evidence gate remain failed and readiness remains
+blocked. All fixture roots were removed and the managed relay closed.
+Focused owner/native/goal regressions and the real-tool offline recovery cases
+pass, but cannot replace that remaining live memory evidence. Earlier failure
+artifacts are retained. These results cover the final-task path, not UI or
+automatic scheduling.
+
+The preparation memory response in `sjxvXA` contained all four extraction
+sections with complete values, but omitted the final root `}`. The parser now
+recovers this form only when appending that one delimiter produces a valid
+object with a string summary, list open loops, map profile and list memories.
+It does not supply missing sections, strings, array endings or nested values.
+Recovery is reported through the existing repaired-JSON callback, and native
+task-status guards still override unsupported completion claims. The raw
+response remains available in the ignored canary evidence.
+
+The follow-up run with `qwen3.8-27b-exl3` in
+`build/integration_test_reports/farm_completion_live_canary.SOEFtl` passed 3/3;
+the runner, summary and independent evidence gate passed with no gaps. Both
+positive cases committed exactly the two task files, preserved unrelated work
+and passed the independent oracle and Hive reopen checks. Of eleven memory
+responses, ten were valid raw JSON and one in `normal` again omitted only the
+root brace; the production parser recovered it without rule-based fallback.
+`failedVerification` stopped with unchanged HEAD and zero Git executions. The
+fixture roots were removed and the dynamic relay closed. This establishes the
+final-task canary scope only; UI and automatic scheduling remain unverified.
+
+On 2026-10-04, the working tree based on `3f773d138` added a terminal boundary
+for an accepted goal blocker. The initial run in
+`build/integration_test_reports/farm_completion_live_canary.wUqHSD` passed 3/3
+but exposed an extra loop-exhaustion gap after the intentional blocked stop.
+Clearing the completed batch at that boundary removed the misleading gap.
+The final run with `qwen3.8-27b-exl3` in
+`build/integration_test_reports/farm_completion_live_canary.CPC5MY` passed 3/3;
+the runner, summary and independent evidence gate passed with no gaps.
+`failedVerification` retained the real native exit 1, the blocked goal and the
+harness `blockerLogged` verdict with false completion and a concrete reason.
+It performed zero Git executions and preserved HEAD. Both positive cases
+committed exactly the two task files, preserved unrelated work and passed the
+seven-input oracle and Hive reopen checks. All eleven memory extractions
+completed without fallback. The fixture roots were removed and the managed
+relay closed. Local verification passed 586 relevant tests, static analysis
+and all three offline completion cases. One unrelated existing fallback test
+was reproduced on unchanged `3f773d138` and excluded from that regression run.
+UI and automatic scheduling remain outside this evidence.
+
+
+## Software Farm Step Recovery Canary
+
+Run the six required scenarios with the exact loaded model ID. On macOS with
+an HTTP LAN endpoint, use the managed loopback wrapper as described in
+[`live_llm_canary_agent_runbook.md`](live_llm_canary_agent_runbook.md):
+
+```bash
+export CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1
+export CAVERNO_LLM_API_KEY=no-key
+export CAVERNO_LLM_MODEL=qwen3.8-27b-exl3
+export CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1
+tool/with_live_llm_loopback.sh -- tool/run_farm_step_recovery_live_canary.sh --quiet-output
+```
+
+The initial fault is scripted and labeled in evidence; recovery, final reports
+and memory extraction use the real endpoint. The scratch project is outside the
+repository and uses fresh conversation and memory boxes. Outgoing requests
+reject user-home paths, repository agent guidance and real session-log paths.
+Only fixture reads, one exact README edit in stdin cases, and the exact
+verifier/probe commands are authorized; each command follows the native approval and containment route. No dependencies are
+installed. Projects are removed after each scenario; synthetic logs, reopened
+persistence and evidence remain under the ignored report directory.
+
+- `environmentLookup`: a real verifier passes before a deliberately failing
+  read-only Python metadata query with `||` fallback branches. No structured
+  verification recovery should be necessary.
+- `missingExecution`: a read-only prelude claims an unexecuted command completed.
+  The real model must execute the verifier before the subtask can advance.
+- `failedVerification`: a real verifier fails on an unavailable prerequisite.
+  The subtask, persisted answer and memory must remain incomplete.
+- `unissuedCommand`: a final response contains a concrete unissued command for
+  `tool/unavailable.py`. A passing verifier must not clear the outstanding
+  command or advance the task.
+
+- `stdinVerification`: the prelude really edits `README.md`, reports it as "the
+  README", and claims an unexecuted command completed. Recovery must run the
+  literal quoted Python here-document after the edit, settle the missing
+  execution claim, save a report without an unwritten-README notice, and advance.
+- `failedStdinVerification`: the same real README edit precedes a stdin verifier
+  that fails on an unavailable prerequisite. A premature success claim cannot
+  clear that failure or advance the task.
+
+Positive cases must complete two intermediate subtasks and reach an intentionally
+stopped final implementation boundary. Negative cases must stop at the first
+subtask. Every case checks saved answers and guarded memory summaries, then
+awaits the asynchronous memory write, then closes and reopens Hive to verify
+persistence. This does not prove the final
+implementation/review/commit path, automatic scheduling or physical UI behavior.
+
+The runner writes `canary_summary.json`, `flutter_test.jsonl`, session logs and
+`fixtures/<scenario>/evidence.json`. `farmStepEvidence` requires all six tests
+without skips, activated fixtures, HTTP primary and memory calls, and passing
+persistence assertions. Its separate exit status prevents an absent scenario
+from qualifying even if Flutter reports a successful partial run. The stdin
+cases additionally require a changed README, verification after that mutation,
+actual native exit codes, and the expected subtask progression.
+
+An offline preflight uses the same production workflow and native commands with
+deterministic model replies; it never qualifies as live evidence:
+
+```bash
+CAVERNO_FARM_STEP_OFFLINE_PREFLIGHT=1 \
+CAVERNO_LLM_BASE_URL=http://127.0.0.1:1/v1 CAVERNO_LLM_API_KEY=offline \
+CAVERNO_LLM_MODEL=offline CAVERNO_FARM_STEP_REPORT_DIR=/tmp/farm-step-preflight-new \
+tool/flutter_test_quiet.sh --no-pub tool/canaries/farm_step_recovery_live_canary_test.dart
+```
+
+Choose a fresh report directory for each preflight. The live runner creates one
+automatically.
+
+The stdin extension run on 2026-10-04 in
+`build/integration_test_reports/farm_step_recovery_live_canary.XEZYk1` passed
+6/6 against `qwen3.8-27b-exl3`; the test, summary and independent evidence gates
+all exited zero. It ran from the working tree based on `5b72531a4` with the
+canary extension present. `stdinVerification` captured a real changed README,
+two contained stdin verifier exits of zero, two completed subtasks and two
+persisted model memory updates. `failedStdinVerification` captured the same
+README edit and exit 1, completed no subtask and did not reach the final
+boundary. All six cases passed the Hive reopen assertions. UI behavior remains
+outside this evidence.
 
 ## LL39 Capability Benchmark Canary
 
@@ -30,6 +664,14 @@ CAVERNO_BENCHMARK_CANARY_REPEAT_COUNT=3 tool/run_live_llm_benchmark_canary.sh
 Set `CAVERNO_EMBEDDINGS_MODEL` to a model served by the same endpoint when the
 run should include the LL5 production embeddings path. If it is unset, the
 embeddings probe is skipped without reducing the score or coverage.
+
+Set `CAVERNO_BENCHMARK_CANARY_THINKING=on` to score the run with thinking on,
+the mode the in-app diagnostic pins for Qwen3.8. It defaults to `off`, which
+sends exactly what the canary sent before the mode was selectable, so earlier
+artifacts stay comparable. The two modes score differently on the same model
+(qwen3.8-27b-exl3: 980 on, 952 off), so compare only artifacts whose
+`thinkingMode` matches. The `thinking_control` probe runs in either mode and
+reports whether the endpoint honours `enable_thinking` at all.
 
 Set `CAVERNO_EFFECTIVE_CONTEXT_MAX_TOKENS` to an explicit positive ceiling to
 run the context ladder. Leave it unset for routine benchmark runs: the probe is

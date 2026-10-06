@@ -292,6 +292,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateCodeReviewModel(String model) async {
+    state = state.copyWith(codeReviewModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateCodeReviewEndpointId(String endpointId) async {
+    state = state.copyWith(codeReviewEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
   /// LL8: assign a role's secondary calls to a registered mesh endpoint. An
   /// empty id routes the role to the primary endpoint.
   Future<void> updateMemoryExtractionEndpointId(String endpointId) async {

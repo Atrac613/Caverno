@@ -193,7 +193,9 @@ void main() {
     test(
       'returns an inactive-goal acknowledgement through the same identity',
       () {
-        final request = _request(arguments: const {'message': 'Progress'});
+        final request = _request(
+          arguments: const {'completed': false, 'message': 'Progress'},
+        );
         final adapter = _adapter(
           request,
           snapshot: _snapshot(request, hasGoal: false),

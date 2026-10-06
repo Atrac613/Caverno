@@ -1,3 +1,5 @@
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import 'blocked_mutation_notice.dart';
 import 'coding_verification_claim_guard.dart';
 import 'final_answer_claim_notice_input.dart';
@@ -54,6 +56,13 @@ final class FinalAnswerClaimNoticeApplicator {
     }
 
     var content = input.candidateContent;
+    // Claims are judged on what the reader was told. The stored message still
+    // carries `<think>` and tool markup, and a reasoning line paraphrasing
+    // `git status` ("Modified: ROADMAP.md, mercari.py, ...") read as a
+    // completed-write list: session 1d76c878 ended an honest answer with a
+    // notice about five files it never claimed. Same rule as
+    // `FinalAnswerClaimDetector.claimCandidate`.
+    final visibleAnswer = ContentParser.stripModelHistoryArtifacts(content);
     final transformIds = <String>[];
 
     // Stated first, and from tool results alone: what the turn did to files is
@@ -71,7 +80,7 @@ final class FinalAnswerClaimNoticeApplicator {
     final projectRoot = input.projectRoot;
     if (projectRoot != null && projectRoot.isNotEmpty) {
       final assessment = _unwrittenFileClaimGuard.assess(
-        candidateResponse: content,
+        candidateResponse: visibleAnswer,
         toolResults: input.toolResults,
         projectRoot: projectRoot,
       );
@@ -86,7 +95,7 @@ final class FinalAnswerClaimNoticeApplicator {
 
     if (input.offersCommandExecution) {
       final assessment = _narratedTranscriptClaimGuard.assess(
-        candidateResponse: content,
+        candidateResponse: visibleAnswer,
         toolResults: input.toolResults,
         additionalExecutedCommands: input.executedCommands,
       );
@@ -100,7 +109,7 @@ final class FinalAnswerClaimNoticeApplicator {
     }
 
     final verificationAssessment = _verificationClaimGuard.assess(
-      candidateResponse: content,
+      candidateResponse: visibleAnswer,
       toolResults: input.toolResults,
     );
     if (verificationAssessment.hasMismatch) {

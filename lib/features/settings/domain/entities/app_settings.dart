@@ -37,7 +37,7 @@ enum LocalCommandPermissionMatch { exact, prefix }
 
 enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 
-enum ReasoningEffortPreference { automatic, low, medium, high }
+enum ReasoningEffortPreference { automatic, low, medium, high, xhigh }
 
 enum ProReasoningDepth { standard, deep, max }
 
@@ -96,6 +96,7 @@ extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
     ReasoningEffortPreference.low => 'low',
     ReasoningEffortPreference.medium => 'medium',
     ReasoningEffortPreference.high => 'high',
+    ReasoningEffortPreference.xhigh => 'xhigh',
   };
 }
 
@@ -339,6 +340,12 @@ abstract class ModelCapabilityProfile with _$ModelCapabilityProfile {
     @Default(ModelVideoInputSupport.unknown)
     ModelVideoInputSupport videoInputSupport,
     @Default(0) int usableContextTokens,
+
+    /// The `reasoning_effort` values the endpoint accepted for this model, as
+    /// measured by `ReasoningEffortProbe`. Null when never measured or when the
+    /// endpoint refused none of them, which cannot tell "accepts all" from
+    /// "ignores the field"; the composer then offers every effort.
+    List<String>? supportedReasoningEfforts,
     DateTime? probedAt,
     @Default('') String probeSummary,
     @Default(<String, String>{}) Map<String, String> probeMetadata,
@@ -926,6 +933,8 @@ abstract class AppSettings with _$AppSettings {
     // Pro Reasoning coordinates multiple deliberation stages, so it can use a
     // dedicated model independently from ordinary chat and plan drafting.
     @Default('') String proReasoningModel,
+    // Primary tool-using turn started by /review.
+    @Default('') String codeReviewModel,
     // Reads `flutter run` output and turns failure blocks into issues. Kept
     // separate because it runs while an app is being exercised: it wants a
     // fast, cheap model, not whichever strong model the conversation uses.
@@ -939,6 +948,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String approvalAutoReviewEndpointId,
     @Default('') String planningEndpointId,
     @Default('') String proReasoningEndpointId,
+    @Default('') String codeReviewEndpointId,
     @Default('') String logAnalysisEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
@@ -1188,6 +1198,22 @@ abstract class AppSettings with _$AppSettings {
   String get effectiveProReasoningModel =>
       _resolveRoleModel(proReasoningModel, proReasoningEndpointId);
 
+  String get effectiveCodeReviewModel =>
+      _resolveRoleModel(codeReviewModel, codeReviewEndpointId);
+
+  bool get hasCodeReviewRoute {
+    if (llmProvider != LlmProvider.openAiCompatible) return false;
+    final endpointId = codeReviewEndpointId.trim();
+    if (endpointId.isEmpty) return false;
+    for (final endpoint in enabledLlmEndpoints) {
+      if (endpoint.id == endpointId) {
+        return codeReviewModel.trim().isNotEmpty ||
+            endpoint.normalizedModel.isNotEmpty;
+      }
+    }
+    return false;
+  }
+
   String get effectiveLogAnalysisModel =>
       _resolveRoleModel(logAnalysisModel, logAnalysisEndpointId);
 
@@ -1402,7 +1428,7 @@ abstract class AppSettings with _$AppSettings {
   /// Whether a build before the endpoint opt-in would have suppressed thinking
   /// for this model, by name alone.
   ///
-  /// Spelled out rather than read from `Qwen38RequestThinkingPolicy` on
+  /// Spelled out rather than read from `ChatRequestThinkingPolicy` on
   /// purpose. This records what the old build did, so it has to stay frozen
   /// even if that predicate later widens, narrows or disappears -- and
   /// settings does not otherwise depend on the chat feature.

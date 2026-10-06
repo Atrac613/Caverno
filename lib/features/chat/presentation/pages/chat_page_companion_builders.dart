@@ -73,6 +73,8 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       );
 
       sections.addAll([
+        ProjectTaskProgressSection(conversationId: currentConversation.id),
+        ConversationWorkTimeSection(conversationId: currentConversation.id),
         _buildCompanionSection(
           context,
           title: 'chat.companion_progress'.tr(),

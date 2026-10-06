@@ -78,6 +78,20 @@ abstract class ConversationPlanArtifact with _$ConversationPlanArtifact {
 
   bool get hasExecutionDocument => executionMarkdown != null;
 
+  /// The revision label of an execution document no person reviewed: a
+  /// project task's generated subtask outline. It has to be stored as an
+  /// approved revision to drive execution, so the label is what keeps it from
+  /// being presented as an approved plan.
+  static const unreviewedOutlineLabel = 'Generated task outline (not reviewed)';
+
+  /// Whether the newest approved revision is an unreviewed generated outline.
+  bool get isUnreviewedOutline =>
+      historyEntries
+          .where((entry) => entry.kind == ConversationPlanRevisionKind.approved)
+          .firstOrNull
+          ?.label ==
+      unreviewedOutlineLabel;
+
   bool get hasPlanningDocument => planningMarkdown != null;
 
   String? displayMarkdown({required bool isPlanning}) {

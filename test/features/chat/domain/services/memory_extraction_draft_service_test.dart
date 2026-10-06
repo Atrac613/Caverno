@@ -3,10 +3,104 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
+import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('recorded project task status', () {
+    for (final accepted in [false, true]) {
+      test('subtask verdict overrides overall completion claims: $accepted', () {
+        final status = ProjectTaskTerminalStatus.subtask(
+          taskId: 'policy',
+          accepted: accepted,
+        );
+        for (final raw in [
+          '',
+          '{"summary":"All subtasks complete.","open_loops":[],"memories":[{"text":"All work verified.","type":"fact"}]}',
+          '{"summary":"All subtasks complete.","open_loops":[],"profile":{},"memories":[{"text":"All work verified.","type":"fact"}]',
+        ]) {
+          final draft = MemoryExtractionDraftService.parseDraft(
+            raw,
+            projectTaskStatus: status,
+          )!;
+          expect(draft.summary, status.memorySummary);
+          expect(draft.openLoops, [status.memoryNextStep]);
+          expect(draft.entries, isEmpty);
+        }
+        final input = MemoryExtractionDraftService.buildInput(
+          [],
+          UserMemoryProfile.empty(),
+          toolResults: [status.toToolResult('subtask')],
+        );
+        expect(input, contains('"scope":"subtask"'));
+        expect(input, contains('"subtaskId":"policy"'));
+      });
+    }
+    final rejected = ProjectTaskTerminalStatus(
+      outcome: GoalUpdateAckOutcome.completionRejected,
+      gaps: ['Verification remains unresolved.'],
+    );
+    final raw = jsonEncode({
+      'summary': '\u4f5c\u696d\u306f\u5b8c\u4e86\u3057\u307e\u3057\u305f\u3002',
+      'open_loops': [],
+      'profile': {
+        'persona': ['Developer'],
+        'preferences': ['Concise replies'],
+        'do_not': [],
+      },
+      'memories': [
+        {'text': '\u5b8c\u4e86\u6e08\u307f\u3067\u3059\u3002', 'type': 'fact'},
+        {'text': 'The task is ready for review.', 'type': 'topic'},
+        {'text': 'Prefers concise replies.', 'type': 'preference'},
+      ],
+    });
+    test('grounds summary and open loops without a language detector', () {
+      final draft = MemoryExtractionDraftService.parseDraft(
+        raw,
+        projectTaskStatus: rejected,
+      )!;
+      expect(draft.summary, rejected.incompleteSummary);
+      expect(draft.openLoops, [rejected.nextStep]);
+      expect(draft.persona, ['Developer']);
+      expect(draft.preferences, ['Concise replies']);
+      expect(draft.entries.map((e) => e.type), ['preference']);
+    });
+    test('retains incomplete status even when extraction returns no draft', () {
+      final draft = MemoryExtractionDraftService.parseDraft(
+        '',
+        projectTaskStatus: rejected,
+      )!;
+      expect(draft.summary, rejected.incompleteSummary);
+      expect(draft.openLoops, [rejected.nextStep]);
+    });
+    test(
+      'carries the terminal verdict outside the clipped result payloads',
+      () {
+        final input = MemoryExtractionDraftService.buildInput(
+          [],
+          UserMemoryProfile.empty(),
+          toolResults: [rejected.toToolResult('terminal')],
+        );
+        expect(input, contains('Recorded project task status:'));
+        expect(input, contains('"status":"completionRejected"'));
+      },
+    );
+    test('keeps accepted extraction and older unrelated calls unchanged', () {
+      final accepted = ProjectTaskTerminalStatus(
+        outcome: GoalUpdateAckOutcome.completionRecorded,
+      );
+      expect(
+        MemoryExtractionDraftService.parseDraft(
+          raw,
+          projectTaskStatus: accepted,
+        )!.openLoops,
+        isEmpty,
+      );
+      expect(MemoryExtractionDraftService.parseDraft(raw)!.openLoops, isEmpty);
+    });
+  });
   test('systemPrompt rejects one-off validation markers', () {
     expect(
       MemoryExtractionDraftService.systemPrompt,

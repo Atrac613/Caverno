@@ -163,7 +163,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
-  /// Registered OpenAI-compatible endpoints. Selecting one switches the primary
+  /// Registered remote endpoints. Selecting one switches the primary
   /// connection (base URL / API key / model) the whole app uses.
   Widget _buildEndpointList(AppSettings settings, SettingsNotifier notifier) {
     final theme = Theme.of(context);
@@ -410,9 +410,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _runModelCapabilityAutoProbe();
   }
 
-  /// Add/edit dialog. Endpoints are OpenAI-compatible only, so it collects just
-  /// a display name, a base URL, and an optional API key; the model is picked
-  /// from the fetched model list once the endpoint is active.
+  /// Add/edit dialog for compatible servers and the native Anthropic API.
   Future<void> _showEndpointEditor(
     SettingsNotifier notifier, {
     LlmEndpoint? existing,
@@ -1573,6 +1571,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text(
         widget.existing == null
             ? 'settings.endpoint_add_title'.tr()
@@ -1608,6 +1607,19 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
               autovalidateMode: AutovalidateMode.onUserInteraction,
               validator: _validateBaseUrl,
             ),
+            if (widget.existing == null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const ValueKey('settings-endpoint-anthropic-preset'),
+                  onPressed: () {
+                    _labelController.text = 'Anthropic';
+                    _baseUrlController.text = ApiConstants.anthropicBaseUrl;
+                    _modelController.text = 'claude-sonnet-4-6';
+                  },
+                  child: Text('settings.endpoint_anthropic_preset'.tr()),
+                ),
+              ),
             const SizedBox(height: 12),
             TextFormField(
               key: const ValueKey('settings-endpoint-api-key-field'),

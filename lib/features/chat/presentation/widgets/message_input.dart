@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
-import 'dart:ui' as ui;
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -12,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
 import '../../../../core/services/attachment_storage_service.dart';
+import '../../../../core/services/image_attachment_preparation_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
@@ -643,13 +643,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       mimeType: mimeType,
       filePath: filePath,
     );
-    final resized = await _resizeImageIfNeeded(
-      originalBytes,
+    final normalized = await ImageAttachmentPreparationService.prepareForModel(
+      bytes: originalBytes,
       mimeType: mimeType,
-    );
-    final normalized = await _normalizeImageForUpload(
-      bytes: resized.bytes,
-      mimeType: resized.mimeType,
       filePath: filePath,
     );
     return (
@@ -711,54 +707,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         return '.tiff';
       default:
         return '';
-    }
-  }
-
-  Future<({Uint8List bytes, String mimeType})> _normalizeImageForUpload({
-    required Uint8List bytes,
-    required String mimeType,
-    required String filePath,
-  }) async {
-    final lowerMime = mimeType.toLowerCase();
-    final lowerPath = filePath.toLowerCase();
-    final isWebp = lowerMime == 'image/webp' || lowerPath.endsWith('.webp');
-    final isTiff =
-        lowerMime == 'image/tiff' ||
-        lowerPath.endsWith('.tiff') ||
-        lowerPath.endsWith('.tif');
-    final isHeic =
-        lowerMime == 'image/heic' ||
-        lowerMime == 'image/heif' ||
-        lowerPath.endsWith('.heic') ||
-        lowerPath.endsWith('.heif');
-    final isGif = lowerMime == 'image/gif' || lowerPath.endsWith('.gif');
-
-    if (!isWebp && !isTiff && !isHeic && !isGif) {
-      return (bytes: bytes, mimeType: mimeType);
-    }
-
-    ui.Codec? codec;
-    ui.Image? image;
-
-    try {
-      codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      image = frame.image;
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        appDebugPrint(
-          'WEBP conversion failed (byteData is null). Use original.',
-        );
-        return (bytes: bytes, mimeType: mimeType);
-      }
-
-      return (bytes: byteData.buffer.asUint8List(), mimeType: 'image/png');
-    } catch (e) {
-      appDebugPrint('WEBP conversion failed: $e');
-      return (bytes: bytes, mimeType: mimeType);
-    } finally {
-      image?.dispose();
-      codec?.dispose();
     }
   }
 
@@ -938,54 +886,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       }
     } catch (e) {
       appDebugPrint('Failed to handle inserted content: $e');
-    }
-  }
-
-  Future<({Uint8List bytes, String mimeType})> _resizeImageIfNeeded(
-    Uint8List bytes, {
-    required String mimeType,
-    int maxDimension = 1024,
-  }) async {
-    ui.Codec? codec;
-    ui.Image? image;
-    try {
-      codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      image = frame.image;
-
-      final imageWidth = image.width;
-      final imageHeight = image.height;
-
-      if (imageWidth <= maxDimension && imageHeight <= maxDimension) {
-        return (bytes: bytes, mimeType: mimeType);
-      }
-
-      // Re-decode with target size to resize
-      image.dispose();
-      image = null;
-      codec.dispose();
-      codec = null;
-
-      final targetWidth = imageWidth >= imageHeight ? maxDimension : null;
-      final targetHeight = imageHeight > imageWidth ? maxDimension : null;
-
-      codec = await ui.instantiateImageCodec(
-        bytes,
-        targetWidth: targetWidth,
-        targetHeight: targetHeight,
-      );
-      final resizedFrame = await codec.getNextFrame();
-      image = resizedFrame.image;
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-
-      if (byteData == null) return (bytes: bytes, mimeType: mimeType);
-      return (bytes: byteData.buffer.asUint8List(), mimeType: 'image/png');
-    } catch (e) {
-      appDebugPrint('Failed to resize image: $e');
-      return (bytes: bytes, mimeType: mimeType);
-    } finally {
-      image?.dispose();
-      codec?.dispose();
     }
   }
 
@@ -1736,7 +1636,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                           },
                                         ),
                                     padding: EdgeInsets.zero,
-                                    onSelected: settingsNotifier.updateCodingApprovalMode,
+                                    onSelected: settingsNotifier
+                                        .updateCodingApprovalMode,
                                     itemBuilder: (context) => ToolApprovalMode
                                         .values
                                         .map(
@@ -1914,7 +1815,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                           },
                                         ),
                                     padding: EdgeInsets.zero,
-                                    onSelected: settingsNotifier.updateChatApprovalMode,
+                                    onSelected:
+                                        settingsNotifier.updateChatApprovalMode,
                                     itemBuilder: (context) => ToolApprovalMode
                                         .values
                                         .map(

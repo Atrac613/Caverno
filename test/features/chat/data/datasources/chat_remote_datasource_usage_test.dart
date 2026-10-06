@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_sink.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -17,6 +20,7 @@ final class _RecordingSink implements ModelUsageSink {
       ModelUsageRole role,
       TokenUsage usage,
       int durationMs,
+      String? conversationId,
       String? finishReason,
       bool isError,
     })
@@ -31,6 +35,7 @@ final class _RecordingSink implements ModelUsageSink {
     required TokenUsage usage,
     required int durationMs,
     String? label,
+    String? conversationId,
     String? finishReason,
     bool isError = false,
   }) {
@@ -40,6 +45,7 @@ final class _RecordingSink implements ModelUsageSink {
       role: role,
       usage: usage,
       durationMs: durationMs,
+      conversationId: conversationId,
       finishReason: finishReason,
       isError: isError,
     ));
@@ -258,17 +264,31 @@ void main() {
       endpointId: 'primary',
       httpClient: streamClient,
       streamClientFactory: () => streamClient,
+      usageConversationResolver: usageConversationIdInScope,
     );
 
     // Issue inside the zone, drain outside it, exactly as the chat loop does.
-    final completion = ModelUsageRole.chat.runWith(
-      () => dataSource.streamChatCompletion(messages: messages, model: 'local'),
+    final completion = LlmSessionLogContext.run(
+      const LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'thread-1',
+        conversationId: 'thread-1',
+      ),
+      () => ModelUsageRole.chat.runWith(
+        () =>
+            dataSource.streamChatCompletion(messages: messages, model: 'local'),
+      ),
     );
     await completion.stream.drain<void>();
     await completion.terminal;
 
     expect(sink.records, hasLength(1));
     expect(sink.records.single.role, ModelUsageRole.chat);
+    expect(
+      sink.records.single.conversationId,
+      'thread-1',
+      reason: 'work time is booked to the thread that issued the request',
+    );
   });
 
   test('records nothing when no sink is configured', () async {

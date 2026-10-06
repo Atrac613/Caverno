@@ -61,6 +61,15 @@ void main() {
 
     expect(prompt, contains('docs/releases/caverno-{new-version}.md'));
     expect(prompt, contains('Skill in use'));
+    // Pins the literal tool/check_fix_firings.py watches for: if the wording
+    // changes, the signature dies silently unless this fails.
+    //
+    // Split across adjacent literals for the same reason the header itself is.
+    // The point of that literal is that it spans a concatenation and so cannot
+    // be fired by a log of someone reading this repository -- spelling it
+    // contiguously here would hand the signature the one false positive it was
+    // chosen to avoid.
+    expect(prompt, contains('here because ' 'a tool result'));
     // Carried once, not also as an index row. The carried header names the
     // id too, so the row's leading bullet is what distinguishes them.
     expect(prompt, isNot(contains('- id=skill-release')));

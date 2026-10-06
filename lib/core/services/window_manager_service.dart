@@ -19,6 +19,7 @@ class WindowManagerService with WindowListener {
     duration: const Duration(seconds: 1),
   );
   bool _isQuitting = false;
+  void Function()? onWindowBackgrounded;
 
   Future<void> initialize() async {
     await windowManager.ensureInitialized();
@@ -89,6 +90,7 @@ class WindowManagerService with WindowListener {
       return;
     }
 
+    onWindowBackgrounded?.call();
     unawaited(_moveToBackground());
   }
 
