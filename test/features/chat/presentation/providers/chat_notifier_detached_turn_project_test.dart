@@ -10484,12 +10484,6 @@ void main() {
           finishReason: 'tool_calls',
         ),
       ],
-      toolResultResponses: [
-        ChatCompletionResult(
-          content: 'The goal is blocked pending credentials.',
-          finishReason: 'stop',
-        ),
-      ],
     );
     final container = _buildContainer(
       dataSource: dataSource,
@@ -10513,9 +10507,12 @@ void main() {
         .read(chatNotifierProvider.notifier)
         .sendMessage('Finish signing.', bypassPlanMode: true);
 
+    // A logged blocker ends the turn here. The model is not asked to narrate
+    // it, so there is no tool-result follow-up.
+    expect(dataSource.toolResultRequests, 0);
     expect(
-      dataSource.toolResultBatches.single.single.result,
-      contains('marked blocked'),
+      container.read(chatNotifierProvider).messages.last.content,
+      contains('The goal is blocked: The signing credential is unavailable.'),
     );
     final goal = container
         .read(conversationsNotifierProvider)
