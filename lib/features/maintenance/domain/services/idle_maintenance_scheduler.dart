@@ -8,10 +8,23 @@ import 'idle_maintenance_window_policy.dart';
 /// it should keep going. The scheduler cancels it when the gate closes (the
 /// user returned, power dropped, the window ended) or when [stop] is called.
 class IdleMaintenanceRunHandle {
+  IdleMaintenanceRunHandle({bool Function()? canContinue})
+    : _canContinue = canContinue;
+
+  final bool Function()? _canContinue;
   bool _cancelled = false;
 
   /// Whether the run should abort at the next stage boundary.
-  bool get isCancelled => _cancelled;
+  bool get isCancelled {
+    if (!_cancelled && _canContinue != null) {
+      try {
+        if (!_canContinue()) _cancelled = true;
+      } on Object {
+        _cancelled = true;
+      }
+    }
+    return _cancelled;
+  }
 
   /// Requests cancellation. The scheduler calls this when the gate closes; the
   /// run observes [isCancelled] at its next stage boundary and unwinds.
@@ -126,7 +139,7 @@ class IdleMaintenanceScheduler {
     required Object? refreshKey,
     required bool primary,
   }) {
-    final handle = IdleMaintenanceRunHandle();
+    final handle = IdleMaintenanceRunHandle(canContinue: _evaluateAllowed);
     _activeHandle = handle;
     _activeRun = run(handle).whenComplete(() {
       if (!identical(_activeHandle, handle)) return;
@@ -149,6 +162,13 @@ class IdleMaintenanceScheduler {
     _allowedLastTick = false;
     _hasCompletedPrimaryRun = false;
     _appliedRefreshKey = null;
+  }
+
+  /// Latches cancellation on user activity without stopping periodic polling.
+  /// A quick return to background must not revive a pending model request.
+  void cancelActiveRun() {
+    _activeHandle?.cancel();
+    _allowedLastTick = false;
   }
 
   /// Awaits the in-progress run, if any, so callers (and tests) can wait for a

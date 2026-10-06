@@ -20,7 +20,7 @@ write). None of that is evidence that the app works in someone's hand.
 
 ## Setup
 
-Protocol version 2 requires **both ends rebuilt**. `RemoteCodingProtocolMessage`
+Protocol version 4 requires **both ends rebuilt**. `RemoteCodingProtocolMessage`
 requires an exact version match, so a phone on an older build is refused
 outright — which is step 0, not a problem.
 

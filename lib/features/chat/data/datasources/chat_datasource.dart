@@ -26,6 +26,7 @@ final class ChatCompletionResult {
     this.toolCalls,
     required this.finishReason,
     this.usage = TokenUsage.zero,
+    this.streamedReasoning,
   });
 
   final String content;
@@ -33,7 +34,21 @@ final class ChatCompletionResult {
   final String finishReason;
   final TokenUsage usage;
 
+  /// Reasoning a streamed completion delivered only as `<think>` stream
+  /// chunks. Its [content] omits it, unlike a non-streamed completion's.
+  final String? streamedReasoning;
+
   bool get hasToolCalls => toolCalls != null && toolCalls!.isNotEmpty;
+
+  /// [visible], or the streamed reasoning as a `<think>` block when nothing
+  /// visible is left: the shape the same reply has when it is not streamed,
+  /// so a reply that only reasoned is recognised however it arrived. Without
+  /// it, every streamed reasoning-only stop read as an empty answer (session
+  /// 8ca9fb5b).
+  String orReasoning(String visible) =>
+      visible.trim().isEmpty && streamedReasoning != null
+      ? '<think>$streamedReasoning</think>'
+      : visible;
 }
 
 final class ChatCompletionStreamCancelledException implements Exception {

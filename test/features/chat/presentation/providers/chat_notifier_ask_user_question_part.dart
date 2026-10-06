@@ -319,8 +319,12 @@ void registerChatNotifierAskUserQuestionTests() {
             name: 'ask_user_question',
             arguments: const {
               'question': 'Which direction should we use now?',
+              // The picked option is still offered, so the recorded answer
+              // still stands for a choice the user made. Dropping it makes
+              // this a different decision and the user is asked again; that
+              // boundary is covered in ask_user_question_turn_cache_test.
               'options': [
-                {'label': 'UI first'},
+                {'label': 'Minimal patch'},
                 {'label': 'Refactor with tests'},
               ],
             },
@@ -1285,6 +1289,119 @@ void registerChatNotifierAskUserQuestionTests() {
       expect(
         dataSource.toolResultBatches.single.single.name,
         'ask_user_question',
+      );
+    },
+  );
+
+  test(
+    'a question pending at the tool-loop limit is put to the user',
+    () async {
+      // Session dd50d110: ask_user_question was the only call pending when the
+      // loop hit its limit, and the recovery prompt ("do not ask for
+      // confirmation") had the model settle the release version itself.
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-0',
+            name: 'local_execute_command',
+            arguments: const {'command': 'probe-0'},
+          ),
+        ],
+        toolLoopResponses: [
+          for (var index = 1; index < 12; index += 1)
+            ChatCompletionResult(
+              content: 'Continue lookup $index',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-command-$index',
+                  name: 'local_execute_command',
+                  arguments: {'command': 'probe-$index'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+          ChatCompletionResult(
+            content: 'Two versions are plausible; asking.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-ask-version',
+                name: 'ask_user_question',
+                arguments: const {
+                  'question': 'Which version should this release use?',
+                  'options': [
+                    {'label': '1.3.53+67'},
+                    {'label': '1.3.52+67'},
+                  ],
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          // Reachable only through the recovery this test rules out.
+          ChatCompletionResult(
+            content: 'Using 1.3.52+67.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Releasing as 1.3.53+67.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
+          'ask_user_question': '',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      final send = notifier.sendMessage('Release the next version');
+      await _waitForCondition(
+        () => notifier.state.pendingAskUserQuestion != null,
+      );
+      final pending = notifier.state.pendingAskUserQuestion!;
+      expect(pending.question, 'Which version should this release use?');
+      notifier.resolveAskUserQuestion(
+        id: pending.id,
+        answer: AskUserQuestionAnswer(
+          question: pending.question,
+          selectedOptions: const [
+            AskUserQuestionSelection(id: '1.3.53+67', label: '1.3.53+67'),
+          ],
+        ),
+      );
+      await send;
+
+      expect(
+        dataSource.toolResultRequestMessages
+            .expand((messages) => messages)
+            .map((message) => message.content),
+        everyElement(isNot(contains('bounded tool loop limit'))),
+      );
+      expect(
+        dataSource.finalAnswerMessages.map((message) => message.content).join(),
+        contains('1.3.53+67'),
       );
     },
   );

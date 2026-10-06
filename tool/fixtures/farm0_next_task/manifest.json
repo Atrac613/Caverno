@@ -1,0 +1,102 @@
+{
+  "schema": "farm0_next_task_fixtures_v1",
+  "labeledAt": "2026-09-26",
+  "labelRule": "The expected id is the milestone the revision's own Recommended Next Slice text (or, for synthetic fixtures, its own next-step text) names. null means the document recommends nothing.",
+  "fixtures": [
+    {
+      "name": "roadmap_251dcba91",
+      "gitCommit": "251dcba91",
+      "path": "docs/roadmap.md",
+      "kind": "historical",
+      "expectedRecommendedId": "RC1",
+      "scored": true,
+      "evidence": "**Recommended next slice: RC1 signed-device evidence.**"
+    },
+    {
+      "name": "roadmap_32ff587b4",
+      "gitCommit": "32ff587b4",
+      "path": "docs/roadmap.md",
+      "kind": "historical",
+      "expectedRecommendedId": null,
+      "scored": false,
+      "evidence": "Recommends follow-up work items (a widget reachability check) without a milestone id; reported, not scored."
+    },
+    {
+      "name": "roadmap_52eae07c6",
+      "gitCommit": "52eae07c6",
+      "path": "docs/roadmap.md",
+      "kind": "historical",
+      "expectedRecommendedId": "ANA4",
+      "scored": true,
+      "evidence": "**ANA4 is promoted to `next` as of 2026-09-14, on a measurement rather than a design.** ... The first slice is ... what is waiting on the user."
+    },
+    {
+      "name": "roadmap_0084af193",
+      "gitCommit": "0084af193",
+      "path": "docs/roadmap.md",
+      "kind": "historical",
+      "expectedRecommendedId": "ANA3",
+      "scored": true,
+      "evidence": "Clarify the remaining Anabasis runner-to-acceptance integration before promoting ANA4. ... Keep ANA3 `current` until that closure scope is resolved."
+    },
+    {
+      "name": "roadmap_70466c022",
+      "gitCommit": "70466c022",
+      "path": "docs/roadmap.md",
+      "kind": "historical_large",
+      "expectedRecommendedId": "ANA3",
+      "scored": true,
+      "evidence": "ANA3 PR 2b is the next slice"
+    },
+    {
+      "name": "roadmap_a07768119",
+      "gitCommit": "a07768119",
+      "path": "docs/roadmap.md",
+      "kind": "historical_large",
+      "expectedRecommendedId": "ANA2",
+      "scored": true,
+      "evidence": "First close ANA2's repaired queue evidence gap."
+    },
+    {
+      "name": "roadmap_10e5209a3",
+      "gitCommit": "10e5209a3",
+      "path": "docs/roadmap.md",
+      "kind": "historical_large",
+      "expectedRecommendedId": "ANA3",
+      "scored": true,
+      "evidence": "Prioritize ANA3 PR 2b: record the parent's semantic acceptance through one guarded writer."
+    },
+    {
+      "name": "roadmap_farm0_selected",
+      "file": "tool/fixtures/farm0_next_task/roadmap_2026-09-26_farm0_selected.md",
+      "kind": "historical",
+      "expectedRecommendedId": "FARM0",
+      "scored": true,
+      "evidence": "**Selected 2026-09-26 by user decision: FARM0, ...** while the same section still carries **Previous recommendation: RC1 signed-device evidence.**"
+    },
+    {
+      "name": "synthetic_readme_checklist",
+      "file": "tool/fixtures/farm0_next_task/synthetic_readme_checklist.md",
+      "kind": "synthetic",
+      "expectedRecommendedId": "PT-12",
+      "scored": true,
+      "evidence": "When PT-9 merges, start PT-12 (expiry reminders)."
+    },
+    {
+      "name": "synthetic_japanese_prose",
+      "file": "tool/fixtures/farm0_next_task/synthetic_japanese_prose.md",
+      "kind": "synthetic",
+      "expectedRecommendedId": "M6",
+      "scored": true,
+      "evidence": "The next-step section names M6 as the milestone to start after M4."
+    },
+    {
+      "name": "synthetic_milestone_table",
+      "file": "tool/fixtures/farm0_next_task/synthetic_milestone_table.md",
+      "kind": "synthetic",
+      "expectedRecommendedId": null,
+      "scored": true,
+      "evidence": "A status table with no statement of what comes next."
+    }
+  ]
+}

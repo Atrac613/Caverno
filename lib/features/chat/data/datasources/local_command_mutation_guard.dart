@@ -68,7 +68,12 @@ abstract final class LocalCommandMutationGuard {
     final skippedCommands = <String>[];
 
     void consider(String raw) {
-      final path = _stripRedirectPrefix(raw.trim());
+      // A subshell's parentheses touch its first and last words. In session
+      // 64bbc516 `(... ls .venv venv 2>/dev/null)` reached the fence as
+      // `/dev/null)`, which is no device file, and was refused as a write.
+      final path = _stripRedirectPrefix(
+        raw.trim().replaceAll(RegExp(r'^\(+|\)+$'), ''),
+      );
       if (path.isEmpty || candidates.contains(path)) {
         return;
       }

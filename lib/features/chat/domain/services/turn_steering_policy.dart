@@ -1,4 +1,5 @@
 import '../entities/message.dart';
+import 'turn_steering_prompt_builder.dart';
 
 /// The decisions behind mid-turn interruption, separated from the notifier
 /// state they are applied to.
@@ -20,12 +21,19 @@ final class TurnSteeringPolicy {
   /// Attachments and voice are excluded, not unsupported: an image would need
   /// the vision payload plumbed through the continuation request, and voice
   /// mode already interrupts by cancelling (barge-in). Both fall back to the
-  /// queue, which handles them today.
+  /// queue, which handles them today. So does a message whose model-facing
+  /// content differs from what the user typed, since the continuation request
+  /// carries only the visible text.
   static bool canSteer({
     required String content,
     required bool hasImage,
     required bool isVoiceMode,
-  }) => content.trim().isNotEmpty && !hasImage && !isVoiceMode;
+    bool hasModelContent = false,
+  }) =>
+      content.trim().isNotEmpty &&
+      !hasImage &&
+      !isVoiceMode &&
+      !hasModelContent;
 
   /// Where an interruption belongs in [messages].
   ///
@@ -40,6 +48,24 @@ final class TurnSteeringPolicy {
     }
     return index;
   }
+
+  /// The directive that tells the model the last [carried] user turns are an
+  /// interruption, or null when the turn has carried none.
+  ///
+  /// Keyed by [generation] and derived from the carried count rather than
+  /// consumed, so it stays in place for the rest of the turn instead of only
+  /// for the request that first carried the message.
+  static Message? directiveMessage({
+    required int generation,
+    required int carried,
+  }) => carried == 0
+      ? null
+      : Message(
+          id: 'system_turn_steering_$generation',
+          content: TurnSteeringPromptBuilder.directive(steerCount: carried),
+          role: MessageRole.system,
+          timestamp: DateTime.now(),
+        );
 
   /// The transcript entry for one interruption.
   static Message steeringMessage({

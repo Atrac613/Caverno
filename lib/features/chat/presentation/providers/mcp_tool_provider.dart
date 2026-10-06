@@ -10,6 +10,7 @@ import '../../../../core/services/script_runtime/script_runtime_provider.dart';
 import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
+import '../../../project_farm/presentation/providers/roadmap_snapshot_providers.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
@@ -23,6 +24,7 @@ import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/semantic_search_service.dart';
 import '../../data/repositories/skill_repository.dart';
+import 'conversation_work_time_providers.dart';
 import 'semantic_search_provider.dart';
 
 /// Provides the configured MCP clients.
@@ -65,7 +67,12 @@ final mcpClientsProvider = Provider<List<McpClientBase>>((ref) {
 });
 
 final backgroundProcessToolsProvider = Provider<BackgroundProcessTools>((ref) {
-  final tools = BackgroundProcessTools();
+  // Read once: rebuilding on a store change would kill every running job.
+  final tools = BackgroundProcessTools(
+    onJobFinished: backgroundJobWorkTimeReporter(
+      ref.read(conversationWorkTimeStoreProvider),
+    ),
+  );
   ref.onDispose(() {
     unawaited(tools.dispose());
   });
@@ -157,5 +164,6 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
         : (query, topK) async =>
               (await semanticSearch!.search(query, topK: topK)).conversationIds,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
+    builtInExtensions: [ref.watch(workspaceControlToolsProvider)],
   );
 });

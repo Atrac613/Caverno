@@ -266,6 +266,20 @@ void main() {
       expect(decision.requiredManualDecisionSource, isNull);
     });
 
+    test('contained Python returns to the ordinary auto-review gate', () {
+      final decision = LocalCommandApprovalScope.of(
+        command: 'python3 watcher.py --help',
+        projectRoot: root,
+        reachesNativeShell: true,
+        hostWriteContained: true,
+        commandShapeRequiresApproval: (_) => false,
+      );
+
+      expect(decision.requiresHostWriteApproval, isFalse);
+      expect(decision.requiredManualDecision, isNull);
+      expect(decision.requiresExplicitApproval, isFalse);
+    });
+
     test('does not create host-write authority without a project boundary', () {
       final decision = scope(
         command: 'python3 tool/build.py',

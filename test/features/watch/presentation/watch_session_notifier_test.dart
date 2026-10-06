@@ -15,6 +15,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_attachment.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -1823,6 +1824,7 @@ final class _FakeRemoteCodingClient extends RemoteCodingClientNotifier {
     required String content,
     String languageCode = 'en',
     bool isVoiceMode = false,
+    RemoteCodingAttachmentDraft? attachment,
   }) async {
     sentMessages.add((
       projectId: projectId,

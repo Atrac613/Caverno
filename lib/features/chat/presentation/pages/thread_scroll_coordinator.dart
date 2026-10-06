@@ -2,20 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../providers/chat_state.dart';
-
-/// Where the user left a thread.
-///
-/// [atBottom] is tracked apart from [offset] because a thread that keeps
-/// streaming while it is off screen grows past the pixel offset that used to be
-/// its end: restoring the raw offset would drop the user mid-history when they
-/// were in fact following the newest message.
-@immutable
-class ThreadScrollAnchor {
-  const ThreadScrollAnchor({required this.offset, required this.atBottom});
-
-  final double offset;
-  final bool atBottom;
-}
+import 'thread_scroll_anchor.dart';
+import 'thread_scroll_to_bottom_visibility.dart';
 
 /// Owns the chat message list's scroll position.
 ///
@@ -46,6 +34,8 @@ class ThreadScrollCoordinator {
   static const double _bottomThreshold = 80;
 
   final ScrollController controller = ScrollController();
+  late final ThreadScrollToBottomVisibility showScrollToBottomButton =
+      ThreadScrollToBottomVisibility(controller, epsilon: _epsilon);
   final Map<String, ThreadScrollAnchor> _anchors =
       <String, ThreadScrollAnchor>{};
 
@@ -58,6 +48,7 @@ class ThreadScrollCoordinator {
 
   void dispose() {
     _isDisposed = true;
+    showScrollToBottomButton.dispose();
     controller.dispose();
   }
 
@@ -79,6 +70,7 @@ class ThreadScrollCoordinator {
     if (notification.depth != 0) {
       return false;
     }
+    showScrollToBottomButton.update();
     if (notification is UserScrollNotification) {
       if (notification.direction == ScrollDirection.forward) {
         // Dragging toward older messages: stop following the live stream.
@@ -94,6 +86,12 @@ class ThreadScrollCoordinator {
   }
 
   void onChatStateChanged(ChatState? previous, ChatState next) {
+    // A growing message can change maxScrollExtent without changing pixels.
+    // Refresh after the list has laid out the new content as well as from the
+    // scroll notifications emitted during normal user interaction.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => showScrollToBottomButton.update(),
+    );
     if (previous?.messages.length != next.messages.length) {
       // A message was added or removed: snap to the newest entry and resume
       // following the live stream.

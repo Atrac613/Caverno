@@ -119,8 +119,19 @@ class ContentParser {
     r'call\s*:\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\{',
   );
 
-  // Partial tag (unclosed <)
-  static final _partialTagPattern = RegExp(r'<[^>]*$');
+  // Only a trailing markup fragment can be a streamed partial tag.
+  // Shell operators and multiline code must not hide the rest of an answer.
+  static final _partialTagPattern = RegExp(
+    r'<(?:/?(?:[a-zA-Z_][a-zA-Z0-9_-]*(?:=[^<>\r\n]*)?\|?)?|\|/?[a-zA-Z0-9_-]*\|?)[ \t]*$',
+  );
+
+  static RegExpMatch? _findPartialTag(String content) {
+    final match = _partialTagPattern.firstMatch(content);
+    if (match != null && match.start > 0 && content[match.start - 1] == '<') {
+      return null;
+    }
+    return match;
+  }
 
   // Helpers reused across tool-call parsing strategies.
   static final _whitespacePattern = RegExp(r'\s');
@@ -183,7 +194,7 @@ class ContentParser {
         when !_hasCompleteBareToolCall(remaining, bareStart)) {
       hasIncompleteTag = true;
       incompleteTagType = 'tool_call';
-    } else if (_partialTagPattern.hasMatch(remaining)) {
+    } else if (_findPartialTag(remaining) != null) {
       hasIncompleteTag = true;
       incompleteTagType = 'partial';
     }
@@ -329,7 +340,7 @@ class ContentParser {
             }
           }
         } else if (incompleteTagType == 'partial') {
-          final match = _partialTagPattern.firstMatch(remainingText);
+          final match = _findPartialTag(remainingText);
           if (match != null) {
             remainingText = remainingText.substring(0, match.start);
           }

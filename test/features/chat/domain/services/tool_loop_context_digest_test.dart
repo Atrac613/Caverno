@@ -282,6 +282,38 @@ void main() {
       expect(block, contains('ran `fvm flutter analyze`'));
     });
 
+    test('omits commands whose payload declares they never ran', () {
+      // Session dd50d110: a guard-blocked `git tag -a` carried no `ok`, was
+      // listed as run, and the model went looking for a tag it never made.
+      final block = digest.build([
+        _result('git_execute_command', {
+          'command': 'diff --cached',
+        }, result: '{"exit_code":0,"stdout":"diff --git a/x b/x","stderr":""}'),
+        _result('git_execute_command', {
+          'command': 'status --short',
+        }, result: '{"exit_code":0,"stdout":"","stderr":""}'),
+        _result(
+          'git_execute_command',
+          {'command': 'tag -a 1.3.53+67 -m "Release v1.3.53"'},
+          result:
+              '{"code":"git_tag_format_inspection_required",'
+              '"result_origin":"refusal","required_action":"tag --list"}',
+        ),
+        _result(
+          'git_execute_command',
+          {'command': 'log --oneline | head -3'},
+          result:
+              '{"executed":false,'
+              '"code":"command_rejected_before_execution"}',
+        ),
+      ]);
+
+      expect(block, contains('ran `git diff --cached`'));
+      expect(block, contains('ran `git status --short`'));
+      expect(block, isNot(contains('tag -a')));
+      expect(block, isNot(contains('log --oneline')));
+    });
+
     test('keeps a command that ran and failed', () {
       final block = digest.build([
         _result(

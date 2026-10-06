@@ -406,8 +406,15 @@ class ToolLoopContextDigest {
   /// Both executed paths render `stdout` (empty string included) alongside the
   /// exit status, and refusals carry `ok: false` without it, so the pair
   /// separates "refused" from "ran and failed" without reading any prose.
+  ///
+  /// A payload that declares it never reached its tool says so directly:
+  /// `executed: false`, or a refusal or malformed [ToolResultOrigin]. Neither
+  /// needs `ok` -- git's pipe rejection carries none -- so an `ok`-only test
+  /// listed those as run.
   static bool _wasNeverExecuted(String result) {
-    if (!result.contains('"ok"')) {
+    if (!result.contains('"ok"') &&
+        !result.contains('"executed"') &&
+        !result.contains('"${ToolResultOrigin.jsonKey}"')) {
       return false;
     }
     final Object? decoded;
@@ -419,7 +426,11 @@ class ToolLoopContextDigest {
     if (decoded is! Map<String, dynamic>) {
       return false;
     }
-    return decoded['ok'] == false && !decoded.containsKey('stdout');
+    final origin = ToolResultOrigin.fromPayload(decoded);
+    return origin == ToolResultOrigin.refusal ||
+        origin == ToolResultOrigin.malformed ||
+        decoded['executed'] == false ||
+        (decoded['ok'] == false && !decoded.containsKey('stdout'));
   }
 
   /// How one read-class result reported its own execution.

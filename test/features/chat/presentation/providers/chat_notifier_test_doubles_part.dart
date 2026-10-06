@@ -680,6 +680,7 @@ class _TestSessionMemoryService extends SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async {
     return const MemoryUpdateResult.none();
   }
@@ -693,6 +694,7 @@ class _TestSessionMemoryService extends SessionMemoryService {
 class _TrackingSessionMemoryService extends _TestSessionMemoryService {
   int updateCount = 0;
   final List<List<Message>> updateMessages = [];
+  final List<MemoryExtractionDraft?> drafts = [];
   final Completer<void> firstUpdate = Completer<void>();
 
   @override
@@ -701,9 +703,11 @@ class _TrackingSessionMemoryService extends _TestSessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async {
     updateCount += 1;
     updateMessages.add(List<Message>.from(messages));
+    drafts.add(draft);
     if (!firstUpdate.isCompleted) {
       firstUpdate.complete();
     }
@@ -2455,6 +2459,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   /// turn was actually built with.
   final List<Message> initialRequestMessages = <Message>[];
   final List<int> toolResultToolDefinitionCounts = [];
+  final List<List<Map<String, dynamic>>> toolResultDefinitions = [];
   final List<Message> finalAnswerMessages = <Message>[];
   final List<String?> assistantContents = [];
   double? initialToolTemperature;
@@ -2556,6 +2561,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
     toolResultRequestMessages.add(List<Message>.from(messages));
     toolResultToolDefinitionCounts.add(tools?.length ?? 0);
+    toolResultDefinitions.add(List<Map<String, dynamic>>.from(tools ?? []));
     assistantContents.add(assistantContent);
     final gate = toolLoopResponseGates[toolResultBatches.length];
     if (gate != null) {
@@ -2894,6 +2900,7 @@ class _FakeMcpToolService extends McpToolService
   _FakeMcpToolService({
     required this.results,
     this.descriptions = const {},
+    this.parameters = const {},
     Map<String, List<String>> queuedResults = const {},
   }) : queuedResults = queuedResults.map(
          (key, value) => MapEntry(key, Queue<String>.from(value)),
@@ -2901,6 +2908,9 @@ class _FakeMcpToolService extends McpToolService
 
   final Map<String, String> results;
   final Map<String, String> descriptions;
+
+  /// Declared JSON-schema `parameters` per tool; a bare object otherwise.
+  final Map<String, Map<String, dynamic>> parameters;
   final Map<String, Queue<String>> queuedResults;
   final List<String> executedToolNames = [];
   final List<Map<String, dynamic>> executedToolArguments = [];
@@ -2925,7 +2935,9 @@ class _FakeMcpToolService extends McpToolService
               'function': {
                 'name': toolName,
                 'description': descriptions[toolName] ?? 'Fake tool $toolName',
-                'parameters': const <String, dynamic>{'type': 'object'},
+                'parameters':
+                    parameters[toolName] ??
+                    const <String, dynamic>{'type': 'object'},
               },
             },
           )
@@ -3019,6 +3031,7 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async {
     startCalls.add({
       'command': command,

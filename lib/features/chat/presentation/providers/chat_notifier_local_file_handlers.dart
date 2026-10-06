@@ -377,6 +377,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           mode: approvalMode,
           reviewDomain: ToolApprovalAutoReviewDomain.coding,
           fullAccessEligible: true,
+          workspaceCommandContained: request.workspaceCommandContained,
           requiredManualDecision: request.requiredManualDecision,
           requiredManualDecisionSource:
               request.requiredManualDecisionSource ?? 'required_manual',
@@ -391,23 +392,27 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
             warningTitle: request.warningTitle,
             warningMessage: request.warningMessage,
             outOfRootPaths: request.outOfRootPaths,
+            workspaceCommandContained: request.workspaceCommandContained,
           ),
         );
       },
       requestManualApproval: (candidate, request, gate) async {
+        final prompt = LocalCommandApprovalPrompt.compose(
+          command: request.execution.command,
+          decisionSource: request.requiredManualDecisionSource,
+          gateTitle: gate.approvalPromptTitle,
+          gateRationale: gate.approvalPromptRationale,
+          riskTitle: request.warningTitle,
+          riskMessage: request.warningMessage,
+        );
         final approval = await requestLocalCommand(
           owner: candidate,
           command: request.execution.command,
           workingDirectory: request.execution.workingDirectory,
           reason: request.reason,
-          warningTitle: _escalatedApprovalWarningTitle(
-            gate,
-            request.warningTitle,
-          ),
-          warningMessage: _escalatedApprovalWarningMessage(
-            gate,
-            request.warningMessage,
-          ),
+          warningTitle: prompt.title,
+          warningMessage: prompt.message,
+          canRememberAllow: !request.requiresFreshManualApproval,
         );
         return LocalCommandManualApproval(
           approved: approval.approved,
@@ -467,6 +472,10 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     return LocalCommandToolHandler(
       executionPort: executionPort,
       approvalPort: approvalPort,
+      preflight: (execution) => builtInLocalCommandFenceRefusal(
+        toolName: execution.toolName,
+        arguments: execution.arguments,
+      ),
       permissionRuleStorePort: LocalCommandPermissionRuleRuntimeAdapter(
         owner: owner,
         rules: _settings.localCommandPermissionRules,
@@ -505,44 +514,35 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
 
-    final resolvedArguments = _resolveProjectScopedArguments(
-      toolCall.name,
-      toolCall.arguments,
+    final snapshot = _activeResponseRegistry.snapshotForOwner(
+      approvalCache.owner,
     );
-    final command = LocalShellTools.normalizeCommand(
-      (resolvedArguments['command'] as String?)?.trim() ?? '',
-    );
-    final workingDirectory =
-        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
-    if (command.isEmpty || workingDirectory.isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage:
-            'command is required and working_directory must be provided or inferred from the selected coding project',
-      );
+    if (snapshot == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
-
-    final localArguments = {
-      ...resolvedArguments,
-      'command': command,
-      'working_directory': workingDirectory,
-      'allowed_read_root': _getActiveProjectRootPath() ?? '',
-    };
+    final projectRoot = snapshot.projectRoot ?? '';
+    final isRemoteInteraction =
+        snapshot.sessionLogContext.phase == 'remote_interaction';
+    final preparation = LocalCommandRequestPreparation.prepare(
+      owner: approvalCache.owner,
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      projectRoot: projectRoot,
+      arguments: toolCall.arguments,
+    );
+    final failure = preparation.failureResult(toolCall.name);
+    if (failure != null) return failure;
+    final plan = preparation.plan!;
+    final command = plan.execution.command;
+    final workingDirectory = plan.execution.workingDirectory;
+    final localArguments = plan.execution.arguments;
 
     final permissionDecision = LocalCommandPermissionService.evaluate(
       command: command,
       workingDirectory: workingDirectory,
       rules: _settings.localCommandPermissionRules,
     );
-    final approvalScope = LocalCommandApprovalScope.of(
-      command: command,
-      projectRoot: _getActiveProjectRootPath(),
-      reachesNativeShell: true,
-      commandShapeRequiresApproval:
-          LocalCommandPermissionService.requiresExplicitApproval,
-    );
+    final approvalScope = plan.approvalScope;
     final requiresExplicitApproval = approvalScope.requiresExplicitApproval;
     if (permissionDecision.isDenied) {
       return McpToolResult(
@@ -554,8 +554,9 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
     final preapprovedExpired = _expiredApproval(toolCall.name, approvalCache);
     if (preapprovedExpired != null) return preapprovedExpired;
-    if (!_isRemoteInteraction &&
+    if (!isRemoteInteraction &&
         permissionDecision.isAllowed &&
+        !approvalScope.workspaceCommandContained &&
         !requiresExplicitApproval) {
       return _mcpToolService!.executeProcessTool(
         owner: approvalCache.owner,
@@ -579,10 +580,12 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      workspaceCommandContained: approvalScope.workspaceCommandContained,
       requiredManualDecision: approvalScope.requiredManualDecision,
       requiredManualDecisionSource:
           approvalScope.requiredManualDecisionSource ?? 'required_manual',
       approvalCacheArguments: localArguments,
+      auditArguments: localArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         approvalCache.owner,
         toolCall: toolCall,
@@ -593,6 +596,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         warningTitle: riskWarning?.title,
         warningMessage: riskWarning?.message,
         outOfRootPaths: approvalScope.outOfRootPaths,
+        workspaceCommandContained: approvalScope.workspaceCommandContained,
       ),
     );
     if (gate.isDenied) {
@@ -606,21 +610,27 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
     if (gate.needsManual) {
+      final prompt = LocalCommandApprovalPrompt.compose(
+        command: command,
+        decisionSource: approvalScope.requiredManualDecisionSource,
+        gateTitle: gate.approvalPromptTitle,
+        gateRationale: gate.approvalPromptRationale,
+        riskTitle: riskWarning?.title,
+        riskMessage: riskWarning?.message,
+      );
       final approval = await requestLocalCommand(
         owner: approvalCache.owner,
         command: command,
         workingDirectory: workingDirectory,
         reason: reason,
-        warningTitle: _escalatedApprovalWarningTitle(gate, riskWarning?.title),
-        warningMessage: _escalatedApprovalWarningMessage(
-          gate,
-          riskWarning?.message,
-        ),
+        warningTitle: prompt.title,
+        warningMessage: prompt.message,
+        canRememberAllow: approvalScope.requiredManualDecision == null,
       );
       final manualExpired = _expiredApproval(toolCall.name, approvalCache);
       if (manualExpired != null) return manualExpired;
       if (approval.shouldRemember &&
-          !_isRemoteInteraction &&
+          !isRemoteInteraction &&
           approvalScope.requiredManualDecision == null) {
         await ref
             .read(settingsNotifierProvider.notifier)
@@ -894,6 +904,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     String? reason,
     String? warningTitle,
     String? warningMessage,
+    bool canRememberAllow = true,
   }) {
     final completer = Completer<LocalCommandApproval>();
     final pending = PendingLocalCommand(
@@ -904,6 +915,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       reason: reason,
       warningTitle: warningTitle,
       warningMessage: warningMessage,
+      canRememberAllow: canRememberAllow,
       completer: completer,
       origin: _activeInteractionOrigin,
       remoteDeviceId: _activeRemoteDeviceId,

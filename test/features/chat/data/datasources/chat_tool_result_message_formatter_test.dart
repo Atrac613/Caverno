@@ -102,4 +102,35 @@ void main() {
       ]);
     });
   });
+
+  group('formatContent', () {
+    test('states the writes a carried result predates', () {
+      final carried = ToolResultInfo(
+        id: 'tag',
+        name: 'git_execute_command',
+        arguments: {'command': 'tag --list'},
+        result: 'v1',
+        fromEarlierLoop: true,
+        changesSinceCapture: const ['edit_file pubspec.yaml'],
+      );
+
+      final content = _formatter.formatContent(carried);
+
+      expect(
+        content,
+        startsWith(
+          'Captured before these later changes in this turn: '
+          'edit_file pubspec.yaml.',
+        ),
+      );
+      expect(content, endsWith('\nv1'));
+    });
+
+    test('leaves a result with no later changes untouched', () {
+      expect(
+        _formatter.formatContent(_result('a')),
+        '{"path":"a.dart","content":"x"}',
+      );
+    });
+  });
 }

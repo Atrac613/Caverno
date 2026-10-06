@@ -3,16 +3,44 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/video_delivery.dart';
 import 'chat_datasource.dart';
 import 'chat_remote_datasource.dart';
+import 'demo_datasource.dart';
 import 'llm_session_log_store.dart';
+import 'strict_tool_choice_policy.dart';
 
 final llmSessionLogStoreProvider = Provider<LlmSessionLogStore>((ref) {
   return LlmSessionLogStore();
 });
+
+/// Wraps [dataSource] so its requests reach the LLM session log, when logging
+/// is on and the source is a real remote endpoint. Demo and test sources pass
+/// through unchanged.
+ChatDataSource withChatSessionLogging(
+  ChatDataSource dataSource,
+  AppSettings settings, {
+  required LlmSessionLogStore Function() logStore,
+  required LlmSessionLogContext? Function() contextProvider,
+}) {
+  final loggingEnabled = LlmSessionLogStore.isEnabled(
+    settingsEnabled: settings.enableLlmSessionLogs,
+  );
+  if (!loggingEnabled ||
+      settings.demoMode ||
+      dataSource is DemoDataSource ||
+      dataSource is! ChatRemoteDataSource) {
+    return dataSource;
+  }
+  return SessionLoggingChatDataSource(
+    delegate: dataSource,
+    logStore: logStore(),
+    contextProvider: contextProvider,
+  );
+}
 
 class SessionLoggingChatDataSource
     implements
@@ -46,7 +74,7 @@ class SessionLoggingChatDataSource
     final delegate = _delegate;
     if (delegate is! ChatRemoteDataSource) return requested;
     return delegate
-            .qwen38RequestOverrides(model: model, maxTokens: requested)
+            .thinkingOverrides(model: model, maxTokens: requested)
             ?.maxTokens ??
         requested;
   }
@@ -66,11 +94,22 @@ class SessionLoggingChatDataSource
     final delegate = _delegate;
     if (delegate is! ChatRemoteDataSource) return null;
     return delegate
-        .qwen38RequestOverrides(
+        .thinkingOverrides(
           model: model,
           maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
         )
         ?.chatTemplateKwargs;
+  }
+
+  bool? _enableThinking(String model, int? maxTokens) {
+    final delegate = _delegate;
+    if (delegate is! ChatRemoteDataSource) return null;
+    return delegate
+        .thinkingOverrides(
+          model: model,
+          maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+        )
+        ?.topLevelEnableThinking;
   }
 
   TokenUsage get lastUsage {
@@ -147,6 +186,10 @@ class SessionLoggingChatDataSource
         model ?? ApiConstants.defaultModel,
         maxTokens,
       ),
+      enableThinking: _enableThinking(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
       chatTemplateKwargs: _chatTemplateKwargs(
         model ?? ApiConstants.defaultModel,
         maxTokens,
@@ -218,6 +261,11 @@ class SessionLoggingChatDataSource
         model ?? ApiConstants.defaultModel,
         maxTokens,
       ),
+      toolChoice: StrictToolChoicePolicy.openAiToolChoice(tools),
+      enableThinking: _enableThinking(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
       chatTemplateKwargs: _chatTemplateKwargs(
         model ?? ApiConstants.defaultModel,
         maxTokens,
@@ -269,6 +317,11 @@ class SessionLoggingChatDataSource
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
       maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      toolChoice: StrictToolChoicePolicy.openAiToolChoice(tools),
+      enableThinking: _enableThinking(
         model ?? ApiConstants.defaultModel,
         maxTokens,
       ),
@@ -364,6 +417,10 @@ class SessionLoggingChatDataSource
         model: model ?? ApiConstants.defaultModel,
         temperature: temperature ?? ApiConstants.defaultTemperature,
         maxTokens: _effectiveMaxTokens(
+          model ?? ApiConstants.defaultModel,
+          maxTokens,
+        ),
+        enableThinking: _enableThinking(
           model ?? ApiConstants.defaultModel,
           maxTokens,
         ),
@@ -469,6 +526,10 @@ class SessionLoggingChatDataSource
         model ?? ApiConstants.defaultModel,
         maxTokens,
       ),
+      enableThinking: _enableThinking(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
       chatTemplateKwargs: _chatTemplateKwargs(
         model ?? ApiConstants.defaultModel,
         maxTokens,
@@ -525,10 +586,18 @@ class SessionLoggingChatDataSource
       messages: messages,
       tools: tools,
       toolResults: toolResults,
+      toolChoice: StrictToolChoicePolicy.openAiToolChoice(
+        tools,
+        toolResults: toolResults,
+      ),
       assistantContent: assistantContent,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
       maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      enableThinking: _enableThinking(
         model ?? ApiConstants.defaultModel,
         maxTokens,
       ),
@@ -585,10 +654,18 @@ class SessionLoggingChatDataSource
       messages: messages,
       tools: tools,
       toolResults: toolResults,
+      toolChoice: StrictToolChoicePolicy.openAiToolChoice(
+        tools,
+        toolResults: toolResults,
+      ),
       assistantContent: assistantContent,
       model: model ?? ApiConstants.defaultModel,
       temperature: temperature ?? ApiConstants.defaultTemperature,
       maxTokens: _effectiveMaxTokens(
+        model ?? ApiConstants.defaultModel,
+        maxTokens,
+      ),
+      enableThinking: _enableThinking(
         model ?? ApiConstants.defaultModel,
         maxTokens,
       ),

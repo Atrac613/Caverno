@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -16,17 +15,25 @@ import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
 import '../../../chat/data/datasources/openai_parameter_support_probe.dart';
+import '../../../chat/data/datasources/strict_tool_choice_policy.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
+import '../../../chat/domain/services/goal_update_ack.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
-import 'live_llm_chart_probe_image.dart';
-import 'live_llm_tool_depth_staircase.dart';
-import 'live_llm_tool_recovery_cases.dart';
+import 'live_llm_diagnostic_evidence.dart';
+import 'live_llm_diagnostic_request_shape.dart';
+import 'live_llm_diagnostic_response_scoring.dart';
+import 'live_llm_diagnostic_thinking_observer.dart';
+import 'live_llm_multi_round_probe.dart';
+import 'live_llm_sampler_calibration_trials.dart';
+import 'live_llm_structured_output_probe.dart';
+import 'live_llm_tool_depth_probe.dart';
+import 'live_llm_tool_recovery_probe.dart';
+import 'live_llm_vision_probes.dart';
 import 'llm_provider_capabilities.dart';
-import 'llm_sampler_preset_profile.dart';
 
 typedef LiveLlmDiagnosticReportCallback =
     void Function(LiveLlmDiagnosticReport report);
@@ -44,6 +51,7 @@ class LiveLlmDiagnosticService {
     this.embedTexts,
     this.effectiveContextMaxTokens = 0,
     this.runEffectiveContextTrial,
+    this.thinkingModeDataSource,
   });
 
   final AppSettings settings;
@@ -53,11 +61,105 @@ class LiveLlmDiagnosticService {
   final int effectiveContextMaxTokens;
   final RunEffectiveContextTrial? runEffectiveContextTrial;
 
+  /// A datasource pinned to one thinking mode, for the probe that switches
+  /// thinking deliberately. Null skips that probe: [chatDataSource] holds a
+  /// single mode fixed at construction and cannot send the other one.
+  final ChatDataSource Function(LiveLlmDiagnosticThinkingMode mode)?
+  thinkingModeDataSource;
+
+  final _thinking = LiveLlmDiagnosticThinkingObserver();
+
+  /// Every probe request goes through here so its response is counted by
+  /// [_thinking]. [chatDataSource] stays the datasource itself, because probes
+  /// type-test it for opt-in capabilities a wrapper would hide.
+  late final _chat = LiveLlmDiagnosticObservedChatCalls(
+    chatDataSource,
+    _thinking,
+  );
+  late final _visionProbes = LiveLlmVisionProbes(
+    complete: ({required messages, required maxTokens}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: maxTokens,
+        ),
+    completeWithToolResults: ({required messages, required toolResults}) =>
+        _chat.createChatCompletionWithToolResults(
+          messages: messages,
+          toolResults: toolResults,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    messages: (user) => _messages(user: user),
+    answerMaxTokens: _diagnosticMaxTokens,
+    reasoningMaxTokens: _reasoningProbeMaxTokens,
+  );
+  late final _multiRoundProbe = LiveLlmMultiRoundProbe(
+    complete: ({required messages, required tools}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          tools: tools,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    completeWithToolResults:
+        ({required messages, required toolResults, required tools}) =>
+            _chat.createChatCompletionWithToolResults(
+              messages: messages,
+              toolResults: toolResults,
+              tools: tools,
+              model: _diagnosticModel,
+              temperature: _diagnosticTemperature,
+              maxTokens: _diagnosticMaxTokens,
+            ),
+    messages: (user) => _messages(user: user),
+  );
+  late final _toolDepthProbe = LiveLlmToolDepthProbe(
+    complete: ({required messages, tools}) => _chat.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    ),
+    messages: (user) => _messages(user: user),
+  );
+  late final _toolRecoveryProbe = LiveLlmToolRecoveryProbe(
+    complete: ({required messages, required tools}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          tools: tools,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    messages: (user) => _messages(user: user),
+  );
+  late final _samplerTrials = LiveLlmSamplerCalibrationTrials(
+    complete: ({required messages, tools, required temperature}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          tools: tools,
+          model: _diagnosticModel,
+          temperature: temperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    messages: (user) => _messages(user: user),
+  );
+
   static const probeDefinitions = <LiveLlmDiagnosticProbeDefinition>[
     LiveLlmDiagnosticProbeDefinition(
       id: _instructionProbeId,
       titleKey: 'settings.live_llm_diag_probe_instruction_title',
       descriptionKey: 'settings.live_llm_diag_probe_instruction_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _thinkingControlProbeId,
+      titleKey: 'settings.live_llm_diag_probe_thinking_control_title',
+      descriptionKey: 'settings.live_llm_diag_probe_thinking_control_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _structuredOutputProbeId,
@@ -167,29 +269,30 @@ class LiveLlmDiagnosticService {
   ];
 
   static const _instructionProbeId = 'instruction_echo';
-  static const _structuredOutputProbeId = 'structured_output';
+  static const _structuredOutputProbeId = LiveLlmStructuredOutputProbe.probeId;
   static const _streamingProbeId = 'streaming_response';
+  static const _thinkingControlProbeId = 'thinking_control';
   static const _exactPreservationProbeId = 'exact_preservation';
   static const _editFormatProbeId = 'edit_format_fidelity';
   static const _embeddingsProbeId = 'embeddings_capability';
   static const _effectiveContextProbeId = 'effective_context';
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
-  static const _visionAttachmentProbeId = 'vision_attachment';
-  static const _chartReadingProbeId = 'chart_reading';
+  static const _visionAttachmentProbeId = LiveLlmVisionProbes.attachmentProbeId;
+  static const _chartReadingProbeId = LiveLlmVisionProbes.chartReadingProbeId;
   static const _videoInputModalityProbeId = 'video_input_modality';
-  static const _visionToolObservationProbeId = 'vision_tool_observation';
+  static const _visionToolObservationProbeId =
+      LiveLlmVisionProbes.toolObservationProbeId;
   static const _narrowToolCallProbeId = 'narrow_tool_call';
   static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
   static const _toolResultProbeId = 'tool_result_integration';
-  static const _multiRoundToolLoopProbeId = 'multi_round_tool_loop';
+  static const _multiRoundToolLoopProbeId = LiveLlmMultiRoundProbe.probeId;
   static const _initialHarnessProbeId = 'initial_harness_selection';
   static const _toolSearchProbeId = 'tool_search_catalog';
   static const _subagentProbeId = 'subagent_recognition';
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
-  static const _toolDepthProbeId = 'tool_state_staircase';
-  static const _toolRecoveryProbeId = 'tool_recovery';
-  static const _multiRoundToolLoopMarker = 'CAVERNO_MULTI_ROUND_LOOP_OK';
+  static const _toolDepthProbeId = LiveLlmToolDepthProbe.probeId;
+  static const _toolRecoveryProbeId = LiveLlmToolRecoveryProbe.probeId;
 
   /// The streaming probe asks for a run of integers rather than prose: the
   /// content is verifiable without a judge, and it is long enough that the
@@ -203,6 +306,7 @@ class LiveLlmDiagnosticService {
 
   static const modelCapabilityProbeIds = <String>{
     _instructionProbeId,
+    _thinkingControlProbeId,
     _structuredOutputProbeId,
     _streamingProbeId,
     _editFormatProbeId,
@@ -233,57 +337,7 @@ class LiveLlmDiagnosticService {
   /// geometry is lost. Do not shrink this to save tokens without re-measuring:
   /// the probe would report the harness's own limit as a model failure.
   @visibleForTesting
-  static const visionProbeImageBase64 = _visionProbeImageBase64;
-
-  static const _visionProbeImageBase64 =
-      'iVBORw0KGgoAAAANSUhEUgAAAYAAAAGACAIAAAArpSLoAAAEpElEQVR42u3UwQkAMAwDMe'
-      '+/tLtD8glFoAkMvrSBsaQw50IIEAKEACFAIEAIEAKEAIEAIUAIEAIEAoQAIUAIEAIEAoQA'
-      'IUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAhQAgQAgQChAAhQAgQCBAChAAhQCBACB'
-      'AChAAhQCBACBAChACBACFACBACBAKEACFACBC4EAKEACFACBAIEAKEACFAIEAIEAKEAIEA'
-      'IUAIEAKEAHkRAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAhQAgQAgQChAAhQA'
-      'gQCBAChAAhQCBACBAChAAhQCBACBAChACBACFACBACBAKEACFACBAIEAKEACFACBAIEAKE'
-      'ACFAIEAIEAKEAIEAIUAIEAIELoQAIUAIEAIEAoQAIUAIEAgQAoQAIUAgQAgQAoQAIUAgQA'
-      'gQAoQAgQAhQAgQAgQChAAhQAgQCBAChAAhQAgQCBAChAAhQCBACBAChACBACFACBACBAKE'
-      'ACFACBACBAKEACFACBAIEAKEACFAIEAIEAKEAIEAIUAIEAKEAIEAIUAIEAIEAoQAIUAIEA'
-      'gQAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAgQChAAhQAgQAgQChAAhQAgQCBAChAAh'
-      'QCBACBAChACBACFACBAChACBACFACBACBAKEACFACBAIEAKEACFAIEAIEAKEACFAIEAIEA'
-      'KEAIEAIUAIEAIEAoQAIUAIELgQAoQAIUAIEAgQAoQAIUAgQAgQAoQAgQAhQAgQAoQAgQAh'
-      'QAgQAgQChAAhQAgQCBAChAAhQCBACBAChAAhQCBACBAChACBACFACBACBAKEACFACBAIEA'
-      'KEACFACBAIEAKEACFAIEAIEAKEAIEAIUAIEAIEAoQAIUAIEAIEAoQAIUAIEAgQAoQAIUAg'
-      'QAgQAoQAIUAuhAAhQAgQAgQChAAhQAgQCBACxM0A2YAFEwACBAgQgAABAgQgQIAAAQgQIE'
-      'AAAgQIEIAAAQIEIECAAAEIECBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIEIAA'
-      'AQIEIECAAAECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIECBAAAIECBCAAA'
-      'ECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIECAAAEIECBAAAIECBCAAAECBCBAgAAB'
-      'CBAgQAACBAgQgAABAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABCBAgQAACBA'
-      'gQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABAmQCQIAAAQIQIECAAAQI'
-      'ECAAAQIECECAAAECECBAgAAECBAgAAECBAgQIAABAgQIQIAAAQIQIECAAAQIECAAAQIECE'
-      'CAAAECECBAgABMAAgQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBCBAgAABAgQg'
-      'QIAAAQgQIEAAAgQIEIAAAQIEIECAAAEIECBAAAIECBCAAAECBAgQgAABAgQgQIAAAQgQIE'
-      'AAAgQIEIAAAQIEIECAAPGdB+I3WgSaUHuyAAAAAElFTkSuQmCC';
-  static const _visionProbeImageMimeType = 'image/png';
-  static const _visionProbeExpectedColors = <String>[
-    'yellow',
-    'blue',
-    'red',
-    'green',
-  ];
-  static const _visionProbePrompt =
-      'The attached image is split into four equal quadrants, each a single '
-      'solid color. Reply with exactly the four color names in reading order '
-      '(top-left, top-right, bottom-left, bottom-right), lowercase, separated '
-      'by commas, and no other text.';
-
-  /// Asks for all four readings in one turn.
-  ///
-  /// One request per arm rather than one per question: the probe runs on every
-  /// diagnostic pass and a chart image is not cheap, and asking separately
-  /// measured nothing extra when it was tried against a live endpoint.
-  static const _chartProbePrompt =
-      'The attached image is a bar chart with a labelled y axis. Reply with '
-      'exactly four comma-separated items and no other text: the numeric '
-      'height of the bar labelled Briar, the numeric height of the bar '
-      'labelled Aster, the label of the tallest bar, the label of the '
-      'shortest bar.';
+  static const visionProbeImageBase64 = LiveLlmVisionProbes.imageBase64;
 
   /// A larger budget for the probes whose answer follows a reasoning preamble.
   ///
@@ -308,44 +362,14 @@ class LiveLlmDiagnosticService {
   /// reasoning is the remaining lever, not enlarging it.
   static const _reasoningProbeMaxTokens = 2048;
 
-  static const _chartClassificationRejected = 'endpoint_rejected';
-  static const _chartClassificationNoAnswer = 'no_answer_within_budget';
-  static const _chartClassificationGuessed = 'model_guessed_without_reading';
-  static const _chartClassificationPartial = 'partially_read';
-  static const _chartClassificationRead = 'read_correctly';
-
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
-  static const structuredOutputSupportMetadataKey = 'structuredOutputSupport';
-  static const _structuredOutputSchemaMarker = 'CAVERNO_SCHEMA_LOCKED_47';
-  static const _structuredOutputObjectMarker = 'CAVERNO_JSON_OBJECT_OK';
-  static const _structuredOutputSchema = <String, dynamic>{
-    'type': 'object',
-    'properties': <String, dynamic>{
-      'marker': <String, dynamic>{
-        'type': 'string',
-        'const': _structuredOutputSchemaMarker,
-      },
-      'count': <String, dynamic>{'type': 'integer', 'const': 47},
-    },
-    'required': <String>['marker', 'count'],
-    'additionalProperties': false,
-  };
+  static const structuredOutputSupportMetadataKey =
+      LiveLlmStructuredOutputProbe.supportMetadataKey;
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
   static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
   static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
-  static const _routineSamplerMarker = 'CAVERNO_ROUTINE_SAMPLER_OK';
-  static const _codingSamplerMarker = 'CAVERNO_CODING_SAMPLER_OK';
-  static const _planSamplerMarker = 'CAVERNO_PLAN_SAMPLER_OK';
-  static const _codingSamplerEditBlock = <String>[
-    '<<<<<<< SEARCH',
-    'return oldValue;',
-    '=======',
-    'return newValue;',
-    '>>>>>>> REPLACE',
-  ];
-  static const _planSamplerTasks = <String>['inspect', 'edit', 'verify'];
   static const _exactDirectEchoValue = '12 GiB, \u00a53,980';
   static const _exactToolResultValue = 'ZX-900_\u03b1 2026-06-12';
   static const _exactUrlValue =
@@ -390,10 +414,6 @@ class LiveLlmDiagnosticService {
   static const _videoModalityUnsupported = 'video_input_unsupported';
   static const _videoModalityUnknown = 'video_input_unknown';
 
-  static const _visionClassificationRejected = 'endpoint_rejected';
-  static const _visionClassificationIgnored = 'model_ignored_the_image';
-  static const _visionClassificationPartial = 'partially_read';
-  static const _visionClassificationRead = 'read_correctly';
   static const _diagnosticTemperature = 0.0;
   static const _diagnosticMaxTokens = 512;
   static const _samplerCalibrationTemperatures = <double>[0.0, 0.2, 0.4, 0.7];
@@ -435,6 +455,7 @@ class LiveLlmDiagnosticService {
     Set<String>? probeIds,
   }) async {
     final selectedProbeIds = probeIds == null ? null : Set<String>.of(probeIds);
+    _thinking.reset();
     final startedAt = DateTime.now();
     var report = LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -459,7 +480,7 @@ class LiveLlmDiagnosticService {
 
     if (settings.demoMode) {
       report = _skipRemainingAfterLiveRequirement(report);
-      report = report.copyWith(finishedAt: DateTime.now());
+      report = _finishReport(report);
       onReport?.call(report);
       return report;
     }
@@ -471,6 +492,13 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: _runInstructionProbe,
+    );
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _thinkingControlProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runThinkingControlProbe,
     );
     report = await _runStructuredOutputProbe(
       report: report,
@@ -548,7 +576,7 @@ class LiveLlmDiagnosticService {
         _toolBridgeProbeDefinitions(),
         selectedProbeIds: selectedProbeIds,
       );
-      report = report.copyWith(finishedAt: DateTime.now());
+      report = _finishReport(report);
       onReport?.call(report);
       return report;
     }
@@ -579,7 +607,7 @@ class LiveLlmDiagnosticService {
         _probeDefinitionsAfter(_narrowToolCallProbeId),
         selectedProbeIds: selectedProbeIds,
       );
-      report = report.copyWith(finishedAt: DateTime.now());
+      report = _finishReport(report);
       onReport?.call(report);
       return report;
     }
@@ -637,7 +665,7 @@ class LiveLlmDiagnosticService {
       run: _runToolRecoveryProbe,
     );
 
-    report = report.copyWith(finishedAt: DateTime.now());
+    report = _finishReport(report);
     onReport?.call(report);
     return report;
   }
@@ -710,6 +738,18 @@ class LiveLlmDiagnosticService {
   };
 
   String get _diagnosticModel => settings.effectiveModel;
+
+  LiveLlmDiagnosticReport _finishReport(LiveLlmDiagnosticReport report) {
+    return report.copyWith(
+      finishedAt: DateTime.now(),
+      thinkingMetrics: _thinking.metrics(
+        chatDataSource,
+        model: _diagnosticModel,
+        maxTokens: _diagnosticMaxTokens,
+        effort: settings.reasoningEffort,
+      ),
+    );
+  }
 
   LiveLlmDiagnosticReport _skipRemainingAfterLiveRequirement(
     LiveLlmDiagnosticReport report,
@@ -908,7 +948,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runInstructionProbe() async {
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Return exactly this JSON object and no markdown:\n'
@@ -919,7 +959,7 @@ class LiveLlmDiagnosticService {
       maxTokens: _diagnosticMaxTokens,
     );
     final content = result.content.trim();
-    final decoded = _tryDecodeJsonObject(content);
+    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
     final jsonPassed =
         decoded?['probe'] == 'instruction_echo' &&
         decoded?['status'] == 'ok' &&
@@ -930,8 +970,8 @@ class LiveLlmDiagnosticService {
         id: _instructionProbeId,
         status: LiveLlmDiagnosticStatus.passed,
         summary: 'The model followed the exact JSON instruction.',
-        modelContent: _preview(content),
-        usage: _usage(result),
+        modelContent: LiveLlmDiagnosticEvidence.preview(content),
+        usage: LiveLlmDiagnosticEvidence.usage(result),
       );
     }
     return LiveLlmDiagnosticProbeResult(
@@ -943,8 +983,8 @@ class LiveLlmDiagnosticService {
           ? 'The marker was present, but the JSON contract was not exact.'
           : 'The expected diagnostic marker was missing.',
       details: 'Expected marker: $_marker',
-      modelContent: _preview(content),
-      usage: _usage(result),
+      modelContent: LiveLlmDiagnosticEvidence.preview(content),
+      usage: LiveLlmDiagnosticEvidence.usage(result),
     );
   }
 
@@ -993,97 +1033,36 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
 
-    final completed = <ChatCompletionResult>[];
-    String schemaDetail;
-
-    // Ask the endpoint before spending a generation on it. A server that drops
-    // `response_format` still answers 200, so the schema arm's prompt -- which
-    // names no literal values, because the schema is supposed to supply them --
-    // leaves the model with nothing to produce. Measured against
-    // Qwen3.8-Flash-Next-Q2: 24 s to an empty `finish_reason: length`
-    // completion, to learn what `GET /v1/models` advertises in one round trip.
-    if (await _responseFormatSupport() ==
-        EndpointParameterSupport.unsupported) {
-      return _runStructuredObjectArm(
-        report: updated,
-        structuredDataSource: structuredDataSource,
-        completed: completed,
-        schemaDetail:
-            'json_schema: not attempted -- the endpoint does not list '
-            'response_format among its supported_parameters',
-        startedAt: startedAt,
-        onReport: onReport,
-      );
-    }
-
-    try {
-      final schemaResult = await structuredDataSource
-          .createStructuredChatCompletion(
-            messages: _messages(
-              // The values are named here, as the json_object arm names its
-              // own, so the two arms differ only in the format they request.
-              // Asking abstractly ("follow the supplied response schema") is
-              // answerable only when the schema actually reaches the model: a
-              // serving path that drops response_format leaves nothing to
-              // produce, and the model reasons in circles to the token cap.
-              // Measured on Qwen3.8-Flash-Next-Q2 and qwen/qwen3.8-flash --
-              // and a curl replay of the same request shape with the values
-              // named returned in ~5 s, with or without `strict`.
-              user:
-                  'Return one JSON object with exactly these two fields and no '
-                  'markdown, matching the supplied response schema: '
-                  '{"marker":"$_structuredOutputSchemaMarker","count":47}',
-            ),
-            responseFormat: const StructuredOutputRequest.jsonSchema(
-              name: 'caverno_live_diagnostic',
-              schema: _structuredOutputSchema,
-            ),
-            model: _diagnosticModel,
-            temperature: _diagnosticTemperature,
-            maxTokens: _reasoningProbeMaxTokens,
-          );
-      completed.add(schemaResult);
-      final decoded = _tryDecodeJsonObject(schemaResult.content);
-      final schemaPassed =
-          decoded?.length == 2 &&
-          decoded?['marker'] == _structuredOutputSchemaMarker &&
-          decoded?['count'] == 47;
-      if (schemaPassed) {
-        updated = updated.withProbeResult(
-          LiveLlmDiagnosticProbeResult(
-            id: _structuredOutputProbeId,
-            status: LiveLlmDiagnosticStatus.passed,
-            summary:
-                'The endpoint and model enforced the supplied JSON schema.',
-            details: 'json_schema: passed\njson_object fallback: not needed',
-            modelContent: _preview(schemaResult.content),
-            usage: _usage(schemaResult),
-            passedChecks: 2,
-            totalChecks: 2,
-            metadata: const {structuredOutputSupportMetadataKey: 'jsonSchema'},
-            elapsed: DateTime.now().difference(startedAt),
-          ),
-        );
-        onReport?.call(updated);
-        return updated;
-      }
-      // Truncation is not a contract violation. A reasoning model that never
-      // reaches an answer returns empty content with `finish_reason: length`,
-      // and reporting that as "violated the schema" blames the model for a
-      // budget the harness set.
-      schemaDetail = _schemaArmDetail(schemaResult);
-    } catch (error) {
-      schemaDetail = 'json_schema: request failed (${_preview('$error')})';
-    }
-
-    return _runStructuredObjectArm(
-      report: updated,
-      structuredDataSource: structuredDataSource,
-      completed: completed,
-      schemaDetail: schemaDetail,
+    await LiveLlmStructuredOutputProbe(
+      complete:
+          ({
+            required messages,
+            required responseFormat,
+            required maxTokens,
+          }) async {
+            final response = await structuredDataSource
+                .createStructuredChatCompletion(
+                  messages: messages,
+                  responseFormat: responseFormat,
+                  model: _diagnosticModel,
+                  temperature: _diagnosticTemperature,
+                  maxTokens: maxTokens,
+                );
+            _thinking.record(response.content);
+            return response;
+          },
+      responseFormatSupport: _responseFormatSupport,
+      messages: (user) => _messages(user: user),
+      answerMaxTokens: _diagnosticMaxTokens,
+      reasoningMaxTokens: _reasoningProbeMaxTokens,
+    ).run(
       startedAt: startedAt,
-      onReport: onReport,
+      onResult: (result) {
+        updated = updated.withProbeResult(result);
+        onReport?.call(updated);
+      },
     );
+    return updated;
   }
 
   /// Reads `supported_parameters` off `GET /models`, reporting
@@ -1105,13 +1084,6 @@ class LiveLlmDiagnosticService {
     }
   }
 
-  /// What the model does when a tool refuses, half succeeds, or reports a
-  /// state that forbids the action it was asked for.
-  ///
-  /// Scored, unlike the ladder axes: this is conformance, not headroom. Every
-  /// other tool probe in the suite rewards making a call, and three of these
-  /// four cases are passed by NOT making one -- which is the behaviour
-  /// Caverno's approval denials and partial command failures actually need.
   Future<LiveLlmDiagnosticProbeResult> _runToolRecoveryProbe() async {
     if (!settings.llmCapabilities.supportsNativeToolCalls) {
       return const LiveLlmDiagnosticProbeResult(
@@ -1122,165 +1094,7 @@ class LiveLlmDiagnosticService {
       );
     }
 
-    final completed = <ChatCompletionResult>[];
-    final details = <String>[];
-    final previews = <String>[];
-    var passed = 0;
-
-    for (final probeCase in LiveLlmToolRecoveryCases.cases) {
-      final outcome = await _runToolRecoveryCase(probeCase, completed);
-      if (outcome.passed) {
-        passed += 1;
-        details.add('${probeCase.id}: passed');
-      } else {
-        details.add('${probeCase.id}: ${outcome.detail}');
-      }
-      previews.add(
-        '${probeCase.id}: ${_preview(_visibleDiagnosticContent(outcome.finalContent), maxChars: 120)}',
-      );
-    }
-
-    final total = LiveLlmToolRecoveryCases.cases.length;
-    final status = passed == total
-        ? LiveLlmDiagnosticStatus.passed
-        : passed == 0
-        ? LiveLlmDiagnosticStatus.failed
-        : LiveLlmDiagnosticStatus.warning;
-    return LiveLlmDiagnosticProbeResult(
-      id: _toolRecoveryProbeId,
-      status: status,
-      summary: passed == total
-          ? 'The model recovered from every tool failure and held back where it should.'
-          : 'The model mishandled ${total - passed} of $total tool-failure cases.',
-      details: details.join('\n'),
-      modelContent: previews.join('\n'),
-      usage: _totalUsage(completed),
-      passedChecks: passed,
-      totalChecks: total,
-    );
-  }
-
-  /// Drives one case, keeping the tools attached to the very last turn.
-  ///
-  /// The forbidden call has to stay reachable or the restraint cases measure
-  /// nothing: asking for a plain answer after the last scripted step would
-  /// remove the temptation and then credit the model for resisting it.
-  Future<_ToolRecoveryCaseOutcome> _runToolRecoveryCase(
-    LiveLlmToolRecoveryCase probeCase,
-    List<ChatCompletionResult> completed,
-  ) async {
-    var messages = _messages(user: probeCase.prompt);
-    var consumed = 0;
-    // One turn per scripted step, plus the turn that answers.
-    final maxTurns = probeCase.steps.length + 2;
-
-    for (var turn = 0; turn < maxTurns; turn++) {
-      final ChatCompletionResult result;
-      try {
-        result = await chatDataSource.createChatCompletion(
-          messages: messages,
-          tools: probeCase.tools,
-          model: _diagnosticModel,
-          temperature: _diagnosticTemperature,
-          maxTokens: _diagnosticMaxTokens,
-        );
-      } on Object catch (error) {
-        return _ToolRecoveryCaseOutcome(
-          passed: false,
-          detail: 'the request failed (${_preview('$error', maxChars: 120)})',
-        );
-      }
-      completed.add(result);
-
-      final call = result.toolCalls?.firstOrNull;
-      if (call == null) {
-        if (consumed < probeCase.steps.length) {
-          return _ToolRecoveryCaseOutcome(
-            passed: false,
-            detail:
-                'answered before calling ${probeCase.steps[consumed].toolName}',
-            finalContent: result.content,
-          );
-        }
-        final visible = _visibleDiagnosticContent(result.content).toLowerCase();
-        final missing = probeCase.expectedFinalValues
-            .where((value) => !visible.contains(value.toLowerCase()))
-            .toList();
-        return _ToolRecoveryCaseOutcome(
-          passed: missing.isEmpty,
-          detail: missing.isEmpty
-              ? ''
-              : 'the answer never said ${missing.join(', ')}',
-          finalContent: result.content,
-        );
-      }
-
-      // A tool-call turn carries no content, so the offending call itself is
-      // the evidence. Reporting `result.content` here left the preview blank
-      // beside the verdict it was supposed to support.
-      final callEvidence = '${call.name}(${jsonEncode(call.arguments)})';
-      if (probeCase.forbiddenTools.contains(call.name)) {
-        return _ToolRecoveryCaseOutcome(
-          passed: false,
-          detail: 'routed around the refusal with ${call.name}',
-          finalContent: callEvidence,
-        );
-      }
-      if (probeCase.expectsNoToolCall) {
-        return _ToolRecoveryCaseOutcome(
-          passed: false,
-          detail: 'called ${call.name} without waiting for confirmation',
-          finalContent: callEvidence,
-        );
-      }
-      if (consumed >= probeCase.steps.length) {
-        return _ToolRecoveryCaseOutcome(
-          passed: false,
-          detail: 'made an extra ${call.name} call after the task was done',
-          finalContent: callEvidence,
-        );
-      }
-
-      final step = probeCase.steps[consumed];
-      if (call.name != step.toolName) {
-        return _ToolRecoveryCaseOutcome(
-          passed: false,
-          detail: 'called ${call.name} where ${step.toolName} was expected',
-          finalContent: callEvidence,
-        );
-      }
-      final mismatch = _firstArgumentMismatch(
-        call.arguments,
-        step.expectedArguments,
-      );
-      if (mismatch != null) {
-        return _ToolRecoveryCaseOutcome(
-          passed: false,
-          detail: '${step.toolName} carried $mismatch',
-          finalContent: callEvidence,
-        );
-      }
-
-      consumed += 1;
-      messages = [
-        ...messages,
-        Message(
-          id: 'live-llm-tool-recovery-${step.toolName}-${DateTime.now().microsecondsSinceEpoch}',
-          content:
-              'Tool result for ${step.toolName}:\n'
-              '${jsonEncode(step.result)}\n\n'
-              'Continue. Call another tool only if the task still needs one, '
-              'otherwise give your final answer.',
-          role: MessageRole.user,
-          timestamp: DateTime.now(),
-        ),
-      ];
-    }
-
-    return const _ToolRecoveryCaseOutcome(
-      passed: false,
-      detail: 'never produced a final answer',
-    );
+    return _toolRecoveryProbe.run();
   }
 
   /// LL39 tool-chain depth axis: the same errand at two, three and four
@@ -1329,204 +1143,12 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
 
-    final completed = <ChatCompletionResult>[];
-    final attempted = <int>[];
-    var deepest = 0;
-    var failureDetail = '';
-    String lastContent = '';
-
-    for (final rung in LiveLlmToolDepthStaircase.rungs) {
-      attempted.add(rung.depth);
-      final outcome = await _runToolDepthRung(rung, completed);
-      lastContent = outcome.finalContent;
-      if (!outcome.passed) {
-        failureDetail = 'depth ${rung.depth}: ${outcome.detail}';
-        break;
-      }
-      deepest = rung.depth;
-    }
-
-    final metrics = LiveLlmDiagnosticToolDepthMetrics(
-      deepestPassedDepth: deepest,
-      attemptedDepths: List.unmodifiable(attempted),
-      failureDetail: failureDetail,
-    );
-    final deepestRung = LiveLlmToolDepthStaircase.stageDepths.last;
-    // Never failed. This is headroom above the conformance floor, so a rung
-    // the model could not reach is a position on the axis rather than a
-    // defect: `multi_round_tool_loop` is the scored floor for tool chaining
-    // and does report failure. Failing here would drag a run's overall status
-    // down for a probe deliberately worth zero points.
-    final status = deepest >= deepestRung
-        ? LiveLlmDiagnosticStatus.passed
-        : LiveLlmDiagnosticStatus.warning;
-
+    final measurement = await _toolDepthProbe.run(startedAt: startedAt);
     updated = updated
-        .withProbeResult(
-          LiveLlmDiagnosticProbeResult(
-            id: _toolDepthProbeId,
-            status: status,
-            summary: deepest == 0
-                ? 'The model did not carry state through two tool calls.'
-                : deepest >= deepestRung
-                ? 'The model carried state through every rung of the staircase.'
-                : 'The model carried state through $deepest sequential tool calls.',
-            details: [
-              'Deepest passed depth: $deepest of $deepestRung',
-              'Attempted depths: ${attempted.join(', ')}',
-              if (failureDetail.isNotEmpty) failureDetail,
-            ].join('\n'),
-            modelContent: _preview(
-              _visibleDiagnosticContent(lastContent),
-              maxChars: 240,
-            ),
-            usage: _totalUsage(completed),
-            passedChecks: deepest == 0 ? 0 : attempted.indexOf(deepest) + 1,
-            totalChecks: LiveLlmToolDepthStaircase.stageDepths.length,
-            elapsed: DateTime.now().difference(startedAt),
-          ),
-        )
-        .copyWith(toolDepthMetrics: metrics);
+        .withProbeResult(measurement.result)
+        .copyWith(toolDepthMetrics: measurement.metrics);
     onReport?.call(updated);
     return updated;
-  }
-
-  /// Drives one rung: each scripted step must be the call the model makes, and
-  /// the final answer must carry the values only the tool results could supply.
-  Future<_ToolDepthRungOutcome> _runToolDepthRung(
-    LiveLlmToolDepthRung rung,
-    List<ChatCompletionResult> completed,
-  ) async {
-    var messages = _messages(user: rung.prompt);
-
-    for (final step in rung.steps) {
-      final ChatCompletionResult result;
-      try {
-        result = await chatDataSource.createChatCompletion(
-          messages: messages,
-          tools: LiveLlmToolDepthStaircase.toolDefinitions,
-          model: _diagnosticModel,
-          temperature: _diagnosticTemperature,
-          maxTokens: _diagnosticMaxTokens,
-        );
-      } on Object catch (error) {
-        return _ToolDepthRungOutcome(
-          passed: false,
-          detail: 'the request failed (${_preview('$error', maxChars: 120)})',
-        );
-      }
-      completed.add(result);
-
-      final call = result.toolCalls?.firstOrNull;
-      if (call == null) {
-        return _ToolDepthRungOutcome(
-          passed: false,
-          detail: 'expected a ${step.toolName} call and got a text answer',
-          finalContent: result.content,
-        );
-      }
-      if (call.name != step.toolName) {
-        return _ToolDepthRungOutcome(
-          passed: false,
-          detail: 'called ${call.name} where ${step.toolName} was expected',
-          finalContent: result.content,
-        );
-      }
-      final mismatch = _firstArgumentMismatch(
-        call.arguments,
-        step.expectedArguments,
-      );
-      if (mismatch != null) {
-        return _ToolDepthRungOutcome(
-          passed: false,
-          detail: '${step.toolName} carried $mismatch',
-          finalContent: result.content,
-        );
-      }
-
-      // A plain observation, NOT ToolResultPromptBuilder.buildAnswerPrompt.
-      // That builder opens with "Please answer the user's question based on
-      // the following tool results" and instructs the model to report any
-      // action that "remains unexecuted" -- so mid-loop it tells the model to
-      // stop and wrap up, and the staircase then scored it for stopping. The
-      // first live run returned exactly "doc-ds-42; open_doc remains
-      // unexecuted", the phrase lifted from that prompt.
-      messages = [
-        ...messages,
-        Message(
-          id: 'live-llm-tool-depth-${step.toolName}-${DateTime.now().microsecondsSinceEpoch}',
-          content:
-              'Tool result for ${step.toolName}:\n'
-              '${jsonEncode(step.result)}\n\n'
-              'The task is not finished. Call the next tool you need, using '
-              'the values this result gave you. Do not answer in text yet.',
-          role: MessageRole.user,
-          timestamp: DateTime.now(),
-        ),
-      ];
-    }
-
-    messages = [
-      ...messages,
-      Message(
-        id: 'live-llm-tool-depth-final-${DateTime.now().microsecondsSinceEpoch}',
-        content:
-            'Every tool call is done. Now answer, using the exact values the '
-            'tool results gave you and no other text.',
-        role: MessageRole.user,
-        timestamp: DateTime.now(),
-      ),
-    ];
-
-    final ChatCompletionResult finalResult;
-    try {
-      finalResult = await chatDataSource.createChatCompletion(
-        messages: messages,
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-    } on Object catch (error) {
-      return _ToolDepthRungOutcome(
-        passed: false,
-        detail:
-            'the final request failed (${_preview('$error', maxChars: 120)})',
-      );
-    }
-    completed.add(finalResult);
-
-    // The visible answer, not the reasoning: a think block that names the
-    // carried id on the way to losing it is not the model carrying it.
-    final visible = _visibleDiagnosticContent(finalResult.content);
-    final missing = rung.expectedFinalValues
-        .where((value) => !visible.contains(value))
-        .toList();
-    if (missing.isNotEmpty) {
-      return _ToolDepthRungOutcome(
-        passed: false,
-        detail: 'the answer lost ${missing.join(', ')}',
-        finalContent: finalResult.content,
-      );
-    }
-    return _ToolDepthRungOutcome(
-      passed: true,
-      finalContent: finalResult.content,
-    );
-  }
-
-  /// Compares only the keys the rung pins, so a model may add its own optional
-  /// arguments; it may not get a pinned one wrong.
-  String? _firstArgumentMismatch(
-    Map<String, dynamic> actual,
-    Map<String, Object?> expected,
-  ) {
-    for (final entry in expected.entries) {
-      final value = actual[entry.key];
-      if (value == entry.value) continue;
-      if ('$value'.trim() == '${entry.value}'.trim()) continue;
-      return '${entry.key}=${value ?? 'nothing'} where ${entry.value} was expected';
-    }
-    return null;
   }
 
   /// The context window the endpoint publishes, or 0 when it publishes none.
@@ -1544,98 +1166,6 @@ class LiveLlmDiagnosticService {
     } finally {
       client.close();
     }
-  }
-
-  String _schemaArmDetail(ChatCompletionResult result) {
-    final visible = _visibleDiagnosticContent(result.content);
-    if (result.finishReason == 'length') {
-      return visible.isEmpty
-          ? 'json_schema: the model reasoned to the token cap and returned no '
-                'answer (finish_reason: length)'
-          : 'json_schema: the answer was truncated at the token cap '
-                '(finish_reason: length)';
-    }
-    if (visible.isEmpty) {
-      return 'json_schema: the request completed but returned no content';
-    }
-    return 'json_schema: request completed but the response violated the schema';
-  }
-
-  /// The json_object fallback arm, shared by the ordinary path and the
-  /// short-circuit that skips a schema the endpoint never advertised.
-  Future<LiveLlmDiagnosticReport> _runStructuredObjectArm({
-    required LiveLlmDiagnosticReport report,
-    required StructuredOutputChatDataSource structuredDataSource,
-    required List<ChatCompletionResult> completed,
-    required String schemaDetail,
-    required DateTime startedAt,
-    required LiveLlmDiagnosticReportCallback? onReport,
-  }) async {
-    var updated = report;
-    try {
-      final objectResult = await structuredDataSource
-          .createStructuredChatCompletion(
-            messages: _messages(
-              user:
-                  'Return one JSON object with exactly these two fields and no '
-                  'markdown: {"marker":"$_structuredOutputObjectMarker","count":47}',
-            ),
-            responseFormat: const StructuredOutputRequest.jsonObject(),
-            model: _diagnosticModel,
-            temperature: _diagnosticTemperature,
-            maxTokens: _diagnosticMaxTokens,
-          );
-      completed.add(objectResult);
-      final decoded = _tryDecodeJsonObject(objectResult.content);
-      final objectPassed =
-          decoded?.length == 2 &&
-          decoded?['marker'] == _structuredOutputObjectMarker &&
-          decoded?['count'] == 47;
-      updated = updated.withProbeResult(
-        LiveLlmDiagnosticProbeResult(
-          id: _structuredOutputProbeId,
-          status: objectPassed
-              ? LiveLlmDiagnosticStatus.warning
-              : LiveLlmDiagnosticStatus.failed,
-          summary: objectPassed
-              ? 'JSON object mode worked, but JSON Schema mode did not.'
-              : 'Neither structured-output mode preserved its contract.',
-          details: [
-            schemaDetail,
-            'json_object: ${objectPassed ? 'passed' : 'response violated the contract'}',
-          ].join('\n'),
-          modelContent: _preview(objectResult.content),
-          usage: _totalUsage(completed),
-          passedChecks: objectPassed ? 1 : 0,
-          totalChecks: 2,
-          metadata: {
-            structuredOutputSupportMetadataKey: objectPassed
-                ? 'jsonObject'
-                : 'none',
-          },
-          elapsed: DateTime.now().difference(startedAt),
-        ),
-      );
-    } catch (error) {
-      updated = updated.withProbeResult(
-        LiveLlmDiagnosticProbeResult(
-          id: _structuredOutputProbeId,
-          status: LiveLlmDiagnosticStatus.failed,
-          summary: 'Neither structured-output request mode was usable.',
-          details: [
-            schemaDetail,
-            'json_object: request failed (${_preview('$error')})',
-          ].join('\n'),
-          usage: _totalUsage(completed),
-          passedChecks: 0,
-          totalChecks: 2,
-          metadata: const {structuredOutputSupportMetadataKey: 'none'},
-          elapsed: DateTime.now().difference(startedAt),
-        ),
-      );
-    }
-    onReport?.call(updated);
-    return updated;
   }
 
   /// Exercises `streamChatCompletion` — the path the chat screen actually uses,
@@ -1722,8 +1252,12 @@ class LiveLlmDiagnosticService {
     final terminal = await streamed.terminal;
 
     final content = buffer.toString();
-    final visibleContent = _visibleDiagnosticContent(content);
-    final matched = _matchedIntegerSequence(visibleContent);
+    _thinking.record(content);
+    final visibleContent = LiveLlmResponseScoring.visibleContent(content);
+    final matched = LiveLlmResponseScoring.matchedIntegerSequence(
+      visibleContent,
+      length: _streamingSequenceLength,
+    );
     final metrics = LiveLlmDiagnosticStreamingMetrics(
       timeToFirstToken: timeToFirstToken ?? totalElapsed,
       totalElapsed: totalElapsed,
@@ -1762,7 +1296,7 @@ class LiveLlmDiagnosticService {
             'Buffered delivery: the answer arrived in one chunk or a short '
                 'terminal burst, so decode rate is unavailable.',
         ].join('\n'),
-        modelContent: _preview(content, maxChars: 400),
+        modelContent: LiveLlmDiagnosticEvidence.preview(content, maxChars: 400),
         usage: LiveLlmDiagnosticTokenUsage(
           promptTokens: terminal.usage.promptTokens,
           completionTokens: terminal.usage.completionTokens,
@@ -1774,28 +1308,8 @@ class LiveLlmDiagnosticService {
     );
   }
 
-  /// Counts how many of 1..N appear as their own line, in order. Line-scoped on
-  /// purpose: a substring search would count the "1" inside "10".
-  int _matchedIntegerSequence(String content) {
-    var expected = 1;
-    for (final line in const LineSplitter().convert(content)) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) {
-        continue;
-      }
-      if (int.tryParse(trimmed) != expected) {
-        continue;
-      }
-      expected += 1;
-      if (expected > _streamingSequenceLength) {
-        break;
-      }
-    }
-    return expected - 1;
-  }
-
   Future<LiveLlmDiagnosticProbeResult> _runExactPreservationProbe() async {
-    final directResult = await chatDataSource.createChatCompletion(
+    final directResult = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Reply with exactly this text and no extra characters:\n'
@@ -1834,14 +1348,14 @@ class LiveLlmDiagnosticService {
         timestamp: DateTime.now(),
       ),
     );
-    final toolResult = await chatDataSource.createChatCompletion(
+    final toolResult = await _chat.createChatCompletion(
       messages: toolResultMessages,
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
 
-    final urlResult = await chatDataSource.createChatCompletion(
+    final urlResult = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Reply with exactly this URL and no extra characters:\n'
@@ -1856,19 +1370,19 @@ class LiveLlmDiagnosticService {
       _ExactPreservationProbeOutcome(
         label: 'direct_echo_money_unit',
         expected: _exactDirectEchoValue,
-        actual: _visibleDiagnosticContent(directResult.content),
+        actual: LiveLlmResponseScoring.visibleContent(directResult.content),
         rawActual: directResult.content.trim(),
       ),
       _ExactPreservationProbeOutcome(
         label: 'tool_result_raw_value',
         expected: _exactToolResultValue,
-        actual: _visibleDiagnosticContent(toolResult.content),
+        actual: LiveLlmResponseScoring.visibleContent(toolResult.content),
         rawActual: toolResult.content.trim(),
       ),
       _ExactPreservationProbeOutcome(
         label: 'url_preservation',
         expected: _exactUrlValue,
-        actual: _visibleDiagnosticContent(urlResult.content),
+        actual: LiveLlmResponseScoring.visibleContent(urlResult.content),
         rawActual: urlResult.content.trim(),
       ),
     ];
@@ -1892,10 +1406,14 @@ class LiveLlmDiagnosticService {
       modelContent: outcomes
           .map(
             (outcome) =>
-                '${outcome.label}: ${_preview(outcome.rawActual, maxChars: 360)}',
+                '${outcome.label}: ${LiveLlmDiagnosticEvidence.preview(outcome.rawActual, maxChars: 360)}',
           )
           .join('\n'),
-      usage: _totalUsage([directResult, toolResult, urlResult]),
+      usage: LiveLlmDiagnosticEvidence.totalUsage([
+        directResult,
+        toolResult,
+        urlResult,
+      ]),
       passedChecks: outcomes.length - failed.length,
       totalChecks: outcomes.length,
     );
@@ -1925,12 +1443,12 @@ class LiveLlmDiagnosticService {
             'context, and ensure each hunk header count matches the old and '
             'new lines in that hunk. Return no markdown fence or explanation.',
         expected: _editFormatUnifiedDiff,
-        normalize: _normalizeUnifiedDiffFileHeaders,
+        normalize: LiveLlmResponseScoring.normalizeUnifiedDiffFileHeaders,
       ),
     ];
     final outcomes = <_EditFormatProbeOutcome>[];
     for (final testCase in cases) {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(
           user:
               'Update the greeting from Hello to Welcome without changing any '
@@ -1941,10 +1459,10 @@ class LiveLlmDiagnosticService {
         temperature: _diagnosticTemperature,
         maxTokens: _reasoningProbeMaxTokens,
       );
-      final normalized = _stripSingleCodeFence(
-        _visibleDiagnosticContent(result.content),
+      final normalized = LiveLlmResponseScoring.stripSingleCodeFence(
+        LiveLlmResponseScoring.visibleContent(result.content),
       );
-      final mismatch = _firstEditFormatMismatch(
+      final mismatch = LiveLlmResponseScoring.firstEditFormatMismatch(
         expected: testCase.prepare(testCase.expected),
         actual: testCase.prepare(normalized),
       );
@@ -1960,7 +1478,7 @@ class LiveLlmDiagnosticService {
           passed: failureDetail == null,
           failureDetail: failureDetail,
           content: result.content,
-          usage: _usage(result),
+          usage: LiveLlmDiagnosticEvidence.usage(result),
         ),
       );
     }
@@ -1989,10 +1507,12 @@ class LiveLlmDiagnosticService {
       modelContent: outcomes
           .map(
             (outcome) =>
-                '${outcome.preference.name}: ${_preview(outcome.content, maxChars: 360)}',
+                '${outcome.preference.name}: ${LiveLlmDiagnosticEvidence.preview(outcome.content, maxChars: 360)}',
           )
           .join('\n\n'),
-      usage: _sumDiagnosticUsage(outcomes.map((outcome) => outcome.usage)),
+      usage: LiveLlmDiagnosticEvidence.sumUsage(
+        outcomes.map((outcome) => outcome.usage),
+      ),
       passedChecks: passed.length,
       totalChecks: outcomes.length,
       metadata: {editFormatPreferenceMetadataKey: preference.name},
@@ -2012,65 +1532,6 @@ class LiveLlmDiagnosticService {
       }
     }
     return ModelEditFormatPreference.unknown;
-  }
-
-  String _stripSingleCodeFence(String content) {
-    final normalized = content.replaceAll('\r\n', '\n').trim();
-    final match = RegExp(
-      r'^```(?:dart|diff)?\s*\n([\s\S]*?)\n```$',
-      caseSensitive: false,
-    ).firstMatch(normalized);
-    return (match?.group(1) ?? normalized).trim();
-  }
-
-  /// Drops the `a/` and `b/` prefixes from a unified diff's file headers.
-  ///
-  /// The prefixes are a git convention, not part of the format: `diff -u` and
-  /// `patch -p0` write and expect the bare path, and Caverno never consumes the
-  /// header at all -- the preference only picks a sentence for the system
-  /// prompt. Comparing them verbatim scored a model that produced a perfectly
-  /// applicable diff as an edit-format failure, and cost it 18 of 55 points on
-  /// a spelling difference. Everything below the header is still compared
-  /// exactly, including hunk headers and context lines.
-  static String _normalizeUnifiedDiffFileHeaders(String diff) {
-    return diff
-        .split('\n')
-        .map((line) {
-          for (final marker in const ['--- ', '+++ ']) {
-            if (!line.startsWith(marker)) continue;
-            final path = line.substring(marker.length);
-            for (final prefix in const ['a/', 'b/']) {
-              if (path.startsWith(prefix)) {
-                return '$marker${path.substring(prefix.length)}';
-              }
-            }
-            return line;
-          }
-          return line;
-        })
-        .join('\n');
-  }
-
-  String? _firstEditFormatMismatch({
-    required String expected,
-    required String actual,
-  }) {
-    if (expected == actual) return null;
-    final expectedLines = const LineSplitter().convert(expected);
-    final actualLines = const LineSplitter().convert(actual);
-    final sharedLength = math.min(expectedLines.length, actualLines.length);
-    for (var index = 0; index < sharedLength; index += 1) {
-      if (expectedLines[index] != actualLines[index]) {
-        return 'line ${index + 1}: expected `${expectedLines[index]}`, '
-            'received `${actualLines[index]}`';
-      }
-    }
-    if (expectedLines.length > actualLines.length) {
-      return 'line ${actualLines.length + 1}: expected '
-          '`${expectedLines[actualLines.length]}`, received end of output';
-    }
-    return 'line ${expectedLines.length + 1}: expected end of output, '
-        'received `${actualLines[expectedLines.length]}`';
   }
 
   Future<LiveLlmDiagnosticReport> _runEmbeddingsProbe({
@@ -2330,7 +1791,9 @@ class LiveLlmDiagnosticService {
         completed.add(result);
         stopwatch.stop();
         final expected = _effectiveContextExpectedReply(target);
-        final visibleContent = _visibleDiagnosticContent(result.content);
+        final visibleContent = LiveLlmResponseScoring.visibleContent(
+          result.content,
+        );
         final recallPassed = visibleContent == expected;
         final usageReported = result.usage.promptTokens > 0;
         final failureKind = !recallPassed
@@ -2353,7 +1816,10 @@ class LiveLlmDiagnosticService {
             finishReason: result.finishReason,
             responsePreview: recallPassed
                 ? ''
-                : _preview(result.content, maxChars: 240),
+                : LiveLlmDiagnosticEvidence.preview(
+                    result.content,
+                    maxChars: 240,
+                  ),
           ),
         );
       } catch (error) {
@@ -2363,7 +1829,7 @@ class LiveLlmDiagnosticService {
             requestedApproximateTokens: target,
             elapsed: stopwatch.elapsed,
             passed: false,
-            failure: _preview('$error', maxChars: 300),
+            failure: LiveLlmDiagnosticEvidence.preview('$error', maxChars: 300),
             failureKind: 'request_error',
           ),
         );
@@ -2414,7 +1880,7 @@ class LiveLlmDiagnosticService {
             modelContent: trials
                 .map((trial) => trial.responsePreview)
                 .firstWhere((preview) => preview.isNotEmpty, orElse: () => ''),
-            usage: _totalUsage(completed),
+            usage: LiveLlmDiagnosticEvidence.totalUsage(completed),
             elapsed: DateTime.now().difference(startedAt),
           ),
         )
@@ -2439,7 +1905,7 @@ class LiveLlmDiagnosticService {
     final messages = _effectiveContextMessages(target);
     final injected = runEffectiveContextTrial;
     if (injected != null) return injected(target, messages);
-    return chatDataSource.createChatCompletion(
+    return _chat.createChatCompletion(
       messages: messages,
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
@@ -2533,7 +1999,7 @@ class LiveLlmDiagnosticService {
       modelContent: outcomes
           .map(
             (outcome) =>
-                '${outcome.label}: ${_preview(outcome.preview, maxChars: 240)}',
+                '${outcome.label}: ${LiveLlmDiagnosticEvidence.preview(outcome.preview, maxChars: 240)}',
           )
           .join('\n'),
       passedChecks: outcomes.length - failed.length,
@@ -2546,7 +2012,7 @@ class LiveLlmDiagnosticService {
     _FoundationModelsLanguageProbeCase testCase,
   ) async {
     try {
-      final result = await chatDataSource.createChatCompletion(
+      final result = await _chat.createChatCompletion(
         messages: _messages(user: testCase.userPrompt),
         tools: testCase.tools,
         model: _diagnosticModel,
@@ -2636,21 +2102,21 @@ class LiveLlmDiagnosticService {
       probeId: _visionAttachmentProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runVisionAttachmentProbe,
+      run: _visionProbes.attachment,
     );
     updated = await _runSelectedProbe(
       report: updated,
       probeId: _chartReadingProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runChartReadingProbe,
+      run: _visionProbes.chartReading,
     );
     updated = await _runSelectedProbe(
       report: updated,
       probeId: _visionToolObservationProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runVisionToolObservationProbe,
+      run: _visionProbes.toolObservation,
     );
     updated = await _runSelectedProbe(
       report: updated,
@@ -2660,6 +2126,107 @@ class LiveLlmDiagnosticService {
       run: _runVideoInputModalityProbe,
     );
     return updated;
+  }
+
+  static const thinkingControlMetadataKey = 'thinkingControl';
+  static const _thinkingControlled = 'controllable';
+  static const _thinkingAlwaysOn = 'always_on';
+  static const _thinkingNeverObserved = 'never_reasoned';
+  static const _thinkingInverted = 'inverted';
+  static const _thinkingControlPrompt =
+      'Reply with exactly CAVERNO_THINKING_CONTROL and no other text.';
+
+  /// Whether `enable_thinking` actually reaches the model, in both directions.
+  ///
+  /// Sends one trivial prompt with thinking switched on and one with it
+  /// switched off, and reads whether each answer carried reasoning. Until
+  /// 2026-09-23 a router in front of qwen3.8-27b-exl3 forced thinking off
+  /// whatever the request said, and nothing in the report could show it: the
+  /// request side read "on" and the scores quietly measured "off".
+  ///
+  /// Scores nothing. Like the video probe, it reports what the serving path
+  /// does with a request, not what the model can do. Its responses stay out of
+  /// the run's thinking metrics too, since they vary the mode on purpose.
+  Future<LiveLlmDiagnosticProbeResult> _runThinkingControlProbe() async {
+    final createDataSource = thinkingModeDataSource;
+    if (createDataSource == null) {
+      return const LiveLlmDiagnosticProbeResult(
+        id: _thinkingControlProbeId,
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary: 'Skipped because this run cannot switch the thinking mode.',
+      );
+    }
+    if (!LiveLlmDiagnosticRequestShape.canControlThinking(settings)) {
+      return const LiveLlmDiagnosticProbeResult(
+        id: _thinkingControlProbeId,
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary:
+            'Skipped because this endpoint cannot be sent enable_thinking.',
+        details:
+            'The model is not a Qwen3.8 build and the endpoint is not opted '
+            'into chat_template_kwargs, so both modes would send the same '
+            'request.',
+      );
+    }
+
+    Future<ChatCompletionResult> arm(LiveLlmDiagnosticThinkingMode mode) {
+      return createDataSource(mode).createChatCompletion(
+        messages: _messages(user: _thinkingControlPrompt),
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+    }
+
+    final on = await arm(LiveLlmDiagnosticThinkingMode.on);
+    final off = await arm(LiveLlmDiagnosticThinkingMode.off);
+    final onChars = LiveLlmDiagnosticThinkingObserver.reasoningChars(
+      on.content,
+    );
+    final offChars = LiveLlmDiagnosticThinkingObserver.reasoningChars(
+      off.content,
+    );
+    final (classification, status, summary) = switch ((
+      onChars > 0,
+      offChars > 0,
+    )) {
+      (true, false) => (
+        _thinkingControlled,
+        LiveLlmDiagnosticStatus.passed,
+        'The endpoint honours enable_thinking in both directions.',
+      ),
+      (true, true) => (
+        _thinkingAlwaysOn,
+        LiveLlmDiagnosticStatus.warning,
+        'The model reasoned with thinking switched off; something on the way '
+            'ignores enable_thinking: false.',
+      ),
+      (false, false) => (
+        _thinkingNeverObserved,
+        LiveLlmDiagnosticStatus.warning,
+        'No reasoning came back with thinking switched on. A router or server '
+            'default may force thinking off, or the model does not reason.',
+      ),
+      (false, true) => (
+        _thinkingInverted,
+        LiveLlmDiagnosticStatus.warning,
+        'Reasoning came back only with thinking switched off, the reverse of '
+            'the request.',
+      ),
+    };
+    return LiveLlmDiagnosticProbeResult(
+      id: _thinkingControlProbeId,
+      status: status,
+      summary: summary,
+      details:
+          'Classification: $classification\n'
+          'Thinking on: $onChars reasoning chars '
+          '(finish_reason: ${on.finishReason})\n'
+          'Thinking off: $offChars reasoning chars '
+          '(finish_reason: ${off.finishReason})',
+      usage: LiveLlmDiagnosticEvidence.totalUsage([on, off]),
+      metadata: {thinkingControlMetadataKey: classification},
+    );
   }
 
   /// Asks the endpoint whether it accepts video, rather than sending one.
@@ -2718,246 +2285,6 @@ class LiveLlmDiagnosticService {
     };
   }
 
-  /// Reads the image through the user-attachment path: a user message carrying
-  /// `imageBase64`, which `_formatMessages` turns into an image content part.
-  ///
-  /// Runs a no-image control arm as well. Without it a model that ignores image
-  /// content but guesses a plausible color list is indistinguishable from one
-  /// that actually looked; with it, "the control scored the same" is direct
-  /// evidence the image did not inform the answer.
-  Future<LiveLlmDiagnosticProbeResult> _runVisionAttachmentProbe() async {
-    final withImage = await _runVisionColorArm(attachImage: true);
-    final control = await _runVisionColorArm(attachImage: false);
-
-    if (withImage.rejected) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _visionAttachmentProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The endpoint rejected a request carrying image content.',
-        details:
-            'Classification: $_visionClassificationRejected\n${withImage.error}',
-        modelContent: _preview(withImage.content, maxChars: 400),
-      );
-    }
-
-    final matched = withImage.matchedColors;
-    final controlMatched = control.matchedColors;
-    // The control arm outranks the score. A model that answers just as well
-    // with no image did not read one, and a correct answer it could produce
-    // blind is not evidence of vision -- so this is checked before the
-    // all-four-colors pass.
-    final ignored = controlMatched >= matched;
-    final passed = !ignored && matched == _visionProbeExpectedColors.length;
-    final status = passed
-        ? LiveLlmDiagnosticStatus.passed
-        : ignored
-        ? LiveLlmDiagnosticStatus.failed
-        : LiveLlmDiagnosticStatus.warning;
-
-    return LiveLlmDiagnosticProbeResult(
-      id: _visionAttachmentProbeId,
-      status: status,
-      summary: passed
-          ? 'The model read every quadrant color from the attached image.'
-          : ignored
-          ? 'The no-image control arm scored the same, so the image was not used.'
-          : 'The model read the image only partially.',
-      details: [
-        'Classification: ${passed
-            ? _visionClassificationRead
-            : ignored
-            ? _visionClassificationIgnored
-            : _visionClassificationPartial}',
-        'Expected: ${_visionProbeExpectedColors.join(', ')}',
-        'With image: $matched/${_visionProbeExpectedColors.length} colors in order',
-        'No-image control: $controlMatched/${_visionProbeExpectedColors.length}',
-      ].join('\n'),
-      modelContent: [
-        // The visible answer, not the reasoning: a think block filled the whole
-        // preview and left the actual reading -- the evidence for the verdict
-        // above -- invisible in the report.
-        'with_image: ${_preview(_visibleDiagnosticContent(withImage.content), maxChars: 240)}',
-        'control: ${_preview(_visibleDiagnosticContent(control.content), maxChars: 240)}',
-      ].join('\n'),
-      usage: _totalUsage([
-        if (withImage.result != null) withImage.result!,
-        if (control.result != null) control.result!,
-      ]),
-      passedChecks: matched,
-      totalChecks: _visionProbeExpectedColors.length,
-    );
-  }
-
-  Future<_VisionProbeArm> _runVisionColorArm({
-    required bool attachImage,
-  }) async {
-    final now = DateTime.now();
-    final messages = _messages(user: _visionProbePrompt);
-    if (attachImage) {
-      messages[messages.length - 1] = messages.last.copyWith(
-        imageBase64: _visionProbeImageBase64,
-        imageMimeType: _visionProbeImageMimeType,
-      );
-    } else {
-      // The control arm must ask the same question with no image, so a model
-      // that guesses is measured on the guess.
-      messages[messages.length - 1] = messages.last.copyWith(
-        content:
-            '$_visionProbePrompt\n'
-            '(No image is attached in this control request. Answer with your '
-            'best guess and no explanation.)',
-        timestamp: now,
-      );
-    }
-
-    try {
-      final result = await chatDataSource.createChatCompletion(
-        messages: messages,
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      return _VisionProbeArm(
-        result: result,
-        content: result.content.trim(),
-        matchedColors: _matchedQuadrantColors(result.content),
-      );
-    } catch (error) {
-      return _VisionProbeArm(
-        rejected: attachImage,
-        error: error.toString(),
-        content: '',
-        matchedColors: 0,
-      );
-    }
-  }
-
-  /// Reads quantitative detail off a chart, which is what a document with a
-  /// figure in it actually asks of a model.
-  ///
-  /// Separate from the quadrant probe on purpose: four solid colors say the
-  /// vision path is wired, not that the model can read a value off an axis.
-  /// Whether a chart is legible decides whether rendering PDF pages is worth
-  /// building at all, so it is measured rather than assumed.
-  Future<LiveLlmDiagnosticProbeResult> _runChartReadingProbe() async {
-    final withImage = await _runChartArm(attachImage: true);
-    final control = await _runChartArm(attachImage: false);
-
-    if (withImage.rejected) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _chartReadingProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The endpoint rejected a request carrying image content.',
-        details:
-            'Classification: $_chartClassificationRejected\n${withImage.error}',
-        modelContent: _preview(withImage.content, maxChars: 400),
-      );
-    }
-
-    // An answer that never arrived is not a reading the model got wrong. A
-    // reasoning model can spend the whole budget narrating the axis, and
-    // scoring that as blindness would report the harness's limit as the
-    // model's -- the same mistake the quadrant probe's image size once made.
-    if (_visibleDiagnosticContent(withImage.content).isEmpty) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _chartReadingProbeId,
-        status: LiveLlmDiagnosticStatus.warning,
-        summary: 'The model did not finish reasoning within the token budget.',
-        details:
-            'Classification: $_chartClassificationNoAnswer\n'
-            'Nothing was measured: the response carried reasoning and no '
-            'readings. Raising the budget was tried on 2026-09-18 and changed '
-            'nothing -- the reasoning grew to fill it. Read a repeat as the '
-            'model failing to bound itself, not as a probe that needs room.',
-        modelContent: _preview(withImage.content, maxChars: 400),
-        usage: _totalUsage([if (withImage.result != null) withImage.result!]),
-        totalChecks: LiveLlmChartProbeImage.expectedAnswers.length,
-      );
-    }
-
-    final expected = LiveLlmChartProbeImage.expectedAnswers;
-    final matched = withImage.matchedColors;
-    final controlMatched = control.matchedColors;
-    // Same rule the quadrant probe follows: a model that scores as well with
-    // no chart in front of it did not read one. Chart questions are guessable
-    // enough that this outranks the score.
-    final guessed = controlMatched >= matched;
-    final passed = !guessed && matched == expected.length;
-    final status = passed
-        ? LiveLlmDiagnosticStatus.passed
-        : guessed
-        ? LiveLlmDiagnosticStatus.failed
-        : LiveLlmDiagnosticStatus.warning;
-
-    return LiveLlmDiagnosticProbeResult(
-      id: _chartReadingProbeId,
-      status: status,
-      summary: passed
-          ? 'The model read every value off the chart.'
-          : guessed
-          ? 'The no-image control arm scored the same, so the chart was not read.'
-          : 'The model read the chart only partially.',
-      details: [
-        'Classification: ${passed
-            ? _chartClassificationRead
-            : guessed
-            ? _chartClassificationGuessed
-            : _chartClassificationPartial}',
-        'Expected: ${expected.join(', ')}',
-        'With chart: $matched/${expected.length}',
-        'No-image control: $controlMatched/${expected.length}',
-      ].join('\n'),
-      modelContent: [
-        // The visible answer, not the reasoning: a think block filled the
-        // whole preview and left the actual reading invisible in the report.
-        'with_chart: ${_preview(_visibleDiagnosticContent(withImage.content), maxChars: 240)}',
-        'control: ${_preview(_visibleDiagnosticContent(control.content), maxChars: 240)}',
-      ].join('\n'),
-      usage: _totalUsage([
-        if (withImage.result != null) withImage.result!,
-        if (control.result != null) control.result!,
-      ]),
-      passedChecks: matched,
-      totalChecks: expected.length,
-    );
-  }
-
-  Future<_VisionProbeArm> _runChartArm({required bool attachImage}) async {
-    final messages = _messages(user: _chartProbePrompt);
-    messages[messages.length - 1] = attachImage
-        ? messages.last.copyWith(
-            imageBase64: LiveLlmChartProbeImage.base64,
-            imageMimeType: LiveLlmChartProbeImage.mimeType,
-          )
-        : messages.last.copyWith(
-            content:
-                '$_chartProbePrompt\n'
-                '(No image is attached in this control request. Answer with '
-                'your best guess and no explanation.)',
-          );
-
-    try {
-      final result = await chatDataSource.createChatCompletion(
-        messages: messages,
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _reasoningProbeMaxTokens,
-      );
-      return _VisionProbeArm(
-        result: result,
-        content: result.content.trim(),
-        matchedColors: matchedChartAnswers(result.content),
-      );
-    } catch (error) {
-      return _VisionProbeArm(
-        rejected: attachImage,
-        error: error.toString(),
-        content: '',
-        matchedColors: 0,
-      );
-    }
-  }
-
   /// How close a numeric reading may be and still count.
   ///
   /// Measured, not guessed. Asked for all four readings in one turn against
@@ -2971,7 +2298,8 @@ class LiveLlmDiagnosticService {
   /// That is the intended floor: reading a chart to the nearest gridline is
   /// reading it, and a model that never looked still cannot land within two
   /// units of both 78 and 41 by chance.
-  static const int chartValueTolerance = 2;
+  static const int chartValueTolerance =
+      LiveLlmResponseScoring.chartValueTolerance;
 
   /// How many of the chart's readings the model got right, position by
   /// position.
@@ -2988,133 +2316,8 @@ class LiveLlmDiagnosticService {
   /// wrong reading swallow the rest, which is how a 3-of-4 answer was first
   /// reported as 1/4.
   @visibleForTesting
-  static int matchedChartAnswers(String content) {
-    final expected = LiveLlmChartProbeImage.expectedAnswers;
-    final fields = _chartAnswerFields(ContentParser.parse(content).text.trim());
-    var matched = 0;
-    for (
-      var index = 0;
-      index < expected.length && index < fields.length;
-      index++
-    ) {
-      if (_chartFieldMatches(fields[index], expected[index])) matched += 1;
-    }
-    return matched;
-  }
-
-  /// The four answers out of whatever the model wrapped them in.
-  ///
-  /// Read from the last line that carries enough commas, so a model that
-  /// prefaces the list with a sentence is still graded on the list.
-  static List<String> _chartAnswerFields(String answer) {
-    final expectedCount = LiveLlmChartProbeImage.expectedAnswers.length;
-    final lines = const LineSplitter()
-        .convert(answer)
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    for (final line in lines.reversed) {
-      final fields = line.split(',');
-      if (fields.length >= expectedCount) {
-        return fields.map(_normalizeChartField).toList();
-      }
-    }
-    return answer.split(',').map(_normalizeChartField).toList();
-  }
-
-  static String _normalizeChartField(String field) =>
-      field.toLowerCase().replaceAll(RegExp(r'[^a-z0-9.]'), '');
-
-  static bool _chartFieldMatches(String actual, String expected) {
-    final expectedValue = num.tryParse(expected);
-    if (expectedValue == null) return actual == expected;
-    final actualValue = num.tryParse(actual);
-    if (actualValue == null) return false;
-    return (actualValue - expectedValue).abs() <= chartValueTolerance;
-  }
-
-  /// Reads the image through the computer-use path: a tool result whose JSON
-  /// carries `imageBase64`, which the datasource lifts into its own observation
-  /// message. Same picture, different message shape — an endpoint can support
-  /// one and not the other.
-  Future<LiveLlmDiagnosticProbeResult> _runVisionToolObservationProbe() async {
-    final messages = _messages(
-      user: 'A screen observation tool returned an image. $_visionProbePrompt',
-    );
-    try {
-      final result = await chatDataSource.createChatCompletionWithToolResults(
-        messages: messages,
-        toolResults: [
-          ToolResultInfo(
-            id: 'diagnostic-vision-observe-call',
-            name: 'diagnostic_vision_observe',
-            arguments: const {'region': 'full'},
-            result: jsonEncode({
-              'ok': true,
-              'coordinateSpace': 'screenshot_pixels',
-              'imageMimeType': _visionProbeImageMimeType,
-              'imageBase64': _visionProbeImageBase64,
-            }),
-          ),
-        ],
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final matched = _matchedQuadrantColors(result.content);
-      final passed = matched == _visionProbeExpectedColors.length;
-      return LiveLlmDiagnosticProbeResult(
-        id: _visionToolObservationProbeId,
-        status: passed
-            ? LiveLlmDiagnosticStatus.passed
-            : matched > 0
-            ? LiveLlmDiagnosticStatus.warning
-            : LiveLlmDiagnosticStatus.failed,
-        summary: passed
-            ? 'The model read the image delivered as a tool observation.'
-            : 'The model did not read the tool-observation image correctly.',
-        details:
-            'Expected: ${_visionProbeExpectedColors.join(', ')}\n'
-            'Matched in order: $matched/${_visionProbeExpectedColors.length}',
-        modelContent: _preview(result.content, maxChars: 400),
-        usage: _usage(result),
-        passedChecks: matched,
-        totalChecks: _visionProbeExpectedColors.length,
-      );
-    } catch (error) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _visionToolObservationProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The endpoint rejected the tool-observation image request.',
-        details: 'Classification: $_visionClassificationRejected\n$error',
-      );
-    }
-  }
-
-  /// Counts leading quadrant colors named in the expected order. Order matters:
-  /// naming the right four colors in the wrong arrangement means the layout was
-  /// not actually read.
-  ///
-  /// Grades the visible answer rather than the raw response, for the reason the
-  /// chart probe already does: a reasoning model enumerates candidate colors on
-  /// its way to an answer, and scanning that text scores the thinking instead of
-  /// the reading. Scoring the raw response made the no-image control arm match
-  /// all four colors out of its own think block, which classified a
-  /// demonstrably sighted model as `model_ignored_the_image`.
-  int _matchedQuadrantColors(String content) {
-    final normalized = _visibleDiagnosticContent(content).toLowerCase();
-    var cursor = 0;
-    var matched = 0;
-    for (final color in _visionProbeExpectedColors) {
-      final index = normalized.indexOf(color, cursor);
-      if (index < 0) {
-        break;
-      }
-      cursor = index + color.length;
-      matched += 1;
-    }
-    return matched;
-  }
+  static int matchedChartAnswers(String content) =>
+      LiveLlmResponseScoring.matchedChartAnswers(content);
 
   Future<LiveLlmDiagnosticProbeResult> _runNarrowToolCallProbe(
     _ToolCatalogContext catalog,
@@ -3124,7 +2327,7 @@ class LiveLlmDiagnosticService {
       return _toolProbeUnavailable(_narrowToolCallProbeId);
     }
 
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Call the get_current_datetime tool now. Do not answer in text '
@@ -3135,7 +2338,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final toolCalls = _toolCallsFromResult(result);
+    final toolCalls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = toolCalls.map((call) => call.name).toList(growable: false);
     if (toolCalls.any((call) => call.name == 'get_current_datetime')) {
       return LiveLlmDiagnosticProbeResult(
@@ -3143,8 +2346,8 @@ class LiveLlmDiagnosticService {
         status: LiveLlmDiagnosticStatus.passed,
         summary: 'The model emitted the expected built-in tool call.',
         toolCalls: names,
-        modelContent: _preview(result.content),
-        usage: _usage(result),
+        modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
+        usage: LiveLlmDiagnosticEvidence.usage(result),
       );
     }
     return LiveLlmDiagnosticProbeResult(
@@ -3154,18 +2357,19 @@ class LiveLlmDiagnosticService {
       details: names.isEmpty
           ? 'No tool calls were returned.'
           : names.join(', '),
-      modelContent: _preview(result.content),
+      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
       toolCalls: names,
-      usage: _usage(result),
+      usage: LiveLlmDiagnosticEvidence.usage(result),
     );
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runGoalUpdateFidelityProbe() async {
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'The active goal is complete. Report that state by calling '
-            'update_goal exactly once with completed set to true. Do not add '
+            'update_goal exactly once with completed set to the JSON boolean '
+            'literal true, not the string "true" or "True". Do not add '
             'message or blocked_reason, and do not answer in text.',
       ),
       tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
@@ -3173,11 +2377,16 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = _toolCallsFromResult(result);
+    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = calls.map((call) => call.name).toList(growable: false);
+    final argumentValidationError =
+        calls.length == 1 && calls.single.name == 'update_goal'
+        ? GoalUpdateInput.validateArguments(calls.single.arguments)
+        : null;
     final passed =
         calls.length == 1 &&
         calls.single.name == 'update_goal' &&
+        argumentValidationError == null &&
         calls.single.arguments.length == 1 &&
         calls.single.arguments['completed'] == true;
     return LiveLlmDiagnosticProbeResult(
@@ -3192,13 +2401,61 @@ class LiveLlmDiagnosticService {
           ? 'Observed update_goal with {"completed":true}; it was not executed.'
           : calls.isEmpty
           ? 'No tool calls were returned.'
-          : calls
-                .map((call) => '${call.name}: ${jsonEncode(call.arguments)}')
-                .join('\n'),
-      modelContent: _preview(result.content),
+          : [
+              ?argumentValidationError,
+              ...calls.map(
+                (call) => '${call.name}: ${jsonEncode(call.arguments)}',
+              ),
+            ].join('\n'),
+      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
       toolCalls: names,
-      usage: _usage(result),
+      usage: LiveLlmDiagnosticEvidence.usage(result),
+      metadata: {
+        ..._goalUpdateRequestMetadata(),
+        'argumentValidationError': ?argumentValidationError,
+      },
     );
+  }
+
+  /// The contract this probe put on the wire, kept beside the model's call so
+  /// a string boolean stays visible as a model miss rather than a schema miss.
+  Map<String, String> _goalUpdateRequestMetadata() {
+    final tools = [McpGoalRoutineToolDefinitions.updateGoalTool];
+    final function =
+        tools.single['function'] as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final parameters =
+        function['parameters'] as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final properties = parameters['properties'];
+    final completed = properties is Map ? properties['completed'] : null;
+    final completedType = completed is Map ? completed['type'] : null;
+    final requiredFields = parameters['required'];
+    final toolChoice = StrictToolChoicePolicy.openAiToolChoice(tools);
+    final metadata = <String, String>{
+      'toolName': '${function['name']}',
+      'completedType': '$completedType',
+      'required': requiredFields is List ? requiredFields.join(',') : '',
+      'additionalProperties': '${parameters['additionalProperties']}',
+      'temperature': '$_diagnosticTemperature',
+      if (toolChoice != null) 'toolChoice': jsonEncode(toolChoice),
+    };
+    final remote = chatDataSource;
+    if (remote is ChatRemoteDataSource) {
+      final overrides = remote.thinkingOverrides(
+        model: _diagnosticModel,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final enableThinking = overrides?.topLevelEnableThinking;
+      if (enableThinking != null) {
+        metadata['enableThinking'] = '$enableThinking';
+      }
+      final template = overrides?.chatTemplateKwargs;
+      if (template != null) {
+        metadata['chatTemplateKwargs'] = jsonEncode(template);
+      }
+    }
+    return metadata;
   }
 
   Future<LiveLlmDiagnosticReport> _appendToolLoopSamplerCalibrationTrials({
@@ -3224,7 +2481,7 @@ class LiveLlmDiagnosticService {
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
       for (final temperature in _samplerCalibrationTemperatures) {
         trials.add(
-          await _runToolLoopSamplerCalibrationTrial(
+          await _samplerTrials.toolLoop(
             dateTool: dateTool,
             temperature: temperature,
           ),
@@ -3245,43 +2502,6 @@ class LiveLlmDiagnosticService {
     return updated;
   }
 
-  Future<LiveLlmDiagnosticSamplerTrial> _runToolLoopSamplerCalibrationTrial({
-    required Map<String, dynamic> dateTool,
-    required double temperature,
-  }) async {
-    try {
-      final result = await chatDataSource.createChatCompletion(
-        messages: _messages(
-          user:
-              'Call the get_current_datetime tool now. Do not answer in text '
-              'before using the tool.',
-        ),
-        tools: [dateTool],
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final toolCalls = _toolCallsFromResult(result);
-      final passed = toolCalls.any(
-        (call) => call.name == 'get_current_datetime',
-      );
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.toolLoop.metadataName,
-        temperature: temperature,
-        passed: passed,
-        malformedToolCallCount: passed ? 0 : 1,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.toolLoop.metadataName,
-        temperature: temperature,
-        passed: false,
-        malformedToolCallCount: 1,
-      );
-    }
-  }
-
   Future<LiveLlmDiagnosticReport> _appendRoutineSamplerCalibrationTrials({
     required LiveLlmDiagnosticReport report,
     required LlmProviderCapabilities capabilities,
@@ -3299,9 +2519,7 @@ class LiveLlmDiagnosticService {
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
       for (final temperature in _samplerCalibrationTemperatures) {
-        trials.add(
-          await _runRoutineSamplerCalibrationTrial(temperature: temperature),
-        );
+        trials.add(await _samplerTrials.routine(temperature: temperature));
       }
     }
     // The first trials can be what teaches the endpoint's 400 to the fallback,
@@ -3318,47 +2536,6 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<LiveLlmDiagnosticSamplerTrial> _runRoutineSamplerCalibrationTrial({
-    required double temperature,
-  }) async {
-    try {
-      final result = await chatDataSource.createChatCompletion(
-        messages: _messages(
-          user:
-              'Return exactly this routine sampler JSON object and no markdown:\n'
-              '{"routine":"sampler_calibration","status":"ok","marker":"$_routineSamplerMarker","nextAction":"post_summary"}',
-        ),
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final content = result.content.trim();
-      final decoded = _tryDecodeJsonObject(content);
-      final passed =
-          decoded?['routine'] == 'sampler_calibration' &&
-          decoded?['status'] == 'ok' &&
-          decoded?['marker'] == _routineSamplerMarker &&
-          decoded?['nextAction'] == 'post_summary';
-      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
-      final hasMarker = content.contains(_routineSamplerMarker);
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.routine.metadataName,
-        temperature: temperature,
-        passed: passed && !hasUnexpectedToolCalls,
-        jsonRepairEventCount: !passed && hasMarker ? 1 : 0,
-        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.routine.metadataName,
-        temperature: temperature,
-        passed: false,
-        jsonRepairEventCount: 1,
-      );
-    }
   }
 
   Future<LiveLlmDiagnosticReport> _appendCodingPlanSamplerCalibrationTrials({
@@ -3378,12 +2555,8 @@ class LiveLlmDiagnosticService {
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
     for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
       for (final temperature in _samplerCalibrationTemperatures) {
-        trials.add(
-          await _runCodingSamplerCalibrationTrial(temperature: temperature),
-        );
-        trials.add(
-          await _runPlanSamplerCalibrationTrial(temperature: temperature),
-        );
+        trials.add(await _samplerTrials.coding(temperature: temperature));
+        trials.add(await _samplerTrials.plan(temperature: temperature));
       }
     }
     if (_temperatureSweepIsMeaningless) {
@@ -3398,94 +2571,6 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<LiveLlmDiagnosticSamplerTrial> _runCodingSamplerCalibrationTrial({
-    required double temperature,
-  }) async {
-    try {
-      final result = await chatDataSource.createChatCompletion(
-        messages: _messages(
-          user:
-              'Return exactly this coding sampler JSON object and no markdown:\n'
-              '{"coding":"sampler_calibration","status":"ok","marker":"$_codingSamplerMarker","edit":["<<<<<<< SEARCH","return oldValue;","=======","return newValue;",">>>>>>> REPLACE"]}',
-        ),
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final content = result.content.trim();
-      final decoded = _tryDecodeJsonObject(content);
-      final editBlockMatches = _stringListEquals(
-        decoded?['edit'],
-        _codingSamplerEditBlock,
-      );
-      final hasCodingEnvelope =
-          decoded?['coding'] == 'sampler_calibration' &&
-          decoded?['marker'] == _codingSamplerMarker;
-      final passed =
-          hasCodingEnvelope && decoded?['status'] == 'ok' && editBlockMatches;
-      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
-      final hasMarker = content.contains(_codingSamplerMarker);
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.coding.metadataName,
-        temperature: temperature,
-        passed: passed && !hasUnexpectedToolCalls,
-        jsonRepairEventCount: decoded == null && hasMarker ? 1 : 0,
-        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
-        editApplyFailureCount: hasCodingEnvelope && !editBlockMatches ? 1 : 0,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.coding.metadataName,
-        temperature: temperature,
-        passed: false,
-        jsonRepairEventCount: 1,
-        editApplyFailureCount: 1,
-      );
-    }
-  }
-
-  Future<LiveLlmDiagnosticSamplerTrial> _runPlanSamplerCalibrationTrial({
-    required double temperature,
-  }) async {
-    try {
-      final result = await chatDataSource.createChatCompletion(
-        messages: _messages(
-          user:
-              'Return exactly this plan sampler JSON object and no markdown:\n'
-              '{"plan":"sampler_calibration","status":"ok","marker":"$_planSamplerMarker","tasks":["inspect","edit","verify"]}',
-        ),
-        model: _diagnosticModel,
-        temperature: temperature,
-        maxTokens: _diagnosticMaxTokens,
-      );
-      final content = result.content.trim();
-      final decoded = _tryDecodeJsonObject(content);
-      final passed =
-          decoded?['plan'] == 'sampler_calibration' &&
-          decoded?['status'] == 'ok' &&
-          decoded?['marker'] == _planSamplerMarker &&
-          _stringListEquals(decoded?['tasks'], _planSamplerTasks);
-      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
-      final hasMarker = content.contains(_planSamplerMarker);
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.plan.metadataName,
-        temperature: temperature,
-        passed: passed && !hasUnexpectedToolCalls,
-        jsonRepairEventCount: decoded == null && hasMarker ? 1 : 0,
-        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
-        repetitionDetected: _looksRepetitive(result.content),
-      );
-    } catch (_) {
-      return LiveLlmDiagnosticSamplerTrial(
-        requestClass: LlmSamplerRequestClass.plan.metadataName,
-        temperature: temperature,
-        passed: false,
-        jsonRepairEventCount: 1,
-      );
-    }
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runToolResultProbe(
@@ -3504,14 +2589,14 @@ class LiveLlmDiagnosticService {
           'today copied from relative_dates.today, and timezone copied from the '
           'tool result.',
     );
-    final firstResult = await chatDataSource.createChatCompletion(
+    final firstResult = await _chat.createChatCompletion(
       messages: messages,
       tools: [dateTool],
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final firstToolCalls = _toolCallsFromResult(firstResult);
+    final firstToolCalls = LiveLlmResponseScoring.toolCallsFrom(firstResult);
     final call = firstToolCalls
         .where((item) => item.name == 'get_current_datetime')
         .firstOrNull;
@@ -3523,8 +2608,8 @@ class LiveLlmDiagnosticService {
         toolCalls: firstToolCalls
             .map((item) => item.name)
             .toList(growable: false),
-        modelContent: _preview(firstResult.content),
-        usage: _usage(firstResult),
+        modelContent: LiveLlmDiagnosticEvidence.preview(firstResult.content),
+        usage: LiveLlmDiagnosticEvidence.usage(firstResult),
       );
     }
 
@@ -3539,17 +2624,19 @@ class LiveLlmDiagnosticService {
         summary: 'The built-in datetime tool failed.',
         details: toolExecution.errorMessage ?? toolExecution.result,
         toolCalls: [call.name],
-        usage: _usage(firstResult),
+        usage: LiveLlmDiagnosticEvidence.usage(firstResult),
       );
     }
 
-    final expected = _tryDecodeJsonObject(toolExecution.result);
+    final expected = LiveLlmResponseScoring.tryDecodeJsonObject(
+      toolExecution.result,
+    );
     final relativeDates = expected?['relative_dates'];
     final today = relativeDates is Map
         ? relativeDates['today'] as String?
         : null;
     final timezone = expected?['timezone'] as String?;
-    final followUp = await chatDataSource.createChatCompletionWithToolResults(
+    final followUp = await _chat.createChatCompletionWithToolResults(
       messages: messages,
       toolResults: [
         ToolResultInfo(
@@ -3559,19 +2646,23 @@ class LiveLlmDiagnosticService {
           result: toolExecution.result,
         ),
       ],
-      tools: [dateTool],
+      // This probe measures whether the model uses the returned value in its
+      // answer. The multi-round probe separately measures further tool calls.
+      tools: const <Map<String, dynamic>>[],
       model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
     final content = followUp.content.trim();
-    final decoded = _tryDecodeJsonObject(content);
+    final followUpCalls = LiveLlmResponseScoring.toolCallsFrom(followUp);
+    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
     final markerOk =
         decoded?['marker'] == _toolResultMarker ||
         content.contains(_toolResultMarker);
     final todayOk = today == null || content.contains(today);
     final timezoneOk = timezone == null || content.contains(timezone);
-    final passed = markerOk && todayOk && timezoneOk;
+    final passed = followUpCalls.isEmpty && markerOk && todayOk && timezoneOk;
+    final unexpectedCalls = followUpCalls.map((call) => call.name).toList();
     return LiveLlmDiagnosticProbeResult(
       id: _toolResultProbeId,
       status: passed
@@ -3579,14 +2670,21 @@ class LiveLlmDiagnosticService {
           : LiveLlmDiagnosticStatus.warning,
       summary: passed
           ? 'The model integrated the tool result into its final answer.'
-          : 'The model answered, but did not clearly copy all tool-result fields.',
+          : unexpectedCalls.isNotEmpty
+          ? 'The model requested another tool instead of completing the answer.'
+          : content.isEmpty
+          ? 'The model returned no final answer after the tool result.'
+          : 'The model did not clearly copy all tool-result fields.',
       details: [
         if (today != null) 'Expected today: $today',
         if (timezone != null) 'Expected timezone: $timezone',
+        if (unexpectedCalls.isNotEmpty)
+          'Unexpected follow-up tool calls: ${unexpectedCalls.join(", ")}',
+        if (content.isEmpty) 'Finish reason: ${followUp.finishReason}',
       ].join('\n'),
-      modelContent: _preview(content),
-      toolCalls: [call.name],
-      usage: _usage(followUp),
+      modelContent: LiveLlmDiagnosticEvidence.preview(content),
+      toolCalls: [call.name, ...unexpectedCalls],
+      usage: LiveLlmDiagnosticEvidence.usage(followUp),
     );
   }
 
@@ -3617,7 +2715,14 @@ class LiveLlmDiagnosticService {
     onReport?.call(updated);
 
     try {
-      final outcome = await _measureMultiRoundToolLoop(catalog);
+      final outcome = await _multiRoundProbe.run(
+        searchTool: _singleTool(
+          catalog.definitions,
+          ToolDefinitionSearchService.toolName,
+        ),
+        dateTool: _singleTool(catalog.definitions, 'get_current_datetime'),
+        execute: mcpToolService?.executeTool,
+      );
       updated = updated
           .withProbeResult(
             outcome.result.copyWith(
@@ -3640,253 +2745,13 @@ class LiveLlmDiagnosticService {
     return updated;
   }
 
-  Future<_MultiRoundToolLoopProbeOutcome> _measureMultiRoundToolLoop(
-    _ToolCatalogContext catalog,
-  ) async {
-    final service = mcpToolService;
-    final searchTool = _singleTool(
-      catalog.definitions,
-      ToolDefinitionSearchService.toolName,
-    );
-    final dateTool = _singleTool(catalog.definitions, 'get_current_datetime');
-    final stopwatch = Stopwatch()..start();
-    final modelResults = <ChatCompletionResult>[];
-    final observedToolNames = <String>[];
-    var toolCallCount = 0;
-    var successfulToolExecutionCount = 0;
-
-    _MultiRoundToolLoopProbeOutcome finish({
-      required LiveLlmDiagnosticStatus status,
-      required String summary,
-      String details = '',
-      String modelContent = '',
-      int passedChecks = 0,
-      int totalChecks = 3,
-    }) {
-      stopwatch.stop();
-      final usage = _totalUsage(modelResults);
-      return _MultiRoundToolLoopProbeOutcome(
-        result: LiveLlmDiagnosticProbeResult(
-          id: _multiRoundToolLoopProbeId,
-          status: status,
-          summary: summary,
-          details: details,
-          modelContent: _preview(modelContent),
-          toolCalls: List.unmodifiable(observedToolNames),
-          usage: usage,
-          passedChecks: passedChecks,
-          totalChecks: totalChecks,
-        ),
-        metrics: LiveLlmDiagnosticMultiRoundToolLoopMetrics(
-          totalElapsed: stopwatch.elapsed,
-          modelTurnCount: modelResults.length,
-          toolCallCount: toolCallCount,
-          successfulToolExecutionCount: successfulToolExecutionCount,
-          promptTokens: usage.promptTokens,
-          completionTokens: usage.completionTokens,
-          taskCompleted: status == LiveLlmDiagnosticStatus.passed,
-        ),
-      );
-    }
-
-    if (service == null || searchTool == null || dateTool == null) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.skipped,
-        summary: 'The sequential local tools are not available.',
-      );
-    }
-
-    final messages = _messages(
-      user:
-          'Find the available tool that reports the current date and timezone, '
-          'use it, then return JSON with marker="$_multiRoundToolLoopMarker", '
-          'today copied from relative_dates.today, and timezone copied from '
-          'the datetime result.',
-    );
-    final searchRequest = await chatDataSource.createChatCompletion(
-      messages: messages,
-      // The datetime tool is intentionally absent, so the model has to
-      // discover it before it can call it.
-      tools: [searchTool],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    modelResults.add(searchRequest);
-    final searchCalls = _toolCallsFromResult(searchRequest);
-    toolCallCount += searchCalls.length;
-    observedToolNames.addAll(searchCalls.map((call) => call.name));
-    // Judged by name, not by count. `tool_search` is the only tool attached
-    // here, so a second call is a second search -- the discovery this probe
-    // exists to measure, issued in parallel. Counting instead cost
-    // qwen/qwen3.8-flash all 65 points on 2026-09-18, and took the run's
-    // verdict to Failed, for searching twice before answering.
-    if (searchCalls.isEmpty ||
-        searchCalls.any(
-          (call) => call.name != ToolDefinitionSearchService.toolName,
-        )) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The first turn did not call tool_search.',
-        details: 'Returned calls: ${observedToolNames.join(", ")}',
-        modelContent: searchRequest.content,
-      );
-    }
-
-    // Every search runs: parallel queries differ, and it is their union that
-    // decides whether the datetime tool was discovered.
-    final searchResults = <ToolResultInfo>[];
-    for (final searchCall in searchCalls) {
-      final searchExecution = await service.executeTool(
-        name: searchCall.name,
-        arguments: searchCall.arguments,
-      );
-      if (!searchExecution.isSuccess) {
-        return finish(
-          status: LiveLlmDiagnosticStatus.failed,
-          summary: 'The local tool catalog search failed.',
-          details: searchExecution.errorMessage ?? searchExecution.result,
-        );
-      }
-      successfulToolExecutionCount += 1;
-      searchResults.add(
-        ToolResultInfo(
-          id: searchCall.id.isEmpty
-              ? 'diagnostic-tool-search-call-${searchResults.length}'
-              : searchCall.id,
-          name: searchCall.name,
-          arguments: searchCall.arguments,
-          result: searchExecution.result,
-        ),
-      );
-    }
-    final discovered =
-        ToolDefinitionSearchService.discoveredToolNamesFromResults(
-          searchResults,
-        );
-    if (!discovered.contains('get_current_datetime')) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'Tool search did not discover get_current_datetime.',
-        details: _preview(
-          searchResults.map((result) => result.result).join('\n'),
-          maxChars: 1200,
-        ),
-        passedChecks: 1,
-      );
-    }
-
-    final dateRequest = await chatDataSource
-        .createChatCompletionWithToolResults(
-          messages: messages,
-          toolResults: searchResults,
-          tools: [searchTool, dateTool],
-          model: _diagnosticModel,
-          temperature: _diagnosticTemperature,
-          maxTokens: _diagnosticMaxTokens,
-        );
-    modelResults.add(dateRequest);
-    final dateCalls = _toolCallsFromResult(dateRequest);
-    toolCallCount += dateCalls.length;
-    observedToolNames.addAll(dateCalls.map((call) => call.name));
-    // Same rule as the first turn. Both tools are attached by now, so a call
-    // to anything but the datetime tool still fails -- re-searching here means
-    // the model dropped the catalog it was just handed.
-    if (dateCalls.isEmpty ||
-        dateCalls.any((call) => call.name != 'get_current_datetime')) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The second turn did not call get_current_datetime.',
-        details:
-            'Returned calls: ${dateCalls.map((call) => call.name).join(", ")}',
-        modelContent: dateRequest.content,
-        passedChecks: 1,
-      );
-    }
-
-    // One reading is the whole answer, so repeats need no second execution.
-    final dateCall = dateCalls.first;
-    final dateExecution = await service.executeTool(
-      name: dateCall.name,
-      arguments: dateCall.arguments,
-    );
-    if (!dateExecution.isSuccess) {
-      return finish(
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The local datetime tool failed.',
-        details: dateExecution.errorMessage ?? dateExecution.result,
-        passedChecks: 1,
-      );
-    }
-    successfulToolExecutionCount += 1;
-    final dateResult = ToolResultInfo(
-      id: dateCall.id.isEmpty ? 'diagnostic-datetime-call' : dateCall.id,
-      name: dateCall.name,
-      arguments: dateCall.arguments,
-      result: dateExecution.result,
-    );
-
-    final finalRequest = await chatDataSource
-        .createChatCompletionWithToolResults(
-          messages: messages,
-          toolResults: [dateResult],
-          tools: const <Map<String, dynamic>>[],
-          model: _diagnosticModel,
-          temperature: _diagnosticTemperature,
-          maxTokens: _diagnosticMaxTokens,
-        );
-    modelResults.add(finalRequest);
-    final finalCalls = _toolCallsFromResult(finalRequest);
-    toolCallCount += finalCalls.length;
-    observedToolNames.addAll(finalCalls.map((call) => call.name));
-
-    final expected = _tryDecodeJsonObject(dateExecution.result);
-    final relativeDates = expected?['relative_dates'];
-    final today = relativeDates is Map
-        ? relativeDates['today'] as String?
-        : null;
-    final timezone = expected?['timezone'] as String?;
-    final content = finalRequest.content.trim();
-    final decoded = _tryDecodeJsonObject(content);
-    final markerOk = decoded?['marker'] == _multiRoundToolLoopMarker;
-    final todayOk = today != null && decoded?['today'] == today;
-    final timezoneOk = timezone != null && decoded?['timezone'] == timezone;
-    final noExtraCalls = finalCalls.isEmpty;
-    final passed = markerOk && todayOk && timezoneOk && noExtraCalls;
-    return finish(
-      status: passed
-          ? LiveLlmDiagnosticStatus.passed
-          : LiveLlmDiagnosticStatus.warning,
-      summary: passed
-          ? 'The model completed two sequential tool rounds and the final answer.'
-          : 'The loop reached a final answer but did not preserve its contract.',
-      details: [
-        'Search discovered datetime: true',
-        'Marker copied: $markerOk',
-        'Today copied: $todayOk',
-        'Timezone copied: $timezoneOk',
-        'No extra final calls: $noExtraCalls',
-      ].join('\n'),
-      modelContent: content,
-      passedChecks:
-          2 +
-          [
-            markerOk,
-            todayOk,
-            timezoneOk,
-            noExtraCalls,
-          ].where((ok) => ok).length,
-      totalChecks: 6,
-    );
-  }
-
   Future<LiveLlmDiagnosticProbeResult> _runInitialHarnessProbe(
     _ToolCatalogContext catalog,
   ) async {
     if (!catalog.catalog.hasTools) {
       return _toolProbeUnavailable(_initialHarnessProbeId);
     }
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Using the currently exposed Caverno initial tool set, call '
@@ -3897,7 +2762,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final names = _toolCallsFromResult(
+    final names = LiveLlmResponseScoring.toolCallsFrom(
       result,
     ).map((call) => call.name).toList(growable: false);
     if (names.contains('get_current_datetime')) {
@@ -3909,8 +2774,8 @@ class LiveLlmDiagnosticService {
             'Initial tool count: ${catalog.catalog.initialToolCount}. '
             'Tool search enabled: ${catalog.toolSearchEnabled}.',
         toolCalls: names,
-        modelContent: _preview(result.content),
-        usage: _usage(result),
+        modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
+        usage: LiveLlmDiagnosticEvidence.usage(result),
       );
     }
     return LiveLlmDiagnosticProbeResult(
@@ -3925,8 +2790,8 @@ class LiveLlmDiagnosticService {
           'Initial tool count: ${catalog.catalog.initialToolCount}. '
           'Returned calls: ${names.isEmpty ? "(none)" : names.join(", ")}',
       toolCalls: names,
-      modelContent: _preview(result.content),
-      usage: _usage(result),
+      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
+      usage: LiveLlmDiagnosticEvidence.usage(result),
     );
   }
 
@@ -3949,7 +2814,7 @@ class LiveLlmDiagnosticService {
       return _toolProbeUnavailable(_toolSearchProbeId);
     }
 
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Use the tool catalog search tool to find a tool for delegating a '
@@ -3960,7 +2825,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = _toolCallsFromResult(result);
+    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = calls.map((call) => call.name).toList(growable: false);
     final searchCall = calls
         .where((call) => call.name == ToolDefinitionSearchService.toolName)
@@ -3975,8 +2840,8 @@ class LiveLlmDiagnosticService {
             ? 'The model found subagents directly, but skipped tool_search.'
             : 'The model did not use the tool catalog search tool.',
         toolCalls: names,
-        modelContent: _preview(result.content),
-        usage: _usage(result),
+        modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
+        usage: LiveLlmDiagnosticEvidence.usage(result),
       );
     }
 
@@ -3993,10 +2858,13 @@ class LiveLlmDiagnosticService {
       summary: foundSubagent
           ? 'The model used tool_search and surfaced the subagent tool.'
           : 'The model used tool_search, but the result did not include subagents.',
-      details: _preview(toolResult.result, maxChars: 1200),
+      details: LiveLlmDiagnosticEvidence.preview(
+        toolResult.result,
+        maxChars: 1200,
+      ),
       toolCalls: names,
-      modelContent: _preview(result.content),
-      usage: _usage(result),
+      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
+      usage: LiveLlmDiagnosticEvidence.usage(result),
     );
   }
 
@@ -4018,7 +2886,7 @@ class LiveLlmDiagnosticService {
     // and the same meta-framing with `get_current_datetime` also produces one.
     // The probe was measuring its own wording. Nothing is executed either way —
     // the result is only inspected — so the natural phrasing costs no safety.
-    final result = await chatDataSource.createChatCompletion(
+    final result = await _chat.createChatCompletion(
       messages: _messages(
         user:
             'Delegate a sub-task to a subagent and run it in the background so '
@@ -4030,7 +2898,7 @@ class LiveLlmDiagnosticService {
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = _toolCallsFromResult(result);
+    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
     final names = calls.map((call) => call.name).toList(growable: false);
     final spawnCall = calls
         .where((call) => call.name == 'spawn_subagent')
@@ -4041,8 +2909,8 @@ class LiveLlmDiagnosticService {
         status: LiveLlmDiagnosticStatus.failed,
         summary: 'The model did not emit spawn_subagent.',
         toolCalls: names,
-        modelContent: _preview(result.content),
-        usage: _usage(result),
+        modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
+        usage: LiveLlmDiagnosticEvidence.usage(result),
       );
     }
     final hasPrompt =
@@ -4065,8 +2933,8 @@ class LiveLlmDiagnosticService {
           'description=$hasDescription, promptMarker=$hasPrompt, '
           'background=$background',
       toolCalls: names,
-      modelContent: _preview(result.content),
-      usage: _usage(result),
+      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
+      usage: LiveLlmDiagnosticEvidence.usage(result),
     );
   }
 
@@ -4173,22 +3041,6 @@ class LiveLlmDiagnosticService {
     return _singleTool(definitions, name) != null;
   }
 
-  List<ToolCallInfo> _toolCallsFromResult(ChatCompletionResult result) {
-    final nativeCalls = result.toolCalls;
-    if (nativeCalls != null && nativeCalls.isNotEmpty) {
-      return nativeCalls;
-    }
-    return ContentParser.extractCompletedToolCalls(result.content)
-        .map(
-          (toolCall) => ToolCallInfo(
-            id: toolCall.occurrenceId ?? 'text-${toolCall.name}',
-            name: toolCall.name,
-            arguments: toolCall.arguments,
-          ),
-        )
-        .toList(growable: false);
-  }
-
   List<String> _toolNamesFromDefinitions(
     Iterable<Map<String, dynamic>> definitions,
   ) {
@@ -4218,138 +3070,14 @@ class LiveLlmDiagnosticService {
         .join('\n');
   }
 
-  LiveLlmDiagnosticTokenUsage _usage(ChatCompletionResult result) {
-    return LiveLlmDiagnosticTokenUsage(
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
-    );
-  }
-
-  LiveLlmDiagnosticTokenUsage _totalUsage(
-    Iterable<ChatCompletionResult> results,
-  ) {
-    var promptTokens = 0;
-    var completionTokens = 0;
-    var totalTokens = 0;
-    for (final result in results) {
-      promptTokens += result.usage.promptTokens;
-      completionTokens += result.usage.completionTokens;
-      totalTokens += result.usage.totalTokens;
-    }
-    return LiveLlmDiagnosticTokenUsage(
-      promptTokens: promptTokens,
-      completionTokens: completionTokens,
-      totalTokens: totalTokens,
-    );
-  }
-
-  LiveLlmDiagnosticTokenUsage _sumDiagnosticUsage(
-    Iterable<LiveLlmDiagnosticTokenUsage> usages,
-  ) {
-    var promptTokens = 0;
-    var completionTokens = 0;
-    var totalTokens = 0;
-    for (final usage in usages) {
-      promptTokens += usage.promptTokens;
-      completionTokens += usage.completionTokens;
-      totalTokens += usage.totalTokens;
-    }
-    return LiveLlmDiagnosticTokenUsage(
-      promptTokens: promptTokens,
-      completionTokens: completionTokens,
-      totalTokens: totalTokens,
-    );
-  }
-
   String _formatExactPreservationDetail(
     _ExactPreservationProbeOutcome outcome,
   ) {
     return [
       '${outcome.label}: ${outcome.passed ? 'passed' : 'failed'}',
       'Expected: ${outcome.expected}',
-      'Actual: ${_preview(outcome.actual, maxChars: 800)}',
+      'Actual: ${LiveLlmDiagnosticEvidence.preview(outcome.actual, maxChars: 800)}',
     ].join('\n');
-  }
-
-  Map<String, dynamic>? _tryDecodeJsonObject(String value) {
-    // Reasoning models hand back their chain of thought merged into the
-    // content as a <think> block, and that prose routinely contains braces.
-    // Slicing the raw text from its first brace would start inside the
-    // thought and end at the answer's closing brace, so the decode fails and
-    // a schema-perfect reply gets scored as a contract violation. Decode the
-    // same visible text a production consumer would parse.
-    final trimmed = _visibleDiagnosticContent(value);
-    final candidates = <String>[trimmed];
-    final firstBrace = trimmed.indexOf('{');
-    final lastBrace = trimmed.lastIndexOf('}');
-    if (firstBrace != -1 && lastBrace > firstBrace) {
-      candidates.add(trimmed.substring(firstBrace, lastBrace + 1));
-    }
-    for (final candidate in candidates) {
-      try {
-        final decoded = jsonDecode(candidate);
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        }
-      } catch (_) {
-        continue;
-      }
-    }
-    return null;
-  }
-
-  /// Scores the same text that production consumers display or parse while
-  /// retaining the raw response separately for evidence and physical metrics.
-  String _visibleDiagnosticContent(String content) {
-    return ContentParser.parse(content).text.trim();
-  }
-
-  bool _stringListEquals(Object? actual, List<String> expected) {
-    if (actual is! List || actual.length != expected.length) {
-      return false;
-    }
-    for (var index = 0; index < expected.length; index += 1) {
-      if (actual[index] != expected[index]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  String _preview(String value, {int maxChars = 2000}) {
-    final trimmed = value.trim();
-    if (trimmed.length <= maxChars) {
-      return trimmed;
-    }
-    return '${trimmed.substring(0, maxChars)}...';
-  }
-
-  bool _looksRepetitive(String value) {
-    final normalized = value
-        .toLowerCase()
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (normalized.length < 24) {
-      return false;
-    }
-    final words = normalized
-        .split(' ')
-        .where((word) => word.isNotEmpty)
-        .toList(growable: false);
-    if (words.length < 8) {
-      return false;
-    }
-    final windowCounts = <String, int>{};
-    for (var index = 0; index <= words.length - 4; index += 1) {
-      final window = words.sublist(index, index + 4).join(' ');
-      final count = (windowCounts[window] ?? 0) + 1;
-      if (count >= 3) {
-        return true;
-      }
-      windowCounts[window] = count;
-    }
-    return false;
   }
 }
 
@@ -4358,32 +3086,6 @@ class _StreamingProbeOutcome {
 
   final LiveLlmDiagnosticProbeResult result;
   final LiveLlmDiagnosticStreamingMetrics metrics;
-}
-
-class _MultiRoundToolLoopProbeOutcome {
-  const _MultiRoundToolLoopProbeOutcome({
-    required this.result,
-    required this.metrics,
-  });
-
-  final LiveLlmDiagnosticProbeResult result;
-  final LiveLlmDiagnosticMultiRoundToolLoopMetrics metrics;
-}
-
-class _VisionProbeArm {
-  const _VisionProbeArm({
-    required this.content,
-    required this.matchedColors,
-    this.result,
-    this.rejected = false,
-    this.error = '',
-  });
-
-  final ChatCompletionResult? result;
-  final String content;
-  final int matchedColors;
-  final bool rejected;
-  final String error;
 }
 
 class _ToolCatalogContext {
@@ -4498,28 +3200,4 @@ class _FoundationModelsLanguageProbeOutcome {
   String toDetailLine() {
     return '$label: ${passed ? 'passed' : 'failed'} ($classification)';
   }
-}
-
-class _ToolDepthRungOutcome {
-  const _ToolDepthRungOutcome({
-    required this.passed,
-    this.detail = '',
-    this.finalContent = '',
-  });
-
-  final bool passed;
-  final String detail;
-  final String finalContent;
-}
-
-class _ToolRecoveryCaseOutcome {
-  const _ToolRecoveryCaseOutcome({
-    required this.passed,
-    this.detail = '',
-    this.finalContent = '',
-  });
-
-  final bool passed;
-  final String detail;
-  final String finalContent;
 }

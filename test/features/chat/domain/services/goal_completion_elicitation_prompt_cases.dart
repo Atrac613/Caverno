@@ -9,8 +9,9 @@ void _runGoalCompletionElicitationPrompt() {
     // that only offered completion would be leading, and a false completion
     // ends the run.
     expect(prompt, contains('completed: true'));
-    expect(prompt, contains('message'));
-    expect(prompt, contains('blocked_reason'));
+    expect(prompt, contains('completed: false with message'));
+    expect(prompt, contains('completed: false with blocked_reason'));
+    expect(prompt, contains('JSON boolean'));
     expect(prompt, contains('"ja"'));
   });
 

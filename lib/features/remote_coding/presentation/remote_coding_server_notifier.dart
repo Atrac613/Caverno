@@ -3,16 +3,24 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/attachment_storage_service.dart';
+import '../../../core/services/image_attachment_preparation_service.dart';
+import '../../../core/types/assistant_mode.dart';
 import '../../../core/types/workspace_mode.dart';
+import '../../../core/utils/attachment_format.dart';
 import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/services/coding_project_ordering.dart';
+import '../../chat/domain/services/conversation_plan_projection_service.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/presentation/coordinators/plan_review_action_coordinator.dart';
 import '../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
@@ -21,6 +29,9 @@ import '../../chat/presentation/providers/conversations_notifier.dart';
 import '../../dashboard/domain/entities/dashboard_stats.dart';
 import '../../dashboard/domain/services/dashboard_stats_calculator.dart';
 import '../../dashboard/domain/services/dashboard_stats_codec.dart';
+import '../../settings/data/model_remote_datasource.dart';
+import '../../settings/domain/entities/app_settings.dart';
+import '../../settings/presentation/providers/settings_notifier.dart';
 import '../data/remote_coding_notification_payload.dart';
 import '../data/remote_coding_notification_relay_pairing.dart';
 import '../data/remote_coding_notification_relay_providers.dart';
@@ -33,7 +44,9 @@ import '../data/remote_coding_session_challenge_registry.dart';
 import '../data/remote_coding_terminal_notification_delivery.dart';
 import '../data/remote_coding_terminal_notification_mapper.dart';
 import '../data/remote_coding_tls_identity.dart';
+import '../domain/remote_coding_attachment.dart';
 import '../domain/remote_coding_audit.dart';
+import '../domain/remote_coding_companion_models.dart';
 import '../domain/remote_coding_error_policy.dart';
 import '../domain/remote_coding_grant_kinds.dart';
 import '../domain/remote_coding_listen_policy.dart';
@@ -133,6 +146,8 @@ class RemoteCodingServerState {
 class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   static const Duration _pairingLifetime = Duration(minutes: 5);
   static const Duration _relayPairingLifetime = Duration(minutes: 5);
+  static const String _remotePlanExecutionPrompt =
+      'Use the approved plan for this coding thread. Start with the highest-value task, explain the small change you are making, then implement it. After each completed task, continue to the next pending saved task automatically unless you are blocked, requirements changed, or the approved workflow must change. If the app shows file or command approvals, treat them as sufficient and do not ask for duplicate permission in natural language.';
 
   final _uuid = const Uuid();
   final RemoteCodingPairingRegistry _pairingRegistry =
@@ -144,6 +159,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
   final Set<_RemoteCodingSocketClient> _clients = {};
   final RemoteCodingTerminalNotificationMapper _terminalNotificationMapper =
       const RemoteCodingTerminalNotificationMapper();
+  final Map<String, String> _planReviewOwnerDeviceIds = <String, String>{};
 
   late final RemoteCodingRepository _repository;
   late final RemoteCodingResourcePolicy _resourcePolicy;
@@ -628,6 +644,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         await _handleMessage(client, message);
       }
     } finally {
+      final uploadedPaths = await client.takeUploadedAttachmentPaths();
+      await AttachmentStorageService.deleteOwnedAttachments(uploadedPaths);
       client.dispose();
       _sessionChallenges.removeConnection(client.connectionId);
       _clients.remove(client);
@@ -668,19 +686,29 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         _handleSelectConversation(client, message);
       case 'createThread':
         _handleCreateThread(client, message);
+      case RemoteCodingProtocol.uploadAttachment:
+        await _handleUploadAttachment(client, message);
       case 'sendMessage':
         await _handleSendMessage(client, message);
       case 'cancelStreaming':
         ref.read(chatNotifierProvider.notifier).cancelStreaming();
         client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
       case RemoteCodingProtocol.sendMessageToConversation:
-        _handleBoundSendMessage(client, message);
+        await _handleBoundSendMessage(client, message);
       case RemoteCodingProtocol.cancelConversationStreaming:
         _handleBoundCancelStreaming(client, message);
+      case RemoteCodingProtocol.requestComposerModels:
+        await _handleRequestComposerModels(client, message);
+      case RemoteCodingProtocol.updateComposerSettings:
+        await _handleUpdateComposerSettings(client, message);
+      case RemoteCodingProtocol.clearConversation:
+        await _handleClearConversation(client, message);
       case 'resolveApproval':
         _handleResolveApproval(client, message);
       case 'resolveQuestion':
         _handleResolveQuestion(client, message);
+      case 'resolvePlanReview':
+        await _handleResolvePlanReview(client, message);
       case 'requestSnapshot':
         client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
       case 'requestNotificationRelay':
@@ -1066,19 +1094,489 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     ref.read(codingProjectsNotifierProvider.notifier).selectProject(project.id);
     ref
         .read(conversationsNotifierProvider.notifier)
-        .createNewConversation(
+        .startDraftConversation(
           workspaceMode: projectWorkspaceMode,
           projectId: project.id,
         );
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
+  Future<void> _handleUploadAttachment(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final payload = message.payload;
+    final uploadId = (payload['uploadId'] as String?)?.trim() ?? '';
+    final rawName = (payload['name'] as String?) ?? '';
+    final rawMimeType = (payload['mimeType'] as String?) ?? '';
+    final sizeBytes = (payload['sizeBytes'] as num?)?.toInt();
+    final chunkIndex = (payload['chunkIndex'] as num?)?.toInt();
+    final chunkCount = (payload['chunkCount'] as num?)?.toInt();
+    final digest = (payload['sha256'] as String?)?.trim().toLowerCase() ?? '';
+    final encodedData = payload['data'];
+
+    void reject(String code, String text) {
+      client.sendError(id: message.id, code: code, message: text);
+    }
+
+    if (message.id == null ||
+        uploadId.isEmpty ||
+        sizeBytes == null ||
+        chunkIndex == null ||
+        chunkCount == null ||
+        encodedData is! String) {
+      reject('invalid_attachment', 'Attachment upload metadata is invalid.');
+      return;
+    }
+    final name = RemoteCodingAttachmentPolicy.normalizedName(rawName);
+    final mimeType = RemoteCodingAttachmentPolicy.normalizedMimeType(
+      rawMimeType,
+    );
+    final validationError = RemoteCodingAttachmentPolicy.validate(
+      name: name,
+      mimeType: mimeType,
+      byteLength: sizeBytes,
+    );
+    if (validationError != null ||
+        chunkCount != RemoteCodingAttachmentPolicy.chunkCount(sizeBytes) ||
+        chunkIndex < 0 ||
+        chunkIndex >= chunkCount ||
+        digest.length != 64 ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
+      await client.discardAttachmentUpload(uploadId);
+      reject(
+        'invalid_attachment',
+        validationError ?? 'Attachment metadata is invalid.',
+      );
+      return;
+    }
+
+    late final Uint8List bytes;
+    try {
+      bytes = Uint8List.fromList(base64Decode(encodedData));
+    } on FormatException {
+      await client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment data is not valid base64.');
+      return;
+    }
+    if (bytes.length > RemoteCodingAttachmentPolicy.chunkBytes) {
+      await client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment chunk is too large.');
+      return;
+    }
+
+    var upload = client.attachmentUploads[uploadId];
+    if (upload == null && client.uploadedAttachments.containsKey(uploadId)) {
+      reject('invalid_attachment', 'Attachment upload ID is already complete.');
+      return;
+    }
+    if (upload == null) {
+      if (chunkIndex != 0) {
+        reject('invalid_attachment', 'Attachment chunks must start at zero.');
+        return;
+      }
+      try {
+        upload = _RemoteCodingAttachmentUpload(
+          id: uploadId,
+          name: name,
+          mimeType: mimeType,
+          sizeBytes: sizeBytes,
+          chunkCount: chunkCount,
+          sha256: digest,
+          storage: await AttachmentStorageService.beginWrite(
+            originalName: name,
+          ),
+        );
+      } catch (error) {
+        reject(
+          'attachment_store_failed',
+          'The desktop could not store the attachment.',
+        );
+        appDebugPrint(
+          '[RemoteCoding] Failed to start attachment store: $error',
+        );
+        return;
+      }
+      client.attachmentUploads[uploadId] = upload;
+    } else if (!upload.matches(
+      name: name,
+      mimeType: mimeType,
+      sizeBytes: sizeBytes,
+      chunkCount: chunkCount,
+      sha256: digest,
+    )) {
+      await client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment chunks do not match.');
+      return;
+    }
+
+    if (upload.nextChunkIndex != chunkIndex ||
+        upload.receivedBytes + bytes.length > sizeBytes) {
+      await client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment chunks are out of order.');
+      return;
+    }
+    try {
+      await upload.write(bytes);
+      upload.receivedBytes += bytes.length;
+      upload.nextChunkIndex += 1;
+    } catch (error) {
+      await client.discardAttachmentUpload(uploadId);
+      reject(
+        'attachment_store_failed',
+        'The desktop could not store the attachment.',
+      );
+      appDebugPrint('[RemoteCoding] Failed to write attachment chunk: $error');
+      return;
+    }
+    final isLastChunk = chunkIndex == chunkCount - 1;
+    if (!isLastChunk) {
+      client.send(
+        type: RemoteCodingProtocol.commandResult,
+        id: message.id,
+        payload: {
+          'command': RemoteCodingProtocol.uploadAttachment,
+          'uploadId': uploadId,
+          'chunkIndex': chunkIndex,
+          'complete': false,
+        },
+      );
+      return;
+    }
+
+    if (upload.receivedBytes != sizeBytes) {
+      await client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment size does not match metadata.');
+      return;
+    }
+    if (upload.computedSha256 != upload.sha256) {
+      await client.discardAttachmentUpload(uploadId);
+      reject('invalid_attachment', 'Attachment integrity verification failed.');
+      return;
+    }
+
+    String? completedPath;
+    try {
+      completedPath = await upload.complete();
+      client.attachmentUploads.remove(uploadId);
+      client.uploadedAttachments[uploadId] = _RemoteCodingUploadedAttachment(
+        id: uploadId,
+        name: name,
+        mimeType: mimeType,
+        sizeBytes: sizeBytes,
+        path: completedPath,
+      );
+      client.send(
+        type: RemoteCodingProtocol.commandResult,
+        id: message.id,
+        payload: {
+          'command': RemoteCodingProtocol.uploadAttachment,
+          'uploadId': uploadId,
+          'chunkIndex': chunkIndex,
+          'complete': true,
+        },
+      );
+    } catch (error) {
+      await client.discardAttachmentUpload(uploadId);
+      await client.discardUploadedAttachment(uploadId);
+      if (completedPath != null) {
+        await AttachmentStorageService.deleteOwnedAttachments([completedPath]);
+      }
+      reject(
+        'attachment_store_failed',
+        'The desktop could not store the attachment.',
+      );
+      appDebugPrint('[RemoteCoding] Failed to store attachment: $error');
+    }
+  }
+
+  String? _attachmentId(RemoteCodingProtocolMessage message) {
+    final raw = message.payload['attachmentId'];
+    if (raw == null) return null;
+    final value = raw is String ? raw.trim() : '';
+    return value.isEmpty ? null : value;
+  }
+
+  Map<String, dynamic> _composerSettingsPayload() {
+    final settings = ref.read(settingsNotifierProvider);
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final assistantMode = conversation?.isPlanningSession == true
+        ? AssistantMode.plan
+        : conversation != null && settings.assistantMode == AssistantMode.plan
+        ? AssistantMode.coding
+        : settings.assistantMode;
+    return {
+      'model': settings.effectiveModel,
+      'reasoningEffort': settings.reasoningEffort.name,
+      'enableThinking': settings.enableThinking,
+      'assistantMode': assistantMode.name,
+    };
+  }
+
+  ReasoningEffortPreference? _parseReasoningEffort(Object? raw) {
+    if (raw is! String) return null;
+    final value = raw.trim();
+    for (final effort in ReasoningEffortPreference.values) {
+      if (effort.name == value || effort.apiValue == value) return effort;
+    }
+    return null;
+  }
+
+  Future<bool> _applyComposerSettings(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final raw = message.payload['composer'];
+    if (raw == null) return true;
+    if (raw is! Map<String, dynamic>) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'Composer settings must be an object.',
+      );
+      return false;
+    }
+
+    final rawModel = raw['model'];
+    final model = rawModel is String ? rawModel.trim() : null;
+    if (rawModel != null &&
+        (model == null || model.isEmpty || model.length > 512)) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The selected model is invalid.',
+      );
+      return false;
+    }
+
+    final rawEffort = raw['reasoningEffort'];
+    final reasoningEffort = rawEffort == null
+        ? null
+        : _parseReasoningEffort(rawEffort);
+    if (rawEffort != null && reasoningEffort == null) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The selected reasoning effort is invalid.',
+      );
+      return false;
+    }
+
+    final rawThinking = raw['enableThinking'];
+    if (raw.containsKey('enableThinking') &&
+        rawThinking != null &&
+        rawThinking is! bool) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The thinking preference is invalid.',
+      );
+      return false;
+    }
+
+    final rawAssistantMode = raw['assistantMode'];
+    final assistantMode = rawAssistantMode == null
+        ? null
+        : AssistantMode.values
+              .where((value) => value.name == rawAssistantMode)
+              .firstOrNull;
+    if (rawAssistantMode != null && assistantMode == null) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_composer_settings',
+        message: 'The assistant mode is invalid.',
+      );
+      return false;
+    }
+
+    try {
+      final settings = ref.read(settingsNotifierProvider);
+      final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
+      if (model != null && model != settings.effectiveModel.trim()) {
+        await settingsNotifier.updateModel(model);
+      }
+      if (reasoningEffort != null &&
+          reasoningEffort != settings.reasoningEffort) {
+        await settingsNotifier.updateReasoningEffort(reasoningEffort);
+      }
+      if (raw.containsKey('enableThinking') &&
+          rawThinking != settings.enableThinking) {
+        await settingsNotifier.updateEnableThinking(rawThinking as bool?);
+      }
+      if (assistantMode != null) {
+        final conversationsNotifier = ref.read(
+          conversationsNotifierProvider.notifier,
+        );
+        final conversation = ref
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        if (assistantMode == AssistantMode.plan) {
+          if (conversation != null && !conversation.isPlanningSession) {
+            await conversationsNotifier.enterPlanningSession();
+          }
+        } else {
+          if (conversation?.isPlanningSession == true) {
+            await conversationsNotifier.exitPlanningSession();
+          }
+        }
+        if (assistantMode != settings.assistantMode) {
+          await settingsNotifier.updateAssistantMode(assistantMode);
+        }
+      }
+      return true;
+    } on Object catch (error) {
+      appDebugPrint('[RemoteCoding] Composer settings update failed: $error');
+      client.sendError(
+        id: message.id,
+        code: 'composer_settings_failed',
+        message: 'The desktop could not update the composer settings.',
+      );
+      return false;
+    }
+  }
+
+  Future<void> _handleRequestComposerModels(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    try {
+      final settings = ref.read(settingsNotifierProvider);
+      final models = await ModelRemoteDataSource(
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+      ).listModelIds();
+      client.send(
+        type: RemoteCodingProtocol.commandResult,
+        id: message.id,
+        payload: {
+          'command': RemoteCodingProtocol.requestComposerModels,
+          'models': models,
+          'composer': _composerSettingsPayload(),
+        },
+      );
+    } on Object catch (error) {
+      appDebugPrint('[RemoteCoding] Composer model list failed: $error');
+      client.sendError(
+        id: message.id,
+        code: 'composer_models_unavailable',
+        message: 'The desktop model list is unavailable.',
+      );
+    }
+  }
+
+  Future<void> _handleUpdateComposerSettings(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    if (!await _applyComposerSettings(client, message)) return;
+    client.send(
+      type: RemoteCodingProtocol.commandResult,
+      id: message.id,
+      payload: {
+        'command': RemoteCodingProtocol.updateComposerSettings,
+        'composer': _composerSettingsPayload(),
+      },
+    );
+  }
+
+  Future<void> _handleClearConversation(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final conversation = _validatedBoundDestination(client, message);
+    if (conversation == null) return;
+    ref.read(chatNotifierProvider.notifier).clearMessages();
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentConversation(const <Message>[]);
+    client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
+  }
+
+  Future<_RemoteCodingPreparedMessage?> _prepareRemoteMessage({
+    required _RemoteCodingSocketClient client,
+    required String? requestId,
+    required String content,
+    required String? attachmentId,
+  }) async {
+    if (attachmentId == null) {
+      return _RemoteCodingPreparedMessage(visibleContent: content);
+    }
+    final attachment = client.uploadedAttachments[attachmentId];
+    if (attachment == null) {
+      client.sendError(
+        id: requestId,
+        code: 'attachment_not_found',
+        message: 'The uploaded attachment is no longer available.',
+      );
+      return null;
+    }
+
+    try {
+      if (attachment.isImage) {
+        final originalBytes = await File(attachment.path).readAsBytes();
+        final preparedImage =
+            await ImageAttachmentPreparationService.prepareForModel(
+              bytes: originalBytes,
+              mimeType: attachment.mimeType,
+              filePath: attachment.name,
+            );
+        final prepared = _RemoteCodingPreparedMessage(
+          visibleContent: content,
+          imageBase64: base64Encode(preparedImage.bytes),
+          imageMimeType: preparedImage.mimeType,
+          originalImagePath: attachment.path,
+          originalImageMimeType: attachment.mimeType,
+        );
+        client.uploadedAttachments.remove(attachmentId);
+        return prepared;
+      }
+
+      final humanSize = formatAttachmentSize(attachment.sizeBytes);
+      final visibleBlock = '[File: ${attachment.name} ($humanSize)]';
+      final modelBlock =
+          '[Attached file: ${attachment.path} ($humanSize)]\n'
+          '${attachment.mimeType == 'application/pdf' ? 'This PDF is available on disk at the path above. Use inspect_file first, then read_file with offset, limit, and start_page.' : 'This file is available on disk at the path above. Use inspect_file first, then search_files / read_file with offset and limit.'}';
+      final prepared = _RemoteCodingPreparedMessage(
+        visibleContent: content.isEmpty
+            ? visibleBlock
+            : '$content\n\n$visibleBlock',
+        modelContent: content.isEmpty ? modelBlock : '$modelBlock\n\n$content',
+        attachmentPath: attachment.path,
+      );
+      client.uploadedAttachments.remove(attachmentId);
+      return prepared;
+    } catch (error) {
+      client.uploadedAttachments.remove(attachmentId);
+      await AttachmentStorageService.deleteOwnedAttachments([attachment.path]);
+      client.sendError(
+        id: requestId,
+        code: 'attachment_read_failed',
+        message: 'The desktop could not read the uploaded attachment.',
+      );
+      appDebugPrint('[RemoteCoding] Failed to read attachment: $error');
+      return null;
+    }
+  }
+
   Future<void> _handleSendMessage(
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
   ) async {
+    if (message.payload['codeReview'] == true &&
+        !ref.read(settingsNotifierProvider).hasCodeReviewRoute) {
+      client.sendError(
+        id: message.id,
+        code: 'review_route_unavailable',
+        message: 'Configure a code review endpoint and model in Model Routing.',
+      );
+      return;
+    }
+    if (!await _applyComposerSettings(client, message)) return;
     final content = (message.payload['content'] as String?)?.trim() ?? '';
-    if (content.isEmpty) {
+    final attachmentId = _attachmentId(message);
+    if (attachmentId == null && content.isEmpty) {
       client.sendError(
         id: message.id,
         code: 'empty_message',
@@ -1088,7 +1586,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     }
     final conversationsState = ref.read(conversationsNotifierProvider);
     final project = _findProject(conversationsState.activeProjectId);
-    if (project == null || conversationsState.currentConversation == null) {
+    if (project == null) {
       client.sendError(
         id: message.id,
         code: 'project_not_found',
@@ -1096,30 +1594,77 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       );
       return;
     }
+    if (conversationsState.currentConversation == null) {
+      ref
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation(
+            workspaceMode: projectWorkspaceMode,
+            projectId: project.id,
+          );
+    }
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      client.sendError(
+        id: message.id,
+        code: 'conversation_unavailable',
+        message: 'The desktop could not create the coding thread.',
+      );
+      return;
+    }
+
+    final prepared = await _prepareRemoteMessage(
+      client: client,
+      requestId: message.id,
+      content: content,
+      attachmentId: attachmentId,
+    );
+    if (prepared == null) return;
+
+    _rememberPlanReviewOwner(
+      conversationId: currentConversation.id,
+      deviceId: client.deviceId,
+    );
 
     unawaited(
       ref
           .read(chatNotifierProvider.notifier)
           .sendMessage(
-            content,
+            prepared.visibleContent,
+            modelContent: prepared.modelContent,
+            attachmentPath: prepared.attachmentPath,
+            imageBase64: prepared.imageBase64,
+            imageMimeType: prepared.imageMimeType,
+            originalImagePath: prepared.originalImagePath,
+            originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
-            bypassPlanMode: true,
+            bypassPlanMode: message.payload['codeReview'] == true,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
+            purpose: message.payload['codeReview'] == true
+                ? PrimaryTurnPurpose.codeReview
+                : PrimaryTurnPurpose.conversation,
           ),
     );
     client.sendSnapshot(id: message.id, payload: _snapshotFor(client));
   }
 
-  void _handleBoundSendMessage(
+  Future<void> _handleBoundSendMessage(
     _RemoteCodingSocketClient client,
     RemoteCodingProtocolMessage message,
-  ) {
+  ) async {
+    final attachmentId = _attachmentId(message);
     final conversation = _validatedBoundDestination(client, message);
-    if (conversation == null) return;
+    if (conversation == null) {
+      if (attachmentId != null) {
+        await client.discardUploadedAttachment(attachmentId);
+      }
+      return;
+    }
     final content = (message.payload['content'] as String?)?.trim() ?? '';
-    if (content.isEmpty) {
+    if (attachmentId == null && content.isEmpty) {
       client.sendError(
         id: message.id,
         code: 'empty_message',
@@ -1127,18 +1672,44 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       );
       return;
     }
+    if (!await _applyComposerSettings(client, message)) {
+      if (attachmentId != null) {
+        await client.discardUploadedAttachment(attachmentId);
+      }
+      return;
+    }
+    final prepared = await _prepareRemoteMessage(
+      client: client,
+      requestId: message.id,
+      content: content,
+      attachmentId: attachmentId,
+    );
+    if (prepared == null) return;
+    _rememberPlanReviewOwner(
+      conversationId: conversation.id,
+      deviceId: client.deviceId,
+    );
     final chatState = ref.read(chatNotifierProvider);
     final queued = chatState.isLoading || chatState.queuedMessages.isNotEmpty;
     unawaited(
       ref
           .read(chatNotifierProvider.notifier)
           .sendMessage(
-            content,
+            prepared.visibleContent,
+            modelContent: prepared.modelContent,
+            attachmentPath: prepared.attachmentPath,
+            imageBase64: prepared.imageBase64,
+            imageMimeType: prepared.imageMimeType,
+            originalImagePath: prepared.originalImagePath,
+            originalImageMimeType: prepared.originalImageMimeType,
             languageCode: (message.payload['languageCode'] as String?) ?? 'en',
             isVoiceMode: message.payload['isVoiceMode'] == true,
-            bypassPlanMode: true,
+            bypassPlanMode: message.payload['codeReview'] == true,
             origin: ChatInteractionOrigin.remote,
             remoteDeviceId: client.deviceId,
+            purpose: message.payload['codeReview'] == true
+                ? PrimaryTurnPurpose.codeReview
+                : PrimaryTurnPurpose.conversation,
           ),
     );
     client.send(
@@ -1452,6 +2023,119 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _broadcastSnapshot('questionResolved');
   }
 
+  Future<void> _handleResolvePlanReview(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) async {
+    final reviewId = (message.payload['reviewId'] as String?)?.trim() ?? '';
+    final action = (message.payload['action'] as String?)?.trim() ?? '';
+    if (!const {'approve', 'edit', 'cancel'}.contains(action)) {
+      client.sendError(
+        id: message.id,
+        code: 'invalid_request',
+        message: 'Plan review action is invalid.',
+      );
+      return;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final review = _pendingRemotePlanReview(
+      currentConversation,
+      authenticatedDeviceId: client.deviceId,
+    );
+    if (review == null || review.id != reviewId) {
+      client.sendError(
+        id: message.id,
+        code: 'plan_review_not_found',
+        message: 'The remote plan review is no longer pending.',
+      );
+      return;
+    }
+
+    if (action == 'edit') {
+      _planReviewOwnerDeviceIds.remove(review.conversationId);
+      client.send(
+        type: 'chatStateChanged',
+        id: message.id,
+        payload: _snapshotFor(client),
+      );
+      _broadcastSnapshot('chatStateChanged');
+      return;
+    }
+
+    if (currentConversation == null) {
+      client.sendError(
+        id: message.id,
+        code: 'plan_review_not_found',
+        message: 'The remote coding conversation is no longer available.',
+      );
+      return;
+    }
+
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final coordinator = PlanReviewActionCoordinator(
+      conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+      readCurrentConversation: () =>
+          ref.read(conversationsNotifierProvider).currentConversation,
+      dismissPlanProposal: chatNotifier.dismissPlanProposal,
+      isPageMounted: () => ref.mounted,
+      now: DateTime.now,
+    );
+
+    if (action == 'cancel') {
+      final completed = await coordinator.cancelReview(
+        currentConversation: currentConversation,
+      );
+      if (!completed) return;
+    } else {
+      final outcome = await coordinator.approveCurrentPlan(
+        currentConversation: currentConversation,
+      );
+      switch (outcome) {
+        case PlanReviewApprovalMissingDocument():
+          client.sendError(
+            id: message.id,
+            code: 'plan_review_not_ready',
+            message: 'The plan document is no longer available.',
+          );
+          return;
+        case PlanReviewApprovalBlocked(:final errorMessage):
+          client.sendError(
+            id: message.id,
+            code: 'plan_review_not_ready',
+            message: 'The plan could not be approved: $errorMessage',
+          );
+          return;
+        case PlanReviewApprovalAborted():
+          return;
+        case PlanReviewApprovalReady():
+          break;
+      }
+    }
+
+    _planReviewOwnerDeviceIds.remove(review.conversationId);
+    client.send(
+      type: 'chatStateChanged',
+      id: message.id,
+      payload: _snapshotFor(client),
+    );
+    _broadcastSnapshot('chatStateChanged');
+
+    if (action == 'approve') {
+      unawaited(
+        chatNotifier.sendMessage(
+          _remotePlanExecutionPrompt,
+          languageCode: (message.payload['languageCode'] as String?) ?? 'en',
+          bypassPlanMode: true,
+          origin: ChatInteractionOrigin.remote,
+          remoteDeviceId: client.deviceId,
+        ),
+      );
+    }
+  }
+
   AskUserQuestionAnswer _parseRemoteQuestionAnswer(
     PendingAskUserQuestion pending,
     Map<String, dynamic> payload,
@@ -1497,6 +2181,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _snapshotSequence += 1;
     final selectedProjectId =
         conversationsState.activeProjectId ?? projectsState.selectedProjectId;
+    final selectedProject = _findProject(selectedProjectId);
     final visibleConversations = conversationsState.conversations
         .where(
           (conversation) =>
@@ -1505,11 +2190,14 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         )
         .toList(growable: false);
     final currentConversation = conversationsState.currentConversation;
-    final messages =
+    final selectedConversation =
         currentConversation?.workspaceMode == projectWorkspaceMode &&
             currentConversation?.normalizedProjectId == selectedProjectId
-        ? chatState.messages
-        : const <Message>[];
+        ? currentConversation
+        : null;
+    final messages = selectedConversation == null
+        ? const <Message>[]
+        : chatState.messages;
     final dashboardStatsByRange = {
       for (final range in DashboardRange.values)
         range: DashboardStatsCalculator.compute(
@@ -1517,6 +2205,18 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
           range: range,
         ),
     };
+    // Remote Coding sends only the selected project's threads, so the phone
+    // cannot independently reproduce the desktop's project ordering.
+    final projectSortOrder = codingProjectSortOrderFromName(
+      ref
+          .read(sharedPreferencesProvider)
+          .getString(codingProjectSortOrderPrefsKey),
+    );
+    final orderedProjects = sortCodingProjects(
+      projects: projectsState.projects,
+      conversations: conversationsState.conversations,
+      sortOrder: projectSortOrder,
+    );
 
     return {
       'notificationRelayHandle':
@@ -1545,17 +2245,24 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         'mobileApprovals': true,
         'notificationRelaySetup': true,
         'destinationBoundCommands': true,
+        'attachments': true,
+        'composerSettings': true,
       },
-      'projects': projectsState.projects.map(_projectToJson).toList(),
+      'projects': orderedProjects.map(_projectToJson).toList(),
       'selectedProjectId': selectedProjectId,
       'conversations': visibleConversations.map(_conversationToJson).toList(),
-      'currentConversationId': currentConversation?.id,
+      'currentConversationId': selectedConversation?.id,
       'messages': messages.map((message) => message.toJson()).toList(),
+      'companion': _companionFor(
+        project: selectedProject,
+        conversation: selectedConversation,
+      )?.toJson(),
       'dashboardStatsByRange': DashboardStatsCodec.encodeByRange(
         dashboardStatsByRange,
       ),
       'isLoading': chatState.isLoading,
       'queuedCount': chatState.queuedMessages.length,
+      'composer': _composerSettingsPayload(),
       'pendingApproval': _pendingRemoteApproval(
         chatState,
         authenticatedDeviceId: authenticatedDeviceId,
@@ -1564,7 +2271,65 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         chatState,
         authenticatedDeviceId: authenticatedDeviceId,
       )?.toJson(),
+      'pendingPlanReview': _pendingRemotePlanReview(
+        currentConversation,
+        authenticatedDeviceId: authenticatedDeviceId,
+      )?.toJson(),
     };
+  }
+
+  void _rememberPlanReviewOwner({
+    required String conversationId,
+    required String? deviceId,
+  }) {
+    final normalizedConversationId = conversationId.trim();
+    final normalizedDeviceId = deviceId?.trim() ?? '';
+    if (normalizedConversationId.isEmpty || normalizedDeviceId.isEmpty) {
+      return;
+    }
+    _planReviewOwnerDeviceIds[normalizedConversationId] = normalizedDeviceId;
+  }
+
+  /// Projects the saved draft into the same review artifact rendered on the
+  /// desktop, but only to the paired device that started the remote turn.
+  RemoteCodingPlanReview? _pendingRemotePlanReview(
+    Conversation? conversation, {
+    required String? authenticatedDeviceId,
+  }) {
+    if (conversation == null || !conversation.isPlanningSession) {
+      return null;
+    }
+    final conversationId = conversation.id.trim();
+    final ownerDeviceId = _planReviewOwnerDeviceIds[conversationId];
+    if (ownerDeviceId == null || ownerDeviceId != authenticatedDeviceId) {
+      return null;
+    }
+    final artifact = conversation.effectivePlanArtifact;
+    final draftMarkdown = artifact.normalizedDraftMarkdown;
+    if (draftMarkdown == null) return null;
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: draftMarkdown,
+      requireTasks: true,
+    );
+    if (!validation.isValid || validation.previewTasks.isEmpty) {
+      return null;
+    }
+    final reviewId = crypto.sha256
+        .convert(
+          utf8.encode(
+            '$conversationId\n$draftMarkdown\n${artifact.updatedAt?.toIso8601String() ?? ''}',
+          ),
+        )
+        .toString();
+    return RemoteCodingPlanReview(
+      id: reviewId,
+      conversationId: conversationId,
+      draftMarkdown: draftMarkdown,
+      approvedMarkdown: artifact.normalizedApprovedMarkdown ?? '',
+      isPlanMode: true,
+      canApprove: true,
+      canCancel: true,
+    );
   }
 
   /// Maps a remote-origin `ask_user_question` into the wire model. Mirrors
@@ -1756,6 +2521,76 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     'rootPath': project.rootPath,
   };
 
+  RemoteCodingCompanionSnapshot? _companionFor({
+    required CodingProject? project,
+    required Conversation? conversation,
+  }) {
+    if (project == null && conversation == null) {
+      return null;
+    }
+
+    final changes = conversation == null
+        ? const <RemoteCodingCompanionChange>[]
+        : conversation.effectiveTurnDiffs.reversed
+              .take(5)
+              .map((diff) {
+                final filePaths =
+                    <String>{
+                          ...diff.changedFilePaths,
+                          for (final file in diff.files) file.filePath,
+                        }
+                        .where((path) => path.trim().isNotEmpty)
+                        .toList(growable: false);
+                return RemoteCodingCompanionChange(
+                  title: diff.userPromptPreview.trim().isEmpty
+                      ? 'Assistant turn'
+                      : diff.userPromptPreview.trim(),
+                  filesChanged: diff.filesChanged,
+                  linesAdded: diff.linesAdded,
+                  linesRemoved: diff.linesRemoved,
+                  filePaths: filePaths,
+                );
+              })
+              .toList(growable: false);
+    final tasks = conversation == null
+        ? const <RemoteCodingCompanionTask>[]
+        : conversation.projectedExecutionTasks
+              .where((task) => task.title.trim().isNotEmpty)
+              .map(
+                (task) => RemoteCodingCompanionTask(
+                  id: task.id,
+                  title: task.title,
+                  status: task.status.name,
+                  targetFiles: task.targetFiles,
+                ),
+              )
+              .toList(growable: false);
+    final sourceLocators = <String>{
+      for (final task in tasks)
+        for (final path in task.targetFiles)
+          if (path.trim().isNotEmpty) path.trim(),
+    };
+    if (conversation != null) {
+      for (final source in conversation.effectiveWorkflowSpec.sources) {
+        final locator = source.locator.trim();
+        final section = source.section.trim();
+        if (locator.isNotEmpty) {
+          sourceLocators.add(section.isEmpty ? locator : '$locator#$section');
+        } else if (section.isNotEmpty) {
+          sourceLocators.add(section);
+        }
+      }
+    }
+    return RemoteCodingCompanionSnapshot(
+      projectRootPath: project?.normalizedRootPath ?? '',
+      worktreePath: conversation?.normalizedWorktreePath ?? '',
+      tasks: tasks,
+      changes: changes,
+      openQuestions: conversation?.unresolvedOpenQuestions ?? const <String>[],
+      sourceLocators: sourceLocators.toList(growable: false),
+    );
+  }
+
   Map<String, dynamic> _conversationToJson(Conversation conversation) => {
     'id': conversation.id,
     'title': conversation.title == defaultConversationTitle
@@ -1763,6 +2598,7 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         : conversation.title,
     'projectId': conversation.normalizedProjectId,
     'updatedAt': conversation.updatedAt.toIso8601String(),
+    'isPlanningSession': conversation.isPlanningSession,
   };
 
   void _broadcastSnapshot(String type) {
@@ -2162,6 +2998,122 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 
 const projectWorkspaceMode = WorkspaceMode.coding;
 
+class _RemoteCodingPreparedMessage {
+  const _RemoteCodingPreparedMessage({
+    required this.visibleContent,
+    this.modelContent,
+    this.attachmentPath,
+    this.imageBase64,
+    this.imageMimeType,
+    this.originalImagePath,
+    this.originalImageMimeType,
+  });
+
+  final String visibleContent;
+  final String? modelContent;
+  final String? attachmentPath;
+  final String? imageBase64;
+  final String? imageMimeType;
+  final String? originalImagePath;
+  final String? originalImageMimeType;
+}
+
+class _RemoteCodingAttachmentUpload {
+  _RemoteCodingAttachmentUpload({
+    required this.id,
+    required this.name,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.chunkCount,
+    required this.sha256,
+    required this.storage,
+  });
+
+  final String id;
+  final String name;
+  final String mimeType;
+  final int sizeBytes;
+  final int chunkCount;
+  final String sha256;
+  final AttachmentStorageWriteSession storage;
+  final _RemoteCodingDigestSink _digestSink = _RemoteCodingDigestSink();
+  late final _digestInput = crypto.sha256.startChunkedConversion(_digestSink);
+  bool _digestClosed = false;
+  int receivedBytes = 0;
+  int nextChunkIndex = 0;
+
+  Future<void> write(List<int> bytes) async {
+    await storage.write(bytes);
+    _digestInput.add(bytes);
+  }
+
+  String get computedSha256 {
+    if (!_digestClosed) {
+      _digestClosed = true;
+      _digestInput.close();
+    }
+    final digest = _digestSink.value;
+    if (digest == null) {
+      throw StateError('Attachment digest was not generated.');
+    }
+    return digest.toString();
+  }
+
+  Future<String> complete() async {
+    computedSha256;
+    return storage.complete();
+  }
+
+  Future<void> discard() => storage.discard();
+
+  bool matches({
+    required String name,
+    required String mimeType,
+    required int sizeBytes,
+    required int chunkCount,
+    required String sha256,
+  }) {
+    return this.name == name &&
+        this.mimeType == mimeType &&
+        this.sizeBytes == sizeBytes &&
+        this.chunkCount == chunkCount &&
+        this.sha256 == sha256;
+  }
+}
+
+class _RemoteCodingDigestSink implements Sink<crypto.Digest> {
+  crypto.Digest? value;
+
+  @override
+  void add(crypto.Digest value) {
+    if (this.value != null) {
+      throw StateError('Attachment digest was emitted more than once.');
+    }
+    this.value = value;
+  }
+
+  @override
+  void close() {}
+}
+
+class _RemoteCodingUploadedAttachment {
+  const _RemoteCodingUploadedAttachment({
+    required this.id,
+    required this.name,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.path,
+  });
+
+  final String id;
+  final String name;
+  final String mimeType;
+  final int sizeBytes;
+  final String path;
+
+  bool get isImage => mimeType.startsWith('image/');
+}
+
 class _RemoteCodingSocketClient {
   _RemoteCodingSocketClient(
     this.socket, {
@@ -2182,6 +3134,8 @@ class _RemoteCodingSocketClient {
   final RemoteCodingMessageRateLimiter _authenticatedMessageRateLimiter;
   Timer? _authenticationDeadlineTimer;
   Future<void>? _closeFuture;
+  final Map<String, _RemoteCodingAttachmentUpload> attachmentUploads = {};
+  final Map<String, _RemoteCodingUploadedAttachment> uploadedAttachments = {};
 
   bool get isAuthenticated =>
       session != null &&
@@ -2215,6 +3169,31 @@ class _RemoteCodingSocketClient {
         ? _authenticatedMessageRateLimiter
         : _unauthenticatedMessageRateLimiter;
     return limiter.tryAcquire();
+  }
+
+  Future<void> discardAttachmentUpload(String uploadId) async {
+    final upload = attachmentUploads.remove(uploadId);
+    await upload?.discard();
+  }
+
+  Future<void> discardUploadedAttachment(String uploadId) async {
+    final attachment = uploadedAttachments.remove(uploadId);
+    if (attachment != null) {
+      await AttachmentStorageService.deleteOwnedAttachments([attachment.path]);
+    }
+  }
+
+  Future<List<String>> takeUploadedAttachmentPaths() async {
+    final paths = uploadedAttachments.values
+        .map((attachment) => attachment.path)
+        .toList(growable: false);
+    final pendingUploads = attachmentUploads.values.toList(growable: false);
+    uploadedAttachments.clear();
+    attachmentUploads.clear();
+    for (final upload in pendingUploads) {
+      await upload.discard();
+    }
+    return paths;
   }
 
   Future<void> closeWithError({

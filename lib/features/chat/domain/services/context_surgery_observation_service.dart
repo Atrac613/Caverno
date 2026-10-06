@@ -352,12 +352,7 @@ class ContextSurgeryObservationService {
     return [
       for (var index = 0; index < toolResults.length; index += 1)
         if (candidatesByIndex[index] case final candidate?)
-          ToolResultInfo(
-            id: toolResults[index].id,
-            name: toolResults[index].name,
-            arguments: toolResults[index].arguments,
-            result: candidate.replacementStub,
-          )
+          toolResults[index].withResult(candidate.replacementStub)
         else
           toolResults[index],
     ];

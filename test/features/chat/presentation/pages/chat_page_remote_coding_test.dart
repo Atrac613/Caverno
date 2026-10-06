@@ -8,6 +8,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -17,6 +18,7 @@ import 'package:caverno/features/chat/presentation/widgets/approval/git_command_
 import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_payload.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_companion_models.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_mobile_notification_notifier.dart';
@@ -247,7 +249,45 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
       selectedProjectId: 'project-1',
       threads: threads,
       currentConversationId: 'thread-1',
+      companion: const RemoteCodingCompanionSnapshot(
+        projectRootPath: '/workspace/caverno',
+        worktreePath: '/workspace/caverno',
+        tasks: [
+          RemoteCodingCompanionTask(
+            id: 'task-1',
+            title: 'Inspect the mobile surface',
+            status: 'completed',
+            targetFiles: [
+              'lib/features/remote_coding/presentation/remote_coding_page.dart',
+            ],
+          ),
+          RemoteCodingCompanionTask(
+            id: 'task-2',
+            title: 'Add the companion panel',
+            status: 'inProgress',
+            targetFiles: ['remote_coding_companion_panel.dart'],
+          ),
+        ],
+        changes: [
+          RemoteCodingCompanionChange(
+            title: 'Add the companion panel',
+            filesChanged: 2,
+            linesAdded: 40,
+            linesRemoved: 1,
+            filePaths: [
+              'lib/features/remote_coding/presentation/remote_coding_page.dart',
+            ],
+          ),
+        ],
+        openQuestions: ['Which device should receive the next notification?'],
+        sourceLocators: ['docs/remote_coding.md'],
+      ),
       snapshotGeneratedAt: _generatedAt,
+      composerSettings: RemoteCodingComposerSettings(
+        model: 'desktop-model',
+        reasoningEffort: ReasoningEffortPreference.high,
+        enableThinking: false,
+      ),
     );
   }
 
@@ -289,6 +329,32 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
       threads: [thread, ...state.threads],
       currentConversationId: threadId,
     );
+  }
+}
+
+class _ScrollableConnectedRemoteCodingClientNotifier
+    extends _ConnectedRemoteCodingClientNotifier {
+  @override
+  RemoteCodingClientState build() {
+    return super.build().copyWith(
+      messages: [
+        for (var index = 0; index < 32; index += 1)
+          Message(
+            id: 'remote-message-$index',
+            content: 'Remote message $index\nLine one\nLine two\nLine three',
+            role: index.isEven ? MessageRole.user : MessageRole.assistant,
+            timestamp: DateTime(2026, 6, 3, 12).add(Duration(minutes: index)),
+          ),
+      ],
+    );
+  }
+}
+
+class _ConnectedRemoteCodingDraftClientNotifier
+    extends _ConnectedRemoteCodingClientNotifier {
+  @override
+  RemoteCodingClientState build() {
+    return super.build().copyWith(clearCurrentConversationId: true);
   }
 }
 
@@ -356,6 +422,62 @@ class _ConnectedRemoteCodingQuestionClientNotifier
   }) async {
     resolvedQuestionIds.add(questionId);
     state = state.copyWith(clearPendingQuestion: true);
+  }
+}
+
+class _ConnectedRemoteCodingPlanReviewClientNotifier
+    extends RemoteCodingClientNotifier {
+  static final _generatedAt = DateTime(2026, 6, 3, 12);
+  final List<String> resolvedPlanReviewActions = <String>[];
+
+  @override
+  RemoteCodingClientState build() {
+    return RemoteCodingClientState(
+      status: RemoteCodingConnectionStatus.connected,
+      host: RemoteCodingHost(
+        id: 'desktop-1',
+        name: 'Desktop',
+        host: '192.168.1.10',
+        port: 8767,
+        createdAt: _generatedAt,
+        updatedAt: _generatedAt,
+        certificatePin: 'test-certificate-pin',
+      ),
+      projects: const [
+        RemoteCodingProjectSummary(
+          id: 'project-1',
+          name: 'Caverno',
+          rootPath: '/workspace/caverno',
+        ),
+      ],
+      selectedProjectId: 'project-1',
+      threads: [
+        RemoteCodingThreadSummary(
+          id: 'thread-1',
+          title: 'Mobile plan thread',
+          projectId: 'project-1',
+          updatedAt: _generatedAt,
+        ),
+      ],
+      currentConversationId: 'thread-1',
+      pendingPlanReview: const RemoteCodingPlanReview(
+        id: 'review-1',
+        conversationId: 'thread-1',
+        draftMarkdown: '# Plan\n\n- [ ] Run the tests',
+        approvedMarkdown: '',
+      ),
+      snapshotGeneratedAt: _generatedAt,
+    );
+  }
+
+  @override
+  Future<void> resolvePlanReview({
+    required String reviewId,
+    required String action,
+    String languageCode = 'en',
+  }) async {
+    resolvedPlanReviewActions.add('$reviewId:$action');
+    state = state.copyWith(clearPendingPlanReview: true);
   }
 }
 
@@ -456,6 +578,107 @@ void main() {
     expect(find.text('Remote Coding'), findsOneWidget);
     expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
     expect(find.byIcon(Icons.add), findsNothing);
+  });
+
+  testWidgets(
+    'mobile remote coding shows a button away from the latest message',
+    (tester) async {
+      debugRemoteCodingMobilePlatformOverride = () => true;
+
+      await _pumpCodingWorkspace(
+        tester,
+        size: const Size(390, 844),
+        connectRemoteClient: true,
+        remoteClientBuilder: _ScrollableConnectedRemoteCodingClientNotifier.new,
+      );
+
+      final listFinder = find.byType(ListView);
+      final buttonFinder = find.byKey(
+        const ValueKey('scroll-to-bottom-button'),
+      );
+      expect(listFinder, findsOneWidget);
+      expect(buttonFinder, findsOneWidget);
+
+      ScrollPosition position() {
+        return tester.widget<ListView>(listFinder).controller!.position;
+      }
+
+      expect(position().maxScrollExtent - position().pixels, greaterThan(0));
+
+      await tester.tap(buttonFinder);
+      await tester.pumpAndSettle();
+      expect(
+        position().maxScrollExtent - position().pixels,
+        lessThanOrEqualTo(1),
+      );
+      expect(buttonFinder, findsNothing);
+
+      await tester.drag(listFinder, const Offset(0, 400));
+      await tester.pumpAndSettle();
+      expect(buttonFinder, findsOneWidget);
+    },
+  );
+
+  testWidgets('mobile remote coding uses the chat composer controls', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    await _pumpCodingWorkspace(
+      tester,
+      size: const Size(390, 844),
+      connectRemoteClient: true,
+    );
+
+    expect(find.byKey(const ValueKey('composer-model-chip')), findsOneWidget);
+    expect(find.text('desktop-model'), findsOneWidget);
+  });
+
+  testWidgets('mobile remote coding exposes desktop slash commands', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    await _pumpCodingWorkspace(
+      tester,
+      size: const Size(390, 844),
+      connectRemoteClient: true,
+    );
+
+    final textField = find.byType(TextField).last;
+    await tester.enterText(textField, '/');
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('slash-command-suggestions')),
+      findsOneWidget,
+    );
+    expect(find.text('/help'), findsOneWidget);
+  });
+
+  testWidgets('mobile remote coding centers the new-thread composer', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    await _pumpCodingWorkspace(
+      tester,
+      size: const Size(390, 844),
+      connectRemoteClient: true,
+      remoteCodingClientBuilder: _ConnectedRemoteCodingDraftClientNotifier.new,
+    );
+
+    expect(find.text('What should we build in Caverno?'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('remote-assistant-mode-selector')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('remote-assistant-mode-selector')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Plan mode'), findsOneWidget);
   });
 
   testWidgets('mobile remote coding keeps the navigation drawer accessible', (
@@ -620,6 +843,39 @@ void main() {
     );
   });
 
+  testWidgets(
+    'mobile remote coding opens the companion panel in a bottom sheet',
+    (tester) async {
+      debugRemoteCodingMobilePlatformOverride = () => true;
+
+      await _pumpCodingWorkspace(
+        tester,
+        size: const Size(390, 844),
+        connectRemoteClient: true,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('remote-coding-companion-action')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('remote-coding-companion-panel')),
+        findsOneWidget,
+      );
+      expect(find.text('Progress'), findsOneWidget);
+      expect(find.text('Changes'), findsOneWidget);
+      expect(find.text('Environment'), findsOneWidget);
+      expect(find.text('Awaiting you'), findsOneWidget);
+      expect(find.text('Sources'), findsOneWidget);
+      expect(find.text('Add the companion panel'), findsNWidgets(2));
+      expect(
+        find.text('Which device should receive the next notification?'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('mobile remote coding presents an already pending question', (
     tester,
   ) async {
@@ -659,6 +915,66 @@ void main() {
         container.read(remoteCodingClientProvider.notifier)
             as _ConnectedRemoteCodingQuestionClientNotifier;
     expect(notifier.resolvedQuestionIds, ['question-1']);
+  });
+
+  testWidgets('mobile remote coding presents the pending Plan Mode review', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        remoteCodingClientProvider.overrideWith(
+          _ConnectedRemoteCodingPlanReviewClientNotifier.new,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const Scaffold(body: RemoteCodingPage()),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Suggested plan'), findsOneWidget);
+    expect(find.text('Approve and start'), findsOneWidget);
+    expect(find.text('Run the tests'), findsOneWidget);
+
+    await tester.tap(find.text('Approve and start'));
+    await tester.pumpAndSettle();
+
+    final notifier =
+        container.read(remoteCodingClientProvider.notifier)
+            as _ConnectedRemoteCodingPlanReviewClientNotifier;
+    expect(notifier.resolvedPlanReviewActions, ['review-1:approve']);
+    expect(find.text('Suggested plan'), findsNothing);
   });
 
   testWidgets('notification tap opens the matching connected remote thread', (
@@ -854,6 +1170,8 @@ Future<ProviderContainer> _pumpCodingWorkspace(
   WidgetTester tester, {
   Size size = const Size(1200, 900),
   bool connectRemoteClient = false,
+  RemoteCodingClientNotifier Function()? remoteClientBuilder,
+  RemoteCodingClientNotifier Function()? remoteCodingClientBuilder,
   SecurityScopedBookmarkService? bookmarkService,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -877,7 +1195,9 @@ Future<ProviderContainer> _pumpCodingWorkspace(
       routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
       if (connectRemoteClient)
         remoteCodingClientProvider.overrideWith(
-          _ConnectedRemoteCodingClientNotifier.new,
+          remoteCodingClientBuilder ??
+              remoteClientBuilder ??
+              _ConnectedRemoteCodingClientNotifier.new,
         ),
       if (bookmarkService != null)
         securityScopedBookmarkServiceProvider.overrideWithValue(

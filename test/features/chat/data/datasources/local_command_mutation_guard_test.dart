@@ -126,6 +126,23 @@ void main() {
       ]);
     });
 
+    test('reads a subshell redirect to /dev/null as a device', () {
+      // Session 64bbc516: the closing parenthesis reached the fence as part of
+      // `/dev/null)` and an environment probe was refused as a write.
+      expect(
+        LocalCommandMutationGuard.writePathCandidates(
+          'ls -a && (command -v python3.12 python3.11; ls .venv venv 2>/dev/null)',
+        ),
+        isEmpty,
+      );
+      expect(
+        LocalCommandMutationGuard.writePathCandidates(
+          '(echo x > /tmp/outside)',
+        ),
+        ['/tmp/outside'],
+      );
+    });
+
     test('collects a write after a command separator', () {
       expect(
         LocalCommandMutationGuard.writePathCandidates(

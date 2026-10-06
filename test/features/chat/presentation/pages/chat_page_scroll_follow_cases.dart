@@ -22,26 +22,41 @@ class _ChatSettingsNotifierChatPageScrollFollow extends SettingsNotifier {
 }
 
 class _ChatConversationsNotifier extends ConversationsNotifier {
-  _ChatConversationsNotifier(this._conversation);
+  _ChatConversationsNotifier(
+    this._conversation, {
+    WorkspaceMode workspaceMode = WorkspaceMode.chat,
+    String? activeProjectId,
+  }) : _workspaceMode = workspaceMode,
+       _activeProjectId = activeProjectId;
 
   final Conversation _conversation;
+  final WorkspaceMode _workspaceMode;
+  final String? _activeProjectId;
 
   @override
   ConversationsState build() {
     return ConversationsState(
       conversations: [_conversation],
       currentConversationId: _conversation.id,
-      activeWorkspaceMode: WorkspaceMode.chat,
-      activeProjectId: null,
+      activeWorkspaceMode: _workspaceMode,
+      activeProjectId: _activeProjectId,
     );
   }
 }
 
 class _EmptyCodingProjectsNotifierChatPageScrollFollow
     extends CodingProjectsNotifier {
+  _EmptyCodingProjectsNotifierChatPageScrollFollow([this._project]);
+
+  final CodingProject? _project;
+
   @override
   CodingProjectsState build() {
-    return const CodingProjectsState(projects: [], selectedProjectId: null);
+    final project = _project;
+    return CodingProjectsState(
+      projects: project == null ? const [] : [project],
+      selectedProjectId: project?.id,
+    );
   }
 }
 
@@ -96,7 +111,15 @@ void _runChatPageScrollFollow() {
         messages: const [],
         createdAt: now,
         updatedAt: now,
-        workspaceMode: WorkspaceMode.chat,
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Test project',
+        rootPath: '/tmp/test-project',
+        createdAt: now,
+        updatedAt: now,
       );
       final settings = AppSettings.defaults().copyWith(
         demoMode: false,
@@ -130,10 +153,14 @@ void _runChatPageScrollFollow() {
             modelCatalogConfig,
           ).overrideWith((ref) async => const <ModelCatalogEntry>[]),
           conversationsNotifierProvider.overrideWith(
-            () => _ChatConversationsNotifier(conversation),
+            () => _ChatConversationsNotifier(
+              conversation,
+              workspaceMode: WorkspaceMode.coding,
+              activeProjectId: project.id,
+            ),
           ),
           codingProjectsNotifierProvider.overrideWith(
-            _EmptyCodingProjectsNotifierChatPageScrollFollow.new,
+            () => _EmptyCodingProjectsNotifierChatPageScrollFollow(project),
           ),
           chatNotifierProvider.overrideWith(() => chatNotifier),
           routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
@@ -168,7 +195,11 @@ void _runChatPageScrollFollow() {
       await tester.pumpAndSettle();
 
       final listFinder = find.byKey(const ValueKey('chat-message-list'));
+      final scrollToBottomButtonFinder = find.byKey(
+        const ValueKey('scroll-to-bottom-button'),
+      );
       expect(listFinder, findsOneWidget);
+      expect(scrollToBottomButtonFinder, findsNothing);
 
       ScrollPosition position() {
         return tester.widget<ListView>(listFinder).controller!.position;
@@ -219,6 +250,7 @@ void _runChatPageScrollFollow() {
       await tester.drag(listFinder, const Offset(0, 400));
       await settle();
       expect(distanceFromBottom(), greaterThan(80));
+      expect(scrollToBottomButtonFinder, findsOneWidget);
       final afterDrag = position().pixels;
 
       // Further streaming must NOT yank the user back to the bottom.
@@ -234,6 +266,12 @@ void _runChatPageScrollFollow() {
       await settle();
       expect(distanceFromBottom(), greaterThan(80));
       expect(position().pixels, closeTo(afterDrag, 1));
+      expect(scrollToBottomButtonFinder, findsOneWidget);
+
+      await tester.tap(scrollToBottomButtonFinder);
+      await settle();
+      expect(distanceFromBottom(), lessThan(1));
+      expect(scrollToBottomButtonFinder, findsNothing);
 
       // A brand-new message re-engages following and snaps to the bottom.
       chatNotifier.emit(
@@ -247,6 +285,7 @@ void _runChatPageScrollFollow() {
       );
       await settle();
       expect(distanceFromBottom(), lessThan(80));
+      expect(scrollToBottomButtonFinder, findsNothing);
     },
   );
 }
