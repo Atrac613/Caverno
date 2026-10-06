@@ -6,6 +6,7 @@ import '../entities/tool_call_info.dart';
 import 'immutable_json_snapshot.dart';
 import 'stalled_diagnostic_repair_contract.dart';
 import 'tool_result_prompt_builder.dart';
+import 'verifier_replay_candidate_policy.dart';
 
 // ChatNotifier decomposition collaborator: goal-auto-continue-tracker-registry
 typedef VerifierReplayIdFactory = String Function(int mutationGeneration);
@@ -237,12 +238,7 @@ final class GoalAutoContinueTrackerRegistry {
     required GoalAutoContinueConversationTaskSnapshot context,
     required ToolCallInfo toolCall,
   }) {
-    if (!isReplayEligibleVerifierToolCall(toolCall) ||
-        const ToolCapabilityClassifier()
-                .classify(toolCall.name, arguments: toolCall.arguments)
-                .commandEffect !=
-            ToolCommandEffect.verification ||
-        !_isCoding(context)) {
+    if (!isReplayEligibleVerifierToolCall(toolCall) || !_isCoding(context)) {
       return _candidateEvent(
         context.owner,
         GoalVerifierReplayCandidateDisposition.ignored,
@@ -325,22 +321,16 @@ final class GoalAutoContinueTrackerRegistry {
   }
 
   bool isReplayEligibleVerifierToolCall(ToolCallInfo toolCall) {
-    final name = toolCall.name.trim().toLowerCase();
-    if (name == 'run_tests') return true;
-    if (name != 'local_execute_command' ||
-        toolCall.arguments['background'] == true) {
-      return false;
-    }
-    final command = (toolCall.arguments['command'] as String? ?? '').trim();
-    return command.isNotEmpty &&
-        !RegExp(r'[\r\n;&|`<>]|\$\(').hasMatch(command);
+    return verifierReplayCandidatePolicy.isEligible(toolCall) &&
+        (verifierReplayCandidatePolicy.isPytest(toolCall) ||
+            const ToolCapabilityClassifier()
+                    .classify(toolCall.name, arguments: toolCall.arguments)
+                    .commandEffect ==
+                ToolCommandEffect.verification);
   }
 
   int verifierReplayPriority(ToolCallInfo toolCall) {
-    if (toolCall.name.trim().toLowerCase() == 'run_tests') return 2;
-    final command = (toolCall.arguments['command'] as String? ?? '')
-        .toLowerCase();
-    return RegExp(r'(^|[/_-])verif(y|ier)').hasMatch(command) ? 2 : 1;
+    return verifierReplayCandidatePolicy.priority(toolCall);
   }
 
   GoalAutoContinueTrackerSnapshot _snapshot(

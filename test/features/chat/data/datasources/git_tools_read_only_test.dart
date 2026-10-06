@@ -2,6 +2,128 @@ import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('a trailing head or tail is stripped before classification', () {
+    for (final command in [
+      "tag --list '[0-9]*' --sort=-version:refname | head -3",
+      'show --stat HEAD | tail -2',
+      'branch -a | head -3',
+      'log --oneline | head -n 5',
+    ]) {
+      expect(GitTools.isReadOnly(command), isTrue, reason: command);
+    }
+    for (final command in [
+      'log --oneline | grep fix',
+      'log --oneline | wc -l',
+      'log --output=out.txt | head -3',
+      'tag -a 1.0.0 -m release | head -1',
+      'log --oneline | head -3 | tail -1',
+    ]) {
+      expect(GitTools.isReadOnly(command), isFalse, reason: command);
+    }
+  });
+
+  test('ls-files accepts the long spellings of its vetted flags', () {
+    // Session e3a9f3f0: a `/review` listed untracked files with the long
+    // form, which went to auto-review and could not be re-run.
+    for (final command in [
+      'ls-files --others --exclude-standard',
+      'ls-files --modified --deleted',
+      'ls-files --cached --stage -z',
+    ]) {
+      expect(GitTools.isReadOnly(command), isTrue, reason: command);
+    }
+    expect(GitTools.isReadOnly('ls-files --others --made-up-flag'), isFalse);
+  });
+
+  test('unknown flags on conditional verbs require approval', () {
+    for (final command in [
+      'branch --made-up-flag',
+      'tag --list --made-up-flag',
+      'stash list --made-up-flag',
+      'config --get user.name --made-up-flag',
+      'remote show --made-up-flag origin',
+      'symbolic-ref --made-up-flag HEAD',
+      'reflog show --made-up-flag HEAD',
+      'fsck --made-up-flag',
+      'branch --list --edit-description feature/test',
+      'tag --list --create-reflog',
+      'stash show --output=out.txt',
+      'config --get user.name --file=out.txt',
+      'reflog show --output=out.txt',
+    ]) {
+      expect(GitTools.isReadOnly(command), isFalse, reason: command);
+    }
+  });
+
+  test('conditional inspection keeps vetted shapes', () {
+    for (final command in [
+      'branch',
+      'branch -a -vv',
+      'branch --list "feature/*"',
+      'tag --list --sort=-version:refname',
+      'tag --points-at HEAD',
+      'tag -n1 --list',
+      'stash list --oneline',
+      'stash show --stat stash@{0}',
+      'config --get user.name',
+      'config --get-regexp user.*',
+      'config --list',
+      'reflog show --all HEAD',
+      'fsck --strict --no-lost-found',
+    ]) {
+      expect(GitTools.isReadOnly(command), isTrue, reason: command);
+    }
+  });
+
+  group('GitTools.isReadOnly inspection option allowlist', () {
+    test('keeps observed inspection shapes read-only', () {
+      for (final command in [
+        'log --oneline -20',
+        'log --format=%h%x09%s -1',
+        'log --pretty=oneline --decorate --stat --no-merges',
+        'log --date=short --name-only --skip=2 --all --count',
+        'log -n 5 -- lib/',
+        'log -n5 --oneline',
+        'show --stat --oneline HEAD',
+        'show -s --format=%h HEAD',
+        'diff --cached --stat',
+        'diff --check',
+        'status --short --branch',
+        'cat-file -t HEAD',
+        'rev-list --count A..B',
+      ]) {
+        expect(GitTools.isReadOnly(command), isTrue, reason: command);
+      }
+    });
+
+    test('routes unvetted options and remote access through approval', () {
+      for (final command in [
+        'log --output=out.txt',
+        'diff --output=out.txt',
+        'show --output=out.txt',
+        'log --ext-diff',
+        'log --made-up-flag',
+        'log -sp',
+        'log -n',
+        'log -n --output=out.txt',
+        'log --format --made-up-flag',
+        'log --pretty --made-up-flag',
+        'log --date --made-up-flag',
+        'show --format --made-up-flag',
+        'for-each-ref --sort --made-up-flag',
+        'log --skip=two',
+        'ls-remote origin',
+        'ls-remote --upload-pack=helper .',
+      ]) {
+        expect(GitTools.isReadOnly(command), isFalse, reason: command);
+      }
+    });
+
+    test('treats tokens after the pathspec separator as operands', () {
+      expect(GitTools.isReadOnly('log -- --output=out.txt'), isTrue);
+    });
+  });
+
   group('GitTools.isReadOnly remote classification', () {
     test('allows explicit inspection forms', () {
       expect(GitTools.isReadOnly('remote'), isTrue);

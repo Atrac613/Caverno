@@ -3,6 +3,171 @@ part of 'chat_notifier_test.dart';
 /// Tool-loop deduplication and pre-approval shell guards, extracted from
 /// chat_notifier_test.dart to keep it within its size ratchet.
 void registerChatNotifierCommandDedupTests() {
+  test('duplicate read recovery preserves the path to editing', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'duplicate-recovery-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = File('${directory.path}/retry.py')
+      ..writeAsStringSync('attempts = 1');
+    final sourceFiles = [
+      for (final name in ['fetch.py', 'notify.py'])
+        File('${directory.path}/$name')..writeAsStringSync('x' * 6000),
+    ];
+    final project = CodingProject(
+      id: 'duplicate-recovery',
+      name: 'duplicate-recovery',
+      rootPath: directory.path,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    ToolCallInfo read(String id) => ToolCallInfo(
+      id: id,
+      name: 'read_file',
+      arguments: const {'path': 'retry.py'},
+    );
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        for (final source in sourceFiles)
+          ToolCallInfo(
+            id: source.path,
+            name: 'read_file',
+            arguments: {'path': source.path},
+          ),
+        read('read-1'),
+      ],
+      toolLoopResponses: [
+        for (final id in ['read-2', 'read-3', 'read-4'])
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [read(id)],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'edit-retry',
+              name: 'edit_file',
+              arguments: const {
+                'path': 'retry.py',
+                'old_text': 'attempts = 1',
+                'new_text': 'attempts = 3',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The retry edit is complete.',
+          finishReason: 'stop',
+        ),
+      ],
+      finalAnswerChunks: const ['The retry edit is complete.'],
+    );
+    final tools = _FakeMcpToolService(
+      results: {
+        'read_file': jsonEncode({'path': file.path, 'content': 'attempts = 1'}),
+        'edit_file': jsonEncode({
+          'path': file.path,
+          'changed': true,
+          'replacements': 1,
+        }),
+      },
+      parameters: const {
+        'read_file': {
+          'type': 'object',
+          'properties': {
+            'path': {'type': 'string'},
+            'offset': {'type': 'integer'},
+            'limit': {'type': 'integer'},
+          },
+          'required': ['path'],
+        },
+      },
+      queuedResults: {
+        'read_file': [
+          for (final source in sourceFiles)
+            jsonEncode({'path': source.path, 'content': 'x' * 6000}),
+          jsonEncode({'path': file.path, 'content': 'attempts = 1'}),
+        ],
+      },
+    );
+    final lifecycle = _MockAppLifecycleService();
+    when(() => lifecycle.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(tools),
+        appLifecycleServiceProvider.overrideWithValue(lifecycle),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    standInForTheApprover(container);
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+          createIfMissing: true,
+        );
+    final notifier = container.read(chatNotifierProvider.notifier);
+    await notifier.sendMessage('Implement retry support in retry.py');
+
+    Map parametersAt(int index) =>
+        dataSource.toolResultDefinitions[index].singleWhere(
+              (definition) => definition['function']['name'] == 'read_file',
+            )['function']['parameters']
+            as Map;
+    expect(tools.executedToolNames, [
+      'read_file',
+      'read_file',
+      'read_file',
+      'edit_file',
+    ]);
+    // Both normal follow-ups and duplicate recovery need the implementation
+    // files together. Session b82411f0 lost them under the 8 KiB carry cap.
+    for (final batch in dataSource.toolResultBatches.skip(1)) {
+      for (final source in sourceFiles) {
+        expect(
+          batch.any(
+            (result) =>
+                result.arguments['path'] == source.path &&
+                result.result.contains('x' * 6000) &&
+                result.fromEarlierLoop,
+          ),
+          isTrue,
+        );
+      }
+    }
+    // The two bounded recoveries use range reads, then the normal catalogue
+    // returns after the edit. No shared definition was mutated.
+    for (final index in [2, 3]) {
+      expect(parametersAt(index)['required'], containsAll(['offset', 'limit']));
+      expect(parametersAt(index)['properties']['limit']['maximum'], 120);
+    }
+    expect(parametersAt(4)['required'], ['path']);
+    expect(
+      notifier.state.messages.last.content,
+      contains('The retry edit is complete.'),
+    );
+  });
+
   test(
     'duplicate-inspection recovery drops saved-task framing without a task',
     () {
@@ -272,6 +437,115 @@ void registerChatNotifierCommandDedupTests() {
       } finally {
         toolContainer.dispose();
       }
+    },
+  );
+
+  // Session e3a9f3f0: a read-only `/review` re-issued a command whose output
+  // the follow-up no longer carried, the duplicate was discarded, and the turn
+  // answered with that command's raw stdout instead of the review.
+  Future<String> answerAfterDiscardedDuplicate(
+    ChatCompletionResult recovery,
+  ) async {
+    final repeated = {
+      'command': './scripts/list_changes.sh',
+      'working_directory': '/tmp/project',
+      'reason': 'List untracked files',
+    };
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'list-first',
+          name: 'local_execute_command',
+          arguments: repeated,
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'list-second',
+              name: 'local_execute_command',
+              arguments: repeated,
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        recovery,
+      ],
+      finalAnswerChunks: const ['unexpected final answer'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'local_execute_command': jsonEncode({
+          'command': './scripts/list_changes.sh',
+          'working_directory': '/tmp/project',
+          'exit_code': 0,
+          'stdout': 'untracked.py\n',
+          'stderr': '',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      await toolNotifier.sendMessage('Review the uncommitted changes');
+      expect(toolService.executedToolNames, ['local_execute_command']);
+      expect(
+        toolDataSource.toolResultBatches,
+        hasLength(2),
+        reason: 'the discarded duplicate must reach one bounded recovery',
+      );
+      return toolNotifier.state.messages.last.content;
+    } finally {
+      toolContainer.dispose();
+    }
+  }
+
+  test(
+    'a discarded duplicate command lets the model write the answer first',
+    () async {
+      final answer = await answerAfterDiscardedDuplicate(
+        ChatCompletionResult(
+          content: 'Review: untracked.py has no tests yet.',
+          finishReason: 'stop',
+        ),
+      );
+
+      expect(answer, contains('Review: untracked.py has no tests yet.'));
+    },
+  );
+
+  test(
+    'a discarded duplicate command falls back to its earlier output',
+    () async {
+      // Session 96e27118's guarantee survives: when the recovery yields no
+      // usable text, the output the model asked for is still delivered.
+      final answer = await answerAfterDiscardedDuplicate(
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      );
+
+      expect(answer, contains('untracked.py'));
     },
   );
 

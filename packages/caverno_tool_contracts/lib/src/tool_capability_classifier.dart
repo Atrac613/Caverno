@@ -235,6 +235,13 @@ class ToolCapabilityClassifier {
         normalized.contains('`')) {
       return ToolCommandEffect.workspaceMutation;
     }
+    // Before verification: its test-runner pattern matches `pytest` as the
+    // package an install names, and its runtime check matches any `python3`
+    // invocation, so `pip install pytest` and `python3 -m venv .venv` both
+    // read as verification and a read-only review ran them (session 80dc7079).
+    if (_looksLikeDependencyResolution(normalized)) {
+      return ToolCommandEffect.dependencyResolution;
+    }
     if (RegExp(
           r'(^| )(dart|flutter) (test|analyze)( |$)',
         ).hasMatch(normalized) ||
@@ -243,15 +250,6 @@ class ToolCapabilityClassifier {
         ).hasMatch(normalized) ||
         _looksLikeVerifierScriptCommand(normalized)) {
       return ToolCommandEffect.verification;
-    }
-    if (RegExp(
-          r'(^| )(dart|flutter) (pub get|pub upgrade)( |$)',
-        ).hasMatch(normalized) ||
-        RegExp(
-          r'(^| )(npm|pnpm|yarn) (install|add)( |$)',
-        ).hasMatch(normalized) ||
-        RegExp(r'(^| )(pip|pip3) install( |$)').hasMatch(normalized)) {
-      return ToolCommandEffect.dependencyResolution;
     }
     if (RegExp(r'(^| )(dart|flutter) format( |$)').hasMatch(normalized) ||
         RegExp(r'(^| )(prettier|rustfmt|gofmt)( |$)').hasMatch(normalized)) {
@@ -282,9 +280,9 @@ class ToolCapabilityClassifier {
     return ToolCommandEffect.workspaceMutation;
   }
 
-  /// Always-read-only git verbs, plus `branch` and `remote`.
+  /// Git inspection verbs, plus `branch` and `remote`.
   ///
-  /// Always-read-only names match `GitTools._readOnlySubcommands`. `branch`
+  /// The inspection names match `GitTools._readOnlySubcommands`. `branch`
   /// and `remote` stay inspection here even when GitTools would treat some
   /// argument patterns as writes. `tag` is classified separately. `rev-list`
   /// used to fall through to workspaceMutation, so a count of commits was
@@ -310,7 +308,6 @@ class ToolCapabilityClassifier {
     'diff-tree',
     'diff-files',
     'diff-index',
-    'ls-remote',
     'branch',
     'remote',
   };
@@ -363,8 +360,14 @@ class ToolCapabilityClassifier {
     return ToolCommandEffect.inspection;
   }
 
+  /// A redirection that can write a file. `2>&1` and `>&2` only duplicate a
+  /// descriptor and `>/dev/null` writes nothing, yet each used to make a test
+  /// run a workspace mutation: `pytest -v 2>&1` was refused as a read-only
+  /// verification (session 22d603f7).
   bool _containsShellRedirection(String command) {
-    return RegExp(r'(^|\s)\d*(?:>>?|<<-?)\s*\S').hasMatch(command);
+    return RegExp(
+      r'(^|\s)(?:\d*|&)(?:>>?(?!\s*(?:&\d|/dev/null(?:\s|$)))|<<-?)\s*\S',
+    ).hasMatch(command);
   }
 
   List<String> _splitShellCommandSegments(String command) {
@@ -397,6 +400,16 @@ class ToolCapabilityClassifier {
           index + 1 < command.length &&
           ((character == '&' && command[index + 1] == '&') ||
               (character == '|' && command[index + 1] == '|'));
+      // `2>&1` and `&>file` are redirections, not the background operator.
+      final isRedirectionAmpersand =
+          character == '&' &&
+          !isDoubleOperator &&
+          ((index > 0 && command[index - 1] == '>') ||
+              (index + 1 < command.length && command[index + 1] == '>'));
+      if (isRedirectionAmpersand) {
+        buffer.write(character);
+        continue;
+      }
       if (isDoubleOperator ||
           character == '&' ||
           character == ';' ||
@@ -443,8 +456,28 @@ class ToolCapabilityClassifier {
 
   bool _looksLikeRuntimeBehaviorCheck(String command) {
     return RegExp(
-      r'(^| )(?:(dart run|python3?|node|bun|deno run|ruby|go run|cargo run)\s+[^ ]+|dart\s+[^ ]+\.dart(?: |$))',
+      r'(^| )(?:(dart run|(?:[^ ]*/)?python3?(?:\.[0-9]+)?|node|bun|deno run|ruby|go run|cargo run)\s+[^ ]+|dart\s+[^ ]+\.dart(?: |$))',
     ).hasMatch(command);
+  }
+
+  /// Package installs and virtual-environment creation, including the forms a
+  /// project venv produces (`.venv/bin/pip`, `python3 -m pip`, `-m venv`).
+  bool _looksLikeDependencyResolution(String command) {
+    return RegExp(
+          r'(^| )(dart|flutter) (pub get|pub upgrade)( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )(npm|pnpm|yarn) (install|add|i)( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )([^ ]*/)?(pip|pip3|pipenv) install( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )([^ ]*/)?python3?(\.[0-9]+)? -m (pip install|venv)( |$)',
+        ).hasMatch(command) ||
+        RegExp(
+          r'(^| )(uv (pip install|add|sync|venv)|poetry (add|install)|virtualenv)( |$)',
+        ).hasMatch(command);
   }
 
   bool _looksLikeDeploymentOrReleaseCommand(String command) {
@@ -455,7 +488,7 @@ class ToolCapabilityClassifier {
 
   bool _looksLikeVerifierScriptCommand(String command) {
     return RegExp(
-      r'(^| )(dart run|python3?|bash|zsh|sh) [^ ]*(^|[/_-])verif(y|ier)[^ ]*( |$)',
+      r'(^| )(dart run|(?:[^ ]*/)?python3?(?:\.[0-9]+)?|bash|zsh|sh) [^ ]*(^|[/_-])verif(y|ier)[^ ]*( |$)',
     ).hasMatch(command);
   }
 
@@ -602,5 +635,9 @@ class ToolCapabilityClassifier {
     'get_current_datetime',
     'recall_memory',
     'search_past_conversations',
+    'list_coding_projects',
+    'list_coding_threads',
+    'get_project_state',
+    'read_coding_thread',
   };
 }

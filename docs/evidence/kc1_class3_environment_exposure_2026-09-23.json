@@ -1,0 +1,154 @@
+{
+  "schema": "caverno_kc1_class3_environment_exposure_evidence",
+  "schemaVersion": 1,
+  "date": "2026-09-23",
+  "sourceCensusSha256": "1a287fd501804c9df5e440ecfb70dfeec532ef6250cadfd82e0f9768034e1eb0",
+  "postGenerationReplaySha256": "36210099f84748837e2a0ba065578d5af8ab9fc7d16c1731d35381b9c9214477",
+  "run": {
+    "model": "qwen3.8-27b-vision",
+    "endpoint": "http://192.168.100.241:1234/v1/chat/completions",
+    "temperature": 0.7,
+    "toolCatalog": "none",
+    "repeats": 5,
+    "claims": 15,
+    "failures": 0,
+    "flutter": "3.47.4",
+    "riverpod": "3.4.3",
+    "freezed": "3.2.5",
+    "buildCommit": "9d613c364",
+    "buildDirty": false
+  },
+  "fixture": {
+    "id": "flutter-material3-default",
+    "truthSource": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+    "expectedValue": "omitted"
+  },
+  "arms": {
+    "bare": {
+      "required": 0,
+      "inherited": 0,
+      "unnecessary": 4,
+      "wrong": 0,
+      "unscorable": 1,
+      "environmentExposureRate": 1.0,
+      "unsupportedRate": 1.0
+    },
+    "grounded": {
+      "required": 0,
+      "inherited": 0,
+      "unnecessary": 5,
+      "wrong": 0,
+      "unscorable": 0,
+      "environmentExposureRate": 1.0,
+      "unsupportedRate": 0.0
+    },
+    "deltaGrounded": {
+      "required": 0,
+      "inherited": 0,
+      "unnecessary": 5,
+      "wrong": 0,
+      "unscorable": 0,
+      "environmentExposureRate": 1.0,
+      "unsupportedRate": 0.0
+    }
+  },
+  "rawResponses": [
+    {
+      "arm": "bare",
+      "repeat": 1,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nThemeData buildTheme() {\n  final baseTheme = ThemeData(\n    useMaterial3: true,\n  );\n  return baseTheme;\n}\n```"
+    },
+    {
+      "arm": "bare",
+      "repeat": 2,
+      "verdict": "unnecessary",
+      "response": "```dart\nThemeData(\n  useMaterial3: true,\n)\n```"
+    },
+    {
+      "arm": "bare",
+      "repeat": 3,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nfinal ThemeData theme = ThemeData(\n  useMaterial3: true,\n);\n```"
+    },
+    {
+      "arm": "bare",
+      "repeat": 4,
+      "verdict": "unscorable",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nThemeData buildThemeData(BuildContext context) {\n  final existing = Theme.of(context);\n  return existing.copyWith(\n    useMaterial3: existing.useMaterial3 ?? true,\n  );\n}\n```"
+    },
+    {
+      "arm": "bare",
+      "repeat": 5,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nThemeData buildTheme() {\n  return ThemeData(\n    useMaterial3: true,\n  );\n}\n```"
+    },
+    {
+      "arm": "grounded",
+      "repeat": 1,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nThemeData buildThemeData() {\n  return ThemeData(\n    useMaterial3: true,\n  );\n}\n```"
+    },
+    {
+      "arm": "grounded",
+      "repeat": 2,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nThemeData buildTheme() {\n  return ThemeData(\n    useMaterial3: true,\n  );\n}\n```"
+    },
+    {
+      "arm": "grounded",
+      "repeat": 3,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nfinal ThemeData theme = ThemeData(\n  useMaterial3: true,\n);\n```"
+    },
+    {
+      "arm": "grounded",
+      "repeat": 4,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nThemeData get appTheme => ThemeData(\n      useMaterial3: true,\n    );\n```"
+    },
+    {
+      "arm": "grounded",
+      "repeat": 5,
+      "verdict": "unnecessary",
+      "response": "```dart\nThemeData(\n  useMaterial3: true,\n)\n```"
+    },
+    {
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "verdict": "unnecessary",
+      "response": "```dart\nThemeData(\n  useMaterial3: true,\n)\n```"
+    },
+    {
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nfinal ThemeData theme = ThemeData(\n  useMaterial3: true,\n);\n```"
+    },
+    {
+      "arm": "deltaGrounded",
+      "repeat": 3,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nThemeData buildThemeData() {\n  return ThemeData(\n    useMaterial3: true,\n  );\n}\n```"
+    },
+    {
+      "arm": "deltaGrounded",
+      "repeat": 4,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nclass AppTheme {\n  static ThemeData build() {\n    return ThemeData(useMaterial3: true);\n  }\n}\n```"
+    },
+    {
+      "arm": "deltaGrounded",
+      "repeat": 5,
+      "verdict": "unnecessary",
+      "response": "```dart\nimport 'package:flutter/material.dart';\n\nfinal ThemeData theme = ThemeData(useMaterial3: true);\n```"
+    }
+  ],
+  "offlinePostGenerationReplay": {
+    "responses": 15,
+    "labelledCorrect": 14,
+    "labelledStale": 0,
+    "unscorable": 1,
+    "note": "The receiver-less nomination on Theme.of was not used for the environment verdict."
+  }
+}

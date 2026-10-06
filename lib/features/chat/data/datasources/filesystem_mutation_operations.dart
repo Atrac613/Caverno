@@ -226,6 +226,7 @@ final class FilesystemMutationOperations {
       return EditAnchorFailureBuilder.build(
         path: path,
         content: content,
+        oldText: oldText,
         newText: newText,
       );
     }

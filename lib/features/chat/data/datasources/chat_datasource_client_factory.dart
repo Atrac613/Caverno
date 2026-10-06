@@ -3,8 +3,9 @@ import 'package:openai_dart/openai_dart.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/security/llm_endpoint_transport_policy.dart';
-import '../../domain/services/qwen38_request_thinking_policy.dart';
-import 'qwen38_request_policy_client.dart';
+import '../../domain/services/chat_request_thinking_policy.dart';
+import 'anthropic_messages_client.dart';
+import 'chat_request_policy_client.dart';
 import 'video_content_part_client.dart';
 
 /// The request-shaping inputs every chat client path needs.
@@ -28,20 +29,23 @@ typedef ChatRequestShape = ({
 /// three are built here rather than repeated at three call sites that can
 /// drift apart one parameter at a time.
 abstract final class ChatDataSourceClientFactory {
-  static Qwen38RequestThinkingPolicy thinkingPolicy(ChatRequestShape shape) =>
-      Qwen38RequestThinkingPolicy(
+  static ChatRequestThinkingPolicy thinkingPolicy(ChatRequestShape shape) =>
+      ChatRequestThinkingPolicy(
         reasoningEffort: shape.reasoningEffort,
         enableThinking: shape.enableThinking,
         acceptsChatTemplateKwargs: shape.acceptsChatTemplateKwargs,
       );
 
-  static http.Client wrap(http.Client delegate, ChatRequestShape shape) =>
-      VideoContentPartClient(
-        delegate: Qwen38RequestPolicyClient(
-          delegate: delegate,
-          policy: thinkingPolicy(shape),
-        ),
-      );
+  static http.Client wrap(
+    http.Client delegate,
+    ChatRequestShape shape, {
+    String? baseUrl,
+  }) => VideoContentPartClient(
+    delegate: ChatRequestPolicyClient(
+      delegate: AnthropicMessagesClient.wrapIfNeeded(delegate, baseUrl),
+      policy: thinkingPolicy(shape),
+    ),
+  );
 
   /// The validated, fully wrapped client the datasource talks through.
   ///
@@ -62,8 +66,11 @@ abstract final class ChatDataSourceClientFactory {
       apiKey: apiKey ?? ApiConstants.defaultApiKey,
     ),
     defaultHeaders: ApiConstants.userAgentHeaders,
-    httpClient: wrap(httpClient ?? http.Client(), shape),
-    streamClientFactory: () =>
-        wrap(streamClientFactory?.call() ?? http.Client(), shape),
+    httpClient: wrap(httpClient ?? http.Client(), shape, baseUrl: baseUrl),
+    streamClientFactory: () => wrap(
+      streamClientFactory?.call() ?? http.Client(),
+      shape,
+      baseUrl: baseUrl,
+    ),
   );
 }

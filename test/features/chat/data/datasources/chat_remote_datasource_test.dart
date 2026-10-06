@@ -3,7 +3,9 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/chat_request_thinking_policy.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -202,6 +204,71 @@ void main() {
   });
 
   group('Qwen3.8 request thinking policy', () {
+    test('preserves the strict update_goal wire contract for EXL3', () async {
+      final requestBodies = <Map<String, dynamic>>[];
+      final client = _capturingCompletionClient(requestBodies);
+      final qwenDataSource = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+      );
+
+      await qwenDataSource.createChatCompletion(
+        messages: [_userMessage()],
+        tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
+        model: 'qwen3.8-27b-exl3',
+        temperature: 0,
+        maxTokens: 512,
+      );
+
+      final body = requestBodies.single;
+      expect(body['temperature'], 0.0);
+      expect(body['enable_thinking'], isFalse);
+      expect(body['chat_template_kwargs'], {'enable_thinking': false});
+      expect(body.containsKey('reasoning_effort'), isFalse);
+      expect(body['tool_choice'], {
+        'type': 'function',
+        'function': {'name': 'update_goal'},
+      });
+      final parameters = body['tools'][0]['function']['parameters'];
+      expect(parameters, isA<Map<String, dynamic>>());
+      expect(parameters['properties']['completed']['type'], 'boolean');
+      expect(parameters['required'], ['completed']);
+      expect(parameters['additionalProperties'], isFalse);
+    });
+
+    test('leaves ordinary tool selection unforced', () async {
+      final requestBodies = <Map<String, dynamic>>[];
+      final client = _capturingCompletionClient(requestBodies);
+      final source = ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+        httpClient: client,
+      );
+      const ordinaryTool = {
+        'type': 'function',
+        'function': {
+          'name': 'read_file',
+          'parameters': {'type': 'object'},
+        },
+      };
+
+      await source.createChatCompletion(
+        messages: [_userMessage()],
+        tools: const [ordinaryTool],
+        model: 'qwen3.8-27b-exl3',
+      );
+      await source.createChatCompletion(
+        messages: [_userMessage()],
+        tools: [McpGoalRoutineToolDefinitions.updateGoalTool, ordinaryTool],
+        model: 'qwen3.8-27b-exl3',
+      );
+
+      expect(requestBodies, hasLength(2));
+      expect(requestBodies[0].containsKey('tool_choice'), isFalse);
+      expect(requestBodies[1].containsKey('tool_choice'), isFalse);
+    });
+
     test('serializes the exact disabled tool-request shape', () async {
       final requestBodies = <Map<String, dynamic>>[];
       final client = MockClient((request) async {
@@ -1239,11 +1306,60 @@ void main() {
     );
     final completion = await result.completion;
     expect(completion.content, 'Done');
+    // The content leaves the reasoning out; the result still says it streamed.
+    expect(completion.streamedReasoning, 'Inspecting the result');
     expect(completion.finishReason, 'stop');
     expect(requestBody!['stream'], isTrue);
     final messages = requestBody!['messages'] as List<dynamic>;
     expect(messages[1]['role'], 'assistant');
     expect(messages[2]['role'], 'tool');
+  });
+
+  test('a streamed follow-up issued without thinking sends it off', () async {
+    // Session be9dbba9: the reasoning-only stop recovery has to reach the wire
+    // with thinking off, and a streamed request is sent when it is listened to.
+    final bodies = <Map<String, dynamic>>[];
+    final client = MockClient((request) async {
+      bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      return http.Response(
+        'data: ${jsonEncode({
+          'id': 'c',
+          'object': 'chat.completion.chunk',
+          'created': 0,
+          'model': 'qwen3.8-27b-exl3',
+          'choices': [
+            {'index': 0, 'delta': <String, dynamic>{}, 'finish_reason': 'stop'},
+          ],
+        })}\n\ndata: [DONE]\n\n',
+        200,
+        headers: const {'content-type': 'text/event-stream'},
+      );
+    });
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      reasoningEffort: 'medium',
+      acceptsChatTemplateKwargs: true,
+      httpClient: client,
+      streamClientFactory: () => client,
+    );
+    Future<void> send() async {
+      final result = dataSource.streamChatCompletionWithToolResults(
+        messages: [_userMessage()],
+        toolResults: const [],
+        tools: const [],
+        model: 'qwen3.8-27b-exl3',
+      );
+      await result.stream.drain<void>();
+      await result.completion;
+    }
+
+    await send();
+    await ChatRequestThinkingPolicy.runWithoutThinking(send);
+
+    expect(bodies.first['chat_template_kwargs']['enable_thinking'], isTrue);
+    expect(bodies.last['chat_template_kwargs'], {'enable_thinking': false});
+    expect(bodies.last['enable_thinking'], isFalse);
   });
 
   test('promotes embedded calls in ordinary tool-aware completions', () async {

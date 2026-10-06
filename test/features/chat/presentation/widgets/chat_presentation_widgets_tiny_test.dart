@@ -22,6 +22,7 @@ import 'package:caverno/features/chat/presentation/widgets/anabasis_speaker_head
 import 'package:caverno/features/chat/presentation/widgets/chat_page_scaffold.dart';
 import 'package:caverno/features/chat/presentation/widgets/composer_attachment_button.dart';
 import 'package:caverno/features/chat/presentation/widgets/composer_dropped_attachment_intake.dart';
+import 'package:caverno/features/chat/presentation/widgets/composer_model_selection.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';
 import 'package:caverno/features/chat/presentation/widgets/html_preview_control_section.dart';
 import 'package:caverno/features/chat/presentation/widgets/local_llm_health_section.dart';
@@ -30,6 +31,7 @@ import 'package:caverno/features/chat/presentation/widgets/project_run_control_s
 import 'package:caverno/features/chat/presentation/widgets/queued_messages_strip.dart';
 import 'package:caverno/features/chat/presentation/widgets/slash_command_help_sheet.dart';
 import 'package:caverno/features/chat/presentation/widgets/workflow_status_presentation.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/local_llm_health.dart';
 import 'package:caverno/features/settings/presentation/providers/local_llm_health_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/local_model_lifecycle_provider.dart';
@@ -42,6 +44,7 @@ part 'anabasis_speaker_header_cases.dart';
 part 'chat_page_scaffold_cases.dart';
 part 'composer_attachment_button_cases.dart';
 part 'composer_dropped_attachment_intake_cases.dart';
+part 'composer_model_selection_cases.dart';
 part 'html_preview_control_section_cases.dart';
 part 'local_llm_health_section_cases.dart';
 part 'pro_reasoning_progress_card_cases.dart';
@@ -55,6 +58,7 @@ void main() {
   _runChatPageScaffold();
   _runComposerAttachmentButton();
   _runComposerDroppedAttachmentIntake();
+  _runComposerModelSelection();
   _runHtmlPreviewControlSection();
   _runLocalLlmHealthSection();
   _runProReasoningProgressCard();

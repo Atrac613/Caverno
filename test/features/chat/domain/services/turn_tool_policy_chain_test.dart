@@ -146,6 +146,36 @@ void main() {
     );
   });
 
+  test('the parent may search tools while an assumption blocks', () async {
+    var asked = 0;
+    final chain = TurnToolPolicyChain(
+      executingRole: ModelUsageRole.anabasisParent,
+      assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
+        currentSpec: _blockedSpec,
+        requestConfirmation:
+            ({required item, required itemText, required toolName}) async {
+              asked++;
+              return false;
+            },
+        persist: (_) async {},
+      ),
+    );
+
+    expect(
+      await chain.evaluate(
+        ToolCallInfo(
+          id: 'call-search',
+          name: 'tool_search',
+          arguments: const {'query': 'inspect workflow status'},
+        ),
+        workspaceMode: WorkspaceMode.coding,
+      ),
+      isNull,
+    );
+    expect(asked, 0);
+  });
+
   test('delegation passes both policies', () async {
     final chain = TurnToolPolicyChain(
       executingRole: ModelUsageRole.anabasisParent,
@@ -171,5 +201,35 @@ void main() {
       isNull,
       reason: 'Delegation is the parent\'s only route to effect.',
     );
+  });
+
+  test('the turn scope refuses before anyone is asked to confirm', () async {
+    var asked = 0;
+    final scoped = McpToolResult(
+      toolName: 'write_file',
+      result: '{"ok":false}',
+      isSuccess: false,
+      errorMessage: 'out of scope',
+    );
+    final chain = TurnToolPolicyChain(
+      executingRole: ModelUsageRole.unknown,
+      turnScope: (call) => call.name == 'write_file' ? scoped : null,
+      assumptionGate: MaterialAssumptionConfirmationGate(
+        asked: MaterialAssumptionAskScope(),
+        currentSpec: _blockedSpec,
+        requestConfirmation:
+            ({required item, required itemText, required toolName}) async {
+              asked++;
+              return true;
+            },
+        persist: (_) async {},
+      ),
+    );
+
+    expect(
+      await chain.evaluate(_mutation, workspaceMode: WorkspaceMode.coding),
+      same(scoped),
+    );
+    expect(asked, 0);
   });
 }

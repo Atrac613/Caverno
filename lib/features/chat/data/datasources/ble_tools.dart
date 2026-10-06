@@ -180,7 +180,17 @@ class BleTools {
     'function': {
       'name': 'ble_write_characteristic',
       'description':
-          'Write a value to a GATT characteristic on a connected BLE device.',
+          'Write a value to a GATT characteristic on a connected BLE device. '
+          'Requires ble_connect and then ble_discover_services for the same '
+          'device_id; the service and characteristic UUIDs must come from '
+          'that discovery result. The value is decoded with encoding (hex by '
+          'default) before sending. With write_type withResponse the call '
+          'returns after the device acknowledges the write; withoutResponse '
+          'returns once the write is queued and does not confirm the device '
+          'accepted it. Returns only the number of bytes written, not the '
+          'characteristic\'s new value; use ble_read_characteristic to check '
+          'it. Writing can change device state, so confirm the target and '
+          'value with the user when their effect is unclear.',
       'parameters': {
         'type': 'object',
         'properties': {

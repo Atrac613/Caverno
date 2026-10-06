@@ -40,9 +40,13 @@ class PlanReviewSheet extends StatelessWidget {
         ? (planArtifact.hasApproved && planArtifact.hasPendingEdits
               ? 'chat.plan_document_status_pending'
               : 'chat.plan_document_status_draft')
+        : planArtifact.isUnreviewedOutline
+        ? 'chat.plan_document_status_unreviewed'
         : 'chat.plan_document_status_approved';
     final subtitleKey = isDraftState
         ? 'chat.plan_proposal_subtitle'
+        : planArtifact.isUnreviewedOutline
+        ? 'chat.plan_document_unreviewed_subtitle'
         : 'chat.plan_document_approved_subtitle';
 
     return SafeArea(

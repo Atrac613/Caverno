@@ -56,6 +56,16 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart"
         },
         {
+          "id": "ask-user-question-reuse-policy",
+          "path": "lib/features/chat/domain/services/ask_user_question_reuse_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_reuse_policy.dart"
+        },
+        {
+          "id": "ask-user-question-text-normalization",
+          "path": "lib/features/chat/domain/services/ask_user_question_text_normalization.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_text_normalization.dart"
+        },
+        {
           "id": "ask-user-question-option-parser",
           "path": "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_option_parser.dart"
@@ -206,6 +216,11 @@
           "sizeBudgetKey": "lib/features/chat/domain/services/saved_validation_command_guard.dart"
         },
         {
+          "id": "saved-task-authored-request-text",
+          "path": "lib/features/chat/domain/services/saved_task_authored_request_text.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/saved_task_authored_request_text.dart"
+        },
+        {
           "id": "saved-task-target-scope-guard",
           "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart"
@@ -274,6 +289,11 @@
           "id": "production-release-approval-coordinator",
           "path": "lib/features/chat/domain/services/production_release_approval_coordinator.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_coordinator.dart"
+        },
+        {
+          "id": "production-release-dispatch-evidence",
+          "path": "lib/features/chat/domain/services/production_release_dispatch_evidence.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release_dispatch_evidence.dart"
         }
       ]
     },

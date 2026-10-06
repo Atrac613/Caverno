@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -112,6 +113,16 @@ void main() {
     expect(result['error'], contains('regular files only'));
     expect(directory.existsSync(), isTrue);
   });
+
+  test(
+    'writeFile preserves leading and trailing whitespace byte for byte',
+    () async {
+      final path = '${tempDir.path}/whitespace.txt';
+      const content = '  hello\n\t\n';
+      await FilesystemTools.writeFile(path: path, content: content);
+      expect(await File(path).readAsBytes(), utf8.encode(content));
+    },
+  );
 
   test('writeFile reports whether the content actually changed', () async {
     // A byte-identical rewrite is otherwise indistinguishable from a real one:
@@ -295,6 +306,95 @@ void main() {
     expect(editResult.containsKey('current_content'), isFalse);
     expect(editResult['hint'], contains('Re-read'));
     expect(editResult.containsKey('new_text_present'), isFalse);
+  });
+
+  test(
+    'editFile mismatch locates a bounded exact context without applying it',
+    () async {
+      final targetPath = '${tempDir.path}/large_source.py';
+      final original =
+          '${'# padding\n' * 500}'
+          'def configure_interval():\n'
+          '    return 2\n'
+          '${'# tail\n' * 500}';
+      final file = File(targetPath)..writeAsStringSync(original);
+      final failure =
+          jsonDecode(
+                await FilesystemTools.editFile(
+                  path: targetPath,
+                  oldText: 'def configure_interval():\n    return 1\n',
+                  newText: 'def configure_interval():\n    return 0\n',
+                ),
+              )
+              as Map;
+      expect(
+        failure['content_sha256'],
+        (await sha256.bind(file.openRead()).first).toString(),
+      );
+      final context = failure['current_context'] as Map;
+      expect(context['start_line'], 498);
+      expect(context['content'], contains('    return 2\n'));
+      expect(
+        utf8.encode(context['content'] as String).length,
+        lessThanOrEqualTo(4096),
+      );
+      expect(failure['read_more_hint'], {
+        'path': targetPath,
+        'offset': 501,
+        'limit': 20,
+      });
+      expect(
+        failure['hint'],
+        contains('no approximate replacement was applied'),
+      );
+      expect(file.readAsStringSync(), original);
+    },
+  );
+
+  test(
+    'editFile mismatch does not guess a context from ambiguous anchor lines',
+    () async {
+      final targetPath = '${tempDir.path}/ambiguous_source.py';
+      final original =
+          '${'# padding\n' * 500}shared_anchor = 2\nshared_anchor = 2\n';
+      final file = File(targetPath)..writeAsStringSync(original);
+      final failure =
+          jsonDecode(
+                await FilesystemTools.editFile(
+                  path: targetPath,
+                  oldText: 'shared_anchor = 2\nmissing_line = 3\n',
+                  newText: 'replacement = 4\n',
+                ),
+              )
+              as Map;
+      expect(failure.containsKey('current_context'), isFalse);
+      expect(failure.containsKey('read_more_hint'), isFalse);
+      expect(failure['hint'], contains('no unique anchor'));
+      expect(file.readAsStringSync(), original);
+    },
+  );
+
+  test('editFile mismatch keeps context bounded for oversized lines', () async {
+    final targetPath = '${tempDir.path}/long_line.py';
+    final original = '${'x' * 5000}\ndef interval():\n    return 2\n';
+    final file = File(targetPath)..writeAsStringSync(original);
+    final failure =
+        jsonDecode(
+              await FilesystemTools.editFile(
+                path: targetPath,
+                oldText: 'def interval():\n    return 1\n',
+                newText: 'def interval():\n    return 0\n',
+              ),
+            )
+            as Map;
+    expect(failure.containsKey('current_content'), isFalse);
+    expect(failure.containsKey('current_context'), isFalse);
+    expect(failure['read_more_hint'], {
+      'path': targetPath,
+      'offset': 2,
+      'limit': 20,
+    });
+    expect(file.readAsStringSync(), original);
   });
 
   test(
@@ -567,6 +667,109 @@ void main() {
     expect(result['matches'].single, startsWith('pubspec.yaml:2:'));
     expect(result.containsKey('error'), isFalse);
   });
+  test(
+    'project searches prune Python environment files but allow explicit inspection',
+    () async {
+      for (final path in [
+        'app.py',
+        '.venv/lib/dependency.py',
+        '__pycache__/cached.py',
+      ]) {
+        final file = File('${tempDir.path}/$path');
+        await file.parent.create(recursive: true);
+        await file.writeAsString('print("fixture")\n');
+      }
+      final found =
+          jsonDecode(
+                await FilesystemTools.findFiles(
+                  path: tempDir.path,
+                  pattern: '*.py',
+                ),
+              )
+              as Map;
+      final searched =
+          jsonDecode(
+                await FilesystemTools.searchFiles(
+                  path: tempDir.path,
+                  query: 'print(',
+                  filePattern: '*.py',
+                ),
+              )
+              as Map;
+      expect(found['matches'], ['app.py']);
+      expect(searched['scanned_files'], 1);
+      expect((searched['matches'] as List).single, startsWith('app.py:'));
+      final explicit =
+          jsonDecode(
+                await FilesystemTools.searchFiles(
+                  path: '${tempDir.path}/.venv',
+                  query: 'print(',
+                  filePattern: '*.py',
+                ),
+              )
+              as Map;
+      expect(explicit['scanned_files'], 1);
+      expect(
+        (explicit['matches'] as List).single,
+        startsWith('lib/dependency.py:'),
+      );
+    },
+  );
+
+  test('an empty scan names the excluded directories it skipped', () async {
+    // Session 17398f84: `find_files .venv/bin/python` returned no matches
+    // because `.venv` is pruned, and the model deleted the real `.venv` it
+    // thought was absent.
+    for (final path in ['watcher.py', '.venv/bin/python', '.venv/lib/x.py']) {
+      final file = File('${tempDir.path}/$path');
+      await file.parent.create(recursive: true);
+      await file.writeAsString('print("fixture")\n');
+    }
+    Future<Map> find(String pattern) async =>
+        jsonDecode(
+              await FilesystemTools.findFiles(
+                path: tempDir.path,
+                pattern: pattern,
+              ),
+            )
+            as Map;
+    Future<Map> search(String query) async =>
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: query,
+              ),
+            )
+            as Map;
+
+    final missing = await find('.venv/bin/python');
+    expect(missing['matches'], isEmpty);
+    expect(missing['excluded_directories'], ['.venv']);
+    expect(missing['excluded_directories_hint'], contains('find_files'));
+    final unseen = await search('no such text');
+    expect(unseen['excluded_directories'], ['.venv']);
+    expect(unseen['excluded_directories_hint'], contains('search_files'));
+
+    // A result that found something stays as compact as before.
+    final found = await find('watcher.py');
+    expect(found['matches'], ['watcher.py']);
+    expect(found.containsKey('excluded_directories'), isFalse);
+    expect(
+      (await search('fixture')).containsKey('excluded_directories'),
+      isFalse,
+    );
+
+    // The disclosed path is searchable when named.
+    final inside =
+        jsonDecode(
+              await FilesystemTools.findFiles(
+                path: '${tempDir.path}/.venv',
+                pattern: 'python',
+              ),
+            )
+            as Map;
+    expect(inside['matches'], ['bin/python']);
+  });
 
   test(
     'searchFiles still reports a path that is neither file nor directory',
@@ -582,9 +785,45 @@ void main() {
     },
   );
 
+  test('searchFiles honors a leading or trailing line anchor', () async {
+    // Every anchored query in the corpus was `^version:` and, matched
+    // literally, found nothing (six reissues in session a40d48a8).
+    await File(
+      '${tempDir.path}${Platform.pathSeparator}pubspec.yaml',
+    ).writeAsString(
+      'name: caverno\n'
+      'version: 1.3.34+47\n'
+      '# the version: comment\n'
+      'dependencies:\n'
+      '  dio: ^5.4.0\n',
+    );
+
+    Future<Map<String, dynamic>> search(String query) async =>
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: query,
+              ),
+            )
+            as Map<String, dynamic>;
+
+    final anchored = await search('^version:');
+    expect(anchored['match_count'], 1);
+    expect(anchored['matches'], ['pubspec.yaml:2: version: 1.3.34+47']);
+    expect(anchored.containsKey('query_hint'), isFalse);
+
+    final trailing = await search(r'comment$');
+    expect(trailing['matches'], ['pubspec.yaml:3: # the version: comment']);
+
+    final whole = await search(r'^dependencies:$');
+    expect(whole['matches'], ['pubspec.yaml:4: dependencies:']);
+
+    // A caret version constraint is still found as literal text.
+    final caret = await search('^5.4.0');
+    expect(caret['matches'], ['pubspec.yaml:5:   dio: ^5.4.0']);
+  });
+
   test('searchFiles names the anchor behind an empty result', () async {
-    // `query` is literal, so `^version:` can never match. The same anchored
-    // query was reissued six times in session a40d48a8 because nothing said so.
     await File(
       '${tempDir.path}${Platform.pathSeparator}pubspec.yaml',
     ).writeAsString('name: caverno\nversion: 1.3.34+47\n');
@@ -593,13 +832,13 @@ void main() {
         jsonDecode(
               await FilesystemTools.searchFiles(
                 path: tempDir.path,
-                query: '^version:',
+                query: '^build:',
               ),
             )
             as Map<String, dynamic>;
     expect(anchored['match_count'], 0);
-    expect(anchored['query_hint'], contains('literal text'));
-    expect(anchored['query_hint'], contains('^'));
+    expect(anchored['query_hint'], contains('line anchor'));
+    expect(anchored['query_hint'], contains('do not reissue'));
 
     final plain =
         jsonDecode(

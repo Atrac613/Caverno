@@ -82,7 +82,12 @@ class WorktreeAgentTaskRegistryNotifier
     return WorktreeAgentTaskRegistryState(tasks: recovered);
   }
 
+  static const unattendedAdmissionNote =
+      'Unattended task is held pending start authorization; resume manually.';
+  final _admitting = <String>{};
+
   Future<WorktreeAgentTask> registerTask({
+    bool deferStart = false,
     String id = '',
     required String title,
     required String prompt,
@@ -112,6 +117,10 @@ class WorktreeAgentTaskRegistryNotifier
     final normalizedId = id.trim();
     final now = DateTime.now();
     final task = WorktreeAgentTask(
+      status: deferStart
+          ? WorktreeAgentTaskStatus.needsRecovery
+          : WorktreeAgentTaskStatus.queued,
+      recoveryNote: deferStart ? unattendedAdmissionNote : '',
       id: normalizedId.isEmpty ? _uuid.v4() : normalizedId,
       title: title.trim(),
       prompt: prompt.trim(),
@@ -139,9 +148,11 @@ class WorktreeAgentTaskRegistryNotifier
   }
 
   Future<WorktreeAgentTask> registerAssignment(
-    WorktreeAgentAssignmentPlan plan,
-  ) {
+    WorktreeAgentAssignmentPlan plan, {
+    bool deferStart = false,
+  }) {
     return registerTask(
+      deferStart: deferStart,
       id: plan.assignmentId,
       title: plan.title,
       prompt: plan.prompt,
@@ -156,6 +167,50 @@ class WorktreeAgentTaskRegistryNotifier
       expectedTargetFiles: plan.expectedTargetFiles,
       objectiveAcceptanceCriteria: plan.objectiveAcceptanceCriteria,
     );
+  }
+
+  /// Persist readiness while remaining held in memory, then recheck authority.
+  /// Publishing queued state and invoking start have no asynchronous gap.
+  Future<bool> admitHeldTask(
+    String id, {
+    required bool Function() canStart,
+    required void Function() start,
+  }) async {
+    final task = state.tasks.where((task) => task.id == id).firstOrNull;
+    if (task == null ||
+        task.status != WorktreeAgentTaskStatus.needsRecovery ||
+        task.recoveryNote != unattendedAdmissionNote ||
+        !canStart() ||
+        !_admitting.add(id)) {
+      return false;
+    }
+    try {
+      final ready = task.copyWith(
+        status: WorktreeAgentTaskStatus.queued,
+        recoveryNote: '',
+        updatedAt: DateTime.now(),
+      );
+      final before = state;
+      await _repository.saveAll([
+        for (final current in state.tasks)
+          if (current.id == id) ready else current,
+      ]);
+      final current = state.tasks.where((task) => task.id == id).firstOrNull;
+      if (state != before || current != task || !canStart()) {
+        await _repository.saveAll(state.tasks);
+        return false;
+      }
+      state = state.copyWith(
+        tasks: [
+          for (final current in state.tasks)
+            if (current.id == id) ready else current,
+        ],
+      );
+      start();
+      return true;
+    } finally {
+      _admitting.remove(id);
+    }
   }
 
   Future<void> markRunning(String id) {
@@ -179,31 +234,37 @@ class WorktreeAgentTaskRegistryNotifier
     List<WorktreeAgentChangedFileEvidence> changedFiles = const [],
     bool changedFileEvidenceTruncated = false,
   }) {
+    // A cancel wins over a run that finishes afterwards: the user's stop must
+    // not be overwritten by the result of work they already abandoned.
     return _updateTask(
       id,
-      (task, now) => task.copyWith(
-        status: WorktreeAgentTaskStatus.completed,
-        resultSummary: resultSummary.trim(),
-        verifiedGreen: verifiedGreen,
-        verificationSummary: verificationSummary.trim(),
-        changedFiles: List.unmodifiable(changedFiles),
-        changedFileEvidenceTruncated: changedFileEvidenceTruncated,
-        error: '',
-        finishedAt: now,
-        updatedAt: now,
-      ),
+      (task, now) => task.status == WorktreeAgentTaskStatus.cancelled
+          ? task
+          : task.copyWith(
+              status: WorktreeAgentTaskStatus.completed,
+              resultSummary: resultSummary.trim(),
+              verifiedGreen: verifiedGreen,
+              verificationSummary: verificationSummary.trim(),
+              changedFiles: List.unmodifiable(changedFiles),
+              changedFileEvidenceTruncated: changedFileEvidenceTruncated,
+              error: '',
+              finishedAt: now,
+              updatedAt: now,
+            ),
     );
   }
 
   Future<void> markFailed(String id, String error) {
     return _updateTask(
       id,
-      (task, now) => task.copyWith(
-        status: WorktreeAgentTaskStatus.failed,
-        error: error.trim(),
-        finishedAt: now,
-        updatedAt: now,
-      ),
+      (task, now) => task.status == WorktreeAgentTaskStatus.cancelled
+          ? task
+          : task.copyWith(
+              status: WorktreeAgentTaskStatus.failed,
+              error: error.trim(),
+              finishedAt: now,
+              updatedAt: now,
+            ),
     );
   }
 

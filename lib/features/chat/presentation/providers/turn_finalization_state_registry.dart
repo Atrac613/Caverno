@@ -42,6 +42,19 @@ final class TurnFinalizationStateRegistry {
     return true;
   }
 
+  /// Clears a stale hint only when the recovery path still owns that hint.
+  ///
+  /// A nested tool-loop recovery can produce a real result after its outer
+  /// loop already recorded [ToolLoopExitReason.allCallsDiscarded]. Do not
+  /// replace unrelated terminal reasons such as a timeout or a guardrail
+  /// block.
+  bool clearHintIf(ChatTurnOwner owner, ToolLoopExitReason hint) {
+    final state = _states[owner];
+    if (state == null || state.exitReasonHint != hint) return false;
+    state.exitReasonHint = null;
+    return true;
+  }
+
   ToolLoopExitReason? takeHint(ChatTurnOwner owner) =>
       _states[owner]?.takeHint();
 

@@ -162,11 +162,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   bool isVerifierReplayEligibleForTest(ToolCallInfo toolCall) =>
       _goalAutoContinueTrackerRegistry.isReplayEligibleVerifierToolCall(
         toolCall,
-      ) &&
-      const ToolCapabilityClassifier()
-              .classify(toolCall.name, arguments: toolCall.arguments)
-              .commandEffect ==
-          ToolCommandEffect.verification;
+      );
 
   ToolCallInfo? _takePostMutationVerifierReplay({
     required ToolResultCompletionEvidence evidence,
@@ -178,6 +174,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     final owner = _turnOwnerForGeneration(interactionGeneration);
     final conversation = _conversationForGeneration(interactionGeneration);
     if (owner == null || conversation == null) return null;
+    if (_recordedGoalBlocker(owner) != null) return null;
     final context = _goalTrackerContext(
       owner: owner,
       conversation: conversation,
@@ -313,6 +310,18 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         conversation: _conversationForId(owner.conversationId),
         assistantResponse: assistantResponse,
         tokenUsageDelta: tokenUsageDelta,
+        projectTaskImplementation: _primaryRoutes.isProjectTaskImplementation(
+          owner.interactionGeneration,
+        ),
+        onProjectTaskStatus: (status) {
+          if (!_activeResponseRegistry.containsOwner(owner)) return;
+          _turnToolResults.addContent(
+            owner,
+            status.toToolResult(
+              'coding-task-status-${owner.interactionGeneration}',
+            ),
+          );
+        },
       );
 
   @visibleForTesting
@@ -749,6 +758,23 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     final owner = _turnOwnerForGeneration(interactionGeneration);
     if (owner == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
+    }
+    if (_primaryRoutes.isProjectTaskStep(interactionGeneration) &&
+        _conversationForId(owner.conversationId)?.goal?.projectTaskAutoReview ==
+            true &&
+        toolCall.arguments['completed'] == true) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        isSuccess: false,
+        result: jsonEncode({
+          'code': 'project_subtask_goal_completion_refused',
+          'completionAccepted': false,
+          'error':
+              'An intermediate subtask cannot complete the overall goal. '
+              'Finish this subtask with PROJECT_TASK_SUBTASK_DONE; use '
+              'update_goal with completed: false to report progress or a blocker.',
+        }),
+      );
     }
     return GoalUpdateNotifierRuntimeCoordinator(
       finalizationState: _turnEnd,

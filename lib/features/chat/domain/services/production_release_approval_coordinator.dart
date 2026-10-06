@@ -7,15 +7,16 @@ import '../entities/conversation.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'ask_user_question_turn_cache.dart';
-import 'blocked_production_release_retry_policy.dart';
+import 'blocked_production_release_retry_contract.dart';
 import 'production_release_approval_evidence_snapshot.dart';
+import 'production_release_approval_gate.dart';
 import 'production_release_approval_policy.dart';
-import 'production_release_approval_token_registry.dart';
-import 'production_release_blocked_result.dart';
 import 'production_release_prose_shadow.dart';
-import 'tool_call_execution_policy.dart';
 
+export 'production_release_approval_conflict_result.dart';
 export 'production_release_approval_evidence_snapshot.dart';
+export 'production_release_approval_presentation.dart';
+export 'production_release_execution_identity.dart';
 
 // ChatNotifier decomposition collaborator: production-release-approval-coordinator
 
@@ -25,11 +26,15 @@ final class ProductionReleaseApprovalCoordinator {
     required ChatTurnOwner? Function(int generation) ownerForGeneration,
     required AskUserQuestionTurnCache questionResults,
     String Function()? approvalTokenFactory,
+    Map<String, dynamic> Function(ToolCallInfo toolCall)?
+    resolveExecutionArguments,
   }) : _activeConversationId = activeConversationId,
        _ownerForGeneration = ownerForGeneration,
        _questionResults = questionResults,
-       _approvalTokens = ProductionReleaseApprovalTokenRegistry(
-         tokenFactory: approvalTokenFactory ?? debugApprovalTokenFactory,
+       _gate = ProductionReleaseApprovalGate(
+         approvalTokenFactory:
+             approvalTokenFactory ?? debugApprovalTokenFactory,
+         resolveExecutionArguments: resolveExecutionArguments,
        );
 
   /// Test seam for the issued approval token.
@@ -40,11 +45,8 @@ final class ProductionReleaseApprovalCoordinator {
   static String Function()? debugApprovalTokenFactory;
 
   static const _policy = ProductionReleaseApprovalPolicy();
-  static const _executionPolicy = ToolCallExecutionPolicy();
-
-  final _pendingReleases = <String, PendingBlockedRelease>{};
   final _proseShadow = ProductionReleaseProseShadow();
-  final ProductionReleaseApprovalTokenRegistry _approvalTokens;
+  final ProductionReleaseApprovalGate _gate;
   final String? Function(int generation) _activeConversationId;
   final ChatTurnOwner? Function(int generation) _ownerForGeneration;
   final AskUserQuestionTurnCache _questionResults;
@@ -67,7 +69,8 @@ final class ProductionReleaseApprovalCoordinator {
     final owner = _ownerForGeneration(generation);
     final token = activeConversationId == null
         ? null
-        : _approvalTokens.tokenFor(activeConversationId);
+        : _gate.approvalToken(activeConversationId);
+    final binding = _gate.approvalBinding(activeConversationId);
     final tokenApproved =
         owner != null &&
         token != null &&
@@ -77,6 +80,8 @@ final class ProductionReleaseApprovalCoordinator {
             offeredOptionLabels: offeredOptionLabels,
             answerResult: result,
             token: token,
+            expectedOptionLabel: binding.optionLabel,
+            expectedQuestion: binding.question,
           ),
         );
 
@@ -99,51 +104,39 @@ final class ProductionReleaseApprovalCoordinator {
 
   /// The token issued for [conversationId]'s blocked release, if any.
   String? approvalToken(String conversationId) =>
-      _approvalTokens.tokenFor(conversationId);
+      _gate.approvalToken(conversationId);
 
   McpToolResult? buildGuardResult(
     ToolCallInfo toolCall, {
     required String? currentAssistantContent,
     required ProductionReleaseApprovalEvidenceSnapshot evidence,
-  }) {
-    if (!_policy.isProductionReleaseCommandToolCall(toolCall)) return null;
-    final conversationId = evidence.conversationId;
-    if (evidence.approved) {
-      // The token authorized this release and nothing else.
-      if (conversationId != null) removePendingRelease(conversationId);
-      return null;
-    }
-
-    final command =
-        _executionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
-    if (conversationId != null && command.trim().isNotEmpty) {
-      _pendingReleases[conversationId] = PendingBlockedRelease(
-        toolName: toolCall.name.trim(),
-        command: command.trim(),
-      );
-    }
-    return buildProductionReleaseBlockedResult(
-      toolName: toolCall.name,
-      command: command,
-      assistantIntent: currentAssistantContent ?? '',
-      approvalToken: _approvalTokens.issueFor(conversationId),
-    );
-  }
+    List<ToolResultInfo> executedToolResults = const [],
+  }) => _gate.buildGuardResult(
+    toolCall,
+    currentAssistantContent: currentAssistantContent,
+    evidence: evidence,
+    isProductionRelease: _policy.isProductionReleaseCommandToolCall(toolCall),
+    executedToolResults: executedToolResults,
+  );
 
   PendingBlockedRelease? pendingRelease(String conversationId) =>
-      _pendingReleases[conversationId];
+      _gate.pendingRelease(conversationId);
 
-  void removePendingRelease(String conversationId) {
-    _pendingReleases.remove(conversationId);
-    _approvalTokens.release(conversationId);
-  }
+  /// Replaces model-authored release wording with the exact harness-owned
+  /// execution summary before the question reaches the user.
+  ToolCallInfo bindPendingApprovalQuestion(
+    String conversationId,
+    ToolCallInfo toolCall,
+  ) => _gate.bindPendingApprovalQuestion(conversationId, toolCall);
+
+  void removePendingRelease(String conversationId) =>
+      _gate.removePendingRelease(conversationId);
 
   void clearGeneration(int generation) =>
       _proseShadow.clearGeneration(generation);
 
   void clearAll() {
     _proseShadow.clear();
-    _pendingReleases.clear();
-    _approvalTokens.clear();
+    _gate.clear();
   }
 }

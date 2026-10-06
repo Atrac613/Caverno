@@ -1,6 +1,10 @@
 import 'dart:convert';
 
-/// Bumped to 2 on 2026-09-06 (SA-26).
+/// Bumped to 4 on 2026-09-21 for the mobile coding draft composer, slash
+/// command actions, and desktop-owned assistant-mode selection.
+///
+/// Version 3 was introduced for desktop-owned mobile composer settings and
+/// model discovery.
 ///
 /// The approval wire model changed shape: `kind` became a free-form string
 /// covering all eleven [PendingApprovalKinds] rather than an enum of three,
@@ -9,7 +13,7 @@ import 'dart:convert';
 /// be shown to it as a file edit. [RemoteCodingProtocolMessage.decode]
 /// requires an exact match, which turns that into a refused connection the
 /// user can see and fix instead of a misrepresented approval they cannot.
-const int remoteCodingProtocolVersion = 2;
+const int remoteCodingProtocolVersion = 4;
 
 class RemoteCodingProtocolMessage {
   const RemoteCodingProtocolMessage({
@@ -61,9 +65,13 @@ class RemoteCodingProtocolMessage {
 class RemoteCodingProtocol {
   RemoteCodingProtocol._();
 
+  static const String uploadAttachment = 'uploadAttachment';
   static const String sendMessageToConversation = 'sendMessageToConversation';
   static const String cancelConversationStreaming =
       'cancelConversationStreaming';
+  static const String requestComposerModels = 'requestComposerModels';
+  static const String updateComposerSettings = 'updateComposerSettings';
+  static const String clearConversation = 'clearConversation';
   static const String commandResult = 'commandResult';
 
   static const Set<String> allowedClientCommands = {
@@ -72,11 +80,16 @@ class RemoteCodingProtocol {
     'selectConversation',
     'createThread',
     'sendMessage',
+    uploadAttachment,
     'cancelStreaming',
     sendMessageToConversation,
     cancelConversationStreaming,
+    requestComposerModels,
+    updateComposerSettings,
+    clearConversation,
     'resolveApproval',
     'resolveQuestion',
+    'resolvePlanReview',
     'requestSnapshot',
     'relayDelegationReady',
     'requestNotificationRelay',

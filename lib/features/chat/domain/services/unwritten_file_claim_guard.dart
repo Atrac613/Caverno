@@ -44,24 +44,24 @@ class UnwrittenFileClaimGuard {
   static const _fileMutationEvidencePolicy = FileMutationEvidencePolicy();
 
   static final RegExp _completedEnglishMutation = RegExp(
-    r'\b(?:created|added|updated|wrote|written)\b',
+    r'\b(?:created|added|updated|modified|wrote|written)\b',
     caseSensitive: false,
   );
   static final RegExp _futureOrNegativeEnglishMutation = RegExp(
     r'\b(?:will|would|should|could|can|may|might|to|not|never|'
     r"didn['’]?t|wasn['’]?t|weren['’]?t|haven['’]?t|"
     r"hasn['’]?t)\s+(?:be\s+)?(?:create(?:d)?|add(?:ed)?|"
-    r'update(?:d)?|write|written)\b',
+    r'update(?:d)?|modif(?:y|ied)|write|written)\b',
     caseSensitive: false,
   );
   static final RegExp _planningEnglishMutation = RegExp(
     r'\b(?:plan|planning|intend|intending|going)\s+to\s+'
-    r'(?:create|add|update|write)\b',
+    r'(?:create|add|update|modify|write)\b',
     caseSensitive: false,
   );
   static final RegExp _priorTurnMutation = RegExp(
     r'\b(?:previous|prior|earlier|last)\s+(?:assistant\s+)?turn\b|'
-    r'\b(?:before|previously|earlier)\b.*\b(?:created|added|updated|written)\b',
+    r'\b(?:before|previously|earlier)\b.*\b(?:created|added|updated|modified|written)\b',
     caseSensitive: false,
   );
   static final RegExp _completedJapaneseMutation = RegExp(
@@ -78,7 +78,7 @@ class UnwrittenFileClaimGuard {
     unicode: true,
   );
   static final RegExp _completedEnglishMutationBeforePath = RegExp(
-    r'\b(?:created|added|updated|wrote|written)\b'
+    r'\b(?:created|added|updated|modified|wrote|written)\b'
     r'(?:\s+(?:(?:the|a|an)\s+)?(?:new\s+|existing\s+)?'
     r'files?(?:\s+at)?)?'
     r'\s*(?:[:\u2013\u2014-]\s*)?[`*_~\[(]*\s*$',
@@ -89,9 +89,9 @@ class UnwrittenFileClaimGuard {
     r'^(?::\d{1,7}(?::\d{1,7})?)?\s*[`*_~\]\}]*\s*'
     r'(?:'
     r'(?:(?:was|were)|(?:has|have)\s+been|(?:is|are)\s+now)\s+'
-    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|written)\b|'
+    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|modified|written)\b|'
     r'[(:\u2013\u2014-]\s*(?:(?:successfully|newly)\s+)*'
-    r'(?:created|added|updated|written)\b'
+    r'(?:created|added|updated|modified|written)\b'
     r'(?=\s*(?:[\]),.;:]|$))'
     r')',
     caseSensitive: false,
@@ -121,7 +121,7 @@ class UnwrittenFileClaimGuard {
   static final RegExp _completedMutationListBeforePaths = RegExp(
     r'^\s*(?:(?:[-*+]|\d+[.)])\s+)?'
     r'(?:'
-    r'(?:files?\s+)?(?:created|added|updated|wrote|written)'
+    r'(?:files?\s+)?(?:created|added|updated|modified|wrote|written)'
     r'(?:\s+files?)?|'
     r'(?:\u65b0\u898f)?(?:\u4f5c\u6210|\u66f4\u65b0|\u8ffd\u52a0)'
     r'(?:\u6e08\u307f)?'
@@ -144,7 +144,7 @@ class UnwrittenFileClaimGuard {
     r'[`*_~\]\)]*)+'
     r'\s*(?:'
     r'(?:(?:was|were)|(?:has|have)\s+been)\s+'
-    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|written)\b|'
+    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|modified|written)\b|'
     r'(?:\u3092|\u306f)\s*(?:\u65b0\u898f)?'
     r'(?:\u4f5c\u6210|\u66f4\u65b0|\u8ffd\u52a0)'
     r'(?:\u3057\u307e\u3057\u305f|\u3057\u305f|\u6e08\u307f(?:\u3067\u3059)?)'
@@ -153,11 +153,17 @@ class UnwrittenFileClaimGuard {
     unicode: true,
   );
   static final RegExp _completedMutationTableHeading = RegExp(
-    r'(?:files?\s+(?:created|added|updated|written)|'
-    r'(?:created|added|updated|written)\s+files?|'
+    r'(?:files?\s+(?:created|added|updated|modified|written)|'
+    r'(?:created|added|updated|modified|written)\s+files?|'
     r'(?:\u4f5c\u6210|\u66f4\u65b0|\u8ffd\u52a0)(?:\u3057\u305f)?\u30d5\u30a1\u30a4\u30eb)',
     caseSensitive: false,
     unicode: true,
+  );
+  static final RegExp _plainReadmeMutation = RegExp(
+    r'(?<![\w`*\[(])README\s+'
+    r'(?:(?:was|were)|(?:has|have)\s+been|(?:is|are)\s+now)\s+'
+    r'(?:(?:successfully|newly)\s+)*(?:created|added|updated|modified|written)\b',
+    caseSensitive: false,
   );
 
   UnwrittenFileClaimAssessment assess({
@@ -175,6 +181,8 @@ class UnwrittenFileClaimGuard {
       toolResults,
       normalizedRoot,
     );
+    final writtenText = _writtenTextByPath(toolResults, normalizedRoot);
+    final exists = pathExists ?? (path) => File(path).existsSync();
     final claimedPaths = <String, String>{};
     var insideFence = false;
     var insideMutationTable = false;
@@ -226,14 +234,25 @@ class UnwrittenFileClaimGuard {
             !_hasCompletedMutationClaimForPath(line, reference.path)) {
           continue;
         }
+        if (_isContentOfWrittenFile(reference.path, line, writtenText)) {
+          continue;
+        }
         final absolutePath = _resolveInsideRoot(reference.path, normalizedRoot);
         if (absolutePath != null) {
+          if (_isBackedReadmeShorthand(
+            reference.path,
+            absolutePath,
+            line,
+            successfullyMutatedPaths,
+            exists,
+          )) {
+            continue;
+          }
           claimedPaths.putIfAbsent(absolutePath, () => reference.path);
         }
       }
     }
 
-    final exists = pathExists ?? (path) => File(path).existsSync();
     final claims = <UnwrittenFileClaim>[];
     for (final entry in claimedPaths.entries) {
       if (successfullyMutatedPaths.contains(entry.key)) {
@@ -274,6 +293,13 @@ class UnwrittenFileClaimGuard {
         return false;
       }
       final pathEnd = pathStart + path.length;
+      // `state.py` inside `test_state.py` is another file: attributing that
+      // file's claim to it flagged an untouched `state.py` (session 1d76c878).
+      if (!_isPathBoundary(normalizedLine, pathStart - 1) ||
+          !_isPathBoundary(normalizedLine, pathEnd, after: true)) {
+        searchStart = pathEnd;
+        continue;
+      }
       final beforePath = line.substring(0, pathStart);
       final afterPath = line.substring(pathEnd);
       if (_completedEnglishMutationBeforePath.hasMatch(beforePath) ||
@@ -285,6 +311,20 @@ class UnwrittenFileClaimGuard {
       searchStart = pathEnd;
     }
     return false;
+  }
+
+  static final RegExp _pathCharacter = RegExp(r'[A-Za-z0-9_\-./\\]');
+
+  /// Whether the character at [index] ends a path reference rather than
+  /// continuing it. A trailing `.` is sentence punctuation, not a path.
+  bool _isPathBoundary(String line, int index, {bool after = false}) {
+    if (index < 0 || index >= line.length) return true;
+    final character = line[index];
+    if (after && character == '.') {
+      return index + 1 >= line.length ||
+          !_pathCharacter.hasMatch(line[index + 1]);
+    }
+    return !_pathCharacter.hasMatch(character);
   }
 
   bool _hasCompletedMutationListClaim(
@@ -305,6 +345,81 @@ class UnwrittenFileClaimGuard {
     }
     return _completedMutationListBeforePaths.hasMatch(maskedLine) ||
         _completedMutationListAfterPaths.hasMatch(maskedLine);
+  }
+
+  /// Whether [path] names text written into another file on the same line.
+  ///
+  /// "`.gitignore` に `config.json` を追加しました" adds a line to .gitignore;
+  /// session 26d7db3e flagged config.json as an unwritten deliverable. Decided
+  /// by what the edit wrote, not by the sentence's grammar.
+  bool _isContentOfWrittenFile(
+    String path,
+    String line,
+    Map<String, String> writtenText,
+  ) {
+    for (final MapEntry(key: container, value: text) in writtenText.entries) {
+      if (container.endsWith('/$path')) continue;
+      final name = container.substring(container.lastIndexOf('/') + 1);
+      if (line.contains(name) && text.contains(path)) return true;
+    }
+    return false;
+  }
+
+  /// Plain prose can call README.md "the README", but an explicit file path
+  /// or an existing extensionless README must retain its own mutation gate.
+  bool _isBackedReadmeShorthand(
+    String reference,
+    String absolutePath,
+    String line,
+    Set<String> mutatedPaths,
+    bool Function(String path) exists,
+  ) {
+    if (reference.toUpperCase() != 'README' ||
+        !_plainReadmeMutation.hasMatch(line) ||
+        exists(absolutePath)) {
+      return false;
+    }
+    final normalizedLine = line.toLowerCase();
+    if (const [
+      '`readme`',
+      '"readme"',
+      "'readme'",
+      '[readme]',
+      '*readme*',
+    ].any(normalizedLine.contains)) {
+      return false;
+    }
+    final documents = [
+      for (final extension in const ['md', 'rst', 'txt'])
+        if (mutatedPaths.contains('$absolutePath.$extension'))
+          '$absolutePath.$extension',
+    ];
+    return documents.length == 1 && exists(documents.single);
+  }
+
+  /// Text each successful file mutation wrote, keyed by resolved path.
+  Map<String, String> _writtenTextByPath(
+    List<ToolResultInfo> toolResults,
+    String normalizedRoot,
+  ) {
+    final written = <String, String>{};
+    for (final toolResult in toolResults) {
+      if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name) ||
+          !_fileMutationEvidencePolicy.isSuccessfulResult(toolResult)) {
+        continue;
+      }
+      final rawPath = _fileMutationEvidencePolicy.pathForResult(toolResult);
+      final path = rawPath == null
+          ? null
+          : _resolveInsideRoot(rawPath, normalizedRoot);
+      if (path == null) continue;
+      final texts = [
+        for (final key in const ['new_text', 'content'])
+          if (toolResult.arguments[key] case final String text) text,
+      ];
+      written[path] = [written[path] ?? '', ...texts].join('\n');
+    }
+    return written;
   }
 
   Set<String> _successfulMutationPaths(

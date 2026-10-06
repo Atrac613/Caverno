@@ -1,24 +1,11 @@
 import 'dart:convert';
+
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/mcp_tool_entity.dart';
+import 'production_release_approval_presentation.dart';
 
-/// Instruction handed back with a blocked release.
-///
-/// It names a token because the harness must not decide approval by reading
-/// words. A token the harness issued and can compare by equality is
-/// language-independent, and the model stays free to write the human half of
-/// the label in whatever language the user speaks.
-String productionReleaseApprovalRequiredActionFor(String approvalToken) =>
-    'Call ask_user_question with exactly one option whose label contains the '
-    'approval token $approvalToken, and no other option carrying that token. '
-    'Write the rest of that label, and the question, in the language the user '
-    'is speaking. Retry the release only after the user selects that option. '
-    'A plain-text reply is not recorded as release approval, and neither is a '
-    'free-text answer -- the user has to select the token-bearing option.';
-
-/// Length of an issued approval token, in hex characters.
-const int productionReleaseApprovalTokenLength = 16;
+export 'production_release_approval_presentation.dart';
 
 /// The refusal a blocked production release reports to the model.
 ///
@@ -30,6 +17,7 @@ McpToolResult buildProductionReleaseBlockedResult({
   required String command,
   required String assistantIntent,
   required String approvalToken,
+  String? approvalOptionLabel,
 }) {
   return McpToolResult(
     toolName: toolName,
@@ -44,8 +32,11 @@ McpToolResult buildProductionReleaseBlockedResult({
       'command': command,
       if (assistantIntent.trim().isNotEmpty)
         'assistant_intent': _clipForDiagnostic(assistantIntent.trim()),
+      if (approvalOptionLabel != null && approvalOptionLabel.trim().isNotEmpty)
+        'approval_option_label': approvalOptionLabel.trim(),
       'required_action': productionReleaseApprovalRequiredActionFor(
         approvalToken,
+        expectedOptionLabel: approvalOptionLabel,
       ),
     }),
     isSuccess: true,

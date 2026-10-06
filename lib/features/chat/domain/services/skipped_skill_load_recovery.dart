@@ -43,7 +43,10 @@ final class SkippedSkillLoadRecovery {
       return null;
     }
 
-    final skill = EnabledSkillNamedInText.find(latestUserContent, enabledSkills);
+    final skill = EnabledSkillNamedInText.find(
+      latestUserContent,
+      enabledSkills,
+    );
     if (skill == null) {
       return null;
     }
