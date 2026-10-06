@@ -649,6 +649,7 @@ void main() {
       expect(harness.manual.requests, hasLength(1));
       expect(harness.serial.openCalls, hasLength(2));
       expect(harness.audit.records.map((record) => record.decisionSource), [
+        'default_permissions',
         'cached_approval',
       ]);
     });
@@ -697,7 +698,10 @@ void main() {
       expect(manual, bypassed);
       expect(harness.manual.owners, [owner]);
       expect(harness.serial.openCalls, hasLength(2));
-      expect(harness.audit.records.single.decisionSource, 'full_access');
+      expect(harness.audit.records.map((record) => record.decisionSource), [
+        'full_access',
+        'default_permissions',
+      ]);
     });
 
     test('returns and caches the exact manual denial', () async {

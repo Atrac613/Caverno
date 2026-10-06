@@ -437,6 +437,7 @@ void main() {
       expect(harness.manual.requests, hasLength(1));
       expect(harness.connection.connectCalls, hasLength(2));
       expect(harness.audit.records.map((record) => record.decisionSource), [
+        'default_permissions',
         'cached_approval',
       ]);
     });
@@ -455,7 +456,10 @@ void main() {
       expect(manual, _success('device-a'));
       expect(harness.manual.owners, [owner]);
       expect(harness.connection.connectCalls, hasLength(2));
-      expect(harness.audit.records.single.decisionSource, 'full_access');
+      expect(harness.audit.records.map((record) => record.decisionSource), [
+        'full_access',
+        'default_permissions',
+      ]);
     });
 
     test(
