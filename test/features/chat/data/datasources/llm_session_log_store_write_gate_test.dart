@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/core/types/workspace_mode.dart';
@@ -86,10 +87,46 @@ void main() {
         at: DateTime.utc(2026, 8, 5),
       );
 
+      await store.recordProjectTaskDecision(
+        context: context,
+        decision: {'phase': 'workflow', 'decision': 'stopped'},
+        at: DateTime.utc(2026, 10, 4),
+      );
+
       // fileForContext resolves against the real default root, so asserting on
       // absence here is what proves the developer's corpus stays untouched.
       final file = await store.fileForContext(context, create: false);
       expect(file.existsSync(), isFalse);
+    });
+
+    test('native Farm decisions stay in the owner coding log', () async {
+      final root = await Directory.systemTemp.createTemp('farm-decision-log');
+      addTearDown(() => root.delete(recursive: true));
+      final store = LlmSessionLogStore(rootDirectoryProvider: () async => root);
+      const owner = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'owner',
+        conversationId: 'owner',
+        phase: 'project_task_workflow',
+      );
+      await store.recordProjectTaskDecision(
+        context: owner,
+        decision: {
+          'phase': 'preparation',
+          'decision': 'rejected',
+          'reason': 'the cited roadmap task is not marked complete',
+          'selected': false,
+          'awaitingApproval': false,
+        },
+        at: DateTime.utc(2026, 10, 4),
+      );
+      final file = await store.fileForContext(owner, create: false);
+      expect(file.path, endsWith('/coding/owner.jsonl'));
+      final entry =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      expect(entry['operation'], 'project_task_decision');
+      expect(entry['context']['conversationId'], 'owner');
+      expect(entry['projectTaskDecision']['selected'], isFalse);
     });
 
     test('an injected root still records the entry', () async {

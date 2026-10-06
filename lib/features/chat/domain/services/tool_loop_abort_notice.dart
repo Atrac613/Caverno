@@ -87,9 +87,7 @@ final class ToolLoopAbortNotice {
     }
     final changed = changedFilePaths(executedToolResults);
     if (changed.isNotEmpty) {
-      buffer.writeln(
-        'Already changed in this turn: ${changed.join(', ')}',
-      );
+      buffer.writeln('Already changed in this turn: ${changed.join(', ')}');
     }
     final ran = completedCommands(executedToolResults);
     if (ran.isNotEmpty) {

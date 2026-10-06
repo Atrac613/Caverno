@@ -26,9 +26,11 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     final savedTask = _turnOwnerSnapshotForGeneration(
       owner.interactionGeneration,
     )?.savedTask;
+    final boundToolCall = _productionReleaseApprovals
+        .bindPendingApprovalQuestion(owner.conversationId, toolCall);
     return _askUserQuestionRuntime.handle(
       owner: owner,
-      toolCall: toolCall,
+      toolCall: boundToolCall,
       savedTask: savedTask,
     );
   }

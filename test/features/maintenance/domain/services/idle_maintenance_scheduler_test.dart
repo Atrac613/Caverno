@@ -53,6 +53,36 @@ void main() {
 
   DateTime at(int hour, int minute) => DateTime(2026, 6, 16, hour, minute);
 
+  for (final reason in ['window', 'disabled', 'battery']) {
+    test(
+      'rechecks gate without tick and latches cancellation: $reason',
+      () async {
+        final env = _FakeEnvironment(nowValue: at(3, 0));
+        var currentConfig = config;
+        final run = _ControllableRun();
+        final scheduler = IdleMaintenanceScheduler(
+          environment: env,
+          configProvider: () => currentConfig,
+          run: run.call,
+        );
+        await scheduler.tick();
+        if (reason == 'window') env.nowValue = at(6, 0);
+        if (reason == 'disabled') {
+          currentConfig = config.copyWith(enabled: false);
+        }
+        if (reason == 'battery') env.acPower = false;
+        expect(run.lastHandle!.isCancelled, isTrue);
+        env.nowValue = at(3, 0);
+        env.acPower = true;
+        currentConfig = config;
+        expect(run.lastHandle!.isCancelled, isTrue);
+        run.finish();
+        await scheduler.drain();
+        await scheduler.dispose();
+      },
+    );
+  }
+
   IdleMaintenanceScheduler buildScheduler(
     _FakeEnvironment env,
     _ControllableRun run,

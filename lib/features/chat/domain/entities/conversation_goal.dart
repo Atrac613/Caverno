@@ -32,6 +32,14 @@ abstract class ConversationGoal with _$ConversationGoal {
     @Default('') String objective,
     @Default(true) bool enabled,
     @Default(false) bool autoContinue,
+    @Default(false) bool projectTaskAutoReview,
+
+    /// Files this roadmap task changed before the current turn and left
+    /// uncommitted: an earlier run's (recorded when this run started) and this
+    /// run's earlier subtask turns'. They count as this task's changes, so a
+    /// turn that only verifies them is not refused for having no change of its
+    /// own and pushed to report a blocker.
+    @Default(<String>[]) List<String> projectTaskInheritedPaths,
     @JsonKey(unknownEnumValue: ConversationGoalStatus.active)
     @Default(ConversationGoalStatus.active)
     ConversationGoalStatus status,

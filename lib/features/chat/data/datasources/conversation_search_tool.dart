@@ -1,5 +1,6 @@
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/message.dart';
+import '../repositories/conversation_repository_api.dart';
 
 /// Ranks conversation ids by semantic similarity (LL5), best-first.
 typedef SemanticConversationRanker =
@@ -44,6 +45,48 @@ class ConversationSearchTool {
       },
     },
   };
+
+  /// The conversations to rank for [arguments]: keyword search results, with
+  /// semantically ranked ones first when [semanticRanker] is set.
+  static Future<List<Conversation>> candidates({
+    required ConversationRepositoryApi repository,
+    required Map<String, dynamic> arguments,
+    SemanticConversationRanker? semanticRanker,
+  }) async {
+    final query = (arguments['query'] as String?)?.trim() ?? '';
+    if (query.isEmpty) {
+      return const [];
+    }
+    final searched = await repository.search(query);
+    final ranker = semanticRanker;
+    if (ranker == null) {
+      return searched;
+    }
+    final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 5).clamp(
+      1,
+      10,
+    );
+    final rankedIds = await ranker(query, maxResults);
+    if (rankedIds.isEmpty) {
+      return searched;
+    }
+    final byId = {
+      for (final conversation in searched) conversation.id: conversation,
+    };
+    for (final id in rankedIds) {
+      if (byId.containsKey(id)) {
+        continue;
+      }
+      final loaded = await repository.refresh(id);
+      if (loaded != null) {
+        byId[id] = loaded;
+      }
+    }
+    return [
+      for (final id in rankedIds) ?byId[id],
+      ...searched.where((conversation) => !rankedIds.contains(conversation.id)),
+    ];
+  }
 
   /// Renders matching past-conversation snippets for the tool [arguments].
   Future<String> run({

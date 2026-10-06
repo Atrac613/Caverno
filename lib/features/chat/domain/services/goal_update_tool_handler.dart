@@ -4,7 +4,6 @@ import '../entities/tool_call_info.dart';
 import 'goal_update_tool_contract.dart';
 import 'tool_result_prompt_builder.dart';
 
-// ChatNotifier decomposition collaborator: goal-update-tool-handler
 export 'goal_update_tool_contract.dart';
 
 final class GoalUpdateToolHandler {
@@ -47,6 +46,7 @@ final class GoalUpdateToolHandler {
       goal: ownerSnapshot.goal,
       evidence: immutableEvidence,
       completionPolicy: ownerSnapshot.completionPolicy,
+      taskToolResults: ownerSnapshot.toolResults,
     );
     final acknowledgement = GoalUpdateCompletionAcknowledgement.fromRequest(
       request: request,

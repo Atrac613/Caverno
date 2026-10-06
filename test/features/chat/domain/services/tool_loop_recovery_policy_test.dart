@@ -7,6 +7,66 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const policy = ToolLoopRecoveryPolicy();
 
+  ToolResultInfo result(String name, String body) => ToolResultInfo(
+    id: 'result',
+    name: name,
+    arguments: const {},
+    result: body,
+  );
+
+  test(
+    'command validation recovery preserves JSON and plain exit evidence',
+    () {
+      for (final name in [
+        'local_execute_command',
+        'process_start',
+        'process_status',
+        'process_wait',
+        'run_tests',
+        'git_execute_command',
+        'ssh_execute_command',
+      ]) {
+        for (final body in ['{"exit_code":1}', 'exit_code: -2']) {
+          expect(
+            policy.toolResultsContainFailedCommandValidation([
+              result(name, body),
+            ]),
+            isTrue,
+          );
+        }
+        expect(
+          policy.toolResultsContainFailedCommandValidation([
+            result(name, '{"exit_code":0}'),
+          ]),
+          isFalse,
+        );
+      }
+      expect(
+        policy.toolResultsContainFailedCommandValidation([
+          result('read_file', '{"exit_code":1}'),
+        ]),
+        isFalse,
+      );
+    },
+  );
+
+  test('exact exit expectation recovery retains both diagnostic forms', () {
+    for (final body in ['Expected exit code 1', 'Returned -2, expected 1']) {
+      expect(
+        policy.toolResultsMentionExactNonZeroExitCodeExpectation([
+          result('run_tests', body),
+        ]),
+        isTrue,
+      );
+    }
+    expect(
+      policy.toolResultsMentionExactNonZeroExitCodeExpectation([
+        result('run_tests', 'exit_code: 1'),
+      ]),
+      isFalse,
+    );
+  });
+
   String keyFor(ToolCallInfo toolCall, int generation) {
     return '${toolCall.name}:$generation:${jsonEncode(toolCall.arguments)}';
   }
@@ -24,6 +84,20 @@ void main() {
   String resultKey(ToolResultInfo result) {
     return '${result.name}:${jsonEncode(result.arguments)}';
   }
+
+  test('a review at the loop limit is told to write the review', () {
+    final prompt = policy.buildExhaustionRecoveryPrompt([
+      ToolCallInfo(
+        id: 'read-1',
+        name: 'read_file',
+        arguments: const {'path': 'lib/main.dart'},
+      ),
+    ], readOnlyReview: true);
+
+    expect(prompt, isNot(contains('saved task')));
+    expect(prompt, contains('Pending tool calls at the limit: read_file.'));
+    expect(prompt, contains('Write the review now'));
+  });
 
   test('detects unseen read-only inspection calls at the loop limit', () {
     final readCall = ToolCallInfo(
@@ -107,7 +181,7 @@ void main() {
         isWriteGitCommandToolCall: (toolCall) =>
             toolCall.name == 'git_execute_command',
       ),
-      isTrue,
+      isFalse,
     );
   });
 
@@ -175,7 +249,9 @@ void main() {
 
     expect(prompt, contains('Pending tool calls at the limit: edit_file.'));
     expect(prompt, contains('old_text did not match the current file'));
-    expect(prompt, contains('Do not call read_file again'));
+    expect(prompt, contains('Copy old_text from the inspected range'));
+    expect(prompt, contains('read that missing range with offset and limit'));
+    expect(prompt, isNot(contains('Do not call read_file again')));
   });
 
   test('records only unseen pending tool calls as unexecuted', () {

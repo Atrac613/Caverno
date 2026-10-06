@@ -37,7 +37,7 @@ void main() {
       '4adb4bc8013b8893f67295305ac451aa00c54f1eaa4732fff2fd4199d119f57b',
     );
     expect(report.generation, 1);
-    expect(report.appDatabaseSchemaVersion, 5);
+    expect(report.appDatabaseSchemaVersion, 6);
     expect(report.hostPreserved, isTrue);
     expect(report.candidateCases, hasLength(20));
     expect(report.gate.provenanceValidated, isTrue);

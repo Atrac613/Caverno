@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:openai_dart/openai_dart.dart';
 
 import '../../../../core/constants/api_constants.dart';
@@ -34,6 +36,7 @@ final class ChatCompletionRequestFallback {
       'low' => ReasoningEffort.low,
       'medium' => ReasoningEffort.medium,
       'high' => ReasoningEffort.high,
+      'xhigh' => ReasoningEffort.xhigh,
       _ => null,
     };
   }
@@ -82,6 +85,85 @@ final class ChatCompletionRequestFallback {
         includeReasoning = false;
       }
     }
+  }
+
+  /// [stream] for chat completion events, re-sent once when a response ends
+  /// without carrying anything.
+  ///
+  /// A finished response ends with a finish reason, and with usage when it was
+  /// asked for. One that closes with neither, and with no content, reasoning
+  /// or tool-call delta either, was cut off before the model produced a
+  /// token. Session dd50d110's follow-up after two file writes came back that
+  /// way in 3.2 s, the tool loop read the empty text as a final answer, and
+  /// the commit the user had asked for waited a turn; 23d19ede lost a
+  /// follow-up the same way. The condition is structural, so it cannot fire
+  /// on a real answer from any request that streams through here.
+  ///
+  /// Events that carry nothing are held back until one does, so a re-send
+  /// never follows anything the caller already consumed. A stopped turn ends
+  /// its stream the same empty way -- three more such follow-ups logged by
+  /// 2026-09-26 were stops -- and is never re-sent.
+  Stream<ChatStreamEvent> events({
+    required String operation,
+    required Stream<ChatStreamEvent> Function(bool includeReasoning) send,
+    Future<void>? abort,
+  }) async* {
+    var aborted = false;
+    unawaited(
+      abort?.then<void>(
+        (_) => aborted = true,
+        onError: (Object _) => aborted = true,
+      ),
+    );
+    for (var attempt = 0; ; attempt += 1) {
+      final held = <ChatStreamEvent>[];
+      var carried = false;
+      await for (final event in stream(
+        operation: operation,
+        send: send,
+        abort: abort,
+      )) {
+        if (!carried && !_carriesOutput(event)) {
+          held.add(event);
+          continue;
+        }
+        if (!carried) {
+          carried = true;
+          for (final heldEvent in held) {
+            yield heldEvent;
+          }
+        }
+        yield event;
+      }
+      if (carried || aborted || attempt > 0) {
+        if (!carried) {
+          for (final heldEvent in held) {
+            yield heldEvent;
+          }
+        }
+        return;
+      }
+      appLog(
+        '[LLM] $operation ended before the response carried anything; '
+        're-sending it once',
+      );
+    }
+  }
+
+  static bool _carriesOutput(ChatStreamEvent event) {
+    if (event.usage != null) return true;
+    for (final choice in event.choices ?? const <ChatStreamChoice>[]) {
+      final delta = choice.delta;
+      if (choice.finishReason != null ||
+          (delta.content?.isNotEmpty ?? false) ||
+          (delta.refusal?.isNotEmpty ?? false) ||
+          (delta.reasoningContent?.isNotEmpty ?? false) ||
+          (delta.reasoning?.isNotEmpty ?? false) ||
+          (delta.toolCalls?.isNotEmpty ?? false)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// [abort] ends the request when the turn that issued it is stopped.
@@ -199,7 +281,7 @@ final class ChatCompletionRequestFallback {
   static String? _normalizeReasoningEffort(String? value) {
     final normalized = value?.trim().toLowerCase();
     return switch (normalized) {
-      'low' || 'medium' || 'high' => normalized,
+      'low' || 'medium' || 'high' || 'xhigh' => normalized,
       _ => null,
     };
   }

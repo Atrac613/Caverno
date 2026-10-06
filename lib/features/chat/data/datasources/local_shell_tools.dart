@@ -1,16 +1,23 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../../../../core/services/login_shell_environment.dart';
-import '../../domain/services/dart_diagnostic_line_parser.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:path/path.dart' as path;
+
+import 'bounded_command_output.dart';
 import 'filesystem_tools.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
 import 'local_command_mutation_guard.dart';
+import 'local_shell_grep.dart';
+import 'local_shell_launch_plan.dart';
+import 'local_shell_process_runner.dart';
 import 'project_mutation_path_fence.dart';
 import 'project_read_path_fence.dart';
+import 'turn_project_root.dart';
+
+export 'built_in_local_command_mutation_preflight.dart'
+    show builtInLocalCommandFenceRefusal;
 
 class LocalShellTools {
   LocalShellTools._();
@@ -68,9 +75,10 @@ class LocalShellTools {
   }) async {
     final normalized = normalizeCommand(command);
     if (!_canExecuteInternally(normalized)) return null;
-    final segments = _splitConditionalCommands(
-      normalized,
-    ).map(_splitArgs).where((args) => args.isNotEmpty).toList(growable: false);
+    final segments = _internalSteps(normalized)!
+        .map((step) => _splitArgs(step.command))
+        .where((args) => args.isNotEmpty)
+        .toList(growable: false);
     if (segments.every((args) => args.first == 'echo')) return null;
     const fence = ProjectReadPathFence();
     final workingDirectoryAuthorization = await fence.authorize(
@@ -113,6 +121,9 @@ class LocalShellTools {
           '.',
       ],
       'rg' => [_rgSearchRoot(operands)],
+      // Classification already proved the parse succeeds; fencing every
+      // operand is the fail-closed answer if it somehow did not.
+      'grep' => LocalShellGrep.parse(operands)?.readPaths ?? operands,
       _ => const <String>[],
     };
   }
@@ -149,6 +160,8 @@ class LocalShellTools {
     required String workingDirectory,
     Duration timeout = _timeout,
     String? projectRoot,
+    String? observationRoot,
+    String? containmentRoot,
   }) async {
     final authorized = await _authorizeMutation(
       command: command,
@@ -182,29 +195,50 @@ class LocalShellTools {
       return FirstPartyToolExecutionResult.payloadOnly(gitWriteBlockedResult);
     }
 
-    if (_canExecuteInternally(normalizedCommand)) {
+    if (containmentRoot == null && _canExecuteInternally(normalizedCommand)) {
       return _executeInternally(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
+        projectRoot: projectRoot,
       );
     }
 
-    final shellExecutable = Platform.isWindows ? 'cmd' : 'sh';
+    final shellExecutable = Platform.isWindows ? 'cmd' : 'bash';
     final shellArgs = Platform.isWindows
         ? ['/C', normalizedCommand]
         : [
+            '-o',
+            'pipefail',
             if (_shouldEnableImplicitErrexit(normalizedCommand)) '-e',
             '-c',
             normalizedCommand,
           ];
 
+    final launch = await LocalShellLaunchPlan.prepare(
+      command: normalizedCommand,
+      shellExecutable: shellExecutable,
+      shellArgs: shellArgs,
+      observationRoot: observationRoot,
+      containmentRoot: containmentRoot,
+    );
+    if (launch == null) {
+      const error = 'Command workspace containment could not be started';
+      return FirstPartyToolExecutionResult(
+        result: jsonEncode({'ok': false, 'error': error}),
+        errorMessage: error,
+      );
+    }
     try {
-      return await _executeWithProcessHandle(
+      return await LocalShellProcessRunner.execute(
         command: normalizedCommand,
         workingDirectory: directory.absolute.path,
-        shellExecutable: shellExecutable,
-        shellArgs: shellArgs,
+        maxOutputChars: _maxOutputChars,
+        shellExecutable: launch.executable,
+        shellArgs: launch.args,
         timeout: timeout,
+        observationTag: launch.observationTag,
+        scratchDirectory: launch.scratchDirectory,
+        executionBoundary: launch.executionBoundary,
       );
     } catch (e) {
       return FirstPartyToolExecutionResult.payloadOnly(
@@ -214,6 +248,8 @@ class LocalShellTools {
           'error': e.toString(),
         }),
       );
+    } finally {
+      await launch.dispose();
     }
   }
 
@@ -270,186 +306,6 @@ class LocalShellTools {
       result: denied.result,
       errorMessage: denied.errorMessage ?? denied.result,
     );
-  }
-
-  static Future<FirstPartyToolExecutionResult> _executeWithProcessHandle({
-    required String command,
-    required String workingDirectory,
-    required String shellExecutable,
-    required List<String> shellArgs,
-    required Duration timeout,
-  }) async {
-    final process = await Process.start(
-      shellExecutable,
-      shellArgs,
-      workingDirectory: workingDirectory,
-      // Inject the login-shell PATH so user commands resolve their binaries.
-      environment: await LoginShellEnvironment.instance.environment(),
-    );
-    final stdout = _BoundedOutputBuffer(_maxOutputChars);
-    final stderr = _BoundedOutputBuffer(_maxOutputChars);
-    final stdoutSubscription = process.stdout
-        .transform(utf8.decoder)
-        .listen(stdout.add);
-    final stderrSubscription = process.stderr
-        .transform(utf8.decoder)
-        .listen(stderr.add);
-    final stdoutDone = stdoutSubscription.asFuture<void>();
-    final stderrDone = stderrSubscription.asFuture<void>();
-
-    try {
-      final exitCode = await process.exitCode.timeout(timeout);
-      await Future.wait([stdoutDone, stderrDone]);
-      return _encodeProcessResult(
-        command: command,
-        workingDirectory: workingDirectory,
-        exitCode: exitCode,
-        stdout: stdout,
-        stderr: stderr,
-      );
-    } on TimeoutException {
-      final processTerminated = await _terminateTimedOutProcess(process);
-      if (!processTerminated) {
-        await stdoutSubscription.cancel();
-        await stderrSubscription.cancel();
-      } else {
-        await Future.wait([
-          stdoutDone,
-          stderrDone,
-        ]).timeout(const Duration(seconds: 1), onTimeout: () => const <void>[]);
-      }
-      return _encodeProcessResult(
-        command: command,
-        workingDirectory: workingDirectory,
-        stdout: stdout,
-        stderr: stderr,
-        timedOut: true,
-        timeout: timeout,
-        processTerminated: processTerminated,
-      );
-    }
-  }
-
-  static Future<bool> _terminateTimedOutProcess(Process process) async {
-    process.kill();
-    try {
-      await process.exitCode.timeout(const Duration(seconds: 2));
-      return true;
-    } on TimeoutException {
-      if (!Platform.isWindows) {
-        process.kill(ProcessSignal.sigkill);
-        try {
-          await process.exitCode.timeout(const Duration(seconds: 2));
-          return true;
-        } on TimeoutException {
-          return false;
-        }
-      }
-      return false;
-    }
-  }
-
-  static FirstPartyToolExecutionResult _encodeProcessResult({
-    required String command,
-    required String workingDirectory,
-    required _BoundedOutputBuffer stdout,
-    required _BoundedOutputBuffer stderr,
-    int? exitCode,
-    bool timedOut = false,
-    Duration? timeout,
-    bool? processTerminated,
-  }) {
-    final diagnostics = timedOut || exitCode == null || exitCode == 0
-        ? const <Map<String, dynamic>>[]
-        : _diagnosticsFromOutput(
-            command: command,
-            workingDirectory: workingDirectory,
-            output: '${stdout.text}\n${stderr.text}',
-          );
-    final result = jsonEncode({
-      'command': command,
-      'working_directory': workingDirectory,
-      'exit_code': ?exitCode,
-      'stdout': stdout.text,
-      'stderr': stderr.text,
-      if (diagnostics.isNotEmpty) 'diagnostics': diagnostics,
-      if (stdout.truncated) 'stdout_truncated': true,
-      if (stderr.truncated) 'stderr_truncated': true,
-      if (timedOut) ...{
-        'error': 'Command timed out after ${_formatTimeout(timeout!)}.',
-        'timed_out': true,
-        'timeout_ms': timeout.inMilliseconds,
-        'process_terminated': processTerminated ?? false,
-      },
-    });
-    return FirstPartyToolExecutionResult(
-      result: result,
-      outcome: timedOut || exitCode == null
-          ? null
-          : ToolOutcome(exitCode: exitCode),
-    );
-  }
-
-  /// Diagnostics a failed Dart or Flutter command reported in its own output.
-  ///
-  /// Caverno's completion evidence counts a `diagnostics` list on a tool
-  /// result, and until now only the tools that generate diagnostics themselves
-  /// produced one — so a model that verified by running `dart analyze` through
-  /// this tool got errors the harness could read as prose but not as evidence.
-  ///
-  /// Deliberately restricted to `dart` and `flutter`. The parsers recognise
-  /// only those two output syntaxes, so widening the command set would add
-  /// misparse risk without adding coverage, and every command that reaches
-  /// here starts contributing to the unresolved-error count that goal
-  /// completion gaps are built from. Keeping it to commands whose failure
-  /// really does mean unresolved Dart errors keeps that claim true.
-  static List<Map<String, dynamic>> _diagnosticsFromOutput({
-    required String command,
-    required String workingDirectory,
-    required String output,
-  }) {
-    if (!_isDartToolingCommand(command)) {
-      return const [];
-    }
-    const parser = DartDiagnosticLineParser();
-    final diagnostics = <Map<String, dynamic>>[];
-    final seen = <String>{};
-    for (final line in const LineSplitter().convert(output)) {
-      final diagnostic = parser.parse(line, pathBase: workingDirectory);
-      if (diagnostic == null || !seen.add(diagnostic.dedupeKey)) {
-        continue;
-      }
-      diagnostics.add({
-        'severity': diagnostic.severity,
-        'path': diagnostic.absolutePath,
-        'relative_path': diagnostic.relativePath(workingDirectory),
-        'line': diagnostic.line,
-        'column': diagnostic.column,
-        if (diagnostic.code != null) 'code': diagnostic.code,
-        'message': diagnostic.message,
-      });
-    }
-    return diagnostics;
-  }
-
-  /// Whether the command is run by the Dart or Flutter CLI, allowing an `fvm`
-  /// prefix, which this repository uses everywhere.
-  static bool _isDartToolingCommand(String command) {
-    final tokens = command.trim().split(RegExp(r'\s+'));
-    final executable =
-        tokens.isNotEmpty && tokens.first == 'fvm' && tokens.length > 1
-        ? tokens[1]
-        : (tokens.isEmpty ? '' : tokens.first);
-    return executable == 'dart' || executable == 'flutter';
-  }
-
-  static String _formatTimeout(Duration timeout) {
-    if (timeout.inMilliseconds % Duration.millisecondsPerSecond == 0) {
-      final seconds = timeout.inSeconds;
-      return '$seconds ${seconds == 1 ? 'second' : 'seconds'}';
-    }
-    final milliseconds = timeout.inMilliseconds;
-    return '$milliseconds ${milliseconds == 1 ? 'millisecond' : 'milliseconds'}';
   }
 
   static bool _shouldEnableImplicitErrexit(String command) {
@@ -536,15 +392,61 @@ class LocalShellTools {
     return RegExp(r'[\s;&|()<>]').hasMatch(command[index - 1]);
   }
 
+  /// Whether [command] carries syntax the internal executors cannot honour.
+  ///
+  /// Quote-aware because grep patterns routinely hold `$` and `\|`, and inside
+  /// single quotes `sh` gives no character a meaning; inside double quotes
+  /// only `$`, the backtick and the backslash keep one. Getting this wrong
+  /// cannot run anything -- a command accepted here is executed by Caverno,
+  /// never by `sh` -- it can only make the internal answer differ from the
+  /// shell's, so an unterminated quote or a newline still refuses outright.
   static bool _hasUnsafeShellSyntax(String command) {
-    const blockedTokens = ['|', '||', '&', ';', '>', '<', '`', r'$', '#', '\n'];
-    return blockedTokens.any(command.contains);
+    String? quoteChar;
+    for (var index = 0; index < command.length; index++) {
+      final char = command[index];
+      if (char == '\n') return true;
+      if (quoteChar == "'") {
+        if (char == "'") quoteChar = null;
+        continue;
+      }
+      if (quoteChar == '"') {
+        if (char == '"') {
+          quoteChar = null;
+        } else if (char == r'$' || char == '`') {
+          return true;
+        } else if (char == r'\') {
+          index += 1;
+          if (index < command.length && command[index] == '\n') return true;
+        }
+        continue;
+      }
+      if (char == r'\') {
+        // An escaped operator stays refused, as it was before quotes counted:
+        // `_splitArgs` keeps the backslash that `sh` would remove.
+        index += 1;
+        if (index < command.length &&
+            '\n$_shellOperatorChars'.contains(command[index])) {
+          return true;
+        }
+        continue;
+      }
+      if (char == "'" || char == '"') {
+        quoteChar = char;
+        continue;
+      }
+      if (_shellOperatorChars.contains(char)) return true;
+    }
+    return quoteChar != null;
   }
 
+  static const String _shellOperatorChars = '|&;<>`\$#';
+
   static bool _canExecuteInternally(String command) {
-    final segments = _splitConditionalCommands(command);
-    if (segments.isEmpty) return false;
-    return segments.every(_canExecuteSingleCommandInternally);
+    final steps = _internalSteps(command);
+    if (steps == null || steps.isEmpty) return false;
+    return steps.every(
+      (step) => _canExecuteSingleCommandInternally(step.command),
+    );
   }
 
   static bool _canExecuteSingleCommandInternally(String command) {
@@ -563,23 +465,157 @@ class LocalShellTools {
       'wc' ||
       'find' ||
       'rg' => true,
+      'grep' =>
+        !_hasUnquotedShellExpansion(command) &&
+            LocalShellGrep.parse(args.skip(1).toList()) != null,
+      'git' => _readOnlyGitSubcommand(command, args) != null,
       _ => false,
     };
   }
 
-  static List<String> _splitConditionalCommands(String command) {
-    final segments = <String>[];
+  /// The subcommand of a `git` segment that `git_execute_command` would run
+  /// without approval, or null.
+  ///
+  /// The segment is handed to [GitTools.executeResult], the same executor,
+  /// fences and flag allowlist as that tool, so running it here grants nothing
+  /// that tool does not already. Two shapes it never receives are refused: a
+  /// global option before the subcommand -- `-c core.fsmonitor=<program>`
+  /// makes a plain `git status` run that program, and `-C` / `--git-dir`
+  /// move it out of the fenced directory -- and any word `sh` would expand
+  /// differently from the quote-stripping split, as for grep.
+  ///
+  /// Outside a turn's coding project GitTools refuses every command, so there
+  /// a git segment stays on the shell path, where it can still run once
+  /// approved, rather than skip approval only to be refused.
+  static String? _readOnlyGitSubcommand(String command, List<String> args) {
+    final projectRoot = TurnProjectRoot.current?.rootPath.trim() ?? '';
+    if (projectRoot.isEmpty) return null;
+    if (args.length < 2 || args[1].startsWith('-')) return null;
+    final match = _gitInvocationPattern.firstMatch(command.trim());
+    if (match == null || _hasUnquotedShellExpansion(command)) return null;
+    final subcommand = match.group(1)!;
+    return GitTools.isReadOnly(subcommand) ? subcommand : null;
+  }
+
+  static final RegExp _gitInvocationPattern = RegExp(r'^git\s+(\S.*)$');
+
+  /// Whether `sh` would build a word of [command] differently from
+  /// [_splitArgs]: pathname globbing, brace or tilde expansion, backslash
+  /// removal, or an empty quoted word (`''`), which [_splitArgs] drops.
+  ///
+  /// The internal executors take their argv from [_splitArgs], which only
+  /// strips quotes. For `grep` that difference decides what is searched --
+  /// `grep foo lib/*.dart` names a literal file here and a list of files in
+  /// the shell, and `grep '' a b` would search for `a` -- so such a command
+  /// stays on the shell path instead of silently answering a different
+  /// question. Glob characters inside option words (`--include=*.dart`) are
+  /// left alone: expanding those needs a file literally named like the option.
+  static bool _hasUnquotedShellExpansion(String command) {
+    String? quoteChar;
+    var inWord = false;
+    var wordHasChars = false;
+    var optionWord = false;
+    for (var index = 0; index < command.length; index++) {
+      final char = command[index];
+      if (quoteChar == "'") {
+        if (char == "'") {
+          quoteChar = null;
+        } else {
+          wordHasChars = true;
+        }
+        continue;
+      }
+      if (quoteChar == '"') {
+        if (char == '"') {
+          quoteChar = null;
+        } else if (char == r'\' &&
+            index + 1 < command.length &&
+            (command[index + 1] == '"' || command[index + 1] == r'\')) {
+          return true;
+        } else {
+          wordHasChars = true;
+        }
+        continue;
+      }
+      if (char == ' ' || char == '\t') {
+        if (inWord && !wordHasChars) return true;
+        inWord = false;
+        continue;
+      }
+      if (!inWord) {
+        inWord = true;
+        wordHasChars = false;
+        optionWord = char == '-';
+        if (char == '~') return true;
+      }
+      if (char == "'" || char == '"') {
+        quoteChar = char;
+        continue;
+      }
+      wordHasChars = true;
+      if (char == r'\') return true;
+      if (!optionWord && '*?[{'.contains(char)) return true;
+    }
+    return inWord && !wordHasChars;
+  }
+
+  /// [command] as the chain the internal executors would run, or null when
+  /// its separators cannot be mirrored without `sh`.
+  ///
+  /// `&&` and a newline stop the chain at the first failure; `;` does not.
+  /// A newline only stops it because the shell path adds `-e` to a multi-line
+  /// command -- and drops `-e` as soon as the command also holds a `;`. Rather
+  /// than model that interaction, a command mixing the two stays on the shell
+  /// path. A backslash keeps the character after it inside the segment, so an
+  /// escaped separator such as `find ... \;` is left for
+  /// [_hasUnsafeShellSyntax] to refuse instead of being split on.
+  ///
+  /// Each segment may end in one `| head -N` / `| tail -N`, parsed by
+  /// [GitTools.parseTrailingLineLimit] so both tools accept the same clause.
+  /// Any other pipe stays in the segment and makes it unsafe.
+  static List<_InternalStep>? _internalSteps(String command) {
+    final steps = <_InternalStep>[];
     final buffer = StringBuffer();
     String? quoteChar;
+    var continuesAfterFailure = true;
+    var sawSemicolon = false;
+    var sawNewline = false;
+
+    void flush() {
+      final segment = buffer.toString().trim();
+      buffer.clear();
+      if (segment.isEmpty) return;
+      final lineLimit = GitTools.parseTrailingLineLimit(segment);
+      steps.add(
+        _InternalStep(
+          command: lineLimit?.command ?? segment,
+          lineLimit: lineLimit,
+          continuesAfterFailure: continuesAfterFailure,
+        ),
+      );
+    }
 
     for (var i = 0; i < command.length; i++) {
       final char = command[i];
 
       if (quoteChar != null) {
+        if (quoteChar == '"' && char == r'\' && i + 1 < command.length) {
+          buffer.write(char);
+          i += 1;
+          buffer.write(command[i]);
+          continue;
+        }
         if (char == quoteChar) {
           quoteChar = null;
         }
         buffer.write(char);
+        continue;
+      }
+
+      if (char == r'\' && i + 1 < command.length) {
+        buffer.write(char);
+        i += 1;
+        buffer.write(command[i]);
         continue;
       }
 
@@ -589,28 +625,23 @@ class LocalShellTools {
         continue;
       }
 
-      if ((char == '&' && i + 1 < command.length && command[i + 1] == '&') ||
-          char == '\n') {
-        final segment = buffer.toString().trim();
-        if (segment.isNotEmpty) {
-          segments.add(segment);
-        }
-        buffer.clear();
-        if (char == '&') {
-          i += 1;
-        }
+      final isAndList =
+          char == '&' && i + 1 < command.length && command[i + 1] == '&';
+      if (isAndList || char == '\n' || char == ';') {
+        flush();
+        if (char == ';') sawSemicolon = true;
+        if (char == '\n') sawNewline = true;
+        continuesAfterFailure = char == ';';
+        if (isAndList) i += 1;
         continue;
       }
 
       buffer.write(char);
     }
+    flush();
 
-    final trailing = buffer.toString().trim();
-    if (trailing.isNotEmpty) {
-      segments.add(trailing);
-    }
-
-    return segments;
+    if (sawSemicolon && sawNewline) return null;
+    return steps;
   }
 
   static _DirectGitWriteCommand? _firstDirectGitWriteCommand(String command) {
@@ -769,27 +800,41 @@ class LocalShellTools {
   static Future<FirstPartyToolExecutionResult> _executeInternally({
     required String command,
     required String workingDirectory,
+    required String? projectRoot,
   }) async {
     final stdoutBuffer = StringBuffer();
     final stderrBuffer = StringBuffer();
     var exitCode = 0;
+    var skipping = false;
 
-    for (final segment in _splitConditionalCommands(command)) {
+    for (final step in _internalSteps(command)!) {
+      // A failure skips the rest of its `&&` list; the next `;` resumes, as
+      // `a && b; c` runs `c` in the shell whether or not `a` failed.
+      if (step.continuesAfterFailure) skipping = false;
+      if (skipping) continue;
+
       final result = await _executeInternalSegment(
-        segment,
+        step.command,
         workingDirectory: workingDirectory,
+        projectRoot: projectRoot,
+        lineLimit: step.lineLimit,
       );
+      final lineLimit = step.lineLimit;
+      final stdout = lineLimit == null
+          ? result.stdout
+          : lineLimit.apply(result.stdout);
 
-      if (result.stdout.isNotEmpty) {
-        stdoutBuffer.write(result.stdout);
+      if (stdout.isNotEmpty) {
+        stdoutBuffer.write(stdout);
       }
       if (result.stderr.isNotEmpty) {
         stderrBuffer.write(result.stderr);
       }
 
+      // Match the native pipefail route: output trimming cannot hide failure.
       exitCode = result.exitCode;
       if (exitCode != 0) {
-        break;
+        skipping = true;
       }
     }
 
@@ -797,18 +842,16 @@ class LocalShellTools {
     final stderr = stderrBuffer.toString();
     final stdoutTruncated = stdout.length > _maxOutputChars;
     final stderrTruncated = stderr.length > _maxOutputChars;
+    final boundedStdout = BoundedCommandOutput(_maxOutputChars)..add(stdout);
+    final boundedStderr = BoundedCommandOutput(_maxOutputChars)..add(stderr);
 
     return FirstPartyToolExecutionResult(
       result: jsonEncode({
         'command': command,
         'working_directory': workingDirectory,
         'exit_code': exitCode,
-        'stdout': stdoutTruncated
-            ? stdout.substring(0, _maxOutputChars)
-            : stdout,
-        'stderr': stderrTruncated
-            ? stderr.substring(0, _maxOutputChars)
-            : stderr,
+        'stdout': boundedStdout.text,
+        'stderr': boundedStderr.text,
         'executed_internally': true,
         if (stdoutTruncated) 'stdout_truncated': true,
         if (stderrTruncated) 'stderr_truncated': true,
@@ -820,6 +863,8 @@ class LocalShellTools {
   static Future<_LocalCommandResult> _executeInternalSegment(
     String command, {
     required String workingDirectory,
+    required String? projectRoot,
+    required GitOutputLineLimit? lineLimit,
   }) async {
     final args = _splitArgs(command);
     if (args.isEmpty) {
@@ -842,11 +887,60 @@ class LocalShellTools {
       'wc' => await _executeWc(args.skip(1).toList(), workingDirectory),
       'find' => await _executeFind(args.skip(1).toList(), workingDirectory),
       'rg' => await _executeRg(args.skip(1).toList(), workingDirectory),
+      'grep' => await _executeGrep(args.skip(1).toList(), workingDirectory),
+      'git' => await _executeGit(
+        command,
+        args,
+        workingDirectory: workingDirectory,
+        projectRoot: projectRoot,
+        lineLimit: lineLimit,
+      ),
       _ => _LocalCommandResult(
         exitCode: 1,
         stderr: 'Unsupported internal command: ${args.first}\n',
       ),
     };
+  }
+
+  static Future<_LocalCommandResult> _executeGit(
+    String command,
+    List<String> args, {
+    required String workingDirectory,
+    required String? projectRoot,
+    required GitOutputLineLimit? lineLimit,
+  }) async {
+    final subcommand = _readOnlyGitSubcommand(command, args);
+    if (subcommand == null) {
+      return const _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'git: unsupported internal command\n',
+      );
+    }
+    // GitTools caps stdout, so it must apply the line limit itself: a
+    // `| tail -N` applied here would read the end of an already-cut head.
+    // Applying it again afterwards leaves the lines unchanged.
+    final execution = await GitTools.executeResult(
+      command: lineLimit == null
+          ? subcommand
+          : '$subcommand | ${lineLimit.describe}',
+      workingDirectory: workingDirectory,
+      projectRoot: projectRoot,
+    );
+    final exitCode = execution.outcome?.exitCode;
+    // No exit status means git never ran: a fence, the repository check or
+    // the timeout refused it, and only the error explains why.
+    if (exitCode == null) {
+      return _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'git: ${execution.errorMessage ?? 'command did not run'}\n',
+      );
+    }
+    final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+    return _LocalCommandResult(
+      exitCode: exitCode,
+      stdout: payload['stdout'] as String? ?? '',
+      stderr: payload['stderr'] as String? ?? '',
+    );
   }
 
   static List<String> _splitArgs(String command) {
@@ -1016,7 +1110,7 @@ class LocalShellTools {
 
       try {
         if (entityType == FileSystemEntityType.file) {
-          stdoutBuffer.writeln(File(resolvedPath).uri.pathSegments.last);
+          stdoutBuffer.writeln(path.basename(resolvedPath));
           continue;
         }
 
@@ -1065,9 +1159,7 @@ class LocalShellTools {
   }) async {
     final entries = <FileSystemEntity>[];
     await for (final entity in directory.list(followLinks: false)) {
-      final name = entity.uri.pathSegments.isEmpty
-          ? entity.path
-          : entity.uri.pathSegments.last;
+      final name = path.basename(entity.path);
       if (!includeHidden && name.startsWith('.')) {
         continue;
       }
@@ -1084,9 +1176,7 @@ class LocalShellTools {
       buffer.writeln();
     } else {
       for (final entry in entries) {
-        final name = entry.uri.pathSegments.isEmpty
-            ? entry.path
-            : entry.uri.pathSegments.last;
+        final name = path.basename(entry.path);
         final type = await FileSystemEntity.type(entry.path);
         buffer.writeln(
           type == FileSystemEntityType.directory ? '$name/' : name,
@@ -1677,6 +1767,28 @@ class LocalShellTools {
     );
   }
 
+  static Future<_LocalCommandResult> _executeGrep(
+    List<String> args,
+    String workingDirectory,
+  ) async {
+    final grep = LocalShellGrep.parse(args);
+    if (grep == null) {
+      return const _LocalCommandResult(
+        exitCode: 2,
+        stderr: 'grep: unsupported invocation\n',
+      );
+    }
+    final result = await grep.execute(
+      workingDirectory: workingDirectory,
+      outputLimit: _maxOutputChars,
+    );
+    return _LocalCommandResult(
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    );
+  }
+
   static RegExp _wildcardToRegExp(String pattern) {
     final buffer = StringBuffer('^');
     for (final rune in pattern.runes) {
@@ -1721,30 +1833,6 @@ class _DirectGitWriteCommand {
   final String gitSubcommand;
 }
 
-class _BoundedOutputBuffer {
-  _BoundedOutputBuffer(this.maxLength);
-
-  final int maxLength;
-  final StringBuffer _buffer = StringBuffer();
-  bool truncated = false;
-
-  void add(String chunk) {
-    final remaining = maxLength - _buffer.length;
-    if (remaining <= 0) {
-      truncated = true;
-      return;
-    }
-    if (chunk.length <= remaining) {
-      _buffer.write(chunk);
-      return;
-    }
-    _buffer.write(chunk.substring(0, remaining));
-    truncated = true;
-  }
-
-  String get text => _buffer.toString();
-}
-
 class _LocalCommandResult {
   const _LocalCommandResult({
     required this.exitCode,
@@ -1781,4 +1869,21 @@ class _FileCounts {
   final int words;
   final int bytes;
   final String? error;
+}
+
+/// One command of a chain [LocalShellTools] runs without a shell.
+final class _InternalStep {
+  const _InternalStep({
+    required this.command,
+    required this.lineLimit,
+    required this.continuesAfterFailure,
+  });
+
+  /// The command with any trailing `| head -N` / `| tail -N` removed.
+  final String command;
+  final GitOutputLineLimit? lineLimit;
+
+  /// Whether the step runs after an earlier failure: true for the first step
+  /// and for one that follows `;`, false after `&&` or a newline.
+  final bool continuesAfterFailure;
 }

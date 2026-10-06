@@ -30,7 +30,11 @@ abstract final class AnabasisParentPromptBlock {
       'a summary, so accepting on one is accepting on your own reading.\n'
       '- Do not delegate a task whose preconditions are unmet. Ask the user to '
       'settle a material assumption or an open question first; that is work '
-      'only they can do.';
+      'only they can do. An ask_user_question answer does not update the saved '
+      'plan\'s open-question status. The user can update it in the chat '
+      'companion panel under Waiting on you. Check the plan status before '
+      'claiming a question is resolved or a task is ready; resolving a question '
+      'does not complete its dependent tasks.';
 
   /// Children the parent has delegated and not yet judged.
   ///

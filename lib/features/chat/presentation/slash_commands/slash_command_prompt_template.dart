@@ -105,14 +105,16 @@ const builtInSlashCommandPromptTemplates = <SlashCommandPromptTemplate>[
     name: 'review',
     description: '',
     aliases: ['rev'],
-    argumentHint: '<target>',
+    argumentHint: '[base <branch> | commit <sha> | target]',
+    argumentRequirement: SlashCommandArgumentRequirement.optional,
     template: '''
-Review the following code, diff, file path, or implementation request.
+Review code changes in the current project's Git repository. This is a read-only review: do not edit files or change Git state.
 
-Focus on correctness, regressions, edge cases, security, and missing tests. Lead with the most important findings and include concrete next steps.
+Review scope: {input}
 
-Target:
-{input}
+If the scope is empty, review all uncommitted changes, including staged, unstaged, and untracked files. If it is "base <branch>", review the current branch against its merge base with that branch. If it is "commit <sha>", review that commit's changes. Otherwise, use the scope as a file, diff, pull request, or custom review instruction. If the project or requested scope is unavailable, explain what is missing instead of inventing findings.
+
+Inspect the actual changes and surrounding code. Prioritize actionable correctness, regression, security, and missing-test findings. Give file and line references where available, followed by a short summary. If there are no findings, say so and identify any verification limits.
 
 Respond in the user's current language unless they ask otherwise.
 ''',

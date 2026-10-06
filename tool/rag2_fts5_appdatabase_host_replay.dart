@@ -238,7 +238,7 @@ Future<Rag2Fts5AppDatabaseHostReport> runRag2Fts5AppDatabaseHostReplay(
       usage.single.model == rag2DriftHostUsageModel &&
       usage.single.totalTokens == rag2DriftHostUsageTokens;
   final appDatabaseSchemaUnchanged =
-      schemaVersion.read<int>('user_version') == 5;
+      schemaVersion.read<int>('user_version') == 6;
 
   final crashDir = _freshDirectory('${options.storeRoot}/crash');
   final crashPath = '${crashDir.path}/caverno.sqlite';
@@ -556,7 +556,7 @@ final class Rag2Fts5AppDatabaseHostReport {
     'fts5Decision': contractPassed ? 'go' : 'no_go',
     'retrievalDecision': 'not_evaluated',
     'productionDecision': 'no_go',
-    'appDatabaseSchemaVersion': 5,
+    'appDatabaseSchemaVersion': 6,
     'fixtureId': fixtureId,
     'declarationIdentity': declarationIdentity,
     'reopenedGeneration': reopenedGeneration,

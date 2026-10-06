@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/agents_md_loader.dart';
+import '../../../../core/services/notification_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../chat/data/repositories/retry_until_green_report_repository.dart';
 import '../../../chat/data/repositories/worktree_agent_task_repository.dart';
@@ -23,6 +24,7 @@ import '../../../chat/presentation/providers/repo_map_precompute_cache_provider.
 import '../../../chat/presentation/providers/skills_notifier.dart';
 import '../../../personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import '../../../personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
+import '../../../project_farm/presentation/providers/roadmap_snapshot_providers.dart';
 import '../../../routines/data/routine_repository.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/app_language_resolver.dart';
@@ -567,6 +569,28 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
     // own requests, so the prefix this warms is the one left in the server slot
     // for the morning's first interactive turn.
     CallbackMaintenanceStage(
+      name: 'farm_advance',
+      body: (context) async {
+        // FARM5: advance opted-in coding projects by one task each, on the
+        // LL13 worktree route. Every gate is in FarmUnattendedRunner; a
+        // project that did not opt in is left untouched.
+        final summary = await ref
+            .read(farmUnattendedRunnerProvider)
+            .run(isCancelled: () => context.isCancelled);
+        if (context.isCancelled) {
+          return MaintenanceStageOutcome.skipped(
+            'cancelled before further dispatch; ${summary.detail}',
+          );
+        }
+        if (summary.started == 0 && summary.skipped == 0) {
+          return const MaintenanceStageOutcome.skipped(
+            'no project opted in to unattended runs',
+          );
+        }
+        return MaintenanceStageOutcome.completed(summary.detail);
+      },
+    ),
+    CallbackMaintenanceStage(
       name: 'precompute',
       body: (_) async {
         // LL22: precompute the LL4 repo map so the first morning prompt build
@@ -840,6 +864,13 @@ final idleMaintenanceSchedulerProvider = Provider<IdleMaintenanceScheduler>((
     },
     refreshKeyProvider: warmupRefreshKey,
   );
+  final lifecycle = ref.watch(appLifecycleServiceProvider);
+  void onLifecycleChanged() {
+    if (!lifecycle.isInBackground) scheduler.cancelActiveRun();
+  }
+
+  lifecycle.addListener(onLifecycleChanged);
+  ref.onDispose(() => lifecycle.removeListener(onLifecycleChanged));
   ref.onDispose(scheduler.dispose);
   return scheduler;
 });

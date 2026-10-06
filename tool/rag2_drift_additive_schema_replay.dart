@@ -24,6 +24,7 @@ const rag2DriftHostLogicalTables = {
   'conversation_search',
   'rag2_store_meta',
   'rag2_generations',
+  'conversation_work_time',
 };
 const rag2DriftHostConversationId = 'c-host-preserve';
 const rag2DriftHostConversationTitle = 'kept-title';
@@ -147,7 +148,7 @@ Future<Rag2DriftAdditiveSchemaReport> runRag2DriftAdditiveSchemaReplay(
       embeddingsPreserved &&
       conversationSearchPreserved &&
       rag2Fts5Absent &&
-      schemaVersion.data['user_version'] == 5;
+      schemaVersion.data['user_version'] == 6;
 
   final crashDir = _freshDirectory('${options.storeRoot}/crash');
   final crashPath = '${crashDir.path}/caverno.sqlite';
@@ -697,7 +698,7 @@ final class Rag2DriftAdditiveSchemaReport {
     'fts5Decision': 'not_selected',
     'retrievalDecision': 'not_evaluated',
     'productionDecision': 'no_go',
-    'appDatabaseSchemaVersion': 5,
+    'appDatabaseSchemaVersion': 6,
     'fixtureId': fixtureId,
     'declarationIdentity': declarationIdentity,
     'reopenedGeneration': reopenedGeneration,

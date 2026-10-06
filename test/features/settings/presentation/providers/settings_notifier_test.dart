@@ -520,6 +520,23 @@ void main() {
     expect(reloaded.proReasoningEndpointId, 'reasoning-endpoint');
   });
 
+  test('code review route persists through the repository', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    await notifier.updateCodeReviewModel(' reviewer-model ');
+    await notifier.updateCodeReviewEndpointId(' reviewer-host ');
+
+    final saved = SettingsRepository(prefs).load();
+    expect(saved.codeReviewModel, 'reviewer-model');
+    expect(saved.codeReviewEndpointId, 'reviewer-host');
+  });
+
   test(
     'selecting a Pro endpoint defaults candidates to that endpoint',
     () async {

@@ -1,6 +1,41 @@
 part of 'chat_domain_services_test.dart';
 
 void _runMemoryExtractionJsonParser() {
+  test('closes only a missing root brace with complete extraction values', () {
+    final document = {
+      'summary': 'Prepared the fixture for review.',
+      'open_loops': ['Commit remains pending.'],
+      'profile': {'persona': [], 'preferences': [], 'do_not': []},
+      'memories': [
+        {'text': r'Keep "quotes", {braces}, and C:\work intact.'},
+      ],
+    };
+    final encoded = jsonEncode(document);
+    final incomplete = encoded.substring(0, encoded.length - 1);
+    for (final raw in [incomplete, '```json\n$incomplete\n```']) {
+      final result = MemoryExtractionJsonParser.parse(raw)!;
+      expect(result.wasRepaired, isTrue);
+      expect(result.decoded, document);
+    }
+    expect(MemoryExtractionJsonParser.parse(encoded)!.wasRepaired, isFalse);
+  });
+
+  test('root repair never supplies missing sections or nested values', () {
+    for (final raw in [
+      '{"summary":"Incomplete',
+      '{"summary":"Incomplete\\',
+      '{"summary":"Incomplete","open_loops":[],"profile":{},"memories":[',
+      '{"summary":"Incomplete","open_loops":[],"profile":{},"memories":[{}',
+      '{"summary":"Incomplete","open_loops":[],"profile":{},"memories":',
+      '{"summary":"Incomplete","open_loops":[],"profile":{},',
+      '{"summary":"Incomplete","open_loops":[],"profile":{}',
+      '{"summary":"Incomplete","open_loops":[],"profile":{},"memories":null',
+    ]) {
+      final result = MemoryExtractionJsonParser.parse(raw);
+      expect(result?.wasRepaired, isNot(true), reason: raw);
+    }
+  });
+
   test('parses valid memory extraction JSON without repair', () {
     const raw = '''
 {
