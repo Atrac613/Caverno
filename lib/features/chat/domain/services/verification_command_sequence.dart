@@ -4,6 +4,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:path/path.dart' as path;
 
 import 'inline_python_verification_contract.dart';
+import 'literal_environment_inspection_policy.dart';
 import 'literal_shell_words.dart';
 import 'pytest_shell_invocation.dart';
 import 'pytest_verification_identity.dart';
@@ -87,10 +88,27 @@ final class VerificationCommandSequence {
     var hasVerification = false;
     const classifier = ToolCapabilityClassifier();
     for (var index = 0; index < segments.length; index++) {
+      // Every Caverno shell runs with pipefail (8730d1ed9), so trimming an
+      // earlier step's output cannot hide its failure from `&&`. Session
+      // d27e7528's `ensurepip 2>&1 | tail -2 && pip install pytest 2>&1 |
+      // tail -3 && pytest -q` passed 61 tests, but the limiters kept it from
+      // parsing, so it settled none of the earlier failed pytest runs.
       final words = LiteralShellWords.parse(
-        segments[index],
+        index < segments.length - 1
+            ? segments[index].replaceFirst(_outputLimiter, '')
+            : segments[index],
         allowQuotedNewlines: true,
       );
+      // An environment query such as `ls -d .venv` or `which pytest` only
+      // decides whether the run can start; it asserts nothing about the
+      // project, so it is not part of the verification's identity. In session
+      // 016d4d5e `ls -d .venv 2>/dev/null && .venv/bin/python -m pytest -q`
+      // failed on a missing venv, and no later pytest pass could settle it.
+      if (words?.first != 'cd' &&
+          index < segments.length - 1 &&
+          LiteralEnvironmentInspectionPolicy.applies(segments[index])) {
+        continue;
+      }
       if (words == null) return null;
       if (words.first == 'cd') {
         if (index != 0 ||
@@ -134,6 +152,10 @@ final class VerificationCommandSequence {
     return sequence;
   }
 
+  static final _outputLimiter = RegExp(
+    r'(?:\s+2>&1)?(?:\s*\|\s*(?:head|tail)\s+-(?:n\s*)?[1-9]\d*)?\s*$',
+  );
+
   static List<String>? _segments(String command) {
     final segments = <String>[];
     var start = 0;
@@ -146,6 +168,9 @@ final class VerificationCommandSequence {
       }
       if (char == "'" || char == '"') {
         quote = char;
+      } else if (char == '&' && index > 0 && command[index - 1] == '>') {
+        // `2>&1` duplicates a descriptor; it is not a list operator.
+        continue;
       } else if (char == '&') {
         if (index + 1 >= command.length || command[index + 1] != '&') {
           return null;

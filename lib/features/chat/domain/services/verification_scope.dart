@@ -27,6 +27,7 @@ final class VerificationScope {
     this.inlineContract,
     this.runtimeRepairKey,
     this.runtimeLaunchFailed = false,
+    this.pytestRunner,
   });
 
   final String key;
@@ -35,6 +36,13 @@ final class VerificationScope {
   final InlinePythonVerificationContract? inlineContract;
   final String? runtimeRepairKey;
   final bool runtimeLaunchFailed;
+
+  /// The pytest run [key] names, when the scope is that run's identity.
+  final PytestVerificationIdentity? pytestRunner;
+
+  static final _pytestLaunchFailure = RegExp(
+    r'''^(?:.*[/\\])?python(?:\d+(?:\.\d+)*)?(?:\.exe)?:\s+No module named ['"]?pytest['"]?\s*$''',
+  );
 
   static VerificationScope? of(
     ToolResultInfo result,
@@ -103,15 +111,39 @@ final class VerificationScope {
             counts != null &&
             counts.passedCount > 0 &&
             counts.failedCount == 0,
+        pytestRunner: pytest,
       );
     }
     if (!isVerification(result) || command.trim().isEmpty) return null;
     final inline = InlinePythonVerificationContract.parse(command, directory);
+    // `&&` starts the final pytest only after every earlier step exited 0, so
+    // when that pytest could not even import, the steps before it already
+    // passed and the run still owed is the pytest run alone. Session 016d4d5e:
+    // `... && python -c "print(sys.version)" && pytest -q` kept blocking after
+    // the same tests passed, and the model rebuilt the venv to replay it.
+    final terminal = sequence?.terminalPytest;
+    final launchFailedRunner =
+        terminal != null &&
+            outcome?.hasFailingExitCode == true &&
+            sequence!.steps
+                    .where(
+                      (step) =>
+                          PytestVerificationIdentity.parse(step, directory) !=
+                          null,
+                    )
+                    .length ==
+                1 &&
+            (_endsWithLaunchFailure(commandOutput) ||
+                _endsWithLaunchFailure((decoded?['stderr'] ?? '').toString()))
+        ? terminal
+        : null;
     return VerificationScope._(
-      sequence != null
-          ? sequence.key
-          : inline?.key ?? _exactKey(command, directory),
+      launchFailedRunner?.verificationKey ??
+          (sequence != null
+              ? sequence.key
+              : inline?.key ?? _exactKey(command, directory)),
       ranClean,
+      pytestRunner: launchFailedRunner,
       inlineContract: inline,
       runtimeRepairKey:
           sequence?.runtimeRepairKey != null &&
@@ -127,9 +159,9 @@ final class VerificationScope {
           (outcome?.effectiveTestFailedCount ?? 0) == 0 &&
           (outcome?.diagnosticErrorCount ?? 0) == 0 &&
           stdout.trim().isEmpty &&
-          RegExp(
-            r'''^(?:.*[/\\])?python(?:\d+(?:\.\d+)*)?(?:\.exe)?:\s+No module named ['"]?pytest['"]?\s*$''',
-          ).hasMatch((decoded?['stderr'] ?? '').toString().trim()),
+          _pytestLaunchFailure.hasMatch(
+            (decoded?['stderr'] ?? '').toString().trim(),
+          ),
       coveredKeys: [
         if (sequence?.terminalPytest case final runner?) runner.verificationKey,
         // `&&` runs a step only after the previous one exited 0, so a passing
@@ -143,6 +175,13 @@ final class VerificationScope {
             _exactKey(step, directory),
       ],
     );
+  }
+
+  static bool _endsWithLaunchFailure(String output) {
+    final lines = const LineSplitter()
+        .convert(output)
+        .where((line) => line.trim().isNotEmpty);
+    return lines.isNotEmpty && _pytestLaunchFailure.hasMatch(lines.last.trim());
   }
 
   static String _exactKey(String command, String directory) => jsonEncode([

@@ -216,6 +216,47 @@ void main() {
     );
   }
 
+  // Session 8ea796df: the report described a return value in braces, the
+  // notice became unsettleable, and the subtask stayed rejected for
+  // "unexecuted actions" after the pending pytest run passed (37 passed).
+  for (final description in [
+    '{"item_id", "old_price", "new_price", "change_rate"}',
+    '{"item_id": "X1", "old_price": 1000}',
+  ]) {
+    test(
+      'braces describing data do not make a call concrete: $description',
+      () {
+        // The answer's own wording, which is what fires the trigger.
+        final response =
+            'サブタスク3のコード変更が完了しました。ただし、'
+            '**このターンではテストを実行していないため、変更の動作確認は未完了です。**\n'
+            '- `detect_price_change` は $description を返す\n'
+            '`pytest test_state.py test_watcher.py -v` の実行がまだ残っています。'
+            '既存テストと競合しないかを確認するには、このコマンドの実行が必要です。\n'
+            'PROJECT_TASK_SUBTASK_DONE';
+        final pending = detector.buildUnexecutedCommandActionToolResult(
+          candidateResponse: response,
+          toolResults: const [],
+          isProjectSubtask: true,
+        )!;
+        expect(
+          jsonDecode(pending.result)['evidence_requirement'],
+          UnexecutedCommandClaimReconciliation.evidenceRequirement,
+        );
+        expect(
+          detector.hasUnexecutedCommandActionResult([
+            pending,
+            verification(
+              command: '.venv/bin/python -m pytest test_state.py -v',
+              stdout: '37 passed in 3.10s',
+            ),
+          ]),
+          isFalse,
+        );
+      },
+    );
+  }
+
   test('unknown result text cannot settle a missing execution', () {
     final unknown = ToolResultInfo(
       id: 'unknown',

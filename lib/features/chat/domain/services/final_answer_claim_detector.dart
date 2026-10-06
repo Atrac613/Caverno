@@ -5,6 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
 import 'command_verification_reconciliation.dart';
+import 'fenced_tool_arguments_detector.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'narrated_transcript_claim_guard.dart';
 import 'project_task_terminal_status.dart';
@@ -154,7 +155,7 @@ class FinalAnswerClaimDetector {
             ProjectTaskTerminalStatus.subtaskDoneMarker;
     final missingEvidenceOnly =
         (!looksLikeFutureAction || terminalSubtaskReport) &&
-        !candidate.contains('{') &&
+        !_printsCommandArguments(candidate) &&
         ContentParser.extractCompletedToolCalls(candidateResponse).isEmpty &&
         !const NarratedTranscriptClaimGuard()
             .assess(candidateResponse: candidate, toolResults: const [])
@@ -188,6 +189,30 @@ class FinalAnswerClaimDetector {
       }),
     );
   }
+
+  /// Whether [candidate] spells out command arguments as JSON: a concrete call
+  /// the model printed instead of issuing, which no other check may settle.
+  ///
+  /// Any `{` used to count. In session 8ea796df a subtask report described a
+  /// return value as `{"item_id", "old_price", ...}`, its notice became
+  /// unsettleable, and the subtask stayed rejected for "unexecuted actions"
+  /// after the pending pytest run had passed.
+  static bool _printsCommandArguments(String candidate) {
+    if (const FencedToolArgumentsDetector().detect(candidate) != null) {
+      return true;
+    }
+    for (final match in _flatJsonObject.allMatches(candidate)) {
+      try {
+        final decoded = jsonDecode(match.group(0)!);
+        if (decoded is Map && decoded['command'] is String) return true;
+      } on FormatException {
+        continue;
+      }
+    }
+    return false;
+  }
+
+  static final _flatJsonObject = RegExp(r'\{[^{}]*\}');
 
   bool _hasFreshSubtaskVerification(List<ToolResultInfo> results) {
     final lastChange = results.lastIndexWhere(

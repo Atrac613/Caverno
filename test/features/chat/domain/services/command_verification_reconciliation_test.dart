@@ -8,6 +8,7 @@ import 'package:caverno/features/chat/domain/services/project_task_step_completi
 import 'package:caverno/features/chat/domain/services/pytest_verification_identity.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/unresolved_verification_failure.dart';
+import 'package:caverno/features/chat/domain/services/verification_metadata_query_policy.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -304,6 +305,201 @@ void main() {
       ).join('\n');
       expect(blockers, contains('flagged by the command output guardrail'));
       expect(blockers, isNot(contains('does not pass analysis')));
+    });
+  });
+
+  group('pytest runs whose tests never started', () {
+    // Session 016d4d5e: three failed attempts in which pytest never ran kept
+    // the subtask rejected after the same tests had passed (61 passed), and
+    // the model deleted and rebuilt the venv to replay their setup.
+    final passed = command(
+      'passed',
+      'cd /workspace && /opt/homebrew/bin/pytest -q 2>&1 | tail -5',
+      stdout: '61 passed in 3.19s',
+    );
+    const versionProbeChain =
+        'cd /workspace && rm -rf .venv && python3 -m venv --without-pip .venv '
+        '&& .venv/bin/python -c "import sys; print(sys.version)" '
+        '&& .venv/bin/python -m pytest -q 2>&1 | tail -3';
+    final launchFailure = command(
+      'launch',
+      versionProbeChain,
+      exitCode: 1,
+      stdout:
+          '3.14.6 (main)\n'
+          '/workspace/.venv/bin/python: No module named pytest\n',
+    );
+
+    test('an environment query before pytest is not part of the check', () {
+      final missingVenv = command(
+        'missing-venv',
+        'cd /workspace && ls -d .venv 2>/dev/null && '
+            '.venv/bin/python -m pytest -q 2>&1 | tail -5',
+        exitCode: 1,
+        stdout: '',
+      );
+      expect(
+        CommandVerificationReconciliation.currentResults([
+          missingVenv,
+          passed,
+        ]).map((result) => result.id),
+        ['passed'],
+      );
+    });
+
+    test('a pytest that could not import owes only the pytest run', () {
+      final results = [launchFailure, passed];
+      expect(
+        CommandVerificationReconciliation.currentResults(
+          results,
+        ).map((result) => result.id),
+        ['passed'],
+      );
+      expect(const UnresolvedVerificationFailure().describe(results), isNull);
+      expect(
+        ToolResultPromptBuilder.completionEvidence(
+          results,
+        ).hasSuccessfulExecutionVerification,
+        isTrue,
+      );
+    });
+
+    test('names the pytest run instead of the setup to replay', () {
+      final gap = const UnresolvedVerificationFailure().describe([
+        launchFailure,
+      ])!;
+      expect(gap, contains('A passing run of the same tests'));
+      expect(gap, contains('.venv/bin/python -m pytest -q'));
+      expect(gap, contains('need not be repeated'));
+      expect(gap, isNot(contains('a different command passing')));
+    });
+
+    test('a check before pytest still has to pass itself', () {
+      final checked = command(
+        'checked',
+        'cd /workspace && grep -q WEBHOOK watcher.py && '
+            '.venv/bin/python -m pytest -q 2>&1 | tail -5',
+        exitCode: 1,
+        stdout: '',
+      );
+      expect(
+        CommandVerificationReconciliation.currentResults([checked, passed]),
+        contains(checked),
+      );
+    });
+
+    test('tests that ran and failed keep the whole chain', () {
+      final failedTests = command(
+        'failed-tests',
+        versionProbeChain,
+        exitCode: 1,
+        stdout: '3.14.6 (main)\n2 failed, 59 passed in 3.1s\n',
+      );
+      expect(
+        CommandVerificationReconciliation.currentResults([failedTests, passed]),
+        contains(failedTests),
+      );
+    });
+
+    test('a launch failure after a pass still blocks', () {
+      expect(
+        CommandVerificationReconciliation.currentResults([
+          passed,
+          launchFailure,
+        ]),
+        contains(launchFailure),
+      );
+    });
+  });
+
+  test('a command -v probe that finds no venv is not a check', () {
+    // Session 64bbc516: this probe's missing `venv` was the check the
+    // recovery asked the model to make pass, until it reported blocked.
+    final probe = command(
+      'probe',
+      'ls -a; command -v python3.12 python3.11 python3.13; ls .venv venv',
+      exitCode: 1,
+      stdout: '.venv\n/opt/homebrew/bin/python3.12\n',
+    );
+    expect(CommandVerificationReconciliation.isVerification(probe), isFalse);
+    expect(const UnresolvedVerificationFailure().describe([probe]), isNull);
+  });
+
+  group('setup output and package probes', () {
+    // Session d27e7528: a passing `ensurepip | tail && pip install | tail &&
+    // pytest -q` (61 passed) settled nothing, and a package probe was the
+    // check the recovery asked the model to make pass.
+    const probe =
+        '.venv/bin/python -m pip list 2>/dev/null | grep -i pytest; '
+        'echo "---"; .venv/bin/python -c "import pytest; '
+        "print('pytest', pytest.__version__)\" 2>&1 | head -1";
+    final launchFailure = command(
+      'venv-pytest',
+      '.venv/bin/python -m pytest -q',
+      exitCode: 1,
+      stdout: '',
+    );
+    final installedAndPassed = command(
+      'host-chain',
+      '.venv/bin/python -m ensurepip --upgrade 2>&1 | tail -2 && '
+          '.venv/bin/python -m pip install pytest 2>&1 | tail -3 && '
+          '.venv/bin/python -m pytest -q',
+      stdout: 'Successfully installed pip-26.1.2\n61 passed in 3.09s\n',
+    );
+
+    test('a package probe is a query, not a check', () {
+      expect(VerificationMetadataQueryPolicy.applies(probe), isTrue);
+      final failedProbe = command(
+        'probe',
+        probe,
+        exitCode: 1,
+        stdout: '---\nTraceback (most recent call last):\n',
+      );
+      expect(
+        CommandVerificationReconciliation.isVerification(failedProbe),
+        isFalse,
+      );
+      expect(
+        const UnresolvedVerificationFailure().describe([
+          failedProbe,
+          installedAndPassed,
+        ]),
+        isNull,
+      );
+    });
+
+    test('trimmed setup output still lets the chain settle pytest', () {
+      expect(
+        CommandVerificationReconciliation.currentResults([
+          launchFailure,
+          installedAndPassed,
+        ]).map((result) => result.id),
+        ['host-chain'],
+      );
+    });
+
+    for (final command in [
+      'echo ok > out.txt; python3 -m pytest --version',
+      '.venv/bin/python -m pip list | grep -i pytest && python3 -m pytest -q',
+    ]) {
+      test('a write or a real run is not a probe: $command', () {
+        expect(VerificationMetadataQueryPolicy.applies(command), isFalse);
+      });
+    }
+
+    test('a step whose failure is swallowed settles nothing', () {
+      final masked = command(
+        'masked',
+        'python3 check.py || true && .venv/bin/python -m pytest -q',
+        stdout: '61 passed in 3.09s',
+      );
+      expect(
+        CommandVerificationReconciliation.currentResults([
+          launchFailure,
+          masked,
+        ]),
+        contains(launchFailure),
+      );
     });
   });
 

@@ -32,6 +32,9 @@ void main() {
     'ls -d /project/.venv /project/venv 2>/dev/null; which pytest 2>/dev/null; '
         'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
     'ls -d /project/.venv && /project/.venv/bin/python -c "import pytest; print(\'pytest\', pytest.__version__)"',
+    // Session 64bbc516.
+    'ls -a; command -v python3.12 python3.11 python3.13; ls .venv venv',
+    'command -V pytest 2>/dev/null',
   ]) {
     test('accepts literal inspection: $command', () {
       expect(LiteralEnvironmentInspectionPolicy.applies(command), isTrue);
@@ -58,6 +61,10 @@ void main() {
     'which python3 -a',
     'which -a python3 > result.txt',
     'which -a python3 && python3 verify.py',
+    'command python3 verify.py',
+    'command -v',
+    'command -v -p python3',
+    r'command -v $(touch result.txt)',
     r'which -a $(touch result.txt)',
     'ls || true',
     'ls .venv/bin/python* || python3 -m pip install pytest',

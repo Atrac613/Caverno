@@ -17,6 +17,10 @@ void main() {
     'python3.14 - <<"PY"',
     "/workspace/.venv/bin/python - <<'PY' 2>&1",
     "cd '/workspace/project name' && python - <<'PY'",
+    // Session 64bbc516: tests first, then the stdin check.
+    "python3 -m pytest test_state.py -q && python3 - <<'PY'",
+    "cd /workspace && .venv/bin/python -m pytest -q && "
+        ".venv/bin/python - <<'PY'",
   ]) {
     test('recognizes a literal stdin invocation: $header', () {
       final command = '$header\n$script\nPY\n';
@@ -39,6 +43,22 @@ void main() {
       );
     });
   }
+
+  test('a failing check chained after pytest blocks completion', () {
+    final failed = _result(
+      'chained',
+      "python3 -m pytest -q && python3 - <<'PY'\n$script\nPY",
+      exitCode: 1,
+      stdout: '37 passed in 3.1s',
+    );
+    expect(CommandVerificationReconciliation.isVerification(failed), isTrue);
+    expect(
+      ToolResultPromptBuilder.completionEvidence([
+        failed,
+      ]).hasFailedExecutionVerification,
+      isTrue,
+    );
+  });
 
   test('Python strings remain literal even when they contain shell syntax', () {
     expect(
@@ -65,6 +85,8 @@ void main() {
     "cd /workspace; python3 - <<'PY'\n$script\nPY",
     "cd \$HOME && python3 - <<'PY'\n$script\nPY",
     "cd /workspace && echo ready && python3 - <<'PY'\n$script\nPY",
+    "rm -rf data && python3 - <<'PY'\n$script\nPY",
+    "python3 -m pytest -q || python3 - <<'PY'\n$script\nPY",
     "python3 - <<'PY'\n\nPY",
     "python3 - <<'PY'\r\n$script\r\nPY",
   ]) {

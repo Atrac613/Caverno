@@ -22,16 +22,13 @@ abstract final class EnvironmentQueryWordsPolicy {
         (RegExp(r'^pip(?:\d+(?:\.\d+)*)?$').hasMatch(basename) &&
             _isPackageQuery(args));
     if (limited && !pipMetadata) return false;
-    final valid = switch (executable) {
+    return switch (executable) {
       'ls' => true,
       'pwd' => args.isEmpty,
-      'which' =>
-        (args.firstOrNull == '-a' ? args.skip(1) : args).isNotEmpty &&
-            (args.firstOrNull == '-a' ? args.skip(1) : args).every(
-              (arg) =>
-                  RegExp(r'^[a-zA-Z0-9_.-]+$').hasMatch(arg) &&
-                  !arg.startsWith('-'),
-            ),
+      'which' => _names(args.firstOrNull == '-a' ? args.skip(1) : args),
+      // POSIX `which`; a failed probe using it blocked session 64bbc516.
+      'command' =>
+        const {'-v', '-V'}.contains(args.firstOrNull) && _names(args.skip(1)),
       'cd' =>
         args.length == 1 &&
             args.single.isNotEmpty &&
@@ -44,15 +41,14 @@ abstract final class EnvironmentQueryWordsPolicy {
                     args.length == 1 &&
                         const {'--version', '-V'}.contains(args.single))),
     };
-    return valid;
   }
 
+  static bool _names(Iterable<String> args) =>
+      args.isNotEmpty &&
+      args.every(
+        (arg) => RegExp(r'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*$').hasMatch(arg),
+      );
+
   static bool _isPackageQuery(List<String> args) =>
-      args.length >= 2 &&
-      args.first == 'show' &&
-      args
-          .skip(1)
-          .every(
-            (name) => RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*$').hasMatch(name),
-          );
+      args.length >= 2 && args.first == 'show' && _names(args.skip(1));
 }

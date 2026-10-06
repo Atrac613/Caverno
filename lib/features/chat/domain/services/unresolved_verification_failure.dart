@@ -78,16 +78,25 @@ final class UnresolvedVerificationFailure {
         : exit == null
         ? ''
         : ' (exit $exit)';
-    if (CommandVerificationReconciliation.scopeOf(
-          result,
-        )?.runtimeLaunchFailed ==
-        true) {
+    final scope = CommandVerificationReconciliation.scopeOf(result);
+    if (scope?.runtimeLaunchFailed == true) {
       return 'the verification `$command` failed$exitDetail before pytest could launch. '
           'Use capturedEvidence.unresolvedVerification.runtimeRepairCommand when available, '
           'or replace only the Python executable in the full recorded chain with the '
           'captured working runtime. Preserve all prerequisites, imports and checks; '
           'run the full chain again. A different script or a standalone test pass '
           'does not settle this failure';
+    }
+    if (scope?.pytestRunner case final runner?) {
+      // A pytest scope is settled by the same tests passing under any
+      // interpreter. "Re-run it" sent the model in session 016d4d5e to replay
+      // the venv setup in front of pytest, deleting a working venv each time.
+      return 'the pytest run in `$command` failed$exitDetail and has not '
+          'passed since. A passing run of the same tests in '
+          '${runner.directory} settles it, for example '
+          '`${runner.replayCommand}` with any interpreter that has pytest; '
+          'setup steps before it are not part of the check and need not be '
+          'repeated. Report blocked_reason only for a concrete blocker';
     }
     final inline = InlinePythonVerificationContract.parse(
       (payload?['command'] ?? result.arguments['command'])?.toString() ?? '',

@@ -30,6 +30,23 @@ abstract final class LocalCommandWorkspaceContainment {
     }
   }
 
+  /// CPython's `mimetypes.knownfiles`, canonicalized. `mimetypes.init()`
+  /// opens each one that exists, and the profile lets `stat` through while
+  /// denying the read, so the open raised. pip resolves wheels through
+  /// `mimetypes`, so every contained `python3 -m venv` and `ensurepip` failed
+  /// on macOS's `/etc/apache2/mime.types` -- in sessions 17398f84, 016d4d5e
+  /// and d27e7528 -- and the model fell back to host execution for pip.
+  static const _mimeTypeTables = [
+    '/private/etc/mime.types',
+    '/private/etc/httpd/mime.types',
+    '/private/etc/httpd/conf/mime.types',
+    '/private/etc/apache/mime.types',
+    '/private/etc/apache2/mime.types',
+    '/usr/local/etc/httpd/conf/mime.types',
+    '/usr/local/lib/netscape/mime.types',
+    '/usr/local/etc/mime.types',
+  ];
+
   static String profile({required String root, required String scratch}) {
     String literal(String value) =>
         '"${value.replaceAll(r'\', r'\\').replaceAll('"', r'\"')}"';
@@ -45,7 +62,8 @@ abstract final class LocalCommandWorkspaceContainment {
         '(allow file-read-data (literal "/private/etc/localtime") '
         '(literal "/private/etc/passwd") (literal "/private/etc/group") '
         // xcrun refuses to run a tool until it reads the license acceptance.
-        '(literal "/Library/Preferences/com.apple.dt.Xcode.plist"))'
+        '(literal "/Library/Preferences/com.apple.dt.Xcode.plist")'
+        '${_mimeTypeTables.map((path) => ' (literal ${literal(path)})').join()})'
         '(deny file-write*)'
         '(allow file-write* (subpath ${literal(root)}))'
         '(allow file-write* (subpath ${literal(scratch)}))'

@@ -330,6 +330,26 @@ bash -c 'printf blocked > "$1"' child 'TARGET'
       expect(result['stdout'], '1\n');
     }, skip: !supported);
 
+    test('reads the MIME tables Python opens at import', () async {
+      // macOS ships /etc/apache2/mime.types. The profile let `stat` see it
+      // but denied the read, so `mimetypes.init()` raised.
+      final result = await execute(
+        "python3 -c 'import mimetypes; print(mimetypes.guess_type(\"a.html\")[0])'",
+      );
+      expect(result['exit_code'], 0, reason: result['stdout'] as String?);
+      expect(result['stdout'], 'text/html\n');
+    }, skip: !supported);
+
+    test('creates a virtual environment with pip', () async {
+      // Sessions 17398f84, 016d4d5e and d27e7528: ensurepip failed on that
+      // read, so every contained venv came out without pip.
+      final result = await execute(
+        'python3 -m venv .venv && .venv/bin/python -m pip --version',
+      );
+      expect(result['exit_code'], 0, reason: result['stderr'] as String?);
+      expect(result['stdout'], startsWith('pip '));
+    }, skip: !supported);
+
     test('preserves a failed pipeline status through tail', () async {
       final result = await execute('bash -c "exit 7" 2>&1 | tail -n 5');
       expect(result['exit_code'], 7);

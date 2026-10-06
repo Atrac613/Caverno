@@ -2,6 +2,7 @@ import 'package:path/path.dart' as path;
 
 import 'environment_query_words_policy.dart';
 import 'literal_shell_words.dart';
+import 'pytest_verification_identity.dart';
 
 /// Recognizes an executed literal Python stdin script for completion evidence.
 /// This does not change command capabilities, containment, or approval policy.
@@ -36,6 +37,16 @@ abstract final class LiteralPythonStdinVerification {
       }
       invocation = cd[2]!;
     }
+    // `pytest -q && python3 - <<'EOF'` runs the script only after the tests
+    // pass. Read as a mutation, a failing assertion in it blocked nothing
+    // (session 64bbc516 rec 52).
+    final steps = invocation.split('&&').map((step) => step.trim()).toList();
+    if (steps
+        .take(steps.length - 1)
+        .any((step) => PytestVerificationIdentity.parse(step, '/') == null)) {
+      return false;
+    }
+    invocation = steps.last;
     final words = LiteralShellWords.parse(invocation);
     if (words == null ||
         words.length != 2 ||
