@@ -482,6 +482,12 @@ printf '%s\n' "$@"
         // a release tag; the guards have their own tests on a scratch repo.
         'CAVERNO_ALLOW_UNTAGGED_RELEASE': 'yes',
         'CAVERNO_ALLOW_SPARKLE_REPUBLISH': 'yes',
+        // Release lanes require firebase/dart_defines.json. That file is
+        // gitignored, so CI does not have it and a developer machine does.
+        // Point at a file this fixture never writes, and allow the absence,
+        // unless the caller is the defines gate and overrides both.
+        'CAVERNO_DART_DEFINES_FILE': '${root.path}/missing-dart-defines.json',
+        'CAVERNO_ALLOW_MISSING_DART_DEFINES': '1',
         ...environment,
       },
     );
