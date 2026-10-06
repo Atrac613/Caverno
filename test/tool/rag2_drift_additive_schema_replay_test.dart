@@ -88,7 +88,7 @@ void main() {
     final schema = await inspectRag2DriftHostSchema(host);
     expect(schema.onlyConversationSearchFts5, isTrue);
     expect(schema.logicalTables, rag2DriftHostLogicalTables);
-    expect(version.data['user_version'], 5);
+    expect(version.data['user_version'], 6);
   });
 
   test('reopens the last committed generation from a new connection', () async {
@@ -460,7 +460,7 @@ void main() {
     expect(report.toJson()['driftAdditiveDecision'], 'go');
     expect(report.toJson()['fts5Decision'], 'not_selected');
     expect(report.toJson()['productionDecision'], 'no_go');
-    expect(report.toJson()['appDatabaseSchemaVersion'], 5);
+    expect(report.toJson()['appDatabaseSchemaVersion'], 6);
     expect(jsonDecode(jsonReport), report.toJson());
     expect(markdownReport, report.toMarkdown());
     for (final forbidden in [

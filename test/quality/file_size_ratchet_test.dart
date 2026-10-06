@@ -61,7 +61,15 @@ const Map<String, int> _lineBudgets = {
   // +11 for the turn abort signal: an import, a field, a release registration,
   // and the signal handed to the zone the request sites already run in. The
   // logic is in TurnAbortSignals.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8694,
+  // -7: the loop-limit recovery decision derives its pending-call facts in
+  // ToolLoopExhaustionDecisionInput.fromPendingCalls instead of here.
+  // -57, to 8,630: the saved-validation repair check is a pure function of
+  // tool results and moved to application/runtime, paying for the pending-edit
+  // budget extension at the tool-loop limit.
+  // Review inspection and initial tool selection live in a bounded helper.
+  // Dispatch and native commit scope checks are kept in a bounded part.
+  // Request preparation moved to the existing prompt context part.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8471,
   'lib/features/chat/domain/services/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
@@ -95,7 +103,9 @@ const Map<String, int> _lineBudgets = {
   // one name. What stayed is the decision; what moved is the policy it reads.
   'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 70,
   'lib/features/chat/domain/services/anabasis_parent_authority_tools.dart': 36,
-  'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 44,
+  // +5 for the turn scope, the read-only review's refusal. It belongs in the
+  // chain because it must run before the assumption gate asks the user.
+  'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 49,
   'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
   // +10, to 155: a worktree child that named no files owes no changed-file
@@ -128,8 +138,24 @@ const Map<String, int> _lineBudgets = {
   // furthest from done.
   'lib/features/chat/domain/services/subagent_result_payloads.dart': 188,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
+  // -21, to 402: the input class moved to coding_continuation_recovery_input
+  // .dart, and the per-code wording became one table, which paid for the
+  // reasoning-only stop decision moving in from the notifier library.
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
-      423,
+      402,
+  'lib/features/chat/domain/services/coding_continuation_recovery_prompt_builder.dart':
+      78,
+  'lib/features/chat/domain/services/incomplete_coding_work_detector.dart': 30,
+  'lib/features/chat/domain/services/coding_future_action_detector.dart': 100,
+  'lib/features/chat/domain/services/project_task_completion_evidence.dart': 45,
+  'lib/features/chat/domain/services/structured_coding_task_recovery_policy.dart':
+      29,
+  'lib/features/chat/domain/services/tool_outcome_snapshot.dart': 23,
+  // -4, to 87: the status request's tools, prompt and call acceptance moved
+  // to StatusRecoveryVerification.
+  'lib/features/chat/domain/services/turn_finalization_recovery_plan.dart': 87,
+  'lib/features/project_farm/application/project_task_review_turn_runner.dart':
+      49,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
   'lib/features/chat/domain/services/content_tool_formatters.dart': 2,
   'lib/features/chat/domain/services/content_tool_failure_result_formatter.dart':
@@ -138,8 +164,13 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
   'lib/features/chat/domain/services/ask_user_question_option_parser.dart': 99,
   'lib/features/chat/domain/services/ask_user_question_policy.dart': 383,
-  'lib/features/chat/domain/services/ask_user_question_result_entry.dart': 30,
-  'lib/features/chat/domain/services/ask_user_question_turn_cache.dart': 99,
+  'lib/features/chat/domain/services/ask_user_question_result_entry.dart': 27,
+  // Extracted so the reuse decision, and the rationale for refusing an answer
+  // whose option is gone, live beside each other rather than inside the store.
+  'lib/features/chat/domain/services/ask_user_question_reuse_policy.dart': 73,
+  'lib/features/chat/domain/services/ask_user_question_text_normalization.dart':
+      18,
+  'lib/features/chat/domain/services/ask_user_question_turn_cache.dart': 79,
   // -41: the completion bookkeeping every path ended with -- does this
   // completion still belong to the turn, has the approval expired, may a
   // side effect already have happened -- is now BackgroundProcessResultLedger.
@@ -189,6 +220,13 @@ const Map<String, int> _lineBudgets = {
       388,
   'lib/features/chat/domain/services/production_release_approval_coordinator.dart':
       170,
+  'lib/features/chat/domain/services/production_release_approval_gate.dart':
+      216,
+  // -31, to 55: the approval-conflict refusal left for
+  // production_release_approval_conflict_result.dart, taking the pending
+  // release it describes instead of its fields one by one.
+  'lib/features/chat/domain/services/production_release_approval_presentation.dart':
+      55,
   'lib/features/chat/domain/services/production_release_approval_evidence_snapshot.dart':
       27,
   'lib/features/chat/domain/services/production_release_approval_token_registry.dart':
@@ -197,6 +235,18 @@ const Map<String, int> _lineBudgets = {
       203,
   'lib/features/chat/domain/services/production_release_blocked_result.dart':
       59,
+  // Extracted from the coordinator and the blocked result so a release the
+  // turn already ran is one concern: the typed read that proves it ran, and
+  // the refusal that says so instead of demanding an approval no answer could
+  // satisfy.
+  'lib/features/chat/domain/services/production_release_dispatch_evidence.dart':
+      98,
+  'lib/features/chat/domain/services/production_release_dispatch_result.dart':
+      30,
+  // -18, to 43: argument canonicalization left for
+  // production_release_canonical_arguments.dart after 8d7c19ba9 overran this.
+  'lib/features/chat/domain/services/production_release_execution_identity.dart':
+      43,
   'lib/features/chat/domain/services/production_release_prose_shadow.dart': 77,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,
@@ -239,6 +289,8 @@ const Map<String, int> _lineBudgets = {
       283,
   'lib/features/chat/domain/services/blocked_production_release_retry_policy.dart':
       261,
+  'lib/features/chat/domain/services/blocked_production_release_retry_contract.dart':
+      100,
   'lib/features/chat/domain/services/fenced_tool_arguments_detector.dart': 74,
   'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':
       224,
@@ -279,7 +331,9 @@ const Map<String, int> _lineBudgets = {
   // +5: the operator skip had to learn about the trailing line limit. A tag
   // creation carrying one now executes, so skipping on "there is an
   // operator" would let it past this gate ungated.
-  'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 156,
+  // +6: the block declares itself a refusal (`ok: false`, `result_origin`),
+  // so the turn digest stops listing a blocked `tag -a` as run.
+  'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 162,
   'lib/features/chat/domain/services/goal_validation_probe_guard.dart': 53,
   'lib/features/chat/domain/services/material_contract_assumption_arming.dart':
       31,
@@ -290,9 +344,17 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/saved_validation_command_guard.dart': 180,
   // -24: the frozen input snapshot moved to saved_task_target_scope_input.dart
   // and is re-exported, so the guard file holds only the decision.
+  // Introduction budget. The guard's view of an executor-driven turn's
+  // request, resolved through the saved task's own authored fields. Two
+  // fall-throughs carry most of the body: an empty task, and the synthetic
+  // request wrapper whose placeholder title carries none of the request.
+  'lib/features/chat/domain/services/saved_task_authored_request_text.dart': 63,
   'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 113,
   'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
-  'lib/features/chat/domain/services/uninspected_commit_guard.dart': 144,
+  // +9: the block declares itself a refusal. Reported as a success it was
+  // filed as an executed commit, so the identical commit re-issued after
+  // `diff --cached` was deduplicated and the refusal replayed (dd50d110).
+  'lib/features/chat/domain/services/uninspected_commit_guard.dart': 153,
   'lib/features/chat/domain/services/git_write_confirmation_policy.dart': 93,
   'lib/features/chat/domain/services/context_surgery_observation_accumulator.dart':
       130,
@@ -309,7 +371,10 @@ const Map<String, int> _lineBudgets = {
   // -21: escaped loose scalar decoding moved behind its own bounded parser.
   'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 672,
   'lib/features/chat/domain/services/loose_json_scalar_extractor.dart': 37,
-  'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 55,
+  // +43: the pending-call facts moved here from chat_notifier.dart (-7), and a
+  // pending ask_user_question now declines recovery, whose "do not ask for
+  // confirmation" had the model answer its own question (dd50d110).
+  'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 98,
   // -11: the block payload and the Git working-tree evidence check moved to
   // their own collaborators.
   'lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart':
@@ -452,13 +517,17 @@ const Map<String, int> _lineBudgets = {
   // device that started it unable to see or answer it (SA-26). The four
   // subclass copies come out, seven `super.` forwards go in, and the residue
   // is that forwarding: it is the fix, and it does not extract.
-  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 464,
+  // -8 net: LocalCommandApproval left for its own file (re-exported), which
+  // paid for PendingLocalCommand.canRememberAllow. SEC4.4g discards a
+  // remembered allow, so the sheet must know not to offer one.
+  'lib/features/chat/presentation/providers/pending_tool_approvals.dart': 456,
+  'lib/features/chat/presentation/providers/local_command_approval.dart': 17,
   'lib/features/chat/presentation/providers/pending_tool_approval_registry.dart':
       144,
   'lib/features/chat/presentation/providers/pending_ask_user_question.dart': 46,
   'lib/features/chat/presentation/providers/pending_tool_approval_projection.dart':
       54,
-  'lib/features/chat/presentation/providers/queued_chat_message.dart': 87,
+  'lib/features/chat/presentation/providers/queued_chat_message.dart': 72,
   'lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart':
       361,
   // -28: clearing an answered approval out of ChatState is a per-type dispatch
@@ -472,6 +541,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart':
       290,
   'lib/features/chat/presentation/providers/turn_tool_result_ledger.dart': 151,
+  'lib/features/chat/presentation/providers/turn_tool_result_state.dart': 25,
+  'lib/features/chat/presentation/providers/turn_command_execution_recorder.dart':
+      46,
   'lib/features/chat/presentation/providers/content_tool_turn_state_registry.dart':
       187,
   'lib/features/chat/presentation/providers/hidden_assistant_evidence_registry.dart':
@@ -545,7 +617,10 @@ const Map<String, int> _lineBudgets = {
   // editors behind them -- had been unreachable for five months. The two
   // worth keeping were moved to AwaitingYouSheet first; the +1 this budget
   // took to wire that is repaid here many times over.
-  'lib/features/chat/presentation/pages/chat_page.dart': 1323,
+  // -2, to 1,321: baebb517b's Stack pushed this to 1,362. The list shell and
+  // its scroll-to-latest overlay became ThreadMessageListView, and the item
+  // builder left the build method's twelve levels of nesting.
+  'lib/features/chat/presentation/pages/chat_page.dart': 1321,
   'lib/features/chat/presentation/widgets/anabasis_speaker_header.dart': 59,
   'lib/features/chat/presentation/widgets/plan/contract_item_list_section.dart':
       131,
@@ -570,7 +645,9 @@ const Map<String, int> _lineBudgets = {
       74,
   // +1 blank line, not code: directives_ordering separates the `package:`
   // imports from the relative ones. See docs/lint_policy.md.
-  'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 288,
+  // -2, to 286: baebb517b's button visibility became
+  // ThreadScrollToBottomVisibility and the anchor type its own file.
+  'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 286,
   'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
   // a stream, a timeout and a drain.
@@ -666,7 +743,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/widgets/composer_macos_paste_hint.dart': 34,
   // -15: the submenu value and check icon are chip-level presentation, so
   // they sit beside buildComposerControlChip instead.
-  'lib/features/chat/presentation/widgets/composer_model_selector.dart': 253,
+  // -4, to 249: 8b987de59's remote selection took this to 367. The selection
+  // value type, the model submenu and the local catalog fetch each left for a
+  // composer_model_* file of their own.
+  'lib/features/chat/presentation/widgets/composer_model_selector.dart': 249,
   'lib/features/chat/presentation/widgets/composer_control_chip.dart': 65,
   // +37 for the two video entries and the flag that hides them. This file is
   // the attachments menu; a menu entry is not extractable from the menu.
@@ -709,7 +789,10 @@ const Map<String, int> _lineBudgets = {
       356,
   'lib/features/chat/presentation/widgets/slash_command_help_sheet.dart': 42,
   'lib/features/chat/presentation/widgets/chat_page_scaffold.dart': 87,
-  'lib/features/chat/presentation/widgets/chat_right_sidebar.dart': 114,
+  // +36, to 150: the third tab (background processes). Choosing which tabs
+  // exist and falling back when a selected tab's body is gone is the panel's
+  // own job; the process list itself is BackgroundProcessPanel.
+  'lib/features/chat/presentation/widgets/chat_right_sidebar.dart': 150,
   'lib/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart':
       1559,
   'lib/features/chat/presentation/widgets/file_workspace_diff_parser.dart': 97,
@@ -738,7 +821,9 @@ const Map<String, int> _lineBudgets = {
       19,
   // Carry-over (background_process_carry_over.dart) extracted alongside the
   // public recovery API, which moved next to the registry internals it settles.
-  'lib/features/chat/data/datasources/background_process_tools.dart': 415,
+  // +2, to 417: the part directive and the snapshot import for the sidebar's
+  // read-only conversation view (background_process_conversation_view.dart).
+  'lib/features/chat/data/datasources/background_process_tools.dart': 417,
   'lib/features/chat/data/datasources/background_process_carry_over.dart': 141,
   // Carried-job retention is one policy read by two pools -- the tools registry
   // and the monitor service -- so it lives beside them rather than twice inside
@@ -784,7 +869,11 @@ const Map<String, int> _lineBudgets = {
   // generating, measured at 36.7 minutes in session c138c465.
   // -5: OpenAIClient construction moved to ChatDataSourceClientFactory.client,
   // which already owned the two wrapped http clients it hands that constructor.
-  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1124,
+  // -11, to 1,113: 9dcdd264c's tool_choice pushed this to 1,137; the SDK tool
+  // and tool_choice mapping moved to ChatRequestToolDeclarations.
+  // -9: the stream assembler owns its reasoning buffer, which the tool-result
+  // path used to allocate and stringify itself.
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1104,
   // +32, and the only budget raised here rather than lowered. 20 of it is the
   // client construction that left chat_remote_datasource.dart just above,
   // offset there; the rest is the endpoint's chat_template_kwargs opt-in and
@@ -834,7 +923,11 @@ const Map<String, int> _lineBudgets = {
   // +5, to 1,679, and it is a raise: the rewind has to put back
   // taskAcceptances along with everything else it restores, or an acceptance
   // outlives the evidence it rested on.
-  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1679,
+  // -11, to 1,668: the reusable-empty-thread predicate and the default-title
+  // sentinel it reads are pure functions of a Conversation and moved to
+  // domain/services/reusable_empty_conversation.dart, which paid for the
+  // background thread's title parameter (a farm task is named after its item).
+  'lib/features/chat/presentation/providers/conversations_notifier.dart': 1668,
   // The progress writers' own ceiling, raised deliberately and with a reason
   // when a writer is added -- which is the point of giving them a file with a
   // budget of their own.
@@ -928,7 +1021,10 @@ const Map<String, int> _lineBudgets = {
   // scenarios go into parts, not the number of scenarios.
   // -67 further: the approval-audit scenario sits with the other approval
   // tests, which paid for the stand-in calls the SEC4.4g gate now needs.
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 17610,
+  // +6: the output-feedback scenario queues the duplicate-command recovery
+  // response, which now runs before the command's output may stand as the
+  // answer. It is an existing scenario's script, not a new scenario.
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 17616,
   // Folded into chat_presentation_providers_tiny_test.dart as a part file; the
   // budget follows the content, which is what it was guarding.
   'test/features/chat/presentation/providers/mcp_tool_provider_rollback_store_cases.dart':
@@ -966,6 +1062,59 @@ const Map<String, int> _lineBudgets = {
       57,
   'lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart':
       82,
+  // F5 ranking refresh (2026-09-24): the largest production files with no
+  // budget at all. The diagnostic service is recorded after its pure response
+  // scoring moved to live_llm_diagnostic_response_scoring.dart. The Remote
+  // Coding notifiers and page are deliberately not listed: RC1 is changing
+  // them weekly, and a budget there would block that work, not decompose it.
+  // Lowered from 4688 when the sampler-calibration trials moved out, and
+  // from 4470 when the report-evidence helpers did, from 4440 when the
+  // vision probes did, from 4067 when the thinking observer did, and from
+  // 3963 when the structured-output probe did, and from 3789 when the
+  // tool-recovery probe and shared argument scoring did, and from 3605 when
+  // the tool-depth probe did, and from 3425 when the multi-round probe did.
+  // The page was lowered from 1742
+  // when its header moved out.
+  'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
+      3203,
+  'lib/features/settings/domain/services/live_llm_multi_round_probe.dart': 284,
+  'lib/features/settings/domain/services/live_llm_tool_depth_probe.dart': 235,
+  'lib/features/settings/domain/services/live_llm_tool_recovery_probe.dart':
+      211,
+  'lib/features/settings/domain/services/live_llm_structured_output_probe.dart':
+      210,
+  'lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart':
+      1675,
+  'lib/features/chat/domain/services/command_verification_reconciliation.dart':
+      139,
+  'lib/features/chat/domain/services/pytest_verification_identity.dart': 61,
+  'lib/features/chat/domain/services/literal_shell_words.dart': 40,
+  'lib/features/chat/domain/services/pytest_shell_invocation.dart': 31,
+  'lib/features/chat/domain/services/pytest_test_outcome_parser.dart': 24,
+  'lib/features/chat/domain/services/executed_verifier_replay_policy.dart': 63,
+  'lib/features/chat/domain/services/verified_pytest_replay_policy.dart': 174,
+  'lib/features/chat/domain/services/pytest_replay_state_policy.dart': 43,
+  'lib/features/chat/domain/services/literal_shell_segments.dart': 30,
+  'lib/features/chat/domain/services/pytest_metadata_inspection_policy.dart':
+      11,
+  'lib/features/chat/domain/services/literal_environment_inspection_policy.dart':
+      32,
+  'lib/features/chat/domain/services/environment_query_words_policy.dart': 58,
+  'lib/features/chat/domain/services/unexecuted_command_claim_reconciliation.dart':
+      46,
+  // -8: the status protocol violation moved to StatusRecoveryVerification,
+  // beside the acceptance rule it reports on.
+  'lib/features/chat/presentation/providers/coding_continuation_recovery_request.dart':
+      98,
+  'lib/features/chat/domain/services/masked_inspection_command_policy.dart': 11,
+  'lib/features/chat/domain/services/turn_finalization_recovery_budget.dart':
+      59,
+  'lib/features/chat/domain/services/turn_finalization_recovery_input_builder.dart':
+      39,
+  'lib/features/chat/data/datasources/local_shell_process_runner.dart': 234,
+  'lib/features/chat/domain/services/tool_result_prompt_builder.dart': 2064,
+  'lib/features/chat/data/datasources/git_tools.dart': 2047,
+  'lib/features/chat/data/datasources/local_shell_tools.dart': 1932,
 };
 
 const Map<String, int> _libraryLineBudgets = {
@@ -1114,7 +1263,14 @@ const Map<String, int> _libraryLineBudgets = {
   // registration, the owner-scoped abort in cancellation, and the zone the
   // request sites already run in. The pinned prompt clock that shipped before
   // it needed no aggregate room.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19900,
+  // -7 matching the primary file: the loop-limit recovery facts left the
+  // library for ToolLoopExhaustionDecisionInput.
+  // +24 for the read-only review scope (session e3a9f3f0) and the
+  // duplicate-command recovery that must run before raw output may stand as
+  // the answer. The scope, its carry and its prompts live outside the
+  // library; what is left is the per-turn lookup, the tool-list default, the
+  // policy-chain hook and one argument at each recovery prompt site.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19879,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
@@ -1171,7 +1327,8 @@ const Map<String, int> _libraryLineBudgets = {
   // chat_page_workflow_builders.dart is gone entirely: it ended up holding
   // one method that builds nothing, which now sits with the other two actions
   // the awaiting-you opener calls.
-  'lib/features/chat/presentation/pages/chat_page.dart': 5343,
+  // -1, to 5,342, matching the primary file's ThreadMessageListView slice.
+  'lib/features/chat/presentation/pages/chat_page.dart': 5342,
   // +4, to 1,147, matching the primary file: the accept_task reservation and
   // offer are four lines in the primary, not a new part.
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1147,

@@ -52,6 +52,7 @@ void main() {
         'selectConversation',
         'createThread',
         'sendMessage',
+        RemoteCodingProtocol.uploadAttachment,
         'cancelStreaming',
         // Per-conversation messaging, the same class as the two above: a
         // thread the caller names rather than the one the server has
@@ -59,8 +60,12 @@ void main() {
         // (050e6d76b) and this exhaustive pin was not updated with them.
         RemoteCodingProtocol.sendMessageToConversation,
         RemoteCodingProtocol.cancelConversationStreaming,
+        RemoteCodingProtocol.requestComposerModels,
+        RemoteCodingProtocol.updateComposerSettings,
+        RemoteCodingProtocol.clearConversation,
         'resolveApproval',
         'resolveQuestion',
+        'resolvePlanReview',
         'requestSnapshot',
         'relayDelegationReady',
         'requestNotificationRelay',

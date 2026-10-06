@@ -467,6 +467,8 @@ class RepoMapService {
     '.idea',
     '.symlinks',
     '.vscode',
+    '.venv',
+    '__pycache__',
     'DerivedData',
     'Pods',
     'build',

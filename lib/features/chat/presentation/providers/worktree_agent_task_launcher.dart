@@ -14,6 +14,7 @@ class WorktreeAgentTaskLaunchRequest {
   const WorktreeAgentTaskLaunchRequest({
     required this.title,
     required this.prompt,
+    this.deferStart = false,
     this.codingProjectId = '',
     this.projectRootPath = '',
     this.baseBranch = 'main',
@@ -30,6 +31,7 @@ class WorktreeAgentTaskLaunchRequest {
     this.existingWorktreePaths = const <String>[],
   });
 
+  final bool deferStart;
   final String title;
   final String prompt;
   final String codingProjectId;
@@ -140,7 +142,7 @@ class WorktreeAgentTaskLauncher {
 
     final task = await _ref
         .read(worktreeAgentTaskRegistryNotifierProvider.notifier)
-        .registerAssignment(plan);
+        .registerAssignment(plan, deferStart: request.deferStart);
     return WorktreeAgentTaskLaunchResult(plan: plan, task: task);
   }
 

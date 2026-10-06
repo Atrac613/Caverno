@@ -39,6 +39,10 @@ extension ChatNotifierTurnExit on ChatNotifier {
         finishReason: finishReason,
       ),
     );
+    _recordTaskCommitTerminal(
+      generation,
+      reason == ToolLoopExitReason.textResponse,
+    );
     final token = _toolLoopExitClassifier.logToken(reason);
     if (shouldDropLastAssistant) {
       // Mid-work / empty terminal: the "agent appears to just stop" case the

@@ -18,6 +18,7 @@ class ToolResultInfo {
     required this.result,
     this.outcome,
     this.fromEarlierLoop = false,
+    this.changesSinceCapture = const <String>[],
   });
 
   final String id;
@@ -50,4 +51,30 @@ class ToolResultInfo {
   /// that growth was reasoning rather than output. History has to look like
   /// history, so the formatter emits these as their own earlier exchanges.
   final bool fromEarlierLoop;
+
+  /// File writes this turn executed after this result was captured, oldest
+  /// first, each as `<tool> <path>`.
+  ///
+  /// Set only on a result `RecentReadResultCarry` re-sends across a write. The
+  /// formatter states them next to the result, so the model decides what the
+  /// write may have made stale instead of the harness guessing it.
+  final List<String> changesSinceCapture;
+
+  /// This result with its payload text replaced and everything else kept.
+  ///
+  /// Prompt budgeting and stale-result stubbing rewrite only the text, and
+  /// both used to rebuild the result field by field. They carried [outcome]
+  /// over but dropped [fromEarlierLoop] and [changesSinceCapture], so no
+  /// carried result ever reached the request formatter marked as history or
+  /// labelled with a later write: the 95631b24 fix and the write labels were
+  /// inert, and no write label ever reached a session log.
+  ToolResultInfo withResult(String result) => ToolResultInfo(
+    id: id,
+    name: name,
+    arguments: arguments,
+    result: result,
+    outcome: outcome,
+    fromEarlierLoop: fromEarlierLoop,
+    changesSinceCapture: changesSinceCapture,
+  );
 }

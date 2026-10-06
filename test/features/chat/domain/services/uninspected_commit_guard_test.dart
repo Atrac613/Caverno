@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
 import 'package:caverno/features/chat/domain/services/uninspected_commit_guard.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -13,11 +15,14 @@ void main() {
     arguments: {'command': command},
   );
 
-  ToolResultInfo gitResult(String command) => ToolResultInfo(
+  ToolResultInfo gitResult(
+    String command, {
+    String stdout = 'diff --git a/lib/app.dart b/lib/app.dart',
+  }) => ToolResultInfo(
     id: 'result-$command',
     name: 'git_execute_command',
     arguments: {'command': command},
-    result: '{"exit_code":0}',
+    result: jsonEncode({'exit_code': 0, 'stdout': stdout, 'stderr': ''}),
   );
 
   ToolResultInfo mutation(String name) => ToolResultInfo(
@@ -76,6 +81,38 @@ void main() {
     );
   });
 
+  test('an empty diff is not a look at the content', () {
+    // Session 23d19ede: after `git add`, a bare `git diff` printed nothing
+    // because every change was staged, and it still unlocked the commit.
+    expect(
+      evaluate(
+        command: 'commit -m "chore: release 1.3.43+57"',
+        results: [
+          gitResult('add pubspec.yaml'),
+          gitResult('diff', stdout: ''),
+        ],
+      ),
+      isNotNull,
+    );
+    expect(
+      evaluate(
+        command: 'commit -m "x"',
+        results: [gitResult('diff --cached', stdout: '  \n')],
+      ),
+      isNotNull,
+    );
+    expect(
+      evaluate(
+        command: 'commit -m "x"',
+        results: [
+          gitResult('diff', stdout: ''),
+          gitResult('diff --cached'),
+        ],
+      ),
+      isNull,
+    );
+  });
+
   test('treats every summary-only diff form as not having looked', () {
     for (final summary in [
       'diff --stat',
@@ -119,6 +156,30 @@ void main() {
     expect(
       evaluate(command: 'git commit -m "x"', results: const []),
       isNotNull,
+    );
+  });
+
+  test('declares the block as a refusal, not as a commit that ran', () {
+    // Session dd50d110: reported as a success, the block was filed as an
+    // executed commit, so the same commit re-issued after `diff --cached` was
+    // skipped as a duplicate and this refusal replayed in its place.
+    final toolCall = gitCall('commit -m "chore: bump"');
+    final blocked = guard.evaluate(
+      UninspectedCommitInput(toolCall: toolCall, executedToolResults: const []),
+    )!;
+    final payload = jsonDecode(blocked.result) as Map<String, dynamic>;
+    const classifier = ToolFailureClassifier();
+
+    expect(blocked.isSuccess, isFalse);
+    expect(payload['ok'], isFalse);
+    expect(ToolResultOrigin.fromPayload(payload), ToolResultOrigin.refusal);
+    expect(
+      classifier.classify(toolCall, blocked),
+      ToolResultDisposition.approvalDenied,
+    );
+    expect(
+      classifier.policyRefusal(blocked)?.requiredAction,
+      contains('diff --cached'),
     );
   });
 }

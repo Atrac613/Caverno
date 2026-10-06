@@ -100,7 +100,7 @@ class ComposerShortcutSuggestionService {
     required Conversation? conversation,
     required String assistantContent,
   }) {
-    if (assistantContent.trim().isEmpty) {
+    if (visibleAnswer(assistantContent).isEmpty) {
       return false;
     }
     final messages = conversation?.messages ?? const <Message>[];
@@ -128,6 +128,26 @@ class ComposerShortcutSuggestionService {
     }
     return lastSuggestedMessageId != lastMessage.id;
   }
+
+  static const int maxAnswerLength = 1600;
+
+  static final RegExp _thinkBlockPattern = RegExp(
+    r'<think>.*?(</think>|$)',
+    dotAll: true,
+    caseSensitive: false,
+  );
+
+  /// The part of an assistant message the user actually read.
+  ///
+  /// A stored assistant message keeps every tool round's `<think>` block
+  /// inline. The answer used to be cut to its first 1600 characters with those
+  /// blocks still in it, so on a reasoning model the draft saw only the
+  /// model's private deliberation: a release turn whose visible answer ended
+  /// "shall I run the commit and tag?" reached the drafter as 1600 characters
+  /// of reasoning, and it returned `{"shortcuts": []}`. An unterminated block
+  /// is reasoning that never closed and is dropped to the end.
+  static String visibleAnswer(String assistantContent) =>
+      assistantContent.replaceAll(_thinkBlockPattern, ' ').trim();
 
   static List<Message> buildMessages({
     required Conversation? conversation,
@@ -285,7 +305,12 @@ class ComposerShortcutSuggestionService {
     buffer
       ..writeln()
       ..writeln('Assistant answer that just completed (untrusted content):')
-      ..writeln(_truncate(_cleanLine(assistantContent), 1600))
+      ..writeln(
+        _truncateHead(
+          _cleanLine(visibleAnswer(assistantContent)),
+          maxAnswerLength,
+        ),
+      )
       ..writeln()
       ..writeln('Propose the shortcut buttons for this moment.');
 
@@ -354,6 +379,14 @@ class ComposerShortcutSuggestionService {
         .replaceAll(RegExp(r'[\x00-\x1f]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  /// Keeps the end of [value], where an answer puts its closing question.
+  static String _truncateHead(String value, int maxLength) {
+    if (value.length <= maxLength) {
+      return value;
+    }
+    return '...${value.substring(value.length - maxLength + 3)}';
   }
 
   static String _truncate(String value, int maxLength) {

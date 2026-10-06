@@ -256,7 +256,7 @@ runRag2Fts5HostedQueryProjectionReplay(
         for (final hit in hostHits) hit.chunkId,
       ].contains(rag2DriftHostConversationId);
   final appDatabaseSchemaUnchanged =
-      schemaVersion.read<int>('user_version') == 5;
+      schemaVersion.read<int>('user_version') == 6;
 
   final isolateDir = _freshDirectory('${options.storeRoot}/isolate');
   final isolatePath = '${isolateDir.path}/caverno.sqlite';
@@ -518,7 +518,7 @@ final class Rag2Fts5HostedQueryProjectionReport {
     'fts5Decision': contractPassed ? 'go' : 'no_go',
     'retrievalDecision': 'not_evaluated',
     'productionDecision': 'no_go',
-    'appDatabaseSchemaVersion': 5,
+    'appDatabaseSchemaVersion': 6,
     'fixtureId': fixtureId,
     'declarationIdentity': declarationIdentity,
     'hostQueryHitCount': hostQueryHitCount,

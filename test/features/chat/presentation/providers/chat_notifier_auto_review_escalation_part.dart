@@ -7,15 +7,19 @@ part of 'chat_notifier_test.dart';
 void registerChatNotifierAutoReviewEscalationTests() {
   test('auto-review denial escalates a user-directed command to manual '
       'approval', () async {
+    final projectRoot = await Directory.systemTemp.createTemp(
+      'review-escalation-',
+    );
+    addTearDown(() => projectRoot.delete(recursive: true));
     final conversationRepository = _FakeConversationRepository();
     final toolDataSource = _ToolBatchChatDataSource(
       initialToolCalls: [
         ToolCallInfo(
           id: 'tool-1',
           name: 'local_execute_command',
-          arguments: const {
+          arguments: {
             'command': 'rm -rf build',
-            'working_directory': '/tmp/project',
+            'working_directory': projectRoot.path,
           },
         ),
       ],
@@ -33,7 +37,7 @@ void registerChatNotifierAutoReviewEscalationTests() {
     final project = CodingProject(
       id: 'project-1',
       name: 'Project',
-      rootPath: '/tmp/project',
+      rootPath: projectRoot.path,
       createdAt: DateTime(2026, 5, 26),
       updatedAt: DateTime(2026, 5, 26),
     );
@@ -76,28 +80,35 @@ void registerChatNotifierAutoReviewEscalationTests() {
         'Clean build outputs',
         bypassPlanMode: true,
       );
-      for (
-        var i = 0;
-        i < 20 && toolNotifier.state.pendingLocalCommand == null;
-        i += 1
-      ) {
-        await Future<void>.delayed(Duration.zero);
-      }
+      await _waitForCondition(
+        () => toolNotifier.state.pendingLocalCommand != null,
+      );
 
-      // SEC4.4g put the host-write ask above auto-review, so a shell command
-      // now reaches the person directly and the reviewer is never consulted --
-      // deliberately: in session db878d3a the reviewer allowed a read under
-      // ~/.caverno while stating it "operates within the selected project".
-      // What this test still guards is the outcome either way: the turn does
-      // not dead-end, the person is asked, and nothing runs before they answer.
+      // Containment restores auto-review; its denial still asks the user.
       final pending = toolNotifier.state.pendingLocalCommand;
       expect(pending, isNotNull);
       expect(pending!.command, 'rm -rf build');
-      expect(
-        pending.warningTitle,
-        'This command has host-wide filesystem access',
-      );
-      expect(toolDataSource.autoReviewRequestMessages, isEmpty);
+      if (_supportsForegroundCommandContainment()) {
+        expect(pending.warningTitle, 'Auto-review flagged this action');
+        expect(
+          pending.warningMessage,
+          contains('The deletion is not clearly authorized.'),
+        );
+        expect(
+          pending.warningMessage,
+          contains('permanently remove files or directories'),
+        );
+        expect(pending.canRememberAllow, isTrue);
+        expect(toolDataSource.autoReviewRequestMessages, hasLength(1));
+      } else {
+        expect(pending.warningTitle, 'Recursive file deletion');
+        expect(
+          pending.warningMessage,
+          startsWith('It runs through the native'),
+        );
+        expect(pending.canRememberAllow, isFalse);
+        expect(toolDataSource.autoReviewRequestMessages, isEmpty);
+      }
       expect(toolService.executedToolNames, isEmpty);
 
       // Declining keeps the command unexecuted.

@@ -114,6 +114,7 @@ class _TestSessionMemoryService extends SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async => const MemoryUpdateResult.none();
 
   @override
@@ -10475,6 +10476,7 @@ void main() {
               id: 'block-current-goal',
               name: 'update_goal',
               arguments: const {
+                'completed': false,
                 'blocked_reason': 'The signing credential is unavailable.',
               },
             ),

@@ -293,4 +293,31 @@ void main() {
       ..clear();
     expect(ledger.isEmpty, isTrue);
   });
+
+  test('tracks the loop list so reads include the batch that just ran', () {
+    // Session 7ae7632b: a copy stored before each batch missed the final one,
+    // and the verifier replay seeded from it without the triggering edit.
+    final ledger = TurnToolResultLedger();
+    final loop = <ToolResultInfo>[result('read')];
+    ledger.track(ownerA, loop);
+    final beforeBatch = ledger.completed(ownerA);
+
+    loop.add(result('edit'));
+
+    expect(ledger.completed(ownerA).map((r) => r.id), ['read', 'edit']);
+    expect(beforeBatch.map((r) => r.id), ['read'], reason: 'reads snapshot');
+    expect(
+      () => ledger.completed(ownerA).add(result('x')),
+      throwsUnsupportedError,
+    );
+
+    ledger.clearResults(ownerA);
+    expect(ledger.completed(ownerA), isEmpty);
+    expect(loop, hasLength(2), reason: 'clearing never touches the loop');
+
+    ledger.track(ownerA, loop);
+    ledger.setCompleted(ownerA, [result('final')]);
+    loop.add(result('late'));
+    expect(ledger.completed(ownerA).map((r) => r.id), ['final']);
+  });
 }

@@ -18,6 +18,47 @@ void main() {
     }
   });
 
+  test(
+    'allows an independent package install before a promised file write',
+    () {
+      final install = _call(
+        'local_execute_command',
+        command: 'python3 -m pip install pytest --quiet',
+      );
+      const claim = 'pytest が未インストールです。インストールしてテストファイルを作成します。';
+      expect(
+        guard.evaluate(
+          _input(
+            toolCall: _call('local_execute_command', command: 'dart analyze'),
+            currentAssistantContent: claim,
+          ),
+        ),
+        isNotNull,
+      );
+      expect(
+        guard.evaluate(
+          _input(toolCall: install, currentAssistantContent: claim),
+        ),
+        isNull,
+      );
+      for (final command in [
+        'python3 -m pip install -r requirements.txt',
+        'python3 -m pip install pytest --quiet && python3 test_watcher.py',
+      ]) {
+        expect(
+          guard.evaluate(
+            _input(
+              toolCall: _call('local_execute_command', command: command),
+              currentAssistantContent: 'I will edit the local file now.',
+            ),
+          ),
+          isNotNull,
+          reason: command,
+        );
+      }
+    },
+  );
+
   test('bypasses for a pending mutation before or after the command', () {
     final command = _call('local_execute_command', command: 'dart analyze');
     final mutation = _call('edit_file', id: 'edit');

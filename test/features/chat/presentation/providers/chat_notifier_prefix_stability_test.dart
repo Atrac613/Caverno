@@ -390,6 +390,7 @@ class _TestSessionMemoryService extends SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+    bool Function()? isCurrent,
   }) async {
     return const MemoryUpdateResult.none();
   }

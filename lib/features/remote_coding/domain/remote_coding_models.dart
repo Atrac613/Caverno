@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../../core/types/assistant_mode.dart';
+import '../../settings/domain/entities/app_settings.dart';
 import 'remote_coding_grant_kinds.dart';
 import 'remote_coding_transport_policy.dart';
 
@@ -10,6 +12,64 @@ enum RemoteCodingConnectionStatus {
   pairing,
   error,
 }
+
+/// Model-related composer values owned by the connected desktop.
+class RemoteCodingComposerSettings {
+  const RemoteCodingComposerSettings({
+    required this.model,
+    required this.reasoningEffort,
+    required this.enableThinking,
+    this.assistantMode = AssistantMode.coding,
+  });
+
+  final String model;
+  final ReasoningEffortPreference reasoningEffort;
+  final bool? enableThinking;
+  final AssistantMode assistantMode;
+
+  factory RemoteCodingComposerSettings.fromJson(Map<String, dynamic> json) {
+    final effortWire = (json['reasoningEffort'] as String?)?.trim() ?? '';
+    final reasoningEffort = ReasoningEffortPreference.values.firstWhere(
+      (value) => value.name == effortWire || value.apiValue == effortWire,
+      orElse: () => ReasoningEffortPreference.automatic,
+    );
+    final assistantMode = AssistantMode.values.firstWhere(
+      (value) => value.name == (json['assistantMode'] as String?)?.trim(),
+      orElse: () => AssistantMode.coding,
+    );
+    return RemoteCodingComposerSettings(
+      model: (json['model'] as String?)?.trim() ?? '',
+      reasoningEffort: reasoningEffort,
+      enableThinking: json['enableThinking'] as bool?,
+      assistantMode: assistantMode,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'model': model,
+    'reasoningEffort': reasoningEffort.name,
+    'enableThinking': enableThinking,
+    'assistantMode': assistantMode.name,
+  };
+
+  RemoteCodingComposerSettings copyWith({
+    String? model,
+    ReasoningEffortPreference? reasoningEffort,
+    Object? enableThinking = _unset,
+    AssistantMode? assistantMode,
+  }) {
+    return RemoteCodingComposerSettings(
+      model: model ?? this.model,
+      reasoningEffort: reasoningEffort ?? this.reasoningEffort,
+      enableThinking: identical(enableThinking, _unset)
+          ? this.enableThinking
+          : enableThinking as bool?,
+      assistantMode: assistantMode ?? this.assistantMode,
+    );
+  }
+}
+
+const _unset = Object();
 
 enum RemoteCodingRelayCredentialState {
   pendingActivation,
@@ -507,6 +567,53 @@ class RemoteCodingQuestion {
   };
 }
 
+/// A saved Plan Mode draft waiting for the person who started the remote turn
+/// to review it before implementation begins.
+///
+/// Remote Coding only needs the two documents rendered by the review sheet.
+/// Revision history remains on the desktop and is not sent over the wire.
+class RemoteCodingPlanReview {
+  const RemoteCodingPlanReview({
+    required this.id,
+    required this.conversationId,
+    required this.draftMarkdown,
+    required this.approvedMarkdown,
+    this.isPlanMode = true,
+    this.canApprove = true,
+    this.canCancel = true,
+  });
+
+  final String id;
+  final String conversationId;
+  final String draftMarkdown;
+  final String approvedMarkdown;
+  final bool isPlanMode;
+  final bool canApprove;
+  final bool canCancel;
+
+  factory RemoteCodingPlanReview.fromJson(Map<String, dynamic> json) {
+    return RemoteCodingPlanReview(
+      id: (json['id'] as String?)?.trim() ?? '',
+      conversationId: (json['conversationId'] as String?)?.trim() ?? '',
+      draftMarkdown: (json['draftMarkdown'] as String?) ?? '',
+      approvedMarkdown: (json['approvedMarkdown'] as String?) ?? '',
+      isPlanMode: json['isPlanMode'] != false,
+      canApprove: json['canApprove'] != false,
+      canCancel: json['canCancel'] != false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'conversationId': conversationId,
+    'draftMarkdown': draftMarkdown,
+    'approvedMarkdown': approvedMarkdown,
+    'isPlanMode': isPlanMode,
+    'canApprove': canApprove,
+    'canCancel': canCancel,
+  };
+}
+
 class RemoteCodingProjectSummary {
   const RemoteCodingProjectSummary({
     required this.id,
@@ -533,12 +640,14 @@ class RemoteCodingThreadSummary {
     required this.title,
     required this.projectId,
     required this.updatedAt,
+    this.isPlanningSession = false,
   });
 
   final String id;
   final String title;
   final String? projectId;
   final DateTime updatedAt;
+  final bool isPlanningSession;
 
   factory RemoteCodingThreadSummary.fromJson(Map<String, dynamic> json) {
     return RemoteCodingThreadSummary(
@@ -548,6 +657,7 @@ class RemoteCodingThreadSummary {
       updatedAt:
           DateTime.tryParse((json['updatedAt'] as String?) ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      isPlanningSession: json['isPlanningSession'] == true,
     );
   }
 }

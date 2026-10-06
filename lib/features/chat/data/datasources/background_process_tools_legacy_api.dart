@@ -8,6 +8,7 @@ mixin BackgroundProcessToolsLegacyApi {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   });
 
   Future<FirstPartyToolExecutionResult> statusExecution({
@@ -45,11 +46,13 @@ mixin BackgroundProcessToolsLegacyApi {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async => (await startExecution(
     owner: owner,
     command: command,
     workingDirectory: workingDirectory,
     label: label,
+    containmentRoot: containmentRoot,
   )).result;
 
   Future<String> status({

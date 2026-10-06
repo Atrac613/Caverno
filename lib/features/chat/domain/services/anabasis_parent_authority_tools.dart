@@ -22,13 +22,17 @@
 /// `create_routine` is deliberately absent. It schedules real runs, nothing in
 /// the parent's instructions asks for it, and the keep-it-closed default the
 /// guard documents is the right answer for a tool with no such claim.
+/// `tool_search` is read-only catalog inspection, but the generic classifier
+/// cannot infer that from its name. The parent needs it to discover an
+/// inspection or delegation tool before the guard evaluates that next call.
 abstract final class AnabasisParentAuthorityTools {
   /// The parent's route to effect on the workspace.
   static const delegation = <String>{'spawn_subagent'};
 
-  /// Everything the parent may run that is not inspection or verification.
+  /// Named exceptions whose authority the generic classifier cannot infer.
   static const all = <String>{
     ...delegation,
+    'tool_search',
     'accept_task',
     'update_goal',
     'ask_user_question',

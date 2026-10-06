@@ -1,0 +1,2111 @@
+{
+  "schema": "caverno_kc1_cutoff_exposure_census",
+  "schemaVersion": 4,
+  "run": {
+    "model": "qwen3.8-27b-exl3",
+    "endpoint": "http://192.168.100.241:1234/v1/chat/completions",
+    "temperature": 0.7,
+    "toolCatalog": "none",
+    "flutter": "3.47.4",
+    "riverpod": "3.4.3",
+    "freezed": "3.2.5",
+    "buildCommit": "a3ba0ddb7",
+    "buildDirty": false,
+    "worldFacts": {
+      "schema": "caverno_kc1_world_fact_snapshot",
+      "schemaVersion": 1,
+      "facts": {
+        "freezed": {
+          "package": "freezed",
+          "latestVersion": "4.0.2",
+          "publishedAt": "2026-09-18T21:14:49.069049Z",
+          "source": "https://pub.dev/api/packages/freezed",
+          "fetchedAt": "2026-09-23T13:13:44.303166Z"
+        },
+        "go_router": {
+          "package": "go_router",
+          "latestVersion": "18.0.1",
+          "publishedAt": "2026-09-02T16:21:54.510350Z",
+          "source": "https://pub.dev/api/packages/go_router",
+          "fetchedAt": "2026-09-23T13:13:44.413286Z"
+        },
+        "flutter_riverpod": {
+          "package": "flutter_riverpod",
+          "latestVersion": "3.4.3",
+          "publishedAt": "2026-09-03T22:15:17.166817Z",
+          "source": "https://pub.dev/api/packages/flutter_riverpod",
+          "fetchedAt": "2026-09-23T13:13:44.432308Z"
+        },
+        "dio": {
+          "package": "dio",
+          "latestVersion": "5.11.1",
+          "publishedAt": "2026-09-04T02:46:21.721502Z",
+          "source": "https://pub.dev/api/packages/dio",
+          "fetchedAt": "2026-09-23T13:13:44.453348Z"
+        }
+      }
+    }
+  },
+  "claims": 126,
+  "failures": 0,
+  "byClass": {
+    "apiDrift": {
+      "bare": {
+        "staleRate": 0.5909090909090909,
+        "unsupportedRate": 1.0
+      },
+      "grounded": {
+        "staleRate": 0.5,
+        "unsupportedRate": 1.0
+      },
+      "deltaGrounded": {
+        "staleRate": 0.30434782608695654,
+        "unsupportedRate": 0.6086956521739131
+      },
+      "worldFactGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImported": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImportedDigest": {
+        "staleRate": null,
+        "unsupportedRate": null
+      }
+    },
+    "thisRepository": {
+      "bare": {
+        "staleRate": 0.7142857142857143,
+        "unsupportedRate": 1.0
+      },
+      "grounded": {
+        "staleRate": 0.42857142857142855,
+        "unsupportedRate": 1.0
+      },
+      "deltaGrounded": {
+        "staleRate": 0.3333333333333333,
+        "unsupportedRate": 1.0
+      },
+      "worldFactGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImported": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImportedDigest": {
+        "staleRate": null,
+        "unsupportedRate": null
+      }
+    },
+    "environment": {
+      "bare": {
+        "staleRate": 0.0,
+        "unsupportedRate": 1.0,
+        "environmentExposureRate": 1.0
+      },
+      "grounded": {
+        "staleRate": 0.0,
+        "unsupportedRate": 0.0,
+        "environmentExposureRate": 1.0
+      },
+      "deltaGrounded": {
+        "staleRate": 0.0,
+        "unsupportedRate": 0.0,
+        "environmentExposureRate": 1.0
+      },
+      "worldFactGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "productionImported": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "productionImportedDigest": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      }
+    },
+    "worldFact": {
+      "bare": {
+        "staleRate": 0.75,
+        "unsupportedRate": 1.0
+      },
+      "grounded": {
+        "staleRate": 0.5,
+        "unsupportedRate": 1.0
+      },
+      "deltaGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "worldFactGrounded": {
+        "staleRate": 0.0,
+        "unsupportedRate": 0.0
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImported": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImportedDigest": {
+        "staleRate": null,
+        "unsupportedRate": null
+      }
+    }
+  },
+  "arms": {
+    "bare": {
+      "staleRate": 0.6153846153846154,
+      "unsupportedRate": 1.0,
+      "unscorable": 3,
+      "environmentExposureRate": 1.0,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 2,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 2,
+        "behind": 6,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "grounded": {
+      "staleRate": 0.46153846153846156,
+      "unsupportedRate": 0.9487179487179487,
+      "unscorable": 3,
+      "environmentExposureRate": 1.0,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 2,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 4,
+        "behind": 4,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "deltaGrounded": {
+      "staleRate": 0.2903225806451613,
+      "unsupportedRate": 0.6451612903225806,
+      "unscorable": 3,
+      "environmentExposureRate": 1.0,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 2,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "worldFactGrounded": {
+      "staleRate": 0.0,
+      "unsupportedRate": 0.0,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 8,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionDefault": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "production32k": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "production64k": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionVersionsOnly": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionImported": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionImportedDigest": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    }
+  },
+  "digestCoverage": {
+    "flutter-pop-scope": false,
+    "color-with-values": true,
+    "riverpod-notifier": true,
+    "freezed-abstract": true,
+    "repo-state-management": false,
+    "flutter-dialog-background": true,
+    "flutter-raw-keyboard": false,
+    "flutter-material-state": false,
+    "flutter-text-scale": false,
+    "file-picker-static": false,
+    "share-plus-instance": false,
+    "qr-image-view": false,
+    "freezed-pattern-matching": true,
+    "repo-localization": false,
+    "repo-unique-id": false,
+    "repo-data-class": false
+  },
+  "records": [
+    {
+      "claim_id": "flutter-pop-scope:bare:1",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:grounded:1",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:deltaGrounded:1",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:bare:2",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:grounded:2",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:deltaGrounded:2",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:bare:1",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withOpacity\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:grounded:1",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:deltaGrounded:1",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:bare:2",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withOpacity\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:grounded:2",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:deltaGrounded:2",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "riverpod-notifier:bare:1",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:grounded:1",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:deltaGrounded:1",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:bare:2",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:grounded:2",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:deltaGrounded:2",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "freezed-abstract:bare:1",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:grounded:1",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:deltaGrounded:1",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:bare:2",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:grounded:2",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:deltaGrounded:2",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "contradicted",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "repo-state-management:bare:1",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bChangeNotifier\\b|\\bChangeNotifierProvider\\b|\\bBlocProvider\\b|\\bStateNotifierProvider\\b|\\bBlocBuilder\\b|\\bCubit\\b|setState\\(",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:grounded:1",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:deltaGrounded:1",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:bare:2",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bChangeNotifier\\b|\\bChangeNotifierProvider\\b|\\bBlocProvider\\b|\\bStateNotifierProvider\\b|\\bBlocBuilder\\b|\\bCubit\\b|setState\\(",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:grounded:2",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:deltaGrounded:2",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "flutter-dialog-background:bare:1",
+      "case": "flutter-dialog-background",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bDialogThemeData\\s*\\(",
+      "expected_value": "\\bDialogThemeData\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-dialog-background:grounded:1",
+      "case": "flutter-dialog-background",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bDialogThemeData\\s*\\(",
+      "expected_value": "\\bDialogThemeData\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-dialog-background:deltaGrounded:1",
+      "case": "flutter-dialog-background",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bDialogThemeData\\s*\\(",
+      "expected_value": "\\bDialogThemeData\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-dialog-background:bare:2",
+      "case": "flutter-dialog-background",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bDialogThemeData\\s*\\(",
+      "expected_value": "\\bDialogThemeData\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-dialog-background:grounded:2",
+      "case": "flutter-dialog-background",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bDialogThemeData\\s*\\(",
+      "expected_value": "\\bDialogThemeData\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-dialog-background:deltaGrounded:2",
+      "case": "flutter-dialog-background",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bDialogThemeData\\s*\\(",
+      "expected_value": "\\bDialogThemeData\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-raw-keyboard:bare:1",
+      "case": "flutter-raw-keyboard",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "expected_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-raw-keyboard:grounded:1",
+      "case": "flutter-raw-keyboard",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bRawKeyboardListener\\b|\\bRawKeyDownEvent\\b|\\bRawKeyEvent\\b",
+      "expected_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-raw-keyboard:deltaGrounded:1",
+      "case": "flutter-raw-keyboard",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "expected_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-raw-keyboard:bare:2",
+      "case": "flutter-raw-keyboard",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "expected_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-raw-keyboard:grounded:2",
+      "case": "flutter-raw-keyboard",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "expected_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-raw-keyboard:deltaGrounded:2",
+      "case": "flutter-raw-keyboard",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "expected_value": "(?<!Raw)\\bKeyboardListener\\b|\\bKeyDownEvent\\b|\\bonKeyEvent\\b|\\bHardwareKeyboard\\b|(?<!Raw)\\bKeyEvent\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-material-state:bare:1",
+      "case": "flutter-material-state",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bMaterialState(?:Property)?\\b",
+      "expected_value": "\\bWidgetState(?:Property)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-material-state:grounded:1",
+      "case": "flutter-material-state",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "both",
+      "expected_value": "\\bWidgetState(?:Property)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-material-state:deltaGrounded:1",
+      "case": "flutter-material-state",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\bWidgetState(?:Property)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-material-state:bare:2",
+      "case": "flutter-material-state",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\bWidgetState(?:Property)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-material-state:grounded:2",
+      "case": "flutter-material-state",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\bWidgetState(?:Property)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-material-state:deltaGrounded:2",
+      "case": "flutter-material-state",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWidgetState(?:Property)?\\b",
+      "expected_value": "\\bWidgetState(?:Property)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-text-scale:bare:1",
+      "case": "flutter-text-scale",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\btextScaleFactor\\b",
+      "expected_value": "\\btextScaler(?:Of)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-text-scale:grounded:1",
+      "case": "flutter-text-scale",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\btextScaleFactor\\b",
+      "expected_value": "\\btextScaler(?:Of)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-text-scale:deltaGrounded:1",
+      "case": "flutter-text-scale",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\btextScaleFactor\\b",
+      "expected_value": "\\btextScaler(?:Of)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-text-scale:bare:2",
+      "case": "flutter-text-scale",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\btextScaleFactor\\b",
+      "expected_value": "\\btextScaler(?:Of)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-text-scale:grounded:2",
+      "case": "flutter-text-scale",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\btextScaleFactor\\b",
+      "expected_value": "\\btextScaler(?:Of)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-text-scale:deltaGrounded:2",
+      "case": "flutter-text-scale",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\btextScaleFactor\\b",
+      "expected_value": "\\btextScaler(?:Of)?\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "file-picker-static:bare:1",
+      "case": "file-picker-static",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "FilePicker\\.platform\\b",
+      "expected_value": "FilePicker\\.pickFiles\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "file-picker-static:grounded:1",
+      "case": "file-picker-static",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "FilePicker\\.platform\\b",
+      "expected_value": "FilePicker\\.pickFiles\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "file-picker-static:deltaGrounded:1",
+      "case": "file-picker-static",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "FilePicker\\.platform\\b",
+      "expected_value": "FilePicker\\.pickFiles\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "file-picker-static:bare:2",
+      "case": "file-picker-static",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "FilePicker\\.platform\\b",
+      "expected_value": "FilePicker\\.pickFiles\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "file-picker-static:grounded:2",
+      "case": "file-picker-static",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "FilePicker\\.platform\\b",
+      "expected_value": "FilePicker\\.pickFiles\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "file-picker-static:deltaGrounded:2",
+      "case": "file-picker-static",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "FilePicker\\.platform\\b",
+      "expected_value": "FilePicker\\.pickFiles\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "share-plus-instance:bare:1",
+      "case": "share-plus-instance",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bShare\\.share(?:Uri|XFiles)?\\(",
+      "expected_value": "\\bSharePlus\\.instance\\.share\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "share-plus-instance:grounded:1",
+      "case": "share-plus-instance",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bShare\\.share(?:Uri|XFiles)?\\(",
+      "expected_value": "\\bSharePlus\\.instance\\.share\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "share-plus-instance:deltaGrounded:1",
+      "case": "share-plus-instance",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bSharePlus\\.instance\\.share\\(",
+      "expected_value": "\\bSharePlus\\.instance\\.share\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "share-plus-instance:bare:2",
+      "case": "share-plus-instance",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bShare\\.share(?:Uri|XFiles)?\\(",
+      "expected_value": "\\bSharePlus\\.instance\\.share\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "share-plus-instance:grounded:2",
+      "case": "share-plus-instance",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bShare\\.share(?:Uri|XFiles)?\\(",
+      "expected_value": "\\bSharePlus\\.instance\\.share\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "share-plus-instance:deltaGrounded:2",
+      "case": "share-plus-instance",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bSharePlus\\.instance\\.share\\(",
+      "expected_value": "\\bSharePlus\\.instance\\.share\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "qr-image-view:bare:1",
+      "case": "qr-image-view",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bQrImageView\\(",
+      "expected_value": "\\bQrImageView\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "qr-image-view:grounded:1",
+      "case": "qr-image-view",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bQrImageView\\(",
+      "expected_value": "\\bQrImageView\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "qr-image-view:deltaGrounded:1",
+      "case": "qr-image-view",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bQrImageView\\(",
+      "expected_value": "\\bQrImageView\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "qr-image-view:bare:2",
+      "case": "qr-image-view",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bQrImageView\\(",
+      "expected_value": "\\bQrImageView\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "qr-image-view:grounded:2",
+      "case": "qr-image-view",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bQrImageView\\(",
+      "expected_value": "\\bQrImageView\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "qr-image-view:deltaGrounded:2",
+      "case": "qr-image-view",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bQrImageView\\(",
+      "expected_value": "\\bQrImageView\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "freezed-pattern-matching:bare:1",
+      "case": "freezed-pattern-matching",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bswitch\\s*\\(",
+      "expected_value": "\\bswitch\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "freezed-pattern-matching:grounded:1",
+      "case": "freezed-pattern-matching",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bswitch\\s*\\(",
+      "expected_value": "\\bswitch\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "freezed-pattern-matching:deltaGrounded:1",
+      "case": "freezed-pattern-matching",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bswitch\\s*\\(",
+      "expected_value": "\\bswitch\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "freezed-pattern-matching:bare:2",
+      "case": "freezed-pattern-matching",
+      "class": "apiDrift",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\bswitch\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "freezed-pattern-matching:grounded:2",
+      "case": "freezed-pattern-matching",
+      "class": "apiDrift",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bswitch\\s*\\(",
+      "expected_value": "\\bswitch\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "freezed-pattern-matching:deltaGrounded:2",
+      "case": "freezed-pattern-matching",
+      "class": "apiDrift",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bswitch\\s*\\(",
+      "expected_value": "\\bswitch\\s*\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-localization:bare:1",
+      "case": "repo-localization",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "AppLocalizations\\.of|\\bIntl\\.|\\bS\\.of\\(|\\bl10n\\b|\\.intl\\(",
+      "expected_value": "\\.tr\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-localization:grounded:1",
+      "case": "repo-localization",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\.tr\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-localization:deltaGrounded:1",
+      "case": "repo-localization",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\.tr\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-localization:bare:2",
+      "case": "repo-localization",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\.tr\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-localization:grounded:2",
+      "case": "repo-localization",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "AppLocalizations\\.of|\\bIntl\\.|\\bS\\.of\\(|\\bl10n\\b|\\.intl\\(",
+      "expected_value": "\\.tr\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-localization:deltaGrounded:2",
+      "case": "repo-localization",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "unscorable",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "neither",
+      "expected_value": "\\.tr\\(",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-unique-id:bare:1",
+      "case": "repo-unique-id",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bUuid\\(\\)",
+      "expected_value": "\\bUuid\\(\\)",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-unique-id:grounded:1",
+      "case": "repo-unique-id",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "millisecondsSinceEpoch|microsecondsSinceEpoch|\\bRandom(?:\\.secure)?\\(\\)|UniqueKey\\(\\)",
+      "expected_value": "\\bUuid\\(\\)",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-unique-id:deltaGrounded:1",
+      "case": "repo-unique-id",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "millisecondsSinceEpoch|microsecondsSinceEpoch|\\bRandom(?:\\.secure)?\\(\\)|UniqueKey\\(\\)",
+      "expected_value": "\\bUuid\\(\\)",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-unique-id:bare:2",
+      "case": "repo-unique-id",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bUuid\\(\\)",
+      "expected_value": "\\bUuid\\(\\)",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-unique-id:grounded:2",
+      "case": "repo-unique-id",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "millisecondsSinceEpoch|microsecondsSinceEpoch|\\bRandom(?:\\.secure)?\\(\\)|UniqueKey\\(\\)",
+      "expected_value": "\\bUuid\\(\\)",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-unique-id:deltaGrounded:2",
+      "case": "repo-unique-id",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "millisecondsSinceEpoch|microsecondsSinceEpoch|\\bRandom(?:\\.secure)?\\(\\)|UniqueKey\\(\\)",
+      "expected_value": "\\bUuid\\(\\)",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-data-class:bare:1",
+      "case": "repo-data-class",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\boperator\\s*==|\\bextends\\s+Equatable\\b",
+      "expected_value": "@freezed\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-data-class:grounded:1",
+      "case": "repo-data-class",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "@freezed\\b",
+      "expected_value": "@freezed\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-data-class:deltaGrounded:1",
+      "case": "repo-data-class",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "@freezed\\b",
+      "expected_value": "@freezed\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-data-class:bare:2",
+      "case": "repo-data-class",
+      "class": "thisRepository",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\boperator\\s*==|\\bextends\\s+Equatable\\b",
+      "expected_value": "@freezed\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-data-class:grounded:2",
+      "case": "repo-data-class",
+      "class": "thisRepository",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "@freezed\\b",
+      "expected_value": "@freezed\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "repo-data-class:deltaGrounded:2",
+      "case": "repo-data-class",
+      "class": "thisRepository",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "@freezed\\b",
+      "expected_value": "@freezed\\b",
+      "truth_source": "installed toolchain"
+    },
+    {
+      "claim_id": "flutter-material3-default:bare:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:grounded:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:deltaGrounded:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:bare:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:grounded:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:deltaGrounded:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "pub-latest-freezed:bare:1",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^2.5.2",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:grounded:1",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.2.5",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:worldFactGrounded:1",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^4.0.2",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-freezed:bare:2",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^2.5.2",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:grounded:2",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.2.5",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:worldFactGrounded:2",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^4.0.2",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-go-router:bare:1",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.2.7",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:grounded:1",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.2.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:worldFactGrounded:1",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^18.0.1",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-go-router:bare:2",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.6.2",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:grounded:2",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.6.2",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:worldFactGrounded:2",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^18.0.1",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:bare:1",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^2.6.1",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:grounded:1",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:worldFactGrounded:1",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:bare:2",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^2.6.1",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:grounded:2",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:worldFactGrounded:2",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:bare:1",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.7.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:grounded:1",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.7.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:worldFactGrounded:1",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^5.11.1",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:bare:2",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "bare",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.7.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:grounded:2",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "grounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.9.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:worldFactGrounded:2",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "worldFactGrounded",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "^5.11.1",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    }
+  ]
+}

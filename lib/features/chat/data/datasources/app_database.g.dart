@@ -2984,6 +2984,484 @@ class Rag2GenerationsCompanion extends UpdateCompanion<Rag2GenerationRow> {
   }
 }
 
+class $ConversationWorkTimeTable extends ConversationWorkTime
+    with TableInfo<$ConversationWorkTimeTable, ConversationWorkTimeRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConversationWorkTimeTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _conversationIdMeta = const VerificationMeta(
+    'conversationId',
+  );
+  @override
+  late final GeneratedColumn<String> conversationId = GeneratedColumn<String>(
+    'conversation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _detailMeta = const VerificationMeta('detail');
+  @override
+  late final GeneratedColumn<String> detail = GeneratedColumn<String>(
+    'detail',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _countMeta = const VerificationMeta('count');
+  @override
+  late final GeneratedColumn<int> count = GeneratedColumn<int>(
+    'count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _errorCountMeta = const VerificationMeta(
+    'errorCount',
+  );
+  @override
+  late final GeneratedColumn<int> errorCount = GeneratedColumn<int>(
+    'error_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _updatedAtMsMeta = const VerificationMeta(
+    'updatedAtMs',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAtMs = GeneratedColumn<int>(
+    'updated_at_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    conversationId,
+    kind,
+    detail,
+    count,
+    errorCount,
+    durationMs,
+    updatedAtMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'conversation_work_time';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConversationWorkTimeRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('conversation_id')) {
+      context.handle(
+        _conversationIdMeta,
+        conversationId.isAcceptableOrUnknown(
+          data['conversation_id']!,
+          _conversationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_conversationIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('detail')) {
+      context.handle(
+        _detailMeta,
+        detail.isAcceptableOrUnknown(data['detail']!, _detailMeta),
+      );
+    }
+    if (data.containsKey('count')) {
+      context.handle(
+        _countMeta,
+        count.isAcceptableOrUnknown(data['count']!, _countMeta),
+      );
+    }
+    if (data.containsKey('error_count')) {
+      context.handle(
+        _errorCountMeta,
+        errorCount.isAcceptableOrUnknown(data['error_count']!, _errorCountMeta),
+      );
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    }
+    if (data.containsKey('updated_at_ms')) {
+      context.handle(
+        _updatedAtMsMeta,
+        updatedAtMs.isAcceptableOrUnknown(
+          data['updated_at_ms']!,
+          _updatedAtMsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {conversationId, kind, detail};
+  @override
+  ConversationWorkTimeRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConversationWorkTimeRow(
+      conversationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conversation_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      detail: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}detail'],
+      )!,
+      count: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}count'],
+      )!,
+      errorCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}error_count'],
+      )!,
+      durationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_ms'],
+      )!,
+      updatedAtMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $ConversationWorkTimeTable createAlias(String alias) {
+    return $ConversationWorkTimeTable(attachedDatabase, alias);
+  }
+}
+
+class ConversationWorkTimeRow extends DataClass
+    implements Insertable<ConversationWorkTimeRow> {
+  final String conversationId;
+
+  /// `ConversationWorkKind.name`.
+  final String kind;
+
+  /// Usage role for LLM requests, tool name for tool calls, else empty.
+  final String detail;
+  final int count;
+  final int errorCount;
+  final int durationMs;
+  final int updatedAtMs;
+  const ConversationWorkTimeRow({
+    required this.conversationId,
+    required this.kind,
+    required this.detail,
+    required this.count,
+    required this.errorCount,
+    required this.durationMs,
+    required this.updatedAtMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['conversation_id'] = Variable<String>(conversationId);
+    map['kind'] = Variable<String>(kind);
+    map['detail'] = Variable<String>(detail);
+    map['count'] = Variable<int>(count);
+    map['error_count'] = Variable<int>(errorCount);
+    map['duration_ms'] = Variable<int>(durationMs);
+    map['updated_at_ms'] = Variable<int>(updatedAtMs);
+    return map;
+  }
+
+  ConversationWorkTimeCompanion toCompanion(bool nullToAbsent) {
+    return ConversationWorkTimeCompanion(
+      conversationId: Value(conversationId),
+      kind: Value(kind),
+      detail: Value(detail),
+      count: Value(count),
+      errorCount: Value(errorCount),
+      durationMs: Value(durationMs),
+      updatedAtMs: Value(updatedAtMs),
+    );
+  }
+
+  factory ConversationWorkTimeRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConversationWorkTimeRow(
+      conversationId: serializer.fromJson<String>(json['conversationId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      detail: serializer.fromJson<String>(json['detail']),
+      count: serializer.fromJson<int>(json['count']),
+      errorCount: serializer.fromJson<int>(json['errorCount']),
+      durationMs: serializer.fromJson<int>(json['durationMs']),
+      updatedAtMs: serializer.fromJson<int>(json['updatedAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'conversationId': serializer.toJson<String>(conversationId),
+      'kind': serializer.toJson<String>(kind),
+      'detail': serializer.toJson<String>(detail),
+      'count': serializer.toJson<int>(count),
+      'errorCount': serializer.toJson<int>(errorCount),
+      'durationMs': serializer.toJson<int>(durationMs),
+      'updatedAtMs': serializer.toJson<int>(updatedAtMs),
+    };
+  }
+
+  ConversationWorkTimeRow copyWith({
+    String? conversationId,
+    String? kind,
+    String? detail,
+    int? count,
+    int? errorCount,
+    int? durationMs,
+    int? updatedAtMs,
+  }) => ConversationWorkTimeRow(
+    conversationId: conversationId ?? this.conversationId,
+    kind: kind ?? this.kind,
+    detail: detail ?? this.detail,
+    count: count ?? this.count,
+    errorCount: errorCount ?? this.errorCount,
+    durationMs: durationMs ?? this.durationMs,
+    updatedAtMs: updatedAtMs ?? this.updatedAtMs,
+  );
+  ConversationWorkTimeRow copyWithCompanion(
+    ConversationWorkTimeCompanion data,
+  ) {
+    return ConversationWorkTimeRow(
+      conversationId: data.conversationId.present
+          ? data.conversationId.value
+          : this.conversationId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      detail: data.detail.present ? data.detail.value : this.detail,
+      count: data.count.present ? data.count.value : this.count,
+      errorCount: data.errorCount.present
+          ? data.errorCount.value
+          : this.errorCount,
+      durationMs: data.durationMs.present
+          ? data.durationMs.value
+          : this.durationMs,
+      updatedAtMs: data.updatedAtMs.present
+          ? data.updatedAtMs.value
+          : this.updatedAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationWorkTimeRow(')
+          ..write('conversationId: $conversationId, ')
+          ..write('kind: $kind, ')
+          ..write('detail: $detail, ')
+          ..write('count: $count, ')
+          ..write('errorCount: $errorCount, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('updatedAtMs: $updatedAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    conversationId,
+    kind,
+    detail,
+    count,
+    errorCount,
+    durationMs,
+    updatedAtMs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConversationWorkTimeRow &&
+          other.conversationId == this.conversationId &&
+          other.kind == this.kind &&
+          other.detail == this.detail &&
+          other.count == this.count &&
+          other.errorCount == this.errorCount &&
+          other.durationMs == this.durationMs &&
+          other.updatedAtMs == this.updatedAtMs);
+}
+
+class ConversationWorkTimeCompanion
+    extends UpdateCompanion<ConversationWorkTimeRow> {
+  final Value<String> conversationId;
+  final Value<String> kind;
+  final Value<String> detail;
+  final Value<int> count;
+  final Value<int> errorCount;
+  final Value<int> durationMs;
+  final Value<int> updatedAtMs;
+  final Value<int> rowid;
+  const ConversationWorkTimeCompanion({
+    this.conversationId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.detail = const Value.absent(),
+    this.count = const Value.absent(),
+    this.errorCount = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.updatedAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ConversationWorkTimeCompanion.insert({
+    required String conversationId,
+    required String kind,
+    this.detail = const Value.absent(),
+    this.count = const Value.absent(),
+    this.errorCount = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.updatedAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : conversationId = Value(conversationId),
+       kind = Value(kind);
+  static Insertable<ConversationWorkTimeRow> custom({
+    Expression<String>? conversationId,
+    Expression<String>? kind,
+    Expression<String>? detail,
+    Expression<int>? count,
+    Expression<int>? errorCount,
+    Expression<int>? durationMs,
+    Expression<int>? updatedAtMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (kind != null) 'kind': kind,
+      if (detail != null) 'detail': detail,
+      if (count != null) 'count': count,
+      if (errorCount != null) 'error_count': errorCount,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (updatedAtMs != null) 'updated_at_ms': updatedAtMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ConversationWorkTimeCompanion copyWith({
+    Value<String>? conversationId,
+    Value<String>? kind,
+    Value<String>? detail,
+    Value<int>? count,
+    Value<int>? errorCount,
+    Value<int>? durationMs,
+    Value<int>? updatedAtMs,
+    Value<int>? rowid,
+  }) {
+    return ConversationWorkTimeCompanion(
+      conversationId: conversationId ?? this.conversationId,
+      kind: kind ?? this.kind,
+      detail: detail ?? this.detail,
+      count: count ?? this.count,
+      errorCount: errorCount ?? this.errorCount,
+      durationMs: durationMs ?? this.durationMs,
+      updatedAtMs: updatedAtMs ?? this.updatedAtMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (conversationId.present) {
+      map['conversation_id'] = Variable<String>(conversationId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (detail.present) {
+      map['detail'] = Variable<String>(detail.value);
+    }
+    if (count.present) {
+      map['count'] = Variable<int>(count.value);
+    }
+    if (errorCount.present) {
+      map['error_count'] = Variable<int>(errorCount.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    if (updatedAtMs.present) {
+      map['updated_at_ms'] = Variable<int>(updatedAtMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationWorkTimeCompanion(')
+          ..write('conversationId: $conversationId, ')
+          ..write('kind: $kind, ')
+          ..write('detail: $detail, ')
+          ..write('count: $count, ')
+          ..write('errorCount: $errorCount, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('updatedAtMs: $updatedAtMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2998,6 +3476,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $Rag2GenerationsTable rag2Generations = $Rag2GenerationsTable(
     this,
   );
+  late final $ConversationWorkTimeTable conversationWorkTime =
+      $ConversationWorkTimeTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3009,6 +3489,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     modelUsageDaily,
     rag2StoreMeta,
     rag2Generations,
+    conversationWorkTime,
   ];
 }
 
@@ -4571,6 +5052,268 @@ typedef $$Rag2GenerationsTableProcessedTableManager =
       Rag2GenerationRow,
       PrefetchHooks Function()
     >;
+typedef $$ConversationWorkTimeTableCreateCompanionBuilder =
+    ConversationWorkTimeCompanion Function({
+      required String conversationId,
+      required String kind,
+      Value<String> detail,
+      Value<int> count,
+      Value<int> errorCount,
+      Value<int> durationMs,
+      Value<int> updatedAtMs,
+      Value<int> rowid,
+    });
+typedef $$ConversationWorkTimeTableUpdateCompanionBuilder =
+    ConversationWorkTimeCompanion Function({
+      Value<String> conversationId,
+      Value<String> kind,
+      Value<String> detail,
+      Value<int> count,
+      Value<int> errorCount,
+      Value<int> durationMs,
+      Value<int> updatedAtMs,
+      Value<int> rowid,
+    });
+
+class $$ConversationWorkTimeTableFilterComposer
+    extends Composer<_$AppDatabase, $ConversationWorkTimeTable> {
+  $$ConversationWorkTimeTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get count => $composableBuilder(
+    column: $table.count,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get errorCount => $composableBuilder(
+    column: $table.errorCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAtMs => $composableBuilder(
+    column: $table.updatedAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConversationWorkTimeTableOrderingComposer
+    extends Composer<_$AppDatabase, $ConversationWorkTimeTable> {
+  $$ConversationWorkTimeTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get count => $composableBuilder(
+    column: $table.count,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get errorCount => $composableBuilder(
+    column: $table.errorCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAtMs => $composableBuilder(
+    column: $table.updatedAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConversationWorkTimeTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ConversationWorkTimeTable> {
+  $$ConversationWorkTimeTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get detail =>
+      $composableBuilder(column: $table.detail, builder: (column) => column);
+
+  GeneratedColumn<int> get count =>
+      $composableBuilder(column: $table.count, builder: (column) => column);
+
+  GeneratedColumn<int> get errorCount => $composableBuilder(
+    column: $table.errorCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAtMs => $composableBuilder(
+    column: $table.updatedAtMs,
+    builder: (column) => column,
+  );
+}
+
+class $$ConversationWorkTimeTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ConversationWorkTimeTable,
+          ConversationWorkTimeRow,
+          $$ConversationWorkTimeTableFilterComposer,
+          $$ConversationWorkTimeTableOrderingComposer,
+          $$ConversationWorkTimeTableAnnotationComposer,
+          $$ConversationWorkTimeTableCreateCompanionBuilder,
+          $$ConversationWorkTimeTableUpdateCompanionBuilder,
+          (
+            ConversationWorkTimeRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ConversationWorkTimeTable,
+              ConversationWorkTimeRow
+            >,
+          ),
+          ConversationWorkTimeRow,
+          PrefetchHooks Function()
+        > {
+  $$ConversationWorkTimeTableTableManager(
+    _$AppDatabase db,
+    $ConversationWorkTimeTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConversationWorkTimeTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ConversationWorkTimeTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConversationWorkTimeTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> conversationId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> detail = const Value.absent(),
+                Value<int> count = const Value.absent(),
+                Value<int> errorCount = const Value.absent(),
+                Value<int> durationMs = const Value.absent(),
+                Value<int> updatedAtMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConversationWorkTimeCompanion(
+                conversationId: conversationId,
+                kind: kind,
+                detail: detail,
+                count: count,
+                errorCount: errorCount,
+                durationMs: durationMs,
+                updatedAtMs: updatedAtMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String conversationId,
+                required String kind,
+                Value<String> detail = const Value.absent(),
+                Value<int> count = const Value.absent(),
+                Value<int> errorCount = const Value.absent(),
+                Value<int> durationMs = const Value.absent(),
+                Value<int> updatedAtMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConversationWorkTimeCompanion.insert(
+                conversationId: conversationId,
+                kind: kind,
+                detail: detail,
+                count: count,
+                errorCount: errorCount,
+                durationMs: durationMs,
+                updatedAtMs: updatedAtMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConversationWorkTimeTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ConversationWorkTimeTable,
+      ConversationWorkTimeRow,
+      $$ConversationWorkTimeTableFilterComposer,
+      $$ConversationWorkTimeTableOrderingComposer,
+      $$ConversationWorkTimeTableAnnotationComposer,
+      $$ConversationWorkTimeTableCreateCompanionBuilder,
+      $$ConversationWorkTimeTableUpdateCompanionBuilder,
+      (
+        ConversationWorkTimeRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ConversationWorkTimeTable,
+          ConversationWorkTimeRow
+        >,
+      ),
+      ConversationWorkTimeRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4587,4 +5330,6 @@ class $AppDatabaseManager {
       $$Rag2StoreMetaTableTableManager(_db, _db.rag2StoreMeta);
   $$Rag2GenerationsTableTableManager get rag2Generations =>
       $$Rag2GenerationsTableTableManager(_db, _db.rag2Generations);
+  $$ConversationWorkTimeTableTableManager get conversationWorkTime =>
+      $$ConversationWorkTimeTableTableManager(_db, _db.conversationWorkTime);
 }

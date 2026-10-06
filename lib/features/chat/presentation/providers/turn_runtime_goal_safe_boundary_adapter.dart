@@ -44,7 +44,10 @@ final class TurnRuntimeGoalSafeBoundaryAdapter
   TurnRuntimeGoalSafeBoundaryPort boundaryFor(ChatTurnOwner owner) =>
       _TurnRuntimeGoalSafeBoundary(adapter: this, owner: owner);
 
-  GoalAutoContinueSafeBoundary captureFor(ChatTurnOwner owner) {
+  GoalAutoContinueSafeBoundary captureFor(
+    ChatTurnOwner owner, {
+    bool withinTurn = false,
+  }) {
     final ownerIsVisible = _ownerLease.isConversationCurrent(
       owner.conversationId,
     );
@@ -56,7 +59,7 @@ final class TurnRuntimeGoalSafeBoundaryAdapter
     return const GoalAutoContinueSafeBoundaryBuilder().build(
       GoalAutoContinuePendingState(
         owner: owner,
-        isLoading: ownerIsVisible && _visibleIsLoading,
+        isLoading: !withinTurn && ownerIsVisible && _visibleIsLoading,
         queuedUserInputCount: _queuedMessages.pendingFor(owner.conversationId),
         hasPendingSshConnect: owns(threadState.pendingSshConnect),
         hasPendingSshCommand: owns(threadState.pendingSshCommand),

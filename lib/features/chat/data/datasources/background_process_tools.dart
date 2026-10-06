@@ -7,10 +7,13 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/chat_turn_owner.dart';
+import 'background_process_monitor_snapshot.dart';
 import 'background_process_tools_legacy_api.dart';
 import 'background_process_types.dart';
+import 'background_process_workspace_launch.dart';
 import 'carried_background_job_retention.dart';
 import 'first_party_tool_execution_result.dart';
+import 'local_shell_launch_plan.dart';
 import 'local_shell_tools.dart';
 
 export 'background_process_tools_legacy_api.dart';
@@ -18,7 +21,9 @@ export 'background_process_types.dart'
     show BackgroundProcessRuntimeIdentity, BackgroundProcessStarter;
 
 part 'background_process_carry_over.dart';
+part 'background_process_conversation_view.dart';
 part 'background_process_job.dart';
+part 'background_process_job_lookup.dart';
 part 'background_process_launch_recovery.dart';
 part 'background_process_recovery_registry.dart';
 part 'background_process_result_codec.dart';
@@ -27,6 +32,7 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
   BackgroundProcessTools({
     BackgroundProcessStarter? processStarter,
     BackgroundProcessTerminator? processTerminator,
+    this.onJobFinished,
   }) : _processStarter = processStarter ?? startBackgroundProcess,
        _processTerminator =
            processTerminator ?? _defaultBackgroundProcessTerminator;
@@ -41,6 +47,7 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
       'This command is still running from an earlier turn and has been '
       'adopted.';
 
+  final BackgroundProcessFinishedCallback? onJobFinished;
   final BackgroundProcessStarter _processStarter;
   final BackgroundProcessTerminator _processTerminator;
   final Map<ChatTurnOwner, _OwnerProcessState> _ownerStates = {};
@@ -66,6 +73,7 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
   }) async {
     if (_disposed) {
       return _error(
@@ -99,9 +107,10 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
     }
 
     final state = _ownerStates.putIfAbsent(owner, _OwnerProcessState.new);
-    final running = _runningJobFor(state, normalizedCommand, cwd);
+    final route = (normalizedCommand, cwd, containmentRoot);
+    final running = _runningJobFor(state, route);
     final carried = running == null
-        ? _adoptCarriedRunningJob(owner, normalizedCommand, cwd)
+        ? _adoptCarriedRunningJob(owner, route)
         : null;
     final existing = running ?? carried;
     if (existing != null) {
@@ -136,13 +145,17 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
       );
     }
 
-    final executable = Platform.isWindows ? 'cmd' : 'sh';
-    final arguments = Platform.isWindows
-        ? ['/C', normalizedCommand]
-        : ['-c', normalizedCommand];
     late final Process process;
+    LocalShellLaunchPlan? launch;
     try {
-      process = await _processStarter(executable, arguments, cwd);
+      final started = await BackgroundProcessWorkspaceLaunch.start(
+        command: normalizedCommand,
+        workingDirectory: cwd,
+        containmentRoot: containmentRoot,
+        hostStarter: _processStarter,
+      );
+      process = started.process;
+      launch = started.launch;
     } catch (error) {
       final ownerWasActive = _stateIsActive(owner, state);
       _settleLaunchLease(state, lease);
@@ -165,6 +178,9 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
       startedAt: startedAt,
       terminator: _processTerminator,
       processGroupId: null,
+      launch: launch,
+      containmentRoot: containmentRoot,
+      onFinished: _jobFinishedReporter(owner.conversationId),
     );
     final recovery = _registerRecovery(state, lease, job);
     Object? attachmentError;
@@ -390,21 +406,6 @@ class BackgroundProcessTools with BackgroundProcessToolsLegacyApi {
     final state = _ownerStates[owner];
     final owned = state == null || state.retired ? null : state.jobs[jobId];
     return owned ?? _adoptCarriedJob(owner, jobId);
-  }
-
-  _BackgroundProcessJob? _runningJobFor(
-    _OwnerProcessState state,
-    String command,
-    String workingDirectory,
-  ) {
-    for (final job in state.jobs.values) {
-      if (job.isRunning &&
-          job.command == command &&
-          job.workingDirectory == workingDirectory) {
-        return job;
-      }
-    }
-    return null;
   }
 
   bool _stateIsActive(ChatTurnOwner owner, _OwnerProcessState state) =>

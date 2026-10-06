@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/services/turn_steering_policy.dart';
 import '../providers/chat_state.dart';
 
 class QueuedMessagesStrip extends StatelessWidget {
@@ -7,8 +8,20 @@ class QueuedMessagesStrip extends StatelessWidget {
     super.key,
     required this.messages,
     required this.onRemove,
+    this.onInterrupt,
     this.steeringMessages = const <QueuedChatMessage>[],
   });
+
+  /// The strip for [state]'s visible thread, offering [onInterrupt] only while
+  /// a turn is running.
+  QueuedMessagesStrip.forChat(
+    ChatState state, {
+    super.key,
+    required this.onRemove,
+    required ValueChanged<String> onInterrupt,
+  }) : messages = state.queuedMessages,
+       steeringMessages = state.steeringMessages,
+       onInterrupt = state.isLoading ? onInterrupt : null;
 
   final List<QueuedChatMessage> messages;
 
@@ -18,6 +31,20 @@ class QueuedMessagesStrip extends StatelessWidget {
   final List<QueuedChatMessage> steeringMessages;
 
   final ValueChanged<String> onRemove;
+
+  /// Sends a queued message into the running turn now. Null while nothing is
+  /// running, which hides the action on every row.
+  final ValueChanged<String>? onInterrupt;
+
+  /// Only a message that can steer gets the action; the notifier would refuse
+  /// the rest and leave them queued anyway.
+  static bool _canInterrupt(QueuedChatMessage message) =>
+      TurnSteeringPolicy.canSteer(
+        content: message.content,
+        hasImage: message.hasImage,
+        isVoiceMode: message.isVoiceMode,
+        hasModelContent: message.modelContent != null,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +62,11 @@ class QueuedMessagesStrip extends StatelessWidget {
           isSteering: true,
         ),
       for (final message in messages)
-        _QueuedMessageRow(message: message, onRemove: onRemove),
+        _QueuedMessageRow(
+          message: message,
+          onRemove: onRemove,
+          onInterrupt: _canInterrupt(message) ? onInterrupt : null,
+        ),
     ];
 
     return Container(
@@ -68,12 +99,14 @@ class _QueuedMessageRow extends StatelessWidget {
   const _QueuedMessageRow({
     required this.message,
     required this.onRemove,
+    this.onInterrupt,
     this.isSteering = false,
   });
 
   final QueuedChatMessage message;
   final bool isSteering;
   final ValueChanged<String> onRemove;
+  final ValueChanged<String>? onInterrupt;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +157,13 @@ class _QueuedMessageRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
+        if (onInterrupt case final interrupt?)
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Interrupt with this message',
+            onPressed: () => interrupt(message.id),
+            icon: const Icon(Icons.bolt),
+          ),
         IconButton(
           visualDensity: VisualDensity.compact,
           tooltip: isSteering

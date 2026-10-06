@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
+import 'package:caverno/core/services/attachment_storage_service.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/coding_project_ordering.dart';
 import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -21,17 +25,28 @@ import 'package:caverno/features/remote_coding/data/remote_coding_repository.dar
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_security.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_websocket_connector.dart';
+import 'package:caverno/features/remote_coding/domain/remote_coding_attachment.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_resource_policy.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_session_policy.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_server_notifier.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _RemoteCodingTestBinding extends WidgetsFlutterBinding
+    with TestDefaultBinaryMessengerBinding {
+  static _RemoteCodingTestBinding ensureInitialized() {
+    return _RemoteCodingTestBinding();
+  }
+}
 
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
@@ -41,6 +56,62 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
 class _TestConversationsNotifier extends ConversationsNotifier {
   @override
   ConversationsState build() => ConversationsState.initial();
+}
+
+class _RemoteOrderCodingProjectsNotifier extends CodingProjectsNotifier {
+  @override
+  CodingProjectsState build() {
+    return CodingProjectsState(
+      projects: [
+        CodingProject(
+          id: 'newer-project',
+          name: 'Newer project',
+          rootPath: '/tmp/newer-project',
+          createdAt: DateTime.utc(2026, 9, 19),
+          updatedAt: DateTime.utc(2026, 9, 19),
+        ),
+        CodingProject(
+          id: 'older-project',
+          name: 'Older project',
+          rootPath: '/tmp/older-project',
+          createdAt: DateTime.utc(2026, 9, 18),
+          updatedAt: DateTime.utc(2026, 9, 18),
+        ),
+      ],
+      selectedProjectId: 'newer-project',
+    );
+  }
+}
+
+class _RemoteOrderConversationsNotifier extends ConversationsNotifier {
+  @override
+  ConversationsState build() {
+    return ConversationsState(
+      conversations: [
+        Conversation(
+          id: 'newer-thread',
+          title: 'Newer project thread',
+          messages: const [],
+          createdAt: DateTime.utc(2026, 9, 19, 10),
+          updatedAt: DateTime.utc(2026, 9, 19, 10),
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'newer-project',
+        ),
+        Conversation(
+          id: 'older-thread',
+          title: 'Older project thread',
+          messages: const [],
+          createdAt: DateTime.utc(2026, 9, 19, 11),
+          updatedAt: DateTime.utc(2026, 9, 19, 11),
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'older-project',
+        ),
+      ],
+      currentConversationId: 'newer-thread',
+      activeWorkspaceMode: WorkspaceMode.coding,
+      activeProjectId: 'newer-project',
+    );
+  }
 }
 
 class _DashboardConversationsNotifier extends ConversationsNotifier {
@@ -123,11 +194,28 @@ class _BoundConversationsNotifier extends ConversationsNotifier {
   void selectForTest(String id) {
     state = state.copyWith(currentConversationId: id);
   }
+
+  void setMessagesForTest(String id, List<Message> messages) {
+    state = state.copyWith(
+      conversations: [
+        for (final conversation in state.conversations)
+          conversation.id == id
+              ? conversation.copyWith(messages: messages)
+              : conversation,
+      ],
+    );
+  }
 }
 
 class _BoundCommandChatNotifier extends ChatNotifier {
   final List<String> sentMessages = [];
   final List<bool> sentVoiceModes = [];
+  final List<String?> sentModelContents = [];
+  final List<String?> sentAttachmentPaths = [];
+  final List<String?> sentImageBase64 = [];
+  final List<String?> sentImageMimeTypes = [];
+  final List<String?> sentOriginalImagePaths = [];
+  final List<bool> sentBypassPlanModes = [];
   int cancelCount = 0;
 
   @override
@@ -150,12 +238,19 @@ class _BoundCommandChatNotifier extends ChatNotifier {
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
+    PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
     String? remoteDeviceId,
     bool interrupt = false,
   }) async {
     sentMessages.add(content);
     sentVoiceModes.add(isVoiceMode);
+    sentModelContents.add(modelContent);
+    sentAttachmentPaths.add(attachmentPath);
+    sentImageBase64.add(imageBase64);
+    sentImageMimeTypes.add(imageMimeType);
+    sentOriginalImagePaths.add(originalImagePath);
+    sentBypassPlanModes.add(bypassPlanMode);
     return ChatTurnOwner(conversationId: 'thread-1', interactionGeneration: 1);
   }
 
@@ -567,6 +662,27 @@ _connectAuthenticatedDevice({
 }
 
 void main() {
+  final binding = _RemoteCodingTestBinding.ensureInitialized();
+  final applicationSupportDirectory = Directory.systemTemp.createTempSync(
+    'caverno_remote_coding_attachments_',
+  );
+  const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
+  binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    pathProviderChannel,
+    (call) async => call.method == 'getApplicationSupportDirectory'
+        ? applicationSupportDirectory.path
+        : null,
+  );
+  tearDownAll(() async {
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      pathProviderChannel,
+      null,
+    );
+    if (applicationSupportDirectory.existsSync()) {
+      await applicationSupportDirectory.delete(recursive: true);
+    }
+  });
+
   test(
     'destination-bound commands acknowledge only the displayed coding thread',
     () async {
@@ -632,9 +748,23 @@ void main() {
             .supportsDestinationBoundCommands,
         description: 'destination-bound command capability',
       );
+      expect(
+        container.read(remoteCodingClientProvider).supportsAttachments,
+        isTrue,
+      );
       final chat =
           container.read(chatNotifierProvider.notifier)
               as _BoundCommandChatNotifier;
+
+      await client.updateComposerSettings(
+        model: 'remote-model',
+        reasoningEffort: ReasoningEffortPreference.high,
+        enableThinking: false,
+      );
+      final desktopComposer = container.read(settingsNotifierProvider);
+      expect(desktopComposer.model, 'remote-model');
+      expect(desktopComposer.reasoningEffort, ReasoningEffortPreference.high);
+      expect(desktopComposer.enableThinking, isFalse);
 
       final accepted = await client.sendMessageToConversation(
         projectId: 'project-1',
@@ -646,6 +776,7 @@ void main() {
       expect(accepted.requestId, isNotEmpty);
       expect(chat.sentMessages, ['Run focused tests']);
       expect(chat.sentVoiceModes, [true]);
+      expect(chat.sentBypassPlanModes, [false]);
 
       final idleCancel = await client.cancelConversationStreaming(
         projectId: 'project-1',
@@ -693,7 +824,211 @@ void main() {
       expect(staleCancel.code, 'destination_changed');
       expect(chat.cancelCount, 1);
 
+      final uploaded = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Inspect this file',
+        attachment: RemoteCodingAttachmentDraft(
+          name: 'notes.txt',
+          mimeType: 'text/plain',
+          bytes: Uint8List.fromList(utf8.encode('hello')),
+        ),
+      );
+      // The destination has changed above, so the bound command must refuse
+      // the request and clean up the uploaded attachment.
+      expect(uploaded.outcome, RemoteCodingBoundCommandOutcome.refused);
+      expect(uploaded.code, 'destination_changed');
+
+      (container.read(conversationsNotifierProvider.notifier)
+              as _BoundConversationsNotifier)
+          .selectForTest('thread-1');
+      chat.setLoading(false);
+      final attached = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Inspect this file',
+        attachment: RemoteCodingAttachmentDraft(
+          name: 'notes.txt',
+          mimeType: 'text/plain',
+          bytes: Uint8List.fromList(utf8.encode('hello')),
+        ),
+      );
+      expect(attached.outcome, RemoteCodingBoundCommandOutcome.accepted);
+      expect(
+        chat.sentMessages.last,
+        'Inspect this file\n\n[File: notes.txt (5 B)]',
+      );
+      expect(chat.sentModelContents.last, contains('[Attached file:'));
+      final uploadedPath = chat.sentAttachmentPaths.last;
+      expect(uploadedPath, isNotNull);
+      addTearDown(
+        () => AttachmentStorageService.deleteOwnedAttachments([uploadedPath!]),
+      );
+
+      final imageBytes = await _makePng(width: 2048, height: 512);
+      final imageMessage = await client.sendMessageToConversation(
+        projectId: 'project-1',
+        conversationId: 'thread-1',
+        content: 'Inspect this image',
+        attachment: RemoteCodingAttachmentDraft(
+          name: 'pixel.png',
+          mimeType: 'image/png',
+          bytes: imageBytes,
+        ),
+      );
+      expect(imageMessage.outcome, RemoteCodingBoundCommandOutcome.accepted);
+      expect(chat.sentMessages.last, 'Inspect this image');
+      final modelImageBytes = base64Decode(chat.sentImageBase64.last!);
+      final modelCodec = await ui.instantiateImageCodec(modelImageBytes);
+      final modelFrame = await modelCodec.getNextFrame();
+      expect(modelFrame.image.width, 1024);
+      expect(modelFrame.image.height, 256);
+      expect(chat.sentImageMimeTypes.last, 'image/png');
+      final originalImagePath = chat.sentOriginalImagePaths.last;
+      expect(originalImagePath, isNotNull);
+      final imagePath = originalImagePath!;
+      expect(File(imagePath).readAsBytesSync(), imageBytes);
+      modelFrame.image.dispose();
+      modelCodec.dispose();
+      addTearDown(
+        () => AttachmentStorageService.deleteOwnedAttachments([imagePath]),
+      );
+
       await client.disconnect();
+    },
+  );
+
+  test(
+    'destination-bound commands do not mutate a stale destination',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: _MemorySecureStore(),
+      );
+      final port = await _unusedPort();
+      final now = DateTime.utc(2026, 9, 16);
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [
+            RemoteCodingPairedDevice(
+              id: 'stale-target-phone',
+              name: 'Stale target phone',
+              tokenHash: RemoteCodingSecurity.hashToken('stale-target-token'),
+              createdAt: now,
+              lastSeenAt: now,
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            _BoundCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _BoundConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_BoundCommandChatNotifier.new),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(remoteCodingServerProvider);
+      await _waitUntil(
+        () => container.read(remoteCodingServerProvider).isRunning,
+      );
+      final connection = await _connectAuthenticatedDevice(
+        container: container,
+        port: port,
+        token: 'stale-target-token',
+        authId: 'stale-target-auth',
+      );
+      addTearDown(() async {
+        await connection.subscription.cancel();
+        await connection.socket.close();
+      });
+
+      final conversations =
+          container.read(conversationsNotifierProvider.notifier)
+              as _BoundConversationsNotifier;
+      conversations.setMessagesForTest('thread-2', [
+        Message(
+          id: 'thread-2-message',
+          content: 'Keep this message',
+          role: MessageRole.user,
+          timestamp: now,
+        ),
+      ]);
+      conversations.selectForTest('thread-2');
+      final initialSettings = container.read(settingsNotifierProvider);
+
+      connection.socket.add(
+        RemoteCodingProtocol.encode(
+          type: RemoteCodingProtocol.clearConversation,
+          id: 'stale-clear',
+          payload: {'projectId': 'project-1', 'conversationId': 'thread-1'},
+        ),
+      );
+      await _waitUntil(
+        () => connection.messages.any(
+          (message) => message.id == 'stale-clear' && message.type == 'error',
+        ),
+        description: 'stale clear rejection',
+      );
+      expect(
+        connection.messages
+            .lastWhere((message) => message.id == 'stale-clear')
+            .payload['code'],
+        'destination_changed',
+      );
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .conversations
+            .firstWhere((conversation) => conversation.id == 'thread-2')
+            .messages,
+        hasLength(1),
+      );
+
+      connection.socket.add(
+        RemoteCodingProtocol.encode(
+          type: RemoteCodingProtocol.sendMessageToConversation,
+          id: 'stale-send',
+          payload: {
+            'projectId': 'project-1',
+            'conversationId': 'thread-1',
+            'content': 'Must not send',
+            'composer': {
+              'model': 'must-not-apply',
+              'reasoningEffort': 'automatic',
+              'enableThinking': null,
+              'assistantMode': 'coding',
+            },
+          },
+        ),
+      );
+      await _waitUntil(
+        () => connection.messages.any(
+          (message) => message.id == 'stale-send' && message.type == 'error',
+        ),
+        description: 'stale send rejection',
+      );
+      expect(
+        container.read(settingsNotifierProvider).model,
+        initialSettings.model,
+      );
+      expect(
+        (container.read(chatNotifierProvider.notifier)
+                as _BoundCommandChatNotifier)
+            .sentMessages,
+        isEmpty,
+      );
     },
   );
 
@@ -1242,6 +1577,132 @@ void main() {
     },
   );
 
+  test(
+    'createThread opens a desktop coding draft instead of persisting a thread',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = RemoteCodingRepository(
+        prefs,
+        secureStore: _MemorySecureStore(),
+      );
+      final port = await _unusedPort();
+      const rawToken = 'draft-token';
+      final now = DateTime.utc(2026, 9, 20);
+      await repository.saveServerSettings(
+        RemoteCodingServerSettings(
+          enabled: true,
+          port: port,
+          pairedDevices: [
+            RemoteCodingPairedDevice(
+              id: 'draft-phone',
+              name: 'Draft phone',
+              tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+              createdAt: now,
+              lastSeenAt: now,
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          remoteCodingRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            _BoundCodingProjectsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _BoundConversationsNotifier.new,
+          ),
+          chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        ],
+      );
+      WebSocket? socket;
+      StreamSubscription<dynamic>? subscription;
+      try {
+        container.read(remoteCodingServerProvider);
+        await _waitUntil(
+          () => container.read(remoteCodingServerProvider).isRunning,
+        );
+        final connection = await _connectAuthenticatedDevice(
+          container: container,
+          port: port,
+          token: rawToken,
+          authId: 'draft-auth',
+        );
+        socket = connection.socket;
+        subscription = connection.subscription;
+
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: 'createThread',
+            id: 'draft-create',
+            payload: {'projectId': 'project-1'},
+          ),
+        );
+        await _waitUntil(
+          () => connection.messages.any(
+            (message) =>
+                message.id == 'draft-create' && message.type == 'snapshot',
+          ),
+          description: 'draft thread snapshot',
+        );
+
+        final snapshot = connection.messages.lastWhere(
+          (message) => message.id == 'draft-create',
+        );
+        expect(snapshot.payload['currentConversationId'], isNull);
+        expect(
+          container.read(conversationsNotifierProvider).currentConversation,
+          isNull,
+        );
+        expect(
+          container.read(conversationsNotifierProvider).activeProjectId,
+          'project-1',
+        );
+
+        socket.add(
+          RemoteCodingProtocol.encode(
+            type: RemoteCodingProtocol.updateComposerSettings,
+            id: 'draft-plan-mode',
+            payload: {
+              'composer': {
+                'model': 'desktop-model',
+                'reasoningEffort': 'automatic',
+                'enableThinking': null,
+                'assistantMode': 'plan',
+              },
+            },
+          ),
+        );
+        await _waitUntil(
+          () => connection.messages.any(
+            (message) =>
+                message.id == 'draft-plan-mode' &&
+                message.type == RemoteCodingProtocol.commandResult,
+          ),
+          description: 'draft composer mode result',
+        );
+        final composerResult = connection.messages.lastWhere(
+          (message) => message.id == 'draft-plan-mode',
+        );
+        expect(
+          (composerResult.payload['composer']
+              as Map<String, dynamic>)['assistantMode'],
+          'plan',
+        );
+        expect(
+          container.read(conversationsNotifierProvider).currentConversation,
+          isNull,
+        );
+      } finally {
+        await subscription?.cancel();
+        await socket?.close();
+        container.dispose();
+      }
+    },
+  );
+
   test('canceling a pairing payload invalidates the ticket', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -1420,6 +1881,76 @@ void main() {
     } finally {
       await subscription?.cancel();
       await socket?.close();
+      container.dispose();
+    }
+  });
+
+  test('remote project snapshots use the desktop drawer ordering', () async {
+    SharedPreferences.setMockInitialValues({
+      codingProjectSortOrderPrefsKey: 'recentlyActiveFirst',
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final port = await _unusedPort();
+    const rawToken = 'project-order-token';
+    final device = RemoteCodingPairedDevice(
+      id: 'device-project-order',
+      name: 'Phone',
+      tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+      createdAt: DateTime(2026, 9, 19, 12),
+      lastSeenAt: DateTime(2026, 9, 19, 12),
+    );
+    final repository = RemoteCodingRepository(
+      prefs,
+      secureStore: _MemorySecureStore(),
+    );
+    await repository.saveServerSettings(
+      RemoteCodingServerSettings(
+        enabled: true,
+        port: port,
+        pairedDevices: [device],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        remoteCodingRepositoryProvider.overrideWithValue(repository),
+        codingProjectsNotifierProvider.overrideWith(
+          _RemoteOrderCodingProjectsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _RemoteOrderConversationsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+      ],
+    );
+
+    try {
+      container.read(remoteCodingServerProvider);
+      await _waitUntil(
+        () => container.read(remoteCodingServerProvider).isRunning,
+      );
+      final connection = await _connectAuthenticatedDevice(
+        container: container,
+        port: port,
+        token: rawToken,
+        authId: 'auth-project-order',
+      );
+      try {
+        final snapshot = connection.messages.firstWhere(
+          (message) =>
+              message.id == 'auth-project-order' && message.type == 'snapshot',
+        );
+        final projectIds = (snapshot.payload['projects'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((project) => project['id'])
+            .toList(growable: false);
+
+        expect(projectIds, ['older-project', 'newer-project']);
+      } finally {
+        await connection.subscription.cancel();
+        await connection.socket.close();
+      }
+    } finally {
       container.dispose();
     }
   });
@@ -2570,11 +3101,9 @@ void main() {
     await _waitUntil(() => relayClient.deliveries.isNotEmpty);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(
-      relayClient.deliveries.map((delivery) => delivery.deliveryHandle),
-      ['delivery_handle_granted'],
-      reason: 'the ungranted device must not be told the approval exists',
-    );
+    expect(relayClient.deliveries.map((delivery) => delivery.deliveryHandle), [
+      'delivery_handle_granted',
+    ], reason: 'the ungranted device must not be told the approval exists');
     final payload =
         relayClient.deliveries.single.payload
             as RemoteCodingApprovalNotificationPayload;
@@ -2598,11 +3127,9 @@ void main() {
     await _waitUntil(() => relayClient.deliveries.isNotEmpty);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(
-      relayClient.deliveries.map((delivery) => delivery.deliveryHandle),
-      ['delivery_handle_granted'],
-      reason: 'the withdrawal follows the request, device for device',
-    );
+    expect(relayClient.deliveries.map((delivery) => delivery.deliveryHandle), [
+      'delivery_handle_granted',
+    ], reason: 'the withdrawal follows the request, device for device');
     final withdrawal =
         relayClient.deliveries.single.payload
             as RemoteCodingApprovalWithdrawalPayload;
@@ -2645,4 +3172,16 @@ final class _SlowAuditWriteRepository extends RemoteCodingRepository {
       await Future.wait(_writes.toList());
     }
   }
+}
+
+Future<Uint8List> _makePng({required int width, required int height}) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawColor(const ui.Color(0xff336699), ui.BlendMode.srcOver);
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(width, height);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  picture.dispose();
+  return data!.buffer.asUint8List();
 }
