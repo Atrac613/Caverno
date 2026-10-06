@@ -2167,8 +2167,9 @@ void registerChatNotifierGoalAutoContinueTests() {
     final scopedVerifierArguments = {
       ...verifierArguments,
       'allowed_read_root': verifierArguments['working_directory'],
-      if (_supportsForegroundCommandContainment())
-        'workspace_command_containment': true,
+      // The plan always records the flag. On macOS it is true when sandbox-exec
+      // can contain the command; elsewhere the same key is false.
+      'workspace_command_containment': _supportsForegroundCommandContainment(),
     };
     expect(toolService.executedToolArguments.first, scopedVerifierArguments);
     expect(toolService.executedToolArguments.last, scopedVerifierArguments);

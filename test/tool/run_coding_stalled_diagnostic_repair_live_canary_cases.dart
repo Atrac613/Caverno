@@ -56,7 +56,9 @@ void _runRunCodingStalledDiagnosticRepairLiveCanary() {
     expect(canary, contains('_todoTerminalMessage'));
     expect(
       notifier,
-      contains('prefixStableToolLoop || allowedToolNames != null'),
+      contains(
+        '_settings.enablePrefixStableToolLoop || allowedToolNames != null',
+      ),
     );
     expect(
       notifier,
