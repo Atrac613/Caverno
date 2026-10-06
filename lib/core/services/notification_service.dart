@@ -93,6 +93,20 @@ class NotificationService {
   }
 
   Future<void> _initialize() async {
+    try {
+      await _initializePlugin();
+    } catch (error, stackTrace) {
+      // Init is started unawaited from the provider. A host with no plugin
+      // registrant, including Linux CI, throws LateInitializationError out of
+      // that future and fails the turn. Leave notifications disabled instead.
+      appLog(
+        '[Notifications] Initialization skipped: ${error.runtimeType}: $error',
+      );
+      appLog('[Notifications] stackTrace: $stackTrace');
+    }
+  }
+
+  Future<void> _initializePlugin() async {
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
