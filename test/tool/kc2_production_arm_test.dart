@@ -100,12 +100,23 @@ void main() {
   test('this repository yields a block per budget, growing with context', () {
     final blocks = productionBlocks('.');
     expect(blocks.keys, productionArmContext.keys);
+    final defaultBlock = blocks[CensusArm.productionDefault]!;
+    final largeBlock = blocks[CensusArm.production64k]!;
+    expect(largeBlock.length, greaterThan(defaultBlock.length));
+    // A named SDK deprecation is not a stable sentinel: the digest keeps the
+    // newest entries, and a longer Flutter deprecation list drops older
+    // symbols such as withOpacity even from the 64k arm.
+    const digestHeader = 'What the installed versions changed';
+    final defaultDigestAt = defaultBlock.indexOf(digestHeader);
+    final largeDigestAt = largeBlock.indexOf(digestHeader);
+    expect(defaultDigestAt, greaterThanOrEqualTo(0));
+    expect(largeDigestAt, greaterThanOrEqualTo(0));
     expect(
-      blocks[CensusArm.production64k]!.length,
-      greaterThan(blocks[CensusArm.productionDefault]!.length),
+      largeBlock.length - largeDigestAt,
+      greaterThan(defaultBlock.length - defaultDigestAt),
+      reason:
+          'the 64k arm keeps a longer change digest than the default budget',
     );
-    expect(blocks[CensusArm.production64k], contains('withOpacity'));
-    expect(blocks[CensusArm.productionDefault], isNot(contains('withOpacity')));
     expect(
       blocks[CensusArm.productionVersionsOnly],
       isNot(contains('What the installed versions changed')),
