@@ -7995,6 +7995,13 @@ class ChatNotifier extends Notifier<ChatState> {
         provisionalFinishReason,
       ),
     );
+    if (finalMessage.useContentToolFallback) {
+      // The fallback is cleared below, and the resolve after recovery reads
+      // the registry rather than this local copy. Without publishing it, an
+      // empty continuation is dropped and the user message is left as the
+      // turn's last bubble.
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    }
     _contentToolTurns.setContinuationFallback(turnOwner, null);
     if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
     final snapshot = turnSnapshot!;
