@@ -16393,13 +16393,9 @@ with open(path, "rb") as file:
           origin: ChatInteractionOrigin.remote,
           remoteDeviceId: 'device-owner',
         );
-        for (
-          var i = 0;
-          i < 10 && toolNotifier.state.pendingLocalCommand == null;
-          i += 1
-        ) {
-          await Future<void>.delayed(Duration.zero);
-        }
+        await _waitForCondition(
+          () => toolNotifier.state.pendingLocalCommand != null,
+        );
 
         final pending = toolNotifier.state.pendingLocalCommand;
         expect(pending, isNotNull);
@@ -16485,13 +16481,9 @@ with open(path, "rb") as file:
           'Run the scoped widget test',
           bypassPlanMode: true,
         );
-        for (
-          var i = 0;
-          i < 20 && toolNotifier.state.pendingLocalCommand == null;
-          i += 1
-        ) {
-          await Future<void>.delayed(Duration.zero);
-        }
+        await _waitForCondition(
+          () => toolNotifier.state.pendingLocalCommand != null,
+        );
 
         final pending = toolNotifier.state.pendingLocalCommand;
         expect(pending, isNotNull);
