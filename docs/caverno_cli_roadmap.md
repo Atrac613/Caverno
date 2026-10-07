@@ -479,8 +479,21 @@ Dependencies:
 - CLI2 terminal presenter and approval handling; CLI3 persistence.
 - A configured code-review route for the farm's review phase.
 
+Evidence:
+- CLI5a: `ProjectTaskWorkflowSession`
+  (`lib/features/project_farm/application/project_task_workflow_session.dart`)
+  now owns the composition; `ProjectTaskReviewLauncher` maps its typed outcome
+  to the chat page's messages. A normalized diff of the moved body against the
+  old launcher shows only the outcome returns. The session is exercised from a
+  bare `ProviderContainer` in `project_task_workflow_session_test.dart`. The
+  full suite has the same 26 pre-existing quality-gate failures as `main`
+  (file-size ratchets, LL36 advisory, collaborator manifest, ambient reads,
+  shell write observation) and none from this change.
+
 Next action:
-- Start CLI5a.
+- Start CLI5b. The session still requires the task thread to be the current
+  conversation and the `ChatNotifier`'s bound conversation; the terminal
+  adapter already selects its conversation, so confirm that binding first.
 
 ### CLI4: Packaging, Automation, And Release Gate
 
