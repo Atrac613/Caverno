@@ -490,10 +490,22 @@ Evidence:
   (file-size ratchets, LL36 advisory, collaborator manifest, ambient reads,
   shell write observation) and none from this change.
 
+- CLI5b: `caverno farm --project <path> [--item <id>] [--json]`
+  (`caverno_terminal_farm_run.dart`). The runtime gained
+  `publishSessionEvent` and a `project_task_decision` event; a farm run ends
+  only on the terminal event whose turn id is `farm`, so per-turn terminals
+  are progress. The notifier follows the selected task thread through its own
+  conversations listener, as in the GUI. A dirty tree is refused
+  (`uncommitted_changes`, exit 2) because there is nobody to ask. Verified on
+  a Debug build: `farm --help`, and the dirty-tree refusal against a scratch
+  repository with an isolated `--data-dir`. No live end-to-end farm run yet.
+
 Next action:
-- Start CLI5b. The session still requires the task thread to be the current
-  conversation and the `ChatNotifier`'s bound conversation; the terminal
-  adapter already selects its conversation, so confirm that binding first.
+- Run one live `caverno farm` on a small fixture project from a TTY, so
+  approvals can be answered, and compare its `project_task_decision` sequence
+  with the GUI path. Then start CLI5c.
+- Known gap: `--data-dir` isolates storage but not settings; the CLI still
+  loads the app's MCP servers and roles from shared preferences.
 
 ### CLI4: Packaging, Automation, And Release Gate
 
