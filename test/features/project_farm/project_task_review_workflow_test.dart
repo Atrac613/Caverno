@@ -285,12 +285,97 @@ void main() {
       expect(await workflow.run(), ProjectTaskReviewResult.committed);
       final review = prompts[1];
       expect(review, isNot(contains('```diff')));
-      expect(review, contains('too large to include here'));
+      expect(review, contains('too large to include in full here'));
       expect(review, contains('- lib/task.dart (+900 -0)'));
       expect(review, contains('diff HEAD -- <path>'));
       expect(decisions, contains(containsPair('decision', 'patch_listed')));
     },
   );
+
+  test('lists a truncated file patch for the reviewer', () async {
+    // Session 48328742: test_state.py (+378 lines) passed the display cap,
+    // its captured patch was cut short, and the workflow stopped before
+    // review although the whole patch was under the inline limit.
+    var conversation = initial();
+    final prompts = <String>[];
+    final workflow = ProjectTaskReviewWorkflow(
+      conversationId: 'task',
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
+      readGitState: gitState,
+      readTaskPatch: (_) async => const [
+        TurnDiffFile(
+          filePath: 'test_state.py',
+          linesAdded: 378,
+          isTruncated: true,
+          unifiedPatch: '@@ -1 +1,378 @@\n+def test_one(): ...',
+        ),
+        TurnDiffFile(
+          filePath: 'state.py',
+          linesAdded: 1,
+          unifiedPatch: '@@ -1 +1 @@\n-old\n+new',
+        ),
+      ],
+      readConversation: () => conversation,
+      isSelected: () => true,
+      isWaitingForUser: () => false,
+      send: (prompt, {required codeReview}) async {
+        prompts.add(prompt);
+        conversation = conversation.copyWith(
+          messages: [
+            ...conversation.messages,
+            assistant(
+              codeReview
+                  ? 'No findings.\nPROJECT_TASK_REVIEW_CLEAN'
+                  : 'Verified.\nPROJECT_TASK_READY_FOR_REVIEW',
+              prompts.length,
+            ),
+          ],
+          turnDiffs: codeReview
+              ? conversation.turnDiffs
+              : [...conversation.turnDiffs, diff(1)],
+        );
+        return true;
+      },
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.committed);
+    expect(prompts[1], isNot(contains('```diff')));
+    expect(prompts[1], contains('- test_state.py (+378 -0)'));
+    expect(prompts[1], contains('- state.py (+1 -0)'));
+  });
+
+  test('stops on a binary task file', () async {
+    var conversation = initial();
+    final workflow = ProjectTaskReviewWorkflow(
+      conversationId: 'task',
+      commit: (prompt, scope) => commitTurn(prompt),
+      projectRoot: '/repo',
+      prepareCommit: (_, _) async => true,
+      readCommitSnapshot: (scope) async =>
+          fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
+      readGitState: gitState,
+      readTaskPatch: (_) async => const [
+        TurnDiffFile(filePath: 'icon.png', isBinary: true),
+      ],
+      readConversation: () => conversation,
+      isSelected: () => true,
+      isWaitingForUser: () => false,
+      send: (prompt, {required codeReview}) async {
+        conversation = conversation.copyWith(
+          messages: [assistant('Verified.\nPROJECT_TASK_READY_FOR_REVIEW', 1)],
+          turnDiffs: [diff(1)],
+        );
+        return true;
+      },
+    );
+
+    expect(await workflow.run(), ProjectTaskReviewResult.stopped);
+    expect(workflow.stopReason, contains('binary'));
+  });
 
   test('stops when task changes have no reviewable patch', () async {
     var conversation = initial();

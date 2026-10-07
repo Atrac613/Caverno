@@ -113,6 +113,8 @@ final class ProjectTaskReviewWorkflow {
   /// A patch longer than this is listed rather than inlined, and the
   /// reviewer reads each file's diff itself. Stopping instead discarded a
   /// finished five-subtask implementation over a 46 KB patch (d8ffeb92).
+  /// A file whose captured patch was cut short (the 400-line/12,000-char
+  /// display cap) or omitted as too large is listed the same way (48328742).
   static const maxInlinePatchChars = 30000;
   static const _ready = 'PROJECT_TASK_READY_FOR_REVIEW';
   static const _subtaskDone = 'PROJECT_TASK_SUBTASK_DONE';
@@ -224,10 +226,7 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
 
       final patch = await _reviewPatch(after!);
       if (patch == null) {
-        return _stop(
-          'the task patch is empty, binary, truncated, or has a file too '
-          'large to diff',
-        );
+        return _stop('the task patch is empty or contains a binary file');
       }
       final inlinePatch = patch.inline;
       if (inlinePatch == null) {
@@ -240,7 +239,7 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
       }
       final patchSection = inlinePatch != null
           ? '```diff\n$inlinePatch\n```'
-          : '''The patch is too large to include here (${patch.chars} characters). Its changed files are:
+          : '''The patch is too large to include in full here (${patch.chars} characters captured). Its changed files are:
 ${_listedFiles(patch.files).join('\n')}
 Inspect each listed file's change with git_execute_command `diff HEAD -- <path>`, one file per call, in addition to reading the files. Do not report a clean review unless every listed file's change was inspected.''';
       final template = builtInSlashCommandPromptTemplates.firstWhere(
@@ -628,19 +627,19 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
     final files =
         await readTaskPatch?.call(_taskPaths(conversation)) ??
         _taskFiles(conversation);
-    if (files.isEmpty ||
-        files.any(
-          (file) =>
-              file.isBinary ||
-              file.isLargeFile ||
-              file.isTruncated ||
-              !file.hasRenderablePatch,
-        )) {
+    if (!files.any((file) => file.hasChanges) ||
+        files.any((file) => file.isBinary)) {
       return null;
     }
+    // A cut-short or omitted file patch is not the change; list the files so
+    // the reviewer reads the full diff from git.
+    final complete = files.every(
+      (file) =>
+          !file.isTruncated && !file.isLargeFile && file.hasRenderablePatch,
+    );
     final patch = files.map((file) => file.unifiedPatch).join('\n');
     return (
-      inline: patch.length <= maxInlinePatchChars ? patch : null,
+      inline: complete && patch.length <= maxInlinePatchChars ? patch : null,
       chars: patch.length,
       files: files,
     );

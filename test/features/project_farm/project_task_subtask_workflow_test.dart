@@ -459,7 +459,7 @@ void main() {
     expect(
       sendPrompts[1],
       allOf(
-        contains('too large to include here'),
+        contains('too large to include in full here'),
         isNot(contains('stale turn')),
         contains('diff HEAD -- <path>'),
       ),
