@@ -16,7 +16,6 @@ import '../../../chat/data/datasources/openai_parameter_support_probe.dart';
 import '../../../chat/data/datasources/strict_tool_choice_policy.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
-import '../../../chat/domain/services/goal_update_ack.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
@@ -28,6 +27,7 @@ import 'live_llm_edit_format_probe.dart';
 import 'live_llm_effective_context_probe.dart';
 import 'live_llm_embedding_probe.dart';
 import 'live_llm_exact_preservation_probe.dart';
+import 'live_llm_goal_update_fidelity_probe.dart';
 import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
@@ -79,6 +79,16 @@ class LiveLlmDiagnosticService {
   late final _chat = LiveLlmDiagnosticObservedChatCalls(
     chatDataSource,
     _thinking,
+  );
+  late final _goalUpdateFidelityProbe = LiveLlmGoalUpdateFidelityProbe(
+    complete: () => _chat.createChatCompletion(
+      messages: _messages(user: LiveLlmGoalUpdateFidelityProbe.prompt),
+      tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    ),
+    requestMetadata: _goalUpdateRequestMetadata,
   );
   late final _toolResultProbe = LiveLlmToolResultProbe(
     complete: ({required messages, required tools}) =>
@@ -350,7 +360,8 @@ class LiveLlmDiagnosticService {
   static const _visionToolObservationProbeId =
       LiveLlmVisionProbes.toolObservationProbeId;
   static const _narrowToolCallProbeId = 'narrow_tool_call';
-  static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
+  static const _goalUpdateFidelityProbeId =
+      LiveLlmGoalUpdateFidelityProbe.probeId;
   static const _toolResultProbeId = LiveLlmToolResultProbe.probeId;
   static const _multiRoundToolLoopProbeId = LiveLlmMultiRoundProbe.probeId;
   static const _initialHarnessProbeId = 'initial_harness_selection';
@@ -1772,59 +1783,8 @@ class LiveLlmDiagnosticService {
     );
   }
 
-  Future<LiveLlmDiagnosticProbeResult> _runGoalUpdateFidelityProbe() async {
-    final result = await _chat.createChatCompletion(
-      messages: _messages(
-        user:
-            'The active goal is complete. Report that state by calling '
-            'update_goal exactly once with completed set to the JSON boolean '
-            'literal true, not the string "true" or "True". Do not add '
-            'message or blocked_reason, and do not answer in text.',
-      ),
-      tools: [McpGoalRoutineToolDefinitions.updateGoalTool],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
-    final names = calls.map((call) => call.name).toList(growable: false);
-    final argumentValidationError =
-        calls.length == 1 && calls.single.name == 'update_goal'
-        ? GoalUpdateInput.validateArguments(calls.single.arguments)
-        : null;
-    final passed =
-        calls.length == 1 &&
-        calls.single.name == 'update_goal' &&
-        argumentValidationError == null &&
-        calls.single.arguments.length == 1 &&
-        calls.single.arguments['completed'] == true;
-    return LiveLlmDiagnosticProbeResult(
-      id: _goalUpdateFidelityProbeId,
-      status: passed
-          ? LiveLlmDiagnosticStatus.passed
-          : LiveLlmDiagnosticStatus.failed,
-      summary: passed
-          ? 'The model emitted the exact goal-completion tool call.'
-          : 'The model did not emit the exact goal-completion tool call.',
-      details: passed
-          ? 'Observed update_goal with {"completed":true}; it was not executed.'
-          : calls.isEmpty
-          ? 'No tool calls were returned.'
-          : [
-              ?argumentValidationError,
-              ...calls.map(
-                (call) => '${call.name}: ${jsonEncode(call.arguments)}',
-              ),
-            ].join('\n'),
-      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
-      toolCalls: names,
-      usage: LiveLlmDiagnosticEvidence.usage(result),
-      metadata: {
-        ..._goalUpdateRequestMetadata(),
-        'argumentValidationError': ?argumentValidationError,
-      },
-    );
-  }
+  Future<LiveLlmDiagnosticProbeResult> _runGoalUpdateFidelityProbe() =>
+      _goalUpdateFidelityProbe.run();
 
   /// The contract this probe put on the wire, kept beside the model's call so
   /// a string boolean stays visible as a model miss rather than a schema miss.

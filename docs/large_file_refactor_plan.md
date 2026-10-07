@@ -2145,3 +2145,33 @@ This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
 coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
 on hold. No main integration, push, full Flutter-suite, live-model or signed-device
 result is claimed.
+
+## Goal-update fidelity extraction (2026-10-08)
+
+Thinking-control is locally committed as `c780e2f24`. The next bounded diagnostic
+family moves exact goal-completion scoring into the 68-line
+`LiveLlmGoalUpdateFidelityProbe`. The service falls from 2,437 to 2,397 lines,
+retaining request settings, tool/schema construction, transport-derived metadata,
+thinking observation, selection/provider policy, exceptions, elapsed time and
+report publication.
+
+This probe still never executes returned tool calls. It accepts exactly one
+`update_goal` call whose only argument is the JSON boolean `completed: true`.
+The existing production validator supplies error text only for a single
+correctly named call; valid but nonexact arguments still fail. Observed names,
+raw JSON arguments, preview, usage and request/validation metadata are unchanged.
+Metadata is computed after completion and validation evidence retains precedence.
+Normalized scoring matches the committed original after port substitutions.
+
+Three service contracts passed before extraction. Twenty-two independent tests
+cover exact/invalid/nonexact arguments, wrong/multiple calls, textual parsing,
+preview limits, metadata order and both port failures. The focused gate passed 170 tests across six suites, clean root/package
+  analysis, internal-package tests and notification relay checks.
+Module: 23/23 executable lines covered (100%). Service: 628/730 (86.03%)
+  in this focused run; this is not whole-suite coverage. Fourteen affected size checks passed.
+See [task and evidence](f5_goal_update_fidelity_probe_extraction_codex_task.md).
+
+This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
+coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
+on hold. No main integration, push, full Flutter-suite, live-model or signed-device
+result is claimed.

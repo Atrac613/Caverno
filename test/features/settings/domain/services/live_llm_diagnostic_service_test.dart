@@ -1153,6 +1153,47 @@ void main() {
     });
   });
 
+  for (final fail in [false, true]) {
+    test('update_goal request binding and publication failure=$fail', () async {
+      final source = _GoalFidelityRecordingDataSource(fail: fail);
+      final statuses = <LiveLlmDiagnosticStatus>[];
+      final report =
+          await LiveLlmDiagnosticService(
+            settings: _settings(
+              mcpEnabled: false,
+              model: 'goal-fidelity-model',
+            ),
+            chatDataSource: source,
+            mcpToolService: null,
+          ).run(
+            probeIds: const {'update_goal_fidelity'},
+            onReport: (report) {
+              final status = _result(report, 'update_goal_fidelity').status;
+              if (statuses.isEmpty || statuses.last != status) {
+                statuses.add(status);
+              }
+            },
+          );
+      expect(source.requests, 1);
+      final result = _result(report, 'update_goal_fidelity');
+      expect(statuses, [
+        LiveLlmDiagnosticStatus.pending,
+        LiveLlmDiagnosticStatus.running,
+        fail ? LiveLlmDiagnosticStatus.failed : LiveLlmDiagnosticStatus.passed,
+      ]);
+      expect(result.elapsed, greaterThan(Duration.zero));
+      if (fail) {
+        expect(result.details, contains('goal fidelity request failed'));
+      } else {
+        expect(result.metadata['temperature'], '0.0');
+        expect(result.metadata['toolName'], 'update_goal');
+        expect(result.metadata['completedType'], 'boolean');
+        expect(result.metadata['toolChoice'], contains('update_goal'));
+        expect(result.details, contains('it was not executed'));
+      }
+    });
+  }
+
   test('keeps update_goal string boolean failures explicit', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: true),
@@ -4013,6 +4054,42 @@ class _ThinkingControlRecordingDataSource extends _FakeDiagnosticDataSource {
     return ChatCompletionResult(
       content: 'CAVERNO_THINKING_CONTROL',
       finishReason: 'stop',
+    );
+  }
+}
+
+class _GoalFidelityRecordingDataSource extends _FakeDiagnosticDataSource {
+  _GoalFidelityRecordingDataSource({required this.fail});
+  final bool fail;
+  int requests = 0;
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+    Map<String, dynamic>? responseFormat,
+    Map<String, String>? requestMetadata,
+  }) async {
+    requests++;
+    expect(model, 'goal-fidelity-model');
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    expect(tools!.single['function']['name'], 'update_goal');
+    expect(messages.map((message) => message.role), [
+      MessageRole.system,
+      MessageRole.user,
+    ]);
+    if (fail) {
+      throw StateError('goal fidelity request failed');
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
     );
   }
 }

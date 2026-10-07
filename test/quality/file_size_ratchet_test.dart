@@ -1078,11 +1078,14 @@ const Map<String, int> _lineBudgets = {
   // pure embeddings evaluator moved out, and from 2877 when literal
   // preservation measurement moved out, and from 2746 when edit-format
   // measurement moved out, and from 2583 when tool-result integration moved out,
-  // and from 2503 when thinking-control classification moved out.
+  // and from 2503 when thinking-control classification moved out, and
+  // from 2437 when goal-update fidelity scoring moved out.
   // The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      2437,
+      2397,
+  'lib/features/settings/domain/services/live_llm_goal_update_fidelity_probe.dart':
+      68,
   'lib/features/settings/domain/services/live_llm_thinking_control_probe.dart':
       78,
   'lib/features/settings/domain/services/live_llm_tool_result_probe.dart': 142,
