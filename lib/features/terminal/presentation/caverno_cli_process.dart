@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,6 +58,12 @@ Future<int> runCavernoCliProcess(
     output: output ?? stdout,
     diagnostics: diagnostics ?? stderr,
   );
+  // stdout belongs to the presenter: under --json it must be pure JSON Lines.
+  // Debug builds log through debugPrint, which would otherwise interleave
+  // `flutter:` lines with the events, so route it to stderr.
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) terminal.writeStderr('$message\n');
+  };
   CavernoCliInvocation invocation;
   try {
     invocation = CavernoCliInvocation.parse(arguments);
@@ -372,6 +379,22 @@ $common''',
     };
   }
   if (command != null) {
+    if (command == CavernoCliCommand.farm) {
+      return '''Usage: caverno farm --project <path> [--item <id>] [options]
+
+Runs one roadmap task through decompose, implement, review and commit.
+
+Options:
+  --item <id>           Work on this roadmap item (default: the recommended one)
+  --json                Emit caverno_cli_event JSON Lines
+
+Configuration options:
+  --base-url <url>      Override CAVERNO_LLM_BASE_URL
+  --model <name>        Override CAVERNO_LLM_MODEL
+  --api-key <value>     Override CAVERNO_LLM_API_KEY
+  --data-dir <path>     Override CAVERNO_HOME
+''';
+    }
     final project = command == CavernoCliCommand.chat
         ? ''
         : ' --project <path>';
@@ -382,6 +405,7 @@ $common''',
   caverno chat [input options] [prompt]
   caverno coding --project <path> [input options] [prompt]
   caverno plan --project <path> [input options] [prompt]
+  caverno farm --project <path> [--item <id>] [--json]
   caverno conversations list [--limit <count>] [--json]
   caverno conversations show <conversation-id> [--json]
   caverno conversations resume <conversation-id> [input options] [prompt]

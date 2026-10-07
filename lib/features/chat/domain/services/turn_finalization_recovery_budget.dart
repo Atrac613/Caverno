@@ -1,57 +1,21 @@
-import 'dart:convert';
-
 import '../entities/tool_call_info.dart';
-import 'coding_command_output_issue_detector.dart';
-import 'command_verification_reconciliation.dart';
-import 'unresolved_verification_failure.dart';
+import 'recovery_execution_signature.dart';
+import 'verification_repair_budget.dart';
 
 /// Bounds recovery while reserving status reports for finished verification.
 final class TurnFinalizationRecoveryBudget {
   final _attempts = <int, Set<String>>{};
-  final _verificationResultsAtRequest = <int, Set<String>>{};
-  final _verificationRepairAttempts = <int, Set<String>>{};
-  final _verificationRepairPendingStatus = <int>{};
-  static const maxVerificationRepairAttempts = 2;
+  final _repairs = VerificationRepairBudget();
+  static const maxVerificationRepairAttempts =
+      VerificationRepairBudget.maxVerificationRepairAttempts;
 
-  bool canRepairVerification(int generation, List<ToolResultInfo> results) {
-    final failure = const UnresolvedVerificationFailure().latest(results);
-    if (failure == null ||
-        _wasReused(failure) ||
-        !_terminalVerificationIds(results).contains(failure.id)) {
-      return false;
-    }
-    final attempts = _verificationRepairAttempts[generation] ?? const {};
-    return attempts.length < maxVerificationRepairAttempts &&
-        !attempts.contains(failure.id);
-  }
+  bool canRepairVerification(int generation, List<ToolResultInfo> results) =>
+      _repairs.canRepairVerification(generation, results);
+  bool claimVerificationRepair(int generation, List<ToolResultInfo> results) =>
+      _repairs.claimVerificationRepair(generation, results);
+  bool needsVerificationStatus(int generation, List<ToolResultInfo> results) =>
+      _repairs.needsVerificationStatus(generation, results);
 
-  /// Fresh failed executions can request bounded repair, independently of
-  /// status-only recovery. Reads, cached results and new hashes cannot renew it.
-  bool claimVerificationRepair(int generation, List<ToolResultInfo> results) {
-    if (!canRepairVerification(generation, results)) return false;
-    final failure = const UnresolvedVerificationFailure().latest(results)!;
-    _verificationRepairAttempts
-        .putIfAbsent(generation, () => {})
-        .add(failure.id);
-    _verificationResultsAtRequest[generation] = _terminalVerificationIds(
-      results,
-    );
-    _verificationRepairPendingStatus.add(generation);
-    return true;
-  }
-
-  /// A finished verification or declined repair still owes a status report.
-  bool needsVerificationStatus(int generation, List<ToolResultInfo> results) {
-    final previous = _verificationResultsAtRequest[generation];
-    return _verificationRepairPendingStatus.contains(generation) ||
-        (previous != null &&
-            _terminalVerificationIds(
-              results,
-            ).any((id) => !previous.contains(id)));
-  }
-
-  /// Failed outcomes permit only a control request whose tools the recovery
-  /// plan restricts to update_goal; they never renew implementation work.
   bool claim(
     int generation, {
     required bool structuredTask,
@@ -65,85 +29,28 @@ final class TurnFinalizationRecoveryBudget {
     final attempts = _attempts.putIfAbsent(generation, () => {});
     if (!structuredTask) return attempts.isEmpty && attempts.add('legacy');
     if (attempts.length >= 3) return false;
-    final mutations = <String, String?>{};
-    final verifications = <String>{};
-    for (final result in CommandVerificationReconciliation.currentResults(
-      results.where((result) => !_wasReused(result)).toList(),
-    )) {
-      for (final mutation in result.outcome?.fileMutations ?? []) {
-        if (mutation.changed == true) {
-          mutations[mutation.path] = mutation.contentHash;
-        }
-      }
-      if (CommandVerificationReconciliation.isVerification(result) &&
-          result.outcome?.hasSucceedingExitCode == true &&
-          (result.outcome?.processState == null ||
-              result.outcome!.isProcessTerminal) &&
-          (result.outcome?.effectiveTestFailedCount ?? 0) == 0 &&
-          (result.outcome?.diagnosticErrorCount ?? 0) == 0 &&
-          const CodingCommandOutputIssueDetector().detect(result) == null) {
-        final scope = CommandVerificationReconciliation.scopeOf(result);
-        final tests = result.outcome?.testOutcome;
-        verifications.add(
-          jsonEncode([
-            result.name,
-            scope?.key ?? result.arguments,
-            if (tests != null)
-              [tests.passedCount, tests.failedCount, tests.skippedCount],
-          ]),
-        );
-      }
-    }
-    var key = jsonEncode([mutations, verifications.toList()..sort()]);
-    final terminalIds = _terminalVerificationIds(results);
+    var key = RecoveryExecutionSignature.of(results);
+    final terminalIds = RecoveryExecutionSignature.terminalIds(results);
     if (statusOnly && attempts.contains(key)) {
-      key = jsonEncode([
-        'verification_status',
-        terminalIds
-            .difference(_verificationResultsAtRequest[generation]!)
-            .toList()
-          ..sort(),
-      ]);
+      key = RecoveryExecutionSignature.status(
+        terminalIds.difference(
+          _repairs.verificationResultsAtRequest[generation]!,
+        ),
+      );
     }
     if (!attempts.add(key)) return false;
-    _verificationResultsAtRequest[generation] = terminalIds;
-    _verificationRepairPendingStatus.remove(generation);
+    _repairs.verificationResultsAtRequest[generation] = terminalIds;
+    _repairs.pendingStatus.remove(generation);
     return true;
-  }
-
-  static Set<String> _terminalVerificationIds(List<ToolResultInfo> results) => {
-    for (final result in results)
-      if (CommandVerificationReconciliation.isVerification(result) &&
-          !_wasReused(result) &&
-          result.outcome != null &&
-          (result.outcome!.exitCode != null ||
-              result.outcome!.testOutcome != null ||
-              result.outcome!.diagnosticErrorCount != null) &&
-          (result.outcome!.processState == null ||
-              result.outcome!.isProcessTerminal))
-        result.id,
-  };
-
-  static bool _wasReused(ToolResultInfo result) {
-    try {
-      final payload = jsonDecode(result.result);
-      return payload is Map && payload['execution_reused'] == true;
-    } on FormatException {
-      return false;
-    }
   }
 
   void remove(int generation) {
     _attempts.remove(generation);
-    _verificationResultsAtRequest.remove(generation);
-    _verificationRepairAttempts.remove(generation);
-    _verificationRepairPendingStatus.remove(generation);
+    _repairs.remove(generation);
   }
 
   void clear() {
     _attempts.clear();
-    _verificationResultsAtRequest.clear();
-    _verificationRepairAttempts.clear();
-    _verificationRepairPendingStatus.clear();
+    _repairs.clear();
   }
 }
