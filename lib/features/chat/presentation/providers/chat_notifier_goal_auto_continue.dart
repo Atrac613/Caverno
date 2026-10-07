@@ -795,3 +795,38 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     );
   }
 }
+
+extension ChatNotifierGoalBlockerBoundary on ChatNotifier {
+  GoalUpdateCompletionAcknowledgement? _recordedGoalBlocker(
+    ChatTurnOwner owner,
+  ) {
+    final acknowledgement = _turnEnd.stateFor(owner)?.goalUpdateAcknowledgement;
+    return acknowledgement?.outcome == GoalUpdateAckOutcome.blockerLogged
+        ? acknowledgement
+        : null;
+  }
+
+  McpToolResult? _refuseToolAfterGoalBlocker(
+    ToolCallInfo toolCall, {
+    required int? interactionGeneration,
+  }) {
+    final owner = interactionGeneration == null
+        ? null
+        : _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null || _recordedGoalBlocker(owner) == null) return null;
+    return GoalBlockerBoundaryResponse.refusal(toolCall.name);
+  }
+
+  String? _recordedGoalBlockerResponse(ChatTurnOwner owner) {
+    final acknowledgement = _recordedGoalBlocker(owner);
+    if (acknowledgement == null) return null;
+    return GoalBlockerBoundaryResponse.report(
+      acknowledgement.input.normalizedBlockedReason,
+      projectTask:
+          _conversationForId(
+            owner.conversationId,
+          )?.goal?.projectTaskAutoReview ==
+          true,
+    );
+  }
+}

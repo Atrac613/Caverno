@@ -10,7 +10,8 @@ export 'coding_command_output_issue_detector.dart'
 export 'coding_command_preflight_issue_detector.dart'
     show CodingCommandPreflightIssue, CodingCommandPreflightIssueDetector;
 
-/// Compatibility facade for coding command output and preflight guardrails.
+// ChatNotifier decomposition collaborator: coding-command-output-guardrail-service
+
 class CodingCommandOutputGuardrailService {
   const CodingCommandOutputGuardrailService();
 

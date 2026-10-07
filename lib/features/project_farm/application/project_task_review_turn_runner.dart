@@ -1,12 +1,8 @@
-import 'package:caverno_content_protocol/caverno_content_protocol.dart';
-
 import '../../chat/domain/entities/chat_turn_owner.dart';
 import '../../chat/domain/entities/conversation.dart';
-import '../../chat/domain/entities/conversation_goal.dart';
-import '../../chat/domain/entities/message.dart';
-import '../../chat/domain/services/project_task_review_verdict.dart';
+import 'project_task_review_eligibility.dart';
+import 'project_task_review_retry.dart';
 
-/// Requires accepted implementation completion before starting task review.
 final class ProjectTaskReviewTurnRunner {
   const ProjectTaskReviewTurnRunner({
     required this.readConversation,
@@ -25,50 +21,19 @@ final class ProjectTaskReviewTurnRunner {
   sendTurn;
   final Future<void> Function(ChatTurnOwner) waitForCompletion;
 
-  Future<bool> send(String prompt, {required bool codeReview}) async {
-    for (var attempt = 0; attempt < (codeReview ? 2 : 1); attempt++) {
-      final priorMessageCount = readConversation()?.messages.length ?? 0;
-      if (!await _sendOnce(prompt, codeReview: codeReview)) return false;
-      if (!codeReview || _reviewFinished(priorMessageCount) || attempt == 1) {
-        return true;
-      }
-      prompt = '''$prompt
-
-The previous review did not produce an accepted terminal review result. Perform the read-only review again through inspection tools: begin by calling read_file on the changed files listed above and wait for successful results. Earlier reads are historical evidence. Reconcile the task patch with the current files and retain any unresolved findings from the previous report. Do not edit files, commit, or change Git state.
-${ProjectTaskReviewVerdict.instructions}''';
-    }
-    return false;
-  }
-
-  bool _reviewFinished(int priorMessageCount) {
-    final messages = readConversation()?.messages.skip(priorMessageCount);
-    if (messages == null) return false;
-    for (final message in messages.toList().reversed) {
-      if (message.role != MessageRole.assistant ||
-          message.isStreaming ||
-          message.error != null) {
-        continue;
-      }
-      final last = ContentParser.stripModelHistoryArtifacts(
-        message.content,
-      ).trimRight().split('\n').last.trim();
-      return last == 'PROJECT_TASK_REVIEW_CLEAN' ||
-          last == 'PROJECT_TASK_REVIEW_FINDINGS';
-    }
-    return false;
-  }
+  Future<bool> send(String prompt, {required bool codeReview}) =>
+      ProjectTaskReviewRetry.send(
+        prompt,
+        codeReview: codeReview,
+        sendOnce: _sendOnce,
+        readConversation: readConversation,
+      );
 
   Future<bool> _sendOnce(String prompt, {required bool codeReview}) async {
     if (!isSelected() || isWaitingForUser()) return false;
     final goal = readConversation()?.goal;
-    if (goal == null ||
-        !goal.enabled ||
-        goal.status == ConversationGoalStatus.blocked ||
-        goal.status == ConversationGoalStatus.awaitingConfirmation ||
-        goal.budgetExceeded) {
-      return false;
-    }
-    if (!codeReview && goal.status == ConversationGoalStatus.completed) {
+    if (!TaskReviewGate.canSend(goal)) return false;
+    if (!codeReview && TaskReviewGate.isCompleted(goal)) {
       await reactivate();
       if (!isSelected() || isWaitingForUser()) return false;
     }
@@ -79,8 +44,6 @@ ${ProjectTaskReviewVerdict.instructions}''';
     await waitForCompletion(owner);
     return isSelected() &&
         !isWaitingForUser() &&
-        (codeReview ||
-            readConversation()?.goal?.status ==
-                ConversationGoalStatus.completed);
+        TaskReviewGate.finished(readConversation()?.goal, codeReview);
   }
 }
