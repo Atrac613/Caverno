@@ -65,6 +65,39 @@ void main() {
       },
     );
   }
+  test('keeps the host scope of a run that passed outside the sandbox', () {
+    // cae00f90: the sandboxed python3 lacked pytest, the host run passed, and
+    // the review reran contained, failed, and stopped the workflow.
+    final hostRun = ToolResultInfo(
+      id: 'host',
+      name: 'local_execute_command',
+      arguments: {
+        'command': 'python3 -m pytest -q',
+        'working_directory': '/repo',
+        'execution_scope': 'host',
+      },
+      result: jsonEncode({
+        'command': 'python3 -m pytest -q',
+        'working_directory': '/repo',
+        'execution_boundary': {'kind': 'host'},
+        'exit_code': 0,
+        'stdout': '66 passed',
+      }),
+      outcome: ToolOutcome(exitCode: 0),
+    );
+    final context = ProjectTaskVerificationContext.fromResults([edit, hostRun]);
+    expect(context.runs.single.host, isTrue);
+    expect(context.prompt, contains('"execution_scope":"host"'));
+    expect(context.prompt, contains('normal approval gate'));
+  });
+  test('a contained run carries no host scope', () {
+    final context = ProjectTaskVerificationContext.fromResults([
+      edit,
+      verify(),
+    ]);
+    expect(context.runs.single.host, isFalse);
+    expect(context.prompt, isNot(contains('execution_scope')));
+  });
   test('a subsequent edit invalidates the earlier successful runner', () {
     expect(
       ProjectTaskVerificationContext.fromResults([verify(), edit]).runs,
