@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'personal_eval_replay_run.dart';
@@ -9,6 +9,7 @@ part of 'personal_eval_replay_run.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $PersonalEvalReplayCaseResultCopyWith<PersonalEvalReplayCaseResult> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalReplayCaseResult&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.trialId, trialId) || other.trialId == trialId)&&(identical(other.executionOrder, executionOrder) || other.executionOrder == executionOrder)&&(identical(other.title, title) || other.title == title)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.logPath, logPath) || other.logPath == logPath)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.error, error) || other.error == error));
+  final _this = this as PersonalEvalReplayCaseResult;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalReplayCaseResult&&(identical(other.caseId, _this.caseId) || other.caseId == _this.caseId)&&(identical(other.trialId, _this.trialId) || other.trialId == _this.trialId)&&(identical(other.executionOrder, _this.executionOrder) || other.executionOrder == _this.executionOrder)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.split, _this.split) || other.split == _this.split)&&(identical(other.origin, _this.origin) || other.origin == _this.origin)&&(identical(other.tier, _this.tier) || other.tier == _this.tier)&&(identical(other.promptStyle, _this.promptStyle) || other.promptStyle == _this.promptStyle)&&(identical(other.logPath, _this.logPath) || other.logPath == _this.logPath)&&(identical(other.verificationResult, _this.verificationResult) || other.verificationResult == _this.verificationResult)&&(identical(other.summary, _this.summary) || other.summary == _this.summary)&&(identical(other.error, _this.error) || other.error == _this.error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,caseId,trialId,executionOrder,title,split,origin,tier,promptStyle,logPath,verificationResult,summary,error);
+int get hashCode {
+  final _this = this as PersonalEvalReplayCaseResult;
+  return Object.hash(runtimeType,_this.caseId,_this.trialId,_this.executionOrder,_this.title,_this.split,_this.origin,_this.tier,_this.promptStyle,_this.logPath,_this.verificationResult,_this.summary,_this.error);
+}
 
 @override
 String toString() {
-  return 'PersonalEvalReplayCaseResult(caseId: $caseId, trialId: $trialId, executionOrder: $executionOrder, title: $title, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, logPath: $logPath, verificationResult: $verificationResult, summary: $summary, error: $error)';
+  final _this = this as PersonalEvalReplayCaseResult;
+  return 'PersonalEvalReplayCaseResult(caseId: ${_this.caseId}, trialId: ${_this.trialId}, executionOrder: ${_this.executionOrder}, title: ${_this.title}, split: ${_this.split}, origin: ${_this.origin}, tier: ${_this.tier}, promptStyle: ${_this.promptStyle}, logPath: ${_this.logPath}, verificationResult: ${_this.verificationResult}, summary: ${_this.summary}, error: ${_this.error})';
 }
 
 
@@ -66,7 +72,7 @@ class _$PersonalEvalReplayCaseResultCopyWithImpl<$Res>
 /// Create a copy of PersonalEvalReplayCaseResult
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? caseId = null,Object? trialId = null,Object? executionOrder = null,Object? title = null,Object? split = null,Object? origin = null,Object? tier = null,Object? promptStyle = null,Object? logPath = null,Object? verificationResult = null,Object? summary = null,Object? error = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(PersonalEvalReplayCaseResult(
 caseId: null == caseId ? _self.caseId : caseId // ignore: cast_nullable_to_non_nullable
 as String,trialId: null == trialId ? _self.trialId : trialId // ignore: cast_nullable_to_non_nullable
 as String,executionOrder: null == executionOrder ? _self.executionOrder : executionOrder // ignore: cast_nullable_to_non_nullable
@@ -258,16 +264,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalReplayCaseResult&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.trialId, trialId) || other.trialId == trialId)&&(identical(other.executionOrder, executionOrder) || other.executionOrder == executionOrder)&&(identical(other.title, title) || other.title == title)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.logPath, logPath) || other.logPath == logPath)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.error, error) || other.error == error));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalReplayCaseResult&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.trialId, trialId) || other.trialId == trialId)&&(identical(other.executionOrder, executionOrder) || other.executionOrder == executionOrder)&&(identical(other.title, title) || other.title == title)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.logPath, logPath) || other.logPath == logPath)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,caseId,trialId,executionOrder,title,split,origin,tier,promptStyle,logPath,verificationResult,summary,error);
+int get hashCode {
+    return Object.hash(runtimeType,caseId,trialId,executionOrder,title,split,origin,tier,promptStyle,logPath,verificationResult,summary,error);
+}
 
 @override
 String toString() {
-  return 'PersonalEvalReplayCaseResult(caseId: $caseId, trialId: $trialId, executionOrder: $executionOrder, title: $title, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, logPath: $logPath, verificationResult: $verificationResult, summary: $summary, error: $error)';
+    return 'PersonalEvalReplayCaseResult(caseId: $caseId, trialId: $trialId, executionOrder: $executionOrder, title: $title, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, logPath: $logPath, verificationResult: $verificationResult, summary: $summary, error: $error)';
 }
 
 
@@ -342,16 +350,21 @@ $PersonalEvalReplayRunCopyWith<PersonalEvalReplayRun> get copyWith => _$Personal
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalReplayRun&&(identical(other.label, label) || other.label == label)&&(identical(other.model, model) || other.model == model)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.generatedAt, generatedAt) || other.generatedAt == generatedAt)&&const DeepCollectionEquality().equals(other.manifestPaths, manifestPaths)&&const DeepCollectionEquality().equals(other.cases, cases));
+  final _this = this as PersonalEvalReplayRun;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalReplayRun&&(identical(other.label, _this.label) || other.label == _this.label)&&(identical(other.model, _this.model) || other.model == _this.model)&&(identical(other.baseUrl, _this.baseUrl) || other.baseUrl == _this.baseUrl)&&(identical(other.generatedAt, _this.generatedAt) || other.generatedAt == _this.generatedAt)&&const DeepCollectionEquality().equals(other.manifestPaths, _this.manifestPaths)&&const DeepCollectionEquality().equals(other.cases, _this.cases));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,label,model,baseUrl,generatedAt,const DeepCollectionEquality().hash(manifestPaths),const DeepCollectionEquality().hash(cases));
+int get hashCode {
+  final _this = this as PersonalEvalReplayRun;
+  return Object.hash(runtimeType,_this.label,_this.model,_this.baseUrl,_this.generatedAt,const DeepCollectionEquality().hash(_this.manifestPaths),const DeepCollectionEquality().hash(_this.cases));
+}
 
 @override
 String toString() {
-  return 'PersonalEvalReplayRun(label: $label, model: $model, baseUrl: $baseUrl, generatedAt: $generatedAt, manifestPaths: $manifestPaths, cases: $cases)';
+  final _this = this as PersonalEvalReplayRun;
+  return 'PersonalEvalReplayRun(label: ${_this.label}, model: ${_this.model}, baseUrl: ${_this.baseUrl}, generatedAt: ${_this.generatedAt}, manifestPaths: ${_this.manifestPaths}, cases: ${_this.cases})';
 }
 
 
@@ -380,7 +393,7 @@ class _$PersonalEvalReplayRunCopyWithImpl<$Res>
 /// Create a copy of PersonalEvalReplayRun
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? label = null,Object? model = freezed,Object? baseUrl = freezed,Object? generatedAt = freezed,Object? manifestPaths = null,Object? cases = null,}) {
-  return _then(_self.copyWith(
+  return _then(PersonalEvalReplayRun(
 label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
 as String,model: freezed == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
 as String?,baseUrl: freezed == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
@@ -528,7 +541,7 @@ return $default(_that.label,_that.model,_that.baseUrl,_that.generatedAt,_that.ma
 @JsonSerializable()
 
 class _PersonalEvalReplayRun extends PersonalEvalReplayRun {
-  const _PersonalEvalReplayRun({required this.label, this.model, this.baseUrl, this.generatedAt, final  List<String> manifestPaths = const <String>[], final  List<PersonalEvalReplayCaseResult> cases = const <PersonalEvalReplayCaseResult>[]}): _manifestPaths = manifestPaths,_cases = cases,super._();
+  const _PersonalEvalReplayRun({required this.label, this.model, this.baseUrl, this.generatedAt,  List<String> manifestPaths = const <String>[],  List<PersonalEvalReplayCaseResult> cases = const <PersonalEvalReplayCaseResult>[]}): _manifestPaths = manifestPaths,_cases = cases,super._();
   factory _PersonalEvalReplayRun.fromJson(Map<String, dynamic> json) => _$PersonalEvalReplayRunFromJson(json);
 
 @override final  String label;
@@ -563,16 +576,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalReplayRun&&(identical(other.label, label) || other.label == label)&&(identical(other.model, model) || other.model == model)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.generatedAt, generatedAt) || other.generatedAt == generatedAt)&&const DeepCollectionEquality().equals(other._manifestPaths, _manifestPaths)&&const DeepCollectionEquality().equals(other._cases, _cases));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalReplayRun&&(identical(other.label, label) || other.label == label)&&(identical(other.model, model) || other.model == model)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.generatedAt, generatedAt) || other.generatedAt == generatedAt)&&const DeepCollectionEquality().equals(other.manifestPaths, _manifestPaths)&&const DeepCollectionEquality().equals(other.cases, _cases));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,label,model,baseUrl,generatedAt,const DeepCollectionEquality().hash(_manifestPaths),const DeepCollectionEquality().hash(_cases));
+int get hashCode {
+    return Object.hash(runtimeType,label,model,baseUrl,generatedAt,const DeepCollectionEquality().hash(_manifestPaths),const DeepCollectionEquality().hash(_cases));
+}
 
 @override
 String toString() {
-  return 'PersonalEvalReplayRun(label: $label, model: $model, baseUrl: $baseUrl, generatedAt: $generatedAt, manifestPaths: $manifestPaths, cases: $cases)';
+    return 'PersonalEvalReplayRun(label: $label, model: $model, baseUrl: $baseUrl, generatedAt: $generatedAt, manifestPaths: $manifestPaths, cases: $cases)';
 }
 
 

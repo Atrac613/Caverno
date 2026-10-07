@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'turn_diff.dart';
@@ -9,6 +9,7 @@ part of 'turn_diff.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $TurnDiffFileCopyWith<TurnDiffFile> get copyWith => _$TurnDiffFileCopyWithImpl<T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TurnDiffFile&&(identical(other.filePath, filePath) || other.filePath == filePath)&&(identical(other.isNewFile, isNewFile) || other.isNewFile == isNewFile)&&(identical(other.isDeletedFile, isDeletedFile) || other.isDeletedFile == isDeletedFile)&&(identical(other.isBinary, isBinary) || other.isBinary == isBinary)&&(identical(other.isLargeFile, isLargeFile) || other.isLargeFile == isLargeFile)&&(identical(other.isTruncated, isTruncated) || other.isTruncated == isTruncated)&&(identical(other.isUntracked, isUntracked) || other.isUntracked == isUntracked)&&(identical(other.linesAdded, linesAdded) || other.linesAdded == linesAdded)&&(identical(other.linesRemoved, linesRemoved) || other.linesRemoved == linesRemoved)&&(identical(other.unifiedPatch, unifiedPatch) || other.unifiedPatch == unifiedPatch)&&(identical(other.note, note) || other.note == note));
+  final _this = this as TurnDiffFile;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TurnDiffFile&&(identical(other.filePath, _this.filePath) || other.filePath == _this.filePath)&&(identical(other.isNewFile, _this.isNewFile) || other.isNewFile == _this.isNewFile)&&(identical(other.isDeletedFile, _this.isDeletedFile) || other.isDeletedFile == _this.isDeletedFile)&&(identical(other.isBinary, _this.isBinary) || other.isBinary == _this.isBinary)&&(identical(other.isLargeFile, _this.isLargeFile) || other.isLargeFile == _this.isLargeFile)&&(identical(other.isTruncated, _this.isTruncated) || other.isTruncated == _this.isTruncated)&&(identical(other.isUntracked, _this.isUntracked) || other.isUntracked == _this.isUntracked)&&(identical(other.linesAdded, _this.linesAdded) || other.linesAdded == _this.linesAdded)&&(identical(other.linesRemoved, _this.linesRemoved) || other.linesRemoved == _this.linesRemoved)&&(identical(other.unifiedPatch, _this.unifiedPatch) || other.unifiedPatch == _this.unifiedPatch)&&(identical(other.note, _this.note) || other.note == _this.note));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,filePath,isNewFile,isDeletedFile,isBinary,isLargeFile,isTruncated,isUntracked,linesAdded,linesRemoved,unifiedPatch,note);
+int get hashCode {
+  final _this = this as TurnDiffFile;
+  return Object.hash(runtimeType,_this.filePath,_this.isNewFile,_this.isDeletedFile,_this.isBinary,_this.isLargeFile,_this.isTruncated,_this.isUntracked,_this.linesAdded,_this.linesRemoved,_this.unifiedPatch,_this.note);
+}
 
 @override
 String toString() {
-  return 'TurnDiffFile(filePath: $filePath, isNewFile: $isNewFile, isDeletedFile: $isDeletedFile, isBinary: $isBinary, isLargeFile: $isLargeFile, isTruncated: $isTruncated, isUntracked: $isUntracked, linesAdded: $linesAdded, linesRemoved: $linesRemoved, unifiedPatch: $unifiedPatch, note: $note)';
+  final _this = this as TurnDiffFile;
+  return 'TurnDiffFile(filePath: ${_this.filePath}, isNewFile: ${_this.isNewFile}, isDeletedFile: ${_this.isDeletedFile}, isBinary: ${_this.isBinary}, isLargeFile: ${_this.isLargeFile}, isTruncated: ${_this.isTruncated}, isUntracked: ${_this.isUntracked}, linesAdded: ${_this.linesAdded}, linesRemoved: ${_this.linesRemoved}, unifiedPatch: ${_this.unifiedPatch}, note: ${_this.note})';
 }
 
 
@@ -66,7 +72,7 @@ class _$TurnDiffFileCopyWithImpl<$Res>
 /// Create a copy of TurnDiffFile
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? filePath = null,Object? isNewFile = null,Object? isDeletedFile = null,Object? isBinary = null,Object? isLargeFile = null,Object? isTruncated = null,Object? isUntracked = null,Object? linesAdded = null,Object? linesRemoved = null,Object? unifiedPatch = null,Object? note = null,}) {
-  return _then(_self.copyWith(
+  return _then(TurnDiffFile(
 filePath: null == filePath ? _self.filePath : filePath // ignore: cast_nullable_to_non_nullable
 as String,isNewFile: null == isNewFile ? _self.isNewFile : isNewFile // ignore: cast_nullable_to_non_nullable
 as bool,isDeletedFile: null == isDeletedFile ? _self.isDeletedFile : isDeletedFile // ignore: cast_nullable_to_non_nullable
@@ -247,16 +253,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TurnDiffFile&&(identical(other.filePath, filePath) || other.filePath == filePath)&&(identical(other.isNewFile, isNewFile) || other.isNewFile == isNewFile)&&(identical(other.isDeletedFile, isDeletedFile) || other.isDeletedFile == isDeletedFile)&&(identical(other.isBinary, isBinary) || other.isBinary == isBinary)&&(identical(other.isLargeFile, isLargeFile) || other.isLargeFile == isLargeFile)&&(identical(other.isTruncated, isTruncated) || other.isTruncated == isTruncated)&&(identical(other.isUntracked, isUntracked) || other.isUntracked == isUntracked)&&(identical(other.linesAdded, linesAdded) || other.linesAdded == linesAdded)&&(identical(other.linesRemoved, linesRemoved) || other.linesRemoved == linesRemoved)&&(identical(other.unifiedPatch, unifiedPatch) || other.unifiedPatch == unifiedPatch)&&(identical(other.note, note) || other.note == note));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TurnDiffFile&&(identical(other.filePath, filePath) || other.filePath == filePath)&&(identical(other.isNewFile, isNewFile) || other.isNewFile == isNewFile)&&(identical(other.isDeletedFile, isDeletedFile) || other.isDeletedFile == isDeletedFile)&&(identical(other.isBinary, isBinary) || other.isBinary == isBinary)&&(identical(other.isLargeFile, isLargeFile) || other.isLargeFile == isLargeFile)&&(identical(other.isTruncated, isTruncated) || other.isTruncated == isTruncated)&&(identical(other.isUntracked, isUntracked) || other.isUntracked == isUntracked)&&(identical(other.linesAdded, linesAdded) || other.linesAdded == linesAdded)&&(identical(other.linesRemoved, linesRemoved) || other.linesRemoved == linesRemoved)&&(identical(other.unifiedPatch, unifiedPatch) || other.unifiedPatch == unifiedPatch)&&(identical(other.note, note) || other.note == note));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,filePath,isNewFile,isDeletedFile,isBinary,isLargeFile,isTruncated,isUntracked,linesAdded,linesRemoved,unifiedPatch,note);
+int get hashCode {
+    return Object.hash(runtimeType,filePath,isNewFile,isDeletedFile,isBinary,isLargeFile,isTruncated,isUntracked,linesAdded,linesRemoved,unifiedPatch,note);
+}
 
 @override
 String toString() {
-  return 'TurnDiffFile(filePath: $filePath, isNewFile: $isNewFile, isDeletedFile: $isDeletedFile, isBinary: $isBinary, isLargeFile: $isLargeFile, isTruncated: $isTruncated, isUntracked: $isUntracked, linesAdded: $linesAdded, linesRemoved: $linesRemoved, unifiedPatch: $unifiedPatch, note: $note)';
+    return 'TurnDiffFile(filePath: $filePath, isNewFile: $isNewFile, isDeletedFile: $isDeletedFile, isBinary: $isBinary, isLargeFile: $isLargeFile, isTruncated: $isTruncated, isUntracked: $isUntracked, linesAdded: $linesAdded, linesRemoved: $linesRemoved, unifiedPatch: $unifiedPatch, note: $note)';
 }
 
 
@@ -321,16 +329,21 @@ $TurnDiffCopyWith<TurnDiff> get copyWith => _$TurnDiffCopyWithImpl<TurnDiff>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TurnDiff&&(identical(other.id, id) || other.id == id)&&(identical(other.assistantMessageId, assistantMessageId) || other.assistantMessageId == assistantMessageId)&&(identical(other.userPromptPreview, userPromptPreview) || other.userPromptPreview == userPromptPreview)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.source, source) || other.source == source)&&const DeepCollectionEquality().equals(other.files, files)&&(identical(other.filesChanged, filesChanged) || other.filesChanged == filesChanged)&&(identical(other.linesAdded, linesAdded) || other.linesAdded == linesAdded)&&(identical(other.linesRemoved, linesRemoved) || other.linesRemoved == linesRemoved)&&const DeepCollectionEquality().equals(other.changedFilePaths, changedFilePaths));
+  final _this = this as TurnDiff;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TurnDiff&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.assistantMessageId, _this.assistantMessageId) || other.assistantMessageId == _this.assistantMessageId)&&(identical(other.userPromptPreview, _this.userPromptPreview) || other.userPromptPreview == _this.userPromptPreview)&&(identical(other.timestamp, _this.timestamp) || other.timestamp == _this.timestamp)&&(identical(other.source, _this.source) || other.source == _this.source)&&const DeepCollectionEquality().equals(other.files, _this.files)&&(identical(other.filesChanged, _this.filesChanged) || other.filesChanged == _this.filesChanged)&&(identical(other.linesAdded, _this.linesAdded) || other.linesAdded == _this.linesAdded)&&(identical(other.linesRemoved, _this.linesRemoved) || other.linesRemoved == _this.linesRemoved)&&const DeepCollectionEquality().equals(other.changedFilePaths, _this.changedFilePaths));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,assistantMessageId,userPromptPreview,timestamp,source,const DeepCollectionEquality().hash(files),filesChanged,linesAdded,linesRemoved,const DeepCollectionEquality().hash(changedFilePaths));
+int get hashCode {
+  final _this = this as TurnDiff;
+  return Object.hash(runtimeType,_this.id,_this.assistantMessageId,_this.userPromptPreview,_this.timestamp,_this.source,const DeepCollectionEquality().hash(_this.files),_this.filesChanged,_this.linesAdded,_this.linesRemoved,const DeepCollectionEquality().hash(_this.changedFilePaths));
+}
 
 @override
 String toString() {
-  return 'TurnDiff(id: $id, assistantMessageId: $assistantMessageId, userPromptPreview: $userPromptPreview, timestamp: $timestamp, source: $source, files: $files, filesChanged: $filesChanged, linesAdded: $linesAdded, linesRemoved: $linesRemoved, changedFilePaths: $changedFilePaths)';
+  final _this = this as TurnDiff;
+  return 'TurnDiff(id: ${_this.id}, assistantMessageId: ${_this.assistantMessageId}, userPromptPreview: ${_this.userPromptPreview}, timestamp: ${_this.timestamp}, source: ${_this.source}, files: ${_this.files}, filesChanged: ${_this.filesChanged}, linesAdded: ${_this.linesAdded}, linesRemoved: ${_this.linesRemoved}, changedFilePaths: ${_this.changedFilePaths})';
 }
 
 
@@ -359,7 +372,7 @@ class _$TurnDiffCopyWithImpl<$Res>
 /// Create a copy of TurnDiff
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? assistantMessageId = null,Object? userPromptPreview = null,Object? timestamp = null,Object? source = null,Object? files = null,Object? filesChanged = null,Object? linesAdded = null,Object? linesRemoved = null,Object? changedFilePaths = null,}) {
-  return _then(_self.copyWith(
+  return _then(TurnDiff(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,assistantMessageId: null == assistantMessageId ? _self.assistantMessageId : assistantMessageId // ignore: cast_nullable_to_non_nullable
 as String,userPromptPreview: null == userPromptPreview ? _self.userPromptPreview : userPromptPreview // ignore: cast_nullable_to_non_nullable
@@ -511,7 +524,7 @@ return $default(_that.id,_that.assistantMessageId,_that.userPromptPreview,_that.
 @JsonSerializable()
 
 class _TurnDiff extends TurnDiff {
-  const _TurnDiff({required this.id, required this.assistantMessageId, required this.userPromptPreview, required this.timestamp, this.source = TurnDiffSource.tool, final  List<TurnDiffFile> files = const <TurnDiffFile>[], this.filesChanged = 0, this.linesAdded = 0, this.linesRemoved = 0, final  List<String> changedFilePaths = const <String>[]}): _files = files,_changedFilePaths = changedFilePaths,super._();
+  const _TurnDiff({required this.id, required this.assistantMessageId, required this.userPromptPreview, required this.timestamp, this.source = TurnDiffSource.tool,  List<TurnDiffFile> files = const <TurnDiffFile>[], this.filesChanged = 0, this.linesAdded = 0, this.linesRemoved = 0,  List<String> changedFilePaths = const <String>[]}): _files = files,_changedFilePaths = changedFilePaths,super._();
   factory _TurnDiff.fromJson(Map<String, dynamic> json) => _$TurnDiffFromJson(json);
 
 @override final  String id;
@@ -550,16 +563,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TurnDiff&&(identical(other.id, id) || other.id == id)&&(identical(other.assistantMessageId, assistantMessageId) || other.assistantMessageId == assistantMessageId)&&(identical(other.userPromptPreview, userPromptPreview) || other.userPromptPreview == userPromptPreview)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.source, source) || other.source == source)&&const DeepCollectionEquality().equals(other._files, _files)&&(identical(other.filesChanged, filesChanged) || other.filesChanged == filesChanged)&&(identical(other.linesAdded, linesAdded) || other.linesAdded == linesAdded)&&(identical(other.linesRemoved, linesRemoved) || other.linesRemoved == linesRemoved)&&const DeepCollectionEquality().equals(other._changedFilePaths, _changedFilePaths));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TurnDiff&&(identical(other.id, id) || other.id == id)&&(identical(other.assistantMessageId, assistantMessageId) || other.assistantMessageId == assistantMessageId)&&(identical(other.userPromptPreview, userPromptPreview) || other.userPromptPreview == userPromptPreview)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.source, source) || other.source == source)&&const DeepCollectionEquality().equals(other.files, _files)&&(identical(other.filesChanged, filesChanged) || other.filesChanged == filesChanged)&&(identical(other.linesAdded, linesAdded) || other.linesAdded == linesAdded)&&(identical(other.linesRemoved, linesRemoved) || other.linesRemoved == linesRemoved)&&const DeepCollectionEquality().equals(other.changedFilePaths, _changedFilePaths));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,assistantMessageId,userPromptPreview,timestamp,source,const DeepCollectionEquality().hash(_files),filesChanged,linesAdded,linesRemoved,const DeepCollectionEquality().hash(_changedFilePaths));
+int get hashCode {
+    return Object.hash(runtimeType,id,assistantMessageId,userPromptPreview,timestamp,source,const DeepCollectionEquality().hash(_files),filesChanged,linesAdded,linesRemoved,const DeepCollectionEquality().hash(_changedFilePaths));
+}
 
 @override
 String toString() {
-  return 'TurnDiff(id: $id, assistantMessageId: $assistantMessageId, userPromptPreview: $userPromptPreview, timestamp: $timestamp, source: $source, files: $files, filesChanged: $filesChanged, linesAdded: $linesAdded, linesRemoved: $linesRemoved, changedFilePaths: $changedFilePaths)';
+    return 'TurnDiff(id: $id, assistantMessageId: $assistantMessageId, userPromptPreview: $userPromptPreview, timestamp: $timestamp, source: $source, files: $files, filesChanged: $filesChanged, linesAdded: $linesAdded, linesRemoved: $linesRemoved, changedFilePaths: $changedFilePaths)';
 }
 
 

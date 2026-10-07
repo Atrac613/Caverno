@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'personal_eval_case.dart';
@@ -9,6 +9,7 @@ part of 'personal_eval_case.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -34,16 +35,21 @@ $PersonalEvalCaseCopyWith<PersonalEvalCase> get copyWith => _$PersonalEvalCaseCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalCase&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.repoStateRef, repoStateRef) || other.repoStateRef == repoStateRef)&&(identical(other.title, title) || other.title == title)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.workspaceMode, workspaceMode) || other.workspaceMode == workspaceMode)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.fixtureDirectory, fixtureDirectory) || other.fixtureDirectory == fixtureDirectory)&&(identical(other.consentGranted, consentGranted) || other.consentGranted == consentGranted)&&(identical(other.consentedAt, consentedAt) || other.consentedAt == consentedAt)&&(identical(other.sessionLogPath, sessionLogPath) || other.sessionLogPath == sessionLogPath)&&(identical(other.sessionLogSummary, sessionLogSummary) || other.sessionLogSummary == sessionLogSummary));
+  final _this = this as PersonalEvalCase;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalCase&&(identical(other.caseId, _this.caseId) || other.caseId == _this.caseId)&&(identical(other.prompt, _this.prompt) || other.prompt == _this.prompt)&&(identical(other.repoStateRef, _this.repoStateRef) || other.repoStateRef == _this.repoStateRef)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.verificationCommand, _this.verificationCommand) || other.verificationCommand == _this.verificationCommand)&&(identical(other.verificationResult, _this.verificationResult) || other.verificationResult == _this.verificationResult)&&(identical(other.workspaceMode, _this.workspaceMode) || other.workspaceMode == _this.workspaceMode)&&(identical(other.split, _this.split) || other.split == _this.split)&&(identical(other.origin, _this.origin) || other.origin == _this.origin)&&(identical(other.tier, _this.tier) || other.tier == _this.tier)&&(identical(other.promptStyle, _this.promptStyle) || other.promptStyle == _this.promptStyle)&&(identical(other.fixtureDirectory, _this.fixtureDirectory) || other.fixtureDirectory == _this.fixtureDirectory)&&(identical(other.consentGranted, _this.consentGranted) || other.consentGranted == _this.consentGranted)&&(identical(other.consentedAt, _this.consentedAt) || other.consentedAt == _this.consentedAt)&&(identical(other.sessionLogPath, _this.sessionLogPath) || other.sessionLogPath == _this.sessionLogPath)&&(identical(other.sessionLogSummary, _this.sessionLogSummary) || other.sessionLogSummary == _this.sessionLogSummary));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,caseId,prompt,repoStateRef,title,createdAt,verificationCommand,verificationResult,workspaceMode,split,origin,tier,promptStyle,fixtureDirectory,consentGranted,consentedAt,sessionLogPath,sessionLogSummary);
+int get hashCode {
+  final _this = this as PersonalEvalCase;
+  return Object.hash(runtimeType,_this.caseId,_this.prompt,_this.repoStateRef,_this.title,_this.createdAt,_this.verificationCommand,_this.verificationResult,_this.workspaceMode,_this.split,_this.origin,_this.tier,_this.promptStyle,_this.fixtureDirectory,_this.consentGranted,_this.consentedAt,_this.sessionLogPath,_this.sessionLogSummary);
+}
 
 @override
 String toString() {
-  return 'PersonalEvalCase(caseId: $caseId, prompt: $prompt, repoStateRef: $repoStateRef, title: $title, createdAt: $createdAt, verificationCommand: $verificationCommand, verificationResult: $verificationResult, workspaceMode: $workspaceMode, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, fixtureDirectory: $fixtureDirectory, consentGranted: $consentGranted, consentedAt: $consentedAt, sessionLogPath: $sessionLogPath, sessionLogSummary: $sessionLogSummary)';
+  final _this = this as PersonalEvalCase;
+  return 'PersonalEvalCase(caseId: ${_this.caseId}, prompt: ${_this.prompt}, repoStateRef: ${_this.repoStateRef}, title: ${_this.title}, createdAt: ${_this.createdAt}, verificationCommand: ${_this.verificationCommand}, verificationResult: ${_this.verificationResult}, workspaceMode: ${_this.workspaceMode}, split: ${_this.split}, origin: ${_this.origin}, tier: ${_this.tier}, promptStyle: ${_this.promptStyle}, fixtureDirectory: ${_this.fixtureDirectory}, consentGranted: ${_this.consentGranted}, consentedAt: ${_this.consentedAt}, sessionLogPath: ${_this.sessionLogPath}, sessionLogSummary: ${_this.sessionLogSummary})';
 }
 
 
@@ -72,7 +78,7 @@ class _$PersonalEvalCaseCopyWithImpl<$Res>
 /// Create a copy of PersonalEvalCase
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? caseId = null,Object? prompt = null,Object? repoStateRef = null,Object? title = null,Object? createdAt = freezed,Object? verificationCommand = freezed,Object? verificationResult = null,Object? workspaceMode = freezed,Object? split = null,Object? origin = null,Object? tier = null,Object? promptStyle = null,Object? fixtureDirectory = null,Object? consentGranted = null,Object? consentedAt = freezed,Object? sessionLogPath = null,Object? sessionLogSummary = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(PersonalEvalCase(
 caseId: null == caseId ? _self.caseId : caseId // ignore: cast_nullable_to_non_nullable
 as String,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullable_to_non_nullable
 as String,repoStateRef: null == repoStateRef ? _self.repoStateRef : repoStateRef // ignore: cast_nullable_to_non_nullable
@@ -283,16 +289,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalCase&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.repoStateRef, repoStateRef) || other.repoStateRef == repoStateRef)&&(identical(other.title, title) || other.title == title)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.workspaceMode, workspaceMode) || other.workspaceMode == workspaceMode)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.fixtureDirectory, fixtureDirectory) || other.fixtureDirectory == fixtureDirectory)&&(identical(other.consentGranted, consentGranted) || other.consentGranted == consentGranted)&&(identical(other.consentedAt, consentedAt) || other.consentedAt == consentedAt)&&(identical(other.sessionLogPath, sessionLogPath) || other.sessionLogPath == sessionLogPath)&&(identical(other.sessionLogSummary, sessionLogSummary) || other.sessionLogSummary == sessionLogSummary));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalCase&&(identical(other.caseId, caseId) || other.caseId == caseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.repoStateRef, repoStateRef) || other.repoStateRef == repoStateRef)&&(identical(other.title, title) || other.title == title)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.verificationResult, verificationResult) || other.verificationResult == verificationResult)&&(identical(other.workspaceMode, workspaceMode) || other.workspaceMode == workspaceMode)&&(identical(other.split, split) || other.split == split)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.tier, tier) || other.tier == tier)&&(identical(other.promptStyle, promptStyle) || other.promptStyle == promptStyle)&&(identical(other.fixtureDirectory, fixtureDirectory) || other.fixtureDirectory == fixtureDirectory)&&(identical(other.consentGranted, consentGranted) || other.consentGranted == consentGranted)&&(identical(other.consentedAt, consentedAt) || other.consentedAt == consentedAt)&&(identical(other.sessionLogPath, sessionLogPath) || other.sessionLogPath == sessionLogPath)&&(identical(other.sessionLogSummary, sessionLogSummary) || other.sessionLogSummary == sessionLogSummary));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,caseId,prompt,repoStateRef,title,createdAt,verificationCommand,verificationResult,workspaceMode,split,origin,tier,promptStyle,fixtureDirectory,consentGranted,consentedAt,sessionLogPath,sessionLogSummary);
+int get hashCode {
+    return Object.hash(runtimeType,caseId,prompt,repoStateRef,title,createdAt,verificationCommand,verificationResult,workspaceMode,split,origin,tier,promptStyle,fixtureDirectory,consentGranted,consentedAt,sessionLogPath,sessionLogSummary);
+}
 
 @override
 String toString() {
-  return 'PersonalEvalCase(caseId: $caseId, prompt: $prompt, repoStateRef: $repoStateRef, title: $title, createdAt: $createdAt, verificationCommand: $verificationCommand, verificationResult: $verificationResult, workspaceMode: $workspaceMode, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, fixtureDirectory: $fixtureDirectory, consentGranted: $consentGranted, consentedAt: $consentedAt, sessionLogPath: $sessionLogPath, sessionLogSummary: $sessionLogSummary)';
+    return 'PersonalEvalCase(caseId: $caseId, prompt: $prompt, repoStateRef: $repoStateRef, title: $title, createdAt: $createdAt, verificationCommand: $verificationCommand, verificationResult: $verificationResult, workspaceMode: $workspaceMode, split: $split, origin: $origin, tier: $tier, promptStyle: $promptStyle, fixtureDirectory: $fixtureDirectory, consentGranted: $consentGranted, consentedAt: $consentedAt, sessionLogPath: $sessionLogPath, sessionLogSummary: $sessionLogSummary)';
 }
 
 

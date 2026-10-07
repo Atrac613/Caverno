@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'conversation_compaction_artifact.dart';
@@ -9,6 +9,7 @@ part of 'conversation_compaction_artifact.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $ConversationCompactionArtifactCopyWith<ConversationCompactionArtifact> get copy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationCompactionArtifact&&(identical(other.version, version) || other.version == version)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.sourceMessageCount, sourceMessageCount) || other.sourceMessageCount == sourceMessageCount)&&(identical(other.compactedMessageCount, compactedMessageCount) || other.compactedMessageCount == compactedMessageCount)&&(identical(other.retainedMessageCount, retainedMessageCount) || other.retainedMessageCount == retainedMessageCount)&&const DeepCollectionEquality().equals(other.retainedMessageContentOverrides, retainedMessageContentOverrides)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  final _this = this as ConversationCompactionArtifact;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationCompactionArtifact&&(identical(other.version, _this.version) || other.version == _this.version)&&(identical(other.summary, _this.summary) || other.summary == _this.summary)&&(identical(other.sourceMessageCount, _this.sourceMessageCount) || other.sourceMessageCount == _this.sourceMessageCount)&&(identical(other.compactedMessageCount, _this.compactedMessageCount) || other.compactedMessageCount == _this.compactedMessageCount)&&(identical(other.retainedMessageCount, _this.retainedMessageCount) || other.retainedMessageCount == _this.retainedMessageCount)&&const DeepCollectionEquality().equals(other.retainedMessageContentOverrides, _this.retainedMessageContentOverrides)&&(identical(other.estimatedPromptTokens, _this.estimatedPromptTokens) || other.estimatedPromptTokens == _this.estimatedPromptTokens)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,version,summary,sourceMessageCount,compactedMessageCount,retainedMessageCount,const DeepCollectionEquality().hash(retainedMessageContentOverrides),estimatedPromptTokens,updatedAt);
+int get hashCode {
+  final _this = this as ConversationCompactionArtifact;
+  return Object.hash(runtimeType,_this.version,_this.summary,_this.sourceMessageCount,_this.compactedMessageCount,_this.retainedMessageCount,const DeepCollectionEquality().hash(_this.retainedMessageContentOverrides),_this.estimatedPromptTokens,_this.updatedAt);
+}
 
 @override
 String toString() {
-  return 'ConversationCompactionArtifact(version: $version, summary: $summary, sourceMessageCount: $sourceMessageCount, compactedMessageCount: $compactedMessageCount, retainedMessageCount: $retainedMessageCount, retainedMessageContentOverrides: $retainedMessageContentOverrides, estimatedPromptTokens: $estimatedPromptTokens, updatedAt: $updatedAt)';
+  final _this = this as ConversationCompactionArtifact;
+  return 'ConversationCompactionArtifact(version: ${_this.version}, summary: ${_this.summary}, sourceMessageCount: ${_this.sourceMessageCount}, compactedMessageCount: ${_this.compactedMessageCount}, retainedMessageCount: ${_this.retainedMessageCount}, retainedMessageContentOverrides: ${_this.retainedMessageContentOverrides}, estimatedPromptTokens: ${_this.estimatedPromptTokens}, updatedAt: ${_this.updatedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$ConversationCompactionArtifactCopyWithImpl<$Res>
 /// Create a copy of ConversationCompactionArtifact
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? version = null,Object? summary = null,Object? sourceMessageCount = null,Object? compactedMessageCount = null,Object? retainedMessageCount = null,Object? retainedMessageContentOverrides = null,Object? estimatedPromptTokens = null,Object? updatedAt = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationCompactionArtifact(
 version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
 as int,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
 as String,sourceMessageCount: null == sourceMessageCount ? _self.sourceMessageCount : sourceMessageCount // ignore: cast_nullable_to_non_nullable
@@ -216,7 +222,7 @@ return $default(_that.version,_that.summary,_that.sourceMessageCount,_that.compa
 @JsonSerializable()
 
 class _ConversationCompactionArtifact extends ConversationCompactionArtifact {
-  const _ConversationCompactionArtifact({this.version = 1, this.summary = '', this.sourceMessageCount = 0, this.compactedMessageCount = 0, this.retainedMessageCount = 0, final  Map<String, String> retainedMessageContentOverrides = const <String, String>{}, this.estimatedPromptTokens = 0, this.updatedAt}): _retainedMessageContentOverrides = retainedMessageContentOverrides,super._();
+  const _ConversationCompactionArtifact({this.version = 1, this.summary = '', this.sourceMessageCount = 0, this.compactedMessageCount = 0, this.retainedMessageCount = 0,  Map<String, String> retainedMessageContentOverrides = const <String, String>{}, this.estimatedPromptTokens = 0, this.updatedAt}): _retainedMessageContentOverrides = retainedMessageContentOverrides,super._();
   factory _ConversationCompactionArtifact.fromJson(Map<String, dynamic> json) => _$ConversationCompactionArtifactFromJson(json);
 
 @override@JsonKey() final  int version;
@@ -247,16 +253,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationCompactionArtifact&&(identical(other.version, version) || other.version == version)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.sourceMessageCount, sourceMessageCount) || other.sourceMessageCount == sourceMessageCount)&&(identical(other.compactedMessageCount, compactedMessageCount) || other.compactedMessageCount == compactedMessageCount)&&(identical(other.retainedMessageCount, retainedMessageCount) || other.retainedMessageCount == retainedMessageCount)&&const DeepCollectionEquality().equals(other._retainedMessageContentOverrides, _retainedMessageContentOverrides)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationCompactionArtifact&&(identical(other.version, version) || other.version == version)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.sourceMessageCount, sourceMessageCount) || other.sourceMessageCount == sourceMessageCount)&&(identical(other.compactedMessageCount, compactedMessageCount) || other.compactedMessageCount == compactedMessageCount)&&(identical(other.retainedMessageCount, retainedMessageCount) || other.retainedMessageCount == retainedMessageCount)&&const DeepCollectionEquality().equals(other.retainedMessageContentOverrides, _retainedMessageContentOverrides)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,version,summary,sourceMessageCount,compactedMessageCount,retainedMessageCount,const DeepCollectionEquality().hash(_retainedMessageContentOverrides),estimatedPromptTokens,updatedAt);
+int get hashCode {
+    return Object.hash(runtimeType,version,summary,sourceMessageCount,compactedMessageCount,retainedMessageCount,const DeepCollectionEquality().hash(_retainedMessageContentOverrides),estimatedPromptTokens,updatedAt);
+}
 
 @override
 String toString() {
-  return 'ConversationCompactionArtifact(version: $version, summary: $summary, sourceMessageCount: $sourceMessageCount, compactedMessageCount: $compactedMessageCount, retainedMessageCount: $retainedMessageCount, retainedMessageContentOverrides: $retainedMessageContentOverrides, estimatedPromptTokens: $estimatedPromptTokens, updatedAt: $updatedAt)';
+    return 'ConversationCompactionArtifact(version: $version, summary: $summary, sourceMessageCount: $sourceMessageCount, compactedMessageCount: $compactedMessageCount, retainedMessageCount: $retainedMessageCount, retainedMessageContentOverrides: $retainedMessageContentOverrides, estimatedPromptTokens: $estimatedPromptTokens, updatedAt: $updatedAt)';
 }
 
 

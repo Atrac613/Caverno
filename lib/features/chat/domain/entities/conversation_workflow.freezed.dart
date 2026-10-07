@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'conversation_workflow.dart';
@@ -9,6 +9,7 @@ part of 'conversation_workflow.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $ConversationOpenQuestionProgressCopyWith<ConversationOpenQuestionProgress> get 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationOpenQuestionProgress&&(identical(other.questionId, questionId) || other.questionId == questionId)&&(identical(other.question, question) || other.question == question)&&(identical(other.status, status) || other.status == status)&&(identical(other.note, note) || other.note == note)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  final _this = this as ConversationOpenQuestionProgress;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationOpenQuestionProgress&&(identical(other.questionId, _this.questionId) || other.questionId == _this.questionId)&&(identical(other.question, _this.question) || other.question == _this.question)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.note, _this.note) || other.note == _this.note)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,questionId,question,status,note,updatedAt);
+int get hashCode {
+  final _this = this as ConversationOpenQuestionProgress;
+  return Object.hash(runtimeType,_this.questionId,_this.question,_this.status,_this.note,_this.updatedAt);
+}
 
 @override
 String toString() {
-  return 'ConversationOpenQuestionProgress(questionId: $questionId, question: $question, status: $status, note: $note, updatedAt: $updatedAt)';
+  final _this = this as ConversationOpenQuestionProgress;
+  return 'ConversationOpenQuestionProgress(questionId: ${_this.questionId}, question: ${_this.question}, status: ${_this.status}, note: ${_this.note}, updatedAt: ${_this.updatedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$ConversationOpenQuestionProgressCopyWithImpl<$Res>
 /// Create a copy of ConversationOpenQuestionProgress
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? questionId = null,Object? question = null,Object? status = null,Object? note = null,Object? updatedAt = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationOpenQuestionProgress(
 questionId: null == questionId ? _self.questionId : questionId // ignore: cast_nullable_to_non_nullable
 as String,question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -235,16 +241,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationOpenQuestionProgress&&(identical(other.questionId, questionId) || other.questionId == questionId)&&(identical(other.question, question) || other.question == question)&&(identical(other.status, status) || other.status == status)&&(identical(other.note, note) || other.note == note)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationOpenQuestionProgress&&(identical(other.questionId, questionId) || other.questionId == questionId)&&(identical(other.question, question) || other.question == question)&&(identical(other.status, status) || other.status == status)&&(identical(other.note, note) || other.note == note)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,questionId,question,status,note,updatedAt);
+int get hashCode {
+    return Object.hash(runtimeType,questionId,question,status,note,updatedAt);
+}
 
 @override
 String toString() {
-  return 'ConversationOpenQuestionProgress(questionId: $questionId, question: $question, status: $status, note: $note, updatedAt: $updatedAt)';
+    return 'ConversationOpenQuestionProgress(questionId: $questionId, question: $question, status: $status, note: $note, updatedAt: $updatedAt)';
 }
 
 
@@ -307,16 +315,21 @@ $ConversationTaskAcceptanceCopyWith<ConversationTaskAcceptance> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationTaskAcceptance&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&const DeepCollectionEquality().equals(other.evidence, evidence)&&const DeepCollectionEquality().equals(other.premises, premises));
+  final _this = this as ConversationTaskAcceptance;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationTaskAcceptance&&(identical(other.taskId, _this.taskId) || other.taskId == _this.taskId)&&(identical(other.acceptedAt, _this.acceptedAt) || other.acceptedAt == _this.acceptedAt)&&(identical(other.rationale, _this.rationale) || other.rationale == _this.rationale)&&const DeepCollectionEquality().equals(other.evidence, _this.evidence)&&const DeepCollectionEquality().equals(other.premises, _this.premises));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taskId,acceptedAt,rationale,const DeepCollectionEquality().hash(evidence),const DeepCollectionEquality().hash(premises));
+int get hashCode {
+  final _this = this as ConversationTaskAcceptance;
+  return Object.hash(runtimeType,_this.taskId,_this.acceptedAt,_this.rationale,const DeepCollectionEquality().hash(_this.evidence),const DeepCollectionEquality().hash(_this.premises));
+}
 
 @override
 String toString() {
-  return 'ConversationTaskAcceptance(taskId: $taskId, acceptedAt: $acceptedAt, rationale: $rationale, evidence: $evidence, premises: $premises)';
+  final _this = this as ConversationTaskAcceptance;
+  return 'ConversationTaskAcceptance(taskId: ${_this.taskId}, acceptedAt: ${_this.acceptedAt}, rationale: ${_this.rationale}, evidence: ${_this.evidence}, premises: ${_this.premises})';
 }
 
 
@@ -345,7 +358,7 @@ class _$ConversationTaskAcceptanceCopyWithImpl<$Res>
 /// Create a copy of ConversationTaskAcceptance
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? taskId = null,Object? acceptedAt = null,Object? rationale = null,Object? evidence = null,Object? premises = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationTaskAcceptance(
 taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
 as String,acceptedAt: null == acceptedAt ? _self.acceptedAt : acceptedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,rationale: null == rationale ? _self.rationale : rationale // ignore: cast_nullable_to_non_nullable
@@ -492,7 +505,7 @@ return $default(_that.taskId,_that.acceptedAt,_that.rationale,_that.evidence,_th
 @JsonSerializable()
 
 class _ConversationTaskAcceptance extends ConversationTaskAcceptance {
-  const _ConversationTaskAcceptance({required this.taskId, required this.acceptedAt, this.rationale = '', final  List<String> evidence = const <String>[], final  List<String> premises = const <String>[]}): _evidence = evidence,_premises = premises,super._();
+  const _ConversationTaskAcceptance({required this.taskId, required this.acceptedAt, this.rationale = '',  List<String> evidence = const <String>[],  List<String> premises = const <String>[]}): _evidence = evidence,_premises = premises,super._();
   factory _ConversationTaskAcceptance.fromJson(Map<String, dynamic> json) => _$ConversationTaskAcceptanceFromJson(json);
 
 @override final  String taskId;
@@ -533,16 +546,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationTaskAcceptance&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&const DeepCollectionEquality().equals(other._evidence, _evidence)&&const DeepCollectionEquality().equals(other._premises, _premises));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationTaskAcceptance&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&const DeepCollectionEquality().equals(other.evidence, _evidence)&&const DeepCollectionEquality().equals(other.premises, _premises));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taskId,acceptedAt,rationale,const DeepCollectionEquality().hash(_evidence),const DeepCollectionEquality().hash(_premises));
+int get hashCode {
+    return Object.hash(runtimeType,taskId,acceptedAt,rationale,const DeepCollectionEquality().hash(_evidence),const DeepCollectionEquality().hash(_premises));
+}
 
 @override
 String toString() {
-  return 'ConversationTaskAcceptance(taskId: $taskId, acceptedAt: $acceptedAt, rationale: $rationale, evidence: $evidence, premises: $premises)';
+    return 'ConversationTaskAcceptance(taskId: $taskId, acceptedAt: $acceptedAt, rationale: $rationale, evidence: $evidence, premises: $premises)';
 }
 
 
@@ -601,16 +616,21 @@ $ConversationTaskPreconditionCopyWith<ConversationTaskPrecondition> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationTaskPrecondition&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.ref, ref) || other.ref == ref));
+  final _this = this as ConversationTaskPrecondition;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationTaskPrecondition&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&(identical(other.ref, _this.ref) || other.ref == _this.ref));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,kind,ref);
+int get hashCode {
+  final _this = this as ConversationTaskPrecondition;
+  return Object.hash(runtimeType,_this.kind,_this.ref);
+}
 
 @override
 String toString() {
-  return 'ConversationTaskPrecondition(kind: $kind, ref: $ref)';
+  final _this = this as ConversationTaskPrecondition;
+  return 'ConversationTaskPrecondition(kind: ${_this.kind}, ref: ${_this.ref})';
 }
 
 
@@ -639,7 +659,7 @@ class _$ConversationTaskPreconditionCopyWithImpl<$Res>
 /// Create a copy of ConversationTaskPrecondition
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? kind = null,Object? ref = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationTaskPrecondition(
 kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as ConversationTaskPreconditionKind,ref: null == ref ? _self.ref : ref // ignore: cast_nullable_to_non_nullable
 as String,
@@ -802,16 +822,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationTaskPrecondition&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.ref, ref) || other.ref == ref));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationTaskPrecondition&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.ref, ref) || other.ref == ref));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,kind,ref);
+int get hashCode {
+    return Object.hash(runtimeType,kind,ref);
+}
 
 @override
 String toString() {
-  return 'ConversationTaskPrecondition(kind: $kind, ref: $ref)';
+    return 'ConversationTaskPrecondition(kind: $kind, ref: $ref)';
 }
 
 
@@ -873,16 +895,21 @@ $ConversationWorkflowTaskCopyWith<ConversationWorkflowTask> get copyWith => _$Co
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowTask&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.targetFiles, targetFiles)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other.preconditions, preconditions));
+  final _this = this as ConversationWorkflowTask;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowTask&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.status, _this.status) || other.status == _this.status)&&const DeepCollectionEquality().equals(other.targetFiles, _this.targetFiles)&&(identical(other.validationCommand, _this.validationCommand) || other.validationCommand == _this.validationCommand)&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&const DeepCollectionEquality().equals(other.preconditions, _this.preconditions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,status,const DeepCollectionEquality().hash(targetFiles),validationCommand,notes,const DeepCollectionEquality().hash(preconditions));
+int get hashCode {
+  final _this = this as ConversationWorkflowTask;
+  return Object.hash(runtimeType,_this.id,_this.title,_this.status,const DeepCollectionEquality().hash(_this.targetFiles),_this.validationCommand,_this.notes,const DeepCollectionEquality().hash(_this.preconditions));
+}
 
 @override
 String toString() {
-  return 'ConversationWorkflowTask(id: $id, title: $title, status: $status, targetFiles: $targetFiles, validationCommand: $validationCommand, notes: $notes, preconditions: $preconditions)';
+  final _this = this as ConversationWorkflowTask;
+  return 'ConversationWorkflowTask(id: ${_this.id}, title: ${_this.title}, status: ${_this.status}, targetFiles: ${_this.targetFiles}, validationCommand: ${_this.validationCommand}, notes: ${_this.notes}, preconditions: ${_this.preconditions})';
 }
 
 
@@ -911,7 +938,7 @@ class _$ConversationWorkflowTaskCopyWithImpl<$Res>
 /// Create a copy of ConversationWorkflowTask
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? status = null,Object? targetFiles = null,Object? validationCommand = null,Object? notes = null,Object? preconditions = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationWorkflowTask(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -1060,7 +1087,7 @@ return $default(_that.id,_that.title,_that.status,_that.targetFiles,_that.valida
 @JsonSerializable()
 
 class _ConversationWorkflowTask extends ConversationWorkflowTask {
-  const _ConversationWorkflowTask({required this.id, required this.title, this.status = ConversationWorkflowTaskStatus.pending, final  List<String> targetFiles = const <String>[], this.validationCommand = '', this.notes = '', @JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson) final  List<ConversationTaskPrecondition> preconditions = const <ConversationTaskPrecondition>[]}): _targetFiles = targetFiles,_preconditions = preconditions,super._();
+  const _ConversationWorkflowTask({required this.id, required this.title, this.status = ConversationWorkflowTaskStatus.pending,  List<String> targetFiles = const <String>[], this.validationCommand = '', this.notes = '', @JsonKey(fromJson: _taskPreconditionsFromJson, toJson: _taskPreconditionsToJson)  List<ConversationTaskPrecondition> preconditions = const <ConversationTaskPrecondition>[]}): _targetFiles = targetFiles,_preconditions = preconditions,super._();
   factory _ConversationWorkflowTask.fromJson(Map<String, dynamic> json) => _$ConversationWorkflowTaskFromJson(json);
 
 @override final  String id;
@@ -1108,16 +1135,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowTask&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other._targetFiles, _targetFiles)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other._preconditions, _preconditions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowTask&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.targetFiles, _targetFiles)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other.preconditions, _preconditions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,status,const DeepCollectionEquality().hash(_targetFiles),validationCommand,notes,const DeepCollectionEquality().hash(_preconditions));
+int get hashCode {
+    return Object.hash(runtimeType,id,title,status,const DeepCollectionEquality().hash(_targetFiles),validationCommand,notes,const DeepCollectionEquality().hash(_preconditions));
+}
 
 @override
 String toString() {
-  return 'ConversationWorkflowTask(id: $id, title: $title, status: $status, targetFiles: $targetFiles, validationCommand: $validationCommand, notes: $notes, preconditions: $preconditions)';
+    return 'ConversationWorkflowTask(id: $id, title: $title, status: $status, targetFiles: $targetFiles, validationCommand: $validationCommand, notes: $notes, preconditions: $preconditions)';
 }
 
 
@@ -1178,16 +1207,21 @@ $ConversationExecutionTaskProgressCopyWith<ConversationExecutionTaskProgress> ge
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.lastValidationAt, lastValidationAt) || other.lastValidationAt == lastValidationAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.lastValidationCommand, lastValidationCommand) || other.lastValidationCommand == lastValidationCommand)&&(identical(other.lastValidationSummary, lastValidationSummary) || other.lastValidationSummary == lastValidationSummary)&&const DeepCollectionEquality().equals(other.events, events));
+  final _this = this as ConversationExecutionTaskProgress;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskProgress&&(identical(other.taskId, _this.taskId) || other.taskId == _this.taskId)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.validationStatus, _this.validationStatus) || other.validationStatus == _this.validationStatus)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.lastRunAt, _this.lastRunAt) || other.lastRunAt == _this.lastRunAt)&&(identical(other.lastValidationAt, _this.lastValidationAt) || other.lastValidationAt == _this.lastValidationAt)&&(identical(other.summary, _this.summary) || other.summary == _this.summary)&&(identical(other.blockedReason, _this.blockedReason) || other.blockedReason == _this.blockedReason)&&(identical(other.lastValidationCommand, _this.lastValidationCommand) || other.lastValidationCommand == _this.lastValidationCommand)&&(identical(other.lastValidationSummary, _this.lastValidationSummary) || other.lastValidationSummary == _this.lastValidationSummary)&&const DeepCollectionEquality().equals(other.events, _this.events));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taskId,status,validationStatus,updatedAt,lastRunAt,lastValidationAt,summary,blockedReason,lastValidationCommand,lastValidationSummary,const DeepCollectionEquality().hash(events));
+int get hashCode {
+  final _this = this as ConversationExecutionTaskProgress;
+  return Object.hash(runtimeType,_this.taskId,_this.status,_this.validationStatus,_this.updatedAt,_this.lastRunAt,_this.lastValidationAt,_this.summary,_this.blockedReason,_this.lastValidationCommand,_this.lastValidationSummary,const DeepCollectionEquality().hash(_this.events));
+}
 
 @override
 String toString() {
-  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, validationStatus: $validationStatus, updatedAt: $updatedAt, lastRunAt: $lastRunAt, lastValidationAt: $lastValidationAt, summary: $summary, blockedReason: $blockedReason, lastValidationCommand: $lastValidationCommand, lastValidationSummary: $lastValidationSummary, events: $events)';
+  final _this = this as ConversationExecutionTaskProgress;
+  return 'ConversationExecutionTaskProgress(taskId: ${_this.taskId}, status: ${_this.status}, validationStatus: ${_this.validationStatus}, updatedAt: ${_this.updatedAt}, lastRunAt: ${_this.lastRunAt}, lastValidationAt: ${_this.lastValidationAt}, summary: ${_this.summary}, blockedReason: ${_this.blockedReason}, lastValidationCommand: ${_this.lastValidationCommand}, lastValidationSummary: ${_this.lastValidationSummary}, events: ${_this.events})';
 }
 
 
@@ -1216,7 +1250,7 @@ class _$ConversationExecutionTaskProgressCopyWithImpl<$Res>
 /// Create a copy of ConversationExecutionTaskProgress
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? taskId = null,Object? status = null,Object? validationStatus = null,Object? updatedAt = freezed,Object? lastRunAt = freezed,Object? lastValidationAt = freezed,Object? summary = null,Object? blockedReason = null,Object? lastValidationCommand = null,Object? lastValidationSummary = null,Object? events = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationExecutionTaskProgress(
 taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConversationWorkflowTaskStatus,validationStatus: null == validationStatus ? _self.validationStatus : validationStatus // ignore: cast_nullable_to_non_nullable
@@ -1369,7 +1403,7 @@ return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt
 @JsonSerializable()
 
 class _ConversationExecutionTaskProgress extends ConversationExecutionTaskProgress {
-  const _ConversationExecutionTaskProgress({required this.taskId, this.status = ConversationWorkflowTaskStatus.pending, this.validationStatus = ConversationExecutionValidationStatus.unknown, this.updatedAt, this.lastRunAt, this.lastValidationAt, this.summary = '', this.blockedReason = '', this.lastValidationCommand = '', this.lastValidationSummary = '', @JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson) final  List<ConversationExecutionTaskEvent> events = const <ConversationExecutionTaskEvent>[]}): _events = events,super._();
+  const _ConversationExecutionTaskProgress({required this.taskId, this.status = ConversationWorkflowTaskStatus.pending, this.validationStatus = ConversationExecutionValidationStatus.unknown, this.updatedAt, this.lastRunAt, this.lastValidationAt, this.summary = '', this.blockedReason = '', this.lastValidationCommand = '', this.lastValidationSummary = '', @JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson)  List<ConversationExecutionTaskEvent> events = const <ConversationExecutionTaskEvent>[]}): _events = events,super._();
   factory _ConversationExecutionTaskProgress.fromJson(Map<String, dynamic> json) => _$ConversationExecutionTaskProgressFromJson(json);
 
 @override final  String taskId;
@@ -1403,16 +1437,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.lastValidationAt, lastValidationAt) || other.lastValidationAt == lastValidationAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.lastValidationCommand, lastValidationCommand) || other.lastValidationCommand == lastValidationCommand)&&(identical(other.lastValidationSummary, lastValidationSummary) || other.lastValidationSummary == lastValidationSummary)&&const DeepCollectionEquality().equals(other._events, _events));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.lastValidationAt, lastValidationAt) || other.lastValidationAt == lastValidationAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.lastValidationCommand, lastValidationCommand) || other.lastValidationCommand == lastValidationCommand)&&(identical(other.lastValidationSummary, lastValidationSummary) || other.lastValidationSummary == lastValidationSummary)&&const DeepCollectionEquality().equals(other.events, _events));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taskId,status,validationStatus,updatedAt,lastRunAt,lastValidationAt,summary,blockedReason,lastValidationCommand,lastValidationSummary,const DeepCollectionEquality().hash(_events));
+int get hashCode {
+    return Object.hash(runtimeType,taskId,status,validationStatus,updatedAt,lastRunAt,lastValidationAt,summary,blockedReason,lastValidationCommand,lastValidationSummary,const DeepCollectionEquality().hash(_events));
+}
 
 @override
 String toString() {
-  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, validationStatus: $validationStatus, updatedAt: $updatedAt, lastRunAt: $lastRunAt, lastValidationAt: $lastValidationAt, summary: $summary, blockedReason: $blockedReason, lastValidationCommand: $lastValidationCommand, lastValidationSummary: $lastValidationSummary, events: $events)';
+    return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, validationStatus: $validationStatus, updatedAt: $updatedAt, lastRunAt: $lastRunAt, lastValidationAt: $lastValidationAt, summary: $summary, blockedReason: $blockedReason, lastValidationCommand: $lastValidationCommand, lastValidationSummary: $lastValidationSummary, events: $events)';
 }
 
 
@@ -1477,16 +1513,21 @@ $ConversationExecutionTaskEventCopyWith<ConversationExecutionTaskEvent> get copy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskEvent&&(identical(other.type, type) || other.type == type)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.validationSummary, validationSummary) || other.validationSummary == validationSummary));
+  final _this = this as ConversationExecutionTaskEvent;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskEvent&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.summary, _this.summary) || other.summary == _this.summary)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.validationStatus, _this.validationStatus) || other.validationStatus == _this.validationStatus)&&(identical(other.blockedReason, _this.blockedReason) || other.blockedReason == _this.blockedReason)&&(identical(other.validationCommand, _this.validationCommand) || other.validationCommand == _this.validationCommand)&&(identical(other.validationSummary, _this.validationSummary) || other.validationSummary == _this.validationSummary));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,type,createdAt,summary,status,validationStatus,blockedReason,validationCommand,validationSummary);
+int get hashCode {
+  final _this = this as ConversationExecutionTaskEvent;
+  return Object.hash(runtimeType,_this.type,_this.createdAt,_this.summary,_this.status,_this.validationStatus,_this.blockedReason,_this.validationCommand,_this.validationSummary);
+}
 
 @override
 String toString() {
-  return 'ConversationExecutionTaskEvent(type: $type, createdAt: $createdAt, summary: $summary, status: $status, validationStatus: $validationStatus, blockedReason: $blockedReason, validationCommand: $validationCommand, validationSummary: $validationSummary)';
+  final _this = this as ConversationExecutionTaskEvent;
+  return 'ConversationExecutionTaskEvent(type: ${_this.type}, createdAt: ${_this.createdAt}, summary: ${_this.summary}, status: ${_this.status}, validationStatus: ${_this.validationStatus}, blockedReason: ${_this.blockedReason}, validationCommand: ${_this.validationCommand}, validationSummary: ${_this.validationSummary})';
 }
 
 
@@ -1515,7 +1556,7 @@ class _$ConversationExecutionTaskEventCopyWithImpl<$Res>
 /// Create a copy of ConversationExecutionTaskEvent
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? type = null,Object? createdAt = null,Object? summary = null,Object? status = null,Object? validationStatus = null,Object? blockedReason = null,Object? validationCommand = null,Object? validationSummary = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationExecutionTaskEvent(
 type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as ConversationExecutionTaskEventType,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
@@ -1690,16 +1731,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskEvent&&(identical(other.type, type) || other.type == type)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.validationSummary, validationSummary) || other.validationSummary == validationSummary));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskEvent&&(identical(other.type, type) || other.type == type)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.validationSummary, validationSummary) || other.validationSummary == validationSummary));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,type,createdAt,summary,status,validationStatus,blockedReason,validationCommand,validationSummary);
+int get hashCode {
+    return Object.hash(runtimeType,type,createdAt,summary,status,validationStatus,blockedReason,validationCommand,validationSummary);
+}
 
 @override
 String toString() {
-  return 'ConversationExecutionTaskEvent(type: $type, createdAt: $createdAt, summary: $summary, status: $status, validationStatus: $validationStatus, blockedReason: $blockedReason, validationCommand: $validationCommand, validationSummary: $validationSummary)';
+    return 'ConversationExecutionTaskEvent(type: $type, createdAt: $createdAt, summary: $summary, status: $status, validationStatus: $validationStatus, blockedReason: $blockedReason, validationCommand: $validationCommand, validationSummary: $validationSummary)';
 }
 
 
@@ -1761,16 +1804,21 @@ $ConversationContractSourceReferenceCopyWith<ConversationContractSourceReference
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationContractSourceReference&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.locator, locator) || other.locator == locator)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.section, section) || other.section == section)&&(identical(other.toolCallId, toolCallId) || other.toolCallId == toolCallId));
+  final _this = this as ConversationContractSourceReference;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationContractSourceReference&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&(identical(other.locator, _this.locator) || other.locator == _this.locator)&&(identical(other.contentHash, _this.contentHash) || other.contentHash == _this.contentHash)&&(identical(other.section, _this.section) || other.section == _this.section)&&(identical(other.toolCallId, _this.toolCallId) || other.toolCallId == _this.toolCallId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,kind,locator,contentHash,section,toolCallId);
+int get hashCode {
+  final _this = this as ConversationContractSourceReference;
+  return Object.hash(runtimeType,_this.id,_this.kind,_this.locator,_this.contentHash,_this.section,_this.toolCallId);
+}
 
 @override
 String toString() {
-  return 'ConversationContractSourceReference(id: $id, kind: $kind, locator: $locator, contentHash: $contentHash, section: $section, toolCallId: $toolCallId)';
+  final _this = this as ConversationContractSourceReference;
+  return 'ConversationContractSourceReference(id: ${_this.id}, kind: ${_this.kind}, locator: ${_this.locator}, contentHash: ${_this.contentHash}, section: ${_this.section}, toolCallId: ${_this.toolCallId})';
 }
 
 
@@ -1799,7 +1847,7 @@ class _$ConversationContractSourceReferenceCopyWithImpl<$Res>
 /// Create a copy of ConversationContractSourceReference
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? kind = null,Object? locator = null,Object? contentHash = null,Object? section = null,Object? toolCallId = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationContractSourceReference(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as ConversationContractSourceKind,locator: null == locator ? _self.locator : locator // ignore: cast_nullable_to_non_nullable
@@ -1970,16 +2018,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationContractSourceReference&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.locator, locator) || other.locator == locator)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.section, section) || other.section == section)&&(identical(other.toolCallId, toolCallId) || other.toolCallId == toolCallId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationContractSourceReference&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.locator, locator) || other.locator == locator)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.section, section) || other.section == section)&&(identical(other.toolCallId, toolCallId) || other.toolCallId == toolCallId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,kind,locator,contentHash,section,toolCallId);
+int get hashCode {
+    return Object.hash(runtimeType,id,kind,locator,contentHash,section,toolCallId);
+}
 
 @override
 String toString() {
-  return 'ConversationContractSourceReference(id: $id, kind: $kind, locator: $locator, contentHash: $contentHash, section: $section, toolCallId: $toolCallId)';
+    return 'ConversationContractSourceReference(id: $id, kind: $kind, locator: $locator, contentHash: $contentHash, section: $section, toolCallId: $toolCallId)';
 }
 
 
@@ -2039,16 +2089,21 @@ $ConversationContractItemProvenanceCopyWith<ConversationContractItemProvenance> 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationContractItemProvenance&&(identical(other.itemId, itemId) || other.itemId == itemId)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other.sourceIds, sourceIds)&&(identical(other.assumption, assumption) || other.assumption == assumption)&&(identical(other.material, material) || other.material == material)&&(identical(other.confirmed, confirmed) || other.confirmed == confirmed)&&(identical(other.clarificationQuestion, clarificationQuestion) || other.clarificationQuestion == clarificationQuestion));
+  final _this = this as ConversationContractItemProvenance;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationContractItemProvenance&&(identical(other.itemId, _this.itemId) || other.itemId == _this.itemId)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&const DeepCollectionEquality().equals(other.sourceIds, _this.sourceIds)&&(identical(other.assumption, _this.assumption) || other.assumption == _this.assumption)&&(identical(other.material, _this.material) || other.material == _this.material)&&(identical(other.confirmed, _this.confirmed) || other.confirmed == _this.confirmed)&&(identical(other.clarificationQuestion, _this.clarificationQuestion) || other.clarificationQuestion == _this.clarificationQuestion));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,itemId,kind,const DeepCollectionEquality().hash(sourceIds),assumption,material,confirmed,clarificationQuestion);
+int get hashCode {
+  final _this = this as ConversationContractItemProvenance;
+  return Object.hash(runtimeType,_this.itemId,_this.kind,const DeepCollectionEquality().hash(_this.sourceIds),_this.assumption,_this.material,_this.confirmed,_this.clarificationQuestion);
+}
 
 @override
 String toString() {
-  return 'ConversationContractItemProvenance(itemId: $itemId, kind: $kind, sourceIds: $sourceIds, assumption: $assumption, material: $material, confirmed: $confirmed, clarificationQuestion: $clarificationQuestion)';
+  final _this = this as ConversationContractItemProvenance;
+  return 'ConversationContractItemProvenance(itemId: ${_this.itemId}, kind: ${_this.kind}, sourceIds: ${_this.sourceIds}, assumption: ${_this.assumption}, material: ${_this.material}, confirmed: ${_this.confirmed}, clarificationQuestion: ${_this.clarificationQuestion})';
 }
 
 
@@ -2077,7 +2132,7 @@ class _$ConversationContractItemProvenanceCopyWithImpl<$Res>
 /// Create a copy of ConversationContractItemProvenance
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? itemId = null,Object? kind = null,Object? sourceIds = null,Object? assumption = null,Object? material = null,Object? confirmed = null,Object? clarificationQuestion = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationContractItemProvenance(
 itemId: null == itemId ? _self.itemId : itemId // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as ConversationContractItemKind,sourceIds: null == sourceIds ? _self.sourceIds : sourceIds // ignore: cast_nullable_to_non_nullable
@@ -2226,7 +2281,7 @@ return $default(_that.itemId,_that.kind,_that.sourceIds,_that.assumption,_that.m
 @JsonSerializable()
 
 class _ConversationContractItemProvenance extends ConversationContractItemProvenance {
-  const _ConversationContractItemProvenance({required this.itemId, required this.kind, final  List<String> sourceIds = const <String>[], this.assumption = false, this.material = false, this.confirmed = false, this.clarificationQuestion = ''}): _sourceIds = sourceIds,super._();
+  const _ConversationContractItemProvenance({required this.itemId, required this.kind,  List<String> sourceIds = const <String>[], this.assumption = false, this.material = false, this.confirmed = false, this.clarificationQuestion = ''}): _sourceIds = sourceIds,super._();
   factory _ConversationContractItemProvenance.fromJson(Map<String, dynamic> json) => _$ConversationContractItemProvenanceFromJson(json);
 
 @override final  String itemId;
@@ -2256,16 +2311,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationContractItemProvenance&&(identical(other.itemId, itemId) || other.itemId == itemId)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other._sourceIds, _sourceIds)&&(identical(other.assumption, assumption) || other.assumption == assumption)&&(identical(other.material, material) || other.material == material)&&(identical(other.confirmed, confirmed) || other.confirmed == confirmed)&&(identical(other.clarificationQuestion, clarificationQuestion) || other.clarificationQuestion == clarificationQuestion));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationContractItemProvenance&&(identical(other.itemId, itemId) || other.itemId == itemId)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other.sourceIds, _sourceIds)&&(identical(other.assumption, assumption) || other.assumption == assumption)&&(identical(other.material, material) || other.material == material)&&(identical(other.confirmed, confirmed) || other.confirmed == confirmed)&&(identical(other.clarificationQuestion, clarificationQuestion) || other.clarificationQuestion == clarificationQuestion));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,itemId,kind,const DeepCollectionEquality().hash(_sourceIds),assumption,material,confirmed,clarificationQuestion);
+int get hashCode {
+    return Object.hash(runtimeType,itemId,kind,const DeepCollectionEquality().hash(_sourceIds),assumption,material,confirmed,clarificationQuestion);
+}
 
 @override
 String toString() {
-  return 'ConversationContractItemProvenance(itemId: $itemId, kind: $kind, sourceIds: $sourceIds, assumption: $assumption, material: $material, confirmed: $confirmed, clarificationQuestion: $clarificationQuestion)';
+    return 'ConversationContractItemProvenance(itemId: $itemId, kind: $kind, sourceIds: $sourceIds, assumption: $assumption, material: $material, confirmed: $confirmed, clarificationQuestion: $clarificationQuestion)';
 }
 
 
@@ -2326,16 +2383,21 @@ $ConversationWorkflowSpecCopyWith<ConversationWorkflowSpec> get copyWith => _$Co
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowSpec&&(identical(other.goal, goal) || other.goal == goal)&&const DeepCollectionEquality().equals(other.constraints, constraints)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, acceptanceCriteria)&&const DeepCollectionEquality().equals(other.openQuestions, openQuestions)&&const DeepCollectionEquality().equals(other.tasks, tasks)&&const DeepCollectionEquality().equals(other.sources, sources)&&const DeepCollectionEquality().equals(other.provenance, provenance));
+  final _this = this as ConversationWorkflowSpec;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowSpec&&(identical(other.goal, _this.goal) || other.goal == _this.goal)&&const DeepCollectionEquality().equals(other.constraints, _this.constraints)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, _this.acceptanceCriteria)&&const DeepCollectionEquality().equals(other.openQuestions, _this.openQuestions)&&const DeepCollectionEquality().equals(other.tasks, _this.tasks)&&const DeepCollectionEquality().equals(other.sources, _this.sources)&&const DeepCollectionEquality().equals(other.provenance, _this.provenance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,goal,const DeepCollectionEquality().hash(constraints),const DeepCollectionEquality().hash(acceptanceCriteria),const DeepCollectionEquality().hash(openQuestions),const DeepCollectionEquality().hash(tasks),const DeepCollectionEquality().hash(sources),const DeepCollectionEquality().hash(provenance));
+int get hashCode {
+  final _this = this as ConversationWorkflowSpec;
+  return Object.hash(runtimeType,_this.goal,const DeepCollectionEquality().hash(_this.constraints),const DeepCollectionEquality().hash(_this.acceptanceCriteria),const DeepCollectionEquality().hash(_this.openQuestions),const DeepCollectionEquality().hash(_this.tasks),const DeepCollectionEquality().hash(_this.sources),const DeepCollectionEquality().hash(_this.provenance));
+}
 
 @override
 String toString() {
-  return 'ConversationWorkflowSpec(goal: $goal, constraints: $constraints, acceptanceCriteria: $acceptanceCriteria, openQuestions: $openQuestions, tasks: $tasks, sources: $sources, provenance: $provenance)';
+  final _this = this as ConversationWorkflowSpec;
+  return 'ConversationWorkflowSpec(goal: ${_this.goal}, constraints: ${_this.constraints}, acceptanceCriteria: ${_this.acceptanceCriteria}, openQuestions: ${_this.openQuestions}, tasks: ${_this.tasks}, sources: ${_this.sources}, provenance: ${_this.provenance})';
 }
 
 
@@ -2364,7 +2426,7 @@ class _$ConversationWorkflowSpecCopyWithImpl<$Res>
 /// Create a copy of ConversationWorkflowSpec
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? goal = null,Object? constraints = null,Object? acceptanceCriteria = null,Object? openQuestions = null,Object? tasks = null,Object? sources = null,Object? provenance = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationWorkflowSpec(
 goal: null == goal ? _self.goal : goal // ignore: cast_nullable_to_non_nullable
 as String,constraints: null == constraints ? _self.constraints : constraints // ignore: cast_nullable_to_non_nullable
 as List<String>,acceptanceCriteria: null == acceptanceCriteria ? _self.acceptanceCriteria : acceptanceCriteria // ignore: cast_nullable_to_non_nullable
@@ -2513,7 +2575,7 @@ return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.open
 @JsonSerializable()
 
 class _ConversationWorkflowSpec extends ConversationWorkflowSpec {
-  const _ConversationWorkflowSpec({this.goal = '', final  List<String> constraints = const <String>[], final  List<String> acceptanceCriteria = const <String>[], final  List<String> openQuestions = const <String>[], @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) final  List<ConversationWorkflowTask> tasks = const <ConversationWorkflowTask>[], @JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson) final  List<ConversationContractSourceReference> sources = const <ConversationContractSourceReference>[], @JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson) final  List<ConversationContractItemProvenance> provenance = const <ConversationContractItemProvenance>[]}): _constraints = constraints,_acceptanceCriteria = acceptanceCriteria,_openQuestions = openQuestions,_tasks = tasks,_sources = sources,_provenance = provenance,super._();
+  const _ConversationWorkflowSpec({this.goal = '',  List<String> constraints = const <String>[],  List<String> acceptanceCriteria = const <String>[],  List<String> openQuestions = const <String>[], @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)  List<ConversationWorkflowTask> tasks = const <ConversationWorkflowTask>[], @JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson)  List<ConversationContractSourceReference> sources = const <ConversationContractSourceReference>[], @JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson)  List<ConversationContractItemProvenance> provenance = const <ConversationContractItemProvenance>[]}): _constraints = constraints,_acceptanceCriteria = acceptanceCriteria,_openQuestions = openQuestions,_tasks = tasks,_sources = sources,_provenance = provenance,super._();
   factory _ConversationWorkflowSpec.fromJson(Map<String, dynamic> json) => _$ConversationWorkflowSpecFromJson(json);
 
 @override@JsonKey() final  String goal;
@@ -2573,16 +2635,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowSpec&&(identical(other.goal, goal) || other.goal == goal)&&const DeepCollectionEquality().equals(other._constraints, _constraints)&&const DeepCollectionEquality().equals(other._acceptanceCriteria, _acceptanceCriteria)&&const DeepCollectionEquality().equals(other._openQuestions, _openQuestions)&&const DeepCollectionEquality().equals(other._tasks, _tasks)&&const DeepCollectionEquality().equals(other._sources, _sources)&&const DeepCollectionEquality().equals(other._provenance, _provenance));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowSpec&&(identical(other.goal, goal) || other.goal == goal)&&const DeepCollectionEquality().equals(other.constraints, _constraints)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, _acceptanceCriteria)&&const DeepCollectionEquality().equals(other.openQuestions, _openQuestions)&&const DeepCollectionEquality().equals(other.tasks, _tasks)&&const DeepCollectionEquality().equals(other.sources, _sources)&&const DeepCollectionEquality().equals(other.provenance, _provenance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,goal,const DeepCollectionEquality().hash(_constraints),const DeepCollectionEquality().hash(_acceptanceCriteria),const DeepCollectionEquality().hash(_openQuestions),const DeepCollectionEquality().hash(_tasks),const DeepCollectionEquality().hash(_sources),const DeepCollectionEquality().hash(_provenance));
+int get hashCode {
+    return Object.hash(runtimeType,goal,const DeepCollectionEquality().hash(_constraints),const DeepCollectionEquality().hash(_acceptanceCriteria),const DeepCollectionEquality().hash(_openQuestions),const DeepCollectionEquality().hash(_tasks),const DeepCollectionEquality().hash(_sources),const DeepCollectionEquality().hash(_provenance));
+}
 
 @override
 String toString() {
-  return 'ConversationWorkflowSpec(goal: $goal, constraints: $constraints, acceptanceCriteria: $acceptanceCriteria, openQuestions: $openQuestions, tasks: $tasks, sources: $sources, provenance: $provenance)';
+    return 'ConversationWorkflowSpec(goal: $goal, constraints: $constraints, acceptanceCriteria: $acceptanceCriteria, openQuestions: $openQuestions, tasks: $tasks, sources: $sources, provenance: $provenance)';
 }
 
 

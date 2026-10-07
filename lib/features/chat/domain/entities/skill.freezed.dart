@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'skill.dart';
@@ -9,6 +9,7 @@ part of 'skill.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $SkillCopyWith<Skill> get copyWith => _$SkillCopyWithImpl<Skill>(this as Skill, 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Skill&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.whenToUse, whenToUse) || other.whenToUse == whenToUse)&&(identical(other.content, content) || other.content == content)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  final _this = this as Skill;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Skill&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.whenToUse, _this.whenToUse) || other.whenToUse == _this.whenToUse)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.enabled, _this.enabled) || other.enabled == _this.enabled)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,description,whenToUse,content,enabled,createdAt,updatedAt);
+int get hashCode {
+  final _this = this as Skill;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.description,_this.whenToUse,_this.content,_this.enabled,_this.createdAt,_this.updatedAt);
+}
 
 @override
 String toString() {
-  return 'Skill(id: $id, name: $name, description: $description, whenToUse: $whenToUse, content: $content, enabled: $enabled, createdAt: $createdAt, updatedAt: $updatedAt)';
+  final _this = this as Skill;
+  return 'Skill(id: ${_this.id}, name: ${_this.name}, description: ${_this.description}, whenToUse: ${_this.whenToUse}, content: ${_this.content}, enabled: ${_this.enabled}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$SkillCopyWithImpl<$Res>
 /// Create a copy of Skill
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? description = null,Object? whenToUse = null,Object? content = null,Object? enabled = null,Object? createdAt = null,Object? updatedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(Skill(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
@@ -241,16 +247,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Skill&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.whenToUse, whenToUse) || other.whenToUse == whenToUse)&&(identical(other.content, content) || other.content == content)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Skill&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.whenToUse, whenToUse) || other.whenToUse == whenToUse)&&(identical(other.content, content) || other.content == content)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,description,whenToUse,content,enabled,createdAt,updatedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,description,whenToUse,content,enabled,createdAt,updatedAt);
+}
 
 @override
 String toString() {
-  return 'Skill(id: $id, name: $name, description: $description, whenToUse: $whenToUse, content: $content, enabled: $enabled, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Skill(id: $id, name: $name, description: $description, whenToUse: $whenToUse, content: $content, enabled: $enabled, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 

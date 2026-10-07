@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'workflow_proposal_draft.dart';
@@ -9,6 +9,7 @@ part of 'workflow_proposal_draft.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $WorkflowProposalDraftCopyWith<WorkflowProposalDraft> get copyWith => _$Workflow
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorkflowProposalDraft&&(identical(other.workflowStage, workflowStage) || other.workflowStage == workflowStage)&&(identical(other.workflowSpec, workflowSpec) || other.workflowSpec == workflowSpec));
+  final _this = this as WorkflowProposalDraft;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorkflowProposalDraft&&(identical(other.workflowStage, _this.workflowStage) || other.workflowStage == _this.workflowStage)&&(identical(other.workflowSpec, _this.workflowSpec) || other.workflowSpec == _this.workflowSpec));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,workflowStage,workflowSpec);
+int get hashCode {
+  final _this = this as WorkflowProposalDraft;
+  return Object.hash(runtimeType,_this.workflowStage,_this.workflowSpec);
+}
 
 @override
 String toString() {
-  return 'WorkflowProposalDraft(workflowStage: $workflowStage, workflowSpec: $workflowSpec)';
+  final _this = this as WorkflowProposalDraft;
+  return 'WorkflowProposalDraft(workflowStage: ${_this.workflowStage}, workflowSpec: ${_this.workflowSpec})';
 }
 
 
@@ -63,7 +69,7 @@ class _$WorkflowProposalDraftCopyWithImpl<$Res>
 /// Create a copy of WorkflowProposalDraft
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? workflowStage = null,Object? workflowSpec = null,}) {
-  return _then(_self.copyWith(
+  return _then(WorkflowProposalDraft(
 workflowStage: null == workflowStage ? _self.workflowStage : workflowStage // ignore: cast_nullable_to_non_nullable
 as ConversationWorkflowStage,workflowSpec: null == workflowSpec ? _self.workflowSpec : workflowSpec // ignore: cast_nullable_to_non_nullable
 as ConversationWorkflowSpec,
@@ -232,16 +238,18 @@ _$WorkflowProposalDraftCopyWith<_WorkflowProposalDraft> get copyWith => __$Workf
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorkflowProposalDraft&&(identical(other.workflowStage, workflowStage) || other.workflowStage == workflowStage)&&(identical(other.workflowSpec, workflowSpec) || other.workflowSpec == workflowSpec));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorkflowProposalDraft&&(identical(other.workflowStage, workflowStage) || other.workflowStage == workflowStage)&&(identical(other.workflowSpec, workflowSpec) || other.workflowSpec == workflowSpec));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,workflowStage,workflowSpec);
+int get hashCode {
+    return Object.hash(runtimeType,workflowStage,workflowSpec);
+}
 
 @override
 String toString() {
-  return 'WorkflowProposalDraft(workflowStage: $workflowStage, workflowSpec: $workflowSpec)';
+    return 'WorkflowProposalDraft(workflowStage: $workflowStage, workflowSpec: $workflowSpec)';
 }
 
 

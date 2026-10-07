@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'routine.dart';
@@ -9,6 +9,7 @@ part of 'routine.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $RoutineObjectiveEvidenceContractCopyWith<RoutineObjectiveEvidenceContract> get 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineObjectiveEvidenceContract&&(identical(other.objective, objective) || other.objective == objective)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, acceptanceCriteria)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.plan, plan) || other.plan == plan));
+  final _this = this as RoutineObjectiveEvidenceContract;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineObjectiveEvidenceContract&&(identical(other.objective, _this.objective) || other.objective == _this.objective)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, _this.acceptanceCriteria)&&(identical(other.verificationCommand, _this.verificationCommand) || other.verificationCommand == _this.verificationCommand)&&(identical(other.plan, _this.plan) || other.plan == _this.plan));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,objective,const DeepCollectionEquality().hash(acceptanceCriteria),verificationCommand,plan);
+int get hashCode {
+  final _this = this as RoutineObjectiveEvidenceContract;
+  return Object.hash(runtimeType,_this.objective,const DeepCollectionEquality().hash(_this.acceptanceCriteria),_this.verificationCommand,_this.plan);
+}
 
 @override
 String toString() {
-  return 'RoutineObjectiveEvidenceContract(objective: $objective, acceptanceCriteria: $acceptanceCriteria, verificationCommand: $verificationCommand, plan: $plan)';
+  final _this = this as RoutineObjectiveEvidenceContract;
+  return 'RoutineObjectiveEvidenceContract(objective: ${_this.objective}, acceptanceCriteria: ${_this.acceptanceCriteria}, verificationCommand: ${_this.verificationCommand}, plan: ${_this.plan})';
 }
 
 
@@ -66,7 +72,7 @@ class _$RoutineObjectiveEvidenceContractCopyWithImpl<$Res>
 /// Create a copy of RoutineObjectiveEvidenceContract
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? objective = null,Object? acceptanceCriteria = null,Object? verificationCommand = null,Object? plan = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutineObjectiveEvidenceContract(
 objective: null == objective ? _self.objective : objective // ignore: cast_nullable_to_non_nullable
 as String,acceptanceCriteria: null == acceptanceCriteria ? _self.acceptanceCriteria : acceptanceCriteria // ignore: cast_nullable_to_non_nullable
 as List<String>,verificationCommand: null == verificationCommand ? _self.verificationCommand : verificationCommand // ignore: cast_nullable_to_non_nullable
@@ -212,7 +218,7 @@ return $default(_that.objective,_that.acceptanceCriteria,_that.verificationComma
 @JsonSerializable()
 
 class _RoutineObjectiveEvidenceContract implements RoutineObjectiveEvidenceContract {
-  const _RoutineObjectiveEvidenceContract({required this.objective, final  List<String> acceptanceCriteria = const <String>[], required this.verificationCommand, this.plan = ''}): _acceptanceCriteria = acceptanceCriteria;
+  const _RoutineObjectiveEvidenceContract({required this.objective,  List<String> acceptanceCriteria = const <String>[], required this.verificationCommand, this.plan = ''}): _acceptanceCriteria = acceptanceCriteria;
   factory _RoutineObjectiveEvidenceContract.fromJson(Map<String, dynamic> json) => _$RoutineObjectiveEvidenceContractFromJson(json);
 
 @override final  String objective;
@@ -239,16 +245,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineObjectiveEvidenceContract&&(identical(other.objective, objective) || other.objective == objective)&&const DeepCollectionEquality().equals(other._acceptanceCriteria, _acceptanceCriteria)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.plan, plan) || other.plan == plan));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineObjectiveEvidenceContract&&(identical(other.objective, objective) || other.objective == objective)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, _acceptanceCriteria)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&(identical(other.plan, plan) || other.plan == plan));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,objective,const DeepCollectionEquality().hash(_acceptanceCriteria),verificationCommand,plan);
+int get hashCode {
+    return Object.hash(runtimeType,objective,const DeepCollectionEquality().hash(_acceptanceCriteria),verificationCommand,plan);
+}
 
 @override
 String toString() {
-  return 'RoutineObjectiveEvidenceContract(objective: $objective, acceptanceCriteria: $acceptanceCriteria, verificationCommand: $verificationCommand, plan: $plan)';
+    return 'RoutineObjectiveEvidenceContract(objective: $objective, acceptanceCriteria: $acceptanceCriteria, verificationCommand: $verificationCommand, plan: $plan)';
 }
 
 
@@ -306,16 +314,21 @@ $RoutineRetryUntilGreenConfigCopyWith<RoutineRetryUntilGreenConfig> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRetryUntilGreenConfig&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.candidatesPerRound, candidatesPerRound) || other.candidatesPerRound == candidatesPerRound));
+  final _this = this as RoutineRetryUntilGreenConfig;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRetryUntilGreenConfig&&(identical(other.enabled, _this.enabled) || other.enabled == _this.enabled)&&(identical(other.maxRounds, _this.maxRounds) || other.maxRounds == _this.maxRounds)&&(identical(other.candidatesPerRound, _this.candidatesPerRound) || other.candidatesPerRound == _this.candidatesPerRound));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,enabled,maxRounds,candidatesPerRound);
+int get hashCode {
+  final _this = this as RoutineRetryUntilGreenConfig;
+  return Object.hash(runtimeType,_this.enabled,_this.maxRounds,_this.candidatesPerRound);
+}
 
 @override
 String toString() {
-  return 'RoutineRetryUntilGreenConfig(enabled: $enabled, maxRounds: $maxRounds, candidatesPerRound: $candidatesPerRound)';
+  final _this = this as RoutineRetryUntilGreenConfig;
+  return 'RoutineRetryUntilGreenConfig(enabled: ${_this.enabled}, maxRounds: ${_this.maxRounds}, candidatesPerRound: ${_this.candidatesPerRound})';
 }
 
 
@@ -344,7 +357,7 @@ class _$RoutineRetryUntilGreenConfigCopyWithImpl<$Res>
 /// Create a copy of RoutineRetryUntilGreenConfig
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? enabled = null,Object? maxRounds = null,Object? candidatesPerRound = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutineRetryUntilGreenConfig(
 enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
 as bool,maxRounds: null == maxRounds ? _self.maxRounds : maxRounds // ignore: cast_nullable_to_non_nullable
 as int,candidatesPerRound: null == candidatesPerRound ? _self.candidatesPerRound : candidatesPerRound // ignore: cast_nullable_to_non_nullable
@@ -509,16 +522,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRetryUntilGreenConfig&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.candidatesPerRound, candidatesPerRound) || other.candidatesPerRound == candidatesPerRound));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRetryUntilGreenConfig&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.candidatesPerRound, candidatesPerRound) || other.candidatesPerRound == candidatesPerRound));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,enabled,maxRounds,candidatesPerRound);
+int get hashCode {
+    return Object.hash(runtimeType,enabled,maxRounds,candidatesPerRound);
+}
 
 @override
 String toString() {
-  return 'RoutineRetryUntilGreenConfig(enabled: $enabled, maxRounds: $maxRounds, candidatesPerRound: $candidatesPerRound)';
+    return 'RoutineRetryUntilGreenConfig(enabled: $enabled, maxRounds: $maxRounds, candidatesPerRound: $candidatesPerRound)';
 }
 
 
@@ -575,16 +590,21 @@ $RoutinePlanRevisionCopyWith<RoutinePlanRevision> get copyWith => _$RoutinePlanR
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutinePlanRevision&&(identical(other.markdown, markdown) || other.markdown == markdown)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.label, label) || other.label == label));
+  final _this = this as RoutinePlanRevision;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutinePlanRevision&&(identical(other.markdown, _this.markdown) || other.markdown == _this.markdown)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&(identical(other.label, _this.label) || other.label == _this.label));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,markdown,createdAt,kind,label);
+int get hashCode {
+  final _this = this as RoutinePlanRevision;
+  return Object.hash(runtimeType,_this.markdown,_this.createdAt,_this.kind,_this.label);
+}
 
 @override
 String toString() {
-  return 'RoutinePlanRevision(markdown: $markdown, createdAt: $createdAt, kind: $kind, label: $label)';
+  final _this = this as RoutinePlanRevision;
+  return 'RoutinePlanRevision(markdown: ${_this.markdown}, createdAt: ${_this.createdAt}, kind: ${_this.kind}, label: ${_this.label})';
 }
 
 
@@ -613,7 +633,7 @@ class _$RoutinePlanRevisionCopyWithImpl<$Res>
 /// Create a copy of RoutinePlanRevision
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? markdown = null,Object? createdAt = null,Object? kind = null,Object? label = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutinePlanRevision(
 markdown: null == markdown ? _self.markdown : markdown // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
@@ -780,16 +800,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutinePlanRevision&&(identical(other.markdown, markdown) || other.markdown == markdown)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.label, label) || other.label == label));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutinePlanRevision&&(identical(other.markdown, markdown) || other.markdown == markdown)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.label, label) || other.label == label));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,markdown,createdAt,kind,label);
+int get hashCode {
+    return Object.hash(runtimeType,markdown,createdAt,kind,label);
+}
 
 @override
 String toString() {
-  return 'RoutinePlanRevision(markdown: $markdown, createdAt: $createdAt, kind: $kind, label: $label)';
+    return 'RoutinePlanRevision(markdown: $markdown, createdAt: $createdAt, kind: $kind, label: $label)';
 }
 
 
@@ -847,16 +869,21 @@ $RoutinePlanArtifactCopyWith<RoutinePlanArtifact> get copyWith => _$RoutinePlanA
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutinePlanArtifact&&(identical(other.draftMarkdown, draftMarkdown) || other.draftMarkdown == draftMarkdown)&&(identical(other.approvedMarkdown, approvedMarkdown) || other.approvedMarkdown == approvedMarkdown)&&(identical(other.approvedSourceHash, approvedSourceHash) || other.approvedSourceHash == approvedSourceHash)&&(identical(other.approvedAt, approvedAt) || other.approvedAt == approvedAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.revisions, revisions));
+  final _this = this as RoutinePlanArtifact;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutinePlanArtifact&&(identical(other.draftMarkdown, _this.draftMarkdown) || other.draftMarkdown == _this.draftMarkdown)&&(identical(other.approvedMarkdown, _this.approvedMarkdown) || other.approvedMarkdown == _this.approvedMarkdown)&&(identical(other.approvedSourceHash, _this.approvedSourceHash) || other.approvedSourceHash == _this.approvedSourceHash)&&(identical(other.approvedAt, _this.approvedAt) || other.approvedAt == _this.approvedAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&const DeepCollectionEquality().equals(other.revisions, _this.revisions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,draftMarkdown,approvedMarkdown,approvedSourceHash,approvedAt,updatedAt,const DeepCollectionEquality().hash(revisions));
+int get hashCode {
+  final _this = this as RoutinePlanArtifact;
+  return Object.hash(runtimeType,_this.draftMarkdown,_this.approvedMarkdown,_this.approvedSourceHash,_this.approvedAt,_this.updatedAt,const DeepCollectionEquality().hash(_this.revisions));
+}
 
 @override
 String toString() {
-  return 'RoutinePlanArtifact(draftMarkdown: $draftMarkdown, approvedMarkdown: $approvedMarkdown, approvedSourceHash: $approvedSourceHash, approvedAt: $approvedAt, updatedAt: $updatedAt, revisions: $revisions)';
+  final _this = this as RoutinePlanArtifact;
+  return 'RoutinePlanArtifact(draftMarkdown: ${_this.draftMarkdown}, approvedMarkdown: ${_this.approvedMarkdown}, approvedSourceHash: ${_this.approvedSourceHash}, approvedAt: ${_this.approvedAt}, updatedAt: ${_this.updatedAt}, revisions: ${_this.revisions})';
 }
 
 
@@ -885,7 +912,7 @@ class _$RoutinePlanArtifactCopyWithImpl<$Res>
 /// Create a copy of RoutinePlanArtifact
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? draftMarkdown = null,Object? approvedMarkdown = null,Object? approvedSourceHash = null,Object? approvedAt = freezed,Object? updatedAt = freezed,Object? revisions = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutinePlanArtifact(
 draftMarkdown: null == draftMarkdown ? _self.draftMarkdown : draftMarkdown // ignore: cast_nullable_to_non_nullable
 as String,approvedMarkdown: null == approvedMarkdown ? _self.approvedMarkdown : approvedMarkdown // ignore: cast_nullable_to_non_nullable
 as String,approvedSourceHash: null == approvedSourceHash ? _self.approvedSourceHash : approvedSourceHash // ignore: cast_nullable_to_non_nullable
@@ -1033,7 +1060,7 @@ return $default(_that.draftMarkdown,_that.approvedMarkdown,_that.approvedSourceH
 @JsonSerializable()
 
 class _RoutinePlanArtifact extends RoutinePlanArtifact {
-  const _RoutinePlanArtifact({this.draftMarkdown = '', this.approvedMarkdown = '', this.approvedSourceHash = '', this.approvedAt, this.updatedAt, @JsonKey(fromJson: _routinePlanRevisionsFromJson, toJson: _routinePlanRevisionsToJson) final  List<RoutinePlanRevision> revisions = const <RoutinePlanRevision>[]}): _revisions = revisions,super._();
+  const _RoutinePlanArtifact({this.draftMarkdown = '', this.approvedMarkdown = '', this.approvedSourceHash = '', this.approvedAt, this.updatedAt, @JsonKey(fromJson: _routinePlanRevisionsFromJson, toJson: _routinePlanRevisionsToJson)  List<RoutinePlanRevision> revisions = const <RoutinePlanRevision>[]}): _revisions = revisions,super._();
   factory _RoutinePlanArtifact.fromJson(Map<String, dynamic> json) => _$RoutinePlanArtifactFromJson(json);
 
 @override@JsonKey() final  String draftMarkdown;
@@ -1062,16 +1089,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutinePlanArtifact&&(identical(other.draftMarkdown, draftMarkdown) || other.draftMarkdown == draftMarkdown)&&(identical(other.approvedMarkdown, approvedMarkdown) || other.approvedMarkdown == approvedMarkdown)&&(identical(other.approvedSourceHash, approvedSourceHash) || other.approvedSourceHash == approvedSourceHash)&&(identical(other.approvedAt, approvedAt) || other.approvedAt == approvedAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other._revisions, _revisions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutinePlanArtifact&&(identical(other.draftMarkdown, draftMarkdown) || other.draftMarkdown == draftMarkdown)&&(identical(other.approvedMarkdown, approvedMarkdown) || other.approvedMarkdown == approvedMarkdown)&&(identical(other.approvedSourceHash, approvedSourceHash) || other.approvedSourceHash == approvedSourceHash)&&(identical(other.approvedAt, approvedAt) || other.approvedAt == approvedAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.revisions, _revisions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,draftMarkdown,approvedMarkdown,approvedSourceHash,approvedAt,updatedAt,const DeepCollectionEquality().hash(_revisions));
+int get hashCode {
+    return Object.hash(runtimeType,draftMarkdown,approvedMarkdown,approvedSourceHash,approvedAt,updatedAt,const DeepCollectionEquality().hash(_revisions));
+}
 
 @override
 String toString() {
-  return 'RoutinePlanArtifact(draftMarkdown: $draftMarkdown, approvedMarkdown: $approvedMarkdown, approvedSourceHash: $approvedSourceHash, approvedAt: $approvedAt, updatedAt: $updatedAt, revisions: $revisions)';
+    return 'RoutinePlanArtifact(draftMarkdown: $draftMarkdown, approvedMarkdown: $approvedMarkdown, approvedSourceHash: $approvedSourceHash, approvedAt: $approvedAt, updatedAt: $updatedAt, revisions: $revisions)';
 }
 
 
@@ -1131,16 +1160,21 @@ $RoutineRunRecordCopyWith<RoutineRunRecord> get copyWith => _$RoutineRunRecordCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.usedPlan, usedPlan) || other.usedPlan == usedPlan)&&(identical(other.planSourceHash, planSourceHash) || other.planSourceHash == planSourceHash)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.usedTools, usedTools) || other.usedTools == usedTools)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&const DeepCollectionEquality().equals(other.toolNames, toolNames)&&const DeepCollectionEquality().equals(other.toolCalls, toolCalls)&&const DeepCollectionEquality().equals(other.toolSourceLabels, toolSourceLabels)&&(identical(other.deliveryStatus, deliveryStatus) || other.deliveryStatus == deliveryStatus)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.output, output) || other.output == output)&&(identical(other.error, error) || other.error == error)&&(identical(other.failureAcknowledged, failureAcknowledged) || other.failureAcknowledged == failureAcknowledged)&&(identical(other.objective, objective) || other.objective == objective)&&const DeepCollectionEquality().equals(other.objectiveAcceptanceCriteria, objectiveAcceptanceCriteria)&&(identical(other.objectivePlan, objectivePlan) || other.objectivePlan == objectivePlan)&&(identical(other.mechanicalVerification, mechanicalVerification) || other.mechanicalVerification == mechanicalVerification)&&const DeepCollectionEquality().equals(other.changedFiles, changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&const DeepCollectionEquality().equals(other.implementationEvidence, implementationEvidence));
+  final _this = this as RoutineRunRecord;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunRecord&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.startedAt, _this.startedAt) || other.startedAt == _this.startedAt)&&(identical(other.finishedAt, _this.finishedAt) || other.finishedAt == _this.finishedAt)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.trigger, _this.trigger) || other.trigger == _this.trigger)&&(identical(other.usedPlan, _this.usedPlan) || other.usedPlan == _this.usedPlan)&&(identical(other.planSourceHash, _this.planSourceHash) || other.planSourceHash == _this.planSourceHash)&&(identical(other.durationMs, _this.durationMs) || other.durationMs == _this.durationMs)&&(identical(other.usedTools, _this.usedTools) || other.usedTools == _this.usedTools)&&(identical(other.toolCallCount, _this.toolCallCount) || other.toolCallCount == _this.toolCallCount)&&const DeepCollectionEquality().equals(other.toolNames, _this.toolNames)&&const DeepCollectionEquality().equals(other.toolCalls, _this.toolCalls)&&const DeepCollectionEquality().equals(other.toolSourceLabels, _this.toolSourceLabels)&&(identical(other.deliveryStatus, _this.deliveryStatus) || other.deliveryStatus == _this.deliveryStatus)&&(identical(other.deliveredAt, _this.deliveredAt) || other.deliveredAt == _this.deliveredAt)&&(identical(other.deliveryMessage, _this.deliveryMessage) || other.deliveryMessage == _this.deliveryMessage)&&(identical(other.preview, _this.preview) || other.preview == _this.preview)&&(identical(other.output, _this.output) || other.output == _this.output)&&(identical(other.error, _this.error) || other.error == _this.error)&&(identical(other.failureAcknowledged, _this.failureAcknowledged) || other.failureAcknowledged == _this.failureAcknowledged)&&(identical(other.objective, _this.objective) || other.objective == _this.objective)&&const DeepCollectionEquality().equals(other.objectiveAcceptanceCriteria, _this.objectiveAcceptanceCriteria)&&(identical(other.objectivePlan, _this.objectivePlan) || other.objectivePlan == _this.objectivePlan)&&(identical(other.mechanicalVerification, _this.mechanicalVerification) || other.mechanicalVerification == _this.mechanicalVerification)&&const DeepCollectionEquality().equals(other.changedFiles, _this.changedFiles)&&(identical(other.changedFileEvidenceTruncated, _this.changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == _this.changedFileEvidenceTruncated)&&const DeepCollectionEquality().equals(other.implementationEvidence, _this.implementationEvidence));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,startedAt,finishedAt,status,trigger,usedPlan,planSourceHash,durationMs,usedTools,toolCallCount,const DeepCollectionEquality().hash(toolNames),const DeepCollectionEquality().hash(toolCalls),const DeepCollectionEquality().hash(toolSourceLabels),deliveryStatus,deliveredAt,deliveryMessage,preview,output,error,failureAcknowledged,objective,const DeepCollectionEquality().hash(objectiveAcceptanceCriteria),objectivePlan,mechanicalVerification,const DeepCollectionEquality().hash(changedFiles),changedFileEvidenceTruncated,const DeepCollectionEquality().hash(implementationEvidence)]);
+int get hashCode {
+  final _this = this as RoutineRunRecord;
+  return Object.hashAll([runtimeType,_this.id,_this.startedAt,_this.finishedAt,_this.status,_this.trigger,_this.usedPlan,_this.planSourceHash,_this.durationMs,_this.usedTools,_this.toolCallCount,const DeepCollectionEquality().hash(_this.toolNames),const DeepCollectionEquality().hash(_this.toolCalls),const DeepCollectionEquality().hash(_this.toolSourceLabels),_this.deliveryStatus,_this.deliveredAt,_this.deliveryMessage,_this.preview,_this.output,_this.error,_this.failureAcknowledged,_this.objective,const DeepCollectionEquality().hash(_this.objectiveAcceptanceCriteria),_this.objectivePlan,_this.mechanicalVerification,const DeepCollectionEquality().hash(_this.changedFiles),_this.changedFileEvidenceTruncated,const DeepCollectionEquality().hash(_this.implementationEvidence)]);
+}
 
 @override
 String toString() {
-  return 'RoutineRunRecord(id: $id, startedAt: $startedAt, finishedAt: $finishedAt, status: $status, trigger: $trigger, usedPlan: $usedPlan, planSourceHash: $planSourceHash, durationMs: $durationMs, usedTools: $usedTools, toolCallCount: $toolCallCount, toolNames: $toolNames, toolCalls: $toolCalls, toolSourceLabels: $toolSourceLabels, deliveryStatus: $deliveryStatus, deliveredAt: $deliveredAt, deliveryMessage: $deliveryMessage, preview: $preview, output: $output, error: $error, failureAcknowledged: $failureAcknowledged, objective: $objective, objectiveAcceptanceCriteria: $objectiveAcceptanceCriteria, objectivePlan: $objectivePlan, mechanicalVerification: $mechanicalVerification, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, implementationEvidence: $implementationEvidence)';
+  final _this = this as RoutineRunRecord;
+  return 'RoutineRunRecord(id: ${_this.id}, startedAt: ${_this.startedAt}, finishedAt: ${_this.finishedAt}, status: ${_this.status}, trigger: ${_this.trigger}, usedPlan: ${_this.usedPlan}, planSourceHash: ${_this.planSourceHash}, durationMs: ${_this.durationMs}, usedTools: ${_this.usedTools}, toolCallCount: ${_this.toolCallCount}, toolNames: ${_this.toolNames}, toolCalls: ${_this.toolCalls}, toolSourceLabels: ${_this.toolSourceLabels}, deliveryStatus: ${_this.deliveryStatus}, deliveredAt: ${_this.deliveredAt}, deliveryMessage: ${_this.deliveryMessage}, preview: ${_this.preview}, output: ${_this.output}, error: ${_this.error}, failureAcknowledged: ${_this.failureAcknowledged}, objective: ${_this.objective}, objectiveAcceptanceCriteria: ${_this.objectiveAcceptanceCriteria}, objectivePlan: ${_this.objectivePlan}, mechanicalVerification: ${_this.mechanicalVerification}, changedFiles: ${_this.changedFiles}, changedFileEvidenceTruncated: ${_this.changedFileEvidenceTruncated}, implementationEvidence: ${_this.implementationEvidence})';
 }
 
 
@@ -1169,7 +1203,7 @@ class _$RoutineRunRecordCopyWithImpl<$Res>
 /// Create a copy of RoutineRunRecord
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? startedAt = null,Object? finishedAt = null,Object? status = null,Object? trigger = null,Object? usedPlan = null,Object? planSourceHash = null,Object? durationMs = null,Object? usedTools = null,Object? toolCallCount = null,Object? toolNames = null,Object? toolCalls = null,Object? toolSourceLabels = null,Object? deliveryStatus = null,Object? deliveredAt = freezed,Object? deliveryMessage = null,Object? preview = null,Object? output = null,Object? error = null,Object? failureAcknowledged = null,Object? objective = null,Object? objectiveAcceptanceCriteria = null,Object? objectivePlan = null,Object? mechanicalVerification = freezed,Object? changedFiles = null,Object? changedFileEvidenceTruncated = null,Object? implementationEvidence = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutineRunRecord(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,startedAt: null == startedAt ? _self.startedAt : startedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,finishedAt: null == finishedAt ? _self.finishedAt : finishedAt // ignore: cast_nullable_to_non_nullable
@@ -1350,7 +1384,7 @@ return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.tri
 @JsonSerializable()
 
 class _RoutineRunRecord extends RoutineRunRecord {
-  const _RoutineRunRecord({required this.id, required this.startedAt, required this.finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed) this.status = RoutineRunStatus.completed, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual) this.trigger = RoutineRunTrigger.manual, this.usedPlan = false, this.planSourceHash = '', this.durationMs = 0, this.usedTools = false, this.toolCallCount = 0, final  List<String> toolNames = const <String>[], @JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson) final  List<RoutineRunToolCall> toolCalls = const <RoutineRunToolCall>[], final  Map<String, String> toolSourceLabels = const <String, String>{}, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) this.deliveryStatus = RoutineDeliveryStatus.notRequested, this.deliveredAt, this.deliveryMessage = '', this.preview = '', this.output = '', this.error = '', this.failureAcknowledged = false, this.objective = '', final  List<String> objectiveAcceptanceCriteria = const <String>[], this.objectivePlan = '', this.mechanicalVerification, @JsonKey(fromJson: _routineRunChangedFilesFromJson, toJson: _routineRunChangedFilesToJson) final  List<RoutineRunChangedFileEvidence> changedFiles = const <RoutineRunChangedFileEvidence>[], this.changedFileEvidenceTruncated = false, final  List<String> implementationEvidence = const <String>[]}): _toolNames = toolNames,_toolCalls = toolCalls,_toolSourceLabels = toolSourceLabels,_objectiveAcceptanceCriteria = objectiveAcceptanceCriteria,_changedFiles = changedFiles,_implementationEvidence = implementationEvidence,super._();
+  const _RoutineRunRecord({required this.id, required this.startedAt, required this.finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed) this.status = RoutineRunStatus.completed, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual) this.trigger = RoutineRunTrigger.manual, this.usedPlan = false, this.planSourceHash = '', this.durationMs = 0, this.usedTools = false, this.toolCallCount = 0,  List<String> toolNames = const <String>[], @JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson)  List<RoutineRunToolCall> toolCalls = const <RoutineRunToolCall>[],  Map<String, String> toolSourceLabels = const <String, String>{}, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) this.deliveryStatus = RoutineDeliveryStatus.notRequested, this.deliveredAt, this.deliveryMessage = '', this.preview = '', this.output = '', this.error = '', this.failureAcknowledged = false, this.objective = '',  List<String> objectiveAcceptanceCriteria = const <String>[], this.objectivePlan = '', this.mechanicalVerification, @JsonKey(fromJson: _routineRunChangedFilesFromJson, toJson: _routineRunChangedFilesToJson)  List<RoutineRunChangedFileEvidence> changedFiles = const <RoutineRunChangedFileEvidence>[], this.changedFileEvidenceTruncated = false,  List<String> implementationEvidence = const <String>[]}): _toolNames = toolNames,_toolCalls = toolCalls,_toolSourceLabels = toolSourceLabels,_objectiveAcceptanceCriteria = objectiveAcceptanceCriteria,_changedFiles = changedFiles,_implementationEvidence = implementationEvidence,super._();
   factory _RoutineRunRecord.fromJson(Map<String, dynamic> json) => _$RoutineRunRecordFromJson(json);
 
 @override final  String id;
@@ -1430,16 +1464,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.usedPlan, usedPlan) || other.usedPlan == usedPlan)&&(identical(other.planSourceHash, planSourceHash) || other.planSourceHash == planSourceHash)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.usedTools, usedTools) || other.usedTools == usedTools)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&const DeepCollectionEquality().equals(other._toolNames, _toolNames)&&const DeepCollectionEquality().equals(other._toolCalls, _toolCalls)&&const DeepCollectionEquality().equals(other._toolSourceLabels, _toolSourceLabels)&&(identical(other.deliveryStatus, deliveryStatus) || other.deliveryStatus == deliveryStatus)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.output, output) || other.output == output)&&(identical(other.error, error) || other.error == error)&&(identical(other.failureAcknowledged, failureAcknowledged) || other.failureAcknowledged == failureAcknowledged)&&(identical(other.objective, objective) || other.objective == objective)&&const DeepCollectionEquality().equals(other._objectiveAcceptanceCriteria, _objectiveAcceptanceCriteria)&&(identical(other.objectivePlan, objectivePlan) || other.objectivePlan == objectivePlan)&&(identical(other.mechanicalVerification, mechanicalVerification) || other.mechanicalVerification == mechanicalVerification)&&const DeepCollectionEquality().equals(other._changedFiles, _changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&const DeepCollectionEquality().equals(other._implementationEvidence, _implementationEvidence));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.usedPlan, usedPlan) || other.usedPlan == usedPlan)&&(identical(other.planSourceHash, planSourceHash) || other.planSourceHash == planSourceHash)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.usedTools, usedTools) || other.usedTools == usedTools)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&const DeepCollectionEquality().equals(other.toolNames, _toolNames)&&const DeepCollectionEquality().equals(other.toolCalls, _toolCalls)&&const DeepCollectionEquality().equals(other.toolSourceLabels, _toolSourceLabels)&&(identical(other.deliveryStatus, deliveryStatus) || other.deliveryStatus == deliveryStatus)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.output, output) || other.output == output)&&(identical(other.error, error) || other.error == error)&&(identical(other.failureAcknowledged, failureAcknowledged) || other.failureAcknowledged == failureAcknowledged)&&(identical(other.objective, objective) || other.objective == objective)&&const DeepCollectionEquality().equals(other.objectiveAcceptanceCriteria, _objectiveAcceptanceCriteria)&&(identical(other.objectivePlan, objectivePlan) || other.objectivePlan == objectivePlan)&&(identical(other.mechanicalVerification, mechanicalVerification) || other.mechanicalVerification == mechanicalVerification)&&const DeepCollectionEquality().equals(other.changedFiles, _changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&const DeepCollectionEquality().equals(other.implementationEvidence, _implementationEvidence));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,startedAt,finishedAt,status,trigger,usedPlan,planSourceHash,durationMs,usedTools,toolCallCount,const DeepCollectionEquality().hash(_toolNames),const DeepCollectionEquality().hash(_toolCalls),const DeepCollectionEquality().hash(_toolSourceLabels),deliveryStatus,deliveredAt,deliveryMessage,preview,output,error,failureAcknowledged,objective,const DeepCollectionEquality().hash(_objectiveAcceptanceCriteria),objectivePlan,mechanicalVerification,const DeepCollectionEquality().hash(_changedFiles),changedFileEvidenceTruncated,const DeepCollectionEquality().hash(_implementationEvidence)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,startedAt,finishedAt,status,trigger,usedPlan,planSourceHash,durationMs,usedTools,toolCallCount,const DeepCollectionEquality().hash(_toolNames),const DeepCollectionEquality().hash(_toolCalls),const DeepCollectionEquality().hash(_toolSourceLabels),deliveryStatus,deliveredAt,deliveryMessage,preview,output,error,failureAcknowledged,objective,const DeepCollectionEquality().hash(_objectiveAcceptanceCriteria),objectivePlan,mechanicalVerification,const DeepCollectionEquality().hash(_changedFiles),changedFileEvidenceTruncated,const DeepCollectionEquality().hash(_implementationEvidence)]);
+}
 
 @override
 String toString() {
-  return 'RoutineRunRecord(id: $id, startedAt: $startedAt, finishedAt: $finishedAt, status: $status, trigger: $trigger, usedPlan: $usedPlan, planSourceHash: $planSourceHash, durationMs: $durationMs, usedTools: $usedTools, toolCallCount: $toolCallCount, toolNames: $toolNames, toolCalls: $toolCalls, toolSourceLabels: $toolSourceLabels, deliveryStatus: $deliveryStatus, deliveredAt: $deliveredAt, deliveryMessage: $deliveryMessage, preview: $preview, output: $output, error: $error, failureAcknowledged: $failureAcknowledged, objective: $objective, objectiveAcceptanceCriteria: $objectiveAcceptanceCriteria, objectivePlan: $objectivePlan, mechanicalVerification: $mechanicalVerification, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, implementationEvidence: $implementationEvidence)';
+    return 'RoutineRunRecord(id: $id, startedAt: $startedAt, finishedAt: $finishedAt, status: $status, trigger: $trigger, usedPlan: $usedPlan, planSourceHash: $planSourceHash, durationMs: $durationMs, usedTools: $usedTools, toolCallCount: $toolCallCount, toolNames: $toolNames, toolCalls: $toolCalls, toolSourceLabels: $toolSourceLabels, deliveryStatus: $deliveryStatus, deliveredAt: $deliveredAt, deliveryMessage: $deliveryMessage, preview: $preview, output: $output, error: $error, failureAcknowledged: $failureAcknowledged, objective: $objective, objectiveAcceptanceCriteria: $objectiveAcceptanceCriteria, objectivePlan: $objectivePlan, mechanicalVerification: $mechanicalVerification, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, implementationEvidence: $implementationEvidence)';
 }
 
 
@@ -1532,16 +1568,21 @@ $RoutineRunMechanicalVerificationCopyWith<RoutineRunMechanicalVerification> get 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunMechanicalVerification&&(identical(other.command, command) || other.command == command)&&(identical(other.exitCode, exitCode) || other.exitCode == exitCode)&&(identical(other.output, output) || other.output == output));
+  final _this = this as RoutineRunMechanicalVerification;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunMechanicalVerification&&(identical(other.command, _this.command) || other.command == _this.command)&&(identical(other.exitCode, _this.exitCode) || other.exitCode == _this.exitCode)&&(identical(other.output, _this.output) || other.output == _this.output));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,command,exitCode,output);
+int get hashCode {
+  final _this = this as RoutineRunMechanicalVerification;
+  return Object.hash(runtimeType,_this.command,_this.exitCode,_this.output);
+}
 
 @override
 String toString() {
-  return 'RoutineRunMechanicalVerification(command: $command, exitCode: $exitCode, output: $output)';
+  final _this = this as RoutineRunMechanicalVerification;
+  return 'RoutineRunMechanicalVerification(command: ${_this.command}, exitCode: ${_this.exitCode}, output: ${_this.output})';
 }
 
 
@@ -1570,7 +1611,7 @@ class _$RoutineRunMechanicalVerificationCopyWithImpl<$Res>
 /// Create a copy of RoutineRunMechanicalVerification
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? command = null,Object? exitCode = null,Object? output = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutineRunMechanicalVerification(
 command: null == command ? _self.command : command // ignore: cast_nullable_to_non_nullable
 as String,exitCode: null == exitCode ? _self.exitCode : exitCode // ignore: cast_nullable_to_non_nullable
 as int,output: null == output ? _self.output : output // ignore: cast_nullable_to_non_nullable
@@ -1735,16 +1776,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunMechanicalVerification&&(identical(other.command, command) || other.command == command)&&(identical(other.exitCode, exitCode) || other.exitCode == exitCode)&&(identical(other.output, output) || other.output == output));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunMechanicalVerification&&(identical(other.command, command) || other.command == command)&&(identical(other.exitCode, exitCode) || other.exitCode == exitCode)&&(identical(other.output, output) || other.output == output));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,command,exitCode,output);
+int get hashCode {
+    return Object.hash(runtimeType,command,exitCode,output);
+}
 
 @override
 String toString() {
-  return 'RoutineRunMechanicalVerification(command: $command, exitCode: $exitCode, output: $output)';
+    return 'RoutineRunMechanicalVerification(command: $command, exitCode: $exitCode, output: $output)';
 }
 
 
@@ -1801,16 +1844,21 @@ $RoutineRunChangedFileEvidenceCopyWith<RoutineRunChangedFileEvidence> get copyWi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.truncated, truncated) || other.truncated == truncated));
+  final _this = this as RoutineRunChangedFileEvidence;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunChangedFileEvidence&&(identical(other.path, _this.path) || other.path == _this.path)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.byteSize, _this.byteSize) || other.byteSize == _this.byteSize)&&(identical(other.contentHash, _this.contentHash) || other.contentHash == _this.contentHash)&&(identical(other.truncated, _this.truncated) || other.truncated == _this.truncated));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,path,content,byteSize,contentHash,truncated);
+int get hashCode {
+  final _this = this as RoutineRunChangedFileEvidence;
+  return Object.hash(runtimeType,_this.path,_this.content,_this.byteSize,_this.contentHash,_this.truncated);
+}
 
 @override
 String toString() {
-  return 'RoutineRunChangedFileEvidence(path: $path, content: $content, byteSize: $byteSize, contentHash: $contentHash, truncated: $truncated)';
+  final _this = this as RoutineRunChangedFileEvidence;
+  return 'RoutineRunChangedFileEvidence(path: ${_this.path}, content: ${_this.content}, byteSize: ${_this.byteSize}, contentHash: ${_this.contentHash}, truncated: ${_this.truncated})';
 }
 
 
@@ -1839,7 +1887,7 @@ class _$RoutineRunChangedFileEvidenceCopyWithImpl<$Res>
 /// Create a copy of RoutineRunChangedFileEvidence
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? path = null,Object? content = null,Object? byteSize = null,Object? contentHash = null,Object? truncated = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutineRunChangedFileEvidence(
 path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as String,byteSize: null == byteSize ? _self.byteSize : byteSize // ignore: cast_nullable_to_non_nullable
@@ -2008,16 +2056,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.truncated, truncated) || other.truncated == truncated));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.truncated, truncated) || other.truncated == truncated));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,path,content,byteSize,contentHash,truncated);
+int get hashCode {
+    return Object.hash(runtimeType,path,content,byteSize,contentHash,truncated);
+}
 
 @override
 String toString() {
-  return 'RoutineRunChangedFileEvidence(path: $path, content: $content, byteSize: $byteSize, contentHash: $contentHash, truncated: $truncated)';
+    return 'RoutineRunChangedFileEvidence(path: $path, content: $content, byteSize: $byteSize, contentHash: $contentHash, truncated: $truncated)';
 }
 
 
@@ -2076,16 +2126,21 @@ $RoutineRunToolCallCopyWith<RoutineRunToolCall> get copyWith => _$RoutineRunTool
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunToolCall&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.arguments, arguments) || other.arguments == arguments)&&(identical(other.result, result) || other.result == result));
+  final _this = this as RoutineRunToolCall;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunToolCall&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.arguments, _this.arguments) || other.arguments == _this.arguments)&&(identical(other.result, _this.result) || other.result == _this.result));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,arguments,result);
+int get hashCode {
+  final _this = this as RoutineRunToolCall;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.arguments,_this.result);
+}
 
 @override
 String toString() {
-  return 'RoutineRunToolCall(id: $id, name: $name, arguments: $arguments, result: $result)';
+  final _this = this as RoutineRunToolCall;
+  return 'RoutineRunToolCall(id: ${_this.id}, name: ${_this.name}, arguments: ${_this.arguments}, result: ${_this.result})';
 }
 
 
@@ -2114,7 +2169,7 @@ class _$RoutineRunToolCallCopyWithImpl<$Res>
 /// Create a copy of RoutineRunToolCall
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? arguments = null,Object? result = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoutineRunToolCall(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,arguments: null == arguments ? _self.arguments : arguments // ignore: cast_nullable_to_non_nullable
@@ -2281,16 +2336,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunToolCall&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.arguments, arguments) || other.arguments == arguments)&&(identical(other.result, result) || other.result == result));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunToolCall&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.arguments, arguments) || other.arguments == arguments)&&(identical(other.result, result) || other.result == result));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,arguments,result);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,arguments,result);
+}
 
 @override
 String toString() {
-  return 'RoutineRunToolCall(id: $id, name: $name, arguments: $arguments, result: $result)';
+    return 'RoutineRunToolCall(id: $id, name: $name, arguments: $arguments, result: $result)';
 }
 
 
@@ -2348,16 +2405,21 @@ $RoutineCopyWith<Routine> get copyWith => _$RoutineCopyWithImpl<Routine>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Routine&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.notifyOnCompletion, notifyOnCompletion) || other.notifyOnCompletion == notifyOnCompletion)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.completionAction, completionAction) || other.completionAction == completionAction)&&(identical(other.googleChatRule, googleChatRule) || other.googleChatRule == googleChatRule)&&(identical(other.workspaceDirectory, workspaceDirectory) || other.workspaceDirectory == workspaceDirectory)&&(identical(other.allowWorkspaceWrites, allowWorkspaceWrites) || other.allowWorkspaceWrites == allowWorkspaceWrites)&&(identical(other.objectiveEvidenceContract, objectiveEvidenceContract) || other.objectiveEvidenceContract == objectiveEvidenceContract)&&(identical(other.retryUntilGreenConfig, retryUntilGreenConfig) || other.retryUntilGreenConfig == retryUntilGreenConfig)&&(identical(other.planArtifact, planArtifact) || other.planArtifact == planArtifact)&&(identical(other.intervalValue, intervalValue) || other.intervalValue == intervalValue)&&(identical(other.intervalUnit, intervalUnit) || other.intervalUnit == intervalUnit)&&(identical(other.scheduleMode, scheduleMode) || other.scheduleMode == scheduleMode)&&(identical(other.timeOfDayMinutes, timeOfDayMinutes) || other.timeOfDayMinutes == timeOfDayMinutes)&&(identical(other.nextRunAt, nextRunAt) || other.nextRunAt == nextRunAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&const DeepCollectionEquality().equals(other.runs, runs));
+  final _this = this as Routine;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Routine&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.prompt, _this.prompt) || other.prompt == _this.prompt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.enabled, _this.enabled) || other.enabled == _this.enabled)&&(identical(other.notifyOnCompletion, _this.notifyOnCompletion) || other.notifyOnCompletion == _this.notifyOnCompletion)&&(identical(other.toolsEnabled, _this.toolsEnabled) || other.toolsEnabled == _this.toolsEnabled)&&(identical(other.completionAction, _this.completionAction) || other.completionAction == _this.completionAction)&&(identical(other.googleChatRule, _this.googleChatRule) || other.googleChatRule == _this.googleChatRule)&&(identical(other.workspaceDirectory, _this.workspaceDirectory) || other.workspaceDirectory == _this.workspaceDirectory)&&(identical(other.allowWorkspaceWrites, _this.allowWorkspaceWrites) || other.allowWorkspaceWrites == _this.allowWorkspaceWrites)&&(identical(other.objectiveEvidenceContract, _this.objectiveEvidenceContract) || other.objectiveEvidenceContract == _this.objectiveEvidenceContract)&&(identical(other.retryUntilGreenConfig, _this.retryUntilGreenConfig) || other.retryUntilGreenConfig == _this.retryUntilGreenConfig)&&(identical(other.planArtifact, _this.planArtifact) || other.planArtifact == _this.planArtifact)&&(identical(other.intervalValue, _this.intervalValue) || other.intervalValue == _this.intervalValue)&&(identical(other.intervalUnit, _this.intervalUnit) || other.intervalUnit == _this.intervalUnit)&&(identical(other.scheduleMode, _this.scheduleMode) || other.scheduleMode == _this.scheduleMode)&&(identical(other.timeOfDayMinutes, _this.timeOfDayMinutes) || other.timeOfDayMinutes == _this.timeOfDayMinutes)&&(identical(other.nextRunAt, _this.nextRunAt) || other.nextRunAt == _this.nextRunAt)&&(identical(other.lastRunAt, _this.lastRunAt) || other.lastRunAt == _this.lastRunAt)&&const DeepCollectionEquality().equals(other.runs, _this.runs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,name,prompt,createdAt,updatedAt,enabled,notifyOnCompletion,toolsEnabled,completionAction,googleChatRule,workspaceDirectory,allowWorkspaceWrites,objectiveEvidenceContract,retryUntilGreenConfig,planArtifact,intervalValue,intervalUnit,scheduleMode,timeOfDayMinutes,nextRunAt,lastRunAt,const DeepCollectionEquality().hash(runs)]);
+int get hashCode {
+  final _this = this as Routine;
+  return Object.hashAll([runtimeType,_this.id,_this.name,_this.prompt,_this.createdAt,_this.updatedAt,_this.enabled,_this.notifyOnCompletion,_this.toolsEnabled,_this.completionAction,_this.googleChatRule,_this.workspaceDirectory,_this.allowWorkspaceWrites,_this.objectiveEvidenceContract,_this.retryUntilGreenConfig,_this.planArtifact,_this.intervalValue,_this.intervalUnit,_this.scheduleMode,_this.timeOfDayMinutes,_this.nextRunAt,_this.lastRunAt,const DeepCollectionEquality().hash(_this.runs)]);
+}
 
 @override
 String toString() {
-  return 'Routine(id: $id, name: $name, prompt: $prompt, createdAt: $createdAt, updatedAt: $updatedAt, enabled: $enabled, notifyOnCompletion: $notifyOnCompletion, toolsEnabled: $toolsEnabled, completionAction: $completionAction, googleChatRule: $googleChatRule, workspaceDirectory: $workspaceDirectory, allowWorkspaceWrites: $allowWorkspaceWrites, objectiveEvidenceContract: $objectiveEvidenceContract, retryUntilGreenConfig: $retryUntilGreenConfig, planArtifact: $planArtifact, intervalValue: $intervalValue, intervalUnit: $intervalUnit, scheduleMode: $scheduleMode, timeOfDayMinutes: $timeOfDayMinutes, nextRunAt: $nextRunAt, lastRunAt: $lastRunAt, runs: $runs)';
+  final _this = this as Routine;
+  return 'Routine(id: ${_this.id}, name: ${_this.name}, prompt: ${_this.prompt}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, enabled: ${_this.enabled}, notifyOnCompletion: ${_this.notifyOnCompletion}, toolsEnabled: ${_this.toolsEnabled}, completionAction: ${_this.completionAction}, googleChatRule: ${_this.googleChatRule}, workspaceDirectory: ${_this.workspaceDirectory}, allowWorkspaceWrites: ${_this.allowWorkspaceWrites}, objectiveEvidenceContract: ${_this.objectiveEvidenceContract}, retryUntilGreenConfig: ${_this.retryUntilGreenConfig}, planArtifact: ${_this.planArtifact}, intervalValue: ${_this.intervalValue}, intervalUnit: ${_this.intervalUnit}, scheduleMode: ${_this.scheduleMode}, timeOfDayMinutes: ${_this.timeOfDayMinutes}, nextRunAt: ${_this.nextRunAt}, lastRunAt: ${_this.lastRunAt}, runs: ${_this.runs})';
 }
 
 
@@ -2386,7 +2448,7 @@ class _$RoutineCopyWithImpl<$Res>
 /// Create a copy of Routine
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? prompt = null,Object? createdAt = null,Object? updatedAt = null,Object? enabled = null,Object? notifyOnCompletion = null,Object? toolsEnabled = null,Object? completionAction = null,Object? googleChatRule = null,Object? workspaceDirectory = null,Object? allowWorkspaceWrites = null,Object? objectiveEvidenceContract = freezed,Object? retryUntilGreenConfig = freezed,Object? planArtifact = freezed,Object? intervalValue = null,Object? intervalUnit = null,Object? scheduleMode = null,Object? timeOfDayMinutes = null,Object? nextRunAt = freezed,Object? lastRunAt = freezed,Object? runs = null,}) {
-  return _then(_self.copyWith(
+  return _then(Routine(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullable_to_non_nullable
@@ -2586,7 +2648,7 @@ return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt
 @JsonSerializable()
 
 class _Routine extends Routine {
-  const _Routine({required this.id, required this.name, required this.prompt, required this.createdAt, required this.updatedAt, this.enabled = true, this.notifyOnCompletion = true, this.toolsEnabled = false, @JsonKey(unknownEnumValue: RoutineCompletionAction.none) this.completionAction = RoutineCompletionAction.none, @JsonKey(unknownEnumValue: RoutineGoogleChatRule.onFailure) this.googleChatRule = RoutineGoogleChatRule.onFailure, this.workspaceDirectory = '', this.allowWorkspaceWrites = false, this.objectiveEvidenceContract, this.retryUntilGreenConfig, @JsonKey(fromJson: _routinePlanArtifactFromJson, toJson: _routinePlanArtifactToJson) this.planArtifact, this.intervalValue = 1, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) this.intervalUnit = RoutineIntervalUnit.hours, @JsonKey(unknownEnumValue: RoutineScheduleMode.interval) this.scheduleMode = RoutineScheduleMode.interval, this.timeOfDayMinutes = 480, this.nextRunAt, this.lastRunAt, final  List<RoutineRunRecord> runs = const <RoutineRunRecord>[]}): _runs = runs,super._();
+  const _Routine({required this.id, required this.name, required this.prompt, required this.createdAt, required this.updatedAt, this.enabled = true, this.notifyOnCompletion = true, this.toolsEnabled = false, @JsonKey(unknownEnumValue: RoutineCompletionAction.none) this.completionAction = RoutineCompletionAction.none, @JsonKey(unknownEnumValue: RoutineGoogleChatRule.onFailure) this.googleChatRule = RoutineGoogleChatRule.onFailure, this.workspaceDirectory = '', this.allowWorkspaceWrites = false, this.objectiveEvidenceContract, this.retryUntilGreenConfig, @JsonKey(fromJson: _routinePlanArtifactFromJson, toJson: _routinePlanArtifactToJson) this.planArtifact, this.intervalValue = 1, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) this.intervalUnit = RoutineIntervalUnit.hours, @JsonKey(unknownEnumValue: RoutineScheduleMode.interval) this.scheduleMode = RoutineScheduleMode.interval, this.timeOfDayMinutes = 480, this.nextRunAt, this.lastRunAt,  List<RoutineRunRecord> runs = const <RoutineRunRecord>[]}): _runs = runs,super._();
   factory _Routine.fromJson(Map<String, dynamic> json) => _$RoutineFromJson(json);
 
 @override final  String id;
@@ -2631,16 +2693,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Routine&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.notifyOnCompletion, notifyOnCompletion) || other.notifyOnCompletion == notifyOnCompletion)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.completionAction, completionAction) || other.completionAction == completionAction)&&(identical(other.googleChatRule, googleChatRule) || other.googleChatRule == googleChatRule)&&(identical(other.workspaceDirectory, workspaceDirectory) || other.workspaceDirectory == workspaceDirectory)&&(identical(other.allowWorkspaceWrites, allowWorkspaceWrites) || other.allowWorkspaceWrites == allowWorkspaceWrites)&&(identical(other.objectiveEvidenceContract, objectiveEvidenceContract) || other.objectiveEvidenceContract == objectiveEvidenceContract)&&(identical(other.retryUntilGreenConfig, retryUntilGreenConfig) || other.retryUntilGreenConfig == retryUntilGreenConfig)&&(identical(other.planArtifact, planArtifact) || other.planArtifact == planArtifact)&&(identical(other.intervalValue, intervalValue) || other.intervalValue == intervalValue)&&(identical(other.intervalUnit, intervalUnit) || other.intervalUnit == intervalUnit)&&(identical(other.scheduleMode, scheduleMode) || other.scheduleMode == scheduleMode)&&(identical(other.timeOfDayMinutes, timeOfDayMinutes) || other.timeOfDayMinutes == timeOfDayMinutes)&&(identical(other.nextRunAt, nextRunAt) || other.nextRunAt == nextRunAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&const DeepCollectionEquality().equals(other._runs, _runs));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Routine&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.notifyOnCompletion, notifyOnCompletion) || other.notifyOnCompletion == notifyOnCompletion)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.completionAction, completionAction) || other.completionAction == completionAction)&&(identical(other.googleChatRule, googleChatRule) || other.googleChatRule == googleChatRule)&&(identical(other.workspaceDirectory, workspaceDirectory) || other.workspaceDirectory == workspaceDirectory)&&(identical(other.allowWorkspaceWrites, allowWorkspaceWrites) || other.allowWorkspaceWrites == allowWorkspaceWrites)&&(identical(other.objectiveEvidenceContract, objectiveEvidenceContract) || other.objectiveEvidenceContract == objectiveEvidenceContract)&&(identical(other.retryUntilGreenConfig, retryUntilGreenConfig) || other.retryUntilGreenConfig == retryUntilGreenConfig)&&(identical(other.planArtifact, planArtifact) || other.planArtifact == planArtifact)&&(identical(other.intervalValue, intervalValue) || other.intervalValue == intervalValue)&&(identical(other.intervalUnit, intervalUnit) || other.intervalUnit == intervalUnit)&&(identical(other.scheduleMode, scheduleMode) || other.scheduleMode == scheduleMode)&&(identical(other.timeOfDayMinutes, timeOfDayMinutes) || other.timeOfDayMinutes == timeOfDayMinutes)&&(identical(other.nextRunAt, nextRunAt) || other.nextRunAt == nextRunAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&const DeepCollectionEquality().equals(other.runs, _runs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,name,prompt,createdAt,updatedAt,enabled,notifyOnCompletion,toolsEnabled,completionAction,googleChatRule,workspaceDirectory,allowWorkspaceWrites,objectiveEvidenceContract,retryUntilGreenConfig,planArtifact,intervalValue,intervalUnit,scheduleMode,timeOfDayMinutes,nextRunAt,lastRunAt,const DeepCollectionEquality().hash(_runs)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,name,prompt,createdAt,updatedAt,enabled,notifyOnCompletion,toolsEnabled,completionAction,googleChatRule,workspaceDirectory,allowWorkspaceWrites,objectiveEvidenceContract,retryUntilGreenConfig,planArtifact,intervalValue,intervalUnit,scheduleMode,timeOfDayMinutes,nextRunAt,lastRunAt,const DeepCollectionEquality().hash(_runs)]);
+}
 
 @override
 String toString() {
-  return 'Routine(id: $id, name: $name, prompt: $prompt, createdAt: $createdAt, updatedAt: $updatedAt, enabled: $enabled, notifyOnCompletion: $notifyOnCompletion, toolsEnabled: $toolsEnabled, completionAction: $completionAction, googleChatRule: $googleChatRule, workspaceDirectory: $workspaceDirectory, allowWorkspaceWrites: $allowWorkspaceWrites, objectiveEvidenceContract: $objectiveEvidenceContract, retryUntilGreenConfig: $retryUntilGreenConfig, planArtifact: $planArtifact, intervalValue: $intervalValue, intervalUnit: $intervalUnit, scheduleMode: $scheduleMode, timeOfDayMinutes: $timeOfDayMinutes, nextRunAt: $nextRunAt, lastRunAt: $lastRunAt, runs: $runs)';
+    return 'Routine(id: $id, name: $name, prompt: $prompt, createdAt: $createdAt, updatedAt: $updatedAt, enabled: $enabled, notifyOnCompletion: $notifyOnCompletion, toolsEnabled: $toolsEnabled, completionAction: $completionAction, googleChatRule: $googleChatRule, workspaceDirectory: $workspaceDirectory, allowWorkspaceWrites: $allowWorkspaceWrites, objectiveEvidenceContract: $objectiveEvidenceContract, retryUntilGreenConfig: $retryUntilGreenConfig, planArtifact: $planArtifact, intervalValue: $intervalValue, intervalUnit: $intervalUnit, scheduleMode: $scheduleMode, timeOfDayMinutes: $timeOfDayMinutes, nextRunAt: $nextRunAt, lastRunAt: $lastRunAt, runs: $runs)';
 }
 
 

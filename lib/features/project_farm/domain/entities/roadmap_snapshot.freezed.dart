@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'roadmap_snapshot.dart';
@@ -9,6 +9,7 @@ part of 'roadmap_snapshot.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $RoadmapItemSnapshotCopyWith<RoadmapItemSnapshot> get copyWith => _$RoadmapItemS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoadmapItemSnapshot&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.quote, quote) || other.quote == quote)&&(identical(other.line, line) || other.line == line)&&(identical(other.verified, verified) || other.verified == verified));
+  final _this = this as RoadmapItemSnapshot;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoadmapItemSnapshot&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.quote, _this.quote) || other.quote == _this.quote)&&(identical(other.line, _this.line) || other.line == _this.line)&&(identical(other.verified, _this.verified) || other.verified == _this.verified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,quote,line,verified);
+int get hashCode {
+  final _this = this as RoadmapItemSnapshot;
+  return Object.hash(runtimeType,_this.id,_this.title,_this.quote,_this.line,_this.verified);
+}
 
 @override
 String toString() {
-  return 'RoadmapItemSnapshot(id: $id, title: $title, quote: $quote, line: $line, verified: $verified)';
+  final _this = this as RoadmapItemSnapshot;
+  return 'RoadmapItemSnapshot(id: ${_this.id}, title: ${_this.title}, quote: ${_this.quote}, line: ${_this.line}, verified: ${_this.verified})';
 }
 
 
@@ -66,7 +72,7 @@ class _$RoadmapItemSnapshotCopyWithImpl<$Res>
 /// Create a copy of RoadmapItemSnapshot
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? quote = null,Object? line = freezed,Object? verified = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoadmapItemSnapshot(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,quote: null == quote ? _self.quote : quote // ignore: cast_nullable_to_non_nullable
@@ -235,16 +241,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoadmapItemSnapshot&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.quote, quote) || other.quote == quote)&&(identical(other.line, line) || other.line == line)&&(identical(other.verified, verified) || other.verified == verified));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoadmapItemSnapshot&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.quote, quote) || other.quote == quote)&&(identical(other.line, line) || other.line == line)&&(identical(other.verified, verified) || other.verified == verified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,quote,line,verified);
+int get hashCode {
+    return Object.hash(runtimeType,id,title,quote,line,verified);
+}
 
 @override
 String toString() {
-  return 'RoadmapItemSnapshot(id: $id, title: $title, quote: $quote, line: $line, verified: $verified)';
+    return 'RoadmapItemSnapshot(id: $id, title: $title, quote: $quote, line: $line, verified: $verified)';
 }
 
 
@@ -305,16 +313,21 @@ $RoadmapSnapshotCopyWith<RoadmapSnapshot> get copyWith => _$RoadmapSnapshotCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoadmapSnapshot&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.roadmapPath, roadmapPath) || other.roadmapPath == roadmapPath)&&(identical(other.contentSha256, contentSha256) || other.contentSha256 == contentSha256)&&(identical(other.extractorVersion, extractorVersion) || other.extractorVersion == extractorVersion)&&(identical(other.model, model) || other.model == model)&&(identical(other.extractedAt, extractedAt) || other.extractedAt == extractedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.recommended, recommended) || other.recommended == recommended)&&(identical(other.recommendationSource, recommendationSource) || other.recommendationSource == recommendationSource)&&const DeepCollectionEquality().equals(other.current, current)&&const DeepCollectionEquality().equals(other.blocked, blocked)&&const DeepCollectionEquality().equals(other.upcoming, upcoming)&&(identical(other.droppedCount, droppedCount) || other.droppedCount == droppedCount)&&(identical(other.error, error) || other.error == error)&&(identical(other.pinned, pinned) || other.pinned == pinned));
+  final _this = this as RoadmapSnapshot;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoadmapSnapshot&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&(identical(other.roadmapPath, _this.roadmapPath) || other.roadmapPath == _this.roadmapPath)&&(identical(other.contentSha256, _this.contentSha256) || other.contentSha256 == _this.contentSha256)&&(identical(other.extractorVersion, _this.extractorVersion) || other.extractorVersion == _this.extractorVersion)&&(identical(other.model, _this.model) || other.model == _this.model)&&(identical(other.extractedAt, _this.extractedAt) || other.extractedAt == _this.extractedAt)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.recommended, _this.recommended) || other.recommended == _this.recommended)&&(identical(other.recommendationSource, _this.recommendationSource) || other.recommendationSource == _this.recommendationSource)&&const DeepCollectionEquality().equals(other.current, _this.current)&&const DeepCollectionEquality().equals(other.blocked, _this.blocked)&&const DeepCollectionEquality().equals(other.upcoming, _this.upcoming)&&(identical(other.droppedCount, _this.droppedCount) || other.droppedCount == _this.droppedCount)&&(identical(other.error, _this.error) || other.error == _this.error)&&(identical(other.pinned, _this.pinned) || other.pinned == _this.pinned));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,roadmapPath,contentSha256,extractorVersion,model,extractedAt,status,recommended,recommendationSource,const DeepCollectionEquality().hash(current),const DeepCollectionEquality().hash(blocked),const DeepCollectionEquality().hash(upcoming),droppedCount,error,pinned);
+int get hashCode {
+  final _this = this as RoadmapSnapshot;
+  return Object.hash(runtimeType,_this.projectId,_this.roadmapPath,_this.contentSha256,_this.extractorVersion,_this.model,_this.extractedAt,_this.status,_this.recommended,_this.recommendationSource,const DeepCollectionEquality().hash(_this.current),const DeepCollectionEquality().hash(_this.blocked),const DeepCollectionEquality().hash(_this.upcoming),_this.droppedCount,_this.error,_this.pinned);
+}
 
 @override
 String toString() {
-  return 'RoadmapSnapshot(projectId: $projectId, roadmapPath: $roadmapPath, contentSha256: $contentSha256, extractorVersion: $extractorVersion, model: $model, extractedAt: $extractedAt, status: $status, recommended: $recommended, recommendationSource: $recommendationSource, current: $current, blocked: $blocked, upcoming: $upcoming, droppedCount: $droppedCount, error: $error, pinned: $pinned)';
+  final _this = this as RoadmapSnapshot;
+  return 'RoadmapSnapshot(projectId: ${_this.projectId}, roadmapPath: ${_this.roadmapPath}, contentSha256: ${_this.contentSha256}, extractorVersion: ${_this.extractorVersion}, model: ${_this.model}, extractedAt: ${_this.extractedAt}, status: ${_this.status}, recommended: ${_this.recommended}, recommendationSource: ${_this.recommendationSource}, current: ${_this.current}, blocked: ${_this.blocked}, upcoming: ${_this.upcoming}, droppedCount: ${_this.droppedCount}, error: ${_this.error}, pinned: ${_this.pinned})';
 }
 
 
@@ -343,7 +356,7 @@ class _$RoadmapSnapshotCopyWithImpl<$Res>
 /// Create a copy of RoadmapSnapshot
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? projectId = null,Object? roadmapPath = null,Object? contentSha256 = null,Object? extractorVersion = null,Object? model = null,Object? extractedAt = null,Object? status = null,Object? recommended = freezed,Object? recommendationSource = null,Object? current = null,Object? blocked = null,Object? upcoming = null,Object? droppedCount = null,Object? error = freezed,Object? pinned = null,}) {
-  return _then(_self.copyWith(
+  return _then(RoadmapSnapshot(
 projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,roadmapPath: null == roadmapPath ? _self.roadmapPath : roadmapPath // ignore: cast_nullable_to_non_nullable
 as String,contentSha256: null == contentSha256 ? _self.contentSha256 : contentSha256 // ignore: cast_nullable_to_non_nullable
@@ -512,7 +525,7 @@ return $default(_that.projectId,_that.roadmapPath,_that.contentSha256,_that.extr
 @JsonSerializable()
 
 class _RoadmapSnapshot extends RoadmapSnapshot {
-  const _RoadmapSnapshot({required this.projectId, required this.roadmapPath, required this.contentSha256, required this.extractorVersion, required this.model, required this.extractedAt, required this.status, this.recommended, this.recommendationSource = RoadmapRecommendationSource.explicit, final  List<RoadmapItemSnapshot> current = const <RoadmapItemSnapshot>[], final  List<RoadmapItemSnapshot> blocked = const <RoadmapItemSnapshot>[], final  List<RoadmapItemSnapshot> upcoming = const <RoadmapItemSnapshot>[], this.droppedCount = 0, this.error, this.pinned = false}): _current = current,_blocked = blocked,_upcoming = upcoming,super._();
+  const _RoadmapSnapshot({required this.projectId, required this.roadmapPath, required this.contentSha256, required this.extractorVersion, required this.model, required this.extractedAt, required this.status, this.recommended, this.recommendationSource = RoadmapRecommendationSource.explicit,  List<RoadmapItemSnapshot> current = const <RoadmapItemSnapshot>[],  List<RoadmapItemSnapshot> blocked = const <RoadmapItemSnapshot>[],  List<RoadmapItemSnapshot> upcoming = const <RoadmapItemSnapshot>[], this.droppedCount = 0, this.error, this.pinned = false}): _current = current,_blocked = blocked,_upcoming = upcoming,super._();
   factory _RoadmapSnapshot.fromJson(Map<String, dynamic> json) => _$RoadmapSnapshotFromJson(json);
 
 @override final  String projectId;
@@ -564,16 +577,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoadmapSnapshot&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.roadmapPath, roadmapPath) || other.roadmapPath == roadmapPath)&&(identical(other.contentSha256, contentSha256) || other.contentSha256 == contentSha256)&&(identical(other.extractorVersion, extractorVersion) || other.extractorVersion == extractorVersion)&&(identical(other.model, model) || other.model == model)&&(identical(other.extractedAt, extractedAt) || other.extractedAt == extractedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.recommended, recommended) || other.recommended == recommended)&&(identical(other.recommendationSource, recommendationSource) || other.recommendationSource == recommendationSource)&&const DeepCollectionEquality().equals(other._current, _current)&&const DeepCollectionEquality().equals(other._blocked, _blocked)&&const DeepCollectionEquality().equals(other._upcoming, _upcoming)&&(identical(other.droppedCount, droppedCount) || other.droppedCount == droppedCount)&&(identical(other.error, error) || other.error == error)&&(identical(other.pinned, pinned) || other.pinned == pinned));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoadmapSnapshot&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.roadmapPath, roadmapPath) || other.roadmapPath == roadmapPath)&&(identical(other.contentSha256, contentSha256) || other.contentSha256 == contentSha256)&&(identical(other.extractorVersion, extractorVersion) || other.extractorVersion == extractorVersion)&&(identical(other.model, model) || other.model == model)&&(identical(other.extractedAt, extractedAt) || other.extractedAt == extractedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.recommended, recommended) || other.recommended == recommended)&&(identical(other.recommendationSource, recommendationSource) || other.recommendationSource == recommendationSource)&&const DeepCollectionEquality().equals(other.current, _current)&&const DeepCollectionEquality().equals(other.blocked, _blocked)&&const DeepCollectionEquality().equals(other.upcoming, _upcoming)&&(identical(other.droppedCount, droppedCount) || other.droppedCount == droppedCount)&&(identical(other.error, error) || other.error == error)&&(identical(other.pinned, pinned) || other.pinned == pinned));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,roadmapPath,contentSha256,extractorVersion,model,extractedAt,status,recommended,recommendationSource,const DeepCollectionEquality().hash(_current),const DeepCollectionEquality().hash(_blocked),const DeepCollectionEquality().hash(_upcoming),droppedCount,error,pinned);
+int get hashCode {
+    return Object.hash(runtimeType,projectId,roadmapPath,contentSha256,extractorVersion,model,extractedAt,status,recommended,recommendationSource,const DeepCollectionEquality().hash(_current),const DeepCollectionEquality().hash(_blocked),const DeepCollectionEquality().hash(_upcoming),droppedCount,error,pinned);
+}
 
 @override
 String toString() {
-  return 'RoadmapSnapshot(projectId: $projectId, roadmapPath: $roadmapPath, contentSha256: $contentSha256, extractorVersion: $extractorVersion, model: $model, extractedAt: $extractedAt, status: $status, recommended: $recommended, recommendationSource: $recommendationSource, current: $current, blocked: $blocked, upcoming: $upcoming, droppedCount: $droppedCount, error: $error, pinned: $pinned)';
+    return 'RoadmapSnapshot(projectId: $projectId, roadmapPath: $roadmapPath, contentSha256: $contentSha256, extractorVersion: $extractorVersion, model: $model, extractedAt: $extractedAt, status: $status, recommended: $recommended, recommendationSource: $recommendationSource, current: $current, blocked: $blocked, upcoming: $upcoming, droppedCount: $droppedCount, error: $error, pinned: $pinned)';
 }
 
 

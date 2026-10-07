@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'dashboard_stats.dart';
@@ -9,6 +9,7 @@ part of 'dashboard_stats.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $DashboardStatsCopyWith<DashboardStats> get copyWith => _$DashboardStatsCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DashboardStats&&(identical(other.sessionCount, sessionCount) || other.sessionCount == sessionCount)&&(identical(other.messageCount, messageCount) || other.messageCount == messageCount)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.activeDays, activeDays) || other.activeDays == activeDays)&&(identical(other.currentStreakDays, currentStreakDays) || other.currentStreakDays == currentStreakDays)&&(identical(other.longestStreakDays, longestStreakDays) || other.longestStreakDays == longestStreakDays)&&(identical(other.peakHour, peakHour) || other.peakHour == peakHour)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap)&&(identical(other.funFactMultiple, funFactMultiple) || other.funFactMultiple == funFactMultiple));
+  final _this = this as DashboardStats;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DashboardStats&&(identical(other.sessionCount, _this.sessionCount) || other.sessionCount == _this.sessionCount)&&(identical(other.messageCount, _this.messageCount) || other.messageCount == _this.messageCount)&&(identical(other.totalTokens, _this.totalTokens) || other.totalTokens == _this.totalTokens)&&(identical(other.activeDays, _this.activeDays) || other.activeDays == _this.activeDays)&&(identical(other.currentStreakDays, _this.currentStreakDays) || other.currentStreakDays == _this.currentStreakDays)&&(identical(other.longestStreakDays, _this.longestStreakDays) || other.longestStreakDays == _this.longestStreakDays)&&(identical(other.peakHour, _this.peakHour) || other.peakHour == _this.peakHour)&&(identical(other.heatmap, _this.heatmap) || other.heatmap == _this.heatmap)&&(identical(other.funFactMultiple, _this.funFactMultiple) || other.funFactMultiple == _this.funFactMultiple));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sessionCount,messageCount,totalTokens,activeDays,currentStreakDays,longestStreakDays,peakHour,heatmap,funFactMultiple);
+int get hashCode {
+  final _this = this as DashboardStats;
+  return Object.hash(runtimeType,_this.sessionCount,_this.messageCount,_this.totalTokens,_this.activeDays,_this.currentStreakDays,_this.longestStreakDays,_this.peakHour,_this.heatmap,_this.funFactMultiple);
+}
 
 @override
 String toString() {
-  return 'DashboardStats(sessionCount: $sessionCount, messageCount: $messageCount, totalTokens: $totalTokens, activeDays: $activeDays, currentStreakDays: $currentStreakDays, longestStreakDays: $longestStreakDays, peakHour: $peakHour, heatmap: $heatmap, funFactMultiple: $funFactMultiple)';
+  final _this = this as DashboardStats;
+  return 'DashboardStats(sessionCount: ${_this.sessionCount}, messageCount: ${_this.messageCount}, totalTokens: ${_this.totalTokens}, activeDays: ${_this.activeDays}, currentStreakDays: ${_this.currentStreakDays}, longestStreakDays: ${_this.longestStreakDays}, peakHour: ${_this.peakHour}, heatmap: ${_this.heatmap}, funFactMultiple: ${_this.funFactMultiple})';
 }
 
 
@@ -63,7 +69,7 @@ class _$DashboardStatsCopyWithImpl<$Res>
 /// Create a copy of DashboardStats
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? sessionCount = null,Object? messageCount = null,Object? totalTokens = null,Object? activeDays = null,Object? currentStreakDays = null,Object? longestStreakDays = null,Object? peakHour = freezed,Object? heatmap = null,Object? funFactMultiple = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(DashboardStats(
 sessionCount: null == sessionCount ? _self.sessionCount : sessionCount // ignore: cast_nullable_to_non_nullable
 as int,messageCount: null == messageCount ? _self.messageCount : messageCount // ignore: cast_nullable_to_non_nullable
 as int,totalTokens: null == totalTokens ? _self.totalTokens : totalTokens // ignore: cast_nullable_to_non_nullable
@@ -246,16 +252,18 @@ _$DashboardStatsCopyWith<_DashboardStats> get copyWith => __$DashboardStatsCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DashboardStats&&(identical(other.sessionCount, sessionCount) || other.sessionCount == sessionCount)&&(identical(other.messageCount, messageCount) || other.messageCount == messageCount)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.activeDays, activeDays) || other.activeDays == activeDays)&&(identical(other.currentStreakDays, currentStreakDays) || other.currentStreakDays == currentStreakDays)&&(identical(other.longestStreakDays, longestStreakDays) || other.longestStreakDays == longestStreakDays)&&(identical(other.peakHour, peakHour) || other.peakHour == peakHour)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap)&&(identical(other.funFactMultiple, funFactMultiple) || other.funFactMultiple == funFactMultiple));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DashboardStats&&(identical(other.sessionCount, sessionCount) || other.sessionCount == sessionCount)&&(identical(other.messageCount, messageCount) || other.messageCount == messageCount)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.activeDays, activeDays) || other.activeDays == activeDays)&&(identical(other.currentStreakDays, currentStreakDays) || other.currentStreakDays == currentStreakDays)&&(identical(other.longestStreakDays, longestStreakDays) || other.longestStreakDays == longestStreakDays)&&(identical(other.peakHour, peakHour) || other.peakHour == peakHour)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap)&&(identical(other.funFactMultiple, funFactMultiple) || other.funFactMultiple == funFactMultiple));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sessionCount,messageCount,totalTokens,activeDays,currentStreakDays,longestStreakDays,peakHour,heatmap,funFactMultiple);
+int get hashCode {
+    return Object.hash(runtimeType,sessionCount,messageCount,totalTokens,activeDays,currentStreakDays,longestStreakDays,peakHour,heatmap,funFactMultiple);
+}
 
 @override
 String toString() {
-  return 'DashboardStats(sessionCount: $sessionCount, messageCount: $messageCount, totalTokens: $totalTokens, activeDays: $activeDays, currentStreakDays: $currentStreakDays, longestStreakDays: $longestStreakDays, peakHour: $peakHour, heatmap: $heatmap, funFactMultiple: $funFactMultiple)';
+    return 'DashboardStats(sessionCount: $sessionCount, messageCount: $messageCount, totalTokens: $totalTokens, activeDays: $activeDays, currentStreakDays: $currentStreakDays, longestStreakDays: $longestStreakDays, peakHour: $peakHour, heatmap: $heatmap, funFactMultiple: $funFactMultiple)';
 }
 
 
@@ -324,16 +332,21 @@ $ActivityHeatmapCopyWith<ActivityHeatmap> get copyWith => _$ActivityHeatmapCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityHeatmap&&(identical(other.startDay, startDay) || other.startDay == startDay)&&(identical(other.endDay, endDay) || other.endDay == endDay)&&const DeepCollectionEquality().equals(other.dailyCounts, dailyCounts)&&const DeepCollectionEquality().equals(other.dailyBuckets, dailyBuckets));
+  final _this = this as ActivityHeatmap;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityHeatmap&&(identical(other.startDay, _this.startDay) || other.startDay == _this.startDay)&&(identical(other.endDay, _this.endDay) || other.endDay == _this.endDay)&&const DeepCollectionEquality().equals(other.dailyCounts, _this.dailyCounts)&&const DeepCollectionEquality().equals(other.dailyBuckets, _this.dailyBuckets));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,startDay,endDay,const DeepCollectionEquality().hash(dailyCounts),const DeepCollectionEquality().hash(dailyBuckets));
+int get hashCode {
+  final _this = this as ActivityHeatmap;
+  return Object.hash(runtimeType,_this.startDay,_this.endDay,const DeepCollectionEquality().hash(_this.dailyCounts),const DeepCollectionEquality().hash(_this.dailyBuckets));
+}
 
 @override
 String toString() {
-  return 'ActivityHeatmap(startDay: $startDay, endDay: $endDay, dailyCounts: $dailyCounts, dailyBuckets: $dailyBuckets)';
+  final _this = this as ActivityHeatmap;
+  return 'ActivityHeatmap(startDay: ${_this.startDay}, endDay: ${_this.endDay}, dailyCounts: ${_this.dailyCounts}, dailyBuckets: ${_this.dailyBuckets})';
 }
 
 
@@ -362,7 +375,7 @@ class _$ActivityHeatmapCopyWithImpl<$Res>
 /// Create a copy of ActivityHeatmap
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? startDay = null,Object? endDay = null,Object? dailyCounts = null,Object? dailyBuckets = null,}) {
-  return _then(_self.copyWith(
+  return _then(ActivityHeatmap(
 startDay: null == startDay ? _self.startDay : startDay // ignore: cast_nullable_to_non_nullable
 as DateTime,endDay: null == endDay ? _self.endDay : endDay // ignore: cast_nullable_to_non_nullable
 as DateTime,dailyCounts: null == dailyCounts ? _self.dailyCounts : dailyCounts // ignore: cast_nullable_to_non_nullable
@@ -508,7 +521,7 @@ return $default(_that.startDay,_that.endDay,_that.dailyCounts,_that.dailyBuckets
 
 
 class _ActivityHeatmap implements ActivityHeatmap {
-  const _ActivityHeatmap({required this.startDay, required this.endDay, final  List<int> dailyCounts = const <int>[], final  List<int> dailyBuckets = const <int>[]}): _dailyCounts = dailyCounts,_dailyBuckets = dailyBuckets;
+  const _ActivityHeatmap({required this.startDay, required this.endDay,  List<int> dailyCounts = const <int>[],  List<int> dailyBuckets = const <int>[]}): _dailyCounts = dailyCounts,_dailyBuckets = dailyBuckets;
   
 
 @override final  DateTime startDay;
@@ -538,16 +551,18 @@ _$ActivityHeatmapCopyWith<_ActivityHeatmap> get copyWith => __$ActivityHeatmapCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityHeatmap&&(identical(other.startDay, startDay) || other.startDay == startDay)&&(identical(other.endDay, endDay) || other.endDay == endDay)&&const DeepCollectionEquality().equals(other._dailyCounts, _dailyCounts)&&const DeepCollectionEquality().equals(other._dailyBuckets, _dailyBuckets));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityHeatmap&&(identical(other.startDay, startDay) || other.startDay == startDay)&&(identical(other.endDay, endDay) || other.endDay == endDay)&&const DeepCollectionEquality().equals(other.dailyCounts, _dailyCounts)&&const DeepCollectionEquality().equals(other.dailyBuckets, _dailyBuckets));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,startDay,endDay,const DeepCollectionEquality().hash(_dailyCounts),const DeepCollectionEquality().hash(_dailyBuckets));
+int get hashCode {
+    return Object.hash(runtimeType,startDay,endDay,const DeepCollectionEquality().hash(_dailyCounts),const DeepCollectionEquality().hash(_dailyBuckets));
+}
 
 @override
 String toString() {
-  return 'ActivityHeatmap(startDay: $startDay, endDay: $endDay, dailyCounts: $dailyCounts, dailyBuckets: $dailyBuckets)';
+    return 'ActivityHeatmap(startDay: $startDay, endDay: $endDay, dailyCounts: $dailyCounts, dailyBuckets: $dailyBuckets)';
 }
 
 
