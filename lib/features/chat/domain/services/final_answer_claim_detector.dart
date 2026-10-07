@@ -158,8 +158,11 @@ class FinalAnswerClaimDetector {
         isProjectSubtask &&
         candidate.split('\n').last.trim() ==
             ProjectTaskTerminalStatus.subtaskDoneMarker;
+    // A purely lexical claim, promise or report, names no concrete call, so
+    // a later typed passing verifier settles it. Session c4b7c183: "rerun
+    // with python3 to verify" was fulfilled two calls later (58 passed), yet
+    // the notice outlived it and rejected the subtask as unexecuted.
     final missingEvidenceOnly =
-        (!looksLikeFutureAction || terminalSubtaskReport) &&
         !_printsCommandArguments(candidate) &&
         ContentParser.extractCompletedToolCalls(candidateResponse).isEmpty &&
         !const NarratedTranscriptClaimGuard()
@@ -183,8 +186,7 @@ class FinalAnswerClaimDetector {
         'code': 'unexecuted_command_action',
         ...ToolResultOrigin.harness.marker,
         // This lexical notice reports missing evidence, not a concrete call.
-        // A terminal intermediate-subtask report may mention later verification.
-        // Concrete calls and ordinary future promises retain their own gates.
+        // Printed arguments, transcripts and tool markup retain their gate.
         if (missingEvidenceOnly)
           'evidence_requirement':
               UnexecutedCommandClaimReconciliation.evidenceRequirement,
