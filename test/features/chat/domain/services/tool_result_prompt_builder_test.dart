@@ -330,6 +330,84 @@ void main() {
       );
     });
 
+    // Session 0372d7fb: a review read a listed 39 KB patch one file at a
+    // time, and each single-file diff arrived cut to about 5 KB.
+    for (final command in [
+      'diff HEAD -- test_state.py',
+      'git diff HEAD -- test_state.py',
+      'diff HEAD -- a.py b.py',
+      'diff HEAD -- test_state.py | tail -40',
+    ]) {
+      test('newest single-file diff keeps its budget: $command', () {
+        // Within the 8,000-char command output cap, so only the shared
+        // history pass could shorten it.
+        final diff = List.filled(7000, 'd').join();
+        final results = [
+          for (var i = 0; i < 8; i++)
+            ToolResultInfo(
+              id: 'history-$i',
+              name: 'read_file',
+              arguments: {'path': '/project/history-$i.py'},
+              result: jsonEncode({
+                'path': '/project/history-$i.py',
+                'content': List.filled(9000, 'h').join(),
+              }),
+            ),
+          ToolResultInfo(
+            id: 'diff',
+            name: 'git_execute_command',
+            arguments: {'command': command},
+            result: jsonEncode({'exit_code': 0, 'stdout': diff}),
+          ),
+        ];
+        final budgeted = ToolResultPromptBuilder.budgetToolResults(results);
+        final kept = budgeted.firstWhere((result) => result.id == 'diff');
+        final scoped =
+            !command.contains(' a.py b.py') && !command.contains('|');
+        expect(
+          kept.result,
+          scoped
+              ? isNot(
+                  contains(ToolResultPromptBuilder.promptBudgetReductionMarker),
+                )
+              : contains('further reduced to fit the prompt budget'),
+        );
+        expect(
+          budgeted.fold<int>(0, (n, result) => n + result.result.length),
+          lessThanOrEqualTo(48000),
+        );
+      });
+    }
+
+    test('newest single-file diff may exceed the command output cap', () {
+      // test_state.py's diff in session 0372d7fb was 14.6 KB.
+      final diff = List.filled(14600, 'd').join();
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        for (var i = 0; i < 4; i++)
+          ToolResultInfo(
+            id: 'history-$i',
+            name: 'read_file',
+            arguments: {'path': '/project/history-$i.py'},
+            result: jsonEncode({
+              'path': '/project/history-$i.py',
+              'content': List.filled(9000, 'h').join(),
+            }),
+          ),
+        ToolResultInfo(
+          id: 'diff',
+          name: 'git_execute_command',
+          arguments: const {'command': 'diff HEAD -- test_state.py'},
+          result: jsonEncode({'exit_code': 0, 'stdout': diff}),
+        ),
+      ]);
+      final kept = budgeted.firstWhere((result) => result.id == 'diff');
+      expect(jsonDecode(kept.result)['stdout'], diff);
+      expect(
+        budgeted.fold<int>(0, (n, result) => n + result.result.length),
+        lessThanOrEqualTo(48000),
+      );
+    });
+
     for (final freshness in [
       'current',
       'crowded',

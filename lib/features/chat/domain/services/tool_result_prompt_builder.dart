@@ -10,6 +10,7 @@ import 'command_verification_reconciliation.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'http_response_interpretation.dart';
+import 'single_path_diff_inspection.dart';
 import 'unexecuted_command_claim_reconciliation.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
@@ -421,12 +422,31 @@ class ToolResultPromptBuilder {
         )
         .toSet();
 
+    final freshRangeIndex = _latestFreshRangeReadIndex(sourceToolResults);
+    // The newest single-file diff may use the whole single-result allowance:
+    // unlike a file, a diff has no offset to page through the rest.
+    final diffBudget = _ToolResultPromptBudget(
+      maxTotalResultChars: budget.maxTotalResultChars,
+      maxSingleResultChars: budget.maxSingleResultChars,
+      maxStringValueChars: math.max(
+        budget.maxStringValueChars,
+        budget.maxSingleResultChars,
+      ),
+      maxReadFileContentChars: budget.maxReadFileContentChars,
+      maxCommandOutputChars: budget.maxSingleResultChars,
+      maxListItems: budget.maxListItems,
+      maxImageAttachments: budget.maxImageAttachments,
+    );
     final budgeted = <ToolResultInfo>[];
     for (var index = 0; index < sourceToolResults.length; index += 1) {
       final toolResult = sourceToolResults[index];
       final budgetedResult = _budgetToolResultPayload(
         toolResult,
-        budget: budget,
+        budget:
+            index == freshRangeIndex &&
+                singlePathDiffInspection(toolResult) != null
+            ? diffBudget
+            : budget,
         keepImagePayload: keptImageIndexes.contains(index),
       );
       budgeted.add(
@@ -453,7 +473,6 @@ class ToolResultPromptBuilder {
     // Preserve the newest current range read before sharing the remaining
     // budget with history. Otherwise a requested small range can lose the
     // very lines needed for the next edit even after a targeted re-read.
-    final freshRangeIndex = _latestFreshRangeReadIndex(sourceToolResults);
     final reservedChars = freshRangeIndex == null
         ? 0
         : budgeted[freshRangeIndex].result.length;
@@ -497,6 +516,15 @@ class ToolResultPromptBuilder {
                 .map((mutation) => mutation.path) ??
             const <String>[],
       );
+      final diffPath = singlePathDiffInspection(result);
+      if (diffPath != null) {
+        if (supersededPaths.add(diffPath) &&
+            !result.fromEarlierLoop &&
+            result.changesSinceCapture.isEmpty) {
+          return index;
+        }
+        continue;
+      }
       if (result.name != 'read_file') continue;
       final payload = _tryDecodeJsonMap(result.result);
       final path = payload?['path'];
