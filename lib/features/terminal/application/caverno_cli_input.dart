@@ -23,6 +23,9 @@ final class CavernoCliPromptResolver {
     required CavernoCliInputPort input,
     required CavernoCliDiagnosticPort diagnostics,
   }) async {
+    // A farm run builds its turns from the roadmap; reading a prompt here
+    // would block a non-interactive run on stdin.
+    if (invocation.command == CavernoCliCommand.farm) return '';
     String value;
     final explicitPrompt = invocation.prompt;
     final promptFile = invocation.promptFile;

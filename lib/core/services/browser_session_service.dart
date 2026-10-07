@@ -160,12 +160,14 @@ class _ResolvedBrowserSaveDirectory {
 
 class BrowserSessionService extends ChangeNotifier {
   BrowserSessionService({
+    @visibleForTesting bool? platformSupportedOverride,
     Directory? saveDirectoryOverride,
     EgressDestinationPolicy destinationPolicy = const EgressDestinationPolicy(),
     BrowserPinnedHttpClient? pinnedHttpClient,
     Future<HttpServer> Function(InternetAddress address, int port)? proxyBind,
     Duration controllerReadyTimeout = const Duration(seconds: 12),
-  }) : _saveDirectoryOverride = saveDirectoryOverride,
+  }) : _platformSupportedOverride = platformSupportedOverride,
+       _saveDirectoryOverride = saveDirectoryOverride,
        _destinationPolicy = destinationPolicy,
        _pinnedHttpClient =
            pinnedHttpClient ??
@@ -176,6 +178,9 @@ class BrowserSessionService extends ChangeNotifier {
   InAppWebViewController? _controller;
   Completer<InAppWebViewController>? _controllerReady;
   Completer<void>? _loadCompleter;
+  final bool? _platformSupportedOverride;
+  bool get _platformSupported =>
+      _platformSupportedOverride ?? isPlatformSupported;
   final Directory? _saveDirectoryOverride;
   final EgressDestinationPolicy _destinationPolicy;
   final BrowserPinnedHttpClient _pinnedHttpClient;
@@ -211,7 +216,7 @@ class BrowserSessionService extends ChangeNotifier {
 
   /// Whether the feature can be used right now (platform supported AND enabled
   /// in settings). Gates tool registration and execution.
-  bool get isAvailable => isPlatformSupported && _enabled;
+  bool get isAvailable => _platformSupported && _enabled;
 
   bool get isPanelOpen => _isPanelOpen;
   bool get isLoading => _isLoading;
@@ -226,7 +231,7 @@ class BrowserSessionService extends ChangeNotifier {
   /// even when those tools are disabled.
   bool get shouldShowPanel =>
       _isPanelOpen &&
-      isPlatformSupported &&
+      _platformSupported &&
       (_enabled || _localPreviewOrigin != null);
 
   Uri? get localPreviewOrigin => _localPreviewOrigin;
@@ -459,7 +464,7 @@ class BrowserSessionService extends ChangeNotifier {
     Uri url, {
     Duration readyTimeout = const Duration(seconds: 12),
   }) async {
-    if (!isPlatformSupported) {
+    if (!_platformSupported) {
       throw const BrowserUnavailableException();
     }
     if (!_isLoopbackHttp(url)) {
@@ -868,7 +873,7 @@ class BrowserSessionService extends ChangeNotifier {
     Duration? timeout,
     bool requireEnabled = true,
   }) async {
-    if (!isPlatformSupported) throw const BrowserUnavailableException();
+    if (!_platformSupported) throw const BrowserUnavailableException();
     if (requireEnabled && !_enabled) {
       throw const BrowserUnavailableException();
     }

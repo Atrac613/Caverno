@@ -79,6 +79,13 @@ final class CavernoTerminalPresenter {
         output.writeStderr(
           '[workflow] ${redactor.redact(event.stage)}$task$status\n',
         );
+      case CavernoRuntimeProjectTaskDecision(:final decision):
+        final gaps = decision['gapCodes'];
+        output.writeStderr(
+          '[farm] ${redactor.redact('${decision['phase']}')} '
+          '${redactor.redact('${decision['decision']}')}'
+          '${gaps is List && gaps.isNotEmpty ? ' gaps=${redactor.redact(gaps.join(','))}' : ''}\n',
+        );
       case CavernoRuntimeUsage():
         output.writeStderr(
           '[usage] prompt=${event.promptTokens} '

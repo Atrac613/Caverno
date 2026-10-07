@@ -200,6 +200,14 @@ final class CavernoExecutionRuntime {
     return CavernoRuntimeTurnStartException(terminal);
   }
 
+  /// Publishes an event that belongs to a session spanning several turns,
+  /// such as a project task workflow, on the same ordered stream as turn
+  /// events. A terminal event published here ends that session for a client
+  /// that waits on it; it is not a turn terminal and releases no turn.
+  CavernoRuntimeEvent publishSessionEvent(
+    CavernoRuntimeEvent Function(int sequence, DateTime timestamp) create,
+  ) => _publish(create);
+
   CavernoRuntimeEvent _publish(
     CavernoRuntimeEvent Function(int sequence, DateTime timestamp) create,
   ) {
