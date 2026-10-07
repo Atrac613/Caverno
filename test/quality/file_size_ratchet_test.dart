@@ -1073,11 +1073,13 @@ const Map<String, int> _lineBudgets = {
   // 3963 when the structured-output probe did, and from 3789 when the
   // tool-recovery probe and shared argument scoring did, and from 3605 when
   // the tool-depth probe did, from 3425 when the multi-round probe did, and
-  // from 3203 when the effective-context measurement moved out.
+  // from 3203 when the effective-context measurement moved out, and from
+  // 3055 when streaming measurement moved out.
   // The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      3055,
+      2965,
+  'lib/features/settings/domain/services/live_llm_streaming_probe.dart': 117,
   'lib/features/settings/domain/services/live_llm_effective_context_probe.dart':
       206,
   'lib/features/settings/domain/services/live_llm_multi_round_probe.dart': 284,

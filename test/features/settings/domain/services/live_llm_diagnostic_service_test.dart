@@ -20,6 +20,99 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test('streaming binds requests, thinking and publication', () async {
+    final source = _StreamingRecordingDataSource();
+    final statuses = <LiveLlmDiagnosticStatus>[];
+    final report =
+        await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false, model: 'stream-model'),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(
+          probeIds: const {'streaming_response'},
+          onReport: (report) {
+            final status = _result(report, 'streaming_response').status;
+            if (statuses.isEmpty || statuses.last != status) {
+              statuses.add(status);
+            }
+          },
+        );
+    expect(source.calls, 1);
+    expect(statuses, [
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.passed,
+    ]);
+    expect(report.thinkingMetrics!.responseCount, 1);
+    expect(report.thinkingMetrics!.reasoningResponseCount, 1);
+    expect(report.streamingMetrics!.chunkCount, 2);
+    expect(report.streamingMetrics!.completionTokens, 40);
+    expect(_result(report, 'streaming_response').elapsed, isNotNull);
+  });
+
+  test('streaming skips unselected probes without a request', () async {
+    final source = _StreamingRecordingDataSource();
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: source,
+      mcpToolService: null,
+    ).run(probeIds: const <String>{});
+    expect(source.calls, 0);
+    expect(
+      _result(report, 'streaming_response').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+    expect(report.streamingMetrics, isNull);
+  });
+
+  for (final stage in ['request', 'stream', 'terminal']) {
+    test(
+      'streaming maps $stage errors to failed reports without metrics',
+      () async {
+        final source = _StreamingRecordingDataSource(failureStage: stage);
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(probeIds: const {'streaming_response'});
+        final result = _result(report, 'streaming_response');
+        expect(result.status, LiveLlmDiagnosticStatus.failed);
+        expect(result.summary, 'The streaming request failed.');
+        expect(result.details, 'Bad state: $stage');
+        expect(report.streamingMetrics, isNull);
+        expect(report.thinkingMetrics, isNull);
+      },
+    );
+  }
+
+  for (final publication in [
+    LiveLlmDiagnosticStatus.running,
+    LiveLlmDiagnosticStatus.passed,
+  ]) {
+    test('streaming propagates $publication publication errors', () async {
+      final source = _StreamingRecordingDataSource();
+      final failure = StateError('publication');
+      final run =
+          LiveLlmDiagnosticService(
+            settings: _settings(mcpEnabled: false),
+            chatDataSource: source,
+            mcpToolService: null,
+          ).run(
+            probeIds: const {'streaming_response'},
+            onReport: (report) {
+              if (_result(report, 'streaming_response').status == publication) {
+                throw failure;
+              }
+            },
+          );
+      await expectLater(run, throwsA(same(failure)));
+      expect(
+        source.calls,
+        publication == LiveLlmDiagnosticStatus.running ? 0 : 1,
+      );
+    });
+  }
+
   test('effective context binds requests, thinking and publication', () async {
     final dataSource = _ContextRecordingDataSource();
     final statuses = <LiveLlmDiagnosticStatus>[];
@@ -2201,6 +2294,60 @@ class _ToolResultFollowUpDataSource extends _FakeDiagnosticDataSource {
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+  }
+}
+
+class _StreamingRecordingDataSource extends _FakeDiagnosticDataSource {
+  _StreamingRecordingDataSource({this.failureStage});
+
+  final String? failureStage;
+  int calls = 0;
+
+  @override
+  StreamedChatCompletion streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    calls++;
+    expect(
+      model,
+      failureStage == null ? anyOf('stream-model', 'test-model') : 'test-model',
+    );
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    expect(messages.map((message) => message.role), [
+      MessageRole.system,
+      MessageRole.user,
+    ]);
+    expect(
+      messages.last.content,
+      'List every integer from 1 to 40 in order, one per line, with nothing '
+      'else on any line.',
+    );
+    if (failureStage == 'request') throw StateError('request');
+    return StreamedChatCompletion.capture(
+      stream: failureStage == 'stream'
+          ? Stream<String>.error(StateError('stream'))
+          : Stream.fromIterable([
+              '',
+              '<think>count</think>',
+              [for (var n = 1; n <= 40; n++) '$n'].join('\n'),
+              '',
+            ]),
+      terminalMetadata: () {
+        if (failureStage == 'terminal') throw StateError('terminal');
+        return const ChatCompletionTerminalMetadata(
+          finishReason: 'stop',
+          usage: TokenUsage(
+            promptTokens: 12,
+            completionTokens: 40,
+            totalTokens: 52,
+          ),
+        );
+      },
     );
   }
 }

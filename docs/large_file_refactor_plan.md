@@ -1962,3 +1962,35 @@ See [task and evidence](f5_effective_context_probe_extraction_codex_task.md).
 This is worktree evidence, not a main integration or live-model/device result.
 Next: review/integrate the slice, then freeze the streaming measurement contract
 before another extraction. F5 remains `current`.
+
+
+### Streaming extraction (2026-10-08)
+
+The effective-context slice was locally committed as `e1cd3753e`. At the user's
+request to proceed, the next slice extracted `_measureStreamingResponse` and
+its outcome/constants into `live_llm_streaming_probe.dart`, behind streaming
+request, thinking observation and stopwatch-factory ports. The service retains
+selection, request bindings, overall elapsed time, exception-to-report handling
+and publication.
+
+Empty chunks still do not count as content or establish TTFT. Stream elapsed is
+captured before awaiting terminal metadata; thinking observes the complete raw
+content only after that metadata resolves. Visible-content sequence scoring,
+length truncation, buffering warnings, token usage and previews are unchanged.
+A normalized comparison against the committed measurement confirms that the
+body changed only collaborator names and the clock port.
+
+Seven service contracts passed before extraction. Nineteen isolated tests cover
+content/empty-chunk timing, absent content, buffered delivery, missing metadata,
+partial/out-of-order sequences, truncation, reasoning, previews, delayed terminal
+metadata and request/stream/terminal/thinking errors. The final coverage gate
+passed 176 tests across eight suites, clean root/package analysis, internal
+package tests and relay checks. The module has 40/40 executable lines covered;
+the service has 836/947 (88.28%) in this focused run. The service fell from 3,055
+to 2,965 lines, and the module is 117 lines; both budgets are ratcheted.
+See [task and evidence](f5_streaming_probe_extraction_codex_task.md).
+
+The streaming slice remains uncommitted in this worktree; no main integration,
+push, full Flutter-suite, live-model or signed-device run is claimed. Next:
+review/commit streaming, then refresh the remaining diagnostic boundaries. F5
+remains `current`; RC1 stays on hold.

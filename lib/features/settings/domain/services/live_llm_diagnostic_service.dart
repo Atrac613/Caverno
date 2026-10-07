@@ -29,6 +29,7 @@ import 'live_llm_diagnostic_thinking_observer.dart';
 import 'live_llm_effective_context_probe.dart';
 import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
+import 'live_llm_streaming_probe.dart';
 import 'live_llm_structured_output_probe.dart';
 import 'live_llm_tool_depth_probe.dart';
 import 'live_llm_tool_recovery_probe.dart';
@@ -75,6 +76,15 @@ class LiveLlmDiagnosticService {
   late final _chat = LiveLlmDiagnosticObservedChatCalls(
     chatDataSource,
     _thinking,
+  );
+  late final _streamingProbe = LiveLlmStreamingProbe(
+    stream: () => chatDataSource.streamChatCompletion(
+      messages: _messages(user: LiveLlmStreamingProbe.prompt),
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    ),
+    recordThinking: _thinking.record,
   );
   late final _effectiveContextProbe = LiveLlmEffectiveContextProbe(
     complete: (target, messages) {
@@ -284,7 +294,7 @@ class LiveLlmDiagnosticService {
 
   static const _instructionProbeId = 'instruction_echo';
   static const _structuredOutputProbeId = LiveLlmStructuredOutputProbe.probeId;
-  static const _streamingProbeId = 'streaming_response';
+  static const _streamingProbeId = LiveLlmStreamingProbe.probeId;
   static const _thinkingControlProbeId = 'thinking_control';
   static const _exactPreservationProbeId = 'exact_preservation';
   static const _editFormatProbeId = 'edit_format_fidelity';
@@ -307,16 +317,6 @@ class LiveLlmDiagnosticService {
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
   static const _toolDepthProbeId = LiveLlmToolDepthProbe.probeId;
   static const _toolRecoveryProbeId = LiveLlmToolRecoveryProbe.probeId;
-
-  /// The streaming probe asks for a run of integers rather than prose: the
-  /// content is verifiable without a judge, and it is long enough that the
-  /// decode rate means something. Phrased as the task ("list the integers"),
-  /// not as the mechanism ("stream me a response") — a probe that describes the
-  /// mechanism measures its own wording.
-  static const _streamingSequenceLength = 40;
-  static const _streamingProbePrompt =
-      'List every integer from 1 to 40 in order, one per line, with nothing '
-      'else on any line.';
 
   static const modelCapabilityProbeIds = <String>{
     _instructionProbeId,
@@ -1214,7 +1214,7 @@ class LiveLlmDiagnosticService {
     onReport?.call(updated);
 
     try {
-      final outcome = await _measureStreamingResponse();
+      final outcome = await _streamingProbe.run();
       updated = updated
           .withProbeResult(
             outcome.result.copyWith(
@@ -1235,89 +1235,6 @@ class LiveLlmDiagnosticService {
     }
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<_StreamingProbeOutcome> _measureStreamingResponse() async {
-    final buffer = StringBuffer();
-    var chunkCount = 0;
-    Duration? timeToFirstToken;
-    final stopwatch = Stopwatch()..start();
-
-    final streamed = chatDataSource.streamChatCompletion(
-      messages: _messages(user: _streamingProbePrompt),
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-
-    await for (final chunk in streamed.stream) {
-      if (chunk.isEmpty) {
-        continue;
-      }
-      // First *content*, not first event: an endpoint that opens the stream
-      // with empty keep-alive frames would otherwise report a flattering TTFT.
-      timeToFirstToken ??= stopwatch.elapsed;
-      chunkCount += 1;
-      buffer.write(chunk);
-    }
-    final totalElapsed = stopwatch.elapsed;
-    final terminal = await streamed.terminal;
-
-    final content = buffer.toString();
-    _thinking.record(content);
-    final visibleContent = LiveLlmResponseScoring.visibleContent(content);
-    final matched = LiveLlmResponseScoring.matchedIntegerSequence(
-      visibleContent,
-      length: _streamingSequenceLength,
-    );
-    final metrics = LiveLlmDiagnosticStreamingMetrics(
-      timeToFirstToken: timeToFirstToken ?? totalElapsed,
-      totalElapsed: totalElapsed,
-      completionTokens: terminal.usage.completionTokens,
-      chunkCount: chunkCount,
-      finishReason: terminal.finishReason ?? '',
-    );
-
-    final truncated = terminal.finishReason == 'length';
-    final passed = matched == _streamingSequenceLength && !truncated;
-    final status = passed
-        ? LiveLlmDiagnosticStatus.passed
-        : matched > 0
-        ? LiveLlmDiagnosticStatus.warning
-        : LiveLlmDiagnosticStatus.failed;
-    final rate = metrics.decodeTokensPerSecond;
-
-    return _StreamingProbeOutcome(
-      metrics: metrics,
-      result: LiveLlmDiagnosticProbeResult(
-        id: _streamingProbeId,
-        status: status,
-        summary: passed
-            ? 'The model streamed the full sequence over the streaming path.'
-            : truncated
-            ? 'The stream was cut short by the token limit.'
-            : 'The streamed sequence was incomplete or out of order.',
-        details: [
-          'Matched in order: $matched/$_streamingSequenceLength',
-          'Chunks: $chunkCount',
-          'Finish reason: ${terminal.finishReason ?? "(none)"}',
-          'TTFT: ${metrics.timeToFirstToken.inMilliseconds} ms',
-          'Total: ${metrics.totalElapsed.inMilliseconds} ms',
-          if (rate != null) 'Decode: ${rate.toStringAsFixed(1)} tok/s',
-          if (metrics.isLikelyBuffered)
-            'Buffered delivery: the answer arrived in one chunk or a short '
-                'terminal burst, so decode rate is unavailable.',
-        ].join('\n'),
-        modelContent: LiveLlmDiagnosticEvidence.preview(content, maxChars: 400),
-        usage: LiveLlmDiagnosticTokenUsage(
-          promptTokens: terminal.usage.promptTokens,
-          completionTokens: terminal.usage.completionTokens,
-          totalTokens: terminal.usage.totalTokens,
-        ),
-        passedChecks: matched,
-        totalChecks: _streamingSequenceLength,
-      ),
-    );
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runExactPreservationProbe() async {
@@ -2931,13 +2848,6 @@ class LiveLlmDiagnosticService {
       'Actual: ${LiveLlmDiagnosticEvidence.preview(outcome.actual, maxChars: 800)}',
     ].join('\n');
   }
-}
-
-class _StreamingProbeOutcome {
-  const _StreamingProbeOutcome({required this.result, required this.metrics});
-
-  final LiveLlmDiagnosticProbeResult result;
-  final LiveLlmDiagnosticStreamingMetrics metrics;
 }
 
 class _ToolCatalogContext {
