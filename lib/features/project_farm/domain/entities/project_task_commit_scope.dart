@@ -128,8 +128,11 @@ final class ProjectTaskCommitScope {
         !unchangedCompletedRoadmap) {
       return 'the roadmap update is missing from the index';
     }
+    // A quote without checkbox syntax still names a checklist task once it
+    // resolves to one, and that task must be marked complete too.
     if (sourceQuote != null &&
-        RegExp(r'^\s*(?:[-*+]\s+)?\[[ xX]\]\s+').hasMatch(sourceQuote!) &&
+        (RegExp(r'^\s*(?:[-*+]\s+)?\[[ xX]\]\s+').hasMatch(sourceQuote!) ||
+            before.roadmapEntryIdentity != null) &&
         !after.roadmapAlreadyDone) {
       return 'the cited roadmap task is not marked complete';
     }

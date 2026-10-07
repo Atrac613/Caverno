@@ -332,6 +332,65 @@ void main() {
     },
   );
 
+  group('a quote that stops short of its checkbox line', () {
+    // Session 29f6ac69: the extractor quoted the item without its trailing
+    // "(`WATCHER_WEBHOOK_URL`)", so the entry never resolved and the
+    // completion check was silently skipped.
+    Future<void> truncatedScope(String roadmap) async {
+      scope = ProjectTaskCommitScope.fromObjective(
+        conversationId: 'task',
+        projectRoot: root.path,
+        objective:
+            'Source: roadmap.md:1\n"**Config** — Override the webhook URL"',
+        reviewedPaths: ['task.txt'],
+      )!;
+      await write('roadmap.md', roadmap);
+      baseline = await read();
+    }
+
+    test('resolves to the one entry it prefixes', () async {
+      await truncatedScope(
+        '- [ ] **Config** — Override the webhook URL (`WEBHOOK_URL`)\n',
+      );
+      expect(
+        baseline.roadmapEntryIdentity,
+        '**Config** — Override the webhook URL (`WEBHOOK_URL`)',
+      );
+      await write(
+        'roadmap.md',
+        '- [x] **Config** — Override the webhook URL (`WEBHOOK_URL`)\n',
+      );
+      await git(['add', '--', 'task.txt', 'roadmap.md']);
+      final prepared = await read();
+      expect(prepared.roadmapAlreadyDone, isTrue);
+      expect(scope.preparationProblem(baseline, prepared), isNull);
+    });
+
+    test('requires the resolved entry to be marked complete', () async {
+      await truncatedScope(
+        '- [ ] **Config** — Override the webhook URL (`WEBHOOK_URL`)\n',
+      );
+      await write(
+        'roadmap.md',
+        '- [ ] **Config** — Override the webhook URL (`WEBHOOK_URL`)\n'
+            '<!-- touched -->\n',
+      );
+      await git(['add', '--', 'task.txt', 'roadmap.md']);
+      expect(
+        scope.preparationProblem(baseline, await read()),
+        contains('not marked complete'),
+      );
+    });
+
+    test('stays unresolved when it prefixes several entries', () async {
+      await truncatedScope(
+        '- [ ] **Config** — Override the webhook URL (`A`)\n'
+        '- [ ] **Config** — Override the webhook URL (`B`)\n',
+      );
+      expect(baseline.roadmapEntryIdentity, isNull);
+    });
+  });
+
   test('invalid repository and outside roadmap fail closed', () async {
     expect(
       ProjectTaskCommitScope.fromObjective(

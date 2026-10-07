@@ -177,6 +177,46 @@ void main() {
       await subscription.cancel();
     });
 
+    test('orders session events with turn events on one stream', () async {
+      final fixture = _RuntimeFixture();
+      final events = <CavernoRuntimeEvent>[];
+      final subscription = fixture.runtime.events.listen(events.add);
+      final handle = await fixture.runtime.startTurn(
+        const CavernoRuntimeTurnRequest(turnId: 'turn-1'),
+      );
+      handle.complete(content: 'done');
+      fixture.runtime.publishSessionEvent(
+        (sequence, timestamp) => CavernoRuntimeProjectTaskDecision(
+          sequence: sequence,
+          timestamp: timestamp,
+          turnId: 'farm',
+          decision: const {'phase': 'review', 'decision': 'incomplete'},
+        ),
+      );
+      fixture.runtime.publishSessionEvent(
+        (sequence, timestamp) => CavernoRuntimeRunFailed(
+          sequence: sequence,
+          timestamp: timestamp,
+          turnId: 'farm',
+          code: 'workflow_stopped',
+          message: 'stopped',
+          exitCode: 2,
+        ),
+      );
+
+      final sequences = events.map((event) => event.sequence).toList();
+      expect(sequences, orderedEquals([...sequences]..sort()));
+      expect(sequences.toSet(), hasLength(sequences.length));
+      expect(
+        events[events.length - 2].toJson()['type'],
+        'project_task_decision',
+      );
+      expect(events.last.turnId, 'farm');
+      expect(fixture.runtime.hasActiveTurns, isFalse);
+      await subscription.cancel();
+      await fixture.runtime.close();
+    });
+
     test('rejects duplicate active turn IDs', () async {
       final fixture = _RuntimeFixture();
       final handle = await fixture.runtime.startTurn(

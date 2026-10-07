@@ -1,12 +1,11 @@
-import 'dart:convert';
-
 import '../../data/datasources/chat_datasource.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/coding_continuation_recovery_policy.dart';
+import '../../domain/services/coding_recovery_message.dart';
+import '../../domain/services/coding_recovery_protocol.dart';
 import '../../domain/services/project_verification_repair_policy.dart';
 import '../../domain/services/reasoning_only_stop.dart';
-import '../../domain/services/status_recovery_verification.dart';
 import '../../domain/services/structured_task_status_evidence.dart';
 
 typedef RecoveryCompletionCreator =
@@ -41,8 +40,7 @@ abstract final class CodingContinuationRecoveryRequest {
     ChatCompletionResult? rejected;
     for (var attempt = 0; attempt < (structured || repair ? 2 : 1); attempt++) {
       if (!isCurrent()) return null;
-      // The carried tail can omit the very writes and verification a status
-      // report is judged on (session 1d76c878), so the request states them.
+      // Include execution evidence that may have fallen out of the prompt tail.
       final feedback = const StructuredTaskStatusEvidence().attachTo(
         policy.buildCodingContinuationRecoveryToolResult(
           id: '${recoveryCode}_${DateTime.now().microsecondsSinceEpoch}_$attempt',
@@ -67,19 +65,13 @@ abstract final class CodingContinuationRecoveryRequest {
           toolResults: carryResults(correctiveFeedback),
           buildMessages: (forceCompaction) => [
             ...buildBaseMessages(forceCompaction),
-            Message(
-              id: '${recoveryCode}_recovery_${feedback.id}',
-              role: MessageRole.user,
-              timestamp: DateTime.now(),
-              content: [
-                forcedPrompt ??
-                    policy.buildCodingContinuationRecoveryPrompt(
-                      candidateResponse,
-                      recoveryCode: recoveryCode,
-                      executedToolResults: executedResults,
-                    ),
-                if (correction != null) jsonEncode(correction),
-              ].join('\n'),
+            CodingRecoveryMessage.message(
+              feedback.id,
+              candidateResponse,
+              recoveryCode,
+              executedResults,
+              forcedPrompt: forcedPrompt,
+              correction: correction,
             ),
           ],
         ),
@@ -87,16 +79,15 @@ abstract final class CodingContinuationRecoveryRequest {
       if (!isCurrent()) return null;
       if (!structured && !repair) return response;
       final calls = response.toolCalls ?? [];
-      const verification = StatusRecoveryVerification();
-      if (repair
-          ? ProjectVerificationRepairPolicy.accepts(calls, tools)
-          : verification.accepts(calls, tools)) {
+      if (CodingRecoveryProtocol.accepts(calls, tools, repair: repair)) {
         return response;
       }
       rejected = response;
-      violation = repair
-          ? ProjectVerificationRepairPolicy.violation(calls, tools)
-          : verification.violation(calls, tools);
+      violation = CodingRecoveryProtocol.violation(
+        calls,
+        tools,
+        repair: repair,
+      );
     }
     return ChatCompletionResult(
       content: rejected!.content,

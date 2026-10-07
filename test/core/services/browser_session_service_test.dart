@@ -9,9 +9,26 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('BrowserSessionService', () {
     test(
+      'rejects execution on an unsupported platform without opening a pane',
+      () async {
+        final service = BrowserSessionService(platformSupportedOverride: false);
+        addTearDown(service.dispose);
+        service.updateEnabled(true);
+        expect(service.isAvailable, isFalse);
+        expect(
+          jsonDecode(await service.snapshot()),
+          containsPair('code', 'unsupported_platform'),
+        );
+        expect(service.isPanelOpen, isFalse);
+        expect(service.shouldShowPanel, isFalse);
+      },
+    );
+
+    test(
       'a timed-out browser_open leaves no navigation to replay on mount',
       () async {
         final service = BrowserSessionService(
+          platformSupportedOverride: true,
           pinnedHttpClient: BrowserPinnedHttpClient(
             addressLookup: (_) async => [InternetAddress('93.184.216.34')],
             socketConnector: (uri, address, port) =>
@@ -43,6 +60,7 @@ void main() {
 
     test('a timed-out snapshot does not leave an empty pane open', () async {
       final service = BrowserSessionService(
+        platformSupportedOverride: true,
         controllerReadyTimeout: const Duration(milliseconds: 10),
       );
       service.updateEnabled(true);
@@ -55,6 +73,7 @@ void main() {
 
     test('a stale readiness timeout leaves a newer open armed', () async {
       final service = BrowserSessionService(
+        platformSupportedOverride: true,
         controllerReadyTimeout: const Duration(milliseconds: 30),
       );
       service.updateEnabled(true);
@@ -71,7 +90,7 @@ void main() {
     });
 
     test('closing the desktop window clears an idle browser session', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
       service.updateEnabled(true);
       service.open();
       service.handleLoadStart('https://example.com/previous');
@@ -200,6 +219,7 @@ void main() {
         '${root.path}${Platform.pathSeparator}nested',
       );
       final service = BrowserSessionService(
+        platformSupportedOverride: true,
         saveDirectoryOverride: saveDirectory,
       );
 
@@ -217,7 +237,7 @@ void main() {
     });
 
     test('click script returns target metadata for result grounding', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       final script = service.buildClickScriptForTest('document.body');
 
@@ -229,7 +249,7 @@ void main() {
     });
 
     test('allows only the internal blank-page navigation', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       final decision = service.navigationDecision(
         'about:blank',
@@ -241,7 +261,7 @@ void main() {
     });
 
     test('rejects unsafe schemes through the shared destination policy', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       for (final url in [
         'file:///etc/passwd',
@@ -256,7 +276,7 @@ void main() {
     });
 
     test('keeps public WebView navigation closed without peer evidence', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       final decision = service.navigationDecision('https://example.com/');
 
@@ -268,7 +288,7 @@ void main() {
     test(
       'classifies public HTTP as mediated once browser tools are enabled',
       () {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         service.updateEnabled(true);
 
         final decision = service.navigationDecision('https://example.com/');
@@ -282,7 +302,7 @@ void main() {
     test(
       'preview sessions do not reroute WebView clicks to the public web',
       () {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         service.updateEnabled(true);
         service.armLocalPreviewOriginForTest(
           Uri.parse('http://127.0.0.1:4321/index.html'),
@@ -296,7 +316,7 @@ void main() {
     );
 
     test('allows only the active loopback HTML preview origin', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
       final preview = Uri.parse('http://127.0.0.1:4321/index.html');
       service.armLocalPreviewOriginForTest(preview);
 
@@ -319,7 +339,7 @@ void main() {
     });
 
     test('allows preview subresources but rejects every external origin', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
       service.armLocalPreviewOriginForTest(
         Uri.parse('http://127.0.0.1:4321/index.html'),
       );
@@ -347,7 +367,7 @@ void main() {
     test(
       'browser_open fails before mounting a WebView or resolving DNS',
       () async {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
 
         final result = jsonDecode(await service.openUrl('example.com'));
 
@@ -364,6 +384,7 @@ void main() {
       'browser_open can leave a preview session to mediate a public URL',
       () async {
         final service = BrowserSessionService(
+          platformSupportedOverride: true,
           pinnedHttpClient: BrowserPinnedHttpClient(
             addressLookup: (_) async => [InternetAddress('192.168.1.1')],
             socketConnector: (uri, address, port) =>
@@ -389,6 +410,7 @@ void main() {
       'browser_open rejects a private DNS answer before opening the panel',
       () async {
         final service = BrowserSessionService(
+          platformSupportedOverride: true,
           pinnedHttpClient: BrowserPinnedHttpClient(
             addressLookup: (_) async => [InternetAddress('127.0.0.1')],
             socketConnector: (uri, address, port) =>
@@ -410,7 +432,7 @@ void main() {
     test(
       'allows mediation-proxy subresources after the proxy starts',
       () async {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         addTearDown(service.dispose);
         final origin = await service.startMediationProxyForTest();
 
@@ -431,7 +453,7 @@ void main() {
     test(
       'maps mediation-proxy URLs back to the upstream display URL',
       () async {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         addTearDown(service.dispose);
         final origin = await service.startMediationProxyForTest(
           upstream: Uri.parse('https://example.com/r/foo?t=day'),
@@ -456,7 +478,7 @@ void main() {
     );
 
     test('keeps an in-flight load waiter when arming another navigation', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
       final waiter = service.createLoadWaitForTest();
 
       service.armLoadCompleterForTest();

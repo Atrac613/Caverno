@@ -38,6 +38,9 @@ final class CavernoCliApplication {
     );
     final diagnostics = _OutputDiagnostics(output);
     final terminal = Completer<CavernoRuntimeTerminalEvent>();
+    // A farm run spans many turns; each turn's terminal event is progress,
+    // and only the workflow's own terminal event ends the process.
+    final farmSession = invocation.command == CavernoCliCommand.farm;
     var lastSequence = 0;
     var interactionTail = Future<void>.value();
     late final CavernoTerminalInteractionController interactions;
@@ -60,7 +63,9 @@ final class CavernoCliApplication {
           );
         }
       });
-      if (event is CavernoRuntimeTerminalEvent && !terminal.isCompleted) {
+      if (event is CavernoRuntimeTerminalEvent &&
+          (!farmSession || event.turnId == cavernoCliFarmSessionTurnId) &&
+          !terminal.isCompleted) {
         terminal.complete(event);
       }
     }
