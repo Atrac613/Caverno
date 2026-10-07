@@ -98,7 +98,7 @@ dependencies:
   syncfusion_flutter_pdf: ^33.2.13
 
   # Speech I/O
-  speech_to_text: ^7.0.0
+  speech_to_text: ^7.5.0
   flutter_tts: ^4.2.0
   flutter_markdown_plus: ^1.0.12
   markdown: ^7.3.1
