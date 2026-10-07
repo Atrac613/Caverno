@@ -20,6 +20,132 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test('effective context binds requests, thinking and publication', () async {
+    final dataSource = _ContextRecordingDataSource();
+    final statuses = <LiveLlmDiagnosticStatus>[];
+    final report =
+        await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false, model: 'context-model'),
+          chatDataSource: dataSource,
+          mcpToolService: null,
+          effectiveContextMaxTokens: 3000,
+        ).run(
+          probeIds: const {'effective_context'},
+          onReport: (report) {
+            final result = _result(report, 'effective_context');
+            if (statuses.isEmpty || statuses.last != result.status) {
+              statuses.add(result.status);
+            }
+          },
+        );
+    expect(dataSource.requestedModels, ['context-model', 'context-model']);
+    expect(dataSource.contextCaps, [32, 32]);
+    expect(dataSource.contextTemperatures, [0.0, 0.0]);
+    expect(dataSource.contextTargets, [2048, 3000]);
+    expect(statuses, [
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.passed,
+    ]);
+    expect(report.thinkingMetrics!.responseCount, 2);
+    expect(report.thinkingMetrics!.reasoningResponseCount, 2);
+    expect(report.effectiveContextMetrics!.configuredMaximumTokens, 3000);
+  });
+
+  test(
+    'effective context skips unselected and unsupported providers',
+    () async {
+      for (final provider in [
+        LlmProvider.openAiCompatible,
+        LlmProvider.appleFoundationModels,
+      ]) {
+        var invoked = false;
+        final dataSource = _FakeDiagnosticDataSource();
+        final report =
+            await LiveLlmDiagnosticService(
+              settings: _settings(mcpEnabled: false, llmProvider: provider),
+              chatDataSource: dataSource,
+              mcpToolService: null,
+              effectiveContextMaxTokens: 2048,
+              runEffectiveContextTrial: (_, _) async {
+                invoked = true;
+                throw StateError('must not run');
+              },
+            ).run(
+              probeIds: provider == LlmProvider.appleFoundationModels
+                  ? const {'effective_context'}
+                  : const <String>{},
+            );
+        expect(invoked, isFalse);
+        expect(dataSource.requestedModels, isEmpty);
+        expect(
+          _result(report, 'effective_context').status,
+          LiveLlmDiagnosticStatus.skipped,
+        );
+        expect(report.effectiveContextMetrics, isNull);
+      }
+    },
+  );
+
+  test(
+    'effective context clamps the configured maximum before reporting',
+    () async {
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: _FakeDiagnosticDataSource(),
+        mcpToolService: null,
+        effectiveContextMaxTokens: 1048577,
+        runEffectiveContextTrial: (_, _) async => throw StateError('stop'),
+      ).run(probeIds: const {'effective_context'});
+      expect(report.effectiveContextMetrics!.configuredMaximumTokens, 1048576);
+      expect(
+        _result(report, 'effective_context').details,
+        contains('Requested maximum was clamped to 1048576 tokens.'),
+      );
+    },
+  );
+
+  for (final publication in [
+    LiveLlmDiagnosticStatus.running,
+    LiveLlmDiagnosticStatus.passed,
+  ]) {
+    test(
+      'effective context propagates $publication publication errors',
+      () async {
+        var requests = 0;
+        final failure = StateError('publication');
+        final run =
+            LiveLlmDiagnosticService(
+              settings: _settings(mcpEnabled: false),
+              chatDataSource: _FakeDiagnosticDataSource(),
+              mcpToolService: null,
+              effectiveContextMaxTokens: 2048,
+              runEffectiveContextTrial: (target, _) async {
+                requests++;
+                return ChatCompletionResult(
+                  content: 'CTX_BEGIN_$target|CTX_END_$target',
+                  finishReason: 'stop',
+                  usage: const TokenUsage(promptTokens: 2048),
+                );
+              },
+            ).run(
+              probeIds: const {'effective_context'},
+              onReport: (report) {
+                if (_result(report, 'effective_context').status ==
+                    publication) {
+                  throw failure;
+                }
+              },
+            );
+        await expectLater(run, throwsA(same(failure)));
+        expect(
+          requests,
+          publication == LiveLlmDiagnosticStatus.running ? 0 : 1,
+        );
+      },
+    );
+  }
+
   test(
     'tool recovery binds settings and publishes running then terminal reports',
     () async {
@@ -2075,6 +2201,46 @@ class _ToolResultFollowUpDataSource extends _FakeDiagnosticDataSource {
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+  }
+}
+
+class _ContextRecordingDataSource extends _FakeDiagnosticDataSource {
+  final contextCaps = <int?>[];
+  final contextTemperatures = <double?>[];
+  final contextTargets = <int>[];
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    expect(tools, isNull);
+    expect(messages.map((message) => message.role), [
+      MessageRole.system,
+      MessageRole.user,
+    ]);
+    expect(messages.first.content, contains('Caverno live LLM diagnostics'));
+    final target = int.parse(
+      RegExp(
+        r'\nCTX_BEGIN_(\d+)\n',
+      ).firstMatch(messages.last.content)!.group(1)!,
+    );
+    requestedModels.add(model);
+    contextCaps.add(maxTokens);
+    contextTemperatures.add(temperature);
+    contextTargets.add(target);
+    return ChatCompletionResult(
+      content: '<think>recall</think>CTX_BEGIN_$target|CTX_END_$target',
+      finishReason: 'stop',
+      usage: TokenUsage(
+        promptTokens: target,
+        completionTokens: 8,
+        totalTokens: target + 8,
+      ),
     );
   }
 }

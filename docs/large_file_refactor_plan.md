@@ -1930,3 +1930,35 @@ No full Flutter-suite, live-model or device run was performed. See
 The four probe families selected in this sequence are now extracted. Next:
 refresh sizes, churn, coverage and remaining boundaries before selecting another
 slice. F5 stays `current`; RC1 signed-device verification remains on hold.
+
+
+### Effective-context extraction (2026-10-08)
+
+The refreshed primary-file inventory found ChatNotifier at 7,935 lines with
+60 commits since 2026-09-08, the Remote Coding server at 3,261/17 and the
+diagnostic service at 3,203/26. The service's bounded context family already
+had a trial injection port, so this worktree selected it as the next slice.
+RC1 signed-device verification remains on hold.
+
+`live_llm_effective_context_probe.dart` owns ladder targets, prompt construction,
+per-trial recall/usage scoring, first-failure stopping, bounded evidence and
+measurement construction. Completion, message-building and advertised-context
+ports preserve the existing boundaries. The service keeps opt-in/selection and
+provider skips, model settings, the 32-token response cap, thinking observation,
+metadata HTTP handling and report publication. The public trial override stays
+compatible and keeps its existing thinking-observation behavior.
+
+The service fell from 3,203 to 3,055 lines; the module is 206 lines. Both sizes
+are ratcheted. Seven existing context tests passed before extraction. The new
+module has 90/90 executable lines covered; the service has 871/983 (88.61%) in
+the final focused run. The coverage gate passed 139 tests across six suites,
+clean root/package analysis, internal-package tests and relay checks. Tests
+cover exact/small/non-power-of-two maxima, clamping, first failure, missing
+usage, visible reasoning/whitespace, previews, immutable trials, request
+bindings, thinking metrics and publication errors. A normalized comparison
+confirmed that ladder, prompt and failure-classification helpers moved intact.
+See [task and evidence](f5_effective_context_probe_extraction_codex_task.md).
+
+This is worktree evidence, not a main integration or live-model/device result.
+Next: review/integrate the slice, then freeze the streaming measurement contract
+before another extraction. F5 remains `current`.

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -27,6 +26,7 @@ import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_diagnostic_thinking_observer.dart';
+import 'live_llm_effective_context_probe.dart';
 import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_structured_output_probe.dart';
@@ -75,6 +75,20 @@ class LiveLlmDiagnosticService {
   late final _chat = LiveLlmDiagnosticObservedChatCalls(
     chatDataSource,
     _thinking,
+  );
+  late final _effectiveContextProbe = LiveLlmEffectiveContextProbe(
+    complete: (target, messages) {
+      final injected = runEffectiveContextTrial;
+      if (injected != null) return injected(target, messages);
+      return _chat.createChatCompletion(
+        messages: messages,
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: 32,
+      );
+    },
+    messages: (user) => _messages(user: user),
+    advertisedContextTokens: _advertisedContextTokens,
   );
   late final _visionProbes = LiveLlmVisionProbes(
     complete: ({required messages, required maxTokens}) =>
@@ -275,7 +289,7 @@ class LiveLlmDiagnosticService {
   static const _exactPreservationProbeId = 'exact_preservation';
   static const _editFormatProbeId = 'edit_format_fidelity';
   static const _embeddingsProbeId = 'embeddings_capability';
-  static const _effectiveContextProbeId = 'effective_context';
+  static const _effectiveContextProbeId = LiveLlmEffectiveContextProbe.probeId;
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
   static const _visionAttachmentProbeId = LiveLlmVisionProbes.attachmentProbeId;
@@ -405,8 +419,6 @@ class LiveLlmDiagnosticService {
     'Database backups completed at midnight.',
   ];
   static const _embeddingSemanticMarginMinimum = 0.05;
-  static const _effectiveContextInitialTokens = 2048;
-  static const _effectiveContextHardMaximumTokens = 1048576;
 
   /// Vision outcome labels. Emitted into probe details so the profile builder
   /// and a human reading the report classify a miss the same way.
@@ -1768,10 +1780,6 @@ class LiveLlmDiagnosticService {
       return updated;
     }
 
-    final maximum = math.min(
-      effectiveContextMaxTokens,
-      _effectiveContextHardMaximumTokens,
-    );
     final startedAt = DateTime.now();
     var updated = report.withProbeResult(
       const LiveLlmDiagnosticProbeResult(
@@ -1782,172 +1790,16 @@ class LiveLlmDiagnosticService {
     );
     onReport?.call(updated);
 
-    final trials = <LiveLlmDiagnosticContextTrial>[];
-    final completed = <ChatCompletionResult>[];
-    for (final target in _effectiveContextTargets(maximum)) {
-      final stopwatch = Stopwatch()..start();
-      try {
-        final result = await _executeEffectiveContextTrial(target);
-        completed.add(result);
-        stopwatch.stop();
-        final expected = _effectiveContextExpectedReply(target);
-        final visibleContent = LiveLlmResponseScoring.visibleContent(
-          result.content,
-        );
-        final recallPassed = visibleContent == expected;
-        final usageReported = result.usage.promptTokens > 0;
-        final failureKind = !recallPassed
-            ? _effectiveContextResponseFailureKind(target, visibleContent)
-            : !usageReported
-            ? 'prompt_usage_missing'
-            : '';
-        trials.add(
-          LiveLlmDiagnosticContextTrial(
-            requestedApproximateTokens: target,
-            elapsed: stopwatch.elapsed,
-            passed: recallPassed && usageReported,
-            promptTokens: result.usage.promptTokens,
-            failure: !recallPassed
-                ? 'The response did not reproduce both boundary markers.'
-                : !usageReported
-                ? 'The endpoint omitted prompt token usage.'
-                : '',
-            failureKind: failureKind,
-            finishReason: result.finishReason,
-            responsePreview: recallPassed
-                ? ''
-                : LiveLlmDiagnosticEvidence.preview(
-                    result.content,
-                    maxChars: 240,
-                  ),
-          ),
-        );
-      } catch (error) {
-        stopwatch.stop();
-        trials.add(
-          LiveLlmDiagnosticContextTrial(
-            requestedApproximateTokens: target,
-            elapsed: stopwatch.elapsed,
-            passed: false,
-            failure: LiveLlmDiagnosticEvidence.preview('$error', maxChars: 300),
-            failureKind: 'request_error',
-          ),
-        );
-      }
-      if (!trials.last.passed) break;
-    }
-
-    final metrics = LiveLlmDiagnosticEffectiveContextMetrics(
-      configuredMaximumTokens: maximum,
-      trials: List.unmodifiable(trials),
-      // Recorded so the ladder can tell a rung the model failed from one that
-      // never fit this endpoint's window.
-      advertisedContextTokens: await _advertisedContextTokens(),
+    final measurement = await _effectiveContextProbe.run(
+      requestedMaximumTokens: effectiveContextMaxTokens,
+      startedAt: startedAt,
     );
-    final measured = metrics.maxSuccessfulPromptTokens;
-    final status = measured == 0
-        ? LiveLlmDiagnosticStatus.failed
-        : metrics.reachedConfiguredMaximum
-        ? LiveLlmDiagnosticStatus.passed
-        : LiveLlmDiagnosticStatus.warning;
-    final summary = measured == 0
-        ? 'The context ladder could not produce a measured successful request.'
-        : metrics.reachedConfiguredMaximum
-        ? 'The model preserved both boundary markers through the configured maximum.'
-        : 'The context ladder found a boundary above the last successful request.';
     updated = updated
-        .withProbeResult(
-          LiveLlmDiagnosticProbeResult(
-            id: _effectiveContextProbeId,
-            status: status,
-            summary: summary,
-            details: [
-              'Measured prompt tokens: $measured',
-              'Configured approximate maximum: $maximum',
-              if (effectiveContextMaxTokens > maximum)
-                'Requested maximum was clamped to $_effectiveContextHardMaximumTokens tokens.',
-              for (final trial in trials)
-                '${trial.requestedApproximateTokens}: '
-                    '${trial.passed ? 'passed' : 'failed'}'
-                    '${trial.promptTokens > 0 ? ' (${trial.promptTokens} prompt tokens)' : ''}'
-                    '${trial.failureKind.isNotEmpty ? ' [${trial.failureKind}]' : ''}'
-                    '${trial.finishReason.isNotEmpty ? ' finish=${trial.finishReason}' : ''}'
-                    '${trial.failure.isNotEmpty ? ' - ${trial.failure}' : ''}',
-            ].join('\n'),
-            passedChecks: trials.where((trial) => trial.passed).length,
-            totalChecks: trials.length,
-            metadata: {'maxSuccessfulPromptTokens': '$measured'},
-            modelContent: trials
-                .map((trial) => trial.responsePreview)
-                .firstWhere((preview) => preview.isNotEmpty, orElse: () => ''),
-            usage: LiveLlmDiagnosticEvidence.totalUsage(completed),
-            elapsed: DateTime.now().difference(startedAt),
-          ),
-        )
-        .copyWith(effectiveContextMetrics: metrics);
+        .withProbeResult(measurement.result)
+        .copyWith(effectiveContextMetrics: measurement.metrics);
     onReport?.call(updated);
     return updated;
   }
-
-  List<int> _effectiveContextTargets(int maximum) {
-    if (maximum <= _effectiveContextInitialTokens) return [maximum];
-    final targets = <int>[];
-    var target = _effectiveContextInitialTokens;
-    while (target < maximum) {
-      targets.add(target);
-      target *= 2;
-    }
-    if (targets.isEmpty || targets.last != maximum) targets.add(maximum);
-    return targets;
-  }
-
-  Future<ChatCompletionResult> _executeEffectiveContextTrial(int target) {
-    final messages = _effectiveContextMessages(target);
-    final injected = runEffectiveContextTrial;
-    if (injected != null) return injected(target, messages);
-    return _chat.createChatCompletion(
-      messages: messages,
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: 32,
-    );
-  }
-
-  List<Message> _effectiveContextMessages(int target) {
-    final begin = _effectiveContextBeginMarker(target);
-    final end = _effectiveContextEndMarker(target);
-    final fillerCount = math.max(1, target - 128);
-    final content = StringBuffer()
-      ..writeln(
-        'Read the DATA block. Return the exact line beginning CTX_BEGIN_ and '
-        'the exact line beginning CTX_END_, separated by |, with no spaces or '
-        'other text.',
-      )
-      ..writeln('DATA')
-      ..writeln(begin)
-      ..write(List.filled(fillerCount, 'pad').join(' '))
-      ..writeln()
-      ..writeln(end)
-      ..write('END DATA');
-    return _messages(user: content.toString());
-  }
-
-  String _effectiveContextExpectedReply(int target) =>
-      '${_effectiveContextBeginMarker(target)}|${_effectiveContextEndMarker(target)}';
-
-  String _effectiveContextResponseFailureKind(int target, String content) {
-    final trimmed = content.trim();
-    if (trimmed.isEmpty) return 'response_empty';
-    final hasBegin = trimmed.contains(_effectiveContextBeginMarker(target));
-    final hasEnd = trimmed.contains(_effectiveContextEndMarker(target));
-    if (hasBegin && hasEnd) return 'response_both_markers_non_exact';
-    if (hasBegin) return 'response_begin_marker_only';
-    if (hasEnd) return 'response_end_marker_only';
-    return 'response_mismatch';
-  }
-
-  String _effectiveContextBeginMarker(int target) => 'CTX_BEGIN_$target';
-  String _effectiveContextEndMarker(int target) => 'CTX_END_$target';
 
   Future<LiveLlmDiagnosticProbeResult>
   _runFoundationModelsLanguageMatrixProbe() async {
