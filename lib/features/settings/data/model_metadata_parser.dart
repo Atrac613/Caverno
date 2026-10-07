@@ -29,10 +29,7 @@ final class ModelMetadataParser {
 
   static String? normalizeModelId(String? value) {
     final normalized = value?.trim();
-    if (normalized == null || normalized.isEmpty) {
-      return null;
-    }
-    return normalized;
+    return normalized == null || normalized.isEmpty ? null : normalized;
   }
 
   static int? readContextWindowTokens(Map<String, dynamic> json) {

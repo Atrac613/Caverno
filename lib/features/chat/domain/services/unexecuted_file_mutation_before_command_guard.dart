@@ -6,8 +6,8 @@ import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'final_answer_claim_detector.dart';
 import 'git_working_tree_change_evidence.dart';
-import 'immutable_json_snapshot.dart';
 import 'tool_call_execution_policy.dart';
+import 'tool_evidence_snapshot.dart';
 import 'unexecuted_file_mutation_block_payload.dart';
 
 /// Immutable owner-turn evidence used before executing one command.
@@ -18,12 +18,12 @@ final class UnexecutedFileMutationGuardInput {
     required this.currentAssistantContent,
     required List<ToolCallInfo> pendingToolCalls,
     required List<ToolResultInfo> executedToolResults,
-  }) : toolCall = _freezeToolCall(toolCall),
+  }) : toolCall = freezeToolCall(toolCall),
        pendingToolCalls = List<ToolCallInfo>.unmodifiable(
-         pendingToolCalls.map(_freezeToolCall),
+         pendingToolCalls.map(freezeToolCall),
        ),
        executedToolResults = List<ToolResultInfo>.unmodifiable(
-         executedToolResults.map(_freezeToolResult),
+         executedToolResults.map(freezeToolResult),
        );
 
   final ChatTurnOwner owner;
@@ -93,21 +93,4 @@ final class UnexecutedFileMutationBeforeCommandGuard {
       isSuccess: true,
     );
   }
-}
-
-ToolCallInfo _freezeToolCall(ToolCallInfo toolCall) {
-  return ToolCallInfo(
-    id: toolCall.id,
-    name: toolCall.name,
-    arguments: ImmutableJsonSnapshot.freezeMap(toolCall.arguments),
-  );
-}
-
-ToolResultInfo _freezeToolResult(ToolResultInfo toolResult) {
-  return ToolResultInfo(
-    id: toolResult.id,
-    name: toolResult.name,
-    arguments: ImmutableJsonSnapshot.freezeMap(toolResult.arguments),
-    result: toolResult.result,
-  );
 }

@@ -202,13 +202,8 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
                 ContentParser.stripToolArtifactsPreservingThinking(
                   rawRetryContent,
                 ).trim();
-            // A retry earns the replacement only by answering. Emptiness was
-            // measured with thinking included, so a reply that was nothing but
-            // an unterminated <think> block counted as content and replaced the
-            // answer with no prose at all; and the retry's own finish reason
-            // went unread, so one truncated at the retry budget was applied as
-            // the fix for truncation. Session a0ca65b7 gen-14 hit both at once
-            // and ended with no visible answer after twelve minutes.
+            // A retry replaces the answer only with visible, complete prose;
+            // thinking-only or truncated retries cannot repair the first answer.
             final retryAnswerText = ContentParser.stripModelHistoryArtifacts(
               rawRetryContent,
             ).trim();
@@ -333,4 +328,138 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
       );
     }
   }
+}
+
+extension ChatNotifierReviewInspection on ChatNotifier {
+  String projectTaskVerificationContext(String conversationId) =>
+      _primaryRoutes.verificationContext(conversationId)?.prompt ?? '';
+
+  ProjectTaskReviewVerdict? takeProjectTaskReviewVerdict(ChatTurnOwner owner) =>
+      _primaryRoutes.takeReviewTerminal(
+        owner.interactionGeneration,
+        owner.conversationId,
+      );
+
+  String? _captureProjectTaskReviewResponse({
+    required ChatTurnOwner owner,
+    required String response,
+    required String finishReason,
+    required List<ToolResultInfo> results,
+  }) {
+    final generation = owner.interactionGeneration;
+    if (!_isCodeReview(generation) ||
+        _conversationForId(owner.conversationId)?.goal?.projectTaskAutoReview !=
+            true) {
+      return null;
+    }
+    final retained = _primaryRoutes.reviewTerminal(
+      generation,
+      owner.conversationId,
+    );
+    if (retained != null) {
+      return retained.response;
+    }
+    final verdict = ProjectTaskReviewEvidence.resolve(
+      response: response,
+      finishReason: finishReason,
+      results: results,
+      inspectionMissing:
+          _guardReviewInspection(
+            candidateResponse: response,
+            toolResults: results,
+            generation: generation,
+          ) !=
+          null,
+    );
+    _primaryRoutes.recordReviewTerminal(
+      generation,
+      owner.conversationId,
+      verdict,
+    );
+    _turnToolResults.addContent(
+      owner,
+      verdict.toMemoryToolResult('coding-review-status-$generation'),
+    );
+    _turnEnd.addTransform(
+      owner,
+      'project_task_review_${verdict.disposition.name}',
+    );
+    return verdict.response;
+  }
+
+  List<String> _taskReviewInspectionPaths(int generation) =>
+      const ProjectTaskReviewInspection().paths(
+        conversation: _conversationForGeneration(generation),
+        codeReview: _isCodeReview(generation),
+        projectRoot: _turnOwnerSnapshotForGeneration(generation)?.projectRoot,
+      );
+
+  Future<bool> _startTaskReviewInspection(
+    int generation,
+    List<Map<String, dynamic>> tools,
+  ) async {
+    final paths = _taskReviewInspectionPaths(generation);
+    if (paths.isEmpty) return false;
+    if (!ToolDefinitionSearchService.toolNamesFromDefinitions(
+      tools,
+    ).contains('read_file')) {
+      return _rejectTaskReviewWithoutInspection(generation);
+    }
+    // Use the normal owner-fenced tool route and ledger. These are harness
+    // prerequisites, not model-authored calls or evidence from an earlier turn.
+    await _executeToolCalls(
+      [
+        for (final file in paths)
+          ToolCallInfo(
+            id: 'farm_review_inspection_${_uuid.v4()}',
+            name: 'read_file',
+            arguments: {'path': file},
+          ),
+      ],
+      assistantContent:
+          'The harness is inspecting the current task files before the '
+          'dedicated read-only review. Review these executed results and the '
+          'task patch; failed reads leave the review incomplete.',
+      selectedToolNames: ToolDefinitionSearchService.toolNamesFromDefinitions(
+        tools,
+      ).toSet(),
+      stableToolDefinitions: tools,
+      interactionGeneration: generation,
+    );
+    return true;
+  }
+
+  Future<bool> _rejectTaskReviewWithoutInspection(int generation) async {
+    if (!_isCodeReview(generation) ||
+        _conversationForGeneration(generation)?.goal?.projectTaskAutoReview !=
+            true) {
+      return false;
+    }
+    final owner = _turnOwnerForGeneration(generation);
+    if (owner != null) {
+      await _handleError(
+        'Farm review is incomplete: current task-file inspection requires '
+        'the read_file tool and a tool-capable review route.',
+        owner: owner,
+      );
+    }
+    return true;
+  }
+
+  ToolResultInfo? _guardReviewInspection({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+    required int generation,
+  }) => _claims.buildUnverifiedReadOnlyInspectionClaimToolResult(
+    candidateResponse: candidateResponse,
+    toolResults: toolResults,
+    requiredFilePaths: _taskReviewInspectionPaths(generation),
+  );
+
+  ToolDefinitionSearchSelection _initialToolSelection(
+    List<Map<String, dynamic>> tools,
+  ) => const InitialToolSelection().select(
+    tools,
+    _settings.enablePrefixStableToolLoop,
+  );
 }
