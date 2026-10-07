@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'conversation_plan_artifact.dart';
@@ -9,6 +9,7 @@ part of 'conversation_plan_artifact.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $ConversationPlanRevisionCopyWith<ConversationPlanRevision> get copyWith => _$Co
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationPlanRevision&&(identical(other.markdown, markdown) || other.markdown == markdown)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.label, label) || other.label == label));
+  final _this = this as ConversationPlanRevision;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationPlanRevision&&(identical(other.markdown, _this.markdown) || other.markdown == _this.markdown)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&(identical(other.label, _this.label) || other.label == _this.label));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,markdown,createdAt,kind,label);
+int get hashCode {
+  final _this = this as ConversationPlanRevision;
+  return Object.hash(runtimeType,_this.markdown,_this.createdAt,_this.kind,_this.label);
+}
 
 @override
 String toString() {
-  return 'ConversationPlanRevision(markdown: $markdown, createdAt: $createdAt, kind: $kind, label: $label)';
+  final _this = this as ConversationPlanRevision;
+  return 'ConversationPlanRevision(markdown: ${_this.markdown}, createdAt: ${_this.createdAt}, kind: ${_this.kind}, label: ${_this.label})';
 }
 
 
@@ -66,7 +72,7 @@ class _$ConversationPlanRevisionCopyWithImpl<$Res>
 /// Create a copy of ConversationPlanRevision
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? markdown = null,Object? createdAt = null,Object? kind = null,Object? label = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationPlanRevision(
 markdown: null == markdown ? _self.markdown : markdown // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
@@ -233,16 +239,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationPlanRevision&&(identical(other.markdown, markdown) || other.markdown == markdown)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.label, label) || other.label == label));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationPlanRevision&&(identical(other.markdown, markdown) || other.markdown == markdown)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.label, label) || other.label == label));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,markdown,createdAt,kind,label);
+int get hashCode {
+    return Object.hash(runtimeType,markdown,createdAt,kind,label);
+}
 
 @override
 String toString() {
-  return 'ConversationPlanRevision(markdown: $markdown, createdAt: $createdAt, kind: $kind, label: $label)';
+    return 'ConversationPlanRevision(markdown: $markdown, createdAt: $createdAt, kind: $kind, label: $label)';
 }
 
 
@@ -300,16 +308,21 @@ $ConversationPlanArtifactCopyWith<ConversationPlanArtifact> get copyWith => _$Co
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationPlanArtifact&&(identical(other.draftMarkdown, draftMarkdown) || other.draftMarkdown == draftMarkdown)&&(identical(other.approvedMarkdown, approvedMarkdown) || other.approvedMarkdown == approvedMarkdown)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.revisions, revisions));
+  final _this = this as ConversationPlanArtifact;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationPlanArtifact&&(identical(other.draftMarkdown, _this.draftMarkdown) || other.draftMarkdown == _this.draftMarkdown)&&(identical(other.approvedMarkdown, _this.approvedMarkdown) || other.approvedMarkdown == _this.approvedMarkdown)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&const DeepCollectionEquality().equals(other.revisions, _this.revisions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,draftMarkdown,approvedMarkdown,updatedAt,const DeepCollectionEquality().hash(revisions));
+int get hashCode {
+  final _this = this as ConversationPlanArtifact;
+  return Object.hash(runtimeType,_this.draftMarkdown,_this.approvedMarkdown,_this.updatedAt,const DeepCollectionEquality().hash(_this.revisions));
+}
 
 @override
 String toString() {
-  return 'ConversationPlanArtifact(draftMarkdown: $draftMarkdown, approvedMarkdown: $approvedMarkdown, updatedAt: $updatedAt, revisions: $revisions)';
+  final _this = this as ConversationPlanArtifact;
+  return 'ConversationPlanArtifact(draftMarkdown: ${_this.draftMarkdown}, approvedMarkdown: ${_this.approvedMarkdown}, updatedAt: ${_this.updatedAt}, revisions: ${_this.revisions})';
 }
 
 
@@ -338,7 +351,7 @@ class _$ConversationPlanArtifactCopyWithImpl<$Res>
 /// Create a copy of ConversationPlanArtifact
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? draftMarkdown = null,Object? approvedMarkdown = null,Object? updatedAt = freezed,Object? revisions = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationPlanArtifact(
 draftMarkdown: null == draftMarkdown ? _self.draftMarkdown : draftMarkdown // ignore: cast_nullable_to_non_nullable
 as String,approvedMarkdown: null == approvedMarkdown ? _self.approvedMarkdown : approvedMarkdown // ignore: cast_nullable_to_non_nullable
 as String,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -484,7 +497,7 @@ return $default(_that.draftMarkdown,_that.approvedMarkdown,_that.updatedAt,_that
 @JsonSerializable()
 
 class _ConversationPlanArtifact extends ConversationPlanArtifact {
-  const _ConversationPlanArtifact({this.draftMarkdown = '', this.approvedMarkdown = '', this.updatedAt, final  List<ConversationPlanRevision> revisions = const <ConversationPlanRevision>[]}): _revisions = revisions,super._();
+  const _ConversationPlanArtifact({this.draftMarkdown = '', this.approvedMarkdown = '', this.updatedAt,  List<ConversationPlanRevision> revisions = const <ConversationPlanRevision>[]}): _revisions = revisions,super._();
   factory _ConversationPlanArtifact.fromJson(Map<String, dynamic> json) => _$ConversationPlanArtifactFromJson(json);
 
 @override@JsonKey() final  String draftMarkdown;
@@ -511,16 +524,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationPlanArtifact&&(identical(other.draftMarkdown, draftMarkdown) || other.draftMarkdown == draftMarkdown)&&(identical(other.approvedMarkdown, approvedMarkdown) || other.approvedMarkdown == approvedMarkdown)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other._revisions, _revisions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationPlanArtifact&&(identical(other.draftMarkdown, draftMarkdown) || other.draftMarkdown == draftMarkdown)&&(identical(other.approvedMarkdown, approvedMarkdown) || other.approvedMarkdown == approvedMarkdown)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.revisions, _revisions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,draftMarkdown,approvedMarkdown,updatedAt,const DeepCollectionEquality().hash(_revisions));
+int get hashCode {
+    return Object.hash(runtimeType,draftMarkdown,approvedMarkdown,updatedAt,const DeepCollectionEquality().hash(_revisions));
+}
 
 @override
 String toString() {
-  return 'ConversationPlanArtifact(draftMarkdown: $draftMarkdown, approvedMarkdown: $approvedMarkdown, updatedAt: $updatedAt, revisions: $revisions)';
+    return 'ConversationPlanArtifact(draftMarkdown: $draftMarkdown, approvedMarkdown: $approvedMarkdown, updatedAt: $updatedAt, revisions: $revisions)';
 }
 
 

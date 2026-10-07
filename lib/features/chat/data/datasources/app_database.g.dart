@@ -3673,7 +3673,16 @@ class $$ConversationsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ConversationsTable, ConversationRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ConversationsTable,
+                    ConversationRow
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -3825,7 +3834,18 @@ class $$ChatMemoryEntriesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ChatMemoryEntriesTable, ChatMemoryEntryRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ChatMemoryEntriesTable,
+                    ChatMemoryEntryRow
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -4105,7 +4125,16 @@ class $$EmbeddingsTableTableManager
                 createdAtMs: createdAtMs,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$EmbeddingsTable, EmbeddingRow>(table),
+                  BaseReferences<_$AppDatabase, $EmbeddingsTable, EmbeddingRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -4586,7 +4615,16 @@ class $$ModelUsageDailyTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ModelUsageDailyTable, ModelUsageDailyRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ModelUsageDailyTable,
+                    ModelUsageDailyRow
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -4734,7 +4772,16 @@ class $$Rag2StoreMetaTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$Rag2StoreMetaTable, Rag2StoreMetaRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $Rag2StoreMetaTable,
+                    Rag2StoreMetaRow
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -5028,7 +5075,16 @@ class $$Rag2GenerationsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$Rag2GenerationsTable, Rag2GenerationRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $Rag2GenerationsTable,
+                    Rag2GenerationRow
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -5286,7 +5342,19 @@ class $$ConversationWorkTimeTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $ConversationWorkTimeTable,
+                    ConversationWorkTimeRow
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ConversationWorkTimeTable,
+                    ConversationWorkTimeRow
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
