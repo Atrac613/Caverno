@@ -1994,3 +1994,33 @@ The streaming slice remains uncommitted in this worktree; no main integration,
 push, full Flutter-suite, live-model or signed-device run is claimed. Next:
 review/commit streaming, then refresh the remaining diagnostic boundaries. F5
 remains `current`; RC1 stays on hold.
+
+
+### Embeddings scoring extraction (2026-10-08)
+
+Streaming was locally committed as `d56fb06df`. The remaining embeddings family
+has a pure evaluator that can move independently of request/client handling,
+unlike a larger transport or report-orchestration extraction. This slice moves
+that evaluator, its outcome, fixed input texts and cutoff into the 97-line
+`live_llm_embedding_probe.dart`. The service falls from 2,965 to 2,877 lines.
+Both files have size budgets.
+
+Selection, provider/model skips, injected/production requests, timing, endpoint
+failure diagnostics, client closing and report publication stay with the
+service. Structural validation still precedes vector indexing. Finite/non-zero,
+equal-width three-vector checks, cosine math, the 0.05 margin, model metadata,
+result details and nullable metrics are unchanged. A normalized body comparison
+matches the committed original.
+
+Three service embedding tests passed before extraction. Eighteen independent
+tests cover exact input text, scoring/cutoff, absent/extra/empty/unequal-width
+vectors, each zero-vector position, non-finite values and negative coordinates.
+The focused gate passed 143 tests in five suites, clean root/package analysis,
+internal-package tests and relay checks. The module has 40/40 executable lines
+covered; the service has 796/907 (87.76%) in this focused run.
+See [task and evidence](f5_embedding_probe_extraction_codex_task.md).
+
+The embeddings slice remains uncommitted. Next: review/commit it, then scope
+exact-preservation or edit-format measurement against existing contracts. F5
+remains `current`; RC1 stays on hold. No main integration, push, full Flutter
+suite, live-model or signed-device run is claimed.

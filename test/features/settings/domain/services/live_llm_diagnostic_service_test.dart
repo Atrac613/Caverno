@@ -1437,7 +1437,11 @@ void main() {
     final report = await service.run(probeIds: {'embeddings_capability'});
     final result = _result(report, 'embeddings_capability');
 
-    expect(capturedInputs, hasLength(3));
+    expect(capturedInputs, [
+      'A cat rests on a warm windowsill.',
+      'The kitten is sleeping beside a sunny window.',
+      'Database backups completed at midnight.',
+    ]);
     expect(result.status, LiveLlmDiagnosticStatus.passed);
     expect(report.embeddingMetrics, isNotNull);
     expect(report.embeddingMetrics!.dimension, 2);

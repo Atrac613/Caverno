@@ -9,7 +9,6 @@ import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/embeddings_client.dart';
-import '../../../chat/data/datasources/embeddings_math.dart';
 import '../../../chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
@@ -27,6 +26,7 @@ import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_diagnostic_thinking_observer.dart';
 import 'live_llm_effective_context_probe.dart';
+import 'live_llm_embedding_probe.dart';
 import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
@@ -298,7 +298,7 @@ class LiveLlmDiagnosticService {
   static const _thinkingControlProbeId = 'thinking_control';
   static const _exactPreservationProbeId = 'exact_preservation';
   static const _editFormatProbeId = 'edit_format_fidelity';
-  static const _embeddingsProbeId = 'embeddings_capability';
+  static const _embeddingsProbeId = LiveLlmEmbeddingProbe.probeId;
   static const _effectiveContextProbeId = LiveLlmEffectiveContextProbe.probeId;
   static const _foundationModelsLanguageMatrixProbeId =
       'foundation_models_language_matrix';
@@ -413,12 +413,6 @@ class LiveLlmDiagnosticService {
 -  return 'Hello, \$trimmed!';
 +  return 'Welcome, \$trimmed!';
  }''';
-  static const _embeddingInputs = <String>[
-    'A cat rests on a warm windowsill.',
-    'The kitten is sleeping beside a sunny window.',
-    'Database backups completed at midnight.',
-  ];
-  static const _embeddingSemanticMarginMinimum = 0.05;
 
   /// Vision outcome labels. Emitted into probe details so the profile builder
   /// and a human reading the report classify a miss the same way.
@@ -1511,7 +1505,7 @@ class LiveLlmDiagnosticService {
     onReport?.call(updated);
     try {
       final stopwatch = Stopwatch()..start();
-      final attempt = await _embed(_embeddingInputs, model: model);
+      final attempt = await _embed(LiveLlmEmbeddingProbe.inputs, model: model);
       stopwatch.stop();
       final result = attempt.result;
       if (result == null) {
@@ -1543,7 +1537,7 @@ class LiveLlmDiagnosticService {
         return updated;
       }
 
-      final outcome = _evaluateEmbeddings(result, stopwatch.elapsed);
+      final outcome = LiveLlmEmbeddingProbe.evaluate(result, stopwatch.elapsed);
       updated = updated
           .withProbeResult(
             outcome.result.copyWith(
@@ -1584,81 +1578,6 @@ class LiveLlmDiagnosticService {
     } finally {
       client.close();
     }
-  }
-
-  _EmbeddingProbeOutcome _evaluateEmbeddings(
-    EmbeddingsResult result,
-    Duration elapsed,
-  ) {
-    final vectors = result.vectors;
-    final dimensions = vectors.map((vector) => vector.length).toSet();
-    final structurallyValid =
-        vectors.length == _embeddingInputs.length &&
-        dimensions.length == 1 &&
-        dimensions.first > 0 &&
-        vectors.every(
-          (vector) =>
-              vector.every((value) => value.isFinite) &&
-              vector.any((value) => value != 0),
-        );
-    if (!structurallyValid) {
-      return _EmbeddingProbeOutcome(
-        result: LiveLlmDiagnosticProbeResult(
-          id: _embeddingsProbeId,
-          status: LiveLlmDiagnosticStatus.failed,
-          summary: 'The embeddings response contained unusable vectors.',
-          details:
-              'Expected ${_embeddingInputs.length} finite, non-zero, equal-width '
-              'vectors; received ${vectors.length} with dimensions '
-              '${dimensions.toList()}.',
-          passedChecks: 0,
-          totalChecks: 2,
-        ),
-      );
-    }
-
-    final similarCosine = EmbeddingsMath.cosineSimilarity(
-      vectors[0],
-      vectors[1],
-    );
-    final unrelatedCosine = EmbeddingsMath.cosineSimilarity(
-      vectors[0],
-      vectors[2],
-    );
-    final metrics = LiveLlmDiagnosticEmbeddingMetrics(
-      totalElapsed: elapsed,
-      inputCount: _embeddingInputs.length,
-      returnedVectorCount: vectors.length,
-      dimension: vectors.first.length,
-      model: result.model,
-      similarCosine: similarCosine,
-      unrelatedCosine: unrelatedCosine,
-    );
-    final semanticPass =
-        metrics.semanticMargin >= _embeddingSemanticMarginMinimum;
-    return _EmbeddingProbeOutcome(
-      result: LiveLlmDiagnosticProbeResult(
-        id: _embeddingsProbeId,
-        status: semanticPass
-            ? LiveLlmDiagnosticStatus.passed
-            : LiveLlmDiagnosticStatus.warning,
-        summary: semanticPass
-            ? 'The embedding model returned usable, semantically separated vectors.'
-            : 'The vectors were usable but did not separate the paraphrase from the control.',
-        details: [
-          'Model: ${result.model}',
-          'Vectors: ${vectors.length} x ${vectors.first.length}',
-          'Similar cosine: ${similarCosine.toStringAsFixed(6)}',
-          'Unrelated cosine: ${unrelatedCosine.toStringAsFixed(6)}',
-          'Semantic margin: ${metrics.semanticMargin.toStringAsFixed(6)} '
-              '(required >= ${_embeddingSemanticMarginMinimum.toStringAsFixed(2)})',
-        ].join('\n'),
-        passedChecks: semanticPass ? 2 : 1,
-        totalChecks: 2,
-        metadata: {'embeddingModel': result.model},
-      ),
-      metrics: metrics,
-    );
   }
 
   Future<LiveLlmDiagnosticReport> _runEffectiveContextProbe({
@@ -2937,13 +2856,6 @@ class _EmbeddingAttempt {
 
   final EmbeddingsResult? result;
   final EmbeddingsFailure? failure;
-}
-
-class _EmbeddingProbeOutcome {
-  const _EmbeddingProbeOutcome({required this.result, this.metrics});
-
-  final LiveLlmDiagnosticProbeResult result;
-  final LiveLlmDiagnosticEmbeddingMetrics? metrics;
 }
 
 class _FoundationModelsLanguageProbeOutcome {
