@@ -250,6 +250,38 @@ void main() {
     );
   });
 
+  test('code review needs a registered enabled endpoint and model', () {
+    final defaults = AppSettings.defaults();
+    expect(defaults.hasCodeReviewRoute, isFalse);
+
+    final configured = defaults.copyWith(
+      codeReviewEndpointId: 'review-host',
+      llmEndpoints: const [
+        LlmEndpoint(
+          id: 'review-host',
+          baseUrl: 'http://review.example/v1',
+          model: 'review-model',
+        ),
+      ],
+    );
+    expect(configured.hasCodeReviewRoute, isTrue);
+    expect(configured.effectiveCodeReviewModel, 'review-model');
+    expect(
+      configured.copyWith(codeReviewEndpointId: 'missing').hasCodeReviewRoute,
+      isFalse,
+    );
+    expect(
+      configured
+          .copyWith(
+            llmEndpoints: [
+              configured.llmEndpoints.single.copyWith(enabled: false),
+            ],
+          )
+          .hasCodeReviewRoute,
+      isFalse,
+    );
+  });
+
   test(
     'legacy Pro endpoint pins default candidate routing to selected only',
     () {
@@ -543,7 +575,15 @@ void main() {
 
       final migrated = AppSettings.migrateLegacyJson(json);
 
-      expect(migrated['llmEndpoints'], json['llmEndpoints']);
+      // What this guards is that the unified-endpoint step does not rewrite a
+      // registry that already exists. The chat_template_kwargs step does add
+      // its key to every row -- that is its whole job -- so compare the fields
+      // this test is about rather than the whole map.
+      final row = (migrated['llmEndpoints'] as List).single as Map;
+      expect(migrated['llmEndpoints'], hasLength(1));
+      expect(row['id'], 'unified-id');
+      expect(row['baseUrl'], 'http://unified.example/v1');
+      expect(row['source'], 'manual');
       expect(migrated, contains('llmEndpointProfiles'));
     });
 
@@ -826,8 +866,7 @@ void main() {
     expect(decoded.chatApprovalMode, ToolApprovalMode.defaultPermissions);
   });
 
-  test('defaults LLM session logs to the build mode and persists opt out',
-      () {
+  test('defaults LLM session logs to the build mode and persists opt out', () {
     expect(AppSettings.defaults().enableLlmSessionLogs, kDebugMode);
 
     final settings = AppSettings.defaults().copyWith(
@@ -1267,5 +1306,184 @@ void main() {
     expect(legacy.generalPrimaryEndpointId, isEmpty);
     expect(legacy.codingPrimaryEndpointId, isEmpty);
     expect(legacy.planPrimaryEndpointId, isEmpty);
+  });
+
+  group('acceptsChatTemplateKwargsFor', () {
+    // The secondary routers hand their datasource factory a base URL and an
+    // API key, never an endpoint row, so the flag has to be resolvable from
+    // the URL alone.
+    const base = AppSettings(
+      baseUrl: 'http://192.168.100.241:1234/v1',
+      model: 'gemma-4-31B-it-Q4_K_M.gguf',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      mcpEnabled: true,
+    );
+
+    AppSettings withEndpoints(
+      List<LlmEndpoint> endpoints, {
+      String? activeId,
+    }) => base.copyWith(
+      llmEndpoints: endpoints,
+      activeLlmEndpointId: activeId ?? endpoints.first.id,
+    );
+
+    test('reads the flag off the endpoint serving that base URL', () {
+      final settings = withEndpoints([
+        const LlmEndpoint(
+          id: 'local',
+          baseUrl: 'http://192.168.100.241:1234/v1',
+          chatTemplateKwargsEnabled: true,
+        ),
+        const LlmEndpoint(id: 'hosted', baseUrl: 'https://api.example.com/v1'),
+      ]);
+
+      expect(
+        settings.acceptsChatTemplateKwargsFor('http://192.168.100.241:1234/v1'),
+        isTrue,
+      );
+      expect(
+        settings.acceptsChatTemplateKwargsFor('https://api.example.com/v1'),
+        isFalse,
+        reason: 'the opt-in is per endpoint, not per install',
+      );
+    });
+
+    test('ignores a trailing slash', () {
+      final settings = withEndpoints([
+        const LlmEndpoint(
+          id: 'local',
+          baseUrl: 'http://192.168.100.241:1234/v1',
+          chatTemplateKwargsEnabled: true,
+        ),
+      ]);
+
+      expect(
+        settings.acceptsChatTemplateKwargsFor(
+          'http://192.168.100.241:1234/v1/',
+        ),
+        isTrue,
+      );
+    });
+
+    test('falls back to the active endpoint for an unlisted URL', () {
+      final settings = withEndpoints([
+        const LlmEndpoint(
+          id: 'local',
+          baseUrl: 'http://192.168.100.241:1234/v1',
+          chatTemplateKwargsEnabled: true,
+        ),
+      ]);
+
+      expect(
+        settings.acceptsChatTemplateKwargsFor('http://elsewhere:1234/v1'),
+        isTrue,
+      );
+    });
+
+    test('is false when nothing is registered', () {
+      expect(base.acceptsChatTemplateKwargsFor(base.baseUrl), isFalse);
+    });
+
+    test('defaults to off for a freshly added endpoint', () {
+      // Sending the field to a server that has never heard of it is the
+      // outcome worth avoiding, so the opt-in is never implicit.
+      expect(
+        const LlmEndpoint(
+          id: 'x',
+          baseUrl: 'https://api.example.com/v1',
+        ).chatTemplateKwargsEnabled,
+        isFalse,
+      );
+    });
+  });
+
+  group('chat_template_kwargs opt-in migration', () {
+    Map<String, dynamic> withEndpointJson(Map<String, dynamic> endpoint) => {
+      'baseUrl': 'http://192.168.100.241:1234/v1',
+      'model': 'whatever',
+      'apiKey': 'no-key',
+      'temperature': 0.7,
+      'maxTokens': 4096,
+      'llmEndpoints': [endpoint],
+    };
+
+    test('opts in the endpoints that relied on the old model-name gate', () {
+      // Suppression used to follow from the name alone, so an install already
+      // depending on it must not lose it when the name stops deciding.
+      final migrated = AppSettings.migrateLegacyJson(
+        withEndpointJson({
+          'id': 'local',
+          'baseUrl': 'http://192.168.100.241:1234/v1',
+          'model': 'Qwen3.8-Flash-Next-Q2',
+        }),
+      );
+
+      expect(
+        (migrated['llmEndpoints'] as List).single['chatTemplateKwargsEnabled'],
+        isTrue,
+      );
+    });
+
+    test('leaves every other endpoint opted out', () {
+      final migrated = AppSettings.migrateLegacyJson(
+        withEndpointJson({
+          'id': 'hosted',
+          'baseUrl': 'https://api.example.com/v1',
+          'model': 'some-unrecognised-model',
+        }),
+      );
+
+      expect(
+        (migrated['llmEndpoints'] as List).single['chatTemplateKwargsEnabled'],
+        isFalse,
+        reason: 'it never had suppression, so it gains nothing silently',
+      );
+    });
+
+    test('seeds the same history when there is no endpoint list', () {
+      // An install predating the endpoint list has no `llmEndpoints` key, so
+      // its endpoint is born in withNormalizedLlmEndpoints and never passes
+      // the migration. It was seeded opted out whatever the model, which lost
+      // suppression on exactly the installs that had it.
+      AppSettings seeded(String model) => AppSettings.fromJson({
+        'baseUrl': 'http://192.168.100.241:1234/v1',
+        'model': model,
+        'apiKey': 'no-key',
+        'temperature': 0.7,
+        'maxTokens': 4096,
+      }).withNormalizedLlmEndpoints();
+
+      expect(
+        seeded(
+          'qwen3.8-27b-vision',
+        ).llmEndpoints.single.chatTemplateKwargsEnabled,
+        isTrue,
+      );
+      expect(
+        seeded(
+          'some-unrecognised-model',
+        ).llmEndpoints.single.chatTemplateKwargsEnabled,
+        isFalse,
+      );
+    });
+
+    test('never overwrites a choice already made', () {
+      final migrated = AppSettings.migrateLegacyJson(
+        withEndpointJson({
+          'id': 'local',
+          'baseUrl': 'http://192.168.100.241:1234/v1',
+          'model': 'qwen3.8-27b-vision',
+          'chatTemplateKwargsEnabled': false,
+        }),
+      );
+
+      expect(
+        (migrated['llmEndpoints'] as List).single['chatTemplateKwargsEnabled'],
+        isFalse,
+        reason: 'the migration runs once; the person outranks it',
+      );
+    });
   });
 }

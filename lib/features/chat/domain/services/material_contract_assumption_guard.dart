@@ -8,7 +8,6 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 
 // ChatNotifier decomposition collaborator: material-contract-assumption-guard
-
 /// Blocks state mutation while an owning workflow has a material assumption.
 final class MaterialContractAssumptionGuard {
   const MaterialContractAssumptionGuard();
@@ -38,6 +37,7 @@ final class MaterialContractAssumptionGuard {
       toolName: toolCall.name,
       result: jsonEncode({
         'ok': false,
+        ...ToolResultOrigin.refusal.marker,
         'code': blockedCode,
         'error':
             'State mutation is blocked until the user confirms a material contract assumption.',

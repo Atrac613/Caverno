@@ -36,7 +36,7 @@ void main() {
     expect(rows, isEmpty);
 
     final version = await after.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 5);
+    expect(version.data['user_version'], 6);
   });
 
   test('an upgraded database accepts usage rows', () async {
@@ -119,7 +119,7 @@ void main() {
       {for (final row in meta) row.key: row.value}['schema_name'],
       rag2DriftStoreSchema,
     );
-    expect(version.data['user_version'], 5);
+    expect(version.data['user_version'], 6);
 
     final rag2Search = await after
         .customSelect(
@@ -197,4 +197,33 @@ void main() {
       );
     },
   );
+
+  test('upgrading from v5 adds the conversation work time table', () async {
+    final before = open();
+    await before
+        .into(before.conversations)
+        .insert(ConversationsCompanion.insert(id: 'c1', payload: '{}'));
+    await before.customStatement('DROP TABLE IF EXISTS conversation_work_time');
+    await before.customStatement('PRAGMA user_version = 5');
+    await before.close();
+
+    final after = open();
+    addTearDown(after.close);
+    await after
+        .into(after.conversationWorkTime)
+        .insert(
+          ConversationWorkTimeCompanion.insert(
+            conversationId: 'c1',
+            kind: 'llmInference',
+            durationMs: const Value(1500),
+          ),
+        );
+
+    final rows = await after.select(after.conversationWorkTime).get();
+    expect(rows.single.durationMs, 1500);
+    expect(rows.single.detail, '', reason: 'the column default applies');
+    expect((await after.select(after.conversations).get()).single.id, 'c1');
+    final version = await after.customSelect('PRAGMA user_version').getSingle();
+    expect(version.data['user_version'], 6);
+  });
 }

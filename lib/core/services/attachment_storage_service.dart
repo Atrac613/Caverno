@@ -51,6 +51,30 @@ class AttachmentStorageService {
     return dest.absolute.path;
   }
 
+  /// Starts a durable attachment write without buffering the whole payload in
+  /// memory. The returned session writes a hidden staging file and atomically
+  /// renames it to its final attachment name on [AttachmentStorageWriteSession
+  /// .complete].
+  static Future<AttachmentStorageWriteSession> beginWrite({
+    required String originalName,
+    Directory? directoryOverride,
+  }) async {
+    final dir = directoryOverride ?? await _attachmentsDir();
+    if (!dir.existsSync()) await dir.create(recursive: true);
+    final safe = _safeName(originalName);
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final prefix = '${dir.path}${Platform.pathSeparator}${stamp}_$safe';
+    final stagingPath =
+        '${dir.path}${Platform.pathSeparator}.${stamp}_$safe.part';
+    final finalPath = prefix;
+    final sink = File(stagingPath).openWrite(mode: FileMode.writeOnly);
+    return AttachmentStorageWriteSession._(
+      stagingPath: stagingPath,
+      finalPath: finalPath,
+      sink: sink,
+    );
+  }
+
   /// Deletes attachment copies older than the retention window. Safe to call on
   /// app start; any failures (including a missing directory) are swallowed.
   static Future<void> sweepOldAttachments() async {
@@ -126,5 +150,54 @@ class AttachmentStorageService {
     return sanitized.length > 80
         ? sanitized.substring(sanitized.length - 80)
         : sanitized;
+  }
+}
+
+/// A sequential write session for one managed attachment.
+class AttachmentStorageWriteSession {
+  AttachmentStorageWriteSession._({
+    required this.stagingPath,
+    required this.finalPath,
+    required IOSink sink,
+  }) : _sink = sink;
+
+  final String stagingPath;
+  final String finalPath;
+  final IOSink _sink;
+  bool _closed = false;
+  String? _completedPath;
+
+  /// Appends one chunk and waits until the sink has accepted it.
+  Future<void> write(List<int> bytes) async {
+    if (_closed) throw StateError('The attachment write session is closed.');
+    _sink.add(bytes);
+    await _sink.flush();
+  }
+
+  /// Closes the staging file and promotes it to the final attachment path.
+  Future<String> complete() async {
+    final completedPath = _completedPath;
+    if (completedPath != null) return completedPath;
+    await _closeSink();
+    await File(stagingPath).rename(finalPath);
+    _completedPath = finalPath;
+    return finalPath;
+  }
+
+  /// Closes and removes an incomplete staging file.
+  Future<void> discard() async {
+    if (_completedPath != null) return;
+    await _closeSink();
+    try {
+      await File(stagingPath).delete();
+    } catch (_) {
+      // Cleanup is best effort during disconnect or platform teardown.
+    }
+  }
+
+  Future<void> _closeSink() async {
+    if (_closed) return;
+    _closed = true;
+    await _sink.close();
   }
 }

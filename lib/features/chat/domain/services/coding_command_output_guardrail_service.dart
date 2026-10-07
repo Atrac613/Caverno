@@ -12,7 +12,6 @@ export 'coding_command_preflight_issue_detector.dart'
 
 // ChatNotifier decomposition collaborator: coding-command-output-guardrail-service
 
-/// Compatibility facade for coding command output and preflight guardrails.
 class CodingCommandOutputGuardrailService {
   const CodingCommandOutputGuardrailService();
 
@@ -29,23 +28,21 @@ class CodingCommandOutputGuardrailService {
     required List<ToolResultInfo> toolResults,
     DateTime? now,
   }) {
-    if (toolResults.any((result) => result.name == toolName)) {
-      return null;
-    }
+    if (toolResults.any((result) => result.name == toolName)) return null;
 
     final issues = <CodingCommandOutputIssue>[];
+    final sourceIds = <String>[];
     for (final toolResult in toolResults) {
       final issue = detectIssue(toolResult);
       if (issue != null) {
         issues.add(issue);
+        sourceIds.add(toolResult.id);
       }
       if (issues.length >= 3) {
         break;
       }
     }
-    if (issues.isEmpty) {
-      return null;
-    }
+    if (issues.isEmpty) return null;
 
     final payload = {
       'schema': schemaName,
@@ -57,7 +54,10 @@ class CodingCommandOutputGuardrailService {
           'reports a failed generated artifact or missing required data.',
       'instruction':
           'Treat the coding task as incomplete. Inspect and repair the script, generated file, or data lookup, then rerun the relevant command before claiming completion.',
-      'issues': issues.map((issue) => issue.toJson()).toList(growable: false),
+      'issues': [
+        for (var i = 0; i < issues.length; i++)
+          {...issues[i].toJson(), 'tool_call_id': sourceIds[i]},
+      ],
       'diagnostics': issues
           .map(
             (issue) => {

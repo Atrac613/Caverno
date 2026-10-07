@@ -7,6 +7,7 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/security/llm_endpoint_transport_policy.dart';
 import '../domain/entities/local_model_lifecycle.dart';
 import '../domain/entities/model_catalog_entry.dart';
+import 'model_catalog_merge.dart';
 import 'model_lifecycle_action_log.dart';
 import 'model_metadata_parser.dart';
 
@@ -77,7 +78,8 @@ class ModelRemoteDataSource {
       );
     }
 
-    if (!isNvidiaNimCloud) {
+    if (!isNvidiaNimCloud &&
+        Uri.tryParse(_baseUrl)?.host.toLowerCase() != 'api.anthropic.com') {
       if (catalog.isEmpty) {
         catalog = await loadLmStudioCatalog();
       } else if (_needsSelectedContextMetadata(catalog, selectedModel)) {
@@ -112,7 +114,7 @@ class ModelRemoteDataSource {
       throw Exception('No available models could be retrieved');
     }
 
-    return _sortedUniqueCatalog(catalog);
+    return ModelCatalogMerge.sortedUnique(catalog);
   }
 
   Future<List<ModelCatalogEntry>> _fetchOpenAiCatalog() async {
@@ -208,7 +210,7 @@ class ModelRemoteDataSource {
           ModelMetadataParser.parsePositiveInt(item['max_context_length']);
 
       if (modelKey != null) {
-        _putPreferredEntry(
+        ModelCatalogMerge.putPreferredEntry(
           entriesById,
           ModelCatalogEntry(
             id: modelKey,
@@ -229,7 +231,7 @@ class ModelRemoteDataSource {
           if (instanceId == null) {
             continue;
           }
-          _putPreferredEntry(
+          ModelCatalogMerge.putPreferredEntry(
             entriesById,
             ModelCatalogEntry(
               id: instanceId,
@@ -860,10 +862,15 @@ class ModelRemoteDataSource {
 
   Uri _modelsUri() {
     final normalized = _stripTrailingSlash(_baseUrl);
-    if (normalized.endsWith('/models')) {
-      return Uri.parse(normalized);
+    final endpoint = normalized.endsWith('/models')
+        ? normalized
+        : '$normalized/models';
+    if (Uri.tryParse(normalized)?.host.toLowerCase() == 'api.anthropic.com') {
+      return Uri.parse(
+        endpoint,
+      ).replace(queryParameters: const {'limit': '1000'});
     }
-    return Uri.parse('$normalized/models');
+    return Uri.parse(endpoint);
   }
 
   Uri _lmStudioModelsUri() {
@@ -949,6 +956,11 @@ class ModelRemoteDataSource {
     final apiKey = _apiKey.trim();
     if (apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer $apiKey';
+    }
+    if (Uri.tryParse(_baseUrl)?.host.toLowerCase() == 'api.anthropic.com') {
+      headers.remove('Authorization');
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = ApiConstants.anthropicApiVersion;
     }
     return headers;
   }
@@ -1582,7 +1594,7 @@ class ModelRemoteDataSource {
     if (!selectedModelMerged && selectedMetadata != null) {
       merged.add(selectedMetadata);
     }
-    return _sortedUniqueCatalog(merged);
+    return ModelCatalogMerge.sortedUnique(merged);
   }
 
   static List<ModelCatalogEntry> _mergeSingleContextWindow(
@@ -1617,33 +1629,7 @@ class ModelRemoteDataSource {
         ),
       );
     }
-    return _sortedUniqueCatalog(merged);
-  }
-
-  static void _putPreferredEntry(
-    Map<String, ModelCatalogEntry> entriesById,
-    ModelCatalogEntry entry,
-  ) {
-    final existing = entriesById[entry.id];
-    if (existing == null) {
-      entriesById[entry.id] = entry;
-      return;
-    }
-    entriesById[entry.id] = existing.copyWith(
-      ownedBy: existing.ownedBy ?? entry.ownedBy,
-      contextWindowTokens:
-          existing.contextWindowTokens ?? entry.contextWindowTokens,
-    );
-  }
-
-  static List<ModelCatalogEntry> _sortedUniqueCatalog(
-    Iterable<ModelCatalogEntry> entries,
-  ) {
-    final entriesById = <String, ModelCatalogEntry>{};
-    for (final entry in entries) {
-      _putPreferredEntry(entriesById, entry);
-    }
-    return entriesById.values.toList()..sort((a, b) => a.id.compareTo(b.id));
+    return ModelCatalogMerge.sortedUnique(merged);
   }
 }
 

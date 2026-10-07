@@ -24,6 +24,10 @@ class MemoryExtractionJsonParser {
   static final RegExp _trailingCommaPattern = RegExp(r',(\s*[}\]])');
 
   static MemoryExtractionJsonParseResult? parse(String rawContent) {
+    final closedRoot = _closeCompleteRoot(_stripOuterFence(rawContent.trim()));
+    if (closedRoot != null) {
+      return closedRoot;
+    }
     final jsonObjects = extractJsonObjects(rawContent);
     if (jsonObjects.isEmpty) {
       return null;
@@ -52,6 +56,30 @@ class MemoryExtractionJsonParser {
     }
 
     return fallback;
+  }
+
+  static MemoryExtractionJsonParseResult? _closeCompleteRoot(String text) {
+    if (!text.startsWith('{')) {
+      return null;
+    }
+    try {
+      // Only supply the root delimiter. Decoding must prove every nested
+      // value is complete, and all extraction sections must already exist.
+      final decoded = jsonDecode('$text}');
+      if (decoded is! Map ||
+          decoded['summary'] is! String ||
+          decoded['open_loops'] is! List ||
+          decoded['profile'] is! Map ||
+          decoded['memories'] is! List) {
+        return null;
+      }
+      return MemoryExtractionJsonParseResult(
+        decoded: Map<String, dynamic>.from(decoded),
+        wasRepaired: true,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   static String? extractJsonObject(String raw) {

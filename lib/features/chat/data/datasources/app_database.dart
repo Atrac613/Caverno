@@ -118,6 +118,31 @@ class ModelUsageDaily extends Table {
   };
 }
 
+/// Time spent on behalf of one conversation, summed per (kind, detail).
+///
+/// Kept out of [ModelUsageDaily] because that table is keyed by day and model
+/// for cost accounting and cannot answer "what did this thread cost in time".
+/// Rows are running sums, so a long session is a handful of rows: details are
+/// usage roles and tool names, both small closed-ish sets.
+@DataClassName('ConversationWorkTimeRow')
+class ConversationWorkTime extends Table {
+  TextColumn get conversationId => text()();
+
+  /// `ConversationWorkKind.name`.
+  TextColumn get kind => text()();
+
+  /// Usage role for LLM requests, tool name for tool calls, else empty.
+  TextColumn get detail => text().withDefault(const Constant(''))();
+
+  IntColumn get count => integer().withDefault(const Constant(0))();
+  IntColumn get errorCount => integer().withDefault(const Constant(0))();
+  IntColumn get durationMs => integer().withDefault(const Constant(0))();
+  IntColumn get updatedAtMs => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {conversationId, kind, detail};
+}
+
 /// RAG2 generation-store metadata. Envelope version 1 lives here; AppDatabase
 /// schema version 5 only hosts the tables.
 @DataClassName('Rag2StoreMetaRow')
@@ -195,6 +220,7 @@ int modelUsageDayNumber(DateTime timestamp) {
     ModelUsageDaily,
     Rag2StoreMeta,
     Rag2Generations,
+    ConversationWorkTime,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -212,7 +238,7 @@ class AppDatabase extends _$AppDatabase {
   static const rag2ChunkSearchTokenizer = 'unicode61';
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -234,6 +260,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 5) {
         await _addRag2TablesIfMissing(m);
+      }
+      if (from < 6) {
+        await m.createTable(conversationWorkTime);
       }
     },
   );

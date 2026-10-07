@@ -10,6 +10,7 @@ final class ModelMetadataParser {
     'maxContextLength',
     'max_model_len',
     'maxModelLen',
+    'max_input_tokens',
     'num_ctx',
     'numCtx',
     'n_ctx',
@@ -28,10 +29,7 @@ final class ModelMetadataParser {
 
   static String? normalizeModelId(String? value) {
     final normalized = value?.trim();
-    if (normalized == null || normalized.isEmpty) {
-      return null;
-    }
-    return normalized;
+    return normalized == null || normalized.isEmpty ? null : normalized;
   }
 
   static int? readContextWindowTokens(Map<String, dynamic> json) {

@@ -24,6 +24,10 @@ final class BackgroundProcessToolRuntimeAdapter
       command: operation.command,
       workingDirectory: operation.workingDirectory,
       label: (operation.arguments['label'] as String?)?.trim(),
+      containmentRoot:
+          operation.arguments['workspace_command_containment'] == true
+          ? operation.arguments['allowed_read_root'] as String? ?? ''
+          : null,
     );
     final payload = _decode(execution.result);
     final terminationUnconfirmed =

@@ -2,6 +2,10 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/domain/services/coding_future_action_detector.dart';
+import 'package:caverno/features/chat/domain/services/incomplete_coding_work_detector.dart';
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 Future<void> main(List<String> args) async {
   final options = CavernoSessionLogSummaryOptions.parse(args);
   if (options == null) {
@@ -52,6 +56,8 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
   var malformedLineCount = 0;
   var parsedEntryCount = 0;
   var totalToolCallCount = 0;
+  String? latestTurnExitReason;
+  String? latestTaskStatus;
   SessionLogEntryDiagnostic? finalAnswer;
 
   final lines = await logFile.readAsLines();
@@ -94,6 +100,54 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     final turnTransforms = _asList(
       turnExit?['transforms'],
     ).map(_asString).whereType<String>().toList(growable: false);
+    if (operation == 'turn_exit') {
+      latestTurnExitReason = _asString(turnExit?['reason']);
+      latestTaskStatus = turnTransforms
+          .where(
+            (code) =>
+                code.startsWith('coding_task_status_') ||
+                code.startsWith('coding_subtask_status_'),
+          )
+          .lastOrNull;
+      if (latestTaskStatus != null && !_acceptedTaskStatus(latestTaskStatus)) {
+        warnings.add(
+          SessionLogWarningEntry(
+            code: latestTaskStatus.startsWith('coding_subtask_status_')
+                ? 'coding_subtask_status_unresolved'
+                : 'coding_task_status_unresolved',
+            lineNumber: lineNumber,
+            message:
+                'The recorded project task or subtask status was not accepted as complete.',
+            evidencePreview: latestTaskStatus,
+          ),
+        );
+      }
+      if (latestTurnExitReason == 'all_calls_discarded') {
+        warnings.add(
+          SessionLogWarningEntry(
+            code: 'all_calls_discarded',
+            lineNumber: lineNumber,
+            message:
+                'The tool loop stopped after discarding repeated calls. '
+                'A final answer does not prove the requested work was completed; '
+                'inspect the tool results for mutation and verification evidence.',
+            evidencePreview: 'all_calls_discarded',
+          ),
+        );
+      }
+      if (turnTransforms.contains('unwritten_file_claim_notice')) {
+        warnings.add(
+          SessionLogWarningEntry(
+            code: 'unwritten_file_claim',
+            lineNumber: lineNumber,
+            message:
+                'The turn applied a guard for a file-change claim without '
+                'matching successful file-mutation evidence.',
+            evidencePreview: 'unwritten_file_claim_notice',
+          ),
+        );
+      }
+    }
 
     operationCounts.update(operation, (count) => count + 1, ifAbsent: () => 1);
     if (finishReason != null) {
@@ -241,6 +295,9 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
       hasErrors: errorEntries.isNotEmpty,
       hasLoopLimitPrompt: loopLimitPromptLineNumbers.isNotEmpty,
       hasFinalAnswer: finalAnswer != null,
+      latestTurnExitReason: latestTurnExitReason,
+      hasUnresolvedTaskStatus:
+          latestTaskStatus != null && !_acceptedTaskStatus(latestTaskStatus),
     ),
     operationCounts: Map.unmodifiable(operationCounts),
     finishReasonCounts: Map.unmodifiable(finishReasonCounts),
@@ -261,9 +318,17 @@ String _summaryResult({
   required bool hasErrors,
   required bool hasLoopLimitPrompt,
   required bool hasFinalAnswer,
+  required bool hasUnresolvedTaskStatus,
+  String? latestTurnExitReason,
 }) {
   if (hasErrors) {
     return 'error';
+  }
+  if (latestTurnExitReason == 'all_calls_discarded') {
+    return 'all_calls_discarded';
+  }
+  if (hasUnresolvedTaskStatus) {
+    return 'incomplete';
   }
   if (hasLoopLimitPrompt && hasFinalAnswer) {
     return 'loop_limit_recovered';
@@ -285,6 +350,10 @@ Map<String, dynamic>? _decodeJsonObject(String source) {
     return null;
   }
 }
+
+bool _acceptedTaskStatus(String? status) =>
+    status == 'coding_task_status_completionRecorded' ||
+    status == 'coding_subtask_status_completed';
 
 Map<String, dynamic> _decodeArguments(Object? source) {
   if (source is Map) {
@@ -436,7 +505,26 @@ List<SessionLogWarningEntry> _buildFinalAnswerWarnings({
   required int requestToolResultCount,
   required int previewLength,
 }) {
+  content = ContentParser.stripModelHistoryArtifacts(content);
   final warnings = <SessionLogWarningEntry>[];
+  if (_hasCodingOrToolContext(
+        operation: operation,
+        workspaceMode: workspaceMode,
+        requestToolCount: requestToolCount,
+        requestToolResultCount: requestToolResultCount,
+      ) &&
+      const IncompleteCodingWorkDetector().hasIncompleteTask(content)) {
+    warnings.add(
+      SessionLogWarningEntry(
+        code: 'coding_task_incomplete',
+        lineNumber: lineNumber,
+        message:
+            'The final answer explicitly reports unfinished coding work. '
+            'Completed substeps do not prove that the requested task is complete.',
+        evidencePreview: _preview(content, previewLength),
+      ),
+    );
+  }
   if (_misinterpretsStreamEnd(content)) {
     warnings.add(
       SessionLogWarningEntry(
@@ -529,6 +617,9 @@ bool _looksLikeCodingActionPromiseWithoutTool({
   final normalized = content.trim().replaceAll(RegExp(r'\s+'), ' ');
   if (normalized.isEmpty) {
     return false;
+  }
+  if (const CodingFutureActionDetector().matchesFixPromise(normalized)) {
+    return true;
   }
   if (_looksLikeCompletedCodingAnswer(normalized)) {
     return false;

@@ -1,4 +1,8 @@
-enum CavernoCliCommand { chat, coding, plan }
+enum CavernoCliCommand { chat, coding, plan, farm }
+
+/// The turn id of events that belong to a whole `farm` workflow rather than
+/// to one of its turns. Only a terminal event with this id ends a farm run.
+const cavernoCliFarmSessionTurnId = 'farm';
 
 enum CavernoCliConversationCommand { list, show, resume }
 

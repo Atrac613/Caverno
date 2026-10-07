@@ -1013,11 +1013,12 @@ void registerChatNotifierGoalAutoContinueTests() {
       });
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      // SEC4.4g asks the person directly for a shell command, so the
-      // reviewer is not consulted on either turn. The property this test
-      // exists for survives it: the hidden continuation does not inherit
-      // the first turn's approval, it is asked for again.
-      expect(dataSource.autoReviewRequestMessages, isEmpty);
+      // A hidden turn never inherits the previous turn's approval grant.
+      // Contained commands must be reviewed again; others ask the user.
+      expect(
+        dataSource.autoReviewRequestMessages,
+        hasLength(_supportsForegroundCommandContainment() ? 2 : 0),
+      );
       expect(toolService.executedToolNames, [
         'local_execute_command',
         'local_execute_command',
@@ -1443,7 +1444,7 @@ void registerChatNotifierGoalAutoContinueTests() {
               id: 'call-runtime-validation',
               name: 'local_execute_command',
               arguments: const {
-                'command': 'dart run bin/todo.dart done 999',
+                'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
                 'working_directory': '/tmp/goal-auto-output-feedback',
               },
             ),
@@ -1472,7 +1473,7 @@ void registerChatNotifierGoalAutoContinueTests() {
           ],
           'local_execute_command': [
             jsonEncode({
-              'command': 'dart run bin/todo.dart done 999',
+              'command': 'dart run bin/todo.dart done 999 2>&1 | tail -20',
               'working_directory': '/tmp/goal-auto-output-feedback',
               'exit_code': 0,
               'stdout': '',
@@ -2166,9 +2167,22 @@ void registerChatNotifierGoalAutoContinueTests() {
     final scopedVerifierArguments = {
       ...verifierArguments,
       'allowed_read_root': verifierArguments['working_directory'],
+      // The plan always records the flag. On macOS it is true when sandbox-exec
+      // can contain the command; elsewhere the same key is false.
+      'workspace_command_containment': _supportsForegroundCommandContainment(),
     };
     expect(toolService.executedToolArguments.first, scopedVerifierArguments);
     expect(toolService.executedToolArguments.last, scopedVerifierArguments);
+    // Session 7ae7632b: the replay re-entered the loop from a ledger stored
+    // before the write ran, so the request after it described the workspace
+    // as if the write had never happened.
+    final afterReplay = dataSource.toolResultBatches.last;
+    expect(afterReplay.last.id, startsWith('post_mutation_verifier_'));
+    expect(
+      afterReplay.expand((result) => result.changesSinceCapture),
+      contains(endsWith('README.md')),
+      reason: 'the write that triggered the replay must stay in evidence',
+    );
   });
 
   test(

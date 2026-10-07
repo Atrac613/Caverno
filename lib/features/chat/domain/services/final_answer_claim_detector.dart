@@ -4,9 +4,14 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
+import 'command_verification_reconciliation.dart';
+import 'fenced_tool_arguments_detector.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'narrated_transcript_claim_guard.dart';
+import 'project_task_status_contract.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_definition_search_service.dart';
+import 'unexecuted_command_claim_reconciliation.dart';
 
 class FinalAnswerClaimDetector {
   const FinalAnswerClaimDetector({
@@ -73,12 +78,17 @@ class FinalAnswerClaimDetector {
     );
   }
 
+  /// [fileChangesAlreadyCaptured] is structural evidence that the work this
+  /// turn answers for was already written, earlier in the task; the request
+  /// text then cannot show that a write is still missing.
   ToolResultInfo? buildUnexecutedFileSideEffectToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
     required String latestUserContent,
+    bool fileChangesAlreadyCaptured = false,
   }) {
-    if (!looksLikeFileSideEffectRequest(latestUserContent) ||
+    if (fileChangesAlreadyCaptured ||
+        !looksLikeFileSideEffectRequest(latestUserContent) ||
         hasSuccessfulFileSideEffectResult(toolResults) ||
         (_looksLikeCommandGeneratedRuntimeStateClaim(candidateResponse) &&
             hasSuccessfulCommandExecutionResult(toolResults)) ||
@@ -127,6 +137,7 @@ class FinalAnswerClaimDetector {
   ToolResultInfo? buildUnexecutedCommandActionToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
+    bool isProjectSubtask = false,
   }) {
     final candidate = claimCandidate(candidateResponse).trim();
     final looksLikeFutureAction = looksLikeFutureCommandExecutionAction(
@@ -143,6 +154,25 @@ class FinalAnswerClaimDetector {
       return null;
     }
 
+    final terminalSubtaskReport =
+        isProjectSubtask &&
+        candidate.split('\n').last.trim() == projectTaskSubtaskDoneMarker;
+    // A purely lexical claim, promise or report, names no concrete call, so
+    // a later typed passing verifier settles it. Session c4b7c183: "rerun
+    // with python3 to verify" was fulfilled two calls later (58 passed), yet
+    // the notice outlived it and rejected the subtask as unexecuted.
+    final missingEvidenceOnly =
+        !_printsCommandArguments(candidate) &&
+        ContentParser.extractCompletedToolCalls(candidateResponse).isEmpty &&
+        !const NarratedTranscriptClaimGuard()
+            .assess(candidateResponse: candidate, toolResults: const [])
+            .hasUnexecutedCommands;
+    if (terminalSubtaskReport &&
+        missingEvidenceOnly &&
+        _hasFreshSubtaskVerification(toolResults)) {
+      return null;
+    }
+
     return ToolResultInfo(
       id: 'unexecuted_command_action_${DateTime.now().microsecondsSinceEpoch}',
       name: 'local_execute_command',
@@ -154,6 +184,11 @@ class FinalAnswerClaimDetector {
         'ok': false,
         'code': 'unexecuted_command_action',
         ...ToolResultOrigin.harness.marker,
+        // This lexical notice reports missing evidence, not a concrete call.
+        // Printed arguments, transcripts and tool markup retain their gate.
+        if (missingEvidenceOnly)
+          'evidence_requirement':
+              UnexecutedCommandClaimReconciliation.evidenceRequirement,
         'error':
             'The requested command was not executed. No matching successful local_execute_command, process_start, process_status, process_wait, run_tests, git_execute_command, or ssh_execute_command tool result is available for the claimed action.',
         'claimedResponse': clipForDiagnostic(candidate),
@@ -161,13 +196,87 @@ class FinalAnswerClaimDetector {
     );
   }
 
+  /// Whether [candidate] spells out command arguments as JSON: a concrete call
+  /// the model printed instead of issuing, which no other check may settle.
+  ///
+  /// Any `{` used to count. In session 8ea796df a subtask report described a
+  /// return value as `{"item_id", "old_price", ...}`, its notice became
+  /// unsettleable, and the subtask stayed rejected for "unexecuted actions"
+  /// after the pending pytest run had passed.
+  static bool _printsCommandArguments(String candidate) {
+    if (const FencedToolArgumentsDetector().detect(candidate) != null) {
+      return true;
+    }
+    for (final match in _flatJsonObject.allMatches(candidate)) {
+      try {
+        final decoded = jsonDecode(match.group(0)!);
+        if (decoded is Map && decoded['command'] is String) return true;
+      } on FormatException {
+        continue;
+      }
+    }
+    return false;
+  }
+
+  static final _flatJsonObject = RegExp(r'\{[^{}]*\}');
+
+  bool _hasFreshSubtaskVerification(List<ToolResultInfo> results) {
+    final lastChange = results.lastIndexWhere(
+      (result) =>
+          result.outcome?.fileMutations.any(
+            (mutation) => mutation.changed == true,
+          ) ==
+          true,
+    );
+    final stale = CommandVerificationReconciliation.staleBackgroundResultIds(
+      results,
+    );
+    return results.skip(lastChange + 1).any((result) {
+      if (stale.contains(result.id)) return false;
+      try {
+        final payload = jsonDecode(result.result);
+        if (payload is Map && payload['execution_reused'] == true) return false;
+      } on FormatException {
+        return false;
+      }
+      return CommandVerificationReconciliation.scopeOf(result)?.passed == true;
+    });
+  }
+
   ToolResultInfo? buildUnverifiedReadOnlyInspectionClaimToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
+    List<String> requiredFilePaths = const [],
   }) {
     final candidate = claimCandidate(candidateResponse).trim();
-    if (!looksLikeCompletedReadOnlyInspectionClaim(candidate) ||
-        hasSuccessfulReadOnlyInspectionResult(toolResults)) {
+    // Farm review markers assert a completed file review regardless of prose.
+    final taskReview = const {
+      'PROJECT_TASK_REVIEW_CLEAN',
+      'PROJECT_TASK_REVIEW_FINDINGS',
+    }.contains(candidate.split('\n').last.trim());
+    final inspections = taskReview
+        ? toolResults
+              .where(
+                (result) => const {
+                  'read_file',
+                  'inspect_file',
+                }.contains(result.name.trim().toLowerCase()),
+              )
+              .toList()
+        : toolResults;
+    if ((!taskReview &&
+            !looksLikeCompletedReadOnlyInspectionClaim(candidate)) ||
+        (hasSuccessfulReadOnlyInspectionResult(inspections) &&
+            (!taskReview ||
+                requiredFilePaths.every(
+                  (path) => inspections.any(
+                    (result) =>
+                        result.arguments['path'] == path &&
+                        !result.fromEarlierLoop &&
+                        result.changesSinceCapture.isEmpty &&
+                        hasSuccessfulReadOnlyInspectionResult([result]),
+                  ),
+                )))) {
       return null;
     }
     // An answer built from the web is not a claim about local state, and no
@@ -176,7 +285,8 @@ class FinalAnswerClaimDetector {
     // which a web-research turn would call. Judging that answer on the text
     // alone means judging it on nothing. The turn's own tool results already
     // say which domain it was working in, so ask them instead of the prose.
-    if (hasSuccessfulWebRetrievalResult(toolResults) &&
+    if (!taskReview &&
+        hasSuccessfulWebRetrievalResult(toolResults) &&
         !mentionsLocalFilesystemPath(candidate)) {
       return null;
     }
@@ -194,6 +304,8 @@ class FinalAnswerClaimDetector {
         ...ToolResultOrigin.harness.marker,
         'error':
             'The local file or project state claim is unverified. No successful read_file, inspect_file, list_directory, find_files, search_files, or read-only local_execute_command result is available for the claimed inspection.',
+        if (taskReview && requiredFilePaths.isNotEmpty)
+          'requiredFilePaths': requiredFilePaths,
         'claimedResponse': clipForDiagnostic(candidate),
       }),
     );
@@ -754,17 +866,19 @@ class FinalAnswerClaimDetector {
   }
 
   bool hasUnexecutedCommandActionResult(List<ToolResultInfo> toolResults) {
-    return toolResults.any((toolResult) {
-      try {
-        final decoded = jsonDecode(toolResult.result);
-        if (decoded is Map<String, dynamic>) {
-          return decoded['code'] == 'unexecuted_command_action';
+    return UnexecutedCommandClaimReconciliation.currentResults(toolResults).any(
+      (toolResult) {
+        try {
+          final decoded = jsonDecode(toolResult.result);
+          if (decoded is Map<String, dynamic>) {
+            return decoded['code'] == 'unexecuted_command_action';
+          }
+        } catch (_) {
+          return false;
         }
-      } catch (_) {
         return false;
-      }
-      return false;
-    });
+      },
+    );
   }
 
   bool hasUnverifiedReadOnlyInspectionClaimResult(

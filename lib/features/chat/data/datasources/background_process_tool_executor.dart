@@ -28,6 +28,7 @@ final class BackgroundProcessToolExecutor {
     required String command,
     required String workingDirectory,
     String? label,
+    String? containmentRoot,
     bool structuredUnavailable = false,
   }) async {
     final gitWriteBlockedResult = LocalShellTools.gitWriteCommandBlockedResult(
@@ -64,6 +65,7 @@ final class BackgroundProcessToolExecutor {
       command: command,
       workingDirectory: workingDirectory,
       label: label,
+      containmentRoot: containmentRoot,
     );
     return normalizeProcessResult(name, result);
   }
@@ -88,6 +90,9 @@ final class BackgroundProcessToolExecutor {
         command: command,
         workingDirectory: workingDirectory,
         label: (arguments['label'] as String?)?.trim(),
+        containmentRoot: arguments['workspace_command_containment'] == true
+            ? arguments['allowed_read_root'] as String? ?? ''
+            : null,
       );
     }
     if (name == 'process_list') {

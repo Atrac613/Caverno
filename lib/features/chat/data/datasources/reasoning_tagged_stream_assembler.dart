@@ -10,17 +10,20 @@ import 'package:openai_dart/openai_dart.dart';
 /// rather than emitted alone, because a chunk carrying a bare `<think>` renders
 /// as literal text for the moment before the next chunk arrives.
 final class ReasoningTaggedStreamAssembler {
-  ReasoningTaggedStreamAssembler(this._response, {StringBuffer? reasoning})
-    : _reasoning = reasoning;
+  ReasoningTaggedStreamAssembler(this._response);
 
   /// Everything the caller will treat as the assistant's response, tags
   /// included.
   final StringBuffer _response;
 
-  /// Reasoning text alone, for callers that hand it to the response normalizer.
-  final StringBuffer? _reasoning;
+  final StringBuffer _reasoning = StringBuffer();
 
   bool _isInReasoning = false;
+
+  /// Reasoning text alone, or null when none streamed. The accumulated
+  /// response content leaves it out, so a caller that must know whether the
+  /// model reasoned reads it here.
+  String? get reasoning => _reasoning.isEmpty ? null : _reasoning.toString();
 
   /// Chunks to yield for one streamed [delta], in order.
   Iterable<String> consume(ChatDelta? delta) sync* {
@@ -29,7 +32,7 @@ final class ReasoningTaggedStreamAssembler {
     final content = delta.content;
 
     if (reasoning != null && reasoning.isNotEmpty) {
-      _reasoning?.write(reasoning);
+      _reasoning.write(reasoning);
       if (!_isInReasoning) {
         _isInReasoning = true;
         _response.write('<think>$reasoning');

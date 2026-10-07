@@ -30,7 +30,11 @@ abstract final class AnabasisParentPromptBlock {
       'a summary, so accepting on one is accepting on your own reading.\n'
       '- Do not delegate a task whose preconditions are unmet. Ask the user to '
       'settle a material assumption or an open question first; that is work '
-      'only they can do.';
+      'only they can do. An ask_user_question answer does not update the saved '
+      'plan\'s open-question status. The user can update it in the chat '
+      'companion panel under Waiting on you. Check the plan status before '
+      'claiming a question is resolved or a task is ready; resolving a question '
+      'does not complete its dependent tasks.';
 
   /// Children the parent has delegated and not yet judged.
   ///
@@ -46,12 +50,7 @@ abstract final class AnabasisParentPromptBlock {
         'interchangeable):\n$lines';
   }
 
-  /// The tasks that could be delegated right now.
-  ///
-  /// Rendered as work already cleared rather than as a menu to work through:
-  /// the list is derived from preconditions that hold, so a task's presence
-  /// here is the readiness fact, not a suggestion about priority. Order and
-  /// choice stay the parent's.
+  /// Lists tasks whose preconditions hold, leaving priority to the parent.
   static String delegatableTasks(List<String> summaries) {
     final lines = summaries.map((summary) => '- $summary').join('\n');
     return 'Ready to delegate (preconditions already hold; a child needs the '

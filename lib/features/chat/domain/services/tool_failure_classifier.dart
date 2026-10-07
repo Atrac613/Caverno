@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'anabasis_delegation_admission.dart';
@@ -41,15 +43,15 @@ class ToolFailureClassifier {
     ToolCallInfo toolCall,
     McpToolResult result,
   ) {
-    if (result.isSuccess) {
-      return const ToolFailureClassification(
-        disposition: ToolResultDisposition.success,
-        exitCodeSource: ToolOutcomeVerdictSource.unavailable,
-      );
-    }
     if (isApprovalDenial(result)) {
       return const ToolFailureClassification(
         disposition: ToolResultDisposition.approvalDenied,
+        exitCodeSource: ToolOutcomeVerdictSource.unavailable,
+      );
+    }
+    if (result.isSuccess) {
+      return const ToolFailureClassification(
+        disposition: ToolResultDisposition.success,
         exitCodeSource: ToolOutcomeVerdictSource.unavailable,
       );
     }
@@ -94,9 +96,10 @@ class ToolFailureClassifier {
   /// refusal is treated the same way for the same reason: the user or the
   /// policy has answered, and asking again cannot change it.
   bool isApprovalDenial(McpToolResult result) {
-    if (result.isSuccess) {
-      return false;
+    if (_declaredNonExecutionOrigin(result) == ToolResultOrigin.refusal) {
+      return true;
     }
+    if (result.isSuccess) return false;
     if (_carriesPolicyRefusalCode(result)) {
       return true;
     }
@@ -104,6 +107,14 @@ class ToolFailureClassifier {
         .toLowerCase();
     return haystack.contains('denied') || haystack.contains('auto-review');
   }
+
+  /// Returns the trusted provenance declared by a first-party result.
+  ///
+  /// External MCP payloads are opaque and must not be allowed to steer the
+  /// local execution loop by claiming that they were written by the harness
+  /// or by a policy guard.
+  ToolResultOrigin? declaredOrigin(McpToolResult result) =>
+      _declaredNonExecutionOrigin(result);
 
   /// The policy refusal [result] carries, if it carries one.
   ///
@@ -115,31 +126,47 @@ class ToolFailureClassifier {
   /// refusal had said, because these refusals carry `required_action` rather
   /// than an `errorMessage`.
   ({String code, String requiredAction})? policyRefusal(McpToolResult result) {
-    if (result.isSuccess) return null;
+    final decoded = _decodePayload(result);
+    if (decoded == null) return null;
+    final code = decoded['code'];
+    if (code is! String) return null;
+    final isDeclaredRefusal =
+        _declaredNonExecutionOrigin(result) == ToolResultOrigin.refusal;
+    if (result.isSuccess && !isDeclaredRefusal) return null;
+    if (!isDeclaredRefusal && !policyRefusalCodes.contains(code)) return null;
+    final action = decoded['required_action'];
+    return (code: code, requiredAction: action is String ? action.trim() : '');
+  }
+
+  bool _carriesPolicyRefusalCode(McpToolResult result) {
+    final decoded = _decodePayload(result);
+    final code = decoded?['code'];
+    return code is String && policyRefusalCodes.contains(code);
+  }
+
+  ToolResultOrigin? _declaredNonExecutionOrigin(McpToolResult result) {
+    if (result.isExternalMcpResult) return null;
+    final decoded = _decodePayload(result);
+    if (decoded == null) return null;
+    final origin = ToolResultOrigin.fromPayload(
+      Map<String, Object?>.from(decoded),
+    );
+    return switch (origin) {
+      ToolResultOrigin.harness ||
+      ToolResultOrigin.refusal ||
+      ToolResultOrigin.malformed => origin,
+      null => null,
+    };
+  }
+
+  Map<String, dynamic>? _decodePayload(McpToolResult result) {
     final payload = result.result.trim();
     if (!payload.startsWith('{')) return null;
     try {
       final decoded = jsonDecode(payload);
-      if (decoded is! Map<String, dynamic>) return null;
-      final code = decoded['code'];
-      if (code is! String || !policyRefusalCodes.contains(code)) return null;
-      final action = decoded['required_action'];
-      return (code: code, requiredAction: action is String ? action.trim() : '');
+      return decoded is Map<String, dynamic> ? decoded : null;
     } on FormatException {
       return null;
-    }
-  }
-
-  bool _carriesPolicyRefusalCode(McpToolResult result) {
-    final payload = result.result.trim();
-    if (!payload.startsWith('{')) return false;
-    try {
-      final decoded = jsonDecode(payload);
-      if (decoded is! Map<String, dynamic>) return false;
-      final code = decoded['code'];
-      return code is String && policyRefusalCodes.contains(code);
-    } on FormatException {
-      return false;
     }
   }
 

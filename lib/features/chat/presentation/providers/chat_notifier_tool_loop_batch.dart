@@ -67,6 +67,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       // silently unarmed the parent guard. The generation is the turn's own
       // identity and is in scope either way.
       executingRole: _anabasisRoles.mainLoopRoleFor(interactionGeneration),
+      // The tool list already omits editors on a review; this also catches a
+      // mutating shell command and a call the model makes from memory.
+      turnScope: _isCodeReview(interactionGeneration)
+          ? const ReadOnlyReviewScope().evaluate
+          : null,
       assumptionGate: MaterialAssumptionConfirmationGate(
         // The turn's memory, not this batch's: the loop builds a gate per
         // iteration, so a field here would re-ask a dismissal every time.
@@ -183,9 +188,20 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       const MaterialContractAssumptionGuard().isContractMutation,
     );
 
+    _turnToolResults.track(owner, executedToolResults);
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
-      execute: (toolCall) async {
+      execute: (call) async {
+        final blockerRefusal = _refuseToolAfterGoalBlocker(
+          call,
+          interactionGeneration: interactionGeneration,
+        );
+        if (blockerRefusal != null) return blockerRefusal;
+        // The guards below cast arguments, so a mistyped one must be caught
+        // here: session e3a9f3f0's write_file content object threw in one.
+        final argumentCheck = _mcpToolService?.checkToolArguments(call);
+        if (argumentCheck?.failure case final failure?) return failure;
+        final toolCall = argumentCheck?.toolCall ?? call;
         final validationProbeGuardResult = const GoalValidationProbeGuard()
             .evaluate(
               toolCall,
@@ -257,6 +273,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
               evidence: _productionReleaseApprovals.evidenceFor(
                 interactionGeneration,
               ),
+              executedToolResults: executedToolResults,
             );
         if (productionReleaseGuardResult != null) {
           return productionReleaseGuardResult;
@@ -365,6 +382,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             );
           }
         }
+        final verifiedReplay = VerifiedPytestReplayPolicy.reuse(
+          call: toolCall,
+          results: executedToolResults,
+          pendingCalls: pendingBatchCalls,
+          projectRoot: projectRoot,
+        );
+        if (verifiedReplay != null) return verifiedReplay;
         final dispatchedAt = DateTime.now();
         final dispatchResult = await _dispatchToolCall(
           toolCall,
@@ -378,7 +402,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             ) ??
             dispatchResult;
         if (!_toolFailureClassifier.isApprovalDenial(effectiveResult)) {
-          _recordExecutedVerifierReplayCandidate(owner, toolCall);
+          final verifier = ExecutedVerifierReplayPolicy.prepare(
+            toolCall,
+            effectiveResult,
+          );
+          if (verifier != null) {
+            _recordExecutedVerifierReplayCandidate(owner, verifier);
+          }
         }
         if (allowSuccessfulReadResultReplay) {
           _successfulReadResultReplayCache.record(
@@ -469,6 +499,25 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolCallId: toolCall.id,
         loopIndex: iteration,
       );
+      unawaited(
+        observeShellWrites(
+          store: ref.read(llmSessionLogStoreProvider),
+          settingsEnabled: _settings.enableLlmSessionLogs,
+          context: _llmSessionLogContextForGeneration(interactionGeneration),
+          toolName: toolCall.name,
+          renderedPayload: toolResult,
+          toolCallId: toolCall.id,
+        ),
+      );
+
+      if (result.isSuccess && toolCall.name == 'load_skill') {
+        loadedSkills.record(
+          conversationId: owner.conversationId,
+          skillRef:
+              (toolCall.arguments['id'] ?? toolCall.arguments['name'] ?? '')
+                  .toString(),
+        );
+      }
 
       final promptToolResult = await _persistToolResultForPrompt(
         ToolResultInfo(
@@ -625,6 +674,20 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       }
     }
 
+    final blockedResponse = _recordedGoalBlockerResponse(owner);
+    if (blockedResponse != null) {
+      _appendRecoveredAssistantResponse(
+        blockedResponse,
+        interactionGeneration: interactionGeneration,
+      );
+      return ToolLoopBatchExecutionResult.textResponse(
+        batchToolResults: batchToolResults,
+        pendingBatchCalls: pendingBatchCalls,
+        commandRetryGeneration: nextCommandRetryGeneration,
+        stateChangeGeneration: nextStateChangeGeneration,
+      );
+    }
+
     final diagnosticFeedback = await _buildCodingDiagnosticFeedbackToolResult(
       batchToolResults,
       interactionGeneration: interactionGeneration,
@@ -740,9 +803,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         owner: owner,
         result: taintSourceResult,
       );
-      _recordTurnCommandLedgerEntry(
-        promptToolResult,
-        interactionGeneration: interactionGeneration,
+      const TurnCommandExecutionRecorder().record(
+        ledger: _turnToolResults,
+        owner: owner,
+        toolResult: promptToolResult,
+        sourceResult: taintSourceResult,
+        resolveArguments: (toolCall) =>
+            _resolveProjectScopedArguments(toolCall.name, toolCall.arguments),
       );
     }
     if (recordBackgroundProcessStart) {
@@ -783,23 +850,5 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       '[BackgroundProcess] Monitoring ${snapshot.jobId} '
       '(${snapshot.status})',
     );
-  }
-
-  /// Accumulates executed commands for the exact turn owner.
-  void _recordTurnCommandLedgerEntry(
-    ToolResultInfo toolResult, {
-    required int interactionGeneration,
-  }) {
-    final owner = _turnOwnerForGeneration(interactionGeneration);
-    if (owner == null) return;
-    if (!_toolCallExecutionPolicy.isCommandExecutionTool(toolResult.name)) {
-      return;
-    }
-    final command = _toolCallExecutionPolicy.toolCommandArgument(
-      toolResult.arguments,
-    );
-    if (command != null) {
-      _turnToolResults.recordCommand(owner, command);
-    }
   }
 }

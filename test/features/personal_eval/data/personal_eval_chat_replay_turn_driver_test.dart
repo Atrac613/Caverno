@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/core/types/workspace_mode.dart';
@@ -197,6 +198,62 @@ void main() {
     expect(result.workingDirectory, '/tmp/project');
 
     // The wired dispatch routes tool calls to the injected executor.
+    await toolRunner.capturedDispatch!(
+      ToolCallInfo(id: 't1', name: 'read_file', arguments: const {}),
+    );
+    expect(dispatched, ['read_file']);
+  });
+
+  test('withholds and refuses browser and desktop tools', () async {
+    final dataSource = _FakeChatDataSource();
+    final toolRunner = _FakeToolRunner(dataSource);
+    final dispatched = <String>[];
+    Map<String, dynamic> tool(String name) => {
+      'type': 'function',
+      'function': {'name': name},
+    };
+
+    final driver = PersonalEvalChatReplayTurnDriver(
+      dataSource: dataSource,
+      sessionLogStore: store,
+      model: 'candidate-model',
+      workingDirectory: '/tmp/project',
+      toolRunner: toolRunner,
+      toolDefinitions: () => [
+        tool('read_file'),
+        tool('browser_open'),
+        tool('local_execute_command'),
+        tool('computer_click'),
+      ],
+      dispatchToolCall: (toolCall) async {
+        dispatched.add(toolCall.name);
+        return McpToolResult(
+          toolName: toolCall.name,
+          result: 'ok',
+          isSuccess: true,
+        );
+      },
+    );
+
+    await driver.drive(evalCase());
+
+    expect(
+      toolRunner.capturedTools!.map((t) => (t['function'] as Map)['name']),
+      ['read_file', 'local_execute_command'],
+    );
+
+    // A model that names a withheld tool anyway is refused before dispatch.
+    for (final name in ['browser_open', 'computer_click']) {
+      final result = await toolRunner.capturedDispatch!(
+        ToolCallInfo(id: name, name: name, arguments: const {}),
+      );
+      expect(result.isSuccess, isFalse, reason: name);
+      expect(
+        jsonDecode(result.result),
+        containsPair('code', 'permission_denied'),
+        reason: name,
+      );
+    }
     await toolRunner.capturedDispatch!(
       ToolCallInfo(id: 't1', name: 'read_file', arguments: const {}),
     );

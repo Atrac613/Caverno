@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/embeddings_client.dart';
 import 'package:caverno/features/chat/data/datasources/embeddings_math.dart';
@@ -187,6 +189,81 @@ void main() {
       shouldFail = false;
       expect(await client.embed(inputs: ['x'], model: 'm'), isNotNull);
       expect(client.lastFailure, isNull);
+    });
+
+    test('timeout aborts the underlying request', () async {
+      final aborted = Completer<void>();
+      final client = EmbeddingsClient(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: '',
+        timeout: const Duration(milliseconds: 30),
+        client: MockClient.streaming((request, body) async {
+          expect(request, isA<http.AbortableRequest>());
+          await (request as http.AbortableRequest).abortTrigger;
+          aborted.complete();
+          throw http.RequestAbortedException(request.url);
+        }),
+      );
+
+      expect(await client.embed(inputs: ['x'], model: 'm'), isNull);
+      await aborted.future.timeout(const Duration(seconds: 1));
+      expect(client.lastFailure!.kind, EmbeddingsFailureKind.transport);
+    });
+
+    test('external cancellation aborts the underlying request', () async {
+      final cancel = Completer<void>();
+      final started = Completer<void>();
+      final aborted = Completer<void>();
+      final client = EmbeddingsClient(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: '',
+        client: MockClient.streaming((request, body) async {
+          started.complete();
+          await (request as http.AbortableRequest).abortTrigger;
+          aborted.complete();
+          throw http.RequestAbortedException(request.url);
+        }),
+      );
+
+      final result = client.embed(
+        inputs: ['x'],
+        model: 'm',
+        abortSignal: cancel.future,
+      );
+      await started.future;
+      cancel.complete();
+      expect(await result, isNull);
+      expect(aborted.isCompleted, isTrue);
+    });
+
+    test('timeout closes a live HTTP connection', () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final connected = Completer<Socket>();
+      final disconnected = Completer<void>();
+      server.listen((socket) {
+        connected.complete(socket);
+        socket.listen(
+          (_) {},
+          onDone: disconnected.complete,
+          onError: (Object _) {
+            if (!disconnected.isCompleted) disconnected.complete();
+          },
+        );
+      });
+      final client = EmbeddingsClient(
+        baseUrl: 'http://127.0.0.1:${server.port}/v1',
+        apiKey: '',
+        timeout: const Duration(milliseconds: 100),
+      );
+      try {
+        expect(await client.embed(inputs: ['x'], model: 'm'), isNull);
+        await connected.future.timeout(const Duration(seconds: 1));
+        await disconnected.future.timeout(const Duration(seconds: 1));
+      } finally {
+        client.close();
+        if (connected.isCompleted) (await connected.future).destroy();
+        await server.close();
+      }
     });
   });
 }

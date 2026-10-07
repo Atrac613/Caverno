@@ -73,6 +73,8 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       );
 
       sections.addAll([
+        ProjectTaskProgressSection(conversationId: currentConversation.id),
+        ConversationWorkTimeSection(conversationId: currentConversation.id),
         _buildCompanionSection(
           context,
           title: 'chat.companion_progress'.tr(),
@@ -154,11 +156,9 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     sections.addAll([
       AwaitingYouPanelSection(
         currentConversation: currentConversation,
-        onOpen: () => _openPlanReviewSheet(
+        onOpen: () => _openAwaitingYouSheet(
           context,
           currentConversation: currentConversation,
-          chatState: chatState,
-          isPlanMode: currentConversation.isPlanningSession,
         ),
       ),
       _buildCompanionSection(

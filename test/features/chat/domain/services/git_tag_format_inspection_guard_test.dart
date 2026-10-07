@@ -156,6 +156,8 @@ void main() {
       'tag',
       'tag --list',
       'tag -l "v1.*"',
+      // Session 50e3f486: the listing the version-bump skill issues.
+      "tag --list '[0-9]*' --sort=-version:refname | head -3",
       'git for-each-ref refs/tags --format=%(refname:short)',
       'for-each-ref refs/tags/releases --format=%(refname:short)',
       'show-ref --tags',
@@ -278,6 +280,9 @@ void main() {
       _input(command: ' git tag   v2.0.0 ', workingDirectory: _ownerRoot),
     )!;
     final expectedPayload = {
+      // Declared, so the loop cannot file the blocked tag as one that ran.
+      'ok': false,
+      'result_origin': 'refusal',
       'error':
           'Git tag creation requires inspecting existing tag names in this '
           'turn before creating a new tag.',

@@ -174,6 +174,24 @@ void main() {
     expect(registry.takeHint(owner), ToolLoopExitReason.maxIterations);
   });
 
+  test('clears only the stale discarded-calls hint during recovery', () {
+    final registry = TurnFinalizationStateRegistry();
+    expect(registry.begin(owner), isTrue);
+    expect(
+      registry.setHint(owner, ToolLoopExitReason.allCallsDiscarded),
+      isTrue,
+    );
+    expect(
+      registry.clearHintIf(owner, ToolLoopExitReason.toolFailureAbort),
+      isFalse,
+    );
+    expect(
+      registry.clearHintIf(owner, ToolLoopExitReason.allCallsDiscarded),
+      isTrue,
+    );
+    expect(registry.takeHint(owner), isNull);
+  });
+
   test('duplicate begin preserves state and disposal rejects late writes', () {
     final peer = ChatTurnOwner(
       conversationId: 'thread-b',
