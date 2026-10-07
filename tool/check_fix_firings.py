@@ -305,6 +305,22 @@ def _review_hint_keeps_host_scope(blob):
     return False
 
 
+def _review_patch_listed(blob):
+    """Whether a project task review got an oversized patch as a file list.
+
+    Read from the structured workflow decision, never from prose.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    return any(
+        (entry.get("projectTaskDecision") or {}).get("decision")
+        == "patch_listed"
+        for entry in entries
+    )
+
+
 def _reasoning_only_recovery_without_thinking(blob):
     """Whether a reasoning-only stop recovery request went out without thinking.
 
@@ -892,6 +908,11 @@ SIGNATURES = {
         "commit": "f596da316",
         "what": "a review reruns a host-only passing verification with its scope",
         "match": _review_hint_keeps_host_scope,
+    },
+    "review_patch_listed": {
+        "commit": "c89f0dd75",
+        "what": "an oversized task patch is listed for review, not a stop",
+        "match": _review_patch_listed,
     },
 }
 
