@@ -97,19 +97,24 @@ import '../../domain/services/anabasis_delegation_admission.dart';
 import '../../domain/services/anabasis_turn_roles.dart';
 import '../../domain/services/ask_user_question_turn_cache.dart';
 import '../../domain/services/assistant_stream_delta.dart';
+import '../../domain/services/background_completion_evidence.dart';
 import '../../domain/services/background_process_follow_up_policy.dart';
 import '../../domain/services/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/blocked_production_release_retry_policy.dart';
+import '../../domain/services/changed_file_evidence.dart';
 import '../../domain/services/chat_command_guardrail_collaborators.dart';
 import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/cjk_response_markers.dart';
 import '../../domain/services/code_unit_text_scan.dart';
 import '../../domain/services/coding_continuation_recovery_policy.dart';
+import '../../domain/services/coding_diagnostic_collection.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
+import '../../domain/services/coding_feedback_telemetry.dart';
 import '../../domain/services/coding_verification_feedback_presentation.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
 import '../../domain/services/coding_verification_mutation_signature.dart';
 import '../../domain/services/command_diagnostic_verifier_replay_guard.dart';
+import '../../domain/services/commit_phase_history.dart';
 import '../../domain/services/computer_use_action_presentation.dart';
 import '../../domain/services/content_tool_continuation_prompt_builder.dart';
 import '../../domain/services/content_tool_failure_result_formatter.dart';
@@ -142,8 +147,10 @@ import '../../domain/services/follow_up_assistant_content.dart';
 import '../../domain/services/git_write_confirmation_policy.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
+import '../../domain/services/goal_blocker_boundary_response.dart';
 import '../../domain/services/goal_continuation_log_record_builder.dart';
 import '../../domain/services/goal_validation_probe_guard.dart';
+import '../../domain/services/initial_tool_selection.dart';
 import '../../domain/services/loaded_skill_memory.dart';
 import '../../domain/services/local_command_approval_prompt.dart';
 import '../../domain/services/local_command_request_preparation.dart';
@@ -161,6 +168,7 @@ import '../../domain/services/participant_message_finalizer.dart';
 import '../../domain/services/participant_turn_planner.dart';
 import '../../domain/services/pending_action_length_recovery_policy.dart';
 import '../../domain/services/planning_executor_profile.dart';
+import '../../domain/services/planning_proposal_messages.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/planning_retry_context_builder.dart';
 import '../../domain/services/planning_tool_policy.dart';
@@ -168,6 +176,9 @@ import '../../domain/services/post_saved_validation_tool_policy.dart';
 import '../../domain/services/printed_tool_call_recovery.dart';
 import '../../domain/services/process_start_result_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
+import '../../domain/services/project_task_captured_changes.dart';
+import '../../domain/services/project_task_commit_tool_policy.dart';
+import '../../domain/services/project_task_review_evidence.dart';
 import '../../domain/services/project_task_review_inspection.dart';
 import '../../domain/services/project_task_review_verdict.dart';
 import '../../domain/services/project_task_step_completion_policy.dart';
@@ -183,6 +194,7 @@ import '../../domain/services/runtime_sampler_feedback_recorder.dart';
 import '../../domain/services/saved_task_authored_request_text.dart';
 import '../../domain/services/saved_task_target_scope_guard.dart';
 import '../../domain/services/saved_validation_command_guard.dart';
+import '../../domain/services/saved_validation_evidence.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/secondary_completion_router.dart';
 import '../../domain/services/session_memory_service.dart';
@@ -204,12 +216,14 @@ import '../../domain/services/task_proposal_parser.dart';
 import '../../domain/services/task_proposal_quality_gate_fallback.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/timed_out_command_retry_guard.dart';
+import '../../domain/services/tool_answer_messages.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_failure_classifier.dart';
 import '../../domain/services/tool_loop_abort_notice.dart';
+import '../../domain/services/tool_loop_execution_budget.dart';
 import '../../domain/services/tool_loop_exhaustion_policy.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
@@ -279,6 +293,7 @@ import 'thread_scoped_message_queue.dart';
 import 'tool_approval_cache.dart';
 import 'tool_argument_json.dart';
 import 'tool_dedupe_keys.dart';
+import 'tool_lifecycle_reporter.dart';
 import 'tool_loop_batch_execution_result.dart';
 import 'turn_coding_project_resolver.dart';
 import 'turn_command_execution_recorder.dart';
@@ -308,7 +323,6 @@ part 'chat_notifier_browser_handlers.dart';
 part 'chat_notifier_cancellation.dart';
 part 'chat_notifier_coding_continuation_recovery.dart';
 part 'chat_notifier_coding_verification_feedback.dart';
-part 'chat_notifier_commit_scope.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_error_handling.dart';
@@ -316,14 +330,12 @@ part 'chat_notifier_execution_runtime.dart';
 part 'chat_notifier_final_answer_recovery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_goal_auto_continue.dart';
-part 'chat_notifier_goal_blocker_boundary.dart';
 part 'chat_notifier_local_file_handlers.dart';
 part 'chat_notifier_participant_turns.dart';
 part 'chat_notifier_planning_research.dart';
 part 'chat_notifier_prompt_context.dart';
 part 'chat_notifier_python_attachment_repair.dart';
 part 'chat_notifier_response_finalization.dart';
-part 'chat_notifier_review_inspection.dart';
 part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
@@ -1143,32 +1155,24 @@ class ChatNotifier extends Notifier<ChatState> {
     String? additionalPlanningContext,
     bool compact = false,
   }) {
-    final now = DateTime.now();
-    return [
-      _createSystemMessage(
-        conversation: currentConversation,
-      ).copyWith(id: 'workflow_proposal_system', timestamp: now),
-      Message(
-        id: 'workflow_proposal_user',
-        role: MessageRole.user,
-        timestamp: now,
-        content: ConversationPlanningPromptService.buildWorkflowProposalRequest(
-          currentConversation: currentConversation,
-          messages: currentConversation.messages,
-          languageCode: languageCode,
-          project: _codingProjectForTurn(currentConversation),
-          researchContextBlock: researchContext.hasContent
-              ? researchContext.toPromptBlock()
-              : null,
-          selectedDecisionLines: decisionAnswers
-              .map((answer) => '${answer.question}: ${answer.optionLabel}')
-              .toList(growable: false),
-          additionalPlanningContext: additionalPlanningContext,
-          executorProfile: PlanningExecutorProfile.fromSettings(_settings),
-          compact: compact,
-        ),
+    return PlanningProposalMessages.workflow(
+      system: _createSystemMessage(conversation: currentConversation),
+      content: ConversationPlanningPromptService.buildWorkflowProposalRequest(
+        currentConversation: currentConversation,
+        messages: currentConversation.messages,
+        languageCode: languageCode,
+        project: _codingProjectForTurn(currentConversation),
+        researchContextBlock: researchContext.hasContent
+            ? researchContext.toPromptBlock()
+            : null,
+        selectedDecisionLines: decisionAnswers
+            .map((answer) => '${answer.question}: ${answer.optionLabel}')
+            .toList(growable: false),
+        additionalPlanningContext: additionalPlanningContext,
+        executorProfile: PlanningExecutorProfile.fromSettings(_settings),
+        compact: compact,
       ),
-    ];
+    );
   }
 
   List<Message> _buildTaskProposalMessages({
@@ -1180,31 +1184,23 @@ class ChatNotifier extends Notifier<ChatState> {
     String? additionalPlanningContext,
     bool compact = false,
   }) {
-    final now = DateTime.now();
-    return [
-      _createSystemMessage(
-        conversation: currentConversation,
-      ).copyWith(id: 'task_proposal_system', timestamp: now),
-      Message(
-        id: 'task_proposal_user',
-        role: MessageRole.user,
-        timestamp: now,
-        content: ConversationPlanningPromptService.buildTaskProposalRequest(
-          currentConversation: currentConversation,
-          messages: currentConversation.messages,
-          languageCode: languageCode,
-          project: _codingProjectForTurn(currentConversation),
-          researchContextBlock: researchContext.hasContent
-              ? researchContext.toPromptBlock()
-              : null,
-          workflowStageOverride: workflowStageOverride,
-          workflowSpecOverride: workflowSpecOverride,
-          additionalPlanningContext: additionalPlanningContext,
-          executorProfile: PlanningExecutorProfile.fromSettings(_settings),
-          compact: compact,
-        ),
+    return PlanningProposalMessages.task(
+      system: _createSystemMessage(conversation: currentConversation),
+      content: ConversationPlanningPromptService.buildTaskProposalRequest(
+        currentConversation: currentConversation,
+        messages: currentConversation.messages,
+        languageCode: languageCode,
+        project: _codingProjectForTurn(currentConversation),
+        researchContextBlock: researchContext.hasContent
+            ? researchContext.toPromptBlock()
+            : null,
+        workflowStageOverride: workflowStageOverride,
+        workflowSpecOverride: workflowSpecOverride,
+        additionalPlanningContext: additionalPlanningContext,
+        executorProfile: PlanningExecutorProfile.fromSettings(_settings),
+        compact: compact,
       ),
-    ];
+    );
   }
 
   Future<WorkflowProposalDraft> _requestWorkflowProposal({
@@ -4299,33 +4295,17 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
-    try {
-      final feedback = await _codingDiagnosticFeedbackService
-          .buildFeedbackToolResult(
-            projectRoot: projectRoot,
-            changedPaths: changedPaths,
-            baseline: baseline,
-          );
-      if (feedback != null) {
-        appLog(
-          '[CodingDiagnostics] Added diagnostic feedback for '
-          '${changedPaths.length} changed file(s)',
-        );
-        _logCodingDiagnosticFeedbackSummary(feedback);
-      }
-      await _refreshRepoMapLspSymbols(
+    return CodingDiagnosticCollection.feedback(
+      service: _codingDiagnosticFeedbackService,
+      projectRoot: projectRoot,
+      changedPaths: changedPaths,
+      baseline: baseline,
+      refreshSymbols: () => _refreshRepoMapLspSymbols(
         projectRoot: projectRoot,
         changedPaths: changedPaths,
         interactionGeneration: interactionGeneration,
-      );
-      return feedback;
-    } catch (error, stackTrace) {
-      appLog(
-        '[CodingDiagnostics] Failed to collect diagnostic feedback: $error',
-      );
-      appLog('[CodingDiagnostics] stackTrace: $stackTrace');
-      return null;
-    }
+      ),
+    );
   }
 
   /// Runs one baseline-free analyzer pass before the final answer so surviving
@@ -4363,16 +4343,11 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
-    try {
-      return await _codingDiagnosticFeedbackService.captureBaseline(
-        projectRoot: projectRoot,
-        changedPaths: changedPaths,
-      );
-    } catch (error, stackTrace) {
-      appLog('[CodingDiagnostics] Failed to capture analyzer baseline: $error');
-      appLog('[CodingDiagnostics] stackTrace: $stackTrace');
-      return null;
-    }
+    return CodingDiagnosticCollection.baseline(
+      service: _codingDiagnosticFeedbackService,
+      projectRoot: projectRoot,
+      changedPaths: changedPaths,
+    );
   }
 
   Future<void> _refreshRepoMapLspSymbols({
@@ -4414,35 +4389,6 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  void _logCodingDiagnosticFeedbackSummary(ToolResultInfo feedback) {
-    final decoded = ProposalParsingTextUtils.tryDecodeMap(feedback.result);
-    if (decoded == null) {
-      return;
-    }
-    final telemetry = decoded['telemetry'];
-    final telemetryMap = telemetry is Map<String, dynamic> ? telemetry : null;
-    final summary = <String, Object?>{
-      'toolName': feedback.name,
-      'provider': decoded['provider'],
-      'diagnosticCount':
-          decoded['new_diagnostic_count'] ?? decoded['diagnostic_count'],
-      'currentDiagnosticCount': decoded['current_diagnostic_count'],
-      'baselineDiagnosticCount': decoded['baseline_diagnostic_count'],
-      'baselineApplied': decoded['baseline_applied'],
-      'files': decoded['changed_paths'],
-      if (telemetryMap != null) ...{
-        'durationMs': telemetryMap['duration_ms'],
-        'commandAttemptCount': telemetryMap['command_attempt_count'],
-        'fallbackCommandCount': telemetryMap['fallback_command_count'],
-        'timedOutCommandCount': telemetryMap['timed_out_command_count'],
-        'startErrorCommandCount': telemetryMap['start_error_command_count'],
-      },
-    };
-    appLog(
-      '[CodingDiagnostics] Analyzer feedback summary: ${jsonEncode(summary)}',
-    );
-  }
-
   Future<ToolResultInfo?> _buildCodingCommandOutputGuardrailToolResult(
     List<ToolResultInfo> toolResults, {
     required int interactionGeneration,
@@ -4456,46 +4402,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
-    try {
-      final feedback = const CodingCommandOutputGuardrailService()
-          .buildFeedbackToolResult(toolResults: toolResults);
-      if (feedback != null) {
-        appLog(
-          '[CodingOutputGuardrail] Added command output feedback for '
-          '${toolResults.length} tool result(s)',
-        );
-        _logCodingCommandOutputGuardrailSummary(feedback);
-      }
-      return feedback;
-    } catch (error, stackTrace) {
-      appLog(
-        '[CodingOutputGuardrail] Failed to inspect command outputs: $error',
-      );
-      appLog('[CodingOutputGuardrail] stackTrace: $stackTrace');
-      return null;
-    }
-  }
-
-  void _logCodingCommandOutputGuardrailSummary(ToolResultInfo feedback) {
-    final decoded = ProposalParsingTextUtils.tryDecodeMap(feedback.result);
-    if (decoded == null) {
-      return;
-    }
-    final issues = decoded['issues'];
-    final issueList = issues is List ? issues : const [];
-    final summary = <String, Object?>{
-      'toolName': feedback.name,
-      'provider': decoded['provider'],
-      'validationStatus': decoded['validation_status'],
-      'issueCount': issueList.length,
-      'commands': issueList
-          .whereType<Map>()
-          .map((issue) => issue['command']?.toString())
-          .whereType<String>()
-          .where((command) => command.trim().isNotEmpty)
-          .toList(growable: false),
-    };
-    appLog('[CodingOutputGuardrail] Feedback summary: ${jsonEncode(summary)}');
+    return CodingDiagnosticCollection.outputFeedback(toolResults);
   }
 
   Future<ChatCompletionResult?>
@@ -4598,88 +4505,14 @@ class ChatNotifier extends Notifier<ChatState> {
   ToolResultInfo? _buildBackgroundProcessPartialFailureFeedbackToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
-  }) {
-    final failedResults = toolResults
-        .where(_toolResultContainsReleaseFailureMarker)
-        .toList(growable: false);
-    if (failedResults.isEmpty) {
-      return null;
-    }
-    final jobIds = _backgroundProcessJobIdsFromResults(failedResults);
-    return ToolResultInfo(
-      id: 'background_process_partial_failure_${DateTime.now().microsecondsSinceEpoch}',
-      name: 'background_process_monitor',
-      arguments: {
-        if (jobIds.isNotEmpty) 'job_ids': jobIds,
-        'source': 'tool_result_output',
-      },
-      result: jsonEncode({
-        'ok': false,
-        'code': 'background_process_partial_failure',
-        'error':
-            'A background process output contains a release failure marker, '
-            'so an exit code 0 is not enough to verify full completion.',
-        if (jobIds.isNotEmpty) 'job_ids': jobIds,
-        'failed_tool_results': failedResults
-            .map(
-              (result) => {
-                'tool_name': result.name,
-                'arguments': result.arguments,
-                'result_excerpt': _claims.clipForDiagnostic(result.result),
-              },
-            )
-            .toList(growable: false),
-        'claimedResponse': _claims.clipForDiagnostic(candidateResponse),
-        'required_action':
-            'Report the partial failure explicitly. Do not claim the release, '
-            'upload, or export completed successfully until a later command '
-            'result proves the failed lane was retried and succeeded.',
-      }),
-    );
-  }
+  }) => const BackgroundCompletionEvidence().partialFailure(
+    candidateResponse: candidateResponse,
+    toolResults: toolResults,
+  );
 
   bool _hasSuccessfulBackgroundProcessCompletionToolResult(
-    List<ToolResultInfo> toolResults,
-  ) {
-    final relevantJobIds = _backgroundProcessJobIdsFromResults(toolResults);
-    if (relevantJobIds.isEmpty) {
-      return false;
-    }
-    final successfulJobIds = <String>{};
-    for (final result in toolResults) {
-      final name = result.name.trim().toLowerCase();
-      if (name != 'process_status' &&
-          name != 'process_wait' &&
-          name != 'process_start') {
-        continue;
-      }
-      if (!_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
-        continue;
-      }
-      final decoded = ProposalParsingTextUtils.tryDecodeMap(result.result);
-      final jobId = decoded?['job_id']?.toString().trim();
-      if (jobId != null && jobId.isNotEmpty) {
-        successfulJobIds.add(jobId);
-      }
-    }
-    return relevantJobIds.every(successfulJobIds.contains);
-  }
-
-  bool _toolResultContainsReleaseFailureMarker(ToolResultInfo result) {
-    if (!_toolCallExecutionPolicy.isCommandExecutionTool(result.name)) {
-      return false;
-    }
-    final normalized = result.result.toLowerCase();
-    return _containsAny(normalized, const [
-          'overall: partial_failure',
-          'encountered error while creating the ipa',
-          'error: exportarchive',
-          'the bundle version must be higher',
-          'upload failed',
-          'ipatool failed',
-        ]) ||
-        RegExp(r'itms-\d+').hasMatch(normalized);
-  }
+    List<ToolResultInfo> results,
+  ) => const BackgroundCompletionEvidence().hasSuccessfulCompletion(results);
 
   Future<ToolResultInfo?> _buildBackgroundProcessMonitorToolResult({
     required ChatTurnOwner owner,
@@ -4700,223 +4533,34 @@ class ChatNotifier extends Notifier<ChatState> {
     required ChatTurnOwner owner,
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
-  }) {
-    final runningTaskIds = <String>[];
-    final failedTaskIds = <String>[];
-    final blockedTasks = <Map<String, dynamic>>[];
-    final notifier = ref.read(subagentTaskNotifierProvider.notifier);
-
-    for (final result in toolResults) {
-      final name = result.name.trim().toLowerCase();
-      if (name != 'spawn_subagent' && name != 'get_subagent_result') {
-        continue;
-      }
-      final decoded = ProposalParsingTextUtils.tryDecodeMap(result.result);
-      final taskId = decoded?['task_id']?.toString().trim();
-      if (taskId == null || taskId.isEmpty) {
-        continue;
-      }
-      if (runningTaskIds.contains(taskId) || failedTaskIds.contains(taskId)) {
-        continue;
-      }
-
-      final rawStatus = decoded?['status']?.toString().toLowerCase() ?? '';
-      final task = notifier.byId(owner, taskId);
-      final status = task?.status ?? _statusFromSubagentTaskResult(rawStatus);
-      final description =
-          decoded?['description']?.toString() ??
-          task?.description ??
-          'background subagent task';
-
-      if (status == SubagentTaskStatus.completed) {
-        continue;
-      }
-      if (status == SubagentTaskStatus.failed ||
-          status == SubagentTaskStatus.cancelled) {
-        failedTaskIds.add(taskId);
-        blockedTasks.add({
-          'task_id': taskId,
-          'status': status == SubagentTaskStatus.failed
-              ? 'failed'
-              : 'cancelled',
-          'description': description,
-          'error': decoded?['error']?.toString() ?? task?.error,
-        });
-        continue;
-      }
-      if (status == SubagentTaskStatus.pending ||
-          status == SubagentTaskStatus.running) {
-        runningTaskIds.add(taskId);
-        blockedTasks.add({
-          'task_id': taskId,
-          'status': status == SubagentTaskStatus.pending
-              ? 'pending'
-              : 'running',
-          'description': description,
-        });
-        continue;
-      }
-      if (status == null) {
-        if (rawStatus == 'running' ||
-            rawStatus == 'pending' ||
-            rawStatus == 'started') {
-          runningTaskIds.add(taskId);
-          blockedTasks.add({
-            'task_id': taskId,
-            'status': rawStatus,
-            'description': description,
-          });
-        } else if (rawStatus == 'failed') {
-          failedTaskIds.add(taskId);
-          blockedTasks.add({
-            'task_id': taskId,
-            'status': rawStatus,
-            'description': description,
-            'error': decoded?['error']?.toString(),
-          });
-        }
-      }
-    }
-
-    if (blockedTasks.isEmpty) {
-      return null;
-    }
-
-    final running = blockedTasks
-        .where(
-          (task) => task['status'] == 'running' || task['status'] == 'pending',
-        )
-        .toList(growable: false);
-    final failed = blockedTasks
-        .where(
-          (task) => task['status'] == 'failed' || task['status'] == 'cancelled',
-        )
-        .toList(growable: false);
-    final code = running.isNotEmpty
-        ? 'subagent_still_running'
-        : failed.isNotEmpty
-        ? 'subagent_failed'
-        : 'subagent_status_unverified';
-    final error = running.isNotEmpty
-        ? 'One or more background subagent tasks are still running, so the completion claim is not verified yet.'
-        : failed.isNotEmpty
-        ? 'One or more background subagent tasks failed, so the completion claim is not verified.'
-        : 'One or more background subagent tasks could not be verified, so the completion claim is not verified.';
-
-    return ToolResultInfo(
-      id: 'subagent_monitor_${DateTime.now().microsecondsSinceEpoch}',
-      name: 'get_subagent_result',
-      arguments: {
-        'task_ids': blockedTasks
-            .map((task) => task['task_id'])
-            .whereType<String>()
-            .toList(growable: false),
-      },
-      result: jsonEncode({
-        'ok': false,
-        'code': code,
-        'error': error,
-        'tasks': blockedTasks,
-        'claimedResponse': _claims.clipForDiagnostic(candidateResponse),
-        'required_action':
-            'Call get_subagent_result for each pending task_id until the status becomes completed, and do not claim completion until every relevant background subagent task finishes successfully.',
-      }),
-    );
-  }
-
-  SubagentTaskStatus? _statusFromSubagentTaskResult(String rawStatus) {
-    switch (rawStatus) {
-      case 'pending':
-        return SubagentTaskStatus.pending;
-      case 'running':
-        return SubagentTaskStatus.running;
-      case 'completed':
-        return SubagentTaskStatus.completed;
-      case 'failed':
-        return SubagentTaskStatus.failed;
-      case 'cancelled':
-        return SubagentTaskStatus.cancelled;
-      default:
-        return null;
-    }
-  }
+  }) => const BackgroundCompletionEvidence().subagentFeedback(
+    candidateResponse: candidateResponse,
+    toolResults: toolResults,
+    taskById: (id) =>
+        ref.read(subagentTaskNotifierProvider.notifier).byId(owner, id),
+  );
 
   List<String> _backgroundProcessJobIdsFromResults(
-    List<ToolResultInfo> toolResults,
-  ) {
-    final jobIds = <String>[];
-    for (final result in toolResults) {
-      final name = result.name.trim().toLowerCase();
-      if (name != 'process_start' &&
-          (name != 'local_execute_command' ||
-              !argumentIsTruthy(result.arguments['background'])) &&
-          name != 'process_status' &&
-          name != 'process_wait') {
-        continue;
-      }
-      final decoded = ProposalParsingTextUtils.tryDecodeMap(result.result);
-      final jobId = decoded?['job_id']?.toString().trim();
-      if (jobId != null && jobId.isNotEmpty) {
-        jobIds.add(jobId);
-      }
-    }
-    return jobIds.toSet().toList(growable: false);
-  }
+    List<ToolResultInfo> results,
+  ) => const BackgroundCompletionEvidence().jobIds(results);
 
   List<String> _changedFileMutationCallPaths(
-    List<ToolCallInfo> toolCalls, {
+    List<ToolCallInfo> calls, {
     bool dartOnly = true,
-  }) {
-    final paths = <String>[];
-    final seen = <String>{};
-    for (final toolCall in toolCalls) {
-      if (!_fileMutationEvidencePolicy.isMutationToolName(toolCall.name)) {
-        continue;
-      }
-      final path = _fileMutationEvidencePolicy.argumentPath(toolCall.arguments);
-      if (path == null || (dartOnly && !path.toLowerCase().endsWith('.dart'))) {
-        continue;
-      }
-      final resolved = FilesystemTools.resolvePath(
-        path,
-        defaultRoot: _getActiveProjectRootPath(),
-      );
-      final normalized = resolved ?? path;
-      if (seen.add(normalized)) {
-        paths.add(normalized);
-      }
-    }
-    return paths;
-  }
+  }) => const ChangedFileEvidence().callPaths(
+    calls,
+    dartOnly: dartOnly,
+    projectRoot: _getActiveProjectRootPath(),
+  );
 
   List<String> _changedFileMutationPaths(
-    List<ToolResultInfo> toolResults, {
+    List<ToolResultInfo> results, {
     bool dartOnly = true,
-  }) {
-    final paths = <String>[];
-    final seen = <String>{};
-    for (final toolResult in toolResults) {
-      if (!_fileMutationEvidencePolicy.isMutationToolName(toolResult.name)) {
-        continue;
-      }
-      if (!_fileMutationEvidencePolicy.isSuccessfulResult(toolResult)) {
-        continue;
-      }
-      final path = _fileMutationEvidencePolicy.pathForResult(toolResult);
-      if (path == null || (dartOnly && !path.toLowerCase().endsWith('.dart'))) {
-        continue;
-      }
-      final resolved = FilesystemTools.resolvePath(
-        path,
-        defaultRoot: _getActiveProjectRootPath(),
-      );
-      final normalized = resolved ?? path;
-      if (seen.add(normalized)) {
-        paths.add(normalized);
-      }
-    }
-    return paths;
-  }
+  }) => const ChangedFileEvidence().resultPaths(
+    results,
+    dartOnly: dartOnly,
+    projectRoot: _getActiveProjectRootPath(),
+  );
 
   List<Message> _buildToolResultAnswerMessages(
     List<ToolResultInfo> toolResults, {
@@ -4931,56 +4575,11 @@ class ChatNotifier extends Notifier<ChatState> {
       protectedPaths: protectedPaths,
       observationOwner: observationOwner,
     );
-    final timestamp = DateTime.now();
-    final messages = <Message>[
-      Message(
-        id: 'tool_result_${timestamp.microsecondsSinceEpoch}',
-        isSynthesizedPrompt: true,
-        content: ToolResultPromptBuilder.buildAnswerPrompt(
-          budgetedToolResults,
-          descriptionsByName:
-              ToolResultPromptBuilder.descriptionsByNameFromDefinitions(
-                _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
-              ),
-          completionEvidence: completionEvidence,
-        ),
-        role: MessageRole.user,
-        timestamp: timestamp,
-      ),
-    ];
-
-    for (var i = 0; i < budgetedToolResults.length; i++) {
-      final toolResult = budgetedToolResults[i];
-      final decoded = ProposalParsingTextUtils.tryDecodeMap(toolResult.result);
-      if (decoded == null) {
-        continue;
-      }
-      final imageBase64 = decoded['imageBase64'];
-      if (imageBase64 is! String || imageBase64.isEmpty) {
-        continue;
-      }
-
-      final metadata = Map<String, dynamic>.from(decoded)
-        ..remove('imageBase64');
-      messages.add(
-        Message(
-          id: 'tool_image_${timestamp.microsecondsSinceEpoch}_$i',
-          content:
-              'Visual observation from ${toolResult.name}. '
-              'Use this screenshot and any actionProposalPolicy metadata to '
-              'answer the user and decide any next computer-use action. '
-              'Preserve required target metadata, exact text, and public '
-              'action boundaries when proposing actions. '
-              'Metadata: ${jsonEncode(metadata)}',
-          role: MessageRole.user,
-          timestamp: timestamp,
-          imageBase64: imageBase64,
-          imageMimeType: decoded['imageMimeType'] as String? ?? 'image/png',
-        ),
-      );
-    }
-
-    return messages;
+    return ToolAnswerMessages.build(
+      budgetedToolResults,
+      completionEvidence: completionEvidence,
+      definitions: _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
+    );
   }
 
   void _trackTool(int generation, String name, String lifecycleState) => ref
@@ -4991,30 +4590,17 @@ class ChatNotifier extends Notifier<ChatState> {
         lifecycleState,
       );
 
+  ToolLifecycleReporter get _toolLifecycleReporter =>
+      ToolLifecycleReporter(events: _runtimeEvents, track: _trackTool);
   void _logScheduledToolLifecycleEvent(
     ToolExecutionLifecycleEvent event, {
     required int generation,
     required int loopIndex,
-  }) {
-    _trackTool(generation, event.toolCall.name, event.state.name);
-    _runtimeEvents.emitRuntimeToolLifecycle(
-      generation: generation,
-      toolCallId: event.toolCall.id,
-      toolName: event.toolCall.name,
-      state: _runtimeEvents.runtimeToolLifecycleState(event.state),
-      loopIndex: loopIndex,
-      schedulerClass: event.schedulerMode.name,
-      resultStatus: event.resultStatus,
-      durationMs: event.durationMs,
-    );
-    appLog(
-      ChatToolExecutionLogFormatter.lifecycleLineForEvent(
-        event,
-        loopIndex: loopIndex,
-      ),
-    );
-  }
-
+  }) => _toolLifecycleReporter.scheduled(
+    event,
+    generation: generation,
+    loopIndex: loopIndex,
+  );
   void _logToolLifecycleEvent({
     required int generation,
     required ToolCallInfo toolCall,
@@ -5024,36 +4610,16 @@ class ChatNotifier extends Notifier<ChatState> {
     String? resultStatus,
     String? skipReason,
     int? durationMs,
-  }) {
-    final runtimeState = switch (lifecycleState) {
-      'queued' => CavernoRuntimeToolLifecycleState.queued,
-      'started' => CavernoRuntimeToolLifecycleState.started,
-      _ => CavernoRuntimeToolLifecycleState.completed,
-    };
-    _trackTool(generation, toolCall.name, lifecycleState);
-    _runtimeEvents.emitRuntimeToolLifecycle(
-      generation: generation,
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      state: runtimeState,
-      loopIndex: loopIndex,
-      schedulerClass: schedulerMode?.name,
-      resultStatus: resultStatus,
-      skipReason: skipReason,
-      durationMs: durationMs,
-    );
-    appLog(
-      ChatToolExecutionLogFormatter.lifecycleLine(
-        toolCall: toolCall,
-        lifecycleState: lifecycleState,
-        loopIndex: loopIndex,
-        schedulerMode: schedulerMode,
-        resultStatus: resultStatus,
-        skipReason: skipReason,
-        durationMs: durationMs,
-      ),
-    );
-  }
+  }) => _toolLifecycleReporter.explicit(
+    generation: generation,
+    toolCall: toolCall,
+    lifecycleState: lifecycleState,
+    loopIndex: loopIndex,
+    schedulerMode: schedulerMode,
+    resultStatus: resultStatus,
+    skipReason: skipReason,
+    durationMs: durationMs,
+  );
 
   /// Executes bounded tool calls and resends results for model compatibility.
   Future<void> _executeToolCalls(
@@ -5076,35 +4642,15 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
-    var maxIterations =
-        _primaryHarnessConfigForGeneration(
-          interactionGeneration,
-        )?.resolveToolLoopMaxIterations(
+    final budget = ToolLoopExecutionBudget(
+      _primaryHarnessConfigForGeneration(
+            interactionGeneration,
+          )?.resolveToolLoopMaxIterations(
+            PlanningExecutorProfile.defaultToolLoopMaxIterations,
+          ) ??
           PlanningExecutorProfile.defaultToolLoopMaxIterations,
-        ) ??
-        PlanningExecutorProfile.defaultToolLoopMaxIterations;
-    const executionBudgetPolicy = ExecutionBudgetPolicy();
-    var totalExtensionGranted = 0;
-    void requestBudgetExtension(
-      ExecutionBudgetExtensionReason reason, {
-      int requestedIterations = 2,
-      bool madeProgress = true,
-    }) {
-      final decision = executionBudgetPolicy.requestExtension(
-        totalExtensionGranted: totalExtensionGranted,
-        requestedIterations: requestedIterations,
-        reason: reason,
-        madeProgress: madeProgress,
-      );
-      maxIterations += decision.grantedIterations;
-      totalExtensionGranted += decision.grantedIterations;
-      appLog(
-        '[ExecutionBudget] reason=${reason.name}; '
-        'requested=$requestedIterations; '
-        'granted=${decision.grantedIterations}; '
-        'totalExtension=$totalExtensionGranted; cap=$maxIterations',
-      );
-    }
+    );
+    final requestBudgetExtension = budget.request;
 
     var iteration = 0;
     var hasTextResponse = false;
@@ -5164,7 +4710,7 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
-    while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
+    while (currentToolCalls.isNotEmpty && iteration < budget.limit) {
       iteration++;
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
@@ -5186,7 +4732,7 @@ class ChatNotifier extends Notifier<ChatState> {
         break;
       }
 
-      appLog('[Tool] Tool loop [$iteration/$maxIterations]');
+      appLog('[Tool] Tool loop [$iteration/${budget.limit}]');
       final batchResult = await _executeToolLoopBatch(
         currentToolCalls: currentToolCalls,
         currentAssistantContent: currentAssistantContent,
@@ -5203,9 +4749,9 @@ class ChatNotifier extends Notifier<ChatState> {
       commandRetryGeneration = batchResult.commandRetryGeneration;
       stateChangeGeneration = batchResult.stateChangeGeneration;
       final batchToolResults = batchResult.batchToolResults;
-      maxIterations += backgroundWaitRefund.iterationsFor(
+      budget.limit += backgroundWaitRefund.iterationsFor(
         batchToolResults,
-        cap: maxIterations,
+        cap: budget.limit,
       );
       if (await _finishExplicitTerminalSuccess(
         batchResult.terminalSuccessMessage,
@@ -5696,7 +5242,7 @@ class ChatNotifier extends Notifier<ChatState> {
         // Keep declared mutations instead of replaying stale recovery results.
         final exhaustion = ToolLoopExhaustionDecisionInput.fromPendingCalls(
           iteration: iteration,
-          maxIterations: maxIterations,
+          maxIterations: budget.limit,
           recoveryAlreadyAttempted: attemptedToolLoopExhaustionRecovery,
           pendingToolCalls: currentToolCalls,
           hasCurrentBatchToolResults: batchToolResults.isNotEmpty,
@@ -5970,7 +5516,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 backgroundProcessRepairResult.content.isNotEmpty
                 ? backgroundProcessRepairResult.content
                 : fallbackResponse;
-            if (iteration >= maxIterations) {
+            if (iteration >= budget.limit) {
               requestBudgetExtension(
                 ExecutionBudgetExtensionReason.backgroundProcessMonitoring,
               );
@@ -5996,7 +5542,7 @@ class ChatNotifier extends Notifier<ChatState> {
             forcedBackgroundProcessFollowUpCount += 1;
             currentToolCalls = [monitorFollowUp];
             currentAssistantContent = monitorResponse;
-            if (iteration >= maxIterations) {
+            if (iteration >= budget.limit) {
               requestBudgetExtension(
                 ExecutionBudgetExtensionReason.backgroundProcessMonitoring,
               );
@@ -6032,7 +5578,7 @@ class ChatNotifier extends Notifier<ChatState> {
           forcedBackgroundProcessFollowUpCount += 1;
           currentToolCalls = [runningProcessFollowUp];
           currentAssistantContent = fallbackResponse;
-          if (iteration >= maxIterations) {
+          if (iteration >= budget.limit) {
             requestBudgetExtension(
               ExecutionBudgetExtensionReason.backgroundProcessMonitoring,
             );
@@ -6063,7 +5609,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 verificationRepairResult.content.isNotEmpty
                 ? verificationRepairResult.content
                 : fallbackResponse;
-            if (iteration >= maxIterations) {
+            if (iteration >= budget.limit) {
               requestBudgetExtension(
                 ExecutionBudgetExtensionReason.verificationRepair,
               );
@@ -6126,7 +5672,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   codingContinuationRecoveryResult.content.isNotEmpty
                   ? codingContinuationRecoveryResult.content
                   : fallbackResponse;
-              if (iteration >= maxIterations) {
+              if (iteration >= budget.limit) {
                 requestBudgetExtension(
                   ExecutionBudgetExtensionReason.codingContinuation,
                 );
@@ -6238,7 +5784,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     if (!hasTextResponse &&
         currentToolCalls.isNotEmpty &&
-        iteration >= maxIterations) {
+        iteration >= budget.limit) {
       appLog(
         '[Tool] Tool loop reached limit with a declared pending batch; '
         'executing it before finalization',
@@ -6291,6 +5837,9 @@ class ChatNotifier extends Notifier<ChatState> {
             latestUserContent: turnSnapshot!.latestUserContent,
             savedTask: turnSnapshot.savedTask,
           ),
+          fileChangesAlreadyCaptured: projectTaskHasCapturedChanges(
+            _conversationForGeneration(interactionGeneration),
+          ),
         );
     // Re-run analysis so final diagnostics reflect the post-edit state.
     final finalDiagnosticFeedback = hasTextResponse
@@ -6301,7 +5850,7 @@ class ChatNotifier extends Notifier<ChatState> {
           );
     if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
     if (finalDiagnosticFeedback != null) {
-      _logCodingDiagnosticFeedbackSummary(finalDiagnosticFeedback);
+      CodingFeedbackTelemetry.logDiagnostics(finalDiagnosticFeedback);
     }
     final finalToolResults = <ToolResultInfo>[
       ...executedToolResults,
@@ -6478,7 +6027,7 @@ class ChatNotifier extends Notifier<ChatState> {
               BackgroundProcessFollowUpPolicy.followUpToolCall(
                 executedToolResults,
                 waitMs: BackgroundProcessFollowUpPolicy.waitMsForIteration(
-                  maxIterations,
+                  budget.limit,
                 ),
               );
           if (monitorFollowUp != null) {
@@ -7035,141 +6584,22 @@ class ChatNotifier extends Notifier<ChatState> {
       );
 
   bool _containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
-    List<ToolCallInfo> toolCalls,
-    List<ToolResultInfo> previousToolResults,
-    int interactionGeneration,
-  ) {
-    if (toolCalls.isEmpty || previousToolResults.isEmpty) {
-      return false;
-    }
-    final validationCommand = _savedValidationCommandForGeneration(
-      interactionGeneration,
-    );
-    if (validationCommand == null) return false;
-    final normalizedValidationCommand = _normalizeToolCommandForComparison(
-      validationCommand,
-    );
-
-    return toolCalls.every((toolCall) {
-      if (toolCall.name == 'run_tests') {
-        final testPath = _runTestsPathArgument(toolCall.arguments);
-        return previousToolResults.any((result) {
-          if (result.name != toolCall.name ||
-              _runTestsPathArgument(result.arguments) != testPath ||
-              !_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
-            return false;
-          }
-          return _runTestsMatchesSavedValidation(
-            arguments: result.arguments,
-            normalizedValidationCommand: normalizedValidationCommand,
-          );
-        });
-      }
-      if (!_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name)) {
-        return false;
-      }
-      final command = _toolCallExecutionPolicy.toolCommandArgument(
-        toolCall.arguments,
-      );
-      if (command == null) return false;
-      final normalizedCommand = _normalizeToolCommandForComparison(command);
-      return previousToolResults.any((result) {
-        if (result.name != toolCall.name ||
-            !_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
-          return false;
-        }
-        final resultCommand = _toolCallExecutionPolicy.toolCommandArgument(
-          result.arguments,
-        );
-        if (resultCommand == null ||
-            _normalizeToolCommandForComparison(resultCommand) !=
-                normalizedCommand) {
-          return false;
-        }
-        return _toolCommandMatchesSavedValidation(
-          result: result,
-          command: command,
-          normalizedValidationCommand: normalizedValidationCommand,
-        );
-      });
-    });
-  }
+    List<ToolCallInfo> calls,
+    List<ToolResultInfo> results,
+    int generation,
+  ) => const SavedValidationEvidence().containsOnlyPreviouslySuccessfulCalls(
+    calls,
+    results,
+    _savedValidationCommandForGeneration(generation),
+  );
 
   bool _toolResultsContainSuccessfulCurrentSavedValidation(
-    List<ToolResultInfo> toolResults,
-    int interactionGeneration,
-  ) {
-    final validationCommand = _savedValidationCommandForGeneration(
-      interactionGeneration,
-    );
-    if (validationCommand == null) {
-      return false;
-    }
-    final normalizedValidationCommand = _normalizeToolCommandForComparison(
-      validationCommand,
-    );
-    final ownerProjectRoot = _projectRootForGeneration(interactionGeneration);
-    return toolResults.any((result) {
-      if (_readFileMatchesSavedCatValidation(
-        result: result,
-        validationCommand: validationCommand,
-        ownerProjectRoot: ownerProjectRoot,
-      )) {
-        return true;
-      }
-      if (!_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
-        return false;
-      }
-      if (result.name == 'run_tests') {
-        return _runTestsMatchesSavedValidation(
-          arguments: result.arguments,
-          normalizedValidationCommand: normalizedValidationCommand,
-        );
-      }
-      final command = _toolCallExecutionPolicy.toolCommandArgument(
-        result.arguments,
-      );
-      if (command == null) return false;
-      return _toolCommandMatchesSavedValidation(
-        result: result,
-        command: command,
-        normalizedValidationCommand: normalizedValidationCommand,
-      );
-    });
-  }
-
-  bool _readFileMatchesSavedCatValidation({
-    required ToolResultInfo result,
-    required String validationCommand,
-    required String? ownerProjectRoot,
-  }) {
-    if (result.name != 'read_file') return false;
-    final validationArgs = GitTools.splitArgs(validationCommand.trim());
-    if (validationArgs.length != 2 ||
-        validationArgs.first.split('/').last.toLowerCase() != 'cat') {
-      return false;
-    }
-    final decoded = decodeJsonObject(result.result);
-    if (decoded == null || decoded['error'] != null) return false;
-    if (decoded['content'] is! String) return false;
-    final actualPath = _fileMutationEvidencePolicy.pathForResult(result);
-    if (actualPath == null) return false;
-    final normalizedActualPath = const SavedTaskTargetScopeGuard()
-        .normalizePath(actualPath, projectRoot: ownerProjectRoot);
-    final normalizedValidationPath = const SavedTaskTargetScopeGuard()
-        .normalizePath(validationArgs[1], projectRoot: ownerProjectRoot);
-    return normalizedActualPath != null &&
-        normalizedActualPath == normalizedValidationPath;
-  }
-
-  bool _toolCommandMatchesSavedValidation({
-    required ToolResultInfo result,
-    required String command,
-    required String normalizedValidationCommand,
-  }) => _toolCallExecutionPolicy.toolCommandMatchesSavedValidation(
-    result: result,
-    command: command,
-    normalizedValidationCommand: normalizedValidationCommand,
+    List<ToolResultInfo> results,
+    int generation,
+  ) => const SavedValidationEvidence().hasSuccessfulResult(
+    results,
+    _savedValidationCommandForGeneration(generation),
+    _projectRootForGeneration(generation),
   );
 
   bool _hasSavedTaskForGeneration(int interactionGeneration) =>
@@ -7187,16 +6617,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String? _runTestsPathArgument(Map<String, dynamic> arguments) =>
       _toolCallExecutionPolicy.runTestsPathArgument(arguments);
-
-  bool _runTestsMatchesSavedValidation({
-    required Map<String, dynamic> arguments,
-    required String normalizedValidationCommand,
-  }) {
-    return _toolCallExecutionPolicy.runTestsMatchesSavedValidation(
-      arguments: arguments,
-      normalizedValidationCommand: normalizedValidationCommand,
-    );
-  }
 
   List<ToolResultInfo> _buildUnexecutedPendingToolResults({
     required List<ToolCallInfo> toolCalls,
@@ -7883,9 +7303,6 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
   }
-
-  bool _containsAny(String value, List<String> markers) =>
-      markers.any(value.contains);
 
   void _appendToolContinuationLimitNotice(ChatTurnOwner owner) {
     final ownerMessages = _activeResponseRegistry.messagesForOwner(owner);

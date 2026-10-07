@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
 import 'goal_update_ack.dart';
+import 'project_task_status_contract.dart';
 
 /// The reconciled implementation or subtask verdict, independent of model prose.
 final class ProjectTaskTerminalStatus {
@@ -25,7 +26,7 @@ final class ProjectTaskTerminalStatus {
        gaps = List.unmodifiable(gaps);
 
   static const toolName = 'coding_task_status';
-  static const subtaskDoneMarker = 'PROJECT_TASK_SUBTASK_DONE';
+  static const subtaskDoneMarker = projectTaskSubtaskDoneMarker;
   final List<String> gapCodes;
   final GoalUpdateAckOutcome? outcome;
   final List<String> gaps;

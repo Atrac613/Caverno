@@ -364,5 +364,61 @@ void main() {
         isTrue,
       );
     });
+
+    test('parses a farm run with an explicit roadmap item', () {
+      final invocation = CavernoCliInvocation.parse(const [
+        'farm',
+        '--project',
+        '/tmp/project',
+        '--item=CLI5',
+        '--json',
+      ]);
+
+      expect(invocation.command, CavernoCliCommand.farm);
+      expect(invocation.projectPath, '/tmp/project');
+      expect(invocation.roadmapItemId, 'CLI5');
+      expect(invocation.prompt, isNull);
+    });
+
+    test('a farm run takes no prompt and needs a project', () {
+      for (final arguments in const [
+        ['farm', '--project', '/tmp/p', 'do it'],
+        ['farm', '--project', '/tmp/p', '--prompt', 'do it'],
+        ['farm'],
+        ['farm', '--project', '/tmp/p', '--item', ' '],
+      ]) {
+        expect(
+          () => CavernoCliInvocation.parse(arguments),
+          throwsA(
+            isA<CavernoCliFailure>().having(
+              (failure) => failure.exitCode,
+              'exitCode',
+              CavernoCliExitCode.usage,
+            ),
+          ),
+          reason: '$arguments',
+        );
+      }
+    });
+
+    test('--item is only a farm option', () {
+      expect(
+        () => CavernoCliInvocation.parse(const [
+          'coding',
+          '--project',
+          '/tmp/p',
+          '--item',
+          'CLI5',
+          'fix',
+        ]),
+        throwsA(
+          isA<CavernoCliFailure>().having(
+            (failure) => failure.code,
+            'code',
+            'unknown_flag',
+          ),
+        ),
+      );
+    });
   });
 }

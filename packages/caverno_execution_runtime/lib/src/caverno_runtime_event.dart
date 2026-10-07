@@ -297,6 +297,28 @@ final class CavernoRuntimeUsage extends CavernoRuntimeEvent {
   };
 }
 
+/// One decision of a multi-turn project task workflow: which phase it was
+/// in, what it decided, and any gap codes. Published once per decision, so an
+/// automation client can follow the workflow without parsing turn output.
+final class CavernoRuntimeProjectTaskDecision extends CavernoRuntimeEvent {
+  const CavernoRuntimeProjectTaskDecision({
+    required super.sequence,
+    required super.timestamp,
+    required super.turnId,
+    required this.decision,
+    super.conversationId,
+    super.interactionOrigin,
+  });
+
+  final Map<String, Object?> decision;
+
+  @override
+  String get type => 'project_task_decision';
+
+  @override
+  Map<String, Object?> get payload => decision;
+}
+
 sealed class CavernoRuntimeTerminalEvent extends CavernoRuntimeEvent {
   const CavernoRuntimeTerminalEvent({
     required super.sequence,
