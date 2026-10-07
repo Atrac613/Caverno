@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'chat_state.dart';
@@ -9,6 +9,7 @@ part of 'chat_state.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $WorkflowTaskProposalDraftCopyWith<WorkflowTaskProposalDraft> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorkflowTaskProposalDraft&&const DeepCollectionEquality().equals(other.tasks, tasks));
+  final _this = this as WorkflowTaskProposalDraft;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorkflowTaskProposalDraft&&const DeepCollectionEquality().equals(other.tasks, _this.tasks));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(tasks));
+int get hashCode {
+  final _this = this as WorkflowTaskProposalDraft;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.tasks));
+}
 
 @override
 String toString() {
-  return 'WorkflowTaskProposalDraft(tasks: $tasks)';
+  final _this = this as WorkflowTaskProposalDraft;
+  return 'WorkflowTaskProposalDraft(tasks: ${_this.tasks})';
 }
 
 
@@ -63,7 +69,7 @@ class _$WorkflowTaskProposalDraftCopyWithImpl<$Res>
 /// Create a copy of WorkflowTaskProposalDraft
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? tasks = null,}) {
-  return _then(_self.copyWith(
+  return _then(WorkflowTaskProposalDraft(
 tasks: null == tasks ? _self.tasks : tasks // ignore: cast_nullable_to_non_nullable
 as List<ConversationWorkflowTask>,
   ));
@@ -206,7 +212,7 @@ return $default(_that.tasks);case _:
 
 
 class _WorkflowTaskProposalDraft implements WorkflowTaskProposalDraft {
-  const _WorkflowTaskProposalDraft({required final  List<ConversationWorkflowTask> tasks}): _tasks = tasks;
+  const _WorkflowTaskProposalDraft({required  List<ConversationWorkflowTask> tasks}): _tasks = tasks;
   
 
  final  List<ConversationWorkflowTask> _tasks;
@@ -227,16 +233,18 @@ _$WorkflowTaskProposalDraftCopyWith<_WorkflowTaskProposalDraft> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorkflowTaskProposalDraft&&const DeepCollectionEquality().equals(other._tasks, _tasks));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorkflowTaskProposalDraft&&const DeepCollectionEquality().equals(other.tasks, _tasks));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_tasks));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_tasks));
+}
 
 @override
 String toString() {
-  return 'WorkflowTaskProposalDraft(tasks: $tasks)';
+    return 'WorkflowTaskProposalDraft(tasks: $tasks)';
 }
 
 
@@ -288,16 +296,21 @@ $ParticipantTurnRuntimeCopyWith<ParticipantTurnRuntime> get copyWith => _$Partic
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ParticipantTurnRuntime&&(identical(other.activeParticipantId, activeParticipantId) || other.activeParticipantId == activeParticipantId)&&(identical(other.activeParticipantName, activeParticipantName) || other.activeParticipantName == activeParticipantName)&&(identical(other.activeParticipantRoleLabel, activeParticipantRoleLabel) || other.activeParticipantRoleLabel == activeParticipantRoleLabel)&&(identical(other.activeParticipantColorValue, activeParticipantColorValue) || other.activeParticipantColorValue == activeParticipantColorValue)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.multiRound, multiRound) || other.multiRound == multiRound)&&(identical(other.stopRequested, stopRequested) || other.stopRequested == stopRequested)&&(identical(other.paused, paused) || other.paused == paused)&&(identical(other.activeToolName, activeToolName) || other.activeToolName == activeToolName));
+  final _this = this as ParticipantTurnRuntime;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ParticipantTurnRuntime&&(identical(other.activeParticipantId, _this.activeParticipantId) || other.activeParticipantId == _this.activeParticipantId)&&(identical(other.activeParticipantName, _this.activeParticipantName) || other.activeParticipantName == _this.activeParticipantName)&&(identical(other.activeParticipantRoleLabel, _this.activeParticipantRoleLabel) || other.activeParticipantRoleLabel == _this.activeParticipantRoleLabel)&&(identical(other.activeParticipantColorValue, _this.activeParticipantColorValue) || other.activeParticipantColorValue == _this.activeParticipantColorValue)&&(identical(other.currentRound, _this.currentRound) || other.currentRound == _this.currentRound)&&(identical(other.maxRounds, _this.maxRounds) || other.maxRounds == _this.maxRounds)&&(identical(other.multiRound, _this.multiRound) || other.multiRound == _this.multiRound)&&(identical(other.stopRequested, _this.stopRequested) || other.stopRequested == _this.stopRequested)&&(identical(other.paused, _this.paused) || other.paused == _this.paused)&&(identical(other.activeToolName, _this.activeToolName) || other.activeToolName == _this.activeToolName));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,activeParticipantId,activeParticipantName,activeParticipantRoleLabel,activeParticipantColorValue,currentRound,maxRounds,multiRound,stopRequested,paused,activeToolName);
+int get hashCode {
+  final _this = this as ParticipantTurnRuntime;
+  return Object.hash(runtimeType,_this.activeParticipantId,_this.activeParticipantName,_this.activeParticipantRoleLabel,_this.activeParticipantColorValue,_this.currentRound,_this.maxRounds,_this.multiRound,_this.stopRequested,_this.paused,_this.activeToolName);
+}
 
 @override
 String toString() {
-  return 'ParticipantTurnRuntime(activeParticipantId: $activeParticipantId, activeParticipantName: $activeParticipantName, activeParticipantRoleLabel: $activeParticipantRoleLabel, activeParticipantColorValue: $activeParticipantColorValue, currentRound: $currentRound, maxRounds: $maxRounds, multiRound: $multiRound, stopRequested: $stopRequested, paused: $paused, activeToolName: $activeToolName)';
+  final _this = this as ParticipantTurnRuntime;
+  return 'ParticipantTurnRuntime(activeParticipantId: ${_this.activeParticipantId}, activeParticipantName: ${_this.activeParticipantName}, activeParticipantRoleLabel: ${_this.activeParticipantRoleLabel}, activeParticipantColorValue: ${_this.activeParticipantColorValue}, currentRound: ${_this.currentRound}, maxRounds: ${_this.maxRounds}, multiRound: ${_this.multiRound}, stopRequested: ${_this.stopRequested}, paused: ${_this.paused}, activeToolName: ${_this.activeToolName})';
 }
 
 
@@ -326,7 +339,7 @@ class _$ParticipantTurnRuntimeCopyWithImpl<$Res>
 /// Create a copy of ParticipantTurnRuntime
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? activeParticipantId = freezed,Object? activeParticipantName = null,Object? activeParticipantRoleLabel = null,Object? activeParticipantColorValue = freezed,Object? currentRound = null,Object? maxRounds = null,Object? multiRound = null,Object? stopRequested = null,Object? paused = null,Object? activeToolName = null,}) {
-  return _then(_self.copyWith(
+  return _then(ParticipantTurnRuntime(
 activeParticipantId: freezed == activeParticipantId ? _self.activeParticipantId : activeParticipantId // ignore: cast_nullable_to_non_nullable
 as String?,activeParticipantName: null == activeParticipantName ? _self.activeParticipantName : activeParticipantName // ignore: cast_nullable_to_non_nullable
 as String,activeParticipantRoleLabel: null == activeParticipantRoleLabel ? _self.activeParticipantRoleLabel : activeParticipantRoleLabel // ignore: cast_nullable_to_non_nullable
@@ -502,16 +515,18 @@ _$ParticipantTurnRuntimeCopyWith<_ParticipantTurnRuntime> get copyWith => __$Par
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ParticipantTurnRuntime&&(identical(other.activeParticipantId, activeParticipantId) || other.activeParticipantId == activeParticipantId)&&(identical(other.activeParticipantName, activeParticipantName) || other.activeParticipantName == activeParticipantName)&&(identical(other.activeParticipantRoleLabel, activeParticipantRoleLabel) || other.activeParticipantRoleLabel == activeParticipantRoleLabel)&&(identical(other.activeParticipantColorValue, activeParticipantColorValue) || other.activeParticipantColorValue == activeParticipantColorValue)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.multiRound, multiRound) || other.multiRound == multiRound)&&(identical(other.stopRequested, stopRequested) || other.stopRequested == stopRequested)&&(identical(other.paused, paused) || other.paused == paused)&&(identical(other.activeToolName, activeToolName) || other.activeToolName == activeToolName));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ParticipantTurnRuntime&&(identical(other.activeParticipantId, activeParticipantId) || other.activeParticipantId == activeParticipantId)&&(identical(other.activeParticipantName, activeParticipantName) || other.activeParticipantName == activeParticipantName)&&(identical(other.activeParticipantRoleLabel, activeParticipantRoleLabel) || other.activeParticipantRoleLabel == activeParticipantRoleLabel)&&(identical(other.activeParticipantColorValue, activeParticipantColorValue) || other.activeParticipantColorValue == activeParticipantColorValue)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.multiRound, multiRound) || other.multiRound == multiRound)&&(identical(other.stopRequested, stopRequested) || other.stopRequested == stopRequested)&&(identical(other.paused, paused) || other.paused == paused)&&(identical(other.activeToolName, activeToolName) || other.activeToolName == activeToolName));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,activeParticipantId,activeParticipantName,activeParticipantRoleLabel,activeParticipantColorValue,currentRound,maxRounds,multiRound,stopRequested,paused,activeToolName);
+int get hashCode {
+    return Object.hash(runtimeType,activeParticipantId,activeParticipantName,activeParticipantRoleLabel,activeParticipantColorValue,currentRound,maxRounds,multiRound,stopRequested,paused,activeToolName);
+}
 
 @override
 String toString() {
-  return 'ParticipantTurnRuntime(activeParticipantId: $activeParticipantId, activeParticipantName: $activeParticipantName, activeParticipantRoleLabel: $activeParticipantRoleLabel, activeParticipantColorValue: $activeParticipantColorValue, currentRound: $currentRound, maxRounds: $maxRounds, multiRound: $multiRound, stopRequested: $stopRequested, paused: $paused, activeToolName: $activeToolName)';
+    return 'ParticipantTurnRuntime(activeParticipantId: $activeParticipantId, activeParticipantName: $activeParticipantName, activeParticipantRoleLabel: $activeParticipantRoleLabel, activeParticipantColorValue: $activeParticipantColorValue, currentRound: $currentRound, maxRounds: $maxRounds, multiRound: $multiRound, stopRequested: $stopRequested, paused: $paused, activeToolName: $activeToolName)';
 }
 
 
@@ -561,29 +576,7 @@ as String,
 /// @nodoc
 mixin _$ChatState {
 
- List<Message> get messages; List<QueuedChatMessage> get queuedMessages;// Interruptions filed against the running turn but not yet carried by one
-// of its requests. They join the transcript the moment a request takes
-// them, so this list is what the user has typed and cannot see yet.
- List<QueuedChatMessage> get steeringMessages; bool get isLoading;// Conversations with a running response, including ones the user is not
-// looking at. Lives in the state (not only in ActiveResponseRegistry) so
-// clearing the last entry notifies listeners; the thread list renders its
-// busy spinner from this.
- Set<String> get busyConversationIds;// Threads blocked on an approval the user has not answered. Such a thread
-// is not working, so the sidebar says so instead of spinning forever.
- Set<String> get approvalRequiredConversationIds; String? get error; int get promptTokens; int get completionTokens; int get totalTokens; int get estimatedPromptTokens; ContextTokenPressureLevel get contextTokenPressureLevel; bool get promptCompactionActive; ContextSurgeryObservationSnapshot get contextSurgerySnapshot; ParticipantTurnRuntime? get participantTurnRuntime;// SSH tool UI flow — holders contain Completers so they live outside
-// the freezed equality graph.
- PendingSshConnect? get pendingSshConnect; PendingSshCommand? get pendingSshCommand;// Git tool UI flow — same Completer-based pattern as SSH.
- PendingGitCommand? get pendingGitCommand;// Local shell tool UI flow.
- PendingLocalCommand? get pendingLocalCommand;// macOS computer-use tool UI flow.
- PendingComputerUseAction? get pendingComputerUseAction;// Built-in browser sensitive-action UI flow.
- PendingBrowserAction? get pendingBrowserAction;// File mutation tool UI flow.
- PendingFileOperation? get pendingFileOperation;// BLE tool UI flow — same Completer-based pattern as SSH.
- PendingBleConnect? get pendingBleConnect;// Serial port open UI flow — same Completer-based approval as BLE.
- PendingSerialOpen? get pendingSerialOpen;// Participant read-only tool UI flow.
- PendingParticipantToolApproval? get pendingParticipantToolApproval;// ANA0 material contract assumption confirmation UI flow.
- PendingAssumptionConfirmation? get pendingAssumptionConfirmation;// Generic model-initiated question UI flow.
- PendingAskUserQuestion? get pendingAskUserQuestion;// Workflow planning choice UI flow.
- PendingWorkflowDecision? get pendingWorkflowDecision; bool get isGeneratingWorkflowProposal; WorkflowProposalDraft? get workflowProposalDraft; String? get workflowProposalError; bool get isGeneratingTaskProposal; WorkflowTaskProposalDraft? get taskProposalDraft; String? get taskProposalError; int get goalAutoContinueCount; int get goalAutoContinueBudget; String? get goalAutoContinueNotice;
+ List<Message> get messages; List<QueuedChatMessage> get queuedMessages; List<QueuedChatMessage> get steeringMessages; bool get isLoading; Set<String> get busyConversationIds; Set<String> get approvalRequiredConversationIds; String? get error; int get promptTokens; int get completionTokens; int get totalTokens; int get estimatedPromptTokens; ContextTokenPressureLevel get contextTokenPressureLevel; bool get promptCompactionActive; ContextSurgeryObservationSnapshot get contextSurgerySnapshot; ParticipantTurnRuntime? get participantTurnRuntime; PendingSshConnect? get pendingSshConnect; PendingSshCommand? get pendingSshCommand; PendingGitCommand? get pendingGitCommand; PendingLocalCommand? get pendingLocalCommand; PendingComputerUseAction? get pendingComputerUseAction; PendingBrowserAction? get pendingBrowserAction; PendingFileOperation? get pendingFileOperation; PendingBleConnect? get pendingBleConnect; PendingSerialOpen? get pendingSerialOpen; PendingParticipantToolApproval? get pendingParticipantToolApproval; PendingAssumptionConfirmation? get pendingAssumptionConfirmation; PendingAskUserQuestion? get pendingAskUserQuestion; PendingWorkflowDecision? get pendingWorkflowDecision; bool get isGeneratingWorkflowProposal; WorkflowProposalDraft? get workflowProposalDraft; String? get workflowProposalError; bool get isGeneratingTaskProposal; WorkflowTaskProposalDraft? get taskProposalDraft; String? get taskProposalError; int get goalAutoContinueCount; int get goalAutoContinueBudget; String? get goalAutoContinueNotice;
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -594,16 +587,21 @@ $ChatStateCopyWith<ChatState> get copyWith => _$ChatStateCopyWithImpl<ChatState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, messages)&&const DeepCollectionEquality().equals(other.queuedMessages, queuedMessages)&&const DeepCollectionEquality().equals(other.steeringMessages, steeringMessages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&const DeepCollectionEquality().equals(other.busyConversationIds, busyConversationIds)&&const DeepCollectionEquality().equals(other.approvalRequiredConversationIds, approvalRequiredConversationIds)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, contextTokenPressureLevel) || other.contextTokenPressureLevel == contextTokenPressureLevel)&&(identical(other.promptCompactionActive, promptCompactionActive) || other.promptCompactionActive == promptCompactionActive)&&(identical(other.contextSurgerySnapshot, contextSurgerySnapshot) || other.contextSurgerySnapshot == contextSurgerySnapshot)&&(identical(other.participantTurnRuntime, participantTurnRuntime) || other.participantTurnRuntime == participantTurnRuntime)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingComputerUseAction, pendingComputerUseAction) || other.pendingComputerUseAction == pendingComputerUseAction)&&(identical(other.pendingBrowserAction, pendingBrowserAction) || other.pendingBrowserAction == pendingBrowserAction)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect)&&(identical(other.pendingSerialOpen, pendingSerialOpen) || other.pendingSerialOpen == pendingSerialOpen)&&(identical(other.pendingParticipantToolApproval, pendingParticipantToolApproval) || other.pendingParticipantToolApproval == pendingParticipantToolApproval)&&(identical(other.pendingAssumptionConfirmation, pendingAssumptionConfirmation) || other.pendingAssumptionConfirmation == pendingAssumptionConfirmation)&&(identical(other.pendingAskUserQuestion, pendingAskUserQuestion) || other.pendingAskUserQuestion == pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, pendingWorkflowDecision) || other.pendingWorkflowDecision == pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, workflowProposalDraft) || other.workflowProposalDraft == workflowProposalDraft)&&(identical(other.workflowProposalError, workflowProposalError) || other.workflowProposalError == workflowProposalError)&&(identical(other.isGeneratingTaskProposal, isGeneratingTaskProposal) || other.isGeneratingTaskProposal == isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, taskProposalDraft) || other.taskProposalDraft == taskProposalDraft)&&(identical(other.taskProposalError, taskProposalError) || other.taskProposalError == taskProposalError)&&(identical(other.goalAutoContinueCount, goalAutoContinueCount) || other.goalAutoContinueCount == goalAutoContinueCount)&&(identical(other.goalAutoContinueBudget, goalAutoContinueBudget) || other.goalAutoContinueBudget == goalAutoContinueBudget)&&(identical(other.goalAutoContinueNotice, goalAutoContinueNotice) || other.goalAutoContinueNotice == goalAutoContinueNotice));
+  final _this = this as ChatState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, _this.messages)&&const DeepCollectionEquality().equals(other.queuedMessages, _this.queuedMessages)&&const DeepCollectionEquality().equals(other.steeringMessages, _this.steeringMessages)&&(identical(other.isLoading, _this.isLoading) || other.isLoading == _this.isLoading)&&const DeepCollectionEquality().equals(other.busyConversationIds, _this.busyConversationIds)&&const DeepCollectionEquality().equals(other.approvalRequiredConversationIds, _this.approvalRequiredConversationIds)&&(identical(other.error, _this.error) || other.error == _this.error)&&(identical(other.promptTokens, _this.promptTokens) || other.promptTokens == _this.promptTokens)&&(identical(other.completionTokens, _this.completionTokens) || other.completionTokens == _this.completionTokens)&&(identical(other.totalTokens, _this.totalTokens) || other.totalTokens == _this.totalTokens)&&(identical(other.estimatedPromptTokens, _this.estimatedPromptTokens) || other.estimatedPromptTokens == _this.estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, _this.contextTokenPressureLevel) || other.contextTokenPressureLevel == _this.contextTokenPressureLevel)&&(identical(other.promptCompactionActive, _this.promptCompactionActive) || other.promptCompactionActive == _this.promptCompactionActive)&&(identical(other.contextSurgerySnapshot, _this.contextSurgerySnapshot) || other.contextSurgerySnapshot == _this.contextSurgerySnapshot)&&(identical(other.participantTurnRuntime, _this.participantTurnRuntime) || other.participantTurnRuntime == _this.participantTurnRuntime)&&(identical(other.pendingSshConnect, _this.pendingSshConnect) || other.pendingSshConnect == _this.pendingSshConnect)&&(identical(other.pendingSshCommand, _this.pendingSshCommand) || other.pendingSshCommand == _this.pendingSshCommand)&&(identical(other.pendingGitCommand, _this.pendingGitCommand) || other.pendingGitCommand == _this.pendingGitCommand)&&(identical(other.pendingLocalCommand, _this.pendingLocalCommand) || other.pendingLocalCommand == _this.pendingLocalCommand)&&(identical(other.pendingComputerUseAction, _this.pendingComputerUseAction) || other.pendingComputerUseAction == _this.pendingComputerUseAction)&&(identical(other.pendingBrowserAction, _this.pendingBrowserAction) || other.pendingBrowserAction == _this.pendingBrowserAction)&&(identical(other.pendingFileOperation, _this.pendingFileOperation) || other.pendingFileOperation == _this.pendingFileOperation)&&(identical(other.pendingBleConnect, _this.pendingBleConnect) || other.pendingBleConnect == _this.pendingBleConnect)&&(identical(other.pendingSerialOpen, _this.pendingSerialOpen) || other.pendingSerialOpen == _this.pendingSerialOpen)&&(identical(other.pendingParticipantToolApproval, _this.pendingParticipantToolApproval) || other.pendingParticipantToolApproval == _this.pendingParticipantToolApproval)&&(identical(other.pendingAssumptionConfirmation, _this.pendingAssumptionConfirmation) || other.pendingAssumptionConfirmation == _this.pendingAssumptionConfirmation)&&(identical(other.pendingAskUserQuestion, _this.pendingAskUserQuestion) || other.pendingAskUserQuestion == _this.pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, _this.pendingWorkflowDecision) || other.pendingWorkflowDecision == _this.pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, _this.isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == _this.isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, _this.workflowProposalDraft) || other.workflowProposalDraft == _this.workflowProposalDraft)&&(identical(other.workflowProposalError, _this.workflowProposalError) || other.workflowProposalError == _this.workflowProposalError)&&(identical(other.isGeneratingTaskProposal, _this.isGeneratingTaskProposal) || other.isGeneratingTaskProposal == _this.isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, _this.taskProposalDraft) || other.taskProposalDraft == _this.taskProposalDraft)&&(identical(other.taskProposalError, _this.taskProposalError) || other.taskProposalError == _this.taskProposalError)&&(identical(other.goalAutoContinueCount, _this.goalAutoContinueCount) || other.goalAutoContinueCount == _this.goalAutoContinueCount)&&(identical(other.goalAutoContinueBudget, _this.goalAutoContinueBudget) || other.goalAutoContinueBudget == _this.goalAutoContinueBudget)&&(identical(other.goalAutoContinueNotice, _this.goalAutoContinueNotice) || other.goalAutoContinueNotice == _this.goalAutoContinueNotice));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,const DeepCollectionEquality().hash(messages),const DeepCollectionEquality().hash(queuedMessages),const DeepCollectionEquality().hash(steeringMessages),isLoading,const DeepCollectionEquality().hash(busyConversationIds),const DeepCollectionEquality().hash(approvalRequiredConversationIds),error,promptTokens,completionTokens,totalTokens,estimatedPromptTokens,contextTokenPressureLevel,promptCompactionActive,contextSurgerySnapshot,participantTurnRuntime,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingComputerUseAction,pendingBrowserAction,pendingFileOperation,pendingBleConnect,pendingSerialOpen,pendingParticipantToolApproval,pendingAssumptionConfirmation,pendingAskUserQuestion,pendingWorkflowDecision,isGeneratingWorkflowProposal,workflowProposalDraft,workflowProposalError,isGeneratingTaskProposal,taskProposalDraft,taskProposalError,goalAutoContinueCount,goalAutoContinueBudget,goalAutoContinueNotice]);
+int get hashCode {
+  final _this = this as ChatState;
+  return Object.hashAll([runtimeType,const DeepCollectionEquality().hash(_this.messages),const DeepCollectionEquality().hash(_this.queuedMessages),const DeepCollectionEquality().hash(_this.steeringMessages),_this.isLoading,const DeepCollectionEquality().hash(_this.busyConversationIds),const DeepCollectionEquality().hash(_this.approvalRequiredConversationIds),_this.error,_this.promptTokens,_this.completionTokens,_this.totalTokens,_this.estimatedPromptTokens,_this.contextTokenPressureLevel,_this.promptCompactionActive,_this.contextSurgerySnapshot,_this.participantTurnRuntime,_this.pendingSshConnect,_this.pendingSshCommand,_this.pendingGitCommand,_this.pendingLocalCommand,_this.pendingComputerUseAction,_this.pendingBrowserAction,_this.pendingFileOperation,_this.pendingBleConnect,_this.pendingSerialOpen,_this.pendingParticipantToolApproval,_this.pendingAssumptionConfirmation,_this.pendingAskUserQuestion,_this.pendingWorkflowDecision,_this.isGeneratingWorkflowProposal,_this.workflowProposalDraft,_this.workflowProposalError,_this.isGeneratingTaskProposal,_this.taskProposalDraft,_this.taskProposalError,_this.goalAutoContinueCount,_this.goalAutoContinueBudget,_this.goalAutoContinueNotice]);
+}
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, queuedMessages: $queuedMessages, steeringMessages: $steeringMessages, isLoading: $isLoading, busyConversationIds: $busyConversationIds, approvalRequiredConversationIds: $approvalRequiredConversationIds, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, estimatedPromptTokens: $estimatedPromptTokens, contextTokenPressureLevel: $contextTokenPressureLevel, promptCompactionActive: $promptCompactionActive, contextSurgerySnapshot: $contextSurgerySnapshot, participantTurnRuntime: $participantTurnRuntime, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingComputerUseAction: $pendingComputerUseAction, pendingBrowserAction: $pendingBrowserAction, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect, pendingSerialOpen: $pendingSerialOpen, pendingParticipantToolApproval: $pendingParticipantToolApproval, pendingAssumptionConfirmation: $pendingAssumptionConfirmation, pendingAskUserQuestion: $pendingAskUserQuestion, pendingWorkflowDecision: $pendingWorkflowDecision, isGeneratingWorkflowProposal: $isGeneratingWorkflowProposal, workflowProposalDraft: $workflowProposalDraft, workflowProposalError: $workflowProposalError, isGeneratingTaskProposal: $isGeneratingTaskProposal, taskProposalDraft: $taskProposalDraft, taskProposalError: $taskProposalError, goalAutoContinueCount: $goalAutoContinueCount, goalAutoContinueBudget: $goalAutoContinueBudget, goalAutoContinueNotice: $goalAutoContinueNotice)';
+  final _this = this as ChatState;
+  return 'ChatState(messages: ${_this.messages}, queuedMessages: ${_this.queuedMessages}, steeringMessages: ${_this.steeringMessages}, isLoading: ${_this.isLoading}, busyConversationIds: ${_this.busyConversationIds}, approvalRequiredConversationIds: ${_this.approvalRequiredConversationIds}, error: ${_this.error}, promptTokens: ${_this.promptTokens}, completionTokens: ${_this.completionTokens}, totalTokens: ${_this.totalTokens}, estimatedPromptTokens: ${_this.estimatedPromptTokens}, contextTokenPressureLevel: ${_this.contextTokenPressureLevel}, promptCompactionActive: ${_this.promptCompactionActive}, contextSurgerySnapshot: ${_this.contextSurgerySnapshot}, participantTurnRuntime: ${_this.participantTurnRuntime}, pendingSshConnect: ${_this.pendingSshConnect}, pendingSshCommand: ${_this.pendingSshCommand}, pendingGitCommand: ${_this.pendingGitCommand}, pendingLocalCommand: ${_this.pendingLocalCommand}, pendingComputerUseAction: ${_this.pendingComputerUseAction}, pendingBrowserAction: ${_this.pendingBrowserAction}, pendingFileOperation: ${_this.pendingFileOperation}, pendingBleConnect: ${_this.pendingBleConnect}, pendingSerialOpen: ${_this.pendingSerialOpen}, pendingParticipantToolApproval: ${_this.pendingParticipantToolApproval}, pendingAssumptionConfirmation: ${_this.pendingAssumptionConfirmation}, pendingAskUserQuestion: ${_this.pendingAskUserQuestion}, pendingWorkflowDecision: ${_this.pendingWorkflowDecision}, isGeneratingWorkflowProposal: ${_this.isGeneratingWorkflowProposal}, workflowProposalDraft: ${_this.workflowProposalDraft}, workflowProposalError: ${_this.workflowProposalError}, isGeneratingTaskProposal: ${_this.isGeneratingTaskProposal}, taskProposalDraft: ${_this.taskProposalDraft}, taskProposalError: ${_this.taskProposalError}, goalAutoContinueCount: ${_this.goalAutoContinueCount}, goalAutoContinueBudget: ${_this.goalAutoContinueBudget}, goalAutoContinueNotice: ${_this.goalAutoContinueNotice})';
 }
 
 
@@ -632,7 +630,7 @@ class _$ChatStateCopyWithImpl<$Res>
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? messages = null,Object? queuedMessages = null,Object? steeringMessages = null,Object? isLoading = null,Object? busyConversationIds = null,Object? approvalRequiredConversationIds = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? estimatedPromptTokens = null,Object? contextTokenPressureLevel = null,Object? promptCompactionActive = null,Object? contextSurgerySnapshot = null,Object? participantTurnRuntime = freezed,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingLocalCommand = freezed,Object? pendingComputerUseAction = freezed,Object? pendingBrowserAction = freezed,Object? pendingFileOperation = freezed,Object? pendingBleConnect = freezed,Object? pendingSerialOpen = freezed,Object? pendingParticipantToolApproval = freezed,Object? pendingAssumptionConfirmation = freezed,Object? pendingAskUserQuestion = freezed,Object? pendingWorkflowDecision = freezed,Object? isGeneratingWorkflowProposal = null,Object? workflowProposalDraft = freezed,Object? workflowProposalError = freezed,Object? isGeneratingTaskProposal = null,Object? taskProposalDraft = freezed,Object? taskProposalError = freezed,Object? goalAutoContinueCount = null,Object? goalAutoContinueBudget = null,Object? goalAutoContinueNotice = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ChatState(
 messages: null == messages ? _self.messages : messages // ignore: cast_nullable_to_non_nullable
 as List<Message>,queuedMessages: null == queuedMessages ? _self.queuedMessages : queuedMessages // ignore: cast_nullable_to_non_nullable
 as List<QueuedChatMessage>,steeringMessages: null == steeringMessages ? _self.steeringMessages : steeringMessages // ignore: cast_nullable_to_non_nullable
@@ -847,7 +845,7 @@ return $default(_that.messages,_that.queuedMessages,_that.steeringMessages,_that
 
 
 class _ChatState implements ChatState {
-  const _ChatState({required final  List<Message> messages, final  List<QueuedChatMessage> queuedMessages = const [], final  List<QueuedChatMessage> steeringMessages = const [], required this.isLoading, final  Set<String> busyConversationIds = const <String>{}, final  Set<String> approvalRequiredConversationIds = const <String>{}, this.error, this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0, this.estimatedPromptTokens = 0, this.contextTokenPressureLevel = ContextTokenPressureLevel.normal, this.promptCompactionActive = false, this.contextSurgerySnapshot = ContextSurgeryObservationSnapshot.empty, this.participantTurnRuntime, this.pendingSshConnect, this.pendingSshCommand, this.pendingGitCommand, this.pendingLocalCommand, this.pendingComputerUseAction, this.pendingBrowserAction, this.pendingFileOperation, this.pendingBleConnect, this.pendingSerialOpen, this.pendingParticipantToolApproval, this.pendingAssumptionConfirmation, this.pendingAskUserQuestion, this.pendingWorkflowDecision, this.isGeneratingWorkflowProposal = false, this.workflowProposalDraft, this.workflowProposalError, this.isGeneratingTaskProposal = false, this.taskProposalDraft, this.taskProposalError, this.goalAutoContinueCount = 0, this.goalAutoContinueBudget = 0, this.goalAutoContinueNotice}): _messages = messages,_queuedMessages = queuedMessages,_steeringMessages = steeringMessages,_busyConversationIds = busyConversationIds,_approvalRequiredConversationIds = approvalRequiredConversationIds;
+  const _ChatState({required  List<Message> messages,  List<QueuedChatMessage> queuedMessages = const [],  List<QueuedChatMessage> steeringMessages = const [], required this.isLoading,  Set<String> busyConversationIds = const <String>{},  Set<String> approvalRequiredConversationIds = const <String>{}, this.error, this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0, this.estimatedPromptTokens = 0, this.contextTokenPressureLevel = ContextTokenPressureLevel.normal, this.promptCompactionActive = false, this.contextSurgerySnapshot = ContextSurgeryObservationSnapshot.empty, this.participantTurnRuntime, this.pendingSshConnect, this.pendingSshCommand, this.pendingGitCommand, this.pendingLocalCommand, this.pendingComputerUseAction, this.pendingBrowserAction, this.pendingFileOperation, this.pendingBleConnect, this.pendingSerialOpen, this.pendingParticipantToolApproval, this.pendingAssumptionConfirmation, this.pendingAskUserQuestion, this.pendingWorkflowDecision, this.isGeneratingWorkflowProposal = false, this.workflowProposalDraft, this.workflowProposalError, this.isGeneratingTaskProposal = false, this.taskProposalDraft, this.taskProposalError, this.goalAutoContinueCount = 0, this.goalAutoContinueBudget = 0, this.goalAutoContinueNotice}): _messages = messages,_queuedMessages = queuedMessages,_steeringMessages = steeringMessages,_busyConversationIds = busyConversationIds,_approvalRequiredConversationIds = approvalRequiredConversationIds;
   
 
  final  List<Message> _messages;
@@ -864,13 +862,7 @@ class _ChatState implements ChatState {
   return EqualUnmodifiableListView(_queuedMessages);
 }
 
-// Interruptions filed against the running turn but not yet carried by one
-// of its requests. They join the transcript the moment a request takes
-// them, so this list is what the user has typed and cannot see yet.
  final  List<QueuedChatMessage> _steeringMessages;
-// Interruptions filed against the running turn but not yet carried by one
-// of its requests. They join the transcript the moment a request takes
-// them, so this list is what the user has typed and cannot see yet.
 @override@JsonKey() List<QueuedChatMessage> get steeringMessages {
   if (_steeringMessages is EqualUnmodifiableListView) return _steeringMessages;
   // ignore: implicit_dynamic_type
@@ -878,26 +870,14 @@ class _ChatState implements ChatState {
 }
 
 @override final  bool isLoading;
-// Conversations with a running response, including ones the user is not
-// looking at. Lives in the state (not only in ActiveResponseRegistry) so
-// clearing the last entry notifies listeners; the thread list renders its
-// busy spinner from this.
  final  Set<String> _busyConversationIds;
-// Conversations with a running response, including ones the user is not
-// looking at. Lives in the state (not only in ActiveResponseRegistry) so
-// clearing the last entry notifies listeners; the thread list renders its
-// busy spinner from this.
 @override@JsonKey() Set<String> get busyConversationIds {
   if (_busyConversationIds is EqualUnmodifiableSetView) return _busyConversationIds;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableSetView(_busyConversationIds);
 }
 
-// Threads blocked on an approval the user has not answered. Such a thread
-// is not working, so the sidebar says so instead of spinning forever.
  final  Set<String> _approvalRequiredConversationIds;
-// Threads blocked on an approval the user has not answered. Such a thread
-// is not working, so the sidebar says so instead of spinning forever.
 @override@JsonKey() Set<String> get approvalRequiredConversationIds {
   if (_approvalRequiredConversationIds is EqualUnmodifiableSetView) return _approvalRequiredConversationIds;
   // ignore: implicit_dynamic_type
@@ -913,31 +893,18 @@ class _ChatState implements ChatState {
 @override@JsonKey() final  bool promptCompactionActive;
 @override@JsonKey() final  ContextSurgeryObservationSnapshot contextSurgerySnapshot;
 @override final  ParticipantTurnRuntime? participantTurnRuntime;
-// SSH tool UI flow — holders contain Completers so they live outside
-// the freezed equality graph.
 @override final  PendingSshConnect? pendingSshConnect;
 @override final  PendingSshCommand? pendingSshCommand;
-// Git tool UI flow — same Completer-based pattern as SSH.
 @override final  PendingGitCommand? pendingGitCommand;
-// Local shell tool UI flow.
 @override final  PendingLocalCommand? pendingLocalCommand;
-// macOS computer-use tool UI flow.
 @override final  PendingComputerUseAction? pendingComputerUseAction;
-// Built-in browser sensitive-action UI flow.
 @override final  PendingBrowserAction? pendingBrowserAction;
-// File mutation tool UI flow.
 @override final  PendingFileOperation? pendingFileOperation;
-// BLE tool UI flow — same Completer-based pattern as SSH.
 @override final  PendingBleConnect? pendingBleConnect;
-// Serial port open UI flow — same Completer-based approval as BLE.
 @override final  PendingSerialOpen? pendingSerialOpen;
-// Participant read-only tool UI flow.
 @override final  PendingParticipantToolApproval? pendingParticipantToolApproval;
-// ANA0 material contract assumption confirmation UI flow.
 @override final  PendingAssumptionConfirmation? pendingAssumptionConfirmation;
-// Generic model-initiated question UI flow.
 @override final  PendingAskUserQuestion? pendingAskUserQuestion;
-// Workflow planning choice UI flow.
 @override final  PendingWorkflowDecision? pendingWorkflowDecision;
 @override@JsonKey() final  bool isGeneratingWorkflowProposal;
 @override final  WorkflowProposalDraft? workflowProposalDraft;
@@ -959,16 +926,18 @@ _$ChatStateCopyWith<_ChatState> get copyWith => __$ChatStateCopyWithImpl<_ChatSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other._messages, _messages)&&const DeepCollectionEquality().equals(other._queuedMessages, _queuedMessages)&&const DeepCollectionEquality().equals(other._steeringMessages, _steeringMessages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&const DeepCollectionEquality().equals(other._busyConversationIds, _busyConversationIds)&&const DeepCollectionEquality().equals(other._approvalRequiredConversationIds, _approvalRequiredConversationIds)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, contextTokenPressureLevel) || other.contextTokenPressureLevel == contextTokenPressureLevel)&&(identical(other.promptCompactionActive, promptCompactionActive) || other.promptCompactionActive == promptCompactionActive)&&(identical(other.contextSurgerySnapshot, contextSurgerySnapshot) || other.contextSurgerySnapshot == contextSurgerySnapshot)&&(identical(other.participantTurnRuntime, participantTurnRuntime) || other.participantTurnRuntime == participantTurnRuntime)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingComputerUseAction, pendingComputerUseAction) || other.pendingComputerUseAction == pendingComputerUseAction)&&(identical(other.pendingBrowserAction, pendingBrowserAction) || other.pendingBrowserAction == pendingBrowserAction)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect)&&(identical(other.pendingSerialOpen, pendingSerialOpen) || other.pendingSerialOpen == pendingSerialOpen)&&(identical(other.pendingParticipantToolApproval, pendingParticipantToolApproval) || other.pendingParticipantToolApproval == pendingParticipantToolApproval)&&(identical(other.pendingAssumptionConfirmation, pendingAssumptionConfirmation) || other.pendingAssumptionConfirmation == pendingAssumptionConfirmation)&&(identical(other.pendingAskUserQuestion, pendingAskUserQuestion) || other.pendingAskUserQuestion == pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, pendingWorkflowDecision) || other.pendingWorkflowDecision == pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, workflowProposalDraft) || other.workflowProposalDraft == workflowProposalDraft)&&(identical(other.workflowProposalError, workflowProposalError) || other.workflowProposalError == workflowProposalError)&&(identical(other.isGeneratingTaskProposal, isGeneratingTaskProposal) || other.isGeneratingTaskProposal == isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, taskProposalDraft) || other.taskProposalDraft == taskProposalDraft)&&(identical(other.taskProposalError, taskProposalError) || other.taskProposalError == taskProposalError)&&(identical(other.goalAutoContinueCount, goalAutoContinueCount) || other.goalAutoContinueCount == goalAutoContinueCount)&&(identical(other.goalAutoContinueBudget, goalAutoContinueBudget) || other.goalAutoContinueBudget == goalAutoContinueBudget)&&(identical(other.goalAutoContinueNotice, goalAutoContinueNotice) || other.goalAutoContinueNotice == goalAutoContinueNotice));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other.messages, _messages)&&const DeepCollectionEquality().equals(other.queuedMessages, _queuedMessages)&&const DeepCollectionEquality().equals(other.steeringMessages, _steeringMessages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&const DeepCollectionEquality().equals(other.busyConversationIds, _busyConversationIds)&&const DeepCollectionEquality().equals(other.approvalRequiredConversationIds, _approvalRequiredConversationIds)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, contextTokenPressureLevel) || other.contextTokenPressureLevel == contextTokenPressureLevel)&&(identical(other.promptCompactionActive, promptCompactionActive) || other.promptCompactionActive == promptCompactionActive)&&(identical(other.contextSurgerySnapshot, contextSurgerySnapshot) || other.contextSurgerySnapshot == contextSurgerySnapshot)&&(identical(other.participantTurnRuntime, participantTurnRuntime) || other.participantTurnRuntime == participantTurnRuntime)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingComputerUseAction, pendingComputerUseAction) || other.pendingComputerUseAction == pendingComputerUseAction)&&(identical(other.pendingBrowserAction, pendingBrowserAction) || other.pendingBrowserAction == pendingBrowserAction)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect)&&(identical(other.pendingSerialOpen, pendingSerialOpen) || other.pendingSerialOpen == pendingSerialOpen)&&(identical(other.pendingParticipantToolApproval, pendingParticipantToolApproval) || other.pendingParticipantToolApproval == pendingParticipantToolApproval)&&(identical(other.pendingAssumptionConfirmation, pendingAssumptionConfirmation) || other.pendingAssumptionConfirmation == pendingAssumptionConfirmation)&&(identical(other.pendingAskUserQuestion, pendingAskUserQuestion) || other.pendingAskUserQuestion == pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, pendingWorkflowDecision) || other.pendingWorkflowDecision == pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, workflowProposalDraft) || other.workflowProposalDraft == workflowProposalDraft)&&(identical(other.workflowProposalError, workflowProposalError) || other.workflowProposalError == workflowProposalError)&&(identical(other.isGeneratingTaskProposal, isGeneratingTaskProposal) || other.isGeneratingTaskProposal == isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, taskProposalDraft) || other.taskProposalDraft == taskProposalDraft)&&(identical(other.taskProposalError, taskProposalError) || other.taskProposalError == taskProposalError)&&(identical(other.goalAutoContinueCount, goalAutoContinueCount) || other.goalAutoContinueCount == goalAutoContinueCount)&&(identical(other.goalAutoContinueBudget, goalAutoContinueBudget) || other.goalAutoContinueBudget == goalAutoContinueBudget)&&(identical(other.goalAutoContinueNotice, goalAutoContinueNotice) || other.goalAutoContinueNotice == goalAutoContinueNotice));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,const DeepCollectionEquality().hash(_messages),const DeepCollectionEquality().hash(_queuedMessages),const DeepCollectionEquality().hash(_steeringMessages),isLoading,const DeepCollectionEquality().hash(_busyConversationIds),const DeepCollectionEquality().hash(_approvalRequiredConversationIds),error,promptTokens,completionTokens,totalTokens,estimatedPromptTokens,contextTokenPressureLevel,promptCompactionActive,contextSurgerySnapshot,participantTurnRuntime,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingComputerUseAction,pendingBrowserAction,pendingFileOperation,pendingBleConnect,pendingSerialOpen,pendingParticipantToolApproval,pendingAssumptionConfirmation,pendingAskUserQuestion,pendingWorkflowDecision,isGeneratingWorkflowProposal,workflowProposalDraft,workflowProposalError,isGeneratingTaskProposal,taskProposalDraft,taskProposalError,goalAutoContinueCount,goalAutoContinueBudget,goalAutoContinueNotice]);
+int get hashCode {
+    return Object.hashAll([runtimeType,const DeepCollectionEquality().hash(_messages),const DeepCollectionEquality().hash(_queuedMessages),const DeepCollectionEquality().hash(_steeringMessages),isLoading,const DeepCollectionEquality().hash(_busyConversationIds),const DeepCollectionEquality().hash(_approvalRequiredConversationIds),error,promptTokens,completionTokens,totalTokens,estimatedPromptTokens,contextTokenPressureLevel,promptCompactionActive,contextSurgerySnapshot,participantTurnRuntime,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingComputerUseAction,pendingBrowserAction,pendingFileOperation,pendingBleConnect,pendingSerialOpen,pendingParticipantToolApproval,pendingAssumptionConfirmation,pendingAskUserQuestion,pendingWorkflowDecision,isGeneratingWorkflowProposal,workflowProposalDraft,workflowProposalError,isGeneratingTaskProposal,taskProposalDraft,taskProposalError,goalAutoContinueCount,goalAutoContinueBudget,goalAutoContinueNotice]);
+}
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, queuedMessages: $queuedMessages, steeringMessages: $steeringMessages, isLoading: $isLoading, busyConversationIds: $busyConversationIds, approvalRequiredConversationIds: $approvalRequiredConversationIds, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, estimatedPromptTokens: $estimatedPromptTokens, contextTokenPressureLevel: $contextTokenPressureLevel, promptCompactionActive: $promptCompactionActive, contextSurgerySnapshot: $contextSurgerySnapshot, participantTurnRuntime: $participantTurnRuntime, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingComputerUseAction: $pendingComputerUseAction, pendingBrowserAction: $pendingBrowserAction, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect, pendingSerialOpen: $pendingSerialOpen, pendingParticipantToolApproval: $pendingParticipantToolApproval, pendingAssumptionConfirmation: $pendingAssumptionConfirmation, pendingAskUserQuestion: $pendingAskUserQuestion, pendingWorkflowDecision: $pendingWorkflowDecision, isGeneratingWorkflowProposal: $isGeneratingWorkflowProposal, workflowProposalDraft: $workflowProposalDraft, workflowProposalError: $workflowProposalError, isGeneratingTaskProposal: $isGeneratingTaskProposal, taskProposalDraft: $taskProposalDraft, taskProposalError: $taskProposalError, goalAutoContinueCount: $goalAutoContinueCount, goalAutoContinueBudget: $goalAutoContinueBudget, goalAutoContinueNotice: $goalAutoContinueNotice)';
+    return 'ChatState(messages: $messages, queuedMessages: $queuedMessages, steeringMessages: $steeringMessages, isLoading: $isLoading, busyConversationIds: $busyConversationIds, approvalRequiredConversationIds: $approvalRequiredConversationIds, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, estimatedPromptTokens: $estimatedPromptTokens, contextTokenPressureLevel: $contextTokenPressureLevel, promptCompactionActive: $promptCompactionActive, contextSurgerySnapshot: $contextSurgerySnapshot, participantTurnRuntime: $participantTurnRuntime, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingComputerUseAction: $pendingComputerUseAction, pendingBrowserAction: $pendingBrowserAction, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect, pendingSerialOpen: $pendingSerialOpen, pendingParticipantToolApproval: $pendingParticipantToolApproval, pendingAssumptionConfirmation: $pendingAssumptionConfirmation, pendingAskUserQuestion: $pendingAskUserQuestion, pendingWorkflowDecision: $pendingWorkflowDecision, isGeneratingWorkflowProposal: $isGeneratingWorkflowProposal, workflowProposalDraft: $workflowProposalDraft, workflowProposalError: $workflowProposalError, isGeneratingTaskProposal: $isGeneratingTaskProposal, taskProposalDraft: $taskProposalDraft, taskProposalError: $taskProposalError, goalAutoContinueCount: $goalAutoContinueCount, goalAutoContinueBudget: $goalAutoContinueBudget, goalAutoContinueNotice: $goalAutoContinueNotice)';
 }
 
 

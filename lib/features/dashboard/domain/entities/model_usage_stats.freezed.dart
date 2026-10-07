@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'model_usage_stats.dart';
@@ -9,6 +9,7 @@ part of 'model_usage_stats.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $ModelUsageEntryCopyWith<ModelUsageEntry> get copyWith => _$ModelUsageEntryCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelUsageEntry&&(identical(other.key, key) || other.key == key)&&(identical(other.label, label) || other.label == label)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.requestCount, requestCount) || other.requestCount == requestCount)&&(identical(other.errorCount, errorCount) || other.errorCount == errorCount)&&(identical(other.truncatedCount, truncatedCount) || other.truncatedCount == truncatedCount)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.cachedPromptTokens, cachedPromptTokens) || other.cachedPromptTokens == cachedPromptTokens)&&(identical(other.audioPromptTokens, audioPromptTokens) || other.audioPromptTokens == audioPromptTokens)&&(identical(other.reasoningTokens, reasoningTokens) || other.reasoningTokens == reasoningTokens)&&(identical(other.audioCompletionTokens, audioCompletionTokens) || other.audioCompletionTokens == audioCompletionTokens)&&(identical(other.acceptedPredictionTokens, acceptedPredictionTokens) || other.acceptedPredictionTokens == acceptedPredictionTokens)&&(identical(other.rejectedPredictionTokens, rejectedPredictionTokens) || other.rejectedPredictionTokens == rejectedPredictionTokens));
+  final _this = this as ModelUsageEntry;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelUsageEntry&&(identical(other.key, _this.key) || other.key == _this.key)&&(identical(other.label, _this.label) || other.label == _this.label)&&(identical(other.endpointId, _this.endpointId) || other.endpointId == _this.endpointId)&&(identical(other.requestCount, _this.requestCount) || other.requestCount == _this.requestCount)&&(identical(other.errorCount, _this.errorCount) || other.errorCount == _this.errorCount)&&(identical(other.truncatedCount, _this.truncatedCount) || other.truncatedCount == _this.truncatedCount)&&(identical(other.durationMs, _this.durationMs) || other.durationMs == _this.durationMs)&&(identical(other.promptTokens, _this.promptTokens) || other.promptTokens == _this.promptTokens)&&(identical(other.completionTokens, _this.completionTokens) || other.completionTokens == _this.completionTokens)&&(identical(other.totalTokens, _this.totalTokens) || other.totalTokens == _this.totalTokens)&&(identical(other.cachedPromptTokens, _this.cachedPromptTokens) || other.cachedPromptTokens == _this.cachedPromptTokens)&&(identical(other.audioPromptTokens, _this.audioPromptTokens) || other.audioPromptTokens == _this.audioPromptTokens)&&(identical(other.reasoningTokens, _this.reasoningTokens) || other.reasoningTokens == _this.reasoningTokens)&&(identical(other.audioCompletionTokens, _this.audioCompletionTokens) || other.audioCompletionTokens == _this.audioCompletionTokens)&&(identical(other.acceptedPredictionTokens, _this.acceptedPredictionTokens) || other.acceptedPredictionTokens == _this.acceptedPredictionTokens)&&(identical(other.rejectedPredictionTokens, _this.rejectedPredictionTokens) || other.rejectedPredictionTokens == _this.rejectedPredictionTokens));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,key,label,endpointId,requestCount,errorCount,truncatedCount,durationMs,promptTokens,completionTokens,totalTokens,cachedPromptTokens,audioPromptTokens,reasoningTokens,audioCompletionTokens,acceptedPredictionTokens,rejectedPredictionTokens);
+int get hashCode {
+  final _this = this as ModelUsageEntry;
+  return Object.hash(runtimeType,_this.key,_this.label,_this.endpointId,_this.requestCount,_this.errorCount,_this.truncatedCount,_this.durationMs,_this.promptTokens,_this.completionTokens,_this.totalTokens,_this.cachedPromptTokens,_this.audioPromptTokens,_this.reasoningTokens,_this.audioCompletionTokens,_this.acceptedPredictionTokens,_this.rejectedPredictionTokens);
+}
 
 @override
 String toString() {
-  return 'ModelUsageEntry(key: $key, label: $label, endpointId: $endpointId, requestCount: $requestCount, errorCount: $errorCount, truncatedCount: $truncatedCount, durationMs: $durationMs, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, cachedPromptTokens: $cachedPromptTokens, audioPromptTokens: $audioPromptTokens, reasoningTokens: $reasoningTokens, audioCompletionTokens: $audioCompletionTokens, acceptedPredictionTokens: $acceptedPredictionTokens, rejectedPredictionTokens: $rejectedPredictionTokens)';
+  final _this = this as ModelUsageEntry;
+  return 'ModelUsageEntry(key: ${_this.key}, label: ${_this.label}, endpointId: ${_this.endpointId}, requestCount: ${_this.requestCount}, errorCount: ${_this.errorCount}, truncatedCount: ${_this.truncatedCount}, durationMs: ${_this.durationMs}, promptTokens: ${_this.promptTokens}, completionTokens: ${_this.completionTokens}, totalTokens: ${_this.totalTokens}, cachedPromptTokens: ${_this.cachedPromptTokens}, audioPromptTokens: ${_this.audioPromptTokens}, reasoningTokens: ${_this.reasoningTokens}, audioCompletionTokens: ${_this.audioCompletionTokens}, acceptedPredictionTokens: ${_this.acceptedPredictionTokens}, rejectedPredictionTokens: ${_this.rejectedPredictionTokens})';
 }
 
 
@@ -63,7 +69,7 @@ class _$ModelUsageEntryCopyWithImpl<$Res>
 /// Create a copy of ModelUsageEntry
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? key = null,Object? label = null,Object? endpointId = null,Object? requestCount = null,Object? errorCount = null,Object? truncatedCount = null,Object? durationMs = null,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? cachedPromptTokens = null,Object? audioPromptTokens = null,Object? reasoningTokens = null,Object? audioCompletionTokens = null,Object? acceptedPredictionTokens = null,Object? rejectedPredictionTokens = null,}) {
-  return _then(_self.copyWith(
+  return _then(ModelUsageEntry(
 key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
 as String,endpointId: null == endpointId ? _self.endpointId : endpointId // ignore: cast_nullable_to_non_nullable
@@ -251,16 +257,18 @@ _$ModelUsageEntryCopyWith<_ModelUsageEntry> get copyWith => __$ModelUsageEntryCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelUsageEntry&&(identical(other.key, key) || other.key == key)&&(identical(other.label, label) || other.label == label)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.requestCount, requestCount) || other.requestCount == requestCount)&&(identical(other.errorCount, errorCount) || other.errorCount == errorCount)&&(identical(other.truncatedCount, truncatedCount) || other.truncatedCount == truncatedCount)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.cachedPromptTokens, cachedPromptTokens) || other.cachedPromptTokens == cachedPromptTokens)&&(identical(other.audioPromptTokens, audioPromptTokens) || other.audioPromptTokens == audioPromptTokens)&&(identical(other.reasoningTokens, reasoningTokens) || other.reasoningTokens == reasoningTokens)&&(identical(other.audioCompletionTokens, audioCompletionTokens) || other.audioCompletionTokens == audioCompletionTokens)&&(identical(other.acceptedPredictionTokens, acceptedPredictionTokens) || other.acceptedPredictionTokens == acceptedPredictionTokens)&&(identical(other.rejectedPredictionTokens, rejectedPredictionTokens) || other.rejectedPredictionTokens == rejectedPredictionTokens));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelUsageEntry&&(identical(other.key, key) || other.key == key)&&(identical(other.label, label) || other.label == label)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.requestCount, requestCount) || other.requestCount == requestCount)&&(identical(other.errorCount, errorCount) || other.errorCount == errorCount)&&(identical(other.truncatedCount, truncatedCount) || other.truncatedCount == truncatedCount)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.cachedPromptTokens, cachedPromptTokens) || other.cachedPromptTokens == cachedPromptTokens)&&(identical(other.audioPromptTokens, audioPromptTokens) || other.audioPromptTokens == audioPromptTokens)&&(identical(other.reasoningTokens, reasoningTokens) || other.reasoningTokens == reasoningTokens)&&(identical(other.audioCompletionTokens, audioCompletionTokens) || other.audioCompletionTokens == audioCompletionTokens)&&(identical(other.acceptedPredictionTokens, acceptedPredictionTokens) || other.acceptedPredictionTokens == acceptedPredictionTokens)&&(identical(other.rejectedPredictionTokens, rejectedPredictionTokens) || other.rejectedPredictionTokens == rejectedPredictionTokens));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,key,label,endpointId,requestCount,errorCount,truncatedCount,durationMs,promptTokens,completionTokens,totalTokens,cachedPromptTokens,audioPromptTokens,reasoningTokens,audioCompletionTokens,acceptedPredictionTokens,rejectedPredictionTokens);
+int get hashCode {
+    return Object.hash(runtimeType,key,label,endpointId,requestCount,errorCount,truncatedCount,durationMs,promptTokens,completionTokens,totalTokens,cachedPromptTokens,audioPromptTokens,reasoningTokens,audioCompletionTokens,acceptedPredictionTokens,rejectedPredictionTokens);
+}
 
 @override
 String toString() {
-  return 'ModelUsageEntry(key: $key, label: $label, endpointId: $endpointId, requestCount: $requestCount, errorCount: $errorCount, truncatedCount: $truncatedCount, durationMs: $durationMs, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, cachedPromptTokens: $cachedPromptTokens, audioPromptTokens: $audioPromptTokens, reasoningTokens: $reasoningTokens, audioCompletionTokens: $audioCompletionTokens, acceptedPredictionTokens: $acceptedPredictionTokens, rejectedPredictionTokens: $rejectedPredictionTokens)';
+    return 'ModelUsageEntry(key: $key, label: $label, endpointId: $endpointId, requestCount: $requestCount, errorCount: $errorCount, truncatedCount: $truncatedCount, durationMs: $durationMs, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, cachedPromptTokens: $cachedPromptTokens, audioPromptTokens: $audioPromptTokens, reasoningTokens: $reasoningTokens, audioCompletionTokens: $audioCompletionTokens, acceptedPredictionTokens: $acceptedPredictionTokens, rejectedPredictionTokens: $rejectedPredictionTokens)';
 }
 
 
@@ -327,16 +335,21 @@ $ModelUsageDaySliceCopyWith<ModelUsageDaySlice> get copyWith => _$ModelUsageDayS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelUsageDaySlice&&(identical(other.dayNumber, dayNumber) || other.dayNumber == dayNumber)&&const DeepCollectionEquality().equals(other.tokensByModelKey, tokensByModelKey));
+  final _this = this as ModelUsageDaySlice;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelUsageDaySlice&&(identical(other.dayNumber, _this.dayNumber) || other.dayNumber == _this.dayNumber)&&const DeepCollectionEquality().equals(other.tokensByModelKey, _this.tokensByModelKey));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,dayNumber,const DeepCollectionEquality().hash(tokensByModelKey));
+int get hashCode {
+  final _this = this as ModelUsageDaySlice;
+  return Object.hash(runtimeType,_this.dayNumber,const DeepCollectionEquality().hash(_this.tokensByModelKey));
+}
 
 @override
 String toString() {
-  return 'ModelUsageDaySlice(dayNumber: $dayNumber, tokensByModelKey: $tokensByModelKey)';
+  final _this = this as ModelUsageDaySlice;
+  return 'ModelUsageDaySlice(dayNumber: ${_this.dayNumber}, tokensByModelKey: ${_this.tokensByModelKey})';
 }
 
 
@@ -365,7 +378,7 @@ class _$ModelUsageDaySliceCopyWithImpl<$Res>
 /// Create a copy of ModelUsageDaySlice
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? dayNumber = null,Object? tokensByModelKey = null,}) {
-  return _then(_self.copyWith(
+  return _then(ModelUsageDaySlice(
 dayNumber: null == dayNumber ? _self.dayNumber : dayNumber // ignore: cast_nullable_to_non_nullable
 as int,tokensByModelKey: null == tokensByModelKey ? _self.tokensByModelKey : tokensByModelKey // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,
@@ -509,7 +522,7 @@ return $default(_that.dayNumber,_that.tokensByModelKey);case _:
 
 
 class _ModelUsageDaySlice extends ModelUsageDaySlice {
-  const _ModelUsageDaySlice({required this.dayNumber, final  Map<String, int> tokensByModelKey = const <String, int>{}}): _tokensByModelKey = tokensByModelKey,super._();
+  const _ModelUsageDaySlice({required this.dayNumber,  Map<String, int> tokensByModelKey = const <String, int>{}}): _tokensByModelKey = tokensByModelKey,super._();
   
 
 @override final  int dayNumber;
@@ -531,16 +544,18 @@ _$ModelUsageDaySliceCopyWith<_ModelUsageDaySlice> get copyWith => __$ModelUsageD
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelUsageDaySlice&&(identical(other.dayNumber, dayNumber) || other.dayNumber == dayNumber)&&const DeepCollectionEquality().equals(other._tokensByModelKey, _tokensByModelKey));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelUsageDaySlice&&(identical(other.dayNumber, dayNumber) || other.dayNumber == dayNumber)&&const DeepCollectionEquality().equals(other.tokensByModelKey, _tokensByModelKey));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,dayNumber,const DeepCollectionEquality().hash(_tokensByModelKey));
+int get hashCode {
+    return Object.hash(runtimeType,dayNumber,const DeepCollectionEquality().hash(_tokensByModelKey));
+}
 
 @override
 String toString() {
-  return 'ModelUsageDaySlice(dayNumber: $dayNumber, tokensByModelKey: $tokensByModelKey)';
+    return 'ModelUsageDaySlice(dayNumber: $dayNumber, tokensByModelKey: $tokensByModelKey)';
 }
 
 
@@ -593,16 +608,21 @@ $ModelUsageStatsCopyWith<ModelUsageStats> get copyWith => _$ModelUsageStatsCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelUsageStats&&const DeepCollectionEquality().equals(other.models, models)&&const DeepCollectionEquality().equals(other.roles, roles)&&const DeepCollectionEquality().equals(other.daily, daily)&&const DeepCollectionEquality().equals(other.labelsByModelKey, labelsByModelKey));
+  final _this = this as ModelUsageStats;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelUsageStats&&const DeepCollectionEquality().equals(other.models, _this.models)&&const DeepCollectionEquality().equals(other.roles, _this.roles)&&const DeepCollectionEquality().equals(other.daily, _this.daily)&&const DeepCollectionEquality().equals(other.labelsByModelKey, _this.labelsByModelKey));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(models),const DeepCollectionEquality().hash(roles),const DeepCollectionEquality().hash(daily),const DeepCollectionEquality().hash(labelsByModelKey));
+int get hashCode {
+  final _this = this as ModelUsageStats;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.models),const DeepCollectionEquality().hash(_this.roles),const DeepCollectionEquality().hash(_this.daily),const DeepCollectionEquality().hash(_this.labelsByModelKey));
+}
 
 @override
 String toString() {
-  return 'ModelUsageStats(models: $models, roles: $roles, daily: $daily, labelsByModelKey: $labelsByModelKey)';
+  final _this = this as ModelUsageStats;
+  return 'ModelUsageStats(models: ${_this.models}, roles: ${_this.roles}, daily: ${_this.daily}, labelsByModelKey: ${_this.labelsByModelKey})';
 }
 
 
@@ -631,7 +651,7 @@ class _$ModelUsageStatsCopyWithImpl<$Res>
 /// Create a copy of ModelUsageStats
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? models = null,Object? roles = null,Object? daily = null,Object? labelsByModelKey = null,}) {
-  return _then(_self.copyWith(
+  return _then(ModelUsageStats(
 models: null == models ? _self.models : models // ignore: cast_nullable_to_non_nullable
 as List<ModelUsageEntry>,roles: null == roles ? _self.roles : roles // ignore: cast_nullable_to_non_nullable
 as List<ModelUsageEntry>,daily: null == daily ? _self.daily : daily // ignore: cast_nullable_to_non_nullable
@@ -777,7 +797,7 @@ return $default(_that.models,_that.roles,_that.daily,_that.labelsByModelKey);cas
 
 
 class _ModelUsageStats extends ModelUsageStats {
-  const _ModelUsageStats({final  List<ModelUsageEntry> models = const <ModelUsageEntry>[], final  List<ModelUsageEntry> roles = const <ModelUsageEntry>[], final  List<ModelUsageDaySlice> daily = const <ModelUsageDaySlice>[], final  Map<String, List<ModelUsageEntry>> labelsByModelKey = const <String, List<ModelUsageEntry>>{}}): _models = models,_roles = roles,_daily = daily,_labelsByModelKey = labelsByModelKey,super._();
+  const _ModelUsageStats({ List<ModelUsageEntry> models = const <ModelUsageEntry>[],  List<ModelUsageEntry> roles = const <ModelUsageEntry>[],  List<ModelUsageDaySlice> daily = const <ModelUsageDaySlice>[],  Map<String, List<ModelUsageEntry>> labelsByModelKey = const <String, List<ModelUsageEntry>>{}}): _models = models,_roles = roles,_daily = daily,_labelsByModelKey = labelsByModelKey,super._();
   
 
  final  List<ModelUsageEntry> _models;
@@ -819,16 +839,18 @@ _$ModelUsageStatsCopyWith<_ModelUsageStats> get copyWith => __$ModelUsageStatsCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelUsageStats&&const DeepCollectionEquality().equals(other._models, _models)&&const DeepCollectionEquality().equals(other._roles, _roles)&&const DeepCollectionEquality().equals(other._daily, _daily)&&const DeepCollectionEquality().equals(other._labelsByModelKey, _labelsByModelKey));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelUsageStats&&const DeepCollectionEquality().equals(other.models, _models)&&const DeepCollectionEquality().equals(other.roles, _roles)&&const DeepCollectionEquality().equals(other.daily, _daily)&&const DeepCollectionEquality().equals(other.labelsByModelKey, _labelsByModelKey));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_models),const DeepCollectionEquality().hash(_roles),const DeepCollectionEquality().hash(_daily),const DeepCollectionEquality().hash(_labelsByModelKey));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_models),const DeepCollectionEquality().hash(_roles),const DeepCollectionEquality().hash(_daily),const DeepCollectionEquality().hash(_labelsByModelKey));
+}
 
 @override
 String toString() {
-  return 'ModelUsageStats(models: $models, roles: $roles, daily: $daily, labelsByModelKey: $labelsByModelKey)';
+    return 'ModelUsageStats(models: $models, roles: $roles, daily: $daily, labelsByModelKey: $labelsByModelKey)';
 }
 
 

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'worktree_agent_task.dart';
@@ -9,6 +9,7 @@ part of 'worktree_agent_task.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $WorktreeAgentChangedFileEvidenceCopyWith<WorktreeAgentChangedFileEvidence> get 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorktreeAgentChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.deleted, deleted) || other.deleted == deleted)&&(identical(other.truncated, truncated) || other.truncated == truncated));
+  final _this = this as WorktreeAgentChangedFileEvidence;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorktreeAgentChangedFileEvidence&&(identical(other.path, _this.path) || other.path == _this.path)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.contentHash, _this.contentHash) || other.contentHash == _this.contentHash)&&(identical(other.byteSize, _this.byteSize) || other.byteSize == _this.byteSize)&&(identical(other.deleted, _this.deleted) || other.deleted == _this.deleted)&&(identical(other.truncated, _this.truncated) || other.truncated == _this.truncated));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,path,content,contentHash,byteSize,deleted,truncated);
+int get hashCode {
+  final _this = this as WorktreeAgentChangedFileEvidence;
+  return Object.hash(runtimeType,_this.path,_this.content,_this.contentHash,_this.byteSize,_this.deleted,_this.truncated);
+}
 
 @override
 String toString() {
-  return 'WorktreeAgentChangedFileEvidence(path: $path, content: $content, contentHash: $contentHash, byteSize: $byteSize, deleted: $deleted, truncated: $truncated)';
+  final _this = this as WorktreeAgentChangedFileEvidence;
+  return 'WorktreeAgentChangedFileEvidence(path: ${_this.path}, content: ${_this.content}, contentHash: ${_this.contentHash}, byteSize: ${_this.byteSize}, deleted: ${_this.deleted}, truncated: ${_this.truncated})';
 }
 
 
@@ -66,7 +72,7 @@ class _$WorktreeAgentChangedFileEvidenceCopyWithImpl<$Res>
 /// Create a copy of WorktreeAgentChangedFileEvidence
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? path = null,Object? content = null,Object? contentHash = freezed,Object? byteSize = null,Object? deleted = null,Object? truncated = null,}) {
-  return _then(_self.copyWith(
+  return _then(WorktreeAgentChangedFileEvidence(
 path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as String,contentHash: freezed == contentHash ? _self.contentHash : contentHash // ignore: cast_nullable_to_non_nullable
@@ -237,16 +243,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorktreeAgentChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.deleted, deleted) || other.deleted == deleted)&&(identical(other.truncated, truncated) || other.truncated == truncated));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorktreeAgentChangedFileEvidence&&(identical(other.path, path) || other.path == path)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.byteSize, byteSize) || other.byteSize == byteSize)&&(identical(other.deleted, deleted) || other.deleted == deleted)&&(identical(other.truncated, truncated) || other.truncated == truncated));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,path,content,contentHash,byteSize,deleted,truncated);
+int get hashCode {
+    return Object.hash(runtimeType,path,content,contentHash,byteSize,deleted,truncated);
+}
 
 @override
 String toString() {
-  return 'WorktreeAgentChangedFileEvidence(path: $path, content: $content, contentHash: $contentHash, byteSize: $byteSize, deleted: $deleted, truncated: $truncated)';
+    return 'WorktreeAgentChangedFileEvidence(path: $path, content: $content, contentHash: $contentHash, byteSize: $byteSize, deleted: $deleted, truncated: $truncated)';
 }
 
 
@@ -319,16 +327,21 @@ $WorktreeAgentTaskCopyWith<WorktreeAgentTask> get copyWith => _$WorktreeAgentTas
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorktreeAgentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.title, title) || other.title == title)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.codingProjectId, codingProjectId) || other.codingProjectId == codingProjectId)&&(identical(other.workflowTaskId, workflowTaskId) || other.workflowTaskId == workflowTaskId)&&(identical(other.baseBranch, baseBranch) || other.baseBranch == baseBranch)&&(identical(other.branchName, branchName) || other.branchName == branchName)&&(identical(other.worktreePath, worktreePath) || other.worktreePath == worktreePath)&&(identical(other.checkpointLineageId, checkpointLineageId) || other.checkpointLineageId == checkpointLineageId)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&const DeepCollectionEquality().equals(other.expectedTargetFiles, expectedTargetFiles)&&const DeepCollectionEquality().equals(other.objectiveAcceptanceCriteria, objectiveAcceptanceCriteria)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.verifiedGreen, verifiedGreen) || other.verifiedGreen == verifiedGreen)&&(identical(other.verificationSummary, verificationSummary) || other.verificationSummary == verificationSummary)&&const DeepCollectionEquality().equals(other.changedFiles, changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&(identical(other.recoveryNote, recoveryNote) || other.recoveryNote == recoveryNote)&&(identical(other.error, error) || other.error == error));
+  final _this = this as WorktreeAgentTask;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WorktreeAgentTask&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.prompt, _this.prompt) || other.prompt == _this.prompt)&&(identical(other.codingProjectId, _this.codingProjectId) || other.codingProjectId == _this.codingProjectId)&&(identical(other.workflowTaskId, _this.workflowTaskId) || other.workflowTaskId == _this.workflowTaskId)&&(identical(other.baseBranch, _this.baseBranch) || other.baseBranch == _this.baseBranch)&&(identical(other.branchName, _this.branchName) || other.branchName == _this.branchName)&&(identical(other.worktreePath, _this.worktreePath) || other.worktreePath == _this.worktreePath)&&(identical(other.checkpointLineageId, _this.checkpointLineageId) || other.checkpointLineageId == _this.checkpointLineageId)&&(identical(other.endpointId, _this.endpointId) || other.endpointId == _this.endpointId)&&(identical(other.verificationCommand, _this.verificationCommand) || other.verificationCommand == _this.verificationCommand)&&const DeepCollectionEquality().equals(other.expectedTargetFiles, _this.expectedTargetFiles)&&const DeepCollectionEquality().equals(other.objectiveAcceptanceCriteria, _this.objectiveAcceptanceCriteria)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.startedAt, _this.startedAt) || other.startedAt == _this.startedAt)&&(identical(other.finishedAt, _this.finishedAt) || other.finishedAt == _this.finishedAt)&&(identical(other.resultSummary, _this.resultSummary) || other.resultSummary == _this.resultSummary)&&(identical(other.verifiedGreen, _this.verifiedGreen) || other.verifiedGreen == _this.verifiedGreen)&&(identical(other.verificationSummary, _this.verificationSummary) || other.verificationSummary == _this.verificationSummary)&&const DeepCollectionEquality().equals(other.changedFiles, _this.changedFiles)&&(identical(other.changedFileEvidenceTruncated, _this.changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == _this.changedFileEvidenceTruncated)&&(identical(other.recoveryNote, _this.recoveryNote) || other.recoveryNote == _this.recoveryNote)&&(identical(other.error, _this.error) || other.error == _this.error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,status,title,prompt,codingProjectId,workflowTaskId,baseBranch,branchName,worktreePath,checkpointLineageId,endpointId,verificationCommand,const DeepCollectionEquality().hash(expectedTargetFiles),const DeepCollectionEquality().hash(objectiveAcceptanceCriteria),createdAt,updatedAt,startedAt,finishedAt,resultSummary,verifiedGreen,verificationSummary,const DeepCollectionEquality().hash(changedFiles),changedFileEvidenceTruncated,recoveryNote,error]);
+int get hashCode {
+  final _this = this as WorktreeAgentTask;
+  return Object.hashAll([runtimeType,_this.id,_this.status,_this.title,_this.prompt,_this.codingProjectId,_this.workflowTaskId,_this.baseBranch,_this.branchName,_this.worktreePath,_this.checkpointLineageId,_this.endpointId,_this.verificationCommand,const DeepCollectionEquality().hash(_this.expectedTargetFiles),const DeepCollectionEquality().hash(_this.objectiveAcceptanceCriteria),_this.createdAt,_this.updatedAt,_this.startedAt,_this.finishedAt,_this.resultSummary,_this.verifiedGreen,_this.verificationSummary,const DeepCollectionEquality().hash(_this.changedFiles),_this.changedFileEvidenceTruncated,_this.recoveryNote,_this.error]);
+}
 
 @override
 String toString() {
-  return 'WorktreeAgentTask(id: $id, status: $status, title: $title, prompt: $prompt, codingProjectId: $codingProjectId, workflowTaskId: $workflowTaskId, baseBranch: $baseBranch, branchName: $branchName, worktreePath: $worktreePath, checkpointLineageId: $checkpointLineageId, endpointId: $endpointId, verificationCommand: $verificationCommand, expectedTargetFiles: $expectedTargetFiles, objectiveAcceptanceCriteria: $objectiveAcceptanceCriteria, createdAt: $createdAt, updatedAt: $updatedAt, startedAt: $startedAt, finishedAt: $finishedAt, resultSummary: $resultSummary, verifiedGreen: $verifiedGreen, verificationSummary: $verificationSummary, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, recoveryNote: $recoveryNote, error: $error)';
+  final _this = this as WorktreeAgentTask;
+  return 'WorktreeAgentTask(id: ${_this.id}, status: ${_this.status}, title: ${_this.title}, prompt: ${_this.prompt}, codingProjectId: ${_this.codingProjectId}, workflowTaskId: ${_this.workflowTaskId}, baseBranch: ${_this.baseBranch}, branchName: ${_this.branchName}, worktreePath: ${_this.worktreePath}, checkpointLineageId: ${_this.checkpointLineageId}, endpointId: ${_this.endpointId}, verificationCommand: ${_this.verificationCommand}, expectedTargetFiles: ${_this.expectedTargetFiles}, objectiveAcceptanceCriteria: ${_this.objectiveAcceptanceCriteria}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, startedAt: ${_this.startedAt}, finishedAt: ${_this.finishedAt}, resultSummary: ${_this.resultSummary}, verifiedGreen: ${_this.verifiedGreen}, verificationSummary: ${_this.verificationSummary}, changedFiles: ${_this.changedFiles}, changedFileEvidenceTruncated: ${_this.changedFileEvidenceTruncated}, recoveryNote: ${_this.recoveryNote}, error: ${_this.error})';
 }
 
 
@@ -357,7 +370,7 @@ class _$WorktreeAgentTaskCopyWithImpl<$Res>
 /// Create a copy of WorktreeAgentTask
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? status = null,Object? title = null,Object? prompt = null,Object? codingProjectId = null,Object? workflowTaskId = null,Object? baseBranch = null,Object? branchName = null,Object? worktreePath = null,Object? checkpointLineageId = null,Object? endpointId = null,Object? verificationCommand = null,Object? expectedTargetFiles = null,Object? objectiveAcceptanceCriteria = null,Object? createdAt = null,Object? updatedAt = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? resultSummary = null,Object? verifiedGreen = null,Object? verificationSummary = null,Object? changedFiles = null,Object? changedFileEvidenceTruncated = null,Object? recoveryNote = null,Object? error = null,}) {
-  return _then(_self.copyWith(
+  return _then(WorktreeAgentTask(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as WorktreeAgentTaskStatus,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -524,7 +537,7 @@ return $default(_that.id,_that.status,_that.title,_that.prompt,_that.codingProje
 @JsonSerializable()
 
 class _WorktreeAgentTask extends WorktreeAgentTask {
-  const _WorktreeAgentTask({required this.id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) this.status = WorktreeAgentTaskStatus.queued, this.title = '', this.prompt = '', this.codingProjectId = '', this.workflowTaskId = '', this.baseBranch = 'main', required this.branchName, required this.worktreePath, this.checkpointLineageId = '', this.endpointId = '', this.verificationCommand = '', final  List<String> expectedTargetFiles = const <String>[], final  List<String> objectiveAcceptanceCriteria = const <String>[], required this.createdAt, required this.updatedAt, this.startedAt, this.finishedAt, this.resultSummary = '', this.verifiedGreen = false, this.verificationSummary = '', final  List<WorktreeAgentChangedFileEvidence> changedFiles = const <WorktreeAgentChangedFileEvidence>[], this.changedFileEvidenceTruncated = false, this.recoveryNote = '', this.error = ''}): _expectedTargetFiles = expectedTargetFiles,_objectiveAcceptanceCriteria = objectiveAcceptanceCriteria,_changedFiles = changedFiles,super._();
+  const _WorktreeAgentTask({required this.id, @JsonKey(unknownEnumValue: WorktreeAgentTaskStatus.needsRecovery) this.status = WorktreeAgentTaskStatus.queued, this.title = '', this.prompt = '', this.codingProjectId = '', this.workflowTaskId = '', this.baseBranch = 'main', required this.branchName, required this.worktreePath, this.checkpointLineageId = '', this.endpointId = '', this.verificationCommand = '',  List<String> expectedTargetFiles = const <String>[],  List<String> objectiveAcceptanceCriteria = const <String>[], required this.createdAt, required this.updatedAt, this.startedAt, this.finishedAt, this.resultSummary = '', this.verifiedGreen = false, this.verificationSummary = '',  List<WorktreeAgentChangedFileEvidence> changedFiles = const <WorktreeAgentChangedFileEvidence>[], this.changedFileEvidenceTruncated = false, this.recoveryNote = '', this.error = ''}): _expectedTargetFiles = expectedTargetFiles,_objectiveAcceptanceCriteria = objectiveAcceptanceCriteria,_changedFiles = changedFiles,super._();
   factory _WorktreeAgentTask.fromJson(Map<String, dynamic> json) => _$WorktreeAgentTaskFromJson(json);
 
 @override final  String id;
@@ -603,16 +616,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorktreeAgentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.title, title) || other.title == title)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.codingProjectId, codingProjectId) || other.codingProjectId == codingProjectId)&&(identical(other.workflowTaskId, workflowTaskId) || other.workflowTaskId == workflowTaskId)&&(identical(other.baseBranch, baseBranch) || other.baseBranch == baseBranch)&&(identical(other.branchName, branchName) || other.branchName == branchName)&&(identical(other.worktreePath, worktreePath) || other.worktreePath == worktreePath)&&(identical(other.checkpointLineageId, checkpointLineageId) || other.checkpointLineageId == checkpointLineageId)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&const DeepCollectionEquality().equals(other._expectedTargetFiles, _expectedTargetFiles)&&const DeepCollectionEquality().equals(other._objectiveAcceptanceCriteria, _objectiveAcceptanceCriteria)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.verifiedGreen, verifiedGreen) || other.verifiedGreen == verifiedGreen)&&(identical(other.verificationSummary, verificationSummary) || other.verificationSummary == verificationSummary)&&const DeepCollectionEquality().equals(other._changedFiles, _changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&(identical(other.recoveryNote, recoveryNote) || other.recoveryNote == recoveryNote)&&(identical(other.error, error) || other.error == error));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WorktreeAgentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.title, title) || other.title == title)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.codingProjectId, codingProjectId) || other.codingProjectId == codingProjectId)&&(identical(other.workflowTaskId, workflowTaskId) || other.workflowTaskId == workflowTaskId)&&(identical(other.baseBranch, baseBranch) || other.baseBranch == baseBranch)&&(identical(other.branchName, branchName) || other.branchName == branchName)&&(identical(other.worktreePath, worktreePath) || other.worktreePath == worktreePath)&&(identical(other.checkpointLineageId, checkpointLineageId) || other.checkpointLineageId == checkpointLineageId)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.verificationCommand, verificationCommand) || other.verificationCommand == verificationCommand)&&const DeepCollectionEquality().equals(other.expectedTargetFiles, _expectedTargetFiles)&&const DeepCollectionEquality().equals(other.objectiveAcceptanceCriteria, _objectiveAcceptanceCriteria)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.verifiedGreen, verifiedGreen) || other.verifiedGreen == verifiedGreen)&&(identical(other.verificationSummary, verificationSummary) || other.verificationSummary == verificationSummary)&&const DeepCollectionEquality().equals(other.changedFiles, _changedFiles)&&(identical(other.changedFileEvidenceTruncated, changedFileEvidenceTruncated) || other.changedFileEvidenceTruncated == changedFileEvidenceTruncated)&&(identical(other.recoveryNote, recoveryNote) || other.recoveryNote == recoveryNote)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,status,title,prompt,codingProjectId,workflowTaskId,baseBranch,branchName,worktreePath,checkpointLineageId,endpointId,verificationCommand,const DeepCollectionEquality().hash(_expectedTargetFiles),const DeepCollectionEquality().hash(_objectiveAcceptanceCriteria),createdAt,updatedAt,startedAt,finishedAt,resultSummary,verifiedGreen,verificationSummary,const DeepCollectionEquality().hash(_changedFiles),changedFileEvidenceTruncated,recoveryNote,error]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,status,title,prompt,codingProjectId,workflowTaskId,baseBranch,branchName,worktreePath,checkpointLineageId,endpointId,verificationCommand,const DeepCollectionEquality().hash(_expectedTargetFiles),const DeepCollectionEquality().hash(_objectiveAcceptanceCriteria),createdAt,updatedAt,startedAt,finishedAt,resultSummary,verifiedGreen,verificationSummary,const DeepCollectionEquality().hash(_changedFiles),changedFileEvidenceTruncated,recoveryNote,error]);
+}
 
 @override
 String toString() {
-  return 'WorktreeAgentTask(id: $id, status: $status, title: $title, prompt: $prompt, codingProjectId: $codingProjectId, workflowTaskId: $workflowTaskId, baseBranch: $baseBranch, branchName: $branchName, worktreePath: $worktreePath, checkpointLineageId: $checkpointLineageId, endpointId: $endpointId, verificationCommand: $verificationCommand, expectedTargetFiles: $expectedTargetFiles, objectiveAcceptanceCriteria: $objectiveAcceptanceCriteria, createdAt: $createdAt, updatedAt: $updatedAt, startedAt: $startedAt, finishedAt: $finishedAt, resultSummary: $resultSummary, verifiedGreen: $verifiedGreen, verificationSummary: $verificationSummary, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, recoveryNote: $recoveryNote, error: $error)';
+    return 'WorktreeAgentTask(id: $id, status: $status, title: $title, prompt: $prompt, codingProjectId: $codingProjectId, workflowTaskId: $workflowTaskId, baseBranch: $baseBranch, branchName: $branchName, worktreePath: $worktreePath, checkpointLineageId: $checkpointLineageId, endpointId: $endpointId, verificationCommand: $verificationCommand, expectedTargetFiles: $expectedTargetFiles, objectiveAcceptanceCriteria: $objectiveAcceptanceCriteria, createdAt: $createdAt, updatedAt: $updatedAt, startedAt: $startedAt, finishedAt: $finishedAt, resultSummary: $resultSummary, verifiedGreen: $verifiedGreen, verificationSummary: $verificationSummary, changedFiles: $changedFiles, changedFileEvidenceTruncated: $changedFileEvidenceTruncated, recoveryNote: $recoveryNote, error: $error)';
 }
 
 

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'project_proposal.dart';
@@ -9,6 +9,7 @@ part of 'project_proposal.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -30,16 +31,21 @@ $ProjectProposalCopyWith<ProjectProposal> get copyWith => _$ProjectProposalCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProjectProposal&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.inputHash, inputHash) || other.inputHash == inputHash)&&(identical(other.proposedAt, proposedAt) || other.proposedAt == proposedAt)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.taskTitle, taskTitle) || other.taskTitle == taskTitle)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&(identical(other.automatability, automatability) || other.automatability == automatability)&&(identical(other.automatabilityReason, automatabilityReason) || other.automatabilityReason == automatabilityReason)&&(identical(other.error, error) || other.error == error));
+  final _this = this as ProjectProposal;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProjectProposal&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&(identical(other.inputHash, _this.inputHash) || other.inputHash == _this.inputHash)&&(identical(other.proposedAt, _this.proposedAt) || other.proposedAt == _this.proposedAt)&&(identical(other.taskId, _this.taskId) || other.taskId == _this.taskId)&&(identical(other.taskTitle, _this.taskTitle) || other.taskTitle == _this.taskTitle)&&(identical(other.rationale, _this.rationale) || other.rationale == _this.rationale)&&(identical(other.automatability, _this.automatability) || other.automatability == _this.automatability)&&(identical(other.automatabilityReason, _this.automatabilityReason) || other.automatabilityReason == _this.automatabilityReason)&&(identical(other.error, _this.error) || other.error == _this.error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,inputHash,proposedAt,taskId,taskTitle,rationale,automatability,automatabilityReason,error);
+int get hashCode {
+  final _this = this as ProjectProposal;
+  return Object.hash(runtimeType,_this.projectId,_this.inputHash,_this.proposedAt,_this.taskId,_this.taskTitle,_this.rationale,_this.automatability,_this.automatabilityReason,_this.error);
+}
 
 @override
 String toString() {
-  return 'ProjectProposal(projectId: $projectId, inputHash: $inputHash, proposedAt: $proposedAt, taskId: $taskId, taskTitle: $taskTitle, rationale: $rationale, automatability: $automatability, automatabilityReason: $automatabilityReason, error: $error)';
+  final _this = this as ProjectProposal;
+  return 'ProjectProposal(projectId: ${_this.projectId}, inputHash: ${_this.inputHash}, proposedAt: ${_this.proposedAt}, taskId: ${_this.taskId}, taskTitle: ${_this.taskTitle}, rationale: ${_this.rationale}, automatability: ${_this.automatability}, automatabilityReason: ${_this.automatabilityReason}, error: ${_this.error})';
 }
 
 
@@ -68,7 +74,7 @@ class _$ProjectProposalCopyWithImpl<$Res>
 /// Create a copy of ProjectProposal
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? projectId = null,Object? inputHash = null,Object? proposedAt = null,Object? taskId = null,Object? taskTitle = null,Object? rationale = null,Object? automatability = null,Object? automatabilityReason = null,Object? error = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ProjectProposal(
 projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,inputHash: null == inputHash ? _self.inputHash : inputHash // ignore: cast_nullable_to_non_nullable
 as String,proposedAt: null == proposedAt ? _self.proposedAt : proposedAt // ignore: cast_nullable_to_non_nullable
@@ -247,16 +253,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProjectProposal&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.inputHash, inputHash) || other.inputHash == inputHash)&&(identical(other.proposedAt, proposedAt) || other.proposedAt == proposedAt)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.taskTitle, taskTitle) || other.taskTitle == taskTitle)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&(identical(other.automatability, automatability) || other.automatability == automatability)&&(identical(other.automatabilityReason, automatabilityReason) || other.automatabilityReason == automatabilityReason)&&(identical(other.error, error) || other.error == error));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProjectProposal&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.inputHash, inputHash) || other.inputHash == inputHash)&&(identical(other.proposedAt, proposedAt) || other.proposedAt == proposedAt)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.taskTitle, taskTitle) || other.taskTitle == taskTitle)&&(identical(other.rationale, rationale) || other.rationale == rationale)&&(identical(other.automatability, automatability) || other.automatability == automatability)&&(identical(other.automatabilityReason, automatabilityReason) || other.automatabilityReason == automatabilityReason)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,inputHash,proposedAt,taskId,taskTitle,rationale,automatability,automatabilityReason,error);
+int get hashCode {
+    return Object.hash(runtimeType,projectId,inputHash,proposedAt,taskId,taskTitle,rationale,automatability,automatabilityReason,error);
+}
 
 @override
 String toString() {
-  return 'ProjectProposal(projectId: $projectId, inputHash: $inputHash, proposedAt: $proposedAt, taskId: $taskId, taskTitle: $taskTitle, rationale: $rationale, automatability: $automatability, automatabilityReason: $automatabilityReason, error: $error)';
+    return 'ProjectProposal(projectId: $projectId, inputHash: $inputHash, proposedAt: $proposedAt, taskId: $taskId, taskTitle: $taskTitle, rationale: $rationale, automatability: $automatability, automatabilityReason: $automatabilityReason, error: $error)';
 }
 
 

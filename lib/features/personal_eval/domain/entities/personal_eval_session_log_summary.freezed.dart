@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'personal_eval_session_log_summary.dart';
@@ -9,6 +9,7 @@ part of 'personal_eval_session_log_summary.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $PersonalEvalSessionLogSummaryCopyWith<PersonalEvalSessionLogSummary> get copyWi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalSessionLogSummary&&(identical(other.result, result) || other.result == result)&&(identical(other.entryCount, entryCount) || other.entryCount == entryCount)&&(identical(other.turnCount, turnCount) || other.turnCount == turnCount)&&(identical(other.malformedLineCount, malformedLineCount) || other.malformedLineCount == malformedLineCount)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&(identical(other.totalDurationMs, totalDurationMs) || other.totalDurationMs == totalDurationMs)&&const DeepCollectionEquality().equals(other.operationCounts, operationCounts)&&const DeepCollectionEquality().equals(other.finishReasonCounts, finishReasonCounts)&&const DeepCollectionEquality().equals(other.warningCodes, warningCodes)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finalAnswerLineNumber, finalAnswerLineNumber) || other.finalAnswerLineNumber == finalAnswerLineNumber));
+  final _this = this as PersonalEvalSessionLogSummary;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PersonalEvalSessionLogSummary&&(identical(other.result, _this.result) || other.result == _this.result)&&(identical(other.entryCount, _this.entryCount) || other.entryCount == _this.entryCount)&&(identical(other.turnCount, _this.turnCount) || other.turnCount == _this.turnCount)&&(identical(other.malformedLineCount, _this.malformedLineCount) || other.malformedLineCount == _this.malformedLineCount)&&(identical(other.toolCallCount, _this.toolCallCount) || other.toolCallCount == _this.toolCallCount)&&(identical(other.totalDurationMs, _this.totalDurationMs) || other.totalDurationMs == _this.totalDurationMs)&&const DeepCollectionEquality().equals(other.operationCounts, _this.operationCounts)&&const DeepCollectionEquality().equals(other.finishReasonCounts, _this.finishReasonCounts)&&const DeepCollectionEquality().equals(other.warningCodes, _this.warningCodes)&&(identical(other.startedAt, _this.startedAt) || other.startedAt == _this.startedAt)&&(identical(other.finalAnswerLineNumber, _this.finalAnswerLineNumber) || other.finalAnswerLineNumber == _this.finalAnswerLineNumber));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,result,entryCount,turnCount,malformedLineCount,toolCallCount,totalDurationMs,const DeepCollectionEquality().hash(operationCounts),const DeepCollectionEquality().hash(finishReasonCounts),const DeepCollectionEquality().hash(warningCodes),startedAt,finalAnswerLineNumber);
+int get hashCode {
+  final _this = this as PersonalEvalSessionLogSummary;
+  return Object.hash(runtimeType,_this.result,_this.entryCount,_this.turnCount,_this.malformedLineCount,_this.toolCallCount,_this.totalDurationMs,const DeepCollectionEquality().hash(_this.operationCounts),const DeepCollectionEquality().hash(_this.finishReasonCounts),const DeepCollectionEquality().hash(_this.warningCodes),_this.startedAt,_this.finalAnswerLineNumber);
+}
 
 @override
 String toString() {
-  return 'PersonalEvalSessionLogSummary(result: $result, entryCount: $entryCount, turnCount: $turnCount, malformedLineCount: $malformedLineCount, toolCallCount: $toolCallCount, totalDurationMs: $totalDurationMs, operationCounts: $operationCounts, finishReasonCounts: $finishReasonCounts, warningCodes: $warningCodes, startedAt: $startedAt, finalAnswerLineNumber: $finalAnswerLineNumber)';
+  final _this = this as PersonalEvalSessionLogSummary;
+  return 'PersonalEvalSessionLogSummary(result: ${_this.result}, entryCount: ${_this.entryCount}, turnCount: ${_this.turnCount}, malformedLineCount: ${_this.malformedLineCount}, toolCallCount: ${_this.toolCallCount}, totalDurationMs: ${_this.totalDurationMs}, operationCounts: ${_this.operationCounts}, finishReasonCounts: ${_this.finishReasonCounts}, warningCodes: ${_this.warningCodes}, startedAt: ${_this.startedAt}, finalAnswerLineNumber: ${_this.finalAnswerLineNumber})';
 }
 
 
@@ -66,7 +72,7 @@ class _$PersonalEvalSessionLogSummaryCopyWithImpl<$Res>
 /// Create a copy of PersonalEvalSessionLogSummary
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? result = null,Object? entryCount = null,Object? turnCount = null,Object? malformedLineCount = null,Object? toolCallCount = null,Object? totalDurationMs = null,Object? operationCounts = null,Object? finishReasonCounts = null,Object? warningCodes = null,Object? startedAt = freezed,Object? finalAnswerLineNumber = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(PersonalEvalSessionLogSummary(
 result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as String,entryCount: null == entryCount ? _self.entryCount : entryCount // ignore: cast_nullable_to_non_nullable
 as int,turnCount: null == turnCount ? _self.turnCount : turnCount // ignore: cast_nullable_to_non_nullable
@@ -219,7 +225,7 @@ return $default(_that.result,_that.entryCount,_that.turnCount,_that.malformedLin
 @JsonSerializable()
 
 class _PersonalEvalSessionLogSummary extends PersonalEvalSessionLogSummary {
-  const _PersonalEvalSessionLogSummary({this.result = 'incomplete', this.entryCount = 0, this.turnCount = 0, this.malformedLineCount = 0, this.toolCallCount = 0, this.totalDurationMs = 0, final  Map<String, int> operationCounts = const <String, int>{}, final  Map<String, int> finishReasonCounts = const <String, int>{}, final  List<String> warningCodes = const <String>[], @JsonKey(includeIfNull: false) this.startedAt, @JsonKey(includeIfNull: false) this.finalAnswerLineNumber}): _operationCounts = operationCounts,_finishReasonCounts = finishReasonCounts,_warningCodes = warningCodes,super._();
+  const _PersonalEvalSessionLogSummary({this.result = 'incomplete', this.entryCount = 0, this.turnCount = 0, this.malformedLineCount = 0, this.toolCallCount = 0, this.totalDurationMs = 0,  Map<String, int> operationCounts = const <String, int>{},  Map<String, int> finishReasonCounts = const <String, int>{},  List<String> warningCodes = const <String>[], @JsonKey(includeIfNull: false) this.startedAt, @JsonKey(includeIfNull: false) this.finalAnswerLineNumber}): _operationCounts = operationCounts,_finishReasonCounts = finishReasonCounts,_warningCodes = warningCodes,super._();
   factory _PersonalEvalSessionLogSummary.fromJson(Map<String, dynamic> json) => _$PersonalEvalSessionLogSummaryFromJson(json);
 
 @override@JsonKey() final  String result;
@@ -265,16 +271,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalSessionLogSummary&&(identical(other.result, result) || other.result == result)&&(identical(other.entryCount, entryCount) || other.entryCount == entryCount)&&(identical(other.turnCount, turnCount) || other.turnCount == turnCount)&&(identical(other.malformedLineCount, malformedLineCount) || other.malformedLineCount == malformedLineCount)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&(identical(other.totalDurationMs, totalDurationMs) || other.totalDurationMs == totalDurationMs)&&const DeepCollectionEquality().equals(other._operationCounts, _operationCounts)&&const DeepCollectionEquality().equals(other._finishReasonCounts, _finishReasonCounts)&&const DeepCollectionEquality().equals(other._warningCodes, _warningCodes)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finalAnswerLineNumber, finalAnswerLineNumber) || other.finalAnswerLineNumber == finalAnswerLineNumber));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PersonalEvalSessionLogSummary&&(identical(other.result, result) || other.result == result)&&(identical(other.entryCount, entryCount) || other.entryCount == entryCount)&&(identical(other.turnCount, turnCount) || other.turnCount == turnCount)&&(identical(other.malformedLineCount, malformedLineCount) || other.malformedLineCount == malformedLineCount)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&(identical(other.totalDurationMs, totalDurationMs) || other.totalDurationMs == totalDurationMs)&&const DeepCollectionEquality().equals(other.operationCounts, _operationCounts)&&const DeepCollectionEquality().equals(other.finishReasonCounts, _finishReasonCounts)&&const DeepCollectionEquality().equals(other.warningCodes, _warningCodes)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finalAnswerLineNumber, finalAnswerLineNumber) || other.finalAnswerLineNumber == finalAnswerLineNumber));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,result,entryCount,turnCount,malformedLineCount,toolCallCount,totalDurationMs,const DeepCollectionEquality().hash(_operationCounts),const DeepCollectionEquality().hash(_finishReasonCounts),const DeepCollectionEquality().hash(_warningCodes),startedAt,finalAnswerLineNumber);
+int get hashCode {
+    return Object.hash(runtimeType,result,entryCount,turnCount,malformedLineCount,toolCallCount,totalDurationMs,const DeepCollectionEquality().hash(_operationCounts),const DeepCollectionEquality().hash(_finishReasonCounts),const DeepCollectionEquality().hash(_warningCodes),startedAt,finalAnswerLineNumber);
+}
 
 @override
 String toString() {
-  return 'PersonalEvalSessionLogSummary(result: $result, entryCount: $entryCount, turnCount: $turnCount, malformedLineCount: $malformedLineCount, toolCallCount: $toolCallCount, totalDurationMs: $totalDurationMs, operationCounts: $operationCounts, finishReasonCounts: $finishReasonCounts, warningCodes: $warningCodes, startedAt: $startedAt, finalAnswerLineNumber: $finalAnswerLineNumber)';
+    return 'PersonalEvalSessionLogSummary(result: $result, entryCount: $entryCount, turnCount: $turnCount, malformedLineCount: $malformedLineCount, toolCallCount: $toolCallCount, totalDurationMs: $totalDurationMs, operationCounts: $operationCounts, finishReasonCounts: $finishReasonCounts, warningCodes: $warningCodes, startedAt: $startedAt, finalAnswerLineNumber: $finalAnswerLineNumber)';
 }
 
 

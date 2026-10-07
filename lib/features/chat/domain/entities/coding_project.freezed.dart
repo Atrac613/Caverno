@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'coding_project.dart';
@@ -9,6 +9,7 @@ part of 'coding_project.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $CodingProjectCopyWith<CodingProject> get copyWith => _$CodingProjectCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CodingProject&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rootPath, rootPath) || other.rootPath == rootPath)&&(identical(other.securityScopedBookmark, securityScopedBookmark) || other.securityScopedBookmark == securityScopedBookmark)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  final _this = this as CodingProject;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CodingProject&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.rootPath, _this.rootPath) || other.rootPath == _this.rootPath)&&(identical(other.securityScopedBookmark, _this.securityScopedBookmark) || other.securityScopedBookmark == _this.securityScopedBookmark)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,rootPath,securityScopedBookmark,createdAt,updatedAt);
+int get hashCode {
+  final _this = this as CodingProject;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.rootPath,_this.securityScopedBookmark,_this.createdAt,_this.updatedAt);
+}
 
 @override
 String toString() {
-  return 'CodingProject(id: $id, name: $name, rootPath: $rootPath, securityScopedBookmark: $securityScopedBookmark, createdAt: $createdAt, updatedAt: $updatedAt)';
+  final _this = this as CodingProject;
+  return 'CodingProject(id: ${_this.id}, name: ${_this.name}, rootPath: ${_this.rootPath}, securityScopedBookmark: ${_this.securityScopedBookmark}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$CodingProjectCopyWithImpl<$Res>
 /// Create a copy of CodingProject
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? rootPath = null,Object? securityScopedBookmark = freezed,Object? createdAt = null,Object? updatedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(CodingProject(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,rootPath: null == rootPath ? _self.rootPath : rootPath // ignore: cast_nullable_to_non_nullable
@@ -237,16 +243,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CodingProject&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rootPath, rootPath) || other.rootPath == rootPath)&&(identical(other.securityScopedBookmark, securityScopedBookmark) || other.securityScopedBookmark == securityScopedBookmark)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CodingProject&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rootPath, rootPath) || other.rootPath == rootPath)&&(identical(other.securityScopedBookmark, securityScopedBookmark) || other.securityScopedBookmark == securityScopedBookmark)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,rootPath,securityScopedBookmark,createdAt,updatedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,rootPath,securityScopedBookmark,createdAt,updatedAt);
+}
 
 @override
 String toString() {
-  return 'CodingProject(id: $id, name: $name, rootPath: $rootPath, securityScopedBookmark: $securityScopedBookmark, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'CodingProject(id: $id, name: $name, rootPath: $rootPath, securityScopedBookmark: $securityScopedBookmark, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 

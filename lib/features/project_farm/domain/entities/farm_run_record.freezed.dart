@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'farm_run_record.dart';
@@ -9,6 +9,7 @@ part of 'farm_run_record.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -31,16 +32,21 @@ $FarmRunRecordCopyWith<FarmRunRecord> get copyWith => _$FarmRunRecordCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FarmRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.at, at) || other.at == at)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.command, command) || other.command == command)&&(identical(other.branch, branch) || other.branch == branch)&&(identical(other.detail, detail) || other.detail == detail));
+  final _this = this as FarmRunRecord;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FarmRunRecord&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&(identical(other.trigger, _this.trigger) || other.trigger == _this.trigger)&&(identical(other.at, _this.at) || other.at == _this.at)&&(identical(other.outcome, _this.outcome) || other.outcome == _this.outcome)&&(identical(other.taskId, _this.taskId) || other.taskId == _this.taskId)&&(identical(other.command, _this.command) || other.command == _this.command)&&(identical(other.branch, _this.branch) || other.branch == _this.branch)&&(identical(other.detail, _this.detail) || other.detail == _this.detail));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,projectId,trigger,at,outcome,taskId,command,branch,detail);
+int get hashCode {
+  final _this = this as FarmRunRecord;
+  return Object.hash(runtimeType,_this.id,_this.projectId,_this.trigger,_this.at,_this.outcome,_this.taskId,_this.command,_this.branch,_this.detail);
+}
 
 @override
 String toString() {
-  return 'FarmRunRecord(id: $id, projectId: $projectId, trigger: $trigger, at: $at, outcome: $outcome, taskId: $taskId, command: $command, branch: $branch, detail: $detail)';
+  final _this = this as FarmRunRecord;
+  return 'FarmRunRecord(id: ${_this.id}, projectId: ${_this.projectId}, trigger: ${_this.trigger}, at: ${_this.at}, outcome: ${_this.outcome}, taskId: ${_this.taskId}, command: ${_this.command}, branch: ${_this.branch}, detail: ${_this.detail})';
 }
 
 
@@ -69,7 +75,7 @@ class _$FarmRunRecordCopyWithImpl<$Res>
 /// Create a copy of FarmRunRecord
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? projectId = null,Object? trigger = null,Object? at = null,Object? outcome = null,Object? taskId = null,Object? command = null,Object? branch = null,Object? detail = null,}) {
-  return _then(_self.copyWith(
+  return _then(FarmRunRecord(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,trigger: null == trigger ? _self.trigger : trigger // ignore: cast_nullable_to_non_nullable
@@ -249,16 +255,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FarmRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.at, at) || other.at == at)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.command, command) || other.command == command)&&(identical(other.branch, branch) || other.branch == branch)&&(identical(other.detail, detail) || other.detail == detail));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _FarmRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.at, at) || other.at == at)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.command, command) || other.command == command)&&(identical(other.branch, branch) || other.branch == branch)&&(identical(other.detail, detail) || other.detail == detail));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,projectId,trigger,at,outcome,taskId,command,branch,detail);
+int get hashCode {
+    return Object.hash(runtimeType,id,projectId,trigger,at,outcome,taskId,command,branch,detail);
+}
 
 @override
 String toString() {
-  return 'FarmRunRecord(id: $id, projectId: $projectId, trigger: $trigger, at: $at, outcome: $outcome, taskId: $taskId, command: $command, branch: $branch, detail: $detail)';
+    return 'FarmRunRecord(id: $id, projectId: $projectId, trigger: $trigger, at: $at, outcome: $outcome, taskId: $taskId, command: $command, branch: $branch, detail: $detail)';
 }
 
 

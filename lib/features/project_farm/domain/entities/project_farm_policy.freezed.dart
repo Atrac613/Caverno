@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'project_farm_policy.dart';
@@ -9,6 +9,7 @@ part of 'project_farm_policy.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -34,16 +35,21 @@ $ProjectFarmPolicyCopyWith<ProjectFarmPolicy> get copyWith => _$ProjectFarmPolic
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProjectFarmPolicy&&(identical(other.projectId, projectId) || other.projectId == projectId)&&const DeepCollectionEquality().equals(other.allowedVerificationCommands, allowedVerificationCommands)&&(identical(other.maxConcurrentTasks, maxConcurrentTasks) || other.maxConcurrentTasks == maxConcurrentTasks)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.unattendedCommands, unattendedCommands)&&(identical(other.autoRunEnabled, autoRunEnabled) || other.autoRunEnabled == autoRunEnabled)&&(identical(other.dailyRunLimit, dailyRunLimit) || other.dailyRunLimit == dailyRunLimit));
+  final _this = this as ProjectFarmPolicy;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProjectFarmPolicy&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&const DeepCollectionEquality().equals(other.allowedVerificationCommands, _this.allowedVerificationCommands)&&(identical(other.maxConcurrentTasks, _this.maxConcurrentTasks) || other.maxConcurrentTasks == _this.maxConcurrentTasks)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&const DeepCollectionEquality().equals(other.unattendedCommands, _this.unattendedCommands)&&(identical(other.autoRunEnabled, _this.autoRunEnabled) || other.autoRunEnabled == _this.autoRunEnabled)&&(identical(other.dailyRunLimit, _this.dailyRunLimit) || other.dailyRunLimit == _this.dailyRunLimit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,const DeepCollectionEquality().hash(allowedVerificationCommands),maxConcurrentTasks,updatedAt,const DeepCollectionEquality().hash(unattendedCommands),autoRunEnabled,dailyRunLimit);
+int get hashCode {
+  final _this = this as ProjectFarmPolicy;
+  return Object.hash(runtimeType,_this.projectId,const DeepCollectionEquality().hash(_this.allowedVerificationCommands),_this.maxConcurrentTasks,_this.updatedAt,const DeepCollectionEquality().hash(_this.unattendedCommands),_this.autoRunEnabled,_this.dailyRunLimit);
+}
 
 @override
 String toString() {
-  return 'ProjectFarmPolicy(projectId: $projectId, allowedVerificationCommands: $allowedVerificationCommands, maxConcurrentTasks: $maxConcurrentTasks, updatedAt: $updatedAt, unattendedCommands: $unattendedCommands, autoRunEnabled: $autoRunEnabled, dailyRunLimit: $dailyRunLimit)';
+  final _this = this as ProjectFarmPolicy;
+  return 'ProjectFarmPolicy(projectId: ${_this.projectId}, allowedVerificationCommands: ${_this.allowedVerificationCommands}, maxConcurrentTasks: ${_this.maxConcurrentTasks}, updatedAt: ${_this.updatedAt}, unattendedCommands: ${_this.unattendedCommands}, autoRunEnabled: ${_this.autoRunEnabled}, dailyRunLimit: ${_this.dailyRunLimit})';
 }
 
 
@@ -72,7 +78,7 @@ class _$ProjectFarmPolicyCopyWithImpl<$Res>
 /// Create a copy of ProjectFarmPolicy
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? projectId = null,Object? allowedVerificationCommands = null,Object? maxConcurrentTasks = null,Object? updatedAt = null,Object? unattendedCommands = null,Object? autoRunEnabled = null,Object? dailyRunLimit = null,}) {
-  return _then(_self.copyWith(
+  return _then(ProjectFarmPolicy(
 projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,allowedVerificationCommands: null == allowedVerificationCommands ? _self.allowedVerificationCommands : allowedVerificationCommands // ignore: cast_nullable_to_non_nullable
 as List<String>,maxConcurrentTasks: null == maxConcurrentTasks ? _self.maxConcurrentTasks : maxConcurrentTasks // ignore: cast_nullable_to_non_nullable
@@ -221,7 +227,7 @@ return $default(_that.projectId,_that.allowedVerificationCommands,_that.maxConcu
 @JsonSerializable()
 
 class _ProjectFarmPolicy extends ProjectFarmPolicy {
-  const _ProjectFarmPolicy({required this.projectId, final  List<String> allowedVerificationCommands = const <String>[], this.maxConcurrentTasks = 1, required this.updatedAt, final  List<String> unattendedCommands = const <String>[], this.autoRunEnabled = false, this.dailyRunLimit = 1}): _allowedVerificationCommands = allowedVerificationCommands,_unattendedCommands = unattendedCommands,super._();
+  const _ProjectFarmPolicy({required this.projectId,  List<String> allowedVerificationCommands = const <String>[], this.maxConcurrentTasks = 1, required this.updatedAt,  List<String> unattendedCommands = const <String>[], this.autoRunEnabled = false, this.dailyRunLimit = 1}): _allowedVerificationCommands = allowedVerificationCommands,_unattendedCommands = unattendedCommands,super._();
   factory _ProjectFarmPolicy.fromJson(Map<String, dynamic> json) => _$ProjectFarmPolicyFromJson(json);
 
 @override final  String projectId;
@@ -266,16 +272,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProjectFarmPolicy&&(identical(other.projectId, projectId) || other.projectId == projectId)&&const DeepCollectionEquality().equals(other._allowedVerificationCommands, _allowedVerificationCommands)&&(identical(other.maxConcurrentTasks, maxConcurrentTasks) || other.maxConcurrentTasks == maxConcurrentTasks)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other._unattendedCommands, _unattendedCommands)&&(identical(other.autoRunEnabled, autoRunEnabled) || other.autoRunEnabled == autoRunEnabled)&&(identical(other.dailyRunLimit, dailyRunLimit) || other.dailyRunLimit == dailyRunLimit));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProjectFarmPolicy&&(identical(other.projectId, projectId) || other.projectId == projectId)&&const DeepCollectionEquality().equals(other.allowedVerificationCommands, _allowedVerificationCommands)&&(identical(other.maxConcurrentTasks, maxConcurrentTasks) || other.maxConcurrentTasks == maxConcurrentTasks)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.unattendedCommands, _unattendedCommands)&&(identical(other.autoRunEnabled, autoRunEnabled) || other.autoRunEnabled == autoRunEnabled)&&(identical(other.dailyRunLimit, dailyRunLimit) || other.dailyRunLimit == dailyRunLimit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,projectId,const DeepCollectionEquality().hash(_allowedVerificationCommands),maxConcurrentTasks,updatedAt,const DeepCollectionEquality().hash(_unattendedCommands),autoRunEnabled,dailyRunLimit);
+int get hashCode {
+    return Object.hash(runtimeType,projectId,const DeepCollectionEquality().hash(_allowedVerificationCommands),maxConcurrentTasks,updatedAt,const DeepCollectionEquality().hash(_unattendedCommands),autoRunEnabled,dailyRunLimit);
+}
 
 @override
 String toString() {
-  return 'ProjectFarmPolicy(projectId: $projectId, allowedVerificationCommands: $allowedVerificationCommands, maxConcurrentTasks: $maxConcurrentTasks, updatedAt: $updatedAt, unattendedCommands: $unattendedCommands, autoRunEnabled: $autoRunEnabled, dailyRunLimit: $dailyRunLimit)';
+    return 'ProjectFarmPolicy(projectId: $projectId, allowedVerificationCommands: $allowedVerificationCommands, maxConcurrentTasks: $maxConcurrentTasks, updatedAt: $updatedAt, unattendedCommands: $unattendedCommands, autoRunEnabled: $autoRunEnabled, dailyRunLimit: $dailyRunLimit)';
 }
 
 
