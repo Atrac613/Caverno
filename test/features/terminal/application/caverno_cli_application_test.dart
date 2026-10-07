@@ -113,6 +113,60 @@ void main() {
     expect(output.stderr.toString(), isNot(contains('Approve once?')));
   });
 
+  test(
+    'a farm run ends on its session terminal event, not a turn one',
+    () async {
+      final runtime = _FakeRuntime((runtime, invocation, prompt) async {
+        expect(prompt, isEmpty, reason: 'a farm run reads no prompt');
+        runtime.emit(_started(sequence: 1));
+        runtime.emit(
+          CavernoRuntimeRunCompleted(
+            sequence: 2,
+            timestamp: DateTime.utc(2026),
+            turnId: 'turn-1',
+            content: 'Implemented.',
+          ),
+        );
+        runtime.emit(
+          CavernoRuntimeProjectTaskDecision(
+            sequence: 3,
+            timestamp: DateTime.utc(2026),
+            turnId: cavernoCliFarmSessionTurnId,
+            decision: const {
+              'phase': 'workflow',
+              'decision': 'stopped',
+              'gapCodes': ['review_incomplete'],
+            },
+          ),
+        );
+        runtime.emit(
+          CavernoRuntimeRunFailed(
+            sequence: 4,
+            timestamp: DateTime.utc(2026),
+            turnId: cavernoCliFarmSessionTurnId,
+            code: 'workflow_stopped',
+            message: 'Roadmap task CLI5 did not complete.',
+            exitCode: CavernoCliExitCode.blocked,
+          ),
+        );
+      });
+      final output = _RecordingTerminal();
+      final application = CavernoCliApplication(
+        input: _FakeInput(isTerminal: false),
+        output: output,
+        runtime: runtime,
+      );
+
+      final exitCode = await application.run(
+        CavernoCliInvocation.parse(const ['farm', '--project', '/repo']),
+      );
+
+      expect(exitCode, CavernoCliExitCode.blocked);
+      expect(output.stderr.toString(), contains('[farm] workflow stopped'));
+      expect(output.stderr.toString(), contains('gaps=review_incomplete'));
+    },
+  );
+
   test('maps cancellation to exit code 130', () async {
     final cancellation = StreamController<void>();
     final runtime = _FakeRuntime((runtime, invocation, prompt) async {

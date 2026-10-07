@@ -372,6 +372,22 @@ $common''',
     };
   }
   if (command != null) {
+    if (command == CavernoCliCommand.farm) {
+      return '''Usage: caverno farm --project <path> [--item <id>] [options]
+
+Runs one roadmap task through decompose, implement, review and commit.
+
+Options:
+  --item <id>           Work on this roadmap item (default: the recommended one)
+  --json                Emit caverno_cli_event JSON Lines
+
+Configuration options:
+  --base-url <url>      Override CAVERNO_LLM_BASE_URL
+  --model <name>        Override CAVERNO_LLM_MODEL
+  --api-key <value>     Override CAVERNO_LLM_API_KEY
+  --data-dir <path>     Override CAVERNO_HOME
+''';
+    }
     final project = command == CavernoCliCommand.chat
         ? ''
         : ' --project <path>';
@@ -382,6 +398,7 @@ $common''',
   caverno chat [input options] [prompt]
   caverno coding --project <path> [input options] [prompt]
   caverno plan --project <path> [input options] [prompt]
+  caverno farm --project <path> [--item <id>] [--json]
   caverno conversations list [--limit <count>] [--json]
   caverno conversations show <conversation-id> [--json]
   caverno conversations resume <conversation-id> [input options] [prompt]

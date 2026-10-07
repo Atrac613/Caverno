@@ -17,6 +17,7 @@ final class CavernoCliInvocation {
     this.apiKey,
     this.dataDirectory,
     this.outputPath,
+    this.roadmapItemId,
   });
 
   final CavernoCliInvocationAction action;
@@ -35,6 +36,9 @@ final class CavernoCliInvocation {
   final String? dataDirectory;
   final String? outputPath;
 
+  /// The roadmap item a `farm` run works on; null selects the recommended one.
+  final String? roadmapItemId;
+
   bool get isJson => outputMode == CavernoCliOutputMode.json;
 
   static bool looksLikeCliInvocation(List<String> arguments) {
@@ -49,6 +53,7 @@ final class CavernoCliInvocation {
           'chat',
           'coding',
           'plan',
+          'farm',
           'conversations',
           'doctor',
           'catalogue',
@@ -64,7 +69,7 @@ final class CavernoCliInvocation {
       throw const CavernoCliFailure(
         code: 'command_required',
         message:
-            'A command is required. Use chat, coding, plan, conversations, doctor, or catalogue.',
+            'A command is required. Use chat, coding, plan, farm, conversations, doctor, or catalogue.',
         exitCode: CavernoCliExitCode.usage,
       );
     }
@@ -97,6 +102,7 @@ final class CavernoCliInvocation {
       'chat' => CavernoCliCommand.chat,
       'coding' => CavernoCliCommand.coding,
       'plan' => CavernoCliCommand.plan,
+      'farm' => CavernoCliCommand.farm,
       final value => throw CavernoCliFailure(
         code: 'unknown_command',
         message: 'Unknown command: $value',
@@ -112,6 +118,7 @@ final class CavernoCliInvocation {
     String? model;
     String? apiKey;
     String? dataDirectory;
+    String? roadmapItemId;
     var help = false;
     var optionsEnded = false;
     final positional = <String>[];
@@ -155,6 +162,8 @@ final class CavernoCliInvocation {
           apiKey = _optionValue(arguments, parsed, index: index);
         case '--data-dir':
           dataDirectory = _optionValue(arguments, parsed, index: index);
+        case '--item' when command == CavernoCliCommand.farm:
+          roadmapItemId = _optionValue(arguments, parsed, index: index);
         default:
           throw CavernoCliFailure(
             code: 'unknown_flag',
@@ -190,10 +199,28 @@ final class CavernoCliInvocation {
       );
     }
 
+    // A farm run takes its work from the roadmap, never from a prompt.
+    if (command == CavernoCliCommand.farm && explicitSourceCount > 0) {
+      throw const CavernoCliFailure(
+        code: 'prompt_not_supported',
+        message:
+            'The farm command takes no prompt; select work with --item <id>.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
+    if (command == CavernoCliCommand.farm &&
+        roadmapItemId != null &&
+        roadmapItemId.trim().isEmpty) {
+      throw const CavernoCliFailure(
+        code: 'item_required',
+        message: '--item needs a roadmap item id.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
     if (command == CavernoCliCommand.chat && projectPath != null) {
       throw const CavernoCliFailure(
         code: 'project_not_supported',
-        message: '--project is only valid for coding and plan commands.',
+        message: '--project is only valid for coding, plan and farm commands.',
         exitCode: CavernoCliExitCode.usage,
       );
     }
@@ -217,6 +244,7 @@ final class CavernoCliInvocation {
       model: model,
       apiKey: apiKey,
       dataDirectory: dataDirectory,
+      roadmapItemId: roadmapItemId?.trim(),
     );
   }
 

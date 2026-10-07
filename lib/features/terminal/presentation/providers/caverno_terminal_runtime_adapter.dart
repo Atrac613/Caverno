@@ -17,6 +17,7 @@ import '../../application/caverno_cli_contract.dart';
 import '../../application/caverno_cli_runtime_configuration.dart';
 import '../../application/caverno_cli_runtime_port.dart';
 import '../../application/caverno_cli_tool_policy.dart';
+import 'caverno_terminal_farm_run.dart';
 
 final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
   CavernoTerminalRuntimeAdapter({
@@ -28,6 +29,8 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
   final Map<String, String> environment;
   CavernoExecutionRuntime? _resolvedRuntime;
   ChatNotifier? _resolvedChatNotifier;
+  String? _farmProjectId;
+  CavernoTerminalFarmRun? _farmRun;
 
   CavernoExecutionRuntime get _runtime {
     final resolved = _resolvedRuntime;
@@ -95,7 +98,8 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     final assistantMode = resumedConversation == null
         ? switch (command!) {
             CavernoCliCommand.chat => AssistantMode.general,
-            CavernoCliCommand.coding => AssistantMode.coding,
+            CavernoCliCommand.coding ||
+            CavernoCliCommand.farm => AssistantMode.coding,
             CavernoCliCommand.plan => AssistantMode.plan,
           }
         : _assistantModeForConversation(resumedConversation);
@@ -125,6 +129,10 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
       workspaceMode: WorkspaceMode.coding,
       projectId: project.id,
     );
+    if (command == CavernoCliCommand.farm) {
+      _farmProjectId = project.id;
+      return;
+    }
     if (command == CavernoCliCommand.plan) {
       await conversations.enterPlanningSession();
     } else {
@@ -254,6 +262,20 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     required CavernoCliInvocation invocation,
     required String prompt,
   }) {
+    final farmProjectId = _farmProjectId;
+    if (farmProjectId != null) {
+      // Bind the notifier before the task thread is selected, so it follows
+      // the selection the way it follows the drawer in the GUI.
+      _chatNotifier;
+      final run = _farmRun = CavernoTerminalFarmRun(
+        container: container,
+        runtime: _runtime,
+      );
+      return run.run(
+        projectId: farmProjectId,
+        roadmapItemId: invocation.roadmapItemId,
+      );
+    }
     return _chatNotifier.sendMessage(prompt, languageCode: 'en');
   }
 
@@ -318,6 +340,8 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
       message: message,
       exitCode: exitCode,
     );
+    // A farm run outlives its turns; end the workflow itself too.
+    _farmRun?.stop(code: code, message: message, exitCode: exitCode);
   }
 
   @override

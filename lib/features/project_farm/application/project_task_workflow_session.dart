@@ -81,11 +81,13 @@ final class ProjectTaskWorkflowSession {
   /// Runs the workflow for [conversationId]. [isActive] reports whether the
   /// frontend that started the run is still present; the workflow pauses its
   /// turns while the thread is not selected in an active frontend.
+  /// [onDecision] receives each workflow decision as it is logged.
   Future<ProjectTaskWorkflowOutcome> run({
     required ProjectTaskProviderRead read,
     required String conversationId,
     required String languageCode,
     required bool Function() isActive,
+    void Function(Map<String, Object?> decision)? onDecision,
   }) async {
     final conversation = read(
       conversationsNotifierProvider,
@@ -225,6 +227,18 @@ final class ProjectTaskWorkflowSession {
         projectRoot: projectRoot,
         readCommitSnapshot: const ProjectTaskCommitReader().read,
         onDecision: (decision) {
+          final state = read(chatNotifierProvider);
+          final observed = <String, Object?>{
+            ...decision,
+            'selected': selected(),
+            'busy': notifier.isConversationBusy(conversationId),
+            'awaitingApproval': notifier.isConversationAwaitingApproval(
+              conversationId,
+            ),
+            'pendingQuestion':
+                state.pendingAskUserQuestion?.conversationId == conversationId,
+          };
+          onDecision?.call(observed);
           final settings = read(settingsNotifierProvider);
           if (!LlmSessionLogStore.isEnabled(
                 settingsEnabled: settings.enableLlmSessionLogs,
@@ -233,7 +247,6 @@ final class ProjectTaskWorkflowSession {
             return;
           }
           final owner = readTask();
-          final state = read(chatNotifierProvider);
           unawaited(
             read(llmSessionLogStoreProvider).recordProjectTaskDecision(
               context: LlmSessionLogContext(
@@ -242,17 +255,7 @@ final class ProjectTaskWorkflowSession {
                 conversationId: conversationId,
                 phase: 'project_task_workflow',
               ),
-              decision: {
-                ...decision,
-                'selected': selected(),
-                'busy': notifier.isConversationBusy(conversationId),
-                'awaitingApproval': notifier.isConversationAwaitingApproval(
-                  conversationId,
-                ),
-                'pendingQuestion':
-                    state.pendingAskUserQuestion?.conversationId ==
-                    conversationId,
-              },
+              decision: observed,
               at: DateTime.now(),
             ),
           );
