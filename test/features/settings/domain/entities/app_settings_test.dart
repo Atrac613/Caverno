@@ -250,6 +250,38 @@ void main() {
     );
   });
 
+  test('code review needs a registered enabled endpoint and model', () {
+    final defaults = AppSettings.defaults();
+    expect(defaults.hasCodeReviewRoute, isFalse);
+
+    final configured = defaults.copyWith(
+      codeReviewEndpointId: 'review-host',
+      llmEndpoints: const [
+        LlmEndpoint(
+          id: 'review-host',
+          baseUrl: 'http://review.example/v1',
+          model: 'review-model',
+        ),
+      ],
+    );
+    expect(configured.hasCodeReviewRoute, isTrue);
+    expect(configured.effectiveCodeReviewModel, 'review-model');
+    expect(
+      configured.copyWith(codeReviewEndpointId: 'missing').hasCodeReviewRoute,
+      isFalse,
+    );
+    expect(
+      configured
+          .copyWith(
+            llmEndpoints: [
+              configured.llmEndpoints.single.copyWith(enabled: false),
+            ],
+          )
+          .hasCodeReviewRoute,
+      isFalse,
+    );
+  });
+
   test(
     'legacy Pro endpoint pins default candidate routing to selected only',
     () {
@@ -834,8 +866,7 @@ void main() {
     expect(decoded.chatApprovalMode, ToolApprovalMode.defaultPermissions);
   });
 
-  test('defaults LLM session logs to the build mode and persists opt out',
-      () {
+  test('defaults LLM session logs to the build mode and persists opt out', () {
     expect(AppSettings.defaults().enableLlmSessionLogs, kDebugMode);
 
     final settings = AppSettings.defaults().copyWith(
@@ -1290,11 +1321,13 @@ void main() {
       mcpEnabled: true,
     );
 
-    AppSettings withEndpoints(List<LlmEndpoint> endpoints, {String? activeId}) =>
-        base.copyWith(
-          llmEndpoints: endpoints,
-          activeLlmEndpointId: activeId ?? endpoints.first.id,
-        );
+    AppSettings withEndpoints(
+      List<LlmEndpoint> endpoints, {
+      String? activeId,
+    }) => base.copyWith(
+      llmEndpoints: endpoints,
+      activeLlmEndpointId: activeId ?? endpoints.first.id,
+    );
 
     test('reads the flag off the endpoint serving that base URL', () {
       final settings = withEndpoints([
@@ -1357,8 +1390,10 @@ void main() {
       // Sending the field to a server that has never heard of it is the
       // outcome worth avoiding, so the opt-in is never implicit.
       expect(
-        const LlmEndpoint(id: 'x', baseUrl: 'https://api.example.com/v1')
-            .chatTemplateKwargsEnabled,
+        const LlmEndpoint(
+          id: 'x',
+          baseUrl: 'https://api.example.com/v1',
+        ).chatTemplateKwargsEnabled,
         isFalse,
       );
     });
@@ -1421,13 +1456,15 @@ void main() {
       }).withNormalizedLlmEndpoints();
 
       expect(
-        seeded('qwen3.8-27b-vision').llmEndpoints.single
-            .chatTemplateKwargsEnabled,
+        seeded(
+          'qwen3.8-27b-vision',
+        ).llmEndpoints.single.chatTemplateKwargsEnabled,
         isTrue,
       );
       expect(
-        seeded('some-unrecognised-model').llmEndpoints.single
-            .chatTemplateKwargsEnabled,
+        seeded(
+          'some-unrecognised-model',
+        ).llmEndpoints.single.chatTemplateKwargsEnabled,
         isFalse,
       );
     });

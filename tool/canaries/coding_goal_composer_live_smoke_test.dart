@@ -208,6 +208,7 @@ class _LiveSmokeChatNotifier extends ChatNotifier {
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
+    PrimaryTurnPurpose purpose = PrimaryTurnPurpose.conversation,
     ChatInteractionOrigin origin = ChatInteractionOrigin.local,
     String? remoteDeviceId,
     bool interrupt = false,

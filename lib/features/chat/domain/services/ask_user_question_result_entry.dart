@@ -1,4 +1,5 @@
 import '../entities/mcp_tool_entity.dart';
+import 'ask_user_question_text_normalization.dart';
 
 /// One recorded answer together with the options it was offered alongside.
 ///
@@ -11,20 +12,16 @@ final class CachedAskUserQuestionResult {
     required String question,
     required Iterable<String> optionLabels,
     required this.result,
+    Iterable<String> selectedLabels = const [],
   }) : normalizedQuestion = normalizeAskUserQuestionText(question),
-       optionLabels = normalizeAskUserQuestionOptionLabels(optionLabels);
+       optionLabels = normalizeAskUserQuestionOptionLabels(optionLabels),
+       selectedLabels = normalizeAskUserQuestionOptionLabels(selectedLabels);
 
   final String normalizedQuestion;
   final Set<String> optionLabels;
+
+  /// The options the answer picked, empty for a cancellation or free text.
+  /// Read by `AskUserQuestionReusePolicy`, which explains why reuse needs it.
+  final Set<String> selectedLabels;
   final McpToolResult result;
-}
-
-Set<String> normalizeAskUserQuestionOptionLabels(Iterable<String> labels) {
-  return Set<String>.unmodifiable(
-    labels.map(normalizeAskUserQuestionText).where((label) => label.isNotEmpty),
-  );
-}
-
-String normalizeAskUserQuestionText(String value) {
-  return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 }

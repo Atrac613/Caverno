@@ -46,6 +46,8 @@ void main() {
       expect(commands[6].argumentHint, '<question>');
       expect(commands[6].requiresArguments, isTrue);
       expect(commands[10].aliases, ['worktree', 'worktree-agent']);
+      expect(commands[11].name, 'review');
+      expect(commands[11].requiresArguments, isFalse);
       expect(
         commands[10].argumentHint,
         '<task> [--accept <criterion>] [--run] [--verify <cmd>]',

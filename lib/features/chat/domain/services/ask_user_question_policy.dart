@@ -226,9 +226,7 @@ final class AskUserQuestionPolicy {
       question: question,
       optionLabels: optionLabels,
     );
-    if (existingResult != null) {
-      return buildRepeatedResult(existingResult);
-    }
+    if (existingResult != null) return buildRepeatedResult(existingResult);
 
     final allowOther = input.arguments['allow_other'] as bool? ?? true;
     if (options.isEmpty && !allowOther) {
@@ -274,6 +272,8 @@ final class AskUserQuestionPolicy {
       question: question,
       optionLabels: optionLabels,
       result: result,
+      selectedLabels:
+          answer?.selectedOptions.map((option) => option.label) ?? const [],
     );
     return result;
   }

@@ -320,6 +320,30 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          _RoutingSection(
+            icon: Icons.rate_review_outlined,
+            title: 'settings.model_routing_section_review'.tr(),
+            description: 'settings.model_routing_section_review_desc'.tr(),
+            children: [
+              _RoleRoute(
+                modelFieldKey: const ValueKey('model-routing-code-review'),
+                endpointFieldKey: const ValueKey(
+                  'endpoint-routing-code-review',
+                ),
+                title: 'settings.model_routing_code_review'.tr(),
+                description: 'settings.model_routing_code_review_desc'.tr(),
+                model: settings.codeReviewModel,
+                effectiveDefaultModel: settings.effectiveCodeReviewModel,
+                asyncModels: modelsFor(settings.codeReviewEndpointId),
+                endpointId: settings.codeReviewEndpointId,
+                endpoints: settings.enabledLlmEndpoints,
+                enabled: !isAppleProvider,
+                onModelChanged: notifier.updateCodeReviewModel,
+                onEndpointChanged: notifier.updateCodeReviewEndpointId,
+              ),
+            ],
+          ),
         ],
       ),
     );

@@ -5,7 +5,12 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue.dart';
 import 'coding_command_preflight_issue_detector.dart';
+import 'command_output_signal_detector.dart';
+import 'exit_status_mask.dart';
+import 'masked_inspection_command_policy.dart';
+import 'shell_exit_status_report.dart';
 import 'tool_outcome_shadow_comparison.dart';
+import 'verification_metadata_query_policy.dart';
 
 export 'coding_command_output_issue.dart' show CodingCommandOutputIssue;
 
@@ -17,37 +22,6 @@ class CodingCommandOutputIssueDetector {
   }) : _preflightDetector = preflightDetector;
 
   final CodingCommandPreflightIssueDetector _preflightDetector;
-
-  static final RegExp _markdownErrorHeadingPattern = RegExp(
-    r'^\s*#{1,6}\s+error\b',
-    caseSensitive: false,
-  );
-  static final RegExp _tracebackPattern = RegExp(
-    r'traceback\s+\(most recent call last\)',
-    caseSensitive: false,
-  );
-  static final RegExp _runtimeFailurePattern = RegExp(
-    r'\b(?:uncaught exception|unhandled exception|fatal exception|assertionerror:)\b',
-    caseSensitive: false,
-  );
-  static final String _cjkErrorLabel = String.fromCharCodes([
-    0x30a8,
-    0x30e9,
-    0x30fc,
-  ]);
-  static final String _cjkDataMissing = String.fromCharCodes([
-    0x30c7,
-    0x30fc,
-    0x30bf,
-    0x304c,
-    0x898b,
-    0x3064,
-    0x304b,
-    0x308a,
-    0x307e,
-    0x305b,
-    0x3093,
-  ]);
 
   CodingCommandOutputIssue? detect(ToolResultInfo toolResult) {
     final decoded = _tryDecodeMap(toolResult.result);
@@ -62,6 +36,7 @@ class CodingCommandOutputIssueDetector {
         toolResult.arguments['working_directory'],
       ),
       structuredExitCode: toolResult.outcome?.exitCode,
+      structuredProcessState: toolResult.outcome?.processState,
     );
   }
 
@@ -71,8 +46,18 @@ class CodingCommandOutputIssueDetector {
     String? fallbackCommand,
     String? fallbackWorkingDirectory,
     int? structuredExitCode,
+    ToolProcessState? structuredProcessState,
   }) {
     if (!_isCommandTool(toolName)) {
+      return null;
+    }
+    if (const {
+          'process_status',
+          'process_wait',
+        }.contains(toolName.trim().toLowerCase()) &&
+        (structuredProcessState != null
+            ? structuredProcessState != ToolProcessState.exited
+            : decoded['status'] != 'exited')) {
       return null;
     }
     final exitCodeResolution = resolveToolOutcomeExitCode(
@@ -91,16 +76,19 @@ class CodingCommandOutputIssueDetector {
         _normalizeText(decoded['working_directory']) ??
         fallbackWorkingDirectory ??
         '';
+    if (VerificationMetadataQueryPolicy.applies(command)) return null;
     final preflightIssue =
         _preflightDetector.detect(
           toolName: toolName,
           command: command,
           workingDirectory: workingDirectory,
         ) ??
-        _preflightDetector.detectMaskedExitStatusIssue(
-          command: command,
-          workingDirectory: workingDirectory,
-        );
+        (MaskedInspectionCommandPolicy.applies(command)
+            ? null
+            : _preflightDetector.detectMaskedExitStatusIssue(
+                command: command,
+                workingDirectory: workingDirectory,
+              ));
     if (preflightIssue != null) {
       return CodingCommandOutputIssue(
         toolName: toolName,
@@ -113,15 +101,45 @@ class CodingCommandOutputIssueDetector {
         excerpt: preflightIssue.segment,
       );
     }
+    final report = ShellExitStatusReport.parse(command);
+    if (report != null) {
+      final output =
+          (decoded['stdout'] ?? decoded['stdout_tail'])?.toString() ?? '';
+      final reportedExitCode = report.exitCode(output);
+      if (reportedExitCode != 0) {
+        return CodingCommandOutputIssue(
+          toolName: toolName,
+          command: command,
+          workingDirectory: workingDirectory,
+          exitCode: exitCode!,
+          exitCodeSource: exitCodeResolution.source,
+          source: 'stdout',
+          summary: reportedExitCode == null
+              ? 'The command exit status report is unavailable; the shell exit '
+                    'status belongs to echo.'
+              : 'Output reports a failing command exit status ($reportedExitCode).',
+          excerpt: _excerpt(
+            output,
+            (output.length - 600).clamp(0, output.length).toInt(),
+          ),
+        );
+      }
+    }
     for (final entry in const {
       'stdout': 'stdout',
+      'stdout_tail': 'stdout',
       'stderr': 'stderr',
+      'stderr_tail': 'stderr',
     }.entries) {
       final output = _normalizeText(decoded[entry.key]);
       if (output == null) {
         continue;
       }
-      final signal = _detectOutputSignal(output);
+      final signal = const CommandOutputSignalDetector().detect(
+        output,
+        runtimeSignals:
+            report == null && const ExitStatusMask().mayHide(command),
+      );
       if (signal == null) {
         continue;
       }
@@ -154,7 +172,14 @@ class CodingCommandOutputIssueDetector {
     return jsonEncode({
       'provider': decoded?['provider'],
       'validation_status': decoded?['validation_status'],
-      'issues': issues,
+      // Invocation provenance must not change the repeated-failure signature.
+      'issues': [
+        for (final issue in issues)
+          if (issue is Map)
+            Map<String, dynamic>.from(issue)..remove('tool_call_id')
+          else
+            issue,
+      ],
     });
   }
 
@@ -170,71 +195,23 @@ class CodingCommandOutputIssueDetector {
         null;
   }
 
-  _OutputSignal? _detectOutputSignal(String output) {
-    final lines = output.split(RegExp(r'\r?\n'));
-    var offset = 0;
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.isNotEmpty) {
-        if (_markdownErrorHeadingPattern.hasMatch(trimmed) ||
-            _isCjkErrorHeading(trimmed)) {
-          return _OutputSignal(
-            summary: 'Output contains a Markdown error heading.',
-            startIndex: offset,
-          );
-        }
-
-        final normalized = trimmed.toLowerCase();
-        if (normalized.contains('no data found') ||
-            normalized.contains('data not found') ||
-            normalized.contains('could not find data') ||
-            normalized.contains('required data was not found') ||
-            trimmed.contains(_cjkDataMissing)) {
-          return _OutputSignal(
-            summary: 'Output reports that required data was not found.',
-            startIndex: offset,
-          );
-        }
-        if (_tracebackPattern.hasMatch(trimmed) ||
-            _runtimeFailurePattern.hasMatch(trimmed)) {
-          return _OutputSignal(
-            summary: 'Output contains a runtime failure signal.',
-            startIndex: offset,
-          );
-        }
-      }
-      offset += line.length + 1;
-    }
-    return null;
-  }
-
-  bool _isCjkErrorHeading(String line) {
-    final withoutHashes = line.replaceFirst(RegExp(r'^\s*#{1,6}\s*'), '');
-    return withoutHashes.trim() == _cjkErrorLabel;
-  }
-
   bool _isCommandTool(String toolName) {
     return switch (toolName.trim().toLowerCase()) {
       'local_execute_command' ||
       'run_tests' ||
       'git_execute_command' ||
       'ssh_execute_command' => true,
+      'process_status' || 'process_wait' => true,
       _ => false,
     };
   }
 
-  int? _parseExitCode(dynamic value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    if (value is String) {
-      return int.tryParse(value.trim());
-    }
-    return null;
-  }
+  int? _parseExitCode(dynamic value) => switch (value) {
+    int() => value,
+    num() => value.toInt(),
+    String() => int.tryParse(value.trim()),
+    _ => null,
+  };
 
   Map<String, dynamic>? _tryDecodeMap(String value) {
     try {
@@ -261,11 +238,4 @@ class CodingCommandOutputIssueDetector {
     }
     return '${excerpt.substring(0, 597).trimRight()}...';
   }
-}
-
-class _OutputSignal {
-  const _OutputSignal({required this.summary, required this.startIndex});
-
-  final String summary;
-  final int startIndex;
 }

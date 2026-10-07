@@ -919,13 +919,23 @@ void main() {
   });
 
   test('Sparkle release driver supports safe dry runs', () async {
-    final result = await Process.run('bash', [
-      'tool/build_macos_sparkle_release.sh',
-      '--skip-preflight',
-      '--skip-notarization',
-      '--skip-publish',
-      '--dry-run',
-    ]);
+    final result = await Process.run(
+      'bash',
+      [
+        'tool/build_macos_sparkle_release.sh',
+        '--skip-preflight',
+        '--skip-notarization',
+        '--skip-publish',
+        '--dry-run',
+      ],
+      // CI has no gitignored firebase/dart_defines.json. A dry run must still
+      // print the release plan when that file is absent.
+      environment: {
+        ...Platform.environment,
+        'CAVERNO_DART_DEFINES_FILE':
+            '${Directory.systemTemp.path}/caverno-absent-dart-defines.json',
+      },
+    );
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
     final stdout = '${result.stdout}';
@@ -940,9 +950,15 @@ void main() {
   });
 
   test('Sparkle staging rehearsal uses staging S3 dry run', () async {
-    final result = await Process.run('bash', [
-      'tool/run_macos_sparkle_staging_rehearsal.sh',
-    ]);
+    final result = await Process.run(
+      'bash',
+      ['tool/run_macos_sparkle_staging_rehearsal.sh'],
+      environment: {
+        ...Platform.environment,
+        'CAVERNO_DART_DEFINES_FILE':
+            '${Directory.systemTemp.path}/caverno-absent-dart-defines.json',
+      },
+    );
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
     final stdout = '${result.stdout}';

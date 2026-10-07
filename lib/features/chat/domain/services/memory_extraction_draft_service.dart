@@ -1,9 +1,14 @@
+import 'dart:convert';
+
 import '../entities/message.dart';
 import '../entities/session_memory.dart';
 import '../entities/tool_call_info.dart';
 import 'memory_extraction_json_parser.dart';
+import 'project_task_review_verdict.dart';
+import 'project_task_terminal_status.dart';
 import 'session_memory_service.dart';
 import 'tool_result_prompt_builder.dart';
+import 'unexecuted_command_claim_reconciliation.dart';
 
 class MemoryExtractionDraftService {
   MemoryExtractionDraftService._();
@@ -157,6 +162,9 @@ class MemoryExtractionDraftService {
     UserMemoryProfile profile, {
     List<ToolResultInfo> toolResults = const [],
   }) {
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final buffer = StringBuffer()
       ..writeln('Current profile:')
       ..writeln('- persona: ${profile.persona.join(' | ')}')
@@ -164,6 +172,28 @@ class MemoryExtractionDraftService {
       ..writeln('- do_not: ${profile.doNot.join(' | ')}')
       ..writeln()
       ..writeln('Conversation log:');
+
+    final taskStatus = ProjectTaskTerminalStatus.fromToolResults(toolResults);
+    final review = ProjectTaskReviewVerdict.fromToolResults(toolResults);
+    if (review != null) {
+      final verdict = jsonDecode(review.toMemoryToolResult('snapshot').result);
+      buffer
+        ..writeln('Recorded project review status: ${jsonEncode(verdict)}')
+        ..writeln(
+          'Use this harness verdict for review status and open loops. '
+          'A clean review does not establish a completed commit.',
+        );
+    }
+    if (taskStatus != null) {
+      buffer
+        ..writeln(
+          'Recorded project task status: ${jsonEncode(taskStatus.toJson())}',
+        )
+        ..writeln(
+          'Use this harness verdict for task completion and open loops. '
+          'Assistant prose does not supersede it.',
+        );
+    }
 
     final tail = messages.length > 12
         ? messages.sublist(messages.length - 12)
@@ -298,9 +328,58 @@ class MemoryExtractionDraftService {
   static MemoryExtractionDraft? parseDraft(
     String rawContent, {
     String? inputContext,
+    ProjectTaskTerminalStatus? projectTaskStatus,
+    ProjectTaskReviewVerdict? projectReviewStatus,
     void Function(String message)? onRepair,
     void Function(Object error)? onError,
   }) {
+    MemoryExtractionDraft? guard(MemoryExtractionDraft? draft) {
+      final guarded = _applyInputContextGuards(
+        draft,
+        inputContext: inputContext,
+      );
+      if (projectReviewStatus != null) {
+        return MemoryExtractionDraft(
+          summary: projectReviewStatus.memorySummary,
+          openLoops: [projectReviewStatus.memoryNextStep],
+          persona: guarded?.persona ?? const [],
+          preferences: guarded?.preferences ?? const [],
+          doNot: guarded?.doNot ?? const [],
+          entries: (guarded?.entries ?? const <MemoryDraftEntry>[])
+              .where(
+                (entry) => const {
+                  'persona',
+                  'preference',
+                  'constraint',
+                }.contains(entry.type),
+              )
+              .toList(growable: false),
+        );
+      }
+      if (projectTaskStatus == null || !projectTaskStatus.requiresMemoryGuard) {
+        return guarded;
+      }
+      // A draft has no typed relationship between its facts and task claims.
+      // Keep profile updates; a subtask verdict also cannot certify claims
+      // about completion of other subtasks or the overall task.
+      return MemoryExtractionDraft(
+        summary: projectTaskStatus.memorySummary,
+        openLoops: [projectTaskStatus.memoryNextStep],
+        persona: guarded?.persona ?? const [],
+        preferences: guarded?.preferences ?? const [],
+        doNot: guarded?.doNot ?? const [],
+        entries: (guarded?.entries ?? const <MemoryDraftEntry>[])
+            .where(
+              (entry) => const {
+                'persona',
+                'preference',
+                'constraint',
+              }.contains(entry.type),
+            )
+            .toList(growable: false),
+      );
+    }
+
     final parseResult = MemoryExtractionJsonParser.parse(rawContent);
     if (parseResult == null) {
       final draft = _parseStructuredReasoningDraft(rawContent);
@@ -309,7 +388,7 @@ class MemoryExtractionDraftService {
           'Recovered memory extraction from structured reasoning text',
         );
       }
-      return _applyInputContextGuards(draft, inputContext: inputContext);
+      return guard(draft);
     }
 
     try {
@@ -318,7 +397,7 @@ class MemoryExtractionDraftService {
         onRepair?.call('Repaired malformed memory extraction JSON');
       }
       if (!draft.isEmpty) {
-        return _applyInputContextGuards(draft, inputContext: inputContext);
+        return guard(draft);
       }
       final structuredDraft = _parseStructuredReasoningDraft(rawContent);
       if (structuredDraft != null) {
@@ -326,10 +405,7 @@ class MemoryExtractionDraftService {
           'Recovered memory extraction from structured reasoning text',
         );
       }
-      return _applyInputContextGuards(
-        structuredDraft,
-        inputContext: inputContext,
-      );
+      return guard(structuredDraft);
     } catch (error) {
       onError?.call(error);
       final draft = _parseStructuredReasoningDraft(rawContent);
@@ -338,7 +414,7 @@ class MemoryExtractionDraftService {
           'Recovered memory extraction from structured reasoning text',
         );
       }
-      return _applyInputContextGuards(draft, inputContext: inputContext);
+      return guard(draft);
     }
   }
 

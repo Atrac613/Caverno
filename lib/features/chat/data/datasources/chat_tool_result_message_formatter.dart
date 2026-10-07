@@ -9,6 +9,15 @@ final class ChatToolResultMessageFormatter {
   const ChatToolResultMessageFormatter();
 
   String formatContent(ToolResultInfo toolResult) {
+    final content = _formatResult(toolResult);
+    final changes = toolResult.changesSinceCapture;
+    if (changes.isEmpty) return content;
+    return 'Captured before these later changes in this turn: '
+        '${changes.join(', ')}. Anything they could have affected may be '
+        'out of date; the rest still holds.\n$content';
+  }
+
+  String _formatResult(ToolResultInfo toolResult) {
     final decoded = _tryDecodeJson(toolResult.result);
     if (decoded == null) return toolResult.result;
 

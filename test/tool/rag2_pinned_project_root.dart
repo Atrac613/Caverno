@@ -43,6 +43,7 @@ final class Rag2PinnedProjectRoot {
 
     // Clear registry entries left by a run that died before its teardown.
     await _git(repoRoot, const ['worktree', 'prune']);
+    await _ensurePinnedCommit(repoRoot);
 
     final added = await _git(repoRoot, [
       'worktree',
@@ -68,6 +69,34 @@ final class Rag2PinnedProjectRoot {
     await _git(repoRoot, const ['worktree', 'prune']);
     final parent = Directory(path).parent;
     if (parent.existsSync()) parent.deleteSync(recursive: true);
+  }
+
+  /// CI checks out with the default depth of 1, so the frozen corpus — hundreds
+  /// of commits behind the PR head — is an invalid reference until fetched.
+  static Future<void> _ensurePinnedCommit(String repoRoot) async {
+    if (await _commitPresent(repoRoot)) return;
+
+    final fetched = await _git(repoRoot, [
+      'fetch',
+      '--depth=1',
+      'origin',
+      rag2ExplicitSourceRootsPinnedCommit,
+    ]);
+    if (fetched.exitCode != 0 || !await _commitPresent(repoRoot)) {
+      throw StateError(
+        'Could not fetch the pinned RAG2 corpus at '
+        '$rag2ExplicitSourceRootsPinnedCommit: ${fetched.stderr}',
+      );
+    }
+  }
+
+  static Future<bool> _commitPresent(String repoRoot) async {
+    final present = await _git(repoRoot, [
+      'cat-file',
+      '-e',
+      '$rag2ExplicitSourceRootsPinnedCommit^{commit}',
+    ]);
+    return present.exitCode == 0;
   }
 
   static Future<ProcessResult> _git(String repoRoot, List<String> arguments) =>

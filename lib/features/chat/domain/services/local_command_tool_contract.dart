@@ -151,6 +151,15 @@ final class LocalCommandExecutionRequest {
   }
 }
 
+/// A refusal the executor would return whatever approval is given.
+///
+/// Evaluated before any approval is requested, so neither auto-review nor a
+/// person is asked about a command that can never run. In session 1afd70a6 a
+/// user approved an escalated prompt for `ls -la /Library/... 2>&1`, and the
+/// mutation fence then refused it anyway.
+typedef LocalCommandPreflight =
+    Future<McpToolResult?> Function(LocalCommandExecutionRequest request);
+
 abstract interface class LocalCommandExecutionPort {
   Future<LocalCommandCompletion<McpToolResult>> execute(
     ChatTurnOwner owner,
@@ -176,16 +185,14 @@ final class LocalCommandApprovalRequest {
   final String? warningTitle;
   final String? warningMessage;
 
-  /// Path tokens that triggered an outside-project check.
-  ///
-  /// Non-empty means a person has to decide: the shell may reach outside with
-  /// no path fence in front of it. The tokens are why the ask fired, not a
-  /// claim that those locations exist.
+  /// Outside-path hints; enforced containment determines their authority.
   final List<String> outOfRootPaths;
   final ToolApprovalGateDecision? requiredManualDecision;
   final String? requiredManualDecisionSource;
 
   bool get requiresFreshManualApproval => requiredManualDecision != null;
+  bool get workspaceCommandContained =>
+      execution.arguments['workspace_command_containment'] == true;
 }
 
 final class LocalCommandManualApproval {

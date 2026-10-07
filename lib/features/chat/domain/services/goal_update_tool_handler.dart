@@ -4,8 +4,9 @@ import '../entities/tool_call_info.dart';
 import 'goal_update_tool_contract.dart';
 import 'tool_result_prompt_builder.dart';
 
-// ChatNotifier decomposition collaborator: goal-update-tool-handler
 export 'goal_update_tool_contract.dart';
+
+// ChatNotifier decomposition collaborator: goal-update-tool-handler
 
 final class GoalUpdateToolHandler {
   const GoalUpdateToolHandler();
@@ -39,14 +40,13 @@ final class GoalUpdateToolHandler {
     final callTimeEvidence = ToolResultPromptBuilder.completionEvidence(
       ownerSnapshot.toolResults,
     ).carryForwardIncompleteFrom(ownerSnapshot.completionEvidence);
-    final immutableEvidence = freezeGoalUpdateCompletionEvidence(
-      callTimeEvidence,
-    );
+    final evidence = freezeGoalUpdateCompletionEvidence(callTimeEvidence);
     final ack = const GoalUpdateAckResolver().resolveCall(
       toolCall: request.toToolCallInfo(),
       goal: ownerSnapshot.goal,
-      evidence: immutableEvidence,
+      evidence: evidence,
       completionPolicy: ownerSnapshot.completionPolicy,
+      taskToolResults: ownerSnapshot.toolResults,
     );
     final acknowledgement = GoalUpdateCompletionAcknowledgement.fromRequest(
       request: request,
@@ -56,7 +56,7 @@ final class GoalUpdateToolHandler {
     return GoalUpdateToolHandlerOutcome(
       identity: request.identity,
       toolResult: ack.toToolResult(request.toolName),
-      completionEvidence: immutableEvidence,
+      completionEvidence: evidence,
       acknowledgement: acknowledgement,
       shadowOutcome: ack.isCompletionClaim ? ack.outcome : null,
     );

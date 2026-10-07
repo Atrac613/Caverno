@@ -5,9 +5,12 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
-import 'coding_command_output_guardrail_service.dart';
+import 'coding_command_output_issue_detector.dart';
+import 'command_verification_reconciliation.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'http_response_interpretation.dart';
+import 'unexecuted_command_claim_reconciliation.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
 
@@ -366,6 +369,28 @@ class ToolResultPromptBuilder {
     return deduped;
   }
 
+  /// Repeated whole-file reads can crowd the relevant lines out of the final
+  /// answer prompt. Keep the newest identical observation of each file.
+  static List<ToolResultInfo> dedupeReadFileResultsForAnswer(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final seen = <(String, String)>{};
+    final retained = <ToolResultInfo>[];
+    for (final toolResult in toolResults.reversed) {
+      if (toolResult.name == 'read_file') {
+        final payload = _tryDecodeJsonMap(toolResult.result);
+        final path = payload?['path'];
+        if (path is String &&
+            path.isNotEmpty &&
+            payload?['content'] is String) {
+          if (!seen.add((path, toolResult.result))) continue;
+        }
+      }
+      retained.add(toolResult);
+    }
+    return retained.reversed.toList(growable: false);
+  }
+
   static List<ToolResultInfo> budgetToolResults(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
@@ -405,18 +430,14 @@ class ToolResultPromptBuilder {
         keepImagePayload: keptImageIndexes.contains(index),
       );
       budgeted.add(
-        ToolResultInfo(
-          id: toolResult.id,
-          name: toolResult.name,
-          arguments: toolResult.arguments,
-          result: summaryFirst
+        // Budgeting shortens the payload text; it does not change what the
+        // tool reported about its own execution or where the result sits in
+        // the turn. Dropping the outcome here is what forced downstream
+        // consumers to parse an exit status back out of truncated text.
+        toolResult.withResult(
+          summaryFirst
               ? _renderSummaryFirst(toolResult, budgetedResult)
               : budgetedResult,
-          // Budgeting shortens the payload text; it does not change what the
-          // tool reported about its own execution. Dropping the outcome here
-          // is what forced downstream consumers to parse an exit status back
-          // out of a string that budgeting may since have truncated.
-          outcome: toolResult.outcome,
         ),
       );
     }
@@ -429,19 +450,28 @@ class ToolResultPromptBuilder {
       return budgeted;
     }
 
-    final perResultTarget = math.max(
-      1200,
-      (budget.maxTotalResultChars / budgeted.length).floor(),
-    );
-    return budgeted
-        .map(
-          (toolResult) => ToolResultInfo(
-            id: toolResult.id,
-            name: toolResult.name,
-            arguments: toolResult.arguments,
-            outcome: toolResult.outcome,
-            result: _truncateTextWithMiddle(
-              toolResult.result,
+    // Preserve the newest current range read before sharing the remaining
+    // budget with history. Otherwise a requested small range can lose the
+    // very lines needed for the next edit even after a targeted re-read.
+    final freshRangeIndex = _latestFreshRangeReadIndex(sourceToolResults);
+    final reservedChars = freshRangeIndex == null
+        ? 0
+        : budgeted[freshRangeIndex].result.length;
+    final historyTarget =
+        ((budget.maxTotalResultChars - reservedChars) /
+                (budgeted.length - (freshRangeIndex == null ? 0 : 1)))
+            .floor();
+    final perResultTarget = freshRangeIndex == null
+        ? math.max(1200, historyTarget)
+        : historyTarget;
+    return [
+      for (var index = 0; index < budgeted.length; index++)
+        if (index == freshRangeIndex)
+          budgeted[index]
+        else
+          budgeted[index].withResult(
+            _truncateTextWithMiddle(
+              budgeted[index].result,
               maxChars: perResultTarget,
               // The per-result pass hands back a read_more_hint; this whole-list
               // pass used to cut the serialized text with no way back, so a
@@ -454,8 +484,32 @@ class ToolResultPromptBuilder {
                   'offset and limit rather than repeating the same call.',
             ),
           ),
-        )
-        .toList(growable: false);
+    ];
+  }
+
+  static int? _latestFreshRangeReadIndex(List<ToolResultInfo> results) {
+    final supersededPaths = <String>{};
+    for (var index = results.length - 1; index >= 0; index--) {
+      final result = results[index];
+      supersededPaths.addAll(
+        result.outcome?.fileMutations
+                .where((mutation) => mutation.changed == true)
+                .map((mutation) => mutation.path) ??
+            const <String>[],
+      );
+      if (result.name != 'read_file') continue;
+      final payload = _tryDecodeJsonMap(result.result);
+      final path = payload?['path'];
+      if (path is! String || !supersededPaths.add(path)) continue;
+      if (payload?['content'] is String &&
+          !result.fromEarlierLoop &&
+          result.changesSinceCapture.isEmpty &&
+          (result.arguments['offset'] is int ||
+              result.arguments['limit'] is int)) {
+        return index;
+      }
+    }
+    return null;
   }
 
   /// Substring shared by every prompt-budget truncation notice.
@@ -737,7 +791,24 @@ class ToolResultPromptBuilder {
         'still needs to be done.',
       );
     }
-    if (evidence.unresolvedErrorCount > 0) {
+    final commandResultsOnly =
+        evidence.unresolvedErrorDiagnostics.isNotEmpty &&
+        evidence.unresolvedErrorDiagnostics.every(
+          (diagnostic) => diagnostic.code == 'command_output_failure',
+        );
+    if (evidence.unresolvedErrorCount > 0 && commandResultsOnly) {
+      // These come from the command output guardrail, not an analyzer. Saying
+      // "does not pass analysis" sent the model hunting for lint errors in
+      // session 17398f84.
+      lines.add(
+        'TASK NOT COMPLETE: ${evidence.unresolvedErrorCount} verification '
+        'command result(s) were flagged by the command output guardrail '
+        '(masked exit status or a failure reported in the output) and have '
+        'not passed since. Do not claim the task is complete. Name those '
+        'commands and rerun each so its exit status reports the real result, '
+        'or report what blocks it.',
+      );
+    } else if (evidence.unresolvedErrorCount > 0) {
       final pathSuffix = evidence.unresolvedErrorPaths.isEmpty
           ? ''
           : ' in ${evidence.unresolvedErrorPaths.join(', ')}';
@@ -804,9 +875,19 @@ class ToolResultPromptBuilder {
       )) {
         continue;
       }
+      // Read the state from the structured outcome first: budgeting can
+      // middle-truncate a long payload into text that no longer decodes, so
+      // session 4ceebb57 reported a finished release as still running. The
+      // outcome survives budgeting ([ToolResultInfo.outcome]).
       final decoded = _tryDecodeJsonMap(toolResult.result);
-      final jobId = decoded?['job_id']?.toString().trim();
-      final status = decoded?['status']?.toString().trim().toLowerCase();
+      final jobId = (decoded?['job_id'] ?? toolResult.arguments['job_id'])
+          ?.toString()
+          .trim();
+      final status = switch (toolResult.outcome?.processState) {
+        ToolProcessState.running => 'running',
+        ToolProcessState.exited => 'exited',
+        null => decoded?['status']?.toString().trim().toLowerCase(),
+      };
       if (jobId == null || jobId.isEmpty || status == null || status.isEmpty) {
         continue;
       }
@@ -828,6 +909,12 @@ class ToolResultPromptBuilder {
   static ToolResultCompletionEvidence completionEvidence(
     List<ToolResultInfo> toolResults,
   ) {
+    final staleBackgroundResults =
+        CommandVerificationReconciliation.staleBackgroundResultIds(toolResults);
+    toolResults = CommandVerificationReconciliation.currentResults(toolResults);
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final lastMutationIndexByPath = _lastSuccessfulFileMutationIndexByPath(
       toolResults,
     );
@@ -929,15 +1016,18 @@ class ToolResultPromptBuilder {
       toolResults,
       afterIndex: latestMutationIndex,
     );
+    // An edit invalidates prior success, but cannot settle a failed check.
+    // Matching successful reruns are already reconciled above.
     final hasFailedExecutionVerification = _hasFailedExecutionVerification(
       toolResults,
-      afterIndex: latestMutationIndex,
+      afterIndex: -1,
     );
     final hasSuccessfulExecutionVerification =
         !hasFailedExecutionVerification &&
         _hasSuccessfulExecutionVerification(
           toolResults,
           afterIndex: latestMutationIndex,
+          staleBackgroundResults: staleBackgroundResults,
         );
     final mutatedWithoutExecutionVerification =
         lastMutationIndexByPath.isNotEmpty && !hasExecutionVerification;
@@ -1012,15 +1102,35 @@ class ToolResultPromptBuilder {
   static bool _hasSuccessfulExecutionVerification(
     List<ToolResultInfo> toolResults, {
     required int afterIndex,
+    required Set<String> staleBackgroundResults,
   }) {
-    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+    if (CommandVerificationReconciliation.hasFailedFeedback(
+      toolResults,
+      afterIndex,
+    )) {
       return false;
     }
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) continue;
+      if (staleBackgroundResults.contains(toolResult.id)) continue;
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
+        continue;
+      }
       final normalizedName = toolResult.name.trim().toLowerCase();
       final outcome = toolResult.outcome;
+      final tests = CommandVerificationReconciliation.testOutcome(toolResult);
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded?['timed_out'] == true ||
+          const CodingCommandOutputIssueDetector().detect(toolResult) != null ||
+          (outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          (tests?.failedCount ?? 0) > 0 ||
+          (CommandVerificationReconciliation.requiresCompoundRunnerCounts(
+                toolResult,
+              ) &&
+              (tests == null || tests.passedCount == 0)) ||
+          (outcome?.diagnosticErrorCount ?? 0) > 0) {
+        continue;
+      }
       if (outcome?.processState != null) {
         if (outcome!.isProcessTerminal && outcome.hasSucceedingExitCode) {
           return true;
@@ -1033,8 +1143,11 @@ class ToolResultPromptBuilder {
         }
         continue;
       }
-      final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) continue;
+      if (_isBackgroundProcessVerificationTool(normalizedName) &&
+          decoded['status'] != 'exited') {
+        continue;
+      }
       final exitCode = decoded['exit_code'];
       if (exitCode == 0 || exitCode == '0') return true;
       if (_isBackgroundProcessVerificationTool(normalizedName)) {
@@ -1063,15 +1176,28 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     required int afterIndex,
   }) {
-    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+    if (CommandVerificationReconciliation.hasFailedFeedback(
+      toolResults,
+      afterIndex,
+    )) {
       return true;
     }
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) {
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
         continue;
       }
       final outcome = toolResult.outcome;
+      if ((outcome?.effectiveTestFailedCount ?? 0) > 0 ||
+          const CodingCommandOutputIssueDetector().detect(toolResult) != null ||
+          (CommandVerificationReconciliation.testOutcome(
+                    toolResult,
+                  )?.failedCount ??
+                  0) >
+              0 ||
+          (outcome?.diagnosticErrorCount ?? 0) > 0) {
+        return true;
+      }
       if (outcome?.processState != null) {
         if (outcome!.isProcessTerminal && outcome.hasFailingExitCode) {
           return true;
@@ -1132,7 +1258,7 @@ class ToolResultPromptBuilder {
   }) {
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolResult(toolResult)) {
+      if (!CommandVerificationReconciliation.isVerification(toolResult)) {
         continue;
       }
       if (toolResult.outcome?.processState != null) {
@@ -1157,25 +1283,6 @@ class ToolResultPromptBuilder {
           decoded['validationStatus'] != null) {
         return true;
       }
-    }
-    return false;
-  }
-
-  static bool _isVerificationRunToolResult(ToolResultInfo toolResult) {
-    final normalizedName = toolResult.name.trim().toLowerCase();
-    if (normalizedName == 'local_execute_command' ||
-        normalizedName == 'git_execute_command') {
-      return const ToolCapabilityClassifier()
-              .classify(toolResult.name, arguments: toolResult.arguments)
-              .commandEffect ==
-          ToolCommandEffect.verification;
-    }
-    switch (normalizedName) {
-      case 'analyze_project':
-      case 'run_tests':
-      case 'process_start':
-      case 'process_wait':
-        return true;
     }
     return false;
   }
@@ -1240,32 +1347,9 @@ class ToolResultPromptBuilder {
   }
 
   static bool _isBackgroundProcessVerificationTool(String normalizedName) =>
-      normalizedName == 'process_start' || normalizedName == 'process_wait';
-
-  static bool _hasFailedCommandOutputFeedback(
-    List<ToolResultInfo> toolResults, {
-    required int afterIndex,
-  }) {
-    for (var index = afterIndex + 1; index < toolResults.length; index++) {
-      final toolResult = toolResults[index];
-      if (toolResult.name.trim().toLowerCase() !=
-          CodingCommandOutputGuardrailService.toolName) {
-        continue;
-      }
-      final decoded = _tryDecodeJsonMap(toolResult.result);
-      if (decoded == null) {
-        continue;
-      }
-      final validationStatus = decoded['validation_status']
-          ?.toString()
-          .trim()
-          .toLowerCase();
-      if (decoded['success'] == false || validationStatus == 'failed') {
-        return true;
-      }
-    }
-    return false;
-  }
+      normalizedName == 'process_start' ||
+      normalizedName == 'process_status' ||
+      normalizedName == 'process_wait';
 
   /// Map each absolute file path to the index of the latest successful
   /// write_file/edit_file/rollback result that touched it, so analyzer
@@ -1311,6 +1395,10 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     Map<String, String> descriptionsByName = const {},
   }) {
+    toolResults = CommandVerificationReconciliation.currentResults(toolResults);
+    toolResults = UnexecutedCommandClaimReconciliation.currentResults(
+      toolResults,
+    );
     final sections = toolResults.map((toolResult) {
       final buffer = StringBuffer()..writeln('[Tool: ${toolResult.name}]');
       final description = descriptionsByName[toolResult.name];
@@ -1469,190 +1557,10 @@ class ToolResultPromptBuilder {
       'http_post' ||
       'http_put' ||
       'http_patch' ||
-      'http_delete' => _httpResponseInterpretationLines(decoded),
+      'http_delete' => HttpResponseInterpretation.lines(decoded),
       _ => const [],
     };
   }
-
-  static List<String> _httpResponseInterpretationLines(
-    Map<String, dynamic> decoded,
-  ) {
-    final body = decoded['body'];
-    if (body is! String || body.trim().isEmpty) {
-      return const [];
-    }
-
-    final payload = _tryDecodeJsonMap(body);
-    if (payload == null) {
-      return const [];
-    }
-
-    final url = (decoded['url'] as String?)?.toLowerCase() ?? '';
-    if (!url.contains('open-meteo.com') &&
-        !_looksLikeOpenMeteoWeatherPayload(payload)) {
-      return const [];
-    }
-
-    final weatherCodeLines = _openMeteoWeatherCodeLines(payload);
-    if (weatherCodeLines.isEmpty) {
-      return const [];
-    }
-
-    return [
-      ...weatherCodeLines,
-      'Use these WMO labels for weather descriptions; drizzle codes are '
-          '51, 53, and 55, while rain codes are 61, 63, and 65.',
-    ];
-  }
-
-  static bool _looksLikeOpenMeteoWeatherPayload(Map<String, dynamic> payload) {
-    final dailyUnits = payload['daily_units'];
-    if (dailyUnits is Map) {
-      final weatherCodeUnit =
-          dailyUnits['weathercode'] ?? dailyUnits['weather_code'];
-      if (weatherCodeUnit is String &&
-          weatherCodeUnit.toLowerCase().contains('wmo')) {
-        return true;
-      }
-    }
-    final hourlyUnits = payload['hourly_units'];
-    if (hourlyUnits is Map) {
-      final weatherCodeUnit =
-          hourlyUnits['weathercode'] ?? hourlyUnits['weather_code'];
-      if (weatherCodeUnit is String &&
-          weatherCodeUnit.toLowerCase().contains('wmo')) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  static List<String> _openMeteoWeatherCodeLines(Map<String, dynamic> payload) {
-    final lines = <String>[];
-    final daily = payload['daily'];
-    if (daily is Map) {
-      _addOpenMeteoSeriesWeatherCodeLines(
-        lines,
-        sectionName: 'daily',
-        values: daily['weathercode'] ?? daily['weather_code'],
-        times: daily['time'],
-      );
-    }
-
-    final currentWeather = payload['current_weather'];
-    if (currentWeather is Map) {
-      _addOpenMeteoScalarWeatherCodeLine(
-        lines,
-        context: 'current_weather',
-        value: currentWeather['weathercode'] ?? currentWeather['weather_code'],
-      );
-    }
-
-    final current = payload['current'];
-    if (current is Map) {
-      _addOpenMeteoScalarWeatherCodeLine(
-        lines,
-        context: 'current',
-        value: current['weathercode'] ?? current['weather_code'],
-      );
-    }
-
-    return lines.take(8).toList(growable: false);
-  }
-
-  static void _addOpenMeteoSeriesWeatherCodeLines(
-    List<String> lines, {
-    required String sectionName,
-    required Object? values,
-    required Object? times,
-  }) {
-    if (values is List) {
-      for (var index = 0; index < values.length; index += 1) {
-        final time = times is List && index < times.length
-            ? times[index]
-            : null;
-        final context = time is String && time.trim().isNotEmpty
-            ? '$sectionName ${time.trim()}'
-            : '$sectionName index $index';
-        _addOpenMeteoScalarWeatherCodeLine(
-          lines,
-          context: context,
-          value: values[index],
-        );
-      }
-      return;
-    }
-
-    _addOpenMeteoScalarWeatherCodeLine(
-      lines,
-      context: sectionName,
-      value: values,
-    );
-  }
-
-  static void _addOpenMeteoScalarWeatherCodeLine(
-    List<String> lines, {
-    required String context,
-    required Object? value,
-  }) {
-    final code = _asInt(value);
-    if (code == null) {
-      return;
-    }
-    final label = _openMeteoWmoWeatherCodeLabels[code];
-    if (label == null) {
-      lines.add(
-        'Open-Meteo $context weather code $code is not in the built-in WMO '
-        'mapping; do not invent a weather label.',
-      );
-      return;
-    }
-    lines.add('Open-Meteo $context weather code $code = $label.');
-  }
-
-  static int? _asInt(Object? value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    if (value is String) {
-      return int.tryParse(value.trim());
-    }
-    return null;
-  }
-
-  static const Map<int, String> _openMeteoWmoWeatherCodeLabels = {
-    0: 'Clear sky',
-    1: 'Mainly clear',
-    2: 'Partly cloudy',
-    3: 'Overcast',
-    45: 'Fog',
-    48: 'Depositing rime fog',
-    51: 'Drizzle: Light intensity',
-    53: 'Drizzle: Moderate intensity',
-    55: 'Drizzle: Dense intensity',
-    56: 'Freezing drizzle: Light intensity',
-    57: 'Freezing drizzle: Dense intensity',
-    61: 'Rain: Slight intensity',
-    63: 'Rain: Moderate intensity',
-    65: 'Rain: Heavy intensity',
-    66: 'Freezing rain: Light intensity',
-    67: 'Freezing rain: Heavy intensity',
-    71: 'Snow fall: Slight intensity',
-    73: 'Snow fall: Moderate intensity',
-    75: 'Snow fall: Heavy intensity',
-    77: 'Snow grains',
-    80: 'Rain showers: Slight',
-    81: 'Rain showers: Moderate',
-    82: 'Rain showers: Violent',
-    85: 'Snow showers: Slight',
-    86: 'Snow showers: Heavy',
-    95: 'Thunderstorm: Slight or moderate',
-    96: 'Thunderstorm with slight hail',
-    99: 'Thunderstorm with heavy hail',
-  };
 
   static Map<String, String> descriptionsByNameFromDefinitions(
     List<Map<String, dynamic>> definitions,
@@ -1759,11 +1667,8 @@ class ToolResultPromptBuilder {
         countKey: 'match_count',
         noMatchHint: _findFilesNoMatchHint,
       ),
-      'dart_analyze_feedback' ||
-      'dart_test_feedback' => _budgetDiagnosticFeedbackResult(
-        decoded,
-        budget: budget,
-      ),
+      'dart_analyze_feedback' || 'dart_test_feedback' =>
+        _budgetDiagnosticFeedbackResult(decoded, budget: budget),
       _ => _budgetJsonMap(decoded, budget: budget),
     };
 

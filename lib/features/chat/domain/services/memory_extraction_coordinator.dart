@@ -4,6 +4,8 @@ import '../entities/message.dart';
 import '../entities/session_memory.dart';
 import '../entities/tool_call_info.dart';
 import 'memory_extraction_draft_service.dart';
+import 'project_task_review_verdict.dart';
+import 'project_task_terminal_status.dart';
 import 'secondary_call_budget.dart';
 import 'secondary_completion_router.dart';
 import 'session_memory_service.dart';
@@ -22,18 +24,23 @@ final class MemoryExtractionCoordinator {
     required SecondaryCompletionRouteSnapshot route,
     required int maxTokens,
   }) async {
+    final taskStatus = ProjectTaskTerminalStatus.fromToolResults(toolResults);
+    final reviewStatus = ProjectTaskReviewVerdict.fromToolResults(toolResults);
+    MemoryExtractionDraft? fallback() =>
+        MemoryExtractionDraftService.parseDraft(
+          '',
+          projectTaskStatus: taskStatus,
+          projectReviewStatus: reviewStatus,
+        );
     if (!enabled) {
-      appLog(
-        '[Memory] Skipping LLM memory extraction for selected provider '
-        '(using rule-based fallback)',
-      );
-      return null;
+      appLog('[Memory] Skipping LLM memory extraction for selected provider');
+      return fallback();
     }
     if (!messages.any(
       (message) =>
           message.role == MessageRole.user && message.content.trim().isNotEmpty,
     )) {
-      return null;
+      return fallback();
     }
 
     final now = DateTime.now();
@@ -71,6 +78,8 @@ final class MemoryExtractionCoordinator {
       final draft = MemoryExtractionDraftService.parseDraft(
         result.content,
         inputContext: input,
+        projectTaskStatus: taskStatus,
+        projectReviewStatus: reviewStatus,
         onRepair: (message) => appLog('[Memory] $message'),
         onError: (error) =>
             appLog('[Memory] Failed to parse memory extraction JSON: $error'),
@@ -84,7 +93,7 @@ final class MemoryExtractionCoordinator {
       return draft;
     } catch (error) {
       appLog('[Memory] LLM memory extraction error: $error');
-      return null;
+      return fallback();
     }
   }
 }

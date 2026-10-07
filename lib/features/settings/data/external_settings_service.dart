@@ -401,6 +401,7 @@ class ExternalSettingsService {
       'low' => ReasoningEffortPreference.low,
       'medium' => ReasoningEffortPreference.medium,
       'high' => ReasoningEffortPreference.high,
+      'xhigh' => ReasoningEffortPreference.xhigh,
       _ => null,
     };
   }

@@ -1,0 +1,125 @@
+{
+  "schema": "caverno_kc1_post_generation_check",
+  "schemaVersion": 1,
+  "indexSize": 157,
+  "responses": 15,
+  "labelledStale": 0,
+  "caught": 0,
+  "missed": 0,
+  "flaggedCorrect": 0,
+  "labelledCorrect": 14,
+  "commentOnlyFlags": 0,
+  "rows": [
+    {
+      "case": "flutter-material3-default",
+      "arm": "grounded",
+      "repeat": 5,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "deltaGrounded",
+      "repeat": 4,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "deltaGrounded",
+      "repeat": 5,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "grounded",
+      "repeat": 4,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "grounded",
+      "repeat": 3,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "deltaGrounded",
+      "repeat": 2,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "deltaGrounded",
+      "repeat": 3,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "grounded",
+      "repeat": 2,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "deltaGrounded",
+      "repeat": 1,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "grounded",
+      "repeat": 1,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "bare",
+      "repeat": 4,
+      "verdict": "unscorable",
+      "flags": [
+        {
+          "symbol": "of",
+          "reason": "deprecated: Use TickerMode.valuesOf to get both enabled and forceFrames.",
+          "in_code": true
+        }
+      ]
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "bare",
+      "repeat": 5,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "bare",
+      "repeat": 2,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "bare",
+      "repeat": 3,
+      "verdict": "correct",
+      "flags": []
+    },
+    {
+      "case": "flutter-material3-default",
+      "arm": "bare",
+      "repeat": 1,
+      "verdict": "correct",
+      "flags": []
+    }
+  ]
+}

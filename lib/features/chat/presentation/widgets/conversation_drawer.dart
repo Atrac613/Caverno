@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
+import '../../../project_farm/presentation/pages/project_dashboard_page.dart';
+import '../../../project_farm/presentation/pages/projects_overview_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/domain/services/routine_schedule_service.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
@@ -19,6 +21,7 @@ import '../../data/repositories/conversation_repository_api.dart';
 import '../../data/repositories/semantic_search_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/services/coding_project_ordering.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';
@@ -27,19 +30,10 @@ import 'conversation_search_delegate.dart';
 
 const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';
-const _codingProjectSortOrderPrefsKey =
-    'conversationDrawer.codingProjectSortOrder';
 // Inset for rounded ListTile hover/selection so the fill does not touch the
 // drawer edge, plus a gap between neighboring rows.
 const _drawerRowMargin = 8.0;
 const _drawerRowGap = 4.0;
-
-enum _CodingProjectSortOrder {
-  newestFirst,
-  oldestFirst,
-  recentlyActiveFirst,
-  leastRecentlyActiveFirst,
-}
 
 enum _CodingSortAction {
   projectsNewestFirst,
@@ -91,8 +85,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
 
   final Set<String> _expandedProjectIds = <String>{};
   final Set<String> _collapsedProjectIds = <String>{};
-  _CodingProjectSortOrder _projectSortOrder =
-      _CodingProjectSortOrder.newestFirst;
+  CodingProjectSortOrder _projectSortOrder = CodingProjectSortOrder.newestFirst;
 
   @override
   void initState() {
@@ -178,6 +171,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                               collapsedThreadLimit:
                                   _collapsedProjectThreadLimit,
                               onAddProject: widget.onAddCodingProject,
+                              onOpenOverview: () =>
+                                  _openProjectsOverview(context),
                               onProjectSelected: (projectId) async {
                                 setState(() {
                                   _collapsedProjectIds.remove(projectId);
@@ -211,6 +206,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                                   ),
                               onOpenProject: (project) =>
                                   _openProjectInFinder(context, project),
+                              onOpenProjectDashboard: (project) =>
+                                  _openProjectDashboard(context, project),
                               onToggleProjectExpanded: (projectId) {
                                 setState(() {
                                   if (!_expandedProjectIds.add(projectId)) {
@@ -303,8 +300,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
       final result = await service.search(query);
       final conversations = <Conversation>[];
       for (final id in result.conversationIds) {
-        final loaded =
-            await repository.refresh(id) ?? repository.getById(id);
+        final loaded = await repository.refresh(id) ?? repository.getById(id);
         if (loaded != null) {
           conversations.add(loaded);
         }
@@ -456,6 +452,21 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     await widget.onCodingProjectSelected(fallbackProjectId);
   }
 
+  Future<void> _openProjectsOverview(BuildContext context) async {
+    final conversationId = await openProjectsOverview(context);
+    if (conversationId == null || !context.mounted) return;
+    await _selectConversation(context, conversationId);
+  }
+
+  Future<void> _openProjectDashboard(
+    BuildContext context,
+    CodingProject project,
+  ) async {
+    final conversationId = await openProjectDashboard(context, project.id);
+    if (conversationId == null || !context.mounted) return;
+    await _selectConversation(context, conversationId);
+  }
+
   Future<void> _openProjectInFinder(
     BuildContext context,
     CodingProject project,
@@ -515,12 +526,9 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     try {
       final prefs = ref.read(sharedPreferencesProvider);
       final storedProjectOrder = prefs.getString(
-        _codingProjectSortOrderPrefsKey,
+        codingProjectSortOrderPrefsKey,
       );
-      _projectSortOrder = _CodingProjectSortOrder.values.firstWhere(
-        (order) => order.name == storedProjectOrder,
-        orElse: () => _CodingProjectSortOrder.newestFirst,
-      );
+      _projectSortOrder = codingProjectSortOrderFromName(storedProjectOrder);
     } catch (e) {
       appDebugPrint('Failed to load coding drawer sort order: $e');
     }
@@ -530,22 +538,19 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     setState(() {
       switch (action) {
         case _CodingSortAction.projectsNewestFirst:
-          _projectSortOrder = _CodingProjectSortOrder.newestFirst;
+          _projectSortOrder = CodingProjectSortOrder.newestFirst;
         case _CodingSortAction.projectsOldestFirst:
-          _projectSortOrder = _CodingProjectSortOrder.oldestFirst;
+          _projectSortOrder = CodingProjectSortOrder.oldestFirst;
         case _CodingSortAction.projectsRecentlyActiveFirst:
-          _projectSortOrder = _CodingProjectSortOrder.recentlyActiveFirst;
+          _projectSortOrder = CodingProjectSortOrder.recentlyActiveFirst;
         case _CodingSortAction.projectsLeastRecentlyActiveFirst:
-          _projectSortOrder = _CodingProjectSortOrder.leastRecentlyActiveFirst;
+          _projectSortOrder = CodingProjectSortOrder.leastRecentlyActiveFirst;
       }
     });
     try {
       final prefs = ref.read(sharedPreferencesProvider);
       unawaited(
-        prefs.setString(
-          _codingProjectSortOrderPrefsKey,
-          _projectSortOrder.name,
-        ),
+        prefs.setString(codingProjectSortOrderPrefsKey, _projectSortOrder.name),
       );
     } catch (e) {
       appDebugPrint('Failed to persist coding drawer sort order: $e');
@@ -742,6 +747,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.collapsedProjectIds,
     required this.collapsedThreadLimit,
     required this.onAddProject,
+    required this.onOpenOverview,
     required this.onProjectSelected,
     required this.onCreateThread,
     required this.onConversationSelected,
@@ -749,6 +755,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.onDeleteAllThreads,
     required this.onDeleteProject,
     required this.onOpenProject,
+    required this.onOpenProjectDashboard,
     required this.onToggleProjectExpanded,
     required this.onToggleProjectCollapsed,
     required this.projectSortOrder,
@@ -763,6 +770,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final Set<String> collapsedProjectIds;
   final int collapsedThreadLimit;
   final Future<void> Function() onAddProject;
+  final VoidCallback onOpenOverview;
   final Future<void> Function(String projectId) onProjectSelected;
   final ValueChanged<String> onCreateThread;
   final Future<void> Function(String conversationId) onConversationSelected;
@@ -770,51 +778,20 @@ class _CodingProjectsSection extends StatelessWidget {
   final VoidCallback onDeleteAllThreads;
   final ValueChanged<CodingProject> onDeleteProject;
   final ValueChanged<CodingProject> onOpenProject;
+  final ValueChanged<CodingProject> onOpenProjectDashboard;
   final ValueChanged<String> onToggleProjectExpanded;
   final ValueChanged<String> onToggleProjectCollapsed;
-  final _CodingProjectSortOrder projectSortOrder;
+  final CodingProjectSortOrder projectSortOrder;
   final ValueChanged<_CodingSortAction> onSortSelected;
 
   @override
   Widget build(BuildContext context) {
     final activeThreads = conversationsState.visibleConversations;
-    final latestThreadUpdates = <String, DateTime>{};
-    for (final conversation in conversationsState.conversations) {
-      if (conversation.workspaceMode != WorkspaceMode.coding) continue;
-      final projectId = conversation.normalizedProjectId;
-      if (projectId == null) continue;
-      final previous = latestThreadUpdates[projectId];
-      if (previous == null || conversation.updatedAt.isAfter(previous)) {
-        latestThreadUpdates[projectId] = conversation.updatedAt;
-      }
-    }
-    final projects = projectsState.projects.toList(growable: false)
-      ..sort((left, right) {
-        final byPrimarySort = switch (projectSortOrder) {
-          _CodingProjectSortOrder.newestFirst => right.createdAt.compareTo(
-            left.createdAt,
-          ),
-          _CodingProjectSortOrder.oldestFirst => left.createdAt.compareTo(
-            right.createdAt,
-          ),
-          _CodingProjectSortOrder.recentlyActiveFirst =>
-            _compareLatestThreadUpdates(
-              latestThreadUpdates[left.id],
-              latestThreadUpdates[right.id],
-              newestFirst: true,
-            ),
-          _CodingProjectSortOrder.leastRecentlyActiveFirst =>
-            _compareLatestThreadUpdates(
-              latestThreadUpdates[left.id],
-              latestThreadUpdates[right.id],
-              newestFirst: false,
-            ),
-        };
-        if (byPrimarySort != 0) return byPrimarySort;
-        final byCreatedAt = right.createdAt.compareTo(left.createdAt);
-        if (byCreatedAt != 0) return byCreatedAt;
-        return left.id.compareTo(right.id);
-      });
+    final projects = sortCodingProjects(
+      projects: projectsState.projects,
+      conversations: conversationsState.conversations,
+      sortOrder: projectSortOrder,
+    );
 
     return Column(
       children: [
@@ -824,6 +801,12 @@ class _CodingProjectsSection extends StatelessWidget {
             _CodingSortMenuButton(
               projectSortOrder: projectSortOrder,
               onSelected: onSortSelected,
+            ),
+            _HeaderIconButton(
+              key: const ValueKey('drawer-projects-overview'),
+              icon: Icons.space_dashboard_outlined,
+              tooltip: 'project_overview.title'.tr(),
+              onPressed: onOpenOverview,
             ),
             _HeaderIconButton(
               icon: Icons.create_new_folder_outlined,
@@ -876,6 +859,8 @@ class _CodingProjectsSection extends StatelessWidget {
                       onCreateThread: () => onCreateThread(project.id),
                       onDeleteProject: () => onDeleteProject(project),
                       onOpenProject: () => onOpenProject(project),
+                      onOpenProjectDashboard: () =>
+                          onOpenProjectDashboard(project),
                       onConversationSelected: onConversationSelected,
                       onDeleteConversation: onDeleteConversation,
                       onToggleExpanded: () =>
@@ -905,17 +890,6 @@ class _CodingProjectsSection extends StatelessWidget {
     });
     return threads;
   }
-
-  int _compareLatestThreadUpdates(
-    DateTime? left,
-    DateTime? right, {
-    required bool newestFirst,
-  }) {
-    if (left == null && right == null) return 0;
-    if (left == null) return 1;
-    if (right == null) return -1;
-    return newestFirst ? right.compareTo(left) : left.compareTo(right);
-  }
 }
 
 class _ProjectThreadGroup extends StatelessWidget {
@@ -933,6 +907,7 @@ class _ProjectThreadGroup extends StatelessWidget {
     required this.onCreateThread,
     required this.onDeleteProject,
     required this.onOpenProject,
+    required this.onOpenProjectDashboard,
     required this.onConversationSelected,
     required this.onDeleteConversation,
     required this.onToggleExpanded,
@@ -952,6 +927,7 @@ class _ProjectThreadGroup extends StatelessWidget {
   final VoidCallback onCreateThread;
   final VoidCallback onDeleteProject;
   final VoidCallback onOpenProject;
+  final VoidCallback onOpenProjectDashboard;
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onToggleExpanded;
@@ -978,6 +954,7 @@ class _ProjectThreadGroup extends StatelessWidget {
           onCreateThread: onCreateThread,
           onDelete: onDeleteProject,
           onOpenProject: onOpenProject,
+          onOpenProjectDashboard: onOpenProjectDashboard,
           onToggleCollapsed: onToggleCollapsed,
         ),
         for (final thread in visibleThreads)
@@ -1208,6 +1185,7 @@ class _DrawerSectionHeader extends StatelessWidget {
 
 class _HeaderIconButton extends StatelessWidget {
   const _HeaderIconButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onPressed,
@@ -1235,7 +1213,7 @@ class _CodingSortMenuButton extends StatelessWidget {
     required this.onSelected,
   });
 
-  final _CodingProjectSortOrder projectSortOrder;
+  final CodingProjectSortOrder projectSortOrder;
   final ValueChanged<_CodingSortAction> onSelected;
 
   @override
@@ -1249,25 +1227,25 @@ class _CodingSortMenuButton extends StatelessWidget {
         _sortMenuItem(
           action: _CodingSortAction.projectsNewestFirst,
           label: 'drawer.sort_projects_newest'.tr(),
-          selected: projectSortOrder == _CodingProjectSortOrder.newestFirst,
+          selected: projectSortOrder == CodingProjectSortOrder.newestFirst,
         ),
         _sortMenuItem(
           action: _CodingSortAction.projectsOldestFirst,
           label: 'drawer.sort_projects_oldest'.tr(),
-          selected: projectSortOrder == _CodingProjectSortOrder.oldestFirst,
+          selected: projectSortOrder == CodingProjectSortOrder.oldestFirst,
         ),
         _sortMenuItem(
           action: _CodingSortAction.projectsRecentlyActiveFirst,
           label: 'drawer.sort_projects_recent_thread'.tr(),
           selected:
-              projectSortOrder == _CodingProjectSortOrder.recentlyActiveFirst,
+              projectSortOrder == CodingProjectSortOrder.recentlyActiveFirst,
         ),
         _sortMenuItem(
           action: _CodingSortAction.projectsLeastRecentlyActiveFirst,
           label: 'drawer.sort_projects_oldest_thread'.tr(),
           selected:
               projectSortOrder ==
-              _CodingProjectSortOrder.leastRecentlyActiveFirst,
+              CodingProjectSortOrder.leastRecentlyActiveFirst,
         ),
       ],
     );
@@ -1302,6 +1280,7 @@ class _ProjectTile extends StatefulWidget {
     required this.onCreateThread,
     required this.onDelete,
     required this.onOpenProject,
+    required this.onOpenProjectDashboard,
     required this.onToggleCollapsed,
   });
 
@@ -1312,6 +1291,7 @@ class _ProjectTile extends StatefulWidget {
   final VoidCallback onCreateThread;
   final VoidCallback onDelete;
   final VoidCallback onOpenProject;
+  final VoidCallback onOpenProjectDashboard;
   final VoidCallback onToggleCollapsed;
 
   @override
@@ -1394,6 +1374,9 @@ class _ProjectTileState extends State<_ProjectTile> {
                     onSelected: (action) {
                       setState(() => _isMenuOpen = false);
                       switch (action) {
+                        case _ProjectMenuAction.openDashboard:
+                          widget.onOpenProjectDashboard();
+                          return;
                         case _ProjectMenuAction.openInFinder:
                           widget.onOpenProject();
                           return;
@@ -1403,6 +1386,15 @@ class _ProjectTileState extends State<_ProjectTile> {
                       }
                     },
                     itemBuilder: (context) => [
+                      PopupMenuItem(
+                        key: ValueKey('drawer-project-${project.id}-dashboard'),
+                        value: _ProjectMenuAction.openDashboard,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.dashboard_outlined),
+                          title: Text('drawer.open_project_dashboard'.tr()),
+                        ),
+                      ),
                       PopupMenuItem(
                         value: _ProjectMenuAction.openInFinder,
                         child: ListTile(
@@ -1436,7 +1428,7 @@ class _ProjectTileState extends State<_ProjectTile> {
   }
 }
 
-enum _ProjectMenuAction { openInFinder, delete }
+enum _ProjectMenuAction { openDashboard, openInFinder, delete }
 
 class _ProjectThreadTile extends StatefulWidget {
   const _ProjectThreadTile({

@@ -1,0 +1,1808 @@
+{
+  "schema": "caverno_kc1_cutoff_exposure_census",
+  "schemaVersion": 4,
+  "run": {
+    "model": "qwen3.8-27b-exl3",
+    "endpoint": "http://192.168.100.241:1234/v1/chat/completions",
+    "temperature": 0.7,
+    "toolCatalog": "none",
+    "flutter": "3.47.4",
+    "riverpod": "3.4.3",
+    "freezed": "3.2.5",
+    "buildCommit": "5db403812",
+    "buildDirty": false,
+    "worldFacts": {
+      "schema": "caverno_kc1_world_fact_snapshot",
+      "schemaVersion": 1,
+      "facts": {
+        "freezed": {
+          "package": "freezed",
+          "latestVersion": "4.0.2",
+          "publishedAt": "2026-09-18T21:14:49.069049Z",
+          "source": "https://pub.dev/api/packages/freezed",
+          "fetchedAt": "2026-09-23T13:13:44.303166Z"
+        },
+        "go_router": {
+          "package": "go_router",
+          "latestVersion": "18.0.1",
+          "publishedAt": "2026-09-02T16:21:54.510350Z",
+          "source": "https://pub.dev/api/packages/go_router",
+          "fetchedAt": "2026-09-23T13:13:44.413286Z"
+        },
+        "flutter_riverpod": {
+          "package": "flutter_riverpod",
+          "latestVersion": "3.4.3",
+          "publishedAt": "2026-09-03T22:15:17.166817Z",
+          "source": "https://pub.dev/api/packages/flutter_riverpod",
+          "fetchedAt": "2026-09-23T13:13:44.432308Z"
+        },
+        "dio": {
+          "package": "dio",
+          "latestVersion": "5.11.1",
+          "publishedAt": "2026-09-04T02:46:21.721502Z",
+          "source": "https://pub.dev/api/packages/dio",
+          "fetchedAt": "2026-09-23T13:13:44.453348Z"
+        }
+      }
+    },
+    "productionBlocks": {
+      "productionImported": "Project toolchain and dependencies, read from this project's lockfile and installed packages. These are the versions installed here, not the latest published releases:\n- Flutter SDK 3.47.4, Dart SDK 3.13.3\n- Dependencies: crypto 3.0.7, easy_localization 3.0.8, flutter_riverpod 3.4.3, freezed_annotation 3.1.0, http 1.6.0, openai_dart 8.1.0, shared_preferences 2.5.5, uuid 4.6.0\n- (58 more direct dependencies, imported by fewer of this project's files, not listed)",
+      "productionImportedDigest": "Project toolchain and dependencies, read from this project's lockfile and installed packages. These are the versions installed here, not the latest published releases:\n- Flutter SDK 3.47.4, Dart SDK 3.13.3\n- Dependencies: crypto 3.0.7, easy_localization 3.0.8, flutter_riverpod 3.4.3, freezed_annotation 3.1.0, http 1.6.0, openai_dart 8.1.0, shared_preferences 2.5.5, uuid 4.6.0\n- (58 more direct dependencies, imported by fewer of this project's files, not listed)\nWhat the installed versions changed, from their own changelogs, legacy libraries, and deprecation annotations:\n- flutter_riverpod 3.4.3 keeps these only in its legacy library: ChangeNotifierProvider, ChangeNotifierProviderFamily, StateController, StateNotifier, StateNotifierProvider, StateNotifierProviderFamily, StateProvider, StateProviderFamily\n- Flutter 3.47.4 deprecates axisAlignment: Use alignment instead. This property provides full control over both axes, which is an improvement over the old\u00a0axisAlignment.\n- Flutter 3.47.4 deprecates cacheExtentStyle: Use scrollCacheExtent instead.\n- Flutter 3.47.4 deprecates cacheExtent: Use scrollCacheExtent instead.\n- Flutter 3.47.4 deprecates setStyle: Use updateStyle instead.\n- Flutter 3.47.4 deprecates onReorder: Use the onReorderItem callback instead. The onReorderItem callback adjusts the newIndex parameter for a removed item at the oldIndex.\n- Flutter 3.47.4 deprecates builder: Use scrollableBuilder instead.\n- Flutter 3.47.4 deprecates hasRepeatedFlags: Use hasConflictingFlags instead.\n- Flutter 3.47.4 deprecates reverseCurve: Use animationStyle instead.\n- Flutter 3.47.4 deprecates duration: Use animationStyle instead.\n- Flutter 3.47.4 deprecates curve: Use animationStyle instead.\n- Flutter 3.47.4 deprecates isFocusable: Setting isFocused automatically set this to true.\n- Flutter 3.47.4 deprecates isFocusable: Check if isFocused is null instead.\n- Flutter 3.47.4 deprecates focusable: Use focused instead. Setting focused automatically set focusable."
+    }
+  },
+  "claims": 100,
+  "failures": 0,
+  "byClass": {
+    "apiDrift": {
+      "bare": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "grounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "deltaGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "worldFactGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImported": {
+        "staleRate": 0.75,
+        "unsupportedRate": 1.0
+      },
+      "productionImportedDigest": {
+        "staleRate": 0.4,
+        "unsupportedRate": 0.75
+      }
+    },
+    "thisRepository": {
+      "bare": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "grounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "deltaGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "worldFactGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImported": {
+        "staleRate": 0.0,
+        "unsupportedRate": 1.0
+      },
+      "productionImportedDigest": {
+        "staleRate": 1.0,
+        "unsupportedRate": 1.0
+      }
+    },
+    "environment": {
+      "bare": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "grounded": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "deltaGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "worldFactGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null,
+        "environmentExposureRate": null
+      },
+      "productionImported": {
+        "staleRate": 0.0,
+        "unsupportedRate": 1.0,
+        "environmentExposureRate": 0.4
+      },
+      "productionImportedDigest": {
+        "staleRate": 0.0,
+        "unsupportedRate": 1.0,
+        "environmentExposureRate": 0.2
+      }
+    },
+    "worldFact": {
+      "bare": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "grounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "deltaGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "worldFactGrounded": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionDefault": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production32k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "production64k": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionVersionsOnly": {
+        "staleRate": null,
+        "unsupportedRate": null
+      },
+      "productionImported": {
+        "staleRate": 0.5,
+        "unsupportedRate": 1.0
+      },
+      "productionImportedDigest": {
+        "staleRate": 0.5,
+        "unsupportedRate": 1.0
+      }
+    }
+  },
+  "arms": {
+    "bare": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "grounded": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "deltaGrounded": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "worldFactGrounded": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionDefault": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "production32k": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "production64k": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionVersionsOnly": {
+      "staleRate": null,
+      "unsupportedRate": null,
+      "unscorable": 0,
+      "environmentExposureRate": null,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 0,
+        "unnecessary": 0,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 0,
+        "behind": 0,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionImported": {
+      "staleRate": 0.5,
+      "unsupportedRate": 1.0,
+      "unscorable": 0,
+      "environmentExposureRate": 0.4,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 3,
+        "unnecessary": 2,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 10,
+        "behind": 10,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    },
+    "productionImportedDigest": {
+      "staleRate": 0.46,
+      "unsupportedRate": 0.9,
+      "unscorable": 0,
+      "environmentExposureRate": 0.2,
+      "environmentVerdicts": {
+        "required": 0,
+        "inherited": 4,
+        "unnecessary": 1,
+        "wrong": 0,
+        "unscorable": 0
+      },
+      "worldFactVerdicts": {
+        "current": 10,
+        "behind": 10,
+        "ahead": 0,
+        "unscorable": 0
+      }
+    }
+  },
+  "digestCoverage": {
+    "flutter-pop-scope": false,
+    "color-with-values": true,
+    "riverpod-notifier": true,
+    "freezed-abstract": true,
+    "repo-state-management": false
+  },
+  "productionCoverage": {
+    "flutter-pop-scope": {
+      "productionImported": false,
+      "productionImportedDigest": false
+    },
+    "color-with-values": {
+      "productionImported": false,
+      "productionImportedDigest": false
+    },
+    "riverpod-notifier": {
+      "productionImported": false,
+      "productionImportedDigest": true
+    },
+    "freezed-abstract": {
+      "productionImported": false,
+      "productionImportedDigest": false
+    },
+    "repo-state-management": {
+      "productionImported": false,
+      "productionImportedDigest": false
+    }
+  },
+  "records": [
+    {
+      "claim_id": "flutter-pop-scope:productionImported:1",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImportedDigest:1",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImported:2",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImportedDigest:2",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImported:3",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImportedDigest:3",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImported:4",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImportedDigest:4",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImported:5",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "flutter-pop-scope:productionImportedDigest:5",
+      "case": "flutter-pop-scope",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bWillPopScope\\b",
+      "expected_value": "\\bPopScope\\b",
+      "truth_source": "flutter 3.47.4: Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImported:1",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImportedDigest:1",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImported:2",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImportedDigest:2",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImported:3",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImportedDigest:3",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImported:4",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImportedDigest:4",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImported:5",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "color-with-values:productionImportedDigest:5",
+      "case": "color-with-values",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\.withValues\\(",
+      "expected_value": "\\.withValues\\(",
+      "truth_source": "flutter 3.47.4: Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre."
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImported:1",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bStateNotifierProvider\\b|\\bStateProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImportedDigest:1",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImported:2",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bStateNotifierProvider\\b|\\bStateProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImportedDigest:2",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImported:3",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bStateNotifierProvider\\b|\\bStateProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImportedDigest:3",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImported:4",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bStateNotifierProvider\\b|\\bStateProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImportedDigest:4",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImported:5",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bStateNotifierProvider\\b|\\bStateProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "riverpod-notifier:productionImportedDigest:5",
+      "case": "riverpod-notifier",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "supported",
+      "grounding_provenance": "promptContext",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "riverpod 3.4.3: StateNotifierProvider under lib/src/providers/legacy/"
+    },
+    {
+      "claim_id": "freezed-abstract:productionImported:1",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImportedDigest:1",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImported:2",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImportedDigest:2",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImported:3",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImportedDigest:3",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImported:4",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImportedDigest:4",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImported:5",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "freezed-abstract:productionImportedDigest:5",
+      "case": "freezed-abstract",
+      "class": "apiDrift",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^\\s*(?:@\\w+\\s+)?class\\s+\\w+\\s+with\\s+_\\$",
+      "expected_value": "^\\s*(?:abstract|sealed)\\s+class\\s+\\w+\\s+with\\s+_\\$",
+      "truth_source": "freezed 3.2.5: - **Breaking**: Freezed classes should now either be `abstract`, `sealed`, or manually implements `_$MyClass`."
+    },
+    {
+      "claim_id": "repo-state-management:productionImported:1",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImportedDigest:1",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bChangeNotifier\\b|\\bChangeNotifierProvider\\b|\\bBlocProvider\\b|\\bStateNotifierProvider\\b|\\bBlocBuilder\\b|\\bCubit\\b|setState\\(",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImported:2",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImportedDigest:2",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bChangeNotifier\\b|\\bChangeNotifierProvider\\b|\\bBlocProvider\\b|\\bStateNotifierProvider\\b|\\bBlocBuilder\\b|\\bCubit\\b|setState\\(",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImported:3",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImportedDigest:3",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bChangeNotifier\\b|\\bChangeNotifierProvider\\b|\\bBlocProvider\\b|\\bStateNotifierProvider\\b|\\bBlocBuilder\\b|\\bCubit\\b|setState\\(",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImported:4",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImportedDigest:4",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bChangeNotifier\\b|\\bChangeNotifierProvider\\b|\\bBlocProvider\\b|\\bStateNotifierProvider\\b|\\bBlocBuilder\\b|\\bCubit\\b|setState\\(",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImported:5",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "repo-state-management:productionImportedDigest:5",
+      "case": "repo-state-management",
+      "class": "thisRepository",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "\\bChangeNotifier\\b|\\bChangeNotifierProvider\\b|\\bBlocProvider\\b|\\bStateNotifierProvider\\b|\\bBlocBuilder\\b|\\bCubit\\b|setState\\(",
+      "expected_value": "\\bNotifierProvider\\b|\\bAsyncNotifierProvider\\b",
+      "truth_source": "lib/ uses NotifierProvider 29 times and no alternative"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImported:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "omitted",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "inherited"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImportedDigest:1",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "omitted",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "inherited"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImported:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "omitted",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "inherited"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImportedDigest:2",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "omitted",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "inherited"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImported:3",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImportedDigest:3",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "omitted",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "inherited"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImported:4",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "omitted",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "inherited"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImportedDigest:4",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "omitted",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "inherited"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImported:5",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "flutter-material3-default:productionImportedDigest:5",
+      "case": "flutter-material3-default",
+      "class": "environment",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "true",
+      "expected_value": "omitted",
+      "truth_source": "Flutter 3.47.4: ThemeData.useMaterial3 default: true",
+      "environment_verdict": "unnecessary"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImported:1",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImportedDigest:1",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImported:2",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImportedDigest:2",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImported:3",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImportedDigest:3",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImported:4",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImportedDigest:4",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImported:5",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-freezed:productionImportedDigest:5",
+      "case": "pub-latest-freezed",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.1.0",
+      "expected_value": "^4.0.2",
+      "truth_source": "https://pub.dev/api/packages/freezed: latest 4.0.2, published 2026-09-18T21:14:49.069049Z, fetched 2026-09-23T13:13:44.303166Z; installed here: 3.2.5",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImported:1",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.8.1",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImportedDigest:1",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.0.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImported:2",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.6.2",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImportedDigest:2",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.0.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImported:3",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.6.2",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImportedDigest:3",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^16.0.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImported:4",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.2.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImportedDigest:4",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.0.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImported:5",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^14.2.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-go-router:productionImportedDigest:5",
+      "case": "pub-latest-go-router",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "stale",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^16.0.0",
+      "expected_value": "^18.0.1",
+      "truth_source": "https://pub.dev/api/packages/go_router: latest 18.0.1, published 2026-09-02T16:21:54.510350Z, fetched 2026-09-23T13:13:44.413286Z; installed here: none",
+      "world_fact_verdict": "behind"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImported:1",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImportedDigest:1",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImported:2",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImportedDigest:2",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImported:3",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImportedDigest:3",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImported:4",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImportedDigest:4",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImported:5",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-flutter-riverpod:productionImportedDigest:5",
+      "case": "pub-latest-flutter-riverpod",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^3.4.3",
+      "expected_value": "^3.4.3",
+      "truth_source": "https://pub.dev/api/packages/flutter_riverpod: latest 3.4.3, published 2026-09-03T22:15:17.166817Z, fetched 2026-09-23T13:13:44.432308Z; installed here: 3.4.3",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImported:1",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.9.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImportedDigest:1",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 1,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.0.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImported:2",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.9.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImportedDigest:2",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 2,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.0.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImported:3",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.9.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImportedDigest:3",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 3,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.0.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImported:4",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.7.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImportedDigest:4",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 4,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.0.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImported:5",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImported",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.9.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    },
+    {
+      "claim_id": "pub-latest-dio:productionImportedDigest:5",
+      "case": "pub-latest-dio",
+      "class": "worldFact",
+      "arm": "productionImportedDigest",
+      "repeat": 5,
+      "truth_verdict": "correct",
+      "grounding_verdict": "absent",
+      "grounding_provenance": "none",
+      "asserted_value": "^5.0.0",
+      "expected_value": "^5.11.1",
+      "truth_source": "https://pub.dev/api/packages/dio: latest 5.11.1, published 2026-09-04T02:46:21.721502Z, fetched 2026-09-23T13:13:44.453348Z; installed here: none",
+      "world_fact_verdict": "current"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -108,19 +109,39 @@ class EmbeddingsClient {
   Future<EmbeddingsResult?> embed({
     required List<String> inputs,
     required String model,
+    Future<void>? abortSignal,
   }) async {
     if (inputs.isEmpty) {
       _lastFailure = null;
       return EmbeddingsResult(vectors: const [], model: model);
     }
+    final abort = Completer<void>();
+    if (abortSignal != null) {
+      unawaited(
+        abortSignal.then((_) {
+          if (!abort.isCompleted) abort.complete();
+        }),
+      );
+    }
     try {
-      final response = await _client
-          .post(
-            embeddingsUri,
-            headers: _headers(),
-            body: jsonEncode({'model': model, 'input': inputs}),
-          )
-          .timeout(_timeout);
+      final request =
+          http.AbortableRequest(
+              'POST',
+              embeddingsUri,
+              abortTrigger: abort.future,
+            )
+            ..headers.addAll(_headers())
+            ..body = jsonEncode({'model': model, 'input': inputs});
+      final response =
+          await (() async => http.Response.fromStream(
+            await _client.send(request),
+          ))().timeout(
+            _timeout,
+            onTimeout: () {
+              if (!abort.isCompleted) abort.complete();
+              throw TimeoutException('Embeddings request timed out', _timeout);
+            },
+          );
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return _fail(
           EmbeddingsFailure(

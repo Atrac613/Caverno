@@ -100,6 +100,31 @@ void main() {
       );
     }
   });
+  test('refusal reports task state as well as unmet preconditions', () {
+    final blocked = pending.copyWith(
+      status: ConversationWorkflowTaskStatus.inProgress,
+      preconditions: const [
+        ConversationTaskPrecondition(
+          kind: ConversationTaskPreconditionKind.question,
+          ref: 'Which API should be used?',
+        ),
+      ],
+    );
+    final result = AnabasisDelegationAdmission.prepare(
+      call('tests'),
+      isParent: true,
+      conversation: plan([blocked]),
+      prompt: 'Verify the existing tests',
+    );
+    final payload = jsonDecode(result.refusal!.result) as Map;
+
+    expect(payload['ready_task_ids'], isEmpty);
+    expect(payload['requested_task_status'], 'inProgress');
+    expect(payload['unmet_preconditions'], [
+      {'kind': 'question', 'ref': 'Which API should be used?'},
+    ]);
+    expect(payload['required_action'], contains('recheck the plan'));
+  });
   test('ordinary delegation and unplanned parent remain available', () {
     expect(
       AnabasisDelegationAdmission.prepare(

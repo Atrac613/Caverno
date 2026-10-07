@@ -54,6 +54,34 @@ void main() {
         ),
         isFalse,
       );
+      expect(
+        TurnSteeringPolicy.canSteer(
+          content: 'summarize the PDF',
+          hasImage: false,
+          isVoiceMode: false,
+          hasModelContent: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('directiveMessage', () {
+    test('is absent until the turn has carried an interruption', () {
+      expect(
+        TurnSteeringPolicy.directiveMessage(generation: 3, carried: 0),
+        isNull,
+      );
+    });
+
+    test('is a system message keyed by the generation', () {
+      final directive = TurnSteeringPolicy.directiveMessage(
+        generation: 3,
+        carried: 2,
+      )!;
+      expect(directive.id, 'system_turn_steering_3');
+      expect(directive.role, MessageRole.system);
+      expect(directive.content, isNotEmpty);
     });
   });
 

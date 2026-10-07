@@ -18,6 +18,8 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
+import '../../../project_farm/presentation/project_task_review_launcher.dart';
+import '../../../project_farm/presentation/widgets/project_task_progress_section.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
@@ -43,9 +45,11 @@ import '../coordinators/chat_dropped_attachments.dart';
 import '../coordinators/chat_dropped_attachments_take.dart';
 import '../coordinators/chat_page_composer_runtime_coordinator.dart';
 import '../coordinators/chat_page_workspace_navigation_coordinator.dart';
+import '../coordinators/chat_review_slash_command.dart';
 import '../coordinators/coding_project_picker.dart';
 import '../coordinators/feedback_slash_command_coordinator.dart';
 import '../coordinators/goal_slash_command_coordinator.dart';
+import '../coordinators/plan_approval_presenter.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
 import '../coordinators/slash_command_action_coordinator.dart';
 import '../coordinators/workflow_task_action_coordinator.dart';
@@ -66,11 +70,13 @@ import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/approval/approval_dialog_route.dart';
+import '../widgets/background_process_panel.dart';
 import '../widgets/chat_error_banner.dart';
 import '../widgets/chat_page_scaffold.dart';
 import '../widgets/chat_right_sidebar.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/conversation_goal_status_presentation.dart';
+import '../widgets/conversation_work_time_section.dart';
 import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/flutter_run_issue_list.dart';
 import '../widgets/local_llm_health_section.dart';
@@ -90,6 +96,7 @@ import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/terminal/coding_terminal_dock.dart';
+import '../widgets/thread_message_list_view.dart';
 import '../widgets/token_usage_indicator.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/turn_rollback_confirmation_dialog.dart';
@@ -124,6 +131,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final _workflowPanelScrollController = ScrollController();
   final ApprovalDialogPresenter _approvalDialogs = ApprovalDialogPresenter();
   final Set<String> _rolledBackTurnDiffIds = <String>{};
+  final _projectTaskReviews = ProjectTaskReviewLauncher();
   final _uuid = const Uuid();
   bool _isPresentingPlanReviewSheet = false;
   String? _trackedPlanGenerationConversationId;
@@ -205,6 +213,47 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     });
   }
 
+  Widget _buildThreadMessageItem(
+    BuildContext context,
+    int index, {
+    required ChatState chatState,
+    required ConversationsState conversationsState,
+    required bool isCodingWorkspace,
+  }) {
+    final onReselect = isCodingWorkspace ? _pickAndActivateProject : null;
+    if (index >= chatState.messages.length) {
+      return MessageBubble(
+        key: const ValueKey('plan-status-message'),
+        message: _buildPlanStatusMessage(context, chatState: chatState),
+        onOpenFileWorkspaceViewer: _openFileWorkspaceViewer,
+        onReselectProject: onReselect,
+      );
+    }
+    final message = chatState.messages[index];
+    final turnDiff = conversationsState.currentConversation
+        ?.turnDiffForAssistantMessage(message.id);
+    final canRewind =
+        !chatState.isLoading &&
+        !message.isStreaming &&
+        index < chatState.messages.length - 1;
+    return MessageBubble(
+      key: ValueKey(message.id),
+      message: message,
+      conversationId: conversationsState.currentConversationId,
+      turnDiff: turnDiff,
+      onOpenTurnDiff: turnDiff == null
+          ? null
+          : () =>
+                _openFileWorkspaceViewer(_buildTurnDiffViewerRequest(turnDiff)),
+      onOpenFileWorkspaceViewer: _openFileWorkspaceViewer,
+      canRewind: canRewind,
+      onRewindToHere: canRewind
+          ? () => _rewindConversationToMessage(context, message)
+          : null,
+      onReselectProject: onReselect,
+    );
+  }
+
   void _openDashboard() {
     if (!mounted) {
       _showDashboard = true;
@@ -258,7 +307,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   );
 
   List<SlashCommandDefinition> _buildSlashCommands(
-    BuildContext context,
     List<SlashCommandPromptTemplate> customPromptTemplates,
   ) {
     return buildSlashCommandCatalog(
@@ -281,7 +329,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required Conversation? currentConversation,
     required ConversationsState conversationsState,
     required List<SlashCommandPromptTemplate> customPromptTemplates,
-  }) {
+  }) async {
+    if (isLoading && !invocation.definition.enabledWhileLoading) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_blocked_while_loading'.tr(),
+      );
+    }
+    if (invocation.definition.promptTemplateId == 'review' ||
+        invocation.definition.action == SlashCommandAction.review) {
+      return ChatReviewSlashCommand.handle(
+        ref: ref,
+        invocation: invocation,
+        languageCode: context.locale.languageCode,
+        isCodingWorkspace: isCodingWorkspace,
+        activeProject: activeProject,
+      );
+    }
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
@@ -363,8 +426,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _selectDrawerConversation(String conversationId) =>
-      _workspaceNavigationCoordinator.selectConversation(conversationId);
+  Future<void> _selectDrawerConversation(String conversationId) async {
+    await _workspaceNavigationCoordinator.selectConversation(conversationId);
+    if (!mounted) return;
+    unawaited(
+      _projectTaskReviews.start(
+        ref: ref,
+        conversationId: conversationId,
+        languageCode: context.locale.languageCode,
+        isMounted: () => mounted,
+        showMessage: (message) => ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message))),
+      ),
+    );
+  }
 
   void _createDrawerChatConversation() {
     _leaveDashboard();
@@ -687,10 +763,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               isCodingWorkspace: isCodingWorkspace,
               currentConversation: currentConversation,
             ),
-        slashCommands: _buildSlashCommands(
-          context,
-          customSlashCommandTemplates,
-        ),
+        slashCommands: _buildSlashCommands(customSlashCommandTemplates),
         onSlashCommand: (invocation) => _handleSlashCommand(
           context,
           invocation,
@@ -887,72 +960,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 context,
                                 isCodingWorkspace: isCodingWorkspace,
                               )
-                            : NotificationListener<ScrollNotification>(
-                                onNotification:
+                            : ThreadMessageListView(
+                                controller: _threadScroll.controller,
+                                onScrollNotification:
                                     _threadScroll.handleScrollNotification,
-                                child: ListView.builder(
-                                  key: const ValueKey('chat-message-list'),
-                                  controller: _threadScroll.controller,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                  ),
-                                  itemCount:
-                                      chatState.messages.length +
-                                      (shouldShowPlanStatusMessage ? 1 : 0),
-                                  itemBuilder: (context, index) {
-                                    if (index >= chatState.messages.length) {
-                                      return MessageBubble(
-                                        key: const ValueKey(
-                                          'plan-status-message',
-                                        ),
-                                        message: _buildPlanStatusMessage(
-                                          context,
-                                          chatState: chatState,
-                                        ),
-                                        onOpenFileWorkspaceViewer:
-                                            _openFileWorkspaceViewer,
-                                        onReselectProject: isCodingWorkspace
-                                            ? _pickAndActivateProject
-                                            : null,
-                                      );
-                                    }
-                                    final message = chatState.messages[index];
-                                    final turnDiff = currentConversation
-                                        ?.turnDiffForAssistantMessage(
-                                          message.id,
-                                        );
-                                    final canRewind =
-                                        !chatState.isLoading &&
-                                        !message.isStreaming &&
-                                        index < chatState.messages.length - 1;
-                                    return MessageBubble(
-                                      key: ValueKey(message.id),
-                                      message: message,
-                                      conversationId: conversationsState
-                                          .currentConversationId,
-                                      turnDiff: turnDiff,
-                                      onOpenTurnDiff: turnDiff == null
-                                          ? null
-                                          : () => _openFileWorkspaceViewer(
-                                              _buildTurnDiffViewerRequest(
-                                                turnDiff,
-                                              ),
-                                            ),
-                                      onOpenFileWorkspaceViewer:
-                                          _openFileWorkspaceViewer,
-                                      canRewind: canRewind,
-                                      onRewindToHere: canRewind
-                                          ? () => _rewindConversationToMessage(
-                                              context,
-                                              message,
-                                            )
-                                          : null,
-                                      onReselectProject: isCodingWorkspace
-                                          ? _pickAndActivateProject
-                                          : null,
-                                    );
-                                  },
-                                ),
+                                itemCount:
+                                    chatState.messages.length +
+                                    (shouldShowPlanStatusMessage ? 1 : 0),
+                                itemBuilder: (context, index) =>
+                                    _buildThreadMessageItem(
+                                      context,
+                                      index,
+                                      chatState: chatState,
+                                      conversationsState: conversationsState,
+                                      isCodingWorkspace: isCodingWorkspace,
+                                    ),
+                                scrollToBottomVisibility: isCodingWorkspace
+                                    ? _threadScroll.showScrollToBottomButton
+                                    : null,
+                                onScrollToBottom: _threadScroll.scrollToBottom,
                               ),
                       ),
                       if (!shouldShowCodingDraftComposer &&
@@ -968,10 +994,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           canCompose &&
                           (chatState.queuedMessages.isNotEmpty ||
                               chatState.steeringMessages.isNotEmpty))
-                        QueuedMessagesStrip(
-                          messages: chatState.queuedMessages,
-                          steeringMessages: chatState.steeringMessages,
+                        QueuedMessagesStrip.forChat(
+                          chatState,
                           onRemove: chatNotifier.removeQueuedMessage,
+                          onInterrupt: chatNotifier.interruptWithQueuedMessage,
                         ),
                       if (canCompose && !shouldShowCodingDraftComposer)
                         buildMessageInput(),
@@ -997,6 +1023,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 ?.buildViewer(
                                   onClose: _closeFileWorkspaceViewer,
                                 ),
+                            processPanel: BackgroundProcessPanel.of(
+                              sidebarConversation.id,
+                            ),
                             selectedTab: _rightSidebarTab,
                             onSelected: (selection) {
                               setState(() {
@@ -1162,51 +1191,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final outcome = await _planReviewActionCoordinator.approveCurrentPlan(
       currentConversation: currentConversation,
     );
-    switch (outcome) {
-      case PlanReviewApprovalMissingDocument() || PlanReviewApprovalAborted():
-        return;
-      case PlanReviewApprovalBlocked(:final errorMessage):
-        if (!context.mounted) {
-          return;
-        }
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'chat.plan_document_approval_blocked'.tr(
-                namedArgs: {'error': errorMessage},
-              ),
-            ),
-          ),
-        );
-        return;
-      case PlanReviewApprovalReady(
-        :final executionConversation,
-        :final nextTask,
-      ):
-        setState(() {
-          _composerPrefillText = '';
-          _composerPrefillVersion++;
-        });
-        messenger.showSnackBar(
-          SnackBar(content: Text('chat.plan_proposal_started'.tr())),
-        );
-        if (nextTask == null) {
-          await chatNotifier.sendMessage(
-            'chat.plan_proposal_execute_prompt'.tr(),
-            languageCode: languageCode,
-            bypassPlanMode: true,
-          );
-          return;
-        }
-        if (!context.mounted) {
-          return;
-        }
-        await _runWorkflowTask(
-          context,
-          currentConversation: executionConversation,
-          task: nextTask,
-        );
-    }
+    if (!context.mounted) return;
+    await PlanApprovalPresenter.show(
+      context: context,
+      outcome: outcome,
+      languageCode: languageCode,
+      messenger: messenger,
+      chatNotifier: chatNotifier,
+      clearComposer: () => setState(() {
+        _composerPrefillText = '';
+        _composerPrefillVersion++;
+      }),
+      runTask: _runWorkflowTask,
+    );
   }
 
   PlanReviewActionCoordinator get _planReviewActionCoordinator =>
@@ -1267,10 +1264,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final projectsState = ref.read(codingProjectsNotifierProvider);
     final rootPath = projectsState.findById(activeProjectId)?.rootPath.trim();
-    if (rootPath == null || rootPath.isEmpty) {
-      return null;
-    }
-    return rootPath;
+    return rootPath == null || rootPath.isEmpty ? null : rootPath;
   }
 
   WorkflowTaskRunCoordinator _createWorkflowTaskRunCoordinator(
@@ -1319,5 +1313,4 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           : 'chat.workflow_task_use_prompt_outro'.tr(),
     ),
   );
-
 }

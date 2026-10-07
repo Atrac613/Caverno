@@ -3,6 +3,7 @@ import '../entities/message.dart';
 import '../entities/tool_call_info.dart';
 import 'final_answer_claim_detector.dart';
 import 'harness_notice_visibility.dart';
+import 'project_task_terminal_status.dart';
 import 'tool_call_execution_policy.dart';
 import 'unexecuted_final_answer_tool_request_policy.dart';
 
@@ -26,6 +27,22 @@ final class FinalAnswerMessageNoticeService {
   static const _claims = FinalAnswerClaimDetector();
   static const _executionPolicy = ToolCallExecutionPolicy();
   static const _visibility = HarnessNoticeVisibility();
+
+  FinalAnswerMessageMutation? replaceUnacceptedProjectTaskCompletion(
+    List<Message> messages,
+    ProjectTaskTerminalStatus? status,
+  ) {
+    if (status == null || status.completionAccepted) return null;
+    // No lexical completion detector: this verdict owns the implementation or subtask
+    // status in every conversation language, including readiness markers.
+    return _mutate(
+      messages,
+      status.correctResponse,
+      transformId: status.isSubtask
+          ? 'coding_subtask_completion_notice'
+          : 'coding_task_completion_notice',
+    );
+  }
 
   FinalAnswerMessageMutation? appendUnexecutedToolRequest(
     List<Message> messages,

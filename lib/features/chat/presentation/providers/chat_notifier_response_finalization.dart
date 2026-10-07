@@ -5,6 +5,13 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierResponseFinalization on ChatNotifier {
+  ProjectTaskTerminalStatus? takeProjectTaskSubtaskStatus(
+    ChatTurnOwner owner,
+  ) => _primaryRoutes.takeSubtaskTerminal(
+    owner.interactionGeneration,
+    owner.conversationId,
+  );
+
   void _failResponseMessagesMissing(int generation) => _failRuntimeTurn(
     generation,
     code: 'response_messages_missing',
@@ -74,6 +81,81 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
         persistence.visibleMessages;
   }
 
+  Future<List<Message>> _saveProjectTaskFinalMessages(
+    ChatTurnOwner owner,
+    List<Message> messages,
+  ) async {
+    if (!_activeResponseRegistry.containsOwner(owner)) return messages;
+    if (_primaryRoutes.isProjectTaskStep(owner.interactionGeneration) &&
+        messages.isNotEmpty) {
+      final conversation = _conversationForId(owner.conversationId);
+      final policy = const ProjectTaskStepCompletionPolicy();
+      if (policy.applies(goal: conversation?.goal, stepTurn: true)) {
+        final status = policy.status(
+          response: messages.last.content,
+          results: _turnToolResults.all(owner),
+          goal: conversation?.goal,
+          taskId: conversation == null
+              ? null
+              : ConversationPlanExecutionCoordinator.executionFocusTask(
+                  conversation,
+                )?.id,
+        );
+        _primaryRoutes.recordSubtaskTerminal(
+          owner.interactionGeneration,
+          owner.conversationId,
+          status,
+        );
+        _turnToolResults.addContent(
+          owner,
+          status.toToolResult(
+            'coding-subtask-status-${owner.interactionGeneration}',
+          ),
+        );
+        _turnEnd.addTransform(
+          owner,
+          'coding_subtask_status_${status.completionAccepted ? 'completed' : 'incomplete'}',
+        );
+      }
+    }
+    final results = _turnToolResults.all(owner);
+    _primaryRoutes.recordVerificationContext(
+      owner.interactionGeneration,
+      owner.conversationId,
+      results,
+    );
+    final mutation = _messageNotices.replaceUnacceptedProjectTaskCompletion(
+      messages,
+      ProjectTaskTerminalStatus.fromToolResults(results),
+    );
+    final corrected = mutation?.messages ?? messages;
+    if (mutation != null) {
+      _applyFinalAnswerMessageMutation(
+        owner.interactionGeneration,
+        mutation,
+        owner: owner,
+      );
+    }
+    // Extraction must see the reconciled verdict, not an earlier model answer
+    // saved while the final goal acknowledgement was still being evaluated.
+    final saved = await _saveMessages(
+      messages: corrected,
+      conversationId: owner.conversationId,
+      memoryToolResults: results,
+    );
+    if (_activeResponseRegistry.containsOwner(owner)) {
+      _cacheActiveResponseMessagesForGeneration(
+        owner.interactionGeneration,
+        saved,
+      );
+      _routeThreadState(
+        owner.conversationId,
+        (current) => current.copyWith(messages: saved),
+      );
+    }
+    return saved;
+  }
+
   Future<void> _finishDetachedActiveResponse(int generation) async {
     if (!_isCurrentInteractionGeneration(generation)) return;
     final snapshot = _turnOwnerSnapshotForGeneration(generation);
@@ -85,7 +167,7 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
     final targetConversationId = _activeResponseConversationIdForGeneration(
       generation,
     );
-    final activeMessages = _activeResponseMessagesForGeneration(generation);
+    var activeMessages = _activeResponseMessagesForGeneration(generation);
     if (targetConversationId == null ||
         activeMessages == null ||
         activeMessages.isEmpty) {
@@ -97,11 +179,29 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
       return;
     }
 
+    if (_primaryRoutes.isProjectTaskStep(generation) ||
+        _primaryRoutes.isProjectTaskImplementation(generation)) {
+      final candidate = _resolveTurnFinalMessage(activeMessages.last, owner);
+      if (await _recoverBeforeTurnFinalizationIfNeeded(
+        generation: generation,
+        finalizedMessages: candidate.apply(
+          activeMessages,
+          metrics: null,
+          truncated: false,
+        ),
+        shouldDropLastAssistant: candidate.dropLastAssistant,
+      )) {
+        return;
+      }
+      if (!_activeResponseRegistry.containsOwner(owner)) return;
+      activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+    }
     final finalMessage = _resolveTurnFinalMessage(activeMessages.last, owner);
     final shouldDropLastAssistant = finalMessage.dropLastAssistant;
     final goalTokenUsageDelta = _updateTokenUsage(owner);
     final finishReason = _responseMetadata.finishReasonFor(owner) ?? '';
-    final updatedMessages = finalMessage.apply(
+    var updatedMessages = finalMessage.apply(
       activeMessages,
       metrics: _turnResponseMetrics(owner, finalMessage),
       truncated: ProposalParsingTextUtils.isCompletionTruncated(finishReason),
@@ -118,16 +218,18 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
     }
     _clearHiddenPromptMirrorForSnapshot(snapshot);
 
-    // A background turn ends here rather than in _finishStreaming, so without
-    // this its exit reason never reached the session log and the triage
-    // tooling saw only the turns that happened to finish on screen.
-    await _logTurnExitReason(
-      owner: owner,
-      finalizedMessages: updatedMessages,
-      shouldDropLastAssistant: shouldDropLastAssistant,
-      finishReason: finishReason,
-    );
-    if (!_activeResponseRegistry.containsOwner(owner)) return;
+    final projectTask =
+        _primaryRoutes.isProjectTaskImplementation(generation) ||
+        _primaryRoutes.isProjectTaskStep(generation);
+    if (!projectTask) {
+      await _logTurnExitReason(
+        owner: owner,
+        finalizedMessages: updatedMessages,
+        shouldDropLastAssistant: shouldDropLastAssistant,
+        finishReason: finishReason,
+      );
+      if (!_activeResponseRegistry.containsOwner(owner)) return;
+    }
     final explicitTerminalSuccessSummary =
         _explicitTerminalSuccessSummariesByGeneration.remove(generation);
 
@@ -168,6 +270,24 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
         tokenUsageDelta: goalTokenUsageDelta,
       );
       if (completionEvidence == null) return;
+      if (!_activeResponseRegistry.containsOwner(owner)) return;
+      if (projectTask) {
+        updatedMessages = await _saveProjectTaskFinalMessages(
+          owner,
+          updatedMessages,
+        );
+        if (!_activeResponseRegistry.containsOwner(owner)) return;
+        completedContent = updatedMessages.last.content;
+      }
+    }
+
+    if (projectTask) {
+      await _logTurnExitReason(
+        owner: owner,
+        finalizedMessages: updatedMessages,
+        shouldDropLastAssistant: shouldDropLastAssistant,
+        finishReason: finishReason,
+      );
       if (!_activeResponseRegistry.containsOwner(owner)) return;
     }
 

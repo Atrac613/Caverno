@@ -20,6 +20,55 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test(
+    'tool recovery binds settings and publishes running then terminal reports',
+    () async {
+      final dataSource = _RecoveryRecordingDataSource();
+      final updates = <LiveLlmDiagnosticReport>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'recovery-model'),
+        chatDataSource: dataSource,
+        mcpToolService: null,
+      ).run(probeIds: const {'tool_recovery'}, onReport: updates.add);
+      final result = _result(report, 'tool_recovery');
+      expect(result.status, LiveLlmDiagnosticStatus.passed);
+      expect(result.passedChecks, 4);
+      expect(result.totalChecks, 4);
+      expect(result.elapsed, isNotNull);
+      expect(dataSource.recoveryRequestCount, 8);
+      expect(
+        updates.map((r) => _result(r, 'tool_recovery').status),
+        containsAllInOrder([
+          LiveLlmDiagnosticStatus.running,
+          LiveLlmDiagnosticStatus.passed,
+        ]),
+      );
+    },
+  );
+
+  test(
+    'tool recovery skips providers without native calls without requests',
+    () async {
+      final dataSource = _RecoveryRecordingDataSource();
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(
+          mcpEnabled: false,
+          llmProvider: LlmProvider.appleFoundationModels,
+        ),
+        chatDataSource: dataSource,
+        mcpToolService: null,
+      ).run(probeIds: const {'tool_recovery'});
+      final result = _result(report, 'tool_recovery');
+      expect(result.status, LiveLlmDiagnosticStatus.skipped);
+      expect(
+        result.summary,
+        'Skipped because the selected provider does not support this diagnostic capability.',
+      );
+      expect(dataSource.recoveryRequestCount, 0);
+      expect(dataSource.requestedModels, isEmpty);
+    },
+  );
+
   test('runs live harness probes with safe tool execution', () async {
     final dataSource = _FakeDiagnosticDataSource();
     final service = LiveLlmDiagnosticService(
@@ -122,15 +171,81 @@ void main() {
       _result(report, 'vision_tool_observation').status,
       LiveLlmDiagnosticStatus.passed,
     );
-    // Five, not four: video_input_modality skips as well. The fake endpoint
+    // Six, not four: video_input_modality skips as well. The fake endpoint
     // answers no /props, which is the same silence a proxy or a cloud provider
-    // gives, and silence is "not measured" rather than "refused".
+    // gives, and silence is "not measured" rather than "refused". And
+    // thinking_control skips because this run has no per-mode datasource.
     expect(
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.skipped)
           .length,
-      5,
+      6,
     );
+  });
+
+  test('tool-result probe asks for a final answer without tools', () async {
+    final dataSource = _ToolResultFollowUpDataSource();
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(
+      probeIds: const {'tool_result_integration'},
+    );
+
+    expect(dataSource.followUpTools, isEmpty);
+    expect(
+      _result(report, 'tool_result_integration').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+  });
+
+  test(
+    'tool-result probe identifies an unexpected repeated tool call',
+    () async {
+      final dataSource = _ToolResultFollowUpDataSource(repeatDatetime: true);
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true),
+        chatDataSource: dataSource,
+        mcpToolService: McpToolService(),
+      );
+
+      final report = await service.run(
+        probeIds: const {'tool_result_integration'},
+      );
+      final result = _result(report, 'tool_result_integration');
+
+      expect(dataSource.followUpTools, isEmpty);
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.summary, contains('requested another tool'));
+      expect(result.details, contains('get_current_datetime'));
+      expect(result.details, contains('tool_calls'));
+      expect(result.toolCalls, [
+        'get_current_datetime',
+        'get_current_datetime',
+      ]);
+    },
+  );
+
+  test('tool-result probe reports an empty final response', () async {
+    final dataSource = _ToolResultFollowUpDataSource(emptyFinalAnswer: true);
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(
+      probeIds: const {'tool_result_integration'},
+    );
+    final result = _result(report, 'tool_result_integration');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.summary, contains('no final answer'));
+    expect(result.details, contains('Finish reason: stop'));
+    expect(result.toolCalls, ['get_current_datetime']);
   });
 
   test(
@@ -450,6 +565,146 @@ void main() {
     },
   );
 
+  test('counts the reasoning the probe responses actually carried', () async {
+    const probeIds = {
+      'streaming_response',
+      'exact_preservation',
+      'edit_format_fidelity',
+    };
+    final reasoning = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _ReasoningWrappedDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+    ).run(probeIds: probeIds);
+    final plain = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _FakeDiagnosticDataSource(),
+      mcpToolService: McpToolService(),
+    ).run(probeIds: probeIds);
+
+    final observed = reasoning.thinkingMetrics!;
+    // One streamed answer, three exact-preservation arms, three edit formats.
+    expect(observed.responseCount, 7);
+    expect(observed.reasoningResponseCount, 7);
+    expect(observed.reasoningChars, 7 * 'diagnostic reasoning'.length);
+    // A fake datasource sends no thinking control, so nothing to contradict.
+    expect(observed.requested, isNull);
+    expect(observed.mismatch, isFalse);
+
+    final absent = plain.thinkingMetrics!;
+    expect(absent.responseCount, 7);
+    expect(absent.reasoningResponseCount, 0);
+    expect(absent.observed, isFalse);
+    expect(plain.toJson()['thinking'], {
+      'responseCount': 7,
+      'reasoningResponseCount': 0,
+      'reasoningChars': 0,
+      'mismatch': false,
+    });
+  });
+
+  group('thinking_control', () {
+    Future<LiveLlmDiagnosticProbeResult> runProbe({
+      required bool reasonsWhenOn,
+      required bool reasonsWhenOff,
+      String model = 'qwen3.8-27b-exl3',
+    }) async {
+      final requestedModes = <LiveLlmDiagnosticThinkingMode>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: model),
+        chatDataSource: _FakeDiagnosticDataSource(),
+        mcpToolService: McpToolService(),
+        thinkingModeDataSource: (mode) {
+          requestedModes.add(mode);
+          final reasons = mode == LiveLlmDiagnosticThinkingMode.on
+              ? reasonsWhenOn
+              : reasonsWhenOff;
+          return reasons
+              ? _ReasoningWrappedDiagnosticDataSource()
+              : _FakeDiagnosticDataSource();
+        },
+      ).run(probeIds: const {'thinking_control'});
+      final result = _result(report, 'thinking_control');
+      if (result.status != LiveLlmDiagnosticStatus.skipped) {
+        expect(requestedModes, LiveLlmDiagnosticThinkingMode.values);
+      }
+      // The deliberate mode switch must not count as the run's own thinking.
+      expect(report.thinkingMetrics, isNull);
+      return result;
+    }
+
+    test('passes when reasoning follows the request both ways', () async {
+      final result = await runProbe(reasonsWhenOn: true, reasonsWhenOff: false);
+
+      expect(result.status, LiveLlmDiagnosticStatus.passed);
+      expect(result.metadata['thinkingControl'], 'controllable');
+    });
+
+    test('warns when the serving path forces thinking off', () async {
+      final result = await runProbe(
+        reasonsWhenOn: false,
+        reasonsWhenOff: false,
+      );
+
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.metadata['thinkingControl'], 'never_reasoned');
+    });
+
+    test('warns when the serving path forces thinking on', () async {
+      final result = await runProbe(reasonsWhenOn: true, reasonsWhenOff: true);
+
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.metadata['thinkingControl'], 'always_on');
+    });
+
+    test('skips an endpoint that cannot be sent enable_thinking', () async {
+      final result = await runProbe(
+        reasonsWhenOn: true,
+        reasonsWhenOff: false,
+        model: 'test-model',
+      );
+
+      expect(result.status, LiveLlmDiagnosticStatus.skipped);
+      expect(result.metadata, isEmpty);
+    });
+
+    test('skips when the run has no per-mode datasource', () async {
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'qwen3.8-27b-exl3'),
+        chatDataSource: _FakeDiagnosticDataSource(),
+        mcpToolService: McpToolService(),
+      ).run(probeIds: const {'thinking_control'});
+
+      expect(
+        _result(report, 'thinking_control').status,
+        LiveLlmDiagnosticStatus.skipped,
+      );
+    });
+  });
+
+  test('keeps update_goal string boolean failures explicit', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true),
+      chatDataSource: _FakeDiagnosticDataSource(goalCompleted: 'True'),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(probeIds: const {'update_goal_fidelity'});
+    final result = _result(report, 'update_goal_fidelity');
+
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.details, contains('must be a JSON boolean'));
+    expect(result.details, contains('{"completed":"True"}'));
+    expect(
+      result.metadata['argumentValidationError'],
+      contains('received String "True"'),
+    );
+    expect(result.metadata['completedType'], 'boolean');
+    expect(result.metadata['required'], 'completed');
+    expect(result.metadata['additionalProperties'], 'false');
+    expect(result.metadata['toolChoice'], contains('update_goal'));
+  });
+
   test('selects the strongest exactly reproduced edit format', () async {
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
@@ -592,16 +847,30 @@ void main() {
   });
 
   test('prefers JSON Schema structured output when it is enforced', () async {
+    final dataSource = _FakeDiagnosticDataSource();
+    final updates = <LiveLlmDiagnosticReport>[];
     final service = LiveLlmDiagnosticService(
       settings: _settings(mcpEnabled: false),
-      chatDataSource: _FakeDiagnosticDataSource(),
+      chatDataSource: dataSource,
       mcpToolService: McpToolService(),
     );
 
-    final report = await service.run(probeIds: {'structured_output'});
+    final report = await service.run(
+      probeIds: {'structured_output'},
+      onReport: updates.add,
+    );
     final result = _result(report, 'structured_output');
 
     expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(dataSource.requestedModels, ['test-model']);
+    expect(dataSource.structuredCaps, [2048]);
+    expect(dataSource.structuredTemperatures, [0.0]);
+    expect(report.thinkingMetrics?.responseCount, 1);
+    expect(updates.map((r) => _result(r, 'structured_output').status).toSet(), {
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.passed,
+    });
     expect(result.passedChecks, 2);
     expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
     expect(
@@ -613,45 +882,100 @@ void main() {
     );
   });
 
-  test('names the expected values in the json_schema prompt', () async {
-    final dataSource = _FakeDiagnosticDataSource();
-    final service = LiveLlmDiagnosticService(
-      settings: _settings(mcpEnabled: false),
-      chatDataSource: dataSource,
-      mcpToolService: McpToolService(),
+  test(
+    'tool depth binds requests and publishes metrics with terminal report',
+    () async {
+      final source = _DepthRecordingDataSource();
+      final updates = <LiveLlmDiagnosticReport>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'depth-model'),
+        chatDataSource: source,
+        mcpToolService: null,
+      ).run(probeIds: const {'tool_state_staircase'}, onReport: updates.add);
+      expect(source.requestCount, 12);
+      expect(source.finalRequestCount, 3);
+      expect(
+        _result(report, 'tool_state_staircase').status,
+        LiveLlmDiagnosticStatus.passed,
+      );
+      final running = updates.firstWhere(
+        (r) =>
+            _result(r, 'tool_state_staircase').status ==
+            LiveLlmDiagnosticStatus.running,
+      );
+      expect(running.toolDepthMetrics, isNull);
+      final terminal = updates.firstWhere(
+        (r) =>
+            _result(r, 'tool_state_staircase').status ==
+            LiveLlmDiagnosticStatus.passed,
+      );
+      expect(terminal.toolDepthMetrics?.deepestPassedDepth, 4);
+      expect(terminal.toolDepthMetrics?.attemptedDepths, [2, 3, 4]);
+      expect(
+        _result(terminal, 'tool_state_staircase').elapsed,
+        greaterThanOrEqualTo(Duration.zero),
+      );
+    },
+  );
+
+  for (final selected in [false, true]) {
+    test(
+      'tool depth skips ${selected ? 'unsupported provider' : 'unselected probe'} without requests',
+      () async {
+        final source = _DepthRecordingDataSource();
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(
+            mcpEnabled: false,
+            llmProvider: selected
+                ? LlmProvider.appleFoundationModels
+                : LlmProvider.openAiCompatible,
+          ),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(probeIds: selected ? const {'tool_state_staircase'} : const {});
+        final result = _result(report, 'tool_state_staircase');
+        expect(result.status, LiveLlmDiagnosticStatus.skipped);
+        expect(
+          result.summary,
+          selected
+              ? 'Skipped because the selected provider does not support this diagnostic capability.'
+              : 'Skipped because this bounded diagnostic run did not request this probe.',
+        );
+        expect(report.toolDepthMetrics, isNull);
+        expect(source.requestCount, 0);
+      },
     );
+  }
 
-    await service.run(probeIds: {'structured_output'});
-
-    // Asking abstractly is answerable only when the schema reaches the model;
-    // a serving path that drops response_format leaves nothing to produce and
-    // the model reasons to the token cap. The two arms must ask the same thing
-    // and differ only in the format they request.
-    expect(dataSource.schemaArmPrompt, contains('CAVERNO_SCHEMA_LOCKED_47'));
-    expect(dataSource.schemaArmPrompt, contains('"count":47'));
-    expect(
-      dataSource.schemaArmPrompt,
-      contains('matching the supplied response schema'),
-    );
-  });
-
-  test('scores a schema answer buried under a braced think block', () async {
-    // Regression: the merged <think> prose contains a brace, so decoding the
-    // raw content sliced from the thought into the answer and reported a
-    // schema-perfect reply as a contract violation.
-    final service = LiveLlmDiagnosticService(
-      settings: _settings(mcpEnabled: false),
-      chatDataSource: _FakeDiagnosticDataSource(bracedReasoning: true),
-      mcpToolService: McpToolService(),
-    );
-
-    final report = await service.run(probeIds: {'structured_output'});
-    final result = _result(report, 'structured_output');
-
-    expect(result.status, LiveLlmDiagnosticStatus.passed);
-    expect(result.passedChecks, 2);
-    expect(result.metadata['structuredOutputSupport'], 'jsonSchema');
-  });
+  for (final status in [
+    LiveLlmDiagnosticStatus.running,
+    LiveLlmDiagnosticStatus.passed,
+  ]) {
+    test('tool depth propagates $status publication errors', () async {
+      final source = _DepthRecordingDataSource();
+      final error = StateError('publication failed');
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false, model: 'depth-model'),
+        chatDataSource: source,
+        mcpToolService: null,
+      );
+      await expectLater(
+        service.run(
+          probeIds: const {'tool_state_staircase'},
+          onReport: (report) {
+            if (_result(report, 'tool_state_staircase').status == status) {
+              throw error;
+            }
+          },
+        ),
+        throwsA(same(error)),
+      );
+      expect(
+        source.requestCount,
+        status == LiveLlmDiagnosticStatus.running ? 0 : 12,
+      );
+    });
+  }
 
   // The staircase is headroom, not a floor: a model that loses the carried id
   // at rung three sits at depth 2 and must not fail the run for it.
@@ -748,6 +1072,128 @@ void main() {
     expect(result.status, LiveLlmDiagnosticStatus.failed);
     expect(result.passedChecks, 0);
     expect(result.metadata['structuredOutputSupport'], 'none');
+  });
+
+  test(
+    'schema report publication failure still runs the object fallback',
+    () async {
+      final dataSource = _FakeDiagnosticDataSource();
+      var schemaPublications = 0;
+      final report =
+          await LiveLlmDiagnosticService(
+            settings: _settings(mcpEnabled: false),
+            chatDataSource: dataSource,
+            mcpToolService: McpToolService(),
+          ).run(
+            probeIds: {'structured_output'},
+            onReport: (report) {
+              if (_result(report, 'structured_output').status ==
+                  LiveLlmDiagnosticStatus.passed) {
+                schemaPublications += 1;
+                throw StateError('publication failed');
+              }
+            },
+          );
+
+      expect(schemaPublications, 1);
+      expect(dataSource.structuredCaps, [2048, 512]);
+      expect(
+        _result(report, 'structured_output').status,
+        LiveLlmDiagnosticStatus.warning,
+      );
+      expect(
+        _result(report, 'structured_output').details,
+        contains('publication failed'),
+      );
+      expect(report.thinkingMetrics?.responseCount, 2);
+    },
+  );
+
+  test('structured fallback reports and observes each response once', () async {
+    final dataSource = _StructuredAccountingDataSource();
+    final updates = <LiveLlmDiagnosticReport>[];
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: {'structured_output'}, onReport: updates.add);
+
+    final result = _result(report, 'structured_output');
+    expect(dataSource.requestedModels, ['test-model', 'test-model']);
+    expect(dataSource.structuredCaps, [2048, 512]);
+    expect(dataSource.structuredTemperatures, [0.0, 0.0]);
+    expect(result.usage.toJson(), {
+      'promptTokens': 30,
+      'completionTokens': 10,
+      'totalTokens': 40,
+    });
+    expect(report.thinkingMetrics?.responseCount, 2);
+    expect(report.thinkingMetrics?.reasoningResponseCount, 2);
+    expect(result.modelContent, contains('<think>'));
+    expect(updates.map((r) => _result(r, 'structured_output').status).toSet(), {
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.warning,
+    });
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      ).structuredOutputSupport,
+      ModelStructuredOutputSupport.jsonObject,
+    );
+  });
+
+  test(
+    'unselected structured probe does not send a structured request',
+    () async {
+      final dataSource = _FakeDiagnosticDataSource();
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: false),
+        chatDataSource: dataSource,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: {'instruction_echo'});
+
+      expect(dataSource.structuredCaps, isEmpty);
+      expect(
+        _result(report, 'structured_output').status,
+        LiveLlmDiagnosticStatus.skipped,
+      );
+    },
+  );
+
+  test(
+    'Apple provider skips structured output even with a capable datasource',
+    () async {
+      final dataSource = _FakeDiagnosticDataSource();
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(
+          mcpEnabled: false,
+          llmProvider: LlmProvider.appleFoundationModels,
+        ),
+        chatDataSource: dataSource,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: {'structured_output'});
+
+      expect(dataSource.requestedModels, isEmpty);
+      expect(report.thinkingMetrics, isNull);
+      final result = _result(report, 'structured_output');
+      expect(result.status, LiveLlmDiagnosticStatus.skipped);
+      expect(result.summary, contains('Apple Foundation Models'));
+    },
+  );
+
+  test('datasource without response_format skips without generation', () async {
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _UnsupportedLanguageDataSource(),
+      mcpToolService: McpToolService(),
+    ).run(probeIds: {'structured_output'});
+
+    final result = _result(report, 'structured_output');
+    expect(result.status, LiveLlmDiagnosticStatus.skipped);
+    expect(result.summary, contains('cannot send response_format'));
+    expect(report.thinkingMetrics, isNull);
   });
 
   test('measures usable embeddings and semantic separation', () async {
@@ -1304,6 +1750,108 @@ void main() {
   });
 
   test(
+    'multi-round binding preserves requests and publishes metrics together',
+    () async {
+      final source = _MultiRoundRecordingDataSource();
+      final updates = <LiveLlmDiagnosticReport>[];
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true, model: 'multi-model'),
+        chatDataSource: source,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: const {'multi_round_tool_loop'}, onReport: updates.add);
+      expect(source.requestCount, 3);
+      expect(source.followUpCount, 2);
+      expect(
+        _result(report, 'multi_round_tool_loop').status,
+        LiveLlmDiagnosticStatus.passed,
+      );
+      final running = updates.firstWhere(
+        (r) =>
+            _result(r, 'multi_round_tool_loop').status ==
+            LiveLlmDiagnosticStatus.running,
+      );
+      expect(running.multiRoundToolLoopMetrics, isNull);
+      final terminal = updates.firstWhere(
+        (r) =>
+            _result(r, 'multi_round_tool_loop').status ==
+            LiveLlmDiagnosticStatus.passed,
+      );
+      expect(terminal.multiRoundToolLoopMetrics?.taskCompleted, isTrue);
+    },
+  );
+
+  for (final selected in [false, true]) {
+    test(
+      'multi-round skips ${selected ? 'missing local tools' : 'unselected probe'} without model requests',
+      () async {
+        final source = _MultiRoundRecordingDataSource();
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(probeIds: selected ? const {'multi_round_tool_loop'} : const {});
+        expect(
+          _result(report, 'multi_round_tool_loop').status,
+          LiveLlmDiagnosticStatus.skipped,
+        );
+        expect(source.requestCount, 0);
+        if (selected) {
+          expect(report.multiRoundToolLoopMetrics?.modelTurnCount, 0);
+        } else {
+          expect(report.multiRoundToolLoopMetrics, isNull);
+        }
+      },
+    );
+  }
+
+  test(
+    'multi-round request exceptions publish failed results without partial metrics',
+    () async {
+      final source = _MultiRoundRecordingDataSource(failRequest: true);
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true, model: 'multi-model'),
+        chatDataSource: source,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: const {'multi_round_tool_loop'});
+      final result = _result(report, 'multi_round_tool_loop');
+      expect(result.status, LiveLlmDiagnosticStatus.failed);
+      expect(result.summary, 'The multi-round tool loop request failed.');
+      expect(result.details, 'Bad state: request failed');
+      expect(report.multiRoundToolLoopMetrics, isNull);
+    },
+  );
+
+  for (final status in [
+    LiveLlmDiagnosticStatus.running,
+    LiveLlmDiagnosticStatus.passed,
+  ]) {
+    test('multi-round propagates $status publication exceptions', () async {
+      final source = _MultiRoundRecordingDataSource();
+      final error = StateError('publication failed');
+      final service = LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true, model: 'multi-model'),
+        chatDataSource: source,
+        mcpToolService: McpToolService(),
+      );
+      await expectLater(
+        service.run(
+          probeIds: const {'multi_round_tool_loop'},
+          onReport: (report) {
+            if (_result(report, 'multi_round_tool_loop').status == status) {
+              throw error;
+            }
+          },
+        ),
+        throwsA(same(error)),
+      );
+      expect(
+        source.requestCount,
+        status == LiveLlmDiagnosticStatus.running ? 0 : 3,
+      );
+    });
+  }
+
+  test(
     'multi-round probe rejects a non-search call on the first turn',
     () async {
       final service = LiveLlmDiagnosticService(
@@ -1476,6 +2024,61 @@ class _TemperatureIgnoringDataSource extends _FakeDiagnosticDataSource
   }
 }
 
+class _ToolResultFollowUpDataSource extends _FakeDiagnosticDataSource {
+  _ToolResultFollowUpDataSource({
+    this.repeatDatetime = false,
+    this.emptyFinalAnswer = false,
+  });
+
+  final bool repeatDatetime;
+  final bool emptyFinalAnswer;
+  List<Map<String, dynamic>>? followUpTools;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    if (toolResults.single.name == 'get_current_datetime') {
+      followUpTools = tools;
+      if (repeatDatetime) {
+        return Future.value(
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'repeated-datetime',
+                name: 'get_current_datetime',
+                arguments: const <String, dynamic>{},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        );
+      }
+      if (emptyFinalAnswer) {
+        return Future.value(
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        );
+      }
+    }
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
 class _FakeDiagnosticDataSource
     implements ChatDataSource, StructuredOutputChatDataSource {
   _FakeDiagnosticDataSource({
@@ -1486,13 +2089,11 @@ class _FakeDiagnosticDataSource
     this.silentChart = false,
     this.schemaArmRunsToTokenCap = false,
     this.toolDepthLimit = 4,
+    this.goalCompleted = true,
   });
 
   final bool textToolCalls;
   final ModelStructuredOutputSupport structuredOutputSupport;
-
-  /// The last json_schema arm prompt, so a test can assert what it asked for.
-  String? schemaArmPrompt;
 
   /// Reasons to the token cap and returns no answer, the way a model does
   /// when the endpoint silently dropped the schema it was told to follow.
@@ -1502,6 +2103,7 @@ class _FakeDiagnosticDataSource
   /// this answers in text instead of calling the next tool, which is what
   /// losing the carried state looks like.
   final int toolDepthLimit;
+  final Object goalCompleted;
 
   /// Answers the chart question the same with and without the image, which is
   /// what a model that never looked at the picture does.
@@ -1525,6 +2127,8 @@ class _FakeDiagnosticDataSource
 
   int toolResultFollowUpCount = 0;
   final List<String?> requestedModels = [];
+  final List<int?> structuredCaps = [];
+  final List<double?> structuredTemperatures = [];
 
   /// Replays the tool-state staircase: one call per scripted step, then a
   /// final answer carrying every value that rung asks to see survive.
@@ -1587,8 +2191,9 @@ class _FakeDiagnosticDataSource
     int? maxTokens,
   }) async {
     requestedModels.add(model);
+    structuredCaps.add(maxTokens);
+    structuredTemperatures.add(temperature);
     if (responseFormat.format == StructuredOutputFormat.jsonSchema) {
-      schemaArmPrompt = messages.last.content;
       if (schemaArmRunsToTokenCap) {
         // An endpoint that drops response_format leaves the schema arm's
         // prompt with no values to produce, so the model reasons to the cap.
@@ -1759,7 +2364,7 @@ class _FakeDiagnosticDataSource
       });
     }
     if (user.contains('update_goal exactly once')) {
-      return _toolCall('update_goal', const {'completed': true});
+      return _toolCall('update_goal', {'completed': goalCompleted});
     }
     if (user.contains('get_current_datetime')) {
       return _toolCall('get_current_datetime', const <String, dynamic>{});
@@ -1912,6 +2517,38 @@ class _FakeDiagnosticDataSource
         ToolCallInfo(id: 'call-$name', name: name, arguments: arguments),
       ],
       finishReason: 'tool_calls',
+    );
+  }
+}
+
+class _StructuredAccountingDataSource extends _FakeDiagnosticDataSource {
+  _StructuredAccountingDataSource()
+    : super(bracedReasoning: true, schemaArmRunsToTokenCap: true);
+
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final result = await super.createStructuredChatCompletion(
+      messages: messages,
+      responseFormat: responseFormat,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    final schema = responseFormat.format == StructuredOutputFormat.jsonSchema;
+    return ChatCompletionResult(
+      content: result.content,
+      finishReason: result.finishReason,
+      usage: TokenUsage(
+        promptTokens: schema ? 10 : 20,
+        completionTokens: schema ? 3 : 7,
+        totalTokens: schema ? 13 : 27,
+      ),
     );
   }
 }
@@ -2480,6 +3117,137 @@ class _UnavailableFoundationModelsDataSource
         status: 'unavailable',
         reason: 'modelNotReady',
       ),
+    );
+  }
+}
+
+class _RecoveryRecordingDataSource extends _FakeDiagnosticDataSource {
+  int recoveryRequestCount = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    recoveryRequestCount += 1;
+    expect(model, 'recovery-model');
+    expect(temperature, 0);
+    expect(maxTokens, 512);
+    expect(tools, isNotEmpty);
+    expect(messages.first.role, MessageRole.system);
+    expect(messages.first.content, contains('Prefer OpenAI tool calls'));
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _DepthRecordingDataSource extends _FakeDiagnosticDataSource {
+  int requestCount = 0;
+  int finalRequestCount = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requestCount += 1;
+    expect(model, 'depth-model');
+    expect(temperature, 0);
+    expect(maxTokens, 512);
+    expect(messages.first.role, MessageRole.system);
+    if (messages.last.content.startsWith('Every tool call is done.')) {
+      finalRequestCount += 1;
+      expect(tools, isNull);
+    } else {
+      expect(tools, same(LiveLlmToolDepthStaircase.toolDefinitions));
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _MultiRoundRecordingDataSource extends _FakeDiagnosticDataSource {
+  _MultiRoundRecordingDataSource({this.failRequest = false});
+  final bool failRequest;
+  int requestCount = 0;
+  int followUpCount = 0;
+
+  void checkRequest(
+    List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  ) {
+    requestCount += 1;
+    expect(model, 'multi-model');
+    expect(temperature, 0);
+    expect(maxTokens, 512);
+    expect(messages.first.role, MessageRole.system);
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    checkRequest(messages, model, temperature, maxTokens);
+    expect(tools?.map((t) => t['function']['name']), ['tool_search']);
+    if (failRequest) {
+      throw StateError('request failed');
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    checkRequest(messages, model, temperature, maxTokens);
+    followUpCount += 1;
+    expect(toolResults, hasLength(1));
+    expect(
+      tools?.map((t) => t['function']['name']),
+      followUpCount == 1 ? ['tool_search', 'get_current_datetime'] : isEmpty,
+    );
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
     );
   }
 }

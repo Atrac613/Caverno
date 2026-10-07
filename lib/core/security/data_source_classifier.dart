@@ -148,6 +148,10 @@ class DataSourceClassifier {
     'find_files',
     'search_files',
     'search_past_conversations',
+    'list_coding_projects',
+    'list_coding_threads',
+    'get_project_state',
+    'read_coding_thread',
   };
 
   static const Set<String> _generatedSummaryTools = {

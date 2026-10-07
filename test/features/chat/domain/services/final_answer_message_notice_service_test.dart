@@ -3,11 +3,97 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_message_notice_service.dart';
+import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
+import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const service = FinalAnswerMessageNoticeService();
+
+  group('project task terminal verdict', () {
+    for (final prose in [
+      'All work is complete.',
+      '\u4f5c\u696d\u306f\u5b8c\u4e86\u3057\u307e\u3057\u305f\u3002',
+      'Tout est termin\u00e9.',
+    ]) {
+      test('replaces unsupported readiness regardless of prose: $prose', () {
+        final mutation = service.replaceUnacceptedProjectTaskCompletion(
+          _assistantMessages('$prose\nPROJECT_TASK_READY_FOR_REVIEW'),
+          ProjectTaskTerminalStatus(
+            outcome: GoalUpdateAckOutcome.completionRejected,
+            gaps: ['The verifier still failed.'],
+          ),
+        )!;
+        expect(
+          mutation.messages.last.content,
+          allOf(
+            contains('completion was not recorded'),
+            contains('The verifier still failed.'),
+            isNot(contains('PROJECT_TASK_READY_FOR_REVIEW')),
+            isNot(contains(prose)),
+          ),
+        );
+        expect(mutation.transformId, 'coding_task_completion_notice');
+        expect(mutation.messages.last.id, 'assistant-1');
+      });
+    }
+    test('preserves an accepted response', () {
+      expect(
+        service.replaceUnacceptedProjectTaskCompletion(
+          _assistantMessages('Verified.\nPROJECT_TASK_READY_FOR_REVIEW'),
+          ProjectTaskTerminalStatus(
+            outcome: GoalUpdateAckOutcome.completionRecorded,
+          ),
+        ),
+        isNull,
+      );
+    });
+    for (final outcome in [null, GoalUpdateAckOutcome.progressLogged]) {
+      test(
+        'unaccepted status retains the work report without readiness: $outcome',
+        () {
+          final answer = service
+              .replaceUnacceptedProjectTaskCompletion(
+                _assistantMessages(
+                  'The focused runner reported 6 passed.\nPROJECT_TASK_READY_FOR_REVIEW',
+                ),
+                ProjectTaskTerminalStatus(outcome: outcome),
+              )!
+              .messages
+              .last
+              .content;
+          expect(answer, contains('completion was not recorded'));
+          expect(answer, contains('The focused runner reported 6 passed.'));
+          expect(answer, isNot(contains('PROJECT_TASK_READY_FOR_REVIEW')));
+        },
+      );
+    }
+    test('a recorded blocker replaces later completion claims', () {
+      final answer = service
+          .replaceUnacceptedProjectTaskCompletion(
+            _assistantMessages(
+              'All subtasks and verification completed.\nPROJECT_TASK_READY_FOR_REVIEW',
+            ),
+            ProjectTaskTerminalStatus(
+              outcome: GoalUpdateAckOutcome.blockerLogged,
+              gaps: ['The dry-run cannot reach the fixture API.'],
+            ),
+          )!
+          .messages
+          .last
+          .content;
+      expect(
+        answer,
+        allOf(
+          contains('The dry-run cannot reach the fixture API.'),
+          contains('completion was not recorded'),
+          isNot(contains('All subtasks and verification completed.')),
+          isNot(contains('PROJECT_TASK_READY_FOR_REVIEW')),
+        ),
+      );
+    });
+  });
 
   group('FinalAnswerMessageNoticeService transform IDs', () {
     test('labels an unexecuted tool request notice', () {

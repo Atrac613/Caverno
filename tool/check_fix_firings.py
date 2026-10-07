@@ -61,6 +61,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -76,6 +77,402 @@ import sys
 #                direct signal instead of an inference from leaked notice
 #                prose, and it cannot be fired by a log that merely quotes the
 #                notice -- including one produced by reading this repo.
+_JSON_STRING = r'"(?:[^"\\]|\\.)*"'
+_INTERNAL_GREP_RESULT = re.compile(
+    r'\{"command": "grep (?:[^"\\]|\\.)*", "working_directory": ' + _JSON_STRING
+    + r', "exit_code": -?\d+, "stdout": ' + _JSON_STRING
+    + r', "stderr": ' + _JSON_STRING + r', "executed_internally": true'
+)
+_GIT_NATIVE_PIPELINE_REFUSAL = re.compile(
+    r'"(?:error|errorMessage)": "git_execute_command accepts one git '
+    r'subcommand per call and runs without a shell'
+)
+
+_TOOL_ARGUMENT_TYPE_REJECTION = re.compile(
+    r'"code": "invalid_tool_argument_type"'
+)
+_ARGUMENT_TRAILING_TEXT_REJECTION = re.compile(r'"trailing_text": "')
+
+
+def _closer_only_argument_dispatched(blob):
+    """Whether a logged tool result ran with an argument that was a JSON
+    array or object followed only by closing brackets.
+
+    The decode leaves no marker of its own: the tool result keeps the call's
+    original arguments, so the stringified value is still there. A result for
+    such a call that is not the type guard's rejection means it was decoded
+    and dispatched.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    decoder = json.JSONDecoder()
+    for entry in entries if isinstance(entries, list) else []:
+        request = entry.get("request") if isinstance(entry, dict) else None
+        for result in (request or {}).get("toolResults") or []:
+            payload = _decoded_result(result.get("result")) or {}
+            if payload.get("code") == "invalid_tool_argument_type":
+                continue
+            for value in (result.get("arguments") or {}).values():
+                if not isinstance(value, str):
+                    continue
+                text = value.strip()
+                if not text.startswith(("[", "{")):
+                    continue
+                try:
+                    _, end = decoder.raw_decode(text)
+                except ValueError:
+                    continue
+                rest = text[end:].strip()
+                if rest and set(rest) <= set("}] \n\t"):
+                    return True
+    return False
+
+
+_ANCHORED_SEARCH_HIT = re.compile(
+    r'"query": "\^(?:[^"\\]|\\.)*", "matches": \["'
+)
+_GIT_ADD_CHANGE_LABEL = re.compile(
+    r'"changesSinceCapture": \[(?:"(?:[^"\\]|\\.)*", )*"git add '
+)
+
+
+_COMMAND_CHANGE_LABEL = re.compile(
+    r'"changesSinceCapture": \[(?:"(?:[^"\\]|\\.)*", )*'
+    r'"(?:local_execute_command|git_execute_command|run_tests|'
+    r'ssh_execute_command|process_start) `'
+)
+
+
+def _status_request_states_evidence(blob):
+    """Whether a structured status request stated the turn's evidence.
+
+    Before 2560eb21b the status feedback held only the recovery code and the
+    claimed response. The key is read from a parsed tool result, so the same
+    text quoted in a message or a file cannot fire it.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for result in (entry.get("request") or {}).get("toolResults") or []:
+            payload = result.get("result")
+            if (
+                result.get("name") == "coding_continuation_recovery"
+                and isinstance(payload, dict)
+                and "capturedEvidence" in payload
+            ):
+                return True
+    return False
+
+
+def _verifier_replay_keeps_edit(blob):
+    """Whether a post-mutation verifier replay still knew about the edit.
+
+    Before b7139cdbc the replay re-entered the loop from a ledger stored
+    before the edit's batch ran, so no request carrying the replayed
+    verifier could label an earlier result with that edit.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        results = (entry.get("request") or {}).get("toolResults") or []
+        # Only the request right after the replay, where the replayed
+        # verifier is the batch that just ran: an edit the model makes later
+        # in the same continuation labels results on a pre-fix build too.
+        replayed = bool(results) and str(results[-1].get("id", "")).startswith(
+            "post_mutation_verifier_"
+        )
+        if replayed and any(
+            str(change).startswith(("edit_file ", "write_file "))
+            for result in results
+            for change in result.get("changesSinceCapture") or []
+        ):
+            return True
+    return False
+
+
+def _project_gap_guidance(blob):
+    """Whether a rejected project-task completion carried a2baaff2b's guidance.
+
+    Read from an update_goal tool result, so the same sentence quoted from
+    this repository in a file read cannot fire it.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for result in (entry.get("request") or {}).get("toolResults") or []:
+            if result.get("name") == "update_goal" and (
+                "Do not change files only to satisfy these checks"
+                in str(result.get("result"))
+            ):
+                return True
+    return False
+
+
+def _inherited_task_guidance(blob):
+    """Whether a re-run project task was handed an earlier run's changes.
+
+    Matches the implementation prompt that names them, or a rejected
+    completion that counted them. A run that verifies first is accepted on
+    its first update_goal and never sees the rejection, which is how session
+    f4269d8c succeeded unseen by the rejection-only version of this row. Read
+    from user messages and update_goal results, never file reads.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        request = entry.get("request") or {}
+        for message in request.get("messages") or []:
+            if message.get("role") == "user" and (
+                "An earlier run of this task left these changes uncommitted"
+                in str(message.get("content"))
+            ):
+                return True
+        for result in request.get("toolResults") or []:
+            if result.get("name") == "update_goal" and (
+                "count as this task's changes" in str(result.get("result"))
+            ):
+                return True
+    return False
+
+
+def _status_request_offers_verification(blob):
+    """Whether a farm status request offered the verification the gate needs.
+
+    The open-gap status prompt is the only place this sentence is sent, and it
+    is read from user messages, never from file reads.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for message in (entry.get("request") or {}).get("messages") or []:
+            if message.get("role") == "user" and (
+                "run exactly one verification command now"
+                in str(message.get("content"))
+            ):
+                return True
+    return False
+
+
+def _repair_prompt_asks_for_underlying_defect(blob):
+    """Whether a farm repair turn was asked to fix each finding's defect class.
+
+    The repair prompt is the only place this phrase is sent, and it is read
+    from user messages, never from file reads.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for message in (entry.get("request") or {}).get("messages") or []:
+            if message.get("role") == "user" and (
+                "underlying defect behind each finding"
+                in str(message.get("content"))
+            ):
+                return True
+    return False
+
+
+def _review_hint_keeps_host_scope(blob):
+    """Whether a review prompt carried a host-scoped verification runner.
+
+    The sentence is sent only by the review's verification hint, and only when
+    a passing implementation run executed outside the workspace sandbox.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for message in (entry.get("request") or {}).get("messages") or []:
+            if message.get("role") == "user" and (
+                "A run with execution_scope host passed outside the workspace"
+                in str(message.get("content"))
+            ):
+                return True
+    return False
+
+
+def _review_patch_listed(blob):
+    """Whether a project task review got an oversized patch as a file list.
+
+    Read from the structured workflow decision, never from prose.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    return any(
+        (entry.get("projectTaskDecision") or {}).get("decision")
+        == "patch_listed"
+        for entry in entries
+    )
+
+
+def _reasoning_only_recovery_without_thinking(blob):
+    """Whether a reasoning-only stop recovery request went out without thinking.
+
+    Read from the logged request, which mirrors the wire controls: its label
+    names the recovery, and its template kwargs carry the switch.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        request = entry.get("request") or {}
+        kwargs = request.get("chat_template_kwargs") or {}
+        if (
+            request.get("label") == "reasoning-only stop recovery"
+            and kwargs.get("enable_thinking") is False
+        ):
+            return True
+    return False
+
+
+def _recovery_carries_earlier_results(blob):
+    """Whether a loop-limit recovery request held more than the last batch.
+
+    Before 0070aff8f the recovery request carried exactly the batch that had
+    just run, so any result id outside the last two responses' tool calls
+    (the batch that ran, and the calls left pending at the limit) is the
+    carry. Edit-mismatch recovery could already attach an older read_file,
+    so a pre-fix build matching this reads as a coincidence, not a firing.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    recent_calls = []
+    for entry in entries:
+        request = entry.get("request") or {}
+        messages = request.get("messages") or []
+        last = messages[-1].get("content") if messages else None
+        if isinstance(last, str) and "bounded tool loop limit" in last:
+            sent = {result.get("id") for result in request.get("toolResults") or []}
+            ran = set().union(*recent_calls)
+            if sent - ran - {None}:
+                return True
+        calls = (entry.get("response") or {}).get("toolCalls") or []
+        if calls:
+            recent_calls = (recent_calls + [{call.get("id") for call in calls}])[-2:]
+    return False
+
+
+def _decoded_result(result):
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, str):
+        try:
+            decoded = json.loads(result)
+        except ValueError:
+            return None
+        return decoded if isinstance(decoded, dict) else None
+    return None
+
+
+def _write_file_content_rejected(blob):
+    """Whether a write_file call was answered with the type guard's rejection
+    of its content.
+
+    Before 5bfffa75c that call threw in a guard ahead of dispatch and left no
+    tool result, so the rejection existing at all is the change firing.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries if isinstance(entries, list) else []:
+        request = entry.get("request") if isinstance(entry, dict) else None
+        for result in (request or {}).get("toolResults") or []:
+            if result.get("name") != "write_file":
+                continue
+            payload = _decoded_result(result.get("result")) or {}
+            if (
+                payload.get("code") == "invalid_tool_argument_type"
+                and payload.get("argument") == "content"
+            ):
+                return True
+    return False
+
+
+def _refused_commit_then_ran(blob):
+    """Whether a commit refused for an unread diff later ran in the same log.
+
+    Before 6ab0621de the refusal was filed as an executed commit, so the
+    identical commit re-issued after `diff --cached` was deduplicated and the
+    refusal replayed (session dd50d110). Only the declared refusal names its
+    origin, and only a later result for the same command carrying an exit
+    code is the retry actually running.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    refused = set()
+    seen = set()
+    for entry in entries:
+        for result in (entry.get("request") or {}).get("toolResults") or []:
+            if result.get("id") in seen or result.get("name") != "git_execute_command":
+                continue
+            seen.add(result.get("id"))
+            command = (result.get("arguments") or {}).get("command")
+            payload = _decoded_result(result.get("result")) or {}
+            if (
+                payload.get("code") == "commit_without_diff_inspection_blocked"
+                and payload.get("result_origin") == "refusal"
+            ):
+                refused.add(command)
+            elif command in refused and "exit_code" in payload:
+                return True
+    return False
+
+
+def _pending_question_put_to_user(blob):
+    """Whether an ask_user_question left at the loop limit reached the user.
+
+    Before 4e482cb4b the limit sent a recovery prompt telling the model not to
+    ask for confirmation. Now the pending question runs before finalization,
+    so the next streamed request is the tool-less final answer, with no
+    loop-limit recovery prompt in between.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    streamed = [
+        entry
+        for entry in entries
+        if str(entry.get("operation", "")).startswith("stream")
+        and "request" in entry
+    ]
+    for current, following in zip(streamed, streamed[1:]):
+        calls = (current.get("response") or {}).get("toolCalls") or []
+        if not any(call.get("name") == "ask_user_question" for call in calls):
+            continue
+        if following.get("operation") != "streamChatCompletion":
+            continue
+        messages = (following.get("request") or {}).get("messages") or []
+        if not any(
+            "bounded tool loop limit" in str(message.get("content", ""))
+            for message in messages
+        ):
+            return True
+    return False
+
+
 SIGNATURES = {
     "failed_read_digest": {
         "commit": "5e7f8ebb",
@@ -339,6 +736,183 @@ SIGNATURES = {
         # turn exits on pending_batch_executed. A truncated turn resumed and
         # ran tools, which is the claim the policy exists to make.
         "transform": "pending_action_length_recovery",
+    },
+    "skill_carried_past_its_turn": {
+        "commit": "73cc602d7",
+        "what": "the skill a turn works from is repeated into that turn",
+        # A load_skill result lives for exactly the turn that produced it.
+        # Session fd153d88 is the cost: the skill was loaded in turn 2, the
+        # write it governed happened in turn 4, and from turn 3 the request
+        # carried only the skill's *name* -- the index -- so the notes went to
+        # the repository root against a convention the skill states.
+        #
+        # Keyed on the prompt rather than on a transform, because nothing is
+        # transformed: the carry is context the request now holds. The literal
+        # spans the two adjacent string literals the builder concatenates, so
+        # no source spells it contiguously and reading the repository cannot
+        # fire it -- the builder's test pins it the same way, split, for that
+        # reason. This file is the sole exception, as it is for every row here:
+        # an instrument has to spell what it looks for.
+        #
+        # be857297 shipped the builder and could not fire; 73cc602d7 is the
+        # wiring, which is what makes the row reachable at all.
+        "match": lambda s: "here because a tool result" in s,
+    },
+    "read_carry_across_file_write": {
+        "commit": "67009e4c7",
+        "what": "earlier reads carried across a file write, labelled with it",
+        # The key exists only on a carried result that predates a write. Unlike
+        # prose it is matched as a real JSON key: json.dumps escapes the quotes
+        # of the same text inside a tool result, so reading this repository
+        # cannot fire it.
+        "match": lambda s: '"changesSinceCapture": [' in s,
+    },
+    "internal_grep": {
+        "commit": "da23ce7b4",
+        "what": "grep answered by the internal executor, not a SEC4.4g prompt",
+        # Before this commit a grep result could only come from the shell, so
+        # a structured tool result pairing a grep command with
+        # executed_internally is the change itself. Matched on the decoded
+        # result object: the same text inside a tool-result string is
+        # escaped by json.dumps, so quoting it cannot fire the row.
+        "match": lambda s: _INTERNAL_GREP_RESULT.search(s) is not None,
+    },
+    "git_native_pipeline_refusal": {
+        "commit": "44f774e71",
+        "what": "git pipeline refusal leads with git-native options, not a shell",
+        # Whether this matters is the follow-up question: after the refusal,
+        # did the model switch to rev-list --count / -n / --format, or fall
+        # through to local_execute_command and a SEC4.4g prompt? Matched as a
+        # real JSON key on the decoded result, so reading git_tools.dart,
+        # where the text is a single-quoted Dart literal split across lines,
+        # cannot fire it.
+        "match": lambda s: _GIT_NATIVE_PIPELINE_REFUSAL.search(s) is not None,
+    },
+    "tool_argument_type_guard": {
+        "commit": "e2ccdcfb4",
+        "what": "mistyped built-in tool argument returned as a failure, not a throw",
+        # Before this commit the same call threw and ended the turn, leaving
+        # no tool result at all, so the structured code is the change itself.
+        # Matched as a real JSON key on the decoded result; the Dart source
+        # spells it with single quotes and quoted text is escaped.
+        "match": lambda s: _TOOL_ARGUMENT_TYPE_REJECTION.search(s) is not None,
+    },
+    "write_file_content_type_rejection": {
+        "commit": "5bfffa75c",
+        "what": "write_file content object rejected as a tool result, not a dispatch error",
+        # The tool_argument_type_guard row above matches any rejection, so an
+        # ask_user_question rejection reported it fired while this path, the
+        # one it was built for, still threw. Read structurally.
+        "match": _write_file_content_rejected,
+    },
+    "argument_trailing_closer_decode": {
+        "commit": "8e38cc36e",
+        "what": "stringified array/object ending in a stray closer is decoded and dispatched",
+        # Session b41b57fa: options as "[...]}" was rejected three times and
+        # the turn aborted. The success branch has no marker, so it is read
+        # structurally from the tool result's original arguments.
+        "match": _closer_only_argument_dispatched,
+    },
+    "argument_trailing_text_rejection": {
+        "commit": "8e38cc36e",
+        "what": "type-guard rejection names the text after a complete JSON value",
+        # The rejection branch of the same change: the rest of the arguments
+        # object written inside options. Matched as a real JSON key on the
+        # decoded result; the Dart source spells it with single quotes.
+        "match": lambda s: _ARGUMENT_TRAILING_TEXT_REJECTION.search(s)
+        is not None,
+    },
+    "search_files_line_anchor": {
+        "commit": "a92ece3e3",
+        "what": "anchored search_files query (e.g. ^version:) finds its line",
+        # Before this commit an anchored query matched only lines containing
+        # the caret literally, which no corpus query ever did (66 of 66 came
+        # back empty), so a decoded result pairing a ^-query with a non-empty
+        # match list is the change firing.
+        "match": lambda s: _ANCHORED_SEARCH_HIT.search(s) is not None,
+    },
+    "carry_across_git_add": {
+        "commit": "93819b505",
+        "what": "reads carried past git add, labelled with it",
+        # The label exists only because of this change: before it, git add
+        # ended the carry, so no carried result could name one. Matched as the
+        # real JSON key on a logged tool result, so quoted text cannot fire it.
+        "match": lambda s: _GIT_ADD_CHANGE_LABEL.search(s) is not None,
+    },
+    "loop_limit_recovery_carry": {
+        "commit": "0070aff8f",
+        "what": "loop-limit recovery request carries earlier results, not the last batch alone",
+        "match": _recovery_carries_earlier_results,
+    },
+    "guard_refusal_not_executed": {
+        "commit": "6ab0621de",
+        "what": "commit refused for an unread diff runs once the diff is read",
+        "match": _refused_commit_then_ran,
+    },
+    "carry_across_command": {
+        "commit": "4f77f92dc",
+        "what": "reads carried past a non-read-only command, labelled with it",
+        # Before this change such a command ended the carry, so no carried
+        # result could name one. Matched as the real JSON key, like git add.
+        "match": lambda s: _COMMAND_CHANGE_LABEL.search(s) is not None,
+    },
+    "status_request_evidence": {
+        "commit": "2560eb21b",
+        "what": "structured status request states captured writes and verification",
+        "match": _status_request_states_evidence,
+    },
+    "verifier_replay_keeps_edit": {
+        "commit": "b7139cdbc",
+        "what": "post-mutation verifier replay still carries the edit that triggered it",
+        "match": _verifier_replay_keeps_edit,
+    },
+    "project_gap_guidance": {
+        "commit": "a2baaff2b",
+        "what": "rejected project-task completion says not to edit files for evidence",
+        "match": _project_gap_guidance,
+    },
+    "inherited_task_changes": {
+        # Squashed: the carry and its relaunch fix landed together.
+        "commit": "5f6816085",
+        "what": "a re-run farm task counts an earlier run's uncommitted changes",
+        "match": _inherited_task_guidance,
+    },
+    "reasoning_only_stop_recovery": {
+        # 0571c9f56 added the recovery, but a streamed completion's content
+        # omits its reasoning, so it could only fire from 692b7373f on.
+        "commit": "692b7373f",
+        "what": "a tool-loop response ending inside reasoning gets a continuation",
+        "transform": "coding_continuation_recovery_reasoning_only_stop",
+    },
+    "status_request_offers_verification": {
+        "commit": "2951b2a24",
+        "what": "a farm status request lets the model run the gate's verification",
+        "match": _status_request_offers_verification,
+    },
+    "reasoning_only_recovery_without_thinking": {
+        "commit": "f6e09df38",
+        "what": "a reasoning-only stop recovery is sent with thinking off",
+        "match": _reasoning_only_recovery_without_thinking,
+    },
+    "farm_repair_fixes_defect_class": {
+        "commit": "16eaf0bf2",
+        "what": "a farm repair turn is asked to fix each finding's underlying defect",
+        "match": _repair_prompt_asks_for_underlying_defect,
+    },
+    "loop_limit_question_to_user": {
+        "commit": "4e482cb4b",
+        "what": "ask_user_question pending at the loop limit reaches the user",
+        "match": _pending_question_put_to_user,
+    },
+    "review_hint_keeps_host_scope": {
+        "commit": "f596da316",
+        "what": "a review reruns a host-only passing verification with its scope",
+        "match": _review_hint_keeps_host_scope,
+    },
+    "review_patch_listed": {
+        "commit": "c89f0dd75",
+        "what": "an oversized task patch is listed for review, not a stop",
+        "match": _review_patch_listed,
     },
 }
 

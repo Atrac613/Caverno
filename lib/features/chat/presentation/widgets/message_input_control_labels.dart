@@ -18,6 +18,7 @@ String messageInputReasoningEffortLabel(ReasoningEffortPreference value) =>
       ReasoningEffortPreference.medium =>
         'settings.reasoning_effort_medium'.tr(),
       ReasoningEffortPreference.high => 'settings.reasoning_effort_high'.tr(),
+      ReasoningEffortPreference.xhigh => 'settings.reasoning_effort_xhigh'.tr(),
     };
 
 /// Tri-state thinking preference, where `null` leaves the choice to the model.

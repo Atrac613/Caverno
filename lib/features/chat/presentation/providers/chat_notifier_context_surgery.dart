@@ -103,9 +103,21 @@ extension ChatNotifierPrimaryModelRouting on ChatNotifier {
     required ChatTurnOwner owner,
     required Conversation? conversation,
     required bool bypassPlanMode,
+    required PrimaryTurnPurpose purpose,
+    ProjectTaskCommitScope? projectTaskCommitScope,
   }) => _primaryRoutes.capture(
     generation: owner.interactionGeneration,
     settings: _settings,
+    purpose: purpose,
+    projectTaskCommitScope: projectTaskCommitScope,
+    taskCommitPromptId:
+        purpose == PrimaryTurnPurpose.projectTaskCommitPreparation ||
+            purpose == PrimaryTurnPurpose.projectTaskCommit
+        ? _turnOwnerSnapshotForGeneration(owner.interactionGeneration)?.messages
+              .where((message) => message.role == MessageRole.user)
+              .lastOrNull
+              ?.id
+        : null,
     assistantMode: bypassPlanMode
         ? AssistantMode.coding
         : _resolveAssistantMode(currentConversation: conversation),
@@ -131,6 +143,23 @@ extension ChatNotifierPrimaryModelRouting on ChatNotifier {
 
   ChatDataSource _primaryDataSourceForGeneration(int generation) =>
       _primaryRoutes.dataSource(generation, _dataSource);
+  bool _isCodeReview(int generation) => _primaryRoutes.isCodeReview(generation);
+  RecentReadResultCarry _readResultCarryFor(int generation) =>
+      (_isCodeReview(generation)
+              ? ReadOnlyReviewScope.readResultCarry
+              : _isCodingWorkspaceOrMode(generation)
+              ? RecentReadResultCarry.coding
+              : const RecentReadResultCarry())
+          .forProject(_projectRootForGeneration(generation));
+
+  /// The tools a review turn is offered, or null outside a review so the
+  /// turn keeps whatever gate it already had.
+  Set<String>? _readOnlyReviewToolNames(int generation) =>
+      !_isCodeReview(generation)
+      ? null
+      : ToolDefinitionSearchService.toolNamesFromDefinitions(
+          _toolDefinitionsAllowedBy(null),
+        ).where(const ReadOnlyReviewScope().offersInitially).toSet();
   String _primaryModelForGeneration(int generation) =>
       _primaryRoutes.model(generation, _settings);
   ModelCapabilityProfile? _primaryCapabilityProfileForGeneration(

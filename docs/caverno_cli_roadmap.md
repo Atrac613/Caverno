@@ -397,6 +397,116 @@ Next action:
   packaging is paused. Keep terminal routine execution unavailable until its
   separate per-routine lease contract is defined.
 
+### CLI5: Headless Project Farm
+
+Status: `next`
+
+Why: real Project Farm runs keep exposing defects that unit tests and canaries
+miss, and almost all of them fall into three classes: execution-environment
+differences (sandboxed interpreter without pytest, git without the Xcode
+bundle, a hidden `.venv`), information lost between workflow phases
+(implementation run scope dropped from the review hint in session `cae00f90`,
+carry breaks, ledger lag), and prose heuristics judging outcomes. Today a real
+run needs the GUI: the foreground task workflow starts only when its thread is
+opened in `ChatPage`. Making a real run a single command makes it repeatable,
+scriptable, and the basis for the eventual UI-less product.
+
+Current state (2026-10-07):
+- `caverno chat|coding|plan` run `ChatNotifier` inside a `ProviderContainer`
+  (`lib/features/terminal/presentation/caverno_cli_process.dart`), with typed
+  approval events, TTY prompts, fail-closed non-interactive approval (exit
+  77), `--json` events, and conversation resume.
+- The foreground workflow engine (`ProjectTaskReviewWorkflow`, decompose ->
+  implement -> review -> commit) and its turn runners are Flutter-free
+  application code.
+- Its composition, `ProjectTaskReviewLauncher`, is presentation code bound to
+  `WidgetRef`, `isMounted`, and `.tr()` messages, and is reachable only from
+  `ChatPage`. It starts a workflow only on a thread with no messages, so a run
+  interrupted mid-workflow cannot be resumed.
+- `FarmUnattendedRunner` (the maintenance `farm_advance` stage) is a separate,
+  worktree-route path and is out of scope for this milestone.
+
+Approval policy (user decision 2026-10-07): pause and notify. A headless farm
+run never turns the absence of a GUI into approval, and does not introduce a
+pre-authorized allowlist yet. Revisit a per-project allowlist only with
+evidence from CLI5d runs showing which approvals block unattended progress.
+
+Slices, each reviewable on its own:
+
+- **CLI5a: Move the workflow composition out of presentation.** Extract the
+  launcher body into an application-layer session that reads providers
+  through a `ProviderContainer`/`WidgetRef`-agnostic reader and returns
+  `ProjectTaskReviewResult` instead of localized strings. `ChatPage` keeps its
+  current behavior by mapping the result to its messages. Behavior-preserving;
+  follow `large_file_refactor_plan.md`.
+- **CLI5b: `caverno farm --project <path> [--item <roadmap id>]`.** Refresh the
+  roadmap snapshot, select the named item or the next proposed one, create the
+  task thread through `startProjectTask(autoReview: true)`, select it, and run
+  the CLI5a session. Fail with `unavailable` (69) when no code-review route is
+  configured. Map `committed` to 0, `findingsRemain` and `stopped` to `blocked`
+  (2) with the gap codes in the terminal event, and approval refusal to 77.
+  Emit project-task decisions as versioned `--json` events rather than leaving
+  them only in the session log.
+- **CLI5c: Pause and notify.** When a farm run reaches a pending approval,
+  send an approval-needed push through the existing notification relay and
+  wait for a decision at the terminal (usable under tmux or ssh).
+  Non-interactive runs stay fail-closed. Confirm early that the relay client
+  and paired-device store work in the CLI process. Answering from the phone
+  is not in this slice: it needs either a decision channel into the CLI
+  process or mid-workflow resume, and is tracked as follow-up work.
+- **CLI5d: Environment matrix runner.** A tool script copies small fixture
+  projects (Python without a venv, Python with `.venv`, host-only pytest, a
+  failing-test case) to temporary roots, runs `caverno farm --json` on each
+  through `tool/with_live_llm_loopback.sh`, then runs
+  `tool/triage_session_logs.py` and `tool/check_fix_firings.py` on the
+  produced logs and writes one summary. A run stopped by an approval is
+  reported as data (which capability, which phase), not as a harness failure.
+- **CLI5e (later): Replay regression.** Turn a failed real run's session log
+  into a scripted-model replay of the whole workflow, so a cross-phase defect
+  stays covered after it is fixed.
+
+Acceptance criteria:
+- The GUI dashboard start and `caverno farm` drive the same session code; no
+  second workflow loop exists.
+- `caverno farm` completes a roadmap task on a fixture project from a terminal
+  with no Caverno window open, and its session log matches the GUI path's
+  `project_task_decision` sequence.
+- No approval is granted without a human decision; non-TTY runs exit 77 with
+  the pending capability in the JSON terminal event.
+- The CLI5d summary lists every run's outcome, anomaly score and firing hits.
+
+Dependencies:
+- CLI2 terminal presenter and approval handling; CLI3 persistence.
+- A configured code-review route for the farm's review phase.
+
+Evidence:
+- CLI5a: `ProjectTaskWorkflowSession`
+  (`lib/features/project_farm/application/project_task_workflow_session.dart`)
+  now owns the composition; `ProjectTaskReviewLauncher` maps its typed outcome
+  to the chat page's messages. A normalized diff of the moved body against the
+  old launcher shows only the outcome returns. The session is exercised from a
+  bare `ProviderContainer` in `project_task_workflow_session_test.dart`. The
+  full suite has the same 26 pre-existing quality-gate failures as `main`
+  (file-size ratchets, LL36 advisory, collaborator manifest, ambient reads,
+  shell write observation) and none from this change.
+
+- CLI5b: `caverno farm --project <path> [--item <id>] [--json]`
+  (`caverno_terminal_farm_run.dart`). The runtime gained
+  `publishSessionEvent` and a `project_task_decision` event; a farm run ends
+  only on the terminal event whose turn id is `farm`, so per-turn terminals
+  are progress. The notifier follows the selected task thread through its own
+  conversations listener, as in the GUI. A dirty tree is refused
+  (`uncommitted_changes`, exit 2) because there is nobody to ask. Verified on
+  a Debug build: `farm --help`, and the dirty-tree refusal against a scratch
+  repository with an isolated `--data-dir`. No live end-to-end farm run yet.
+
+Next action:
+- Run one live `caverno farm` on a small fixture project from a TTY, so
+  approvals can be answered, and compare its `project_task_decision` sequence
+  with the GUI path. Then start CLI5c.
+- Known gap: `--data-dir` isolates storage but not settings; the CLI still
+  loads the app's MCP servers and roles from shared preferences.
+
 ### CLI4: Packaging, Automation, And Release Gate
 
 Status: `later`
