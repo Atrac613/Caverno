@@ -147,7 +147,7 @@ structurally unmotivated to build:
 | Foundation | F2 | done | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
 | Foundation | F3 | done | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
 | Foundation | F4 | done | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
-| Foundation | F5 | current | ongoing | F2 | Stabilize one-way package boundaries and continue large-file decomposition per `docs/large_file_refactor_plan.md`. Exact preservation locally committed as `1624ef4fe`; edit-format completed in this worktree on 2026-10-08 (service 2,583 lines, module 54/54 executable lines covered). Review/commit it, then refresh remaining diagnostic boundaries. |
+| Foundation | F5 | current | ongoing | F2 | Stabilize one-way package boundaries and continue large-file decomposition per `docs/large_file_refactor_plan.md`. Edit-format locally committed as `1bd7f4cfe`; tool-result completed in this worktree on 2026-10-08 (service 2,503 lines, module 55/55 executable lines covered). Review/commit it, then refresh remaining diagnostic boundaries. |
 | Foundation | F6 | done | S | F1 | Built-in tool initial-load classification guard: a CI-enforced exhaustiveness test (plus optional category/flag-driven selection) so new built-in tools cannot be silently omitted from the dynamic tool-search initial set. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |

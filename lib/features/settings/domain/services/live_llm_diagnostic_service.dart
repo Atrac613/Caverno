@@ -34,6 +34,7 @@ import 'live_llm_streaming_probe.dart';
 import 'live_llm_structured_output_probe.dart';
 import 'live_llm_tool_depth_probe.dart';
 import 'live_llm_tool_recovery_probe.dart';
+import 'live_llm_tool_result_probe.dart';
 import 'live_llm_vision_probes.dart';
 import 'llm_provider_capabilities.dart';
 
@@ -77,6 +78,26 @@ class LiveLlmDiagnosticService {
   late final _chat = LiveLlmDiagnosticObservedChatCalls(
     chatDataSource,
     _thinking,
+  );
+  late final _toolResultProbe = LiveLlmToolResultProbe(
+    complete: ({required messages, required tools}) =>
+        _chat.createChatCompletion(
+          messages: messages,
+          tools: tools,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    followUp: ({required messages, required toolResults, required tools}) =>
+        _chat.createChatCompletionWithToolResults(
+          messages: messages,
+          toolResults: toolResults,
+          tools: tools,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        ),
+    messages: (user) => _messages(user: user),
   );
   late final _editFormatProbe = LiveLlmEditFormatProbe(
     complete: ({required messages}) => _chat.createChatCompletion(
@@ -329,7 +350,7 @@ class LiveLlmDiagnosticService {
       LiveLlmVisionProbes.toolObservationProbeId;
   static const _narrowToolCallProbeId = 'narrow_tool_call';
   static const _goalUpdateFidelityProbeId = 'update_goal_fidelity';
-  static const _toolResultProbeId = 'tool_result_integration';
+  static const _toolResultProbeId = LiveLlmToolResultProbe.probeId;
   static const _multiRoundToolLoopProbeId = LiveLlmMultiRoundProbe.probeId;
   static const _initialHarnessProbeId = 'initial_harness_selection';
   static const _toolSearchProbeId = 'tool_search_catalog';
@@ -402,7 +423,6 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
   static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
-  static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
   static const editFormatPreferenceMetadataKey =
       LiveLlmEditFormatProbe.preferenceMetadataKey;
@@ -2037,109 +2057,9 @@ class LiveLlmDiagnosticService {
       return _toolProbeUnavailable(_toolResultProbeId);
     }
 
-    final messages = _messages(
-      user:
-          'Call get_current_datetime. After the tool result arrives, return '
-          'JSON with probe="datetime_tool_result", marker="$_toolResultMarker", '
-          'today copied from relative_dates.today, and timezone copied from the '
-          'tool result.',
-    );
-    final firstResult = await _chat.createChatCompletion(
-      messages: messages,
-      tools: [dateTool],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    final firstToolCalls = LiveLlmResponseScoring.toolCallsFrom(firstResult);
-    final call = firstToolCalls
-        .where((item) => item.name == 'get_current_datetime')
-        .firstOrNull;
-    if (call == null) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _toolResultProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The model did not request the datetime tool.',
-        toolCalls: firstToolCalls
-            .map((item) => item.name)
-            .toList(growable: false),
-        modelContent: LiveLlmDiagnosticEvidence.preview(firstResult.content),
-        usage: LiveLlmDiagnosticEvidence.usage(firstResult),
-      );
-    }
-
-    final toolExecution = await service.executeTool(
-      name: call.name,
-      arguments: call.arguments,
-    );
-    if (!toolExecution.isSuccess) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _toolResultProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The built-in datetime tool failed.',
-        details: toolExecution.errorMessage ?? toolExecution.result,
-        toolCalls: [call.name],
-        usage: LiveLlmDiagnosticEvidence.usage(firstResult),
-      );
-    }
-
-    final expected = LiveLlmResponseScoring.tryDecodeJsonObject(
-      toolExecution.result,
-    );
-    final relativeDates = expected?['relative_dates'];
-    final today = relativeDates is Map
-        ? relativeDates['today'] as String?
-        : null;
-    final timezone = expected?['timezone'] as String?;
-    final followUp = await _chat.createChatCompletionWithToolResults(
-      messages: messages,
-      toolResults: [
-        ToolResultInfo(
-          id: call.id.isEmpty ? 'diagnostic-datetime-call' : call.id,
-          name: call.name,
-          arguments: call.arguments,
-          result: toolExecution.result,
-        ),
-      ],
-      // This probe measures whether the model uses the returned value in its
-      // answer. The multi-round probe separately measures further tool calls.
-      tools: const <Map<String, dynamic>>[],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    final content = followUp.content.trim();
-    final followUpCalls = LiveLlmResponseScoring.toolCallsFrom(followUp);
-    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
-    final markerOk =
-        decoded?['marker'] == _toolResultMarker ||
-        content.contains(_toolResultMarker);
-    final todayOk = today == null || content.contains(today);
-    final timezoneOk = timezone == null || content.contains(timezone);
-    final passed = followUpCalls.isEmpty && markerOk && todayOk && timezoneOk;
-    final unexpectedCalls = followUpCalls.map((call) => call.name).toList();
-    return LiveLlmDiagnosticProbeResult(
-      id: _toolResultProbeId,
-      status: passed
-          ? LiveLlmDiagnosticStatus.passed
-          : LiveLlmDiagnosticStatus.warning,
-      summary: passed
-          ? 'The model integrated the tool result into its final answer.'
-          : unexpectedCalls.isNotEmpty
-          ? 'The model requested another tool instead of completing the answer.'
-          : content.isEmpty
-          ? 'The model returned no final answer after the tool result.'
-          : 'The model did not clearly copy all tool-result fields.',
-      details: [
-        if (today != null) 'Expected today: $today',
-        if (timezone != null) 'Expected timezone: $timezone',
-        if (unexpectedCalls.isNotEmpty)
-          'Unexpected follow-up tool calls: ${unexpectedCalls.join(", ")}',
-        if (content.isEmpty) 'Finish reason: ${followUp.finishReason}',
-      ].join('\n'),
-      modelContent: LiveLlmDiagnosticEvidence.preview(content),
-      toolCalls: [call.name, ...unexpectedCalls],
-      usage: LiveLlmDiagnosticEvidence.usage(followUp),
+    return _toolResultProbe.run(
+      dateTool: dateTool,
+      execute: service.executeTool,
     );
   }
 

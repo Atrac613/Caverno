@@ -2088,3 +2088,32 @@ This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
 coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
 on hold. No main integration, push, full Flutter-suite, live-model or signed-device
 result is claimed.
+
+## Tool-result extraction (2026-10-08)
+
+Edit-format is locally committed as `1bd7f4cfe`. The next bounded diagnostic
+family moves datetime execution and final-answer scoring into the 142-line
+`LiveLlmToolResultProbe`. The service falls from 2,583 to 2,503 lines, retaining
+catalog availability, selected-probe policy, request settings, thinking
+observation, generic exceptions, elapsed time and report publication.
+
+Only the first datetime call executes, including when other initial tool calls
+are present. The follow-up request has an empty catalog, and any returned tool
+calls warn without execution. Prompt bytes, IDs and empty-ID fallback, arguments,
+raw tool results, marker/optional-field scoring and previews are unchanged.
+Final usage remains follow-up-only; early failures retain initial usage.
+Normalized measurement matches the committed original after port substitutions.
+
+Seven service contracts passed before extraction. Twenty-one isolated tests
+cover permitted execution, envelopes, usage paths, execution/request failures,
+missing/invalid fields, final mismatches, extra calls and empty answers. The
+focused gate passed 163 tests across six suites, clean root/package analysis,
+internal-package tests and notification relay checks. The module has 55/55
+executable lines covered; service coverage is 661/763 (86.63%) in this focused
+run. Twelve affected size checks passed, including both changed budgets.
+See [task and evidence](f5_tool_result_probe_extraction_codex_task.md).
+
+This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
+coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
+on hold. No main integration, push, full Flutter-suite, live-model or signed-device
+result is claimed.

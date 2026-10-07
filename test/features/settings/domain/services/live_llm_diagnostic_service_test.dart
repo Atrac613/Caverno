@@ -20,6 +20,64 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test('tool-result binding preserves requests and publication', () async {
+    final source = _ToolResultRecordingDataSource();
+    final statuses = <LiveLlmDiagnosticStatus>[];
+    final report =
+        await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: true, model: 'tool-result-model'),
+          chatDataSource: source,
+          mcpToolService: McpToolService(),
+        ).run(
+          probeIds: const {'tool_result_integration'},
+          onReport: (report) {
+            final status = _result(report, 'tool_result_integration').status;
+            if (statuses.isEmpty || statuses.last != status) {
+              statuses.add(status);
+            }
+          },
+        );
+    expect(source.requests, ['initial', 'follow-up']);
+    expect(statuses, [
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.passed,
+    ]);
+    expect(_result(report, 'tool_result_integration').elapsed, isNotNull);
+  });
+
+  test('tool-result unavailable catalog skips without requests', () async {
+    final source = _ToolResultRecordingDataSource();
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false, model: 'tool-result-model'),
+      chatDataSource: source,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: const {'tool_result_integration'});
+    expect(source.requests, isEmpty);
+    expect(
+      _result(report, 'tool_result_integration').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+  });
+
+  for (final stage in ['initial', 'follow-up']) {
+    test(
+      'tool-result $stage errors reach the failed report boundary',
+      () async {
+        final source = _ToolResultRecordingDataSource(failureStage: stage);
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: true, model: 'tool-result-model'),
+          chatDataSource: source,
+          mcpToolService: McpToolService(),
+        ).run(probeIds: const {'tool_result_integration'});
+        final result = _result(report, 'tool_result_integration');
+        expect(result.status, LiveLlmDiagnosticStatus.failed);
+        expect(result.details, contains('tool-result $stage'));
+        expect(result.usage.totalTokens, 0);
+      },
+    );
+  }
+
   test('edit format binds requests, thinking and publication', () async {
     final source = _EditRecordingDataSource();
     final statuses = <LiveLlmDiagnosticStatus>[];
@@ -2361,6 +2419,73 @@ class _TemperatureIgnoringDataSource extends _FakeDiagnosticDataSource
     }
     return super.createChatCompletion(
       messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _ToolResultRecordingDataSource extends _FakeDiagnosticDataSource {
+  _ToolResultRecordingDataSource({this.failureStage});
+  final String? failureStage;
+  final requests = <String>[];
+
+  void _record(
+    String stage,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  ) {
+    requests.add(stage);
+    expect(model, 'tool-result-model');
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    if (stage == failureStage) throw StateError('tool-result $stage');
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    _record('initial', model, temperature, maxTokens);
+    expect(tools, hasLength(1));
+    expect(tools!.single['function']['name'], 'get_current_datetime');
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    _record('follow-up', model, temperature, maxTokens);
+    expect(tools, isEmpty);
+    expect(toolResults.single.name, 'get_current_datetime');
+    expect(messages.map((message) => message.role), [
+      MessageRole.system,
+      MessageRole.user,
+    ]);
+    return super.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
       tools: tools,
       model: model,
       temperature: temperature,
