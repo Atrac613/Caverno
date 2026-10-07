@@ -175,9 +175,11 @@ void main() {
       candidateResponse: response,
       toolResults: const [],
     )!;
+    // A lexical promise names no call, so a later passing verifier settles
+    // it outside subtask context too (user decision 2026-10-07).
     expect(
       detector.hasUnexecutedCommandActionResult([ordinary, verification()]),
-      isTrue,
+      isFalse,
     );
     expect(
       MemoryExtractionDraftService.buildInput(
@@ -190,30 +192,26 @@ void main() {
   });
 
   for (final response in [
-    'I will run the local command.',
     'Implementation complete. I will run the local command.\n'
         '{"command":"python3 missing.py"}\nPROJECT_TASK_SUBTASK_DONE',
     'Implementation complete. I will run the local command.\n'
         '```text\n\$ python3 missing.py\nchecks passed\n```\nPROJECT_TASK_SUBTASK_DONE',
   ]) {
-    test(
-      'subtask context preserves concrete calls and nonterminal promises: $response',
-      () {
-        final pending = detector.buildUnexecutedCommandActionToolResult(
-          candidateResponse: response,
-          toolResults: const [],
-          isProjectSubtask: true,
-        )!;
-        expect(
-          jsonDecode(pending.result),
-          isNot(contains('evidence_requirement')),
-        );
-        expect(
-          detector.hasUnexecutedCommandActionResult([pending, verification()]),
-          isTrue,
-        );
-      },
-    );
+    test('subtask context preserves concrete calls: $response', () {
+      final pending = detector.buildUnexecutedCommandActionToolResult(
+        candidateResponse: response,
+        toolResults: const [],
+        isProjectSubtask: true,
+      )!;
+      expect(
+        jsonDecode(pending.result),
+        isNot(contains('evidence_requirement')),
+      );
+      expect(
+        detector.hasUnexecutedCommandActionResult([pending, verification()]),
+        isTrue,
+      );
+    });
   }
 
   // Session 8ea796df: the report described a return value in braces, the
@@ -257,6 +255,45 @@ void main() {
     );
   }
 
+  // Session c4b7c183: "rerun with python3 to verify" was fulfilled two calls
+  // later (58 passed), yet the notice outlived it and the subtask was
+  // rejected for unexecuted actions.
+  for (final promise in [
+    'I will run the local command.',
+    '前回の実行で `python` コマンドが見つからなかったため（exit code 127）、'
+        '`python3` で再実行して検証します。',
+  ]) {
+    test('a later passing verifier settles a lexical promise: $promise', () {
+      for (final subtask in [false, true]) {
+        final pending = detector.buildUnexecutedCommandActionToolResult(
+          candidateResponse: promise,
+          toolResults: const [],
+          isProjectSubtask: subtask,
+        )!;
+        expect(
+          jsonDecode(pending.result)['evidence_requirement'],
+          UnexecutedCommandClaimReconciliation.evidenceRequirement,
+        );
+        expect(
+          detector.hasUnexecutedCommandActionResult([pending, verification()]),
+          isFalse,
+        );
+        expect(
+          detector.hasUnexecutedCommandActionResult([verification(), pending]),
+          isTrue,
+          reason: 'only a verifier after the promise can fulfil it',
+        );
+        expect(
+          ToolResultPromptBuilder.completionEvidence([
+            pending,
+            verification(),
+          ]).hasUnexecutedActionClaim,
+          isFalse,
+        );
+      }
+    });
+  }
+
   test('unknown result text cannot settle a missing execution', () {
     final unknown = ToolResultInfo(
       id: 'unknown',
@@ -274,14 +311,13 @@ void main() {
     );
   });
   for (final response in [
-    'I will run the local command.',
     'The local command completed.\n```json\n{"command":"python3 missing.py"}\n```',
     'The local command completed.\n```json\n{"name":"local_execute_command","arguments":{"command":"python3 missing.py"}}\n```',
     'The local command completed.\n[Tool: local_execute_command]\nArguments: {"command":"python3 missing.py"}',
     'The local command completed.\n```text\n\$ python3 missing.py\nchecks passed\n```',
     'The local command completed.\n<tool_call>{"name":"local_execute_command","arguments":{"command":"python3 missing.py"}}</tool_call>',
   ]) {
-    test('keeps promises and concrete unissued actions: $response', () {
+    test('keeps concrete unissued actions: $response', () {
       final pending = detector.buildUnexecutedCommandActionToolResult(
         candidateResponse: response,
         toolResults: const [],

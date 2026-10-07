@@ -107,6 +107,20 @@ final class ProjectTaskCommitReader {
           entry = lines[sourceLine - 1];
         } else if (exact.length == 1) {
           entry = exact.single;
+        } else if (exact.isEmpty) {
+          // Extracted quotes are verified substrings, so a quote often stops
+          // short of the line's tail (session 29f6ac69: a trailing
+          // "(`WATCHER_WEBHOOK_URL`)"). Accept it only as the prefix of one
+          // checkbox entry; the full line becomes the identity.
+          final prefixed = lines
+              .where(
+                (line) =>
+                    checkbox.hasMatch(line) &&
+                    expected.isNotEmpty &&
+                    identity(line).startsWith(expected),
+              )
+              .toList();
+          if (prefixed.length == 1) entry = prefixed.single;
         }
       }
 

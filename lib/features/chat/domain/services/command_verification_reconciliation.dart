@@ -5,13 +5,8 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/tool_call_info.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'inline_python_verification_contract.dart';
-import 'literal_environment_inspection_policy.dart';
-import 'literal_python_stdin_verification.dart';
-import 'masked_inspection_command_policy.dart';
-import 'pytest_verification_identity.dart';
-import 'shell_exit_status_report.dart';
-import 'verification_command_sequence.dart';
-import 'verification_metadata_query_policy.dart';
+import 'reconciled_verification_feedback.dart';
+import 'verification_invocation_evidence.dart';
 import 'verification_scope.dart';
 
 /// Settles earlier invocations only after the same verification actually passes.
@@ -59,71 +54,11 @@ abstract final class CommandVerificationReconciliation {
         !results.any((result) => result.name == 'coding_output_feedback')) {
       return results;
     }
-    final current = <ToolResultInfo>[];
-    for (var resultIndex = 0; resultIndex < results.length; resultIndex++) {
-      final result = results[resultIndex];
-      if (supersededIds.contains(result.id)) continue;
-      if (result.name != 'coding_output_feedback') {
-        current.add(result);
-        continue;
-      }
-      final decoded = _decode(result.result);
-      final issues = decoded?['issues'];
-      final diagnostics = decoded?['diagnostics'];
-      if (issues is! List ||
-          diagnostics is! List ||
-          issues.length != diagnostics.length) {
-        current.add(result);
-        continue;
-      }
-      final retained = <int>[];
-      for (var index = 0; index < issues.length; index++) {
-        final issue = issues[index];
-        final sourceId = issue is Map ? issue['tool_call_id'] : null;
-        final sourceIndex = sourceId == null && issue is Map
-            ? results
-                  .take(resultIndex)
-                  .toList()
-                  .lastIndexWhere(
-                    (source) =>
-                        source.name == issue['tool_name'] &&
-                        (_decode(source.result)?['command'] ??
-                                source.arguments['command']) ==
-                            issue['command'] &&
-                        (_decode(source.result)?['working_directory'] ??
-                                source.arguments['working_directory']) ==
-                            issue['working_directory'],
-                  )
-            : -1;
-        final source = sourceId is String
-            ? sourceId
-            : sourceIndex >= 0
-            ? results[sourceIndex].id
-            : null;
-        final settled =
-            source != null &&
-            (supersededIds.contains(source) ||
-                advisorySourceIds.contains(source));
-        if (!settled) retained.add(index);
-      }
-      if (retained.length == issues.length) {
-        current.add(result);
-      } else if (retained.isNotEmpty) {
-        current.add(
-          ToolResultInfo(
-            id: result.id,
-            name: result.name,
-            arguments: result.arguments,
-            result: jsonEncode({
-              ...decoded!,
-              'issues': [for (final index in retained) issues[index]],
-              'diagnostics': [for (final index in retained) diagnostics[index]],
-            }),
-          ),
-        );
-      }
-    }
-    return current;
+    return ReconciledVerificationFeedback.filter(
+      results,
+      supersededIds,
+      advisorySourceIds,
+    );
   }
 
   static VerificationScope? scopeOf(ToolResultInfo result) =>
@@ -167,71 +102,8 @@ abstract final class CommandVerificationReconciliation {
     };
   }
 
-  static bool isVerification(ToolResultInfo result) {
-    final name = result.name.trim().toLowerCase();
-    if (const {
-      'local_execute_command',
-      'process_start',
-      'process_status',
-      'process_wait',
-    }.contains(name)) {
-      if ((result.outcome?.effectiveTestFailedCount ?? 0) > 0 ||
-          (result.outcome?.diagnosticErrorCount ?? 0) > 0) {
-        return true;
-      }
-      final decoded = _decode(result.result);
-      final command = _verificationCommand(result, decoded);
-      if (VerificationMetadataQueryPolicy.appliesTo(result) ||
-          LiteralEnvironmentInspectionPolicy.applies(command) ||
-          MaskedInspectionCommandPolicy.applies(command)) {
-        return false;
-      }
-      if (LiteralPythonStdinVerification.applies(command)) return true;
-      final directory =
-          (decoded?['working_directory'] ??
-                  result.arguments['working_directory'])
-              ?.toString() ??
-          '';
-      if (PytestVerificationIdentity.parse(command, directory) != null ||
-          VerificationCommandSequence.parse(command, directory) != null) {
-        return true;
-      }
-      if (ShellExitStatusReport.parse(
-            (decoded?['command'] ?? result.arguments['command'])?.toString() ??
-                '',
-          ) !=
-          null) {
-        return const ToolCapabilityClassifier()
-                .classify(
-                  'local_execute_command',
-                  arguments: {'command': command},
-                )
-                .commandEffect ==
-            ToolCommandEffect.verification;
-      }
-      if (name != 'local_execute_command' && command.isNotEmpty) {
-        return const ToolCapabilityClassifier()
-                .classify(
-                  'local_execute_command',
-                  arguments: {'command': command},
-                )
-                .commandEffect ==
-            ToolCommandEffect.verification;
-      }
-    }
-    if (name == 'local_execute_command' || name == 'git_execute_command') {
-      return const ToolCapabilityClassifier()
-              .classify(result.name, arguments: result.arguments)
-              .commandEffect ==
-          ToolCommandEffect.verification;
-    }
-    return const {
-      'analyze_project',
-      'run_tests',
-      'process_start',
-      'process_wait',
-    }.contains(name);
-  }
+  static bool isVerification(ToolResultInfo result) =>
+      VerificationInvocationEvidence.isVerification(result);
 
   static bool hasFailedFeedback(List<ToolResultInfo> results, int afterIndex) =>
       results.skip(afterIndex + 1).any((result) {
@@ -244,47 +116,11 @@ abstract final class CommandVerificationReconciliation {
                 'failed';
       });
 
-  static ToolTestOutcome? testOutcome(ToolResultInfo result) {
-    if (result.outcome?.testOutcome case final ToolTestOutcome outcome) {
-      return outcome;
-    }
-    final decoded = _decode(result.result);
-    final command = _verificationCommand(result, decoded);
-    final directory =
-        (decoded?['working_directory'] ?? result.arguments['working_directory'])
-            ?.toString() ??
-        '';
-    final runner =
-        PytestVerificationIdentity.parse(command, directory) ??
-        VerificationCommandSequence.parse(command, directory)?.terminalPytest;
-    final stdout =
-        (decoded?['stdout'] ?? decoded?['stdout_tail'])?.toString() ?? '';
-    final report = ShellExitStatusReport.parse(
-      (decoded?['command'] ?? result.arguments['command'])?.toString() ?? '',
-    );
-    return runner?.counts(report?.commandOutput(stdout) ?? stdout);
-  }
+  static ToolTestOutcome? testOutcome(ToolResultInfo result) =>
+      VerificationInvocationEvidence.testOutcome(result);
 
-  static bool requiresCompoundRunnerCounts(ToolResultInfo result) {
-    final decoded = _decode(result.result);
-    return VerificationCommandSequence.parse(
-          _verificationCommand(result, decoded),
-          (decoded?['working_directory'] ??
-                      result.arguments['working_directory'])
-                  ?.toString() ??
-              '',
-        )?.terminalPytest !=
-        null;
-  }
-
-  static String _verificationCommand(
-    ToolResultInfo result,
-    Map<String, dynamic>? decoded,
-  ) {
-    final command =
-        (decoded?['command'] ?? result.arguments['command'])?.toString() ?? '';
-    return ShellExitStatusReport.parse(command)?.command ?? command;
-  }
+  static bool requiresCompoundRunnerCounts(ToolResultInfo result) =>
+      VerificationInvocationEvidence.requiresCompoundRunnerCounts(result);
 
   static Map<String, dynamic>? _decode(String value) {
     try {

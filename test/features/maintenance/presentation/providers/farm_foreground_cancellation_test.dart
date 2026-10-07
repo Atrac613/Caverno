@@ -19,14 +19,14 @@ void main() {
           await probe.scheduler.drain();
           probe.dispose();
         });
-        probe.lifecycle.didChangeAppLifecycleState(AppLifecycleState.hidden);
+        probe.lifecycle.didChangeAppLifecycleState(AppLifecycleState.paused);
         await probe.scheduler.tick();
         await fixture.proposalStarted.future.timeout(
           const Duration(seconds: 5),
         );
         probe.lifecycle.didChangeAppLifecycleState(AppLifecycleState.resumed);
         if (returnToBackground) {
-          probe.lifecycle.didChangeAppLifecycleState(AppLifecycleState.hidden);
+          probe.lifecycle.didChangeAppLifecycleState(AppLifecycleState.paused);
         }
         fixture.release();
         await probe.scheduler.drain();

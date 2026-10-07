@@ -285,6 +285,42 @@ def _repair_prompt_asks_for_underlying_defect(blob):
     return False
 
 
+def _review_hint_keeps_host_scope(blob):
+    """Whether a review prompt carried a host-scoped verification runner.
+
+    The sentence is sent only by the review's verification hint, and only when
+    a passing implementation run executed outside the workspace sandbox.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        for message in (entry.get("request") or {}).get("messages") or []:
+            if message.get("role") == "user" and (
+                "A run with execution_scope host passed outside the workspace"
+                in str(message.get("content"))
+            ):
+                return True
+    return False
+
+
+def _review_patch_listed(blob):
+    """Whether a project task review got an oversized patch as a file list.
+
+    Read from the structured workflow decision, never from prose.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    return any(
+        (entry.get("projectTaskDecision") or {}).get("decision")
+        == "patch_listed"
+        for entry in entries
+    )
+
+
 def _reasoning_only_recovery_without_thinking(blob):
     """Whether a reasoning-only stop recovery request went out without thinking.
 
@@ -867,6 +903,16 @@ SIGNATURES = {
         "commit": "4e482cb4b",
         "what": "ask_user_question pending at the loop limit reaches the user",
         "match": _pending_question_put_to_user,
+    },
+    "review_hint_keeps_host_scope": {
+        "commit": "f596da316",
+        "what": "a review reruns a host-only passing verification with its scope",
+        "match": _review_hint_keeps_host_scope,
+    },
+    "review_patch_listed": {
+        "commit": "c89f0dd75",
+        "what": "an oversized task patch is listed for review, not a stop",
+        "match": _review_patch_listed,
     },
 }
 

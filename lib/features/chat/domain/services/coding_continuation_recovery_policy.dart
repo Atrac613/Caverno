@@ -5,6 +5,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_continuation_recovery_input.dart';
 import 'coding_continuation_recovery_prompt_builder.dart';
+import 'coding_recovery_text.dart';
 import 'reasoning_only_stop.dart';
 import 'structured_coding_execution_deferral_detector.dart';
 import 'tool_definition_search_service.dart';
@@ -12,14 +13,6 @@ import 'tool_definition_search_service.dart';
 export 'coding_continuation_recovery_input.dart';
 
 // ChatNotifier decomposition collaborator: coding-continuation-recovery-policy
-
-typedef _RecoveryText = ({
-  String label,
-  String reason,
-  String error,
-  String action,
-  String? lead,
-});
 
 final class CodingContinuationRecoveryPolicy {
   const CodingContinuationRecoveryPolicy();
@@ -311,94 +304,13 @@ final class CodingContinuationRecoveryPolicy {
 
   /// Wording per recovery code. An unknown code reads as prose continuation,
   /// and a code without its own lead uses the prose lead.
-  static const _texts = <String, _RecoveryText>{
-    'project_verification_repair': (
-      label: 'project verification repair recovery',
-      reason: 'A captured project verification failure remains unresolved.',
-      error:
-          'The failed verification needs diagnosis and an authorized repair.',
-      action:
-          'Diagnose the captured failure, repair task-related code and rerun the same check, or report an evidenced external blocker.',
-      lead: null,
-    ),
-    'structured_project_subtask': (
-      label: 'structured project subtask recovery',
-      reason: 'The intermediate project subtask has unresolved requirements.',
-      error: 'The subtask completion marker or execution evidence is missing.',
-      action:
-          'Resolve the subtask requirements without completing the parent goal.',
-      lead: null,
-    ),
-    'structured_coding_task_status': (
-      label: 'structured coding task status recovery',
-      reason:
-          'The project task has no terminal structured goal acknowledgement.',
-      error: 'The project task needs a structured goal status report.',
-      action:
-          'Call update_goal with a JSON boolean completed value, using the captured execution evidence.',
-      lead: null,
-    ),
-    'unexecuted_delegation': (
-      label: 'unexecuted delegation recovery',
-      reason:
-          'The parent promised delegation without a spawn_subagent tool result.',
-      error: 'Delegation was described but spawn_subagent was not called.',
-      action:
-          'Call spawn_subagent now, or state that delegation did not occur.',
-      lead:
-          'The previous answer promised delegation, but no spawn_subagent call was executed. Call spawn_subagent now if the task is ready; otherwise state the blocker and that delegation did not occur.',
-    ),
-    'length_truncated_pending_action': (
-      label: 'length-truncated pending action recovery',
-      reason:
-          'The assistant reached the output-token limit while trusted tool evidence still showed incomplete executable coding work.',
-      error:
-          'The assistant reached the output-token limit before issuing the next executable coding action.',
-      action:
-          'Issue exactly one available tool call that advances the incomplete work.',
-      lead: null,
-    ),
-    'bracketed_coding_tool_request': (
-      label: 'bracketed coding tool request recovery',
-      reason:
-          'The assistant returned a bracketed coding tool request in final-answer text instead of issuing an executable tool call.',
-      error:
-          'The assistant response contained a bracketed coding tool request, but no executable tool call was issued.',
-      action:
-          'Issue the requested coding tool call now. Do not describe bracketed tool blocks as already executed.',
-      lead:
-          'The previous assistant response contained a bracketed coding tool request in final-answer text, but no tool call was issued.',
-    ),
-    ReasoningOnlyStop.recoveryCode: (
-      label: ReasoningOnlyStop.label,
-      reason: ReasoningOnlyStop.reason,
-      error: ReasoningOnlyStop.reason,
-      action: ReasoningOnlyStop.requiredAction,
-      lead: ReasoningOnlyStop.lead,
-    ),
-  };
-
-  static const _RecoveryText _proseText = (
-    label: 'prose-only coding continuation recovery',
-    reason:
-        'The assistant returned coding continuation prose instead of using an available coding tool.',
-    error:
-        'The assistant response described a future coding action, but no tool call was issued.',
-    action:
-        'Use an available file, command, or test tool now. Do not restate the plan.',
-    lead:
-        'The previous assistant response was a coding continuation, but no tool call was issued.',
-  );
-
-  _RecoveryText _textFor(String code) => _texts[code] ?? _proseText;
-
-  String recoveryLogLabel(String recoveryCode) => _textFor(recoveryCode).label;
-  String recoveryReason(String recoveryCode) => _textFor(recoveryCode).reason;
-  String recoveryError(String recoveryCode) => _textFor(recoveryCode).error;
-  String recoveryRequiredAction(String recoveryCode) =>
-      _textFor(recoveryCode).action;
-  String recoveryPromptLead(String recoveryCode) =>
-      _textFor(recoveryCode).lead ?? _proseText.lead!;
+  String recoveryLogLabel(String code) =>
+      CodingRecoveryText.forCode(code).label;
+  String recoveryReason(String code) => CodingRecoveryText.forCode(code).reason;
+  String recoveryError(String code) => CodingRecoveryText.forCode(code).error;
+  String recoveryRequiredAction(String code) =>
+      CodingRecoveryText.forCode(code).action;
+  String recoveryPromptLead(String code) => CodingRecoveryText.promptLead(code);
 
   String _clipForDiagnostic(String value, {int maxLength = 240}) {
     final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
