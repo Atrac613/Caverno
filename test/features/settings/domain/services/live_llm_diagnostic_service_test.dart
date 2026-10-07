@@ -20,6 +20,67 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test('edit format binds requests, thinking and publication', () async {
+    final source = _EditRecordingDataSource();
+    final statuses = <LiveLlmDiagnosticStatus>[];
+    final report =
+        await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false, model: 'edit-model'),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(
+          probeIds: const {'edit_format_fidelity'},
+          onReport: (report) {
+            final status = _result(report, 'edit_format_fidelity').status;
+            if (statuses.isEmpty || statuses.last != status) {
+              statuses.add(status);
+            }
+          },
+        );
+    expect(source.calls, 3);
+    expect(statuses, [
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.passed,
+    ]);
+    expect(report.thinkingMetrics!.responseCount, 3);
+    expect(report.thinkingMetrics!.reasoningResponseCount, 3);
+    expect(_result(report, 'edit_format_fidelity').usage.totalTokens, 39);
+  });
+
+  test('edit format skips an unselected probe without requests', () async {
+    final source = _EditRecordingDataSource();
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false, model: 'edit-model'),
+      chatDataSource: source,
+      mcpToolService: null,
+    ).run(probeIds: const <String>{});
+    expect(source.calls, 0);
+    expect(
+      _result(report, 'edit_format_fidelity').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+  });
+
+  for (final arm in [1, 2, 3]) {
+    test(
+      'edit format converts arm $arm request failures to failed reports',
+      () async {
+        final source = _EditRecordingDataSource(failingArm: arm);
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false, model: 'edit-model'),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(probeIds: const {'edit_format_fidelity'});
+        expect(source.calls, arm);
+        final result = _result(report, 'edit_format_fidelity');
+        expect(result.status, LiveLlmDiagnosticStatus.failed);
+        expect(result.details, contains('edit arm $arm'));
+        expect(result.usage.totalTokens, 0);
+      },
+    );
+  }
+
   test('exact preservation binds requests, thinking and publication', () async {
     final source = _ExactRecordingDataSource();
     final statuses = <LiveLlmDiagnosticStatus>[];
@@ -3041,6 +3102,54 @@ const _editFormatUnifiedDiff = '''--- a/lib/greeting.dart
 -  return 'Hello, \$trimmed!';
 +  return 'Welcome, \$trimmed!';
  }''';
+
+class _EditRecordingDataSource extends _EditFormatDiagnosticDataSource {
+  _EditRecordingDataSource({this.failingArm})
+    : super({
+        ModelEditFormatPreference.wholeFile,
+        ModelEditFormatPreference.searchReplace,
+        ModelEditFormatPreference.unifiedDiff,
+      });
+  final int? failingArm;
+  int calls = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    calls++;
+    expect(model, 'edit-model');
+    expect(temperature, 0.0);
+    expect(maxTokens, 2048);
+    expect(tools, isNull);
+    expect(messages.map((message) => message.role), [
+      MessageRole.system,
+      MessageRole.user,
+    ]);
+    expect(messages.first.content, contains('Caverno live LLM diagnostics'));
+    if (calls == failingArm) throw StateError('edit arm $calls');
+    final result = await super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    return ChatCompletionResult(
+      content: '<think>edit</think>${result.content}',
+      finishReason: result.finishReason,
+      usage: const TokenUsage(
+        promptTokens: 10,
+        completionTokens: 3,
+        totalTokens: 13,
+      ),
+    );
+  }
+}
 
 class _EditFormatDiagnosticDataSource extends _FakeDiagnosticDataSource {
   _EditFormatDiagnosticDataSource(

@@ -24,6 +24,7 @@ import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_diagnostic_thinking_observer.dart';
+import 'live_llm_edit_format_probe.dart';
 import 'live_llm_effective_context_probe.dart';
 import 'live_llm_embedding_probe.dart';
 import 'live_llm_exact_preservation_probe.dart';
@@ -76,6 +77,15 @@ class LiveLlmDiagnosticService {
   late final _chat = LiveLlmDiagnosticObservedChatCalls(
     chatDataSource,
     _thinking,
+  );
+  late final _editFormatProbe = LiveLlmEditFormatProbe(
+    complete: ({required messages}) => _chat.createChatCompletion(
+      messages: messages,
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _reasoningProbeMaxTokens,
+    ),
+    messages: (user) => _messages(user: user),
   );
   late final _exactPreservationProbe = LiveLlmExactPreservationProbe(
     complete: ({required messages}) => _chat.createChatCompletion(
@@ -307,7 +317,7 @@ class LiveLlmDiagnosticService {
   static const _thinkingControlProbeId = 'thinking_control';
   static const _exactPreservationProbeId =
       LiveLlmExactPreservationProbe.probeId;
-  static const _editFormatProbeId = 'edit_format_fidelity';
+  static const _editFormatProbeId = LiveLlmEditFormatProbe.probeId;
   static const _embeddingsProbeId = LiveLlmEmbeddingProbe.probeId;
   static const _effectiveContextProbeId = LiveLlmEffectiveContextProbe.probeId;
   static const _foundationModelsLanguageMatrixProbeId =
@@ -394,31 +404,8 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
   static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
-  static const editFormatPreferenceMetadataKey = 'editFormatPreference';
-  static const _editFormatPath = 'lib/greeting.dart';
-  static const _editFormatOriginal = '''String buildLabel(String name) {
-  final trimmed = name.trim();
-  return 'Hello, \$trimmed!';
-}''';
-  static const _editFormatUpdated = '''String buildLabel(String name) {
-  final trimmed = name.trim();
-  return 'Welcome, \$trimmed!';
-}''';
-  static final _editFormatSearchReplace = [
-    '<<<<<<< SEARCH',
-    "  return 'Hello, \$trimmed!';",
-    '=======',
-    "  return 'Welcome, \$trimmed!';",
-    '>>>>>>> REPLACE',
-  ].join('\n');
-  static const _editFormatUnifiedDiff = '''--- a/lib/greeting.dart
-+++ b/lib/greeting.dart
-@@ -1,4 +1,4 @@
- String buildLabel(String name) {
-   final trimmed = name.trim();
--  return 'Hello, \$trimmed!';
-+  return 'Welcome, \$trimmed!';
- }''';
+  static const editFormatPreferenceMetadataKey =
+      LiveLlmEditFormatProbe.preferenceMetadataKey;
 
   /// Vision outcome labels. Emitted into probe details so the profile builder
   /// and a human reading the report classify a miss the same way.
@@ -546,7 +533,7 @@ class LiveLlmDiagnosticService {
       probeId: _editFormatProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runEditFormatProbe,
+      run: _editFormatProbe.run,
     );
     report = await _runEmbeddingsProbe(
       report: report,
@@ -1235,121 +1222,6 @@ class LiveLlmDiagnosticService {
     }
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<LiveLlmDiagnosticProbeResult> _runEditFormatProbe() async {
-    final cases = <_EditFormatProbeCase>[
-      const _EditFormatProbeCase(
-        preference: ModelEditFormatPreference.wholeFile,
-        instruction:
-            'Return the complete updated file contents with no markdown fence.',
-        expected: _editFormatUpdated,
-      ),
-      _EditFormatProbeCase(
-        preference: ModelEditFormatPreference.searchReplace,
-        instruction:
-            'Return one exact SEARCH/REPLACE block using the markers '
-            '<<<<<<< SEARCH, =======, and >>>>>>> REPLACE. Include only the '
-            'changed line in each side and no markdown fence.',
-        expected: _editFormatSearchReplace,
-      ),
-      _EditFormatProbeCase(
-        preference: ModelEditFormatPreference.unifiedDiff,
-        instruction:
-            'Return one syntactically valid unified diff that can be applied '
-            'to lib/greeting.dart. Include every available unchanged line as '
-            'context, and ensure each hunk header count matches the old and '
-            'new lines in that hunk. Return no markdown fence or explanation.',
-        expected: _editFormatUnifiedDiff,
-        normalize: LiveLlmResponseScoring.normalizeUnifiedDiffFileHeaders,
-      ),
-    ];
-    final outcomes = <_EditFormatProbeOutcome>[];
-    for (final testCase in cases) {
-      final result = await _chat.createChatCompletion(
-        messages: _messages(
-          user:
-              'Update the greeting from Hello to Welcome without changing any '
-              'other text. The current $_editFormatPath contents are:\n\n'
-              '$_editFormatOriginal\n\n${testCase.instruction}',
-        ),
-        model: _diagnosticModel,
-        temperature: _diagnosticTemperature,
-        maxTokens: _reasoningProbeMaxTokens,
-      );
-      final normalized = LiveLlmResponseScoring.stripSingleCodeFence(
-        LiveLlmResponseScoring.visibleContent(result.content),
-      );
-      final mismatch = LiveLlmResponseScoring.firstEditFormatMismatch(
-        expected: testCase.prepare(testCase.expected),
-        actual: testCase.prepare(normalized),
-      );
-      // A cap the answer never got past reads as "received end of output",
-      // which names the symptom and hides the cause.
-      final failureDetail = mismatch == null || result.finishReason != 'length'
-          ? mismatch
-          : '$mismatch -- the response hit the token cap '
-                '(finish_reason: length)';
-      outcomes.add(
-        _EditFormatProbeOutcome(
-          preference: testCase.preference,
-          passed: failureDetail == null,
-          failureDetail: failureDetail,
-          content: result.content,
-          usage: LiveLlmDiagnosticEvidence.usage(result),
-        ),
-      );
-    }
-
-    final passed = outcomes.where((outcome) => outcome.passed).toList();
-    final preference = _preferredEditFormat(passed);
-    final status = passed.length == outcomes.length
-        ? LiveLlmDiagnosticStatus.passed
-        : passed.isNotEmpty
-        ? LiveLlmDiagnosticStatus.warning
-        : LiveLlmDiagnosticStatus.failed;
-    return LiveLlmDiagnosticProbeResult(
-      id: _editFormatProbeId,
-      status: status,
-      summary: preference == ModelEditFormatPreference.unknown
-          ? 'The model did not reproduce any supported edit format exactly.'
-          : 'The model reliably produced ${preference.name} edits.',
-      details: outcomes
-          .map(
-            (outcome) => outcome.passed
-                ? '${outcome.preference.name}: passed'
-                : '${outcome.preference.name}: failed'
-                      '${outcome.failureDetail == null ? '' : ' (${outcome.failureDetail})'}',
-          )
-          .join('\n'),
-      modelContent: outcomes
-          .map(
-            (outcome) =>
-                '${outcome.preference.name}: ${LiveLlmDiagnosticEvidence.preview(outcome.content, maxChars: 360)}',
-          )
-          .join('\n\n'),
-      usage: LiveLlmDiagnosticEvidence.sumUsage(
-        outcomes.map((outcome) => outcome.usage),
-      ),
-      passedChecks: passed.length,
-      totalChecks: outcomes.length,
-      metadata: {editFormatPreferenceMetadataKey: preference.name},
-    );
-  }
-
-  ModelEditFormatPreference _preferredEditFormat(
-    List<_EditFormatProbeOutcome> passed,
-  ) {
-    for (final preference in const [
-      ModelEditFormatPreference.unifiedDiff,
-      ModelEditFormatPreference.searchReplace,
-      ModelEditFormatPreference.wholeFile,
-    ]) {
-      if (passed.any((outcome) => outcome.preference == preference)) {
-        return preference;
-      }
-    }
-    return ModelEditFormatPreference.unknown;
   }
 
   Future<LiveLlmDiagnosticReport> _runEmbeddingsProbe({
@@ -2682,41 +2554,6 @@ class _FoundationModelsLanguageProbeCase {
   final String marker;
   final String userPrompt;
   final List<Map<String, dynamic>>? tools;
-}
-
-class _EditFormatProbeCase {
-  const _EditFormatProbeCase({
-    required this.preference,
-    required this.instruction,
-    required this.expected,
-    this.normalize,
-  });
-
-  final ModelEditFormatPreference preference;
-  final String instruction;
-  final String expected;
-
-  /// Applied to both sides before comparison, to drop spelling differences the
-  /// format permits. Null compares the text verbatim.
-  final String Function(String value)? normalize;
-
-  String prepare(String value) => normalize?.call(value) ?? value;
-}
-
-class _EditFormatProbeOutcome {
-  const _EditFormatProbeOutcome({
-    required this.preference,
-    required this.passed,
-    required this.failureDetail,
-    required this.content,
-    required this.usage,
-  });
-
-  final ModelEditFormatPreference preference;
-  final bool passed;
-  final String? failureDetail;
-  final String content;
-  final LiveLlmDiagnosticTokenUsage usage;
 }
 
 /// One embeddings call plus the reason it produced nothing, when it did.

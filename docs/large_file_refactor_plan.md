@@ -2056,3 +2056,35 @@ This slice remains uncommitted in the worktree. Next: review/commit it, then
 freeze the edit-format measurement contract. F5 remains `current`; RC1 stays on
 hold. No main integration, push, full Flutter-suite, live-model or signed-device
 result is claimed.
+
+
+### Edit-format extraction (2026-10-08)
+
+Exact preservation was locally committed as `1624ef4fe`. The next remaining
+bounded family, edit-format fidelity, now lives in the 195-line
+`live_llm_edit_format_probe.dart`, behind completion/message ports. The service
+falls from 2,746 to 2,583 lines, retaining selected-probe policy, the 2,048-token
+request cap, thinking observation and generic error/elapsed/publication handling.
+The public `editFormatPreferenceMetadataKey` remains a forwarding constant.
+
+Whole-file, SEARCH/REPLACE and unified diff still run in that order. Preference
+selection still favors unified diff, then SEARCH/REPLACE, then whole-file.
+Visible reasoning and a single code fence are stripped before comparison; only
+unified-diff file-header a/b prefixes are normalized. Hunk/body mismatches still
+fail, and truncation is named only when a mismatch exists. Usage, preview limits,
+result details and metadata are preserved. A normalized comparison confirms the
+measurement and preference-selection bodies match the committed original.
+
+Eleven service contracts passed before extraction, including five new binding,
+skip and per-request-error contracts. Nineteen independent tests cover all eight
+format combinations, prompt order/text, fences/reasoning, file-header tolerance,
+hunk drift, truncation, first mismatch, previews and each request exception.
+The final gate passed 157 tests across six suites, clean root/package analysis,
+internal-package tests and relay checks. The module has 54/54 executable lines
+covered; the service has 698/809 (86.28%) in this focused run. Both file sizes
+have budgets. See [task and evidence](f5_edit_format_probe_extraction_codex_task.md).
+
+This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
+coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
+on hold. No main integration, push, full Flutter-suite, live-model or signed-device
+result is claimed.

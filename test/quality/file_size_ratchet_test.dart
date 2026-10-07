@@ -1076,11 +1076,13 @@ const Map<String, int> _lineBudgets = {
   // from 3203 when the effective-context measurement moved out, and from
   // 3055 when streaming measurement moved out, and from 2965 when the
   // pure embeddings evaluator moved out, and from 2877 when literal
-  // preservation measurement moved out.
+  // preservation measurement moved out, and from 2746 when edit-format
+  // measurement moved out.
   // The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      2746,
+      2583,
+  'lib/features/settings/domain/services/live_llm_edit_format_probe.dart': 195,
   'lib/features/settings/domain/services/live_llm_exact_preservation_probe.dart':
       157,
   'lib/features/settings/domain/services/live_llm_embedding_probe.dart': 97,
