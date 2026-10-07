@@ -78,12 +78,17 @@ class FinalAnswerClaimDetector {
     );
   }
 
+  /// [fileChangesAlreadyCaptured] is structural evidence that the work this
+  /// turn answers for was already written, earlier in the task; the request
+  /// text then cannot show that a write is still missing.
   ToolResultInfo? buildUnexecutedFileSideEffectToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
     required String latestUserContent,
+    bool fileChangesAlreadyCaptured = false,
   }) {
-    if (!looksLikeFileSideEffectRequest(latestUserContent) ||
+    if (fileChangesAlreadyCaptured ||
+        !looksLikeFileSideEffectRequest(latestUserContent) ||
         hasSuccessfulFileSideEffectResult(toolResults) ||
         (_looksLikeCommandGeneratedRuntimeStateClaim(candidateResponse) &&
             hasSuccessfulCommandExecutionResult(toolResults)) ||

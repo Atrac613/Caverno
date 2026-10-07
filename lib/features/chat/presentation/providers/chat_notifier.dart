@@ -168,6 +168,7 @@ import '../../domain/services/post_saved_validation_tool_policy.dart';
 import '../../domain/services/printed_tool_call_recovery.dart';
 import '../../domain/services/process_start_result_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
+import '../../domain/services/project_task_captured_changes.dart';
 import '../../domain/services/project_task_review_inspection.dart';
 import '../../domain/services/project_task_review_verdict.dart';
 import '../../domain/services/project_task_step_completion_policy.dart';
@@ -6290,6 +6291,9 @@ class ChatNotifier extends Notifier<ChatState> {
           latestUserContent: const SavedTaskAuthoredRequestText().resolve(
             latestUserContent: turnSnapshot!.latestUserContent,
             savedTask: turnSnapshot.savedTask,
+          ),
+          fileChangesAlreadyCaptured: projectTaskHasCapturedChanges(
+            _conversationForGeneration(interactionGeneration),
           ),
         );
     // Re-run analysis so final diagnostics reflect the post-edit state.
