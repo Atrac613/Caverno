@@ -143,7 +143,7 @@ dependencies:
 
   # AC/battery power state for the LL18 idle-maintenance gate
   # (macOS/Windows/Linux/iOS/Android)
-  battery_plus: ^7.1.1
+  battery_plus: ^7.1.2
 
   # Serial port tool (desktop only: macOS/Windows/Linux)
   flutter_libserialport: ^0.6.0
