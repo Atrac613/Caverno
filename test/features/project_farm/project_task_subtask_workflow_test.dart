@@ -449,9 +449,22 @@ void main() {
         );
 
     final fresh = conversation;
-    final captured = workflow(readsGit: false);
-    expect(await captured.run(), ProjectTaskReviewResult.stopped);
-    expect(captured.stopReason, contains('task patch is empty'));
+    // Without a git reader the stacked captures are too large to inline;
+    // the reviewer gets each path once and reads the net diff from git
+    // (session d8ffeb92 stopped here with a finished implementation).
+    expect(
+      await workflow(readsGit: false).run(),
+      ProjectTaskReviewResult.committed,
+    );
+    expect(
+      sendPrompts[1],
+      allOf(
+        contains('too large to include in full here'),
+        isNot(contains('stale turn')),
+        contains('diff HEAD -- <path>'),
+      ),
+    );
+    expect('- /repo/watcher.py ('.allMatches(sendPrompts[1]), hasLength(1));
 
     conversation = fresh;
     sendPrompts.clear();

@@ -8,7 +8,7 @@ import 'command_verification_reconciliation.dart';
 import 'fenced_tool_arguments_detector.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'narrated_transcript_claim_guard.dart';
-import 'project_task_terminal_status.dart';
+import 'project_task_status_contract.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_definition_search_service.dart';
 import 'unexecuted_command_claim_reconciliation.dart';
@@ -78,12 +78,17 @@ class FinalAnswerClaimDetector {
     );
   }
 
+  /// [fileChangesAlreadyCaptured] is structural evidence that the work this
+  /// turn answers for was already written, earlier in the task; the request
+  /// text then cannot show that a write is still missing.
   ToolResultInfo? buildUnexecutedFileSideEffectToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
     required String latestUserContent,
+    bool fileChangesAlreadyCaptured = false,
   }) {
-    if (!looksLikeFileSideEffectRequest(latestUserContent) ||
+    if (fileChangesAlreadyCaptured ||
+        !looksLikeFileSideEffectRequest(latestUserContent) ||
         hasSuccessfulFileSideEffectResult(toolResults) ||
         (_looksLikeCommandGeneratedRuntimeStateClaim(candidateResponse) &&
             hasSuccessfulCommandExecutionResult(toolResults)) ||
@@ -151,10 +156,12 @@ class FinalAnswerClaimDetector {
 
     final terminalSubtaskReport =
         isProjectSubtask &&
-        candidate.split('\n').last.trim() ==
-            ProjectTaskTerminalStatus.subtaskDoneMarker;
+        candidate.split('\n').last.trim() == projectTaskSubtaskDoneMarker;
+    // A purely lexical claim, promise or report, names no concrete call, so
+    // a later typed passing verifier settles it. Session c4b7c183: "rerun
+    // with python3 to verify" was fulfilled two calls later (58 passed), yet
+    // the notice outlived it and rejected the subtask as unexecuted.
     final missingEvidenceOnly =
-        (!looksLikeFutureAction || terminalSubtaskReport) &&
         !_printsCommandArguments(candidate) &&
         ContentParser.extractCompletedToolCalls(candidateResponse).isEmpty &&
         !const NarratedTranscriptClaimGuard()
@@ -178,8 +185,7 @@ class FinalAnswerClaimDetector {
         'code': 'unexecuted_command_action',
         ...ToolResultOrigin.harness.marker,
         // This lexical notice reports missing evidence, not a concrete call.
-        // A terminal intermediate-subtask report may mention later verification.
-        // Concrete calls and ordinary future promises retain their own gates.
+        // Printed arguments, transcripts and tool markup retain their gate.
         if (missingEvidenceOnly)
           'evidence_requirement':
               UnexecutedCommandClaimReconciliation.evidenceRequirement,

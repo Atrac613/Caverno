@@ -20,14 +20,7 @@ typedef ChatRequestShape = ({
   bool acceptsChatTemplateKwargs,
 });
 
-/// Builds the HTTP client stack every chat request path shares.
-///
-/// Both the buffered and the streaming client are wrapped: video parts are
-/// written into the JSON body, so a stream path left unwrapped would silently
-/// drop the attachment and answer blind. Thinking has to be decided the same
-/// way on both, and by the policy the datasource reads back afterwards, so all
-/// three are built here rather than repeated at three call sites that can
-/// drift apart one parameter at a time.
+/// Applies the same video and thinking policy to buffered and streaming clients.
 abstract final class ChatDataSourceClientFactory {
   static ChatRequestThinkingPolicy thinkingPolicy(ChatRequestShape shape) =>
       ChatRequestThinkingPolicy(
