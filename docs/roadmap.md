@@ -120,22 +120,20 @@ support-packet review, and multi-device household evidence remain required for
 product promotion; the hold does not satisfy or waive those gates. See
 [the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
-**F5 tool-result slice completed in this worktree (2026-10-08).**
-Edit-format is locally committed as `1bd7f4cfe`. The next slice moved datetime
-execution and final-answer integration scoring into a 142-line module with
-completion, follow-up, execution and message ports. The service fell from
-2,583 to 2,503 lines. Catalog/selection policy, request settings, thinking
-observation, errors, elapsed time and publication remain with the service.
-Only the first datetime call executes; final requests carry no tools and extra
-calls produce a warning. Prompts, envelopes, optional-field scoring and usage
-paths are unchanged. The module has 100% executable-line coverage (55/55);
-the focused gate passed 163 tests, root/package analysis, internal-package tests
-and relay checks. See
-[implementation evidence](f5_tool_result_probe_extraction_codex_task.md#implementation-evidence).
+**F5 thinking-control slice completed in this worktree (2026-10-08).**
+Tool-result is locally committed as `f1860234c`. The next slice moved on/off
+response classification into a 78-line module with a mode-aware completion port.
+The service fell from 2,503 to 2,437 lines. Endpoint/datasource eligibility,
+request settings, messages, errors, elapsed time and publication remain with
+service. Both requests still bypass the fixed-mode thinking observer. Four
+classifications, reasoning counts, finish reasons, usage and the public metadata
+key are unchanged. The module has 100% executable-line coverage (19/19); the focused gate
+passed 158 tests, root/package analysis, internal-package tests and relay checks. See
+[implementation evidence](f5_thinking_control_probe_extraction_codex_task.md#implementation-evidence).
 F5 remains `current`. Next: review/commit this slice, then refresh sizes, coverage
 and remaining diagnostic boundaries before selecting another extraction. RC1
 device gates remain on hold. See
-[the boundary plan](large_file_refactor_plan.md#tool-result-extraction-2026-10-08).
+[the boundary plan](large_file_refactor_plan.md#thinking-control-extraction-2026-10-08).
 
 LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
 firings to their stored messages, so Level 3 event sourcing stays deferred. With
@@ -152,7 +150,7 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Edit-format locally committed as `1bd7f4cfe`; tool-result completed in this worktree 2026-10-08: service 2,503 lines, module 142 lines at 55/55 executable-line coverage, focused gate passed 163 tests. Next: review/commit it, then refresh remaining diagnostic boundaries. See [implementation evidence](f5_tool_result_probe_extraction_codex_task.md#implementation-evidence) and [boundary plan](large_file_refactor_plan.md#tool-result-extraction-2026-10-08). |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Tool-result locally committed as `f1860234c`; thinking-control completed in this worktree 2026-10-08: service 2,437 lines, module 78 lines. Module 19/19 executable lines covered; focused gate passed 158 tests. Next: review/commit it, then refresh remaining diagnostic boundaries. See [implementation evidence](f5_thinking_control_probe_extraction_codex_task.md#implementation-evidence) and [boundary plan](large_file_refactor_plan.md#thinking-control-extraction-2026-10-08). |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |

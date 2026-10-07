@@ -32,6 +32,7 @@ import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
 import 'live_llm_structured_output_probe.dart';
+import 'live_llm_thinking_control_probe.dart';
 import 'live_llm_tool_depth_probe.dart';
 import 'live_llm_tool_recovery_probe.dart';
 import 'live_llm_tool_result_probe.dart';
@@ -335,7 +336,7 @@ class LiveLlmDiagnosticService {
   static const _instructionProbeId = 'instruction_echo';
   static const _structuredOutputProbeId = LiveLlmStructuredOutputProbe.probeId;
   static const _streamingProbeId = LiveLlmStreamingProbe.probeId;
-  static const _thinkingControlProbeId = 'thinking_control';
+  static const _thinkingControlProbeId = LiveLlmThinkingControlProbe.probeId;
   static const _exactPreservationProbeId =
       LiveLlmExactPreservationProbe.probeId;
   static const _editFormatProbeId = LiveLlmEditFormatProbe.probeId;
@@ -1603,25 +1604,8 @@ class LiveLlmDiagnosticService {
     return updated;
   }
 
-  static const thinkingControlMetadataKey = 'thinkingControl';
-  static const _thinkingControlled = 'controllable';
-  static const _thinkingAlwaysOn = 'always_on';
-  static const _thinkingNeverObserved = 'never_reasoned';
-  static const _thinkingInverted = 'inverted';
-  static const _thinkingControlPrompt =
-      'Reply with exactly CAVERNO_THINKING_CONTROL and no other text.';
-
-  /// Whether `enable_thinking` actually reaches the model, in both directions.
-  ///
-  /// Sends one trivial prompt with thinking switched on and one with it
-  /// switched off, and reads whether each answer carried reasoning. Until
-  /// 2026-09-23 a router in front of qwen3.8-27b-exl3 forced thinking off
-  /// whatever the request said, and nothing in the report could show it: the
-  /// request side read "on" and the scores quietly measured "off".
-  ///
-  /// Scores nothing. Like the video probe, it reports what the serving path
-  /// does with a request, not what the model can do. Its responses stay out of
-  /// the run's thinking metrics too, since they vary the mode on purpose.
+  static const thinkingControlMetadataKey =
+      LiveLlmThinkingControlProbe.metadataKey;
   Future<LiveLlmDiagnosticProbeResult> _runThinkingControlProbe() async {
     final createDataSource = thinkingModeDataSource;
     if (createDataSource == null) {
@@ -1644,64 +1628,14 @@ class LiveLlmDiagnosticService {
       );
     }
 
-    Future<ChatCompletionResult> arm(LiveLlmDiagnosticThinkingMode mode) {
-      return createDataSource(mode).createChatCompletion(
-        messages: _messages(user: _thinkingControlPrompt),
+    return LiveLlmThinkingControlProbe(
+      complete: (mode) => createDataSource(mode).createChatCompletion(
+        messages: _messages(user: LiveLlmThinkingControlProbe.prompt),
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
         maxTokens: _diagnosticMaxTokens,
-      );
-    }
-
-    final on = await arm(LiveLlmDiagnosticThinkingMode.on);
-    final off = await arm(LiveLlmDiagnosticThinkingMode.off);
-    final onChars = LiveLlmDiagnosticThinkingObserver.reasoningChars(
-      on.content,
-    );
-    final offChars = LiveLlmDiagnosticThinkingObserver.reasoningChars(
-      off.content,
-    );
-    final (classification, status, summary) = switch ((
-      onChars > 0,
-      offChars > 0,
-    )) {
-      (true, false) => (
-        _thinkingControlled,
-        LiveLlmDiagnosticStatus.passed,
-        'The endpoint honours enable_thinking in both directions.',
       ),
-      (true, true) => (
-        _thinkingAlwaysOn,
-        LiveLlmDiagnosticStatus.warning,
-        'The model reasoned with thinking switched off; something on the way '
-            'ignores enable_thinking: false.',
-      ),
-      (false, false) => (
-        _thinkingNeverObserved,
-        LiveLlmDiagnosticStatus.warning,
-        'No reasoning came back with thinking switched on. A router or server '
-            'default may force thinking off, or the model does not reason.',
-      ),
-      (false, true) => (
-        _thinkingInverted,
-        LiveLlmDiagnosticStatus.warning,
-        'Reasoning came back only with thinking switched off, the reverse of '
-            'the request.',
-      ),
-    };
-    return LiveLlmDiagnosticProbeResult(
-      id: _thinkingControlProbeId,
-      status: status,
-      summary: summary,
-      details:
-          'Classification: $classification\n'
-          'Thinking on: $onChars reasoning chars '
-          '(finish_reason: ${on.finishReason})\n'
-          'Thinking off: $offChars reasoning chars '
-          '(finish_reason: ${off.finishReason})',
-      usage: LiveLlmDiagnosticEvidence.totalUsage([on, off]),
-      metadata: {thinkingControlMetadataKey: classification},
-    );
+    ).run();
   }
 
   /// Asks the endpoint whether it accepts video, rather than sending one.

@@ -2117,3 +2117,31 @@ This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
 coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
 on hold. No main integration, push, full Flutter-suite, live-model or signed-device
 result is claimed.
+
+## Thinking-control extraction (2026-10-08)
+
+Tool-result is locally committed as `f1860234c`. The next bounded diagnostic
+family moves on/off response classification into the 78-line
+`LiveLlmThinkingControlProbe`. The service falls from 2,503 to 2,437 lines,
+retaining datasource availability, endpoint eligibility, request settings,
+message construction, generic exceptions, elapsed time and report publication.
+
+The two requests still run on then off and bypass fixed-mode thinking
+observation. The four classifications, status, reasoning-count parsing, finish
+reasons, usage and metadata remain unchanged. The public metadata key forwards
+to the module constant. Stream-only reasoning absent from content is still not
+counted by this probe. Normalized classification matches the committed original.
+
+Nine service contracts passed before extraction, including request settings,
+publication, request errors, inverted classification and thinking isolation.
+Twelve isolated tests cover the classification matrix, details, usage, parser
+boundaries, constants and both request failures. The focused gate passed 158 tests across six suites, clean root/package
+  analysis, internal-package tests and notification relay checks.
+Module: 19/19 executable lines covered (100%). Service: 645/747 (86.35%)
+  in this focused run; this is not whole-suite coverage. Thirteen affected size checks passed.
+See [task and evidence](f5_thinking_control_probe_extraction_codex_task.md).
+
+This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
+coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
+on hold. No main integration, push, full Flutter-suite, live-model or signed-device
+result is claimed.

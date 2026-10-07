@@ -1003,6 +1003,72 @@ void main() {
   });
 
   group('thinking_control', () {
+    test(
+      'preserves mode requests, publication and thinking isolation',
+      () async {
+        final source = _ThinkingControlRecordingDataSource();
+        final modes = <LiveLlmDiagnosticThinkingMode>[];
+        final statuses = <LiveLlmDiagnosticStatus>[];
+        final report =
+            await LiveLlmDiagnosticService(
+              settings: _settings(mcpEnabled: false, model: 'qwen3.8-27b-exl3'),
+              chatDataSource: _FakeDiagnosticDataSource(),
+              mcpToolService: null,
+              thinkingModeDataSource: (mode) {
+                modes.add(mode);
+                return source;
+              },
+            ).run(
+              probeIds: const {'thinking_control'},
+              onReport: (report) {
+                final status = _result(report, 'thinking_control').status;
+                if (statuses.isEmpty || statuses.last != status) {
+                  statuses.add(status);
+                }
+              },
+            );
+        expect(modes, LiveLlmDiagnosticThinkingMode.values);
+        expect(source.requests, 2);
+        expect(report.thinkingMetrics, isNull);
+        expect(statuses, [
+          LiveLlmDiagnosticStatus.pending,
+          LiveLlmDiagnosticStatus.running,
+          LiveLlmDiagnosticStatus.warning,
+        ]);
+        expect(
+          _result(report, 'thinking_control').elapsed,
+          greaterThan(Duration.zero),
+        );
+      },
+    );
+
+    for (final failureRequest in [1, 2]) {
+      test(
+        'request $failureRequest errors reach the failed boundary',
+        () async {
+          final source = _ThinkingControlRecordingDataSource(
+            failureRequest: failureRequest,
+          );
+          final report = await LiveLlmDiagnosticService(
+            settings: _settings(mcpEnabled: false, model: 'qwen3.8-27b-exl3'),
+            chatDataSource: _FakeDiagnosticDataSource(),
+            mcpToolService: null,
+            thinkingModeDataSource: (_) => source,
+          ).run(probeIds: const {'thinking_control'});
+          expect(source.requests, failureRequest);
+          expect(
+            _result(report, 'thinking_control').status,
+            LiveLlmDiagnosticStatus.failed,
+          );
+          expect(
+            _result(report, 'thinking_control').details,
+            contains('thinking request $failureRequest'),
+          );
+          expect(report.thinkingMetrics, isNull);
+        },
+      );
+    }
+
     Future<LiveLlmDiagnosticProbeResult> runProbe({
       required bool reasonsWhenOn,
       required bool reasonsWhenOff,
@@ -1054,6 +1120,12 @@ void main() {
 
       expect(result.status, LiveLlmDiagnosticStatus.warning);
       expect(result.metadata['thinkingControl'], 'always_on');
+    });
+
+    test('warns when the serving path inverts thinking', () async {
+      final result = await runProbe(reasonsWhenOn: false, reasonsWhenOff: true);
+      expect(result.status, LiveLlmDiagnosticStatus.warning);
+      expect(result.metadata['thinkingControl'], 'inverted');
     });
 
     test('skips an endpoint that cannot be sent enable_thinking', () async {
@@ -3903,6 +3975,44 @@ class _MultiRoundRecordingDataSource extends _FakeDiagnosticDataSource {
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+  }
+}
+
+class _ThinkingControlRecordingDataSource extends _FakeDiagnosticDataSource {
+  _ThinkingControlRecordingDataSource({this.failureRequest});
+  final int? failureRequest;
+  int requests = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+    Map<String, dynamic>? responseFormat,
+    Map<String, String>? requestMetadata,
+  }) async {
+    requests++;
+    expect(model, 'qwen3.8-27b-exl3');
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    expect(tools, isNull);
+    expect(messages.map((message) => message.role), [
+      MessageRole.system,
+      MessageRole.user,
+    ]);
+    expect(
+      messages.last.content,
+      'Reply with exactly CAVERNO_THINKING_CONTROL and no other text.',
+    );
+    if (requests == failureRequest) {
+      throw StateError('thinking request $requests');
+    }
+    return ChatCompletionResult(
+      content: 'CAVERNO_THINKING_CONTROL',
+      finishReason: 'stop',
     );
   }
 }
