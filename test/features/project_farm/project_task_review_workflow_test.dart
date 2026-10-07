@@ -231,6 +231,67 @@ void main() {
     expect(prompts[2], isNot(contains('<tool_use>')));
   });
 
+  test(
+    'lists an oversized patch for the reviewer instead of stopping',
+    () async {
+      // Session d8ffeb92: a finished five-subtask change produced a 46 KB
+      // patch, and the workflow stopped before review instead of reviewing it.
+      var conversation = initial();
+      final prompts = <String>[];
+      final decisions = <Map<String, Object?>>[];
+      final large = TurnDiffFile(
+        filePath: 'lib/task.dart',
+        linesAdded: 900,
+        unifiedPatch:
+            '@@ -1 +1,900 @@\n${List.filled(900, '+${'x' * 40}').join('\n')}',
+      );
+      final workflow = ProjectTaskReviewWorkflow(
+        conversationId: 'task',
+        commit: (prompt, scope) => commitTurn(prompt),
+        projectRoot: '/repo',
+        prepareCommit: (_, _) async => true,
+        readCommitSnapshot: (scope) async =>
+            fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
+        readGitState: gitState,
+        readTaskPatch: (_) async => [large],
+        readConversation: () => conversation,
+        isSelected: () => true,
+        isWaitingForUser: () => false,
+        onDecision: decisions.add,
+        send: (prompt, {required codeReview}) async {
+          prompts.add(prompt);
+          conversation = conversation.copyWith(
+            messages: [
+              ...conversation.messages,
+              assistant(
+                codeReview
+                    ? 'No findings.\nPROJECT_TASK_REVIEW_CLEAN'
+                    : 'Verified.\nPROJECT_TASK_READY_FOR_REVIEW',
+                prompts.length,
+              ),
+            ],
+            turnDiffs: codeReview
+                ? conversation.turnDiffs
+                : [...conversation.turnDiffs, diff(1)],
+          );
+          return true;
+        },
+      );
+
+      expect(
+        large.unifiedPatch.length,
+        greaterThan(ProjectTaskReviewWorkflow.maxInlinePatchChars),
+      );
+      expect(await workflow.run(), ProjectTaskReviewResult.committed);
+      final review = prompts[1];
+      expect(review, isNot(contains('```diff')));
+      expect(review, contains('too large to include here'));
+      expect(review, contains('- lib/task.dart (+900 -0)'));
+      expect(review, contains('diff HEAD -- <path>'));
+      expect(decisions, contains(containsPair('decision', 'patch_listed')));
+    },
+  );
+
   test('stops when task changes have no reviewable patch', () async {
     var conversation = initial();
     var calls = 0;

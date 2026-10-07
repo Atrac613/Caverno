@@ -109,6 +109,11 @@ final class ProjectTaskReviewWorkflow {
 
   static const maxRepairRounds = 2;
   static const maxMissingDiffRetries = 1;
+
+  /// A patch longer than this is listed rather than inlined, and the
+  /// reviewer reads each file's diff itself. Stopping instead discarded a
+  /// finished five-subtask implementation over a 46 KB patch (d8ffeb92).
+  static const maxInlinePatchChars = 30000;
   static const _ready = 'PROJECT_TASK_READY_FOR_REVIEW';
   static const _subtaskDone = 'PROJECT_TASK_SUBTASK_DONE';
   static const _clean = 'PROJECT_TASK_REVIEW_CLEAN';
@@ -220,9 +225,24 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
       final patch = await _reviewPatch(after!);
       if (patch == null) {
         return _stop(
-          'the task patch is empty, binary, truncated, or too large',
+          'the task patch is empty, binary, truncated, or has a file too '
+          'large to diff',
         );
       }
+      final inlinePatch = patch.inline;
+      if (inlinePatch == null) {
+        onDecision?.call({
+          'phase': 'review',
+          'decision': 'patch_listed',
+          'patchChars': patch.chars,
+          'fileCount': patch.files.length,
+        });
+      }
+      final patchSection = inlinePatch != null
+          ? '```diff\n$inlinePatch\n```'
+          : '''The patch is too large to include here (${patch.chars} characters). Its changed files are:
+${_listedFiles(patch.files).join('\n')}
+Inspect each listed file's change with git_execute_command `diff HEAD -- <path>`, one file per call, in addition to reading the files. Do not report a clean review unless every listed file's change was inspected.''';
       final template = builtInSlashCommandPromptTemplates.firstWhere(
         (candidate) => candidate.id == 'review',
       );
@@ -231,9 +251,7 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
 
 The patch below is this task's change to the files its file tools edited${inheritedFiles.isEmpty ? '' : ', including changes an earlier run of this task left uncommitted'}. Review these changes and relevant surrounding code. Begin this review turn by calling read_file on the relevant changed files; wait for successful results and reconcile the patch with their current contents before giving findings or reporting a clean review. Do not answer directly from the supplied patch or conversation history. Reads from earlier implementation or repair turns are historical evidence, not current review inspections. Do not review unrelated pre-existing changes in the working tree. If the patch cannot be reconciled with the working tree, explain the limit and do not report a clean review.
 
-```diff
-$patch
-```
+$patchSection
 
 ${ProjectTaskReviewVerdict.instructions}
 
@@ -588,7 +606,25 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
       ).trimRight().split('\n').last.trim() ==
       marker;
 
-  Future<String?> _reviewPatch(Conversation conversation) async {
+  /// One line per path. Captured per-turn patches can repeat a file, so the
+  /// counts are summed; the reviewer reads the net change from git anyway.
+  static Iterable<String> _listedFiles(List<TurnDiffFile> files) {
+    final counts = <String, (int, int)>{};
+    for (final file in files) {
+      final (added, removed) = counts[file.filePath] ?? (0, 0);
+      counts[file.filePath] = (
+        added + file.linesAdded,
+        removed + file.linesRemoved,
+      );
+    }
+    return counts.entries.map(
+      (entry) => '- ${entry.key} (+${entry.value.$1} -${entry.value.$2})',
+    );
+  }
+
+  Future<({String? inline, int chars, List<TurnDiffFile> files})?> _reviewPatch(
+    Conversation conversation,
+  ) async {
     final files =
         await readTaskPatch?.call(_taskPaths(conversation)) ??
         _taskFiles(conversation);
@@ -603,7 +639,11 @@ Read the cited roadmap and relevant code before editing.$_inheritedNote $scope''
       return null;
     }
     final patch = files.map((file) => file.unifiedPatch).join('\n');
-    return patch.length <= 30000 ? patch : null;
+    return (
+      inline: patch.length <= maxInlinePatchChars ? patch : null,
+      chars: patch.length,
+      files: files,
+    );
   }
 }
 
