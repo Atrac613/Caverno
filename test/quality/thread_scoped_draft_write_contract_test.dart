@@ -169,9 +169,16 @@ final class _CopyWithFieldVisitor extends RecursiveAstVisitor<void> {
   final List<String> fields;
 
   @override
-  void visitNamedExpression(NamedExpression node) {
-    final name = node.name.label.name;
-    if (_threadScopedDraftFields.contains(name)) fields.add(name);
-    super.visitNamedExpression(node);
+  void visitArgumentList(ArgumentList node) {
+    // NamedExpression became NamedArgument in analyzer 12. Read the stable
+    // argument token boundary so this contract works across both versions.
+    for (final argument in node.arguments) {
+      final name = argument.beginToken;
+      if (name.next?.lexeme == ':' &&
+          _threadScopedDraftFields.contains(name.lexeme)) {
+        fields.add(name.lexeme);
+      }
+    }
+    super.visitArgumentList(node);
   }
 }

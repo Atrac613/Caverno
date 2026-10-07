@@ -7,10 +7,12 @@ import 'file_mutation_evidence_policy.dart';
 /// Exact successful runners offered as hints, never as fresh review evidence.
 final class ProjectTaskVerificationContext {
   ProjectTaskVerificationContext(
-    List<({String command, String directory})> runs,
+    List<({String command, String directory, bool host})> runs,
   ) : runs = List.unmodifiable(runs);
 
-  final List<({String command, String directory})> runs;
+  /// [host] marks a run that executed outside the workspace sandbox, whose
+  /// interpreter and packages the contained runner may not see.
+  final List<({String command, String directory, bool host})> runs;
 
   factory ProjectTaskVerificationContext.fromResults(
     List<ToolResultInfo> results,
@@ -29,7 +31,7 @@ final class ProjectTaskVerificationContext {
         latestMutation = index;
       }
     }
-    final runs = <({String command, String directory})>[];
+    final runs = <({String command, String directory, bool host})>[];
     final stale = CommandVerificationReconciliation.staleBackgroundResultIds(
       results,
     );
@@ -58,7 +60,13 @@ final class ProjectTaskVerificationContext {
             directory.length > 512) {
           continue;
         }
-        final run = (command: command, directory: directory);
+        // The recorded boundary is what actually ran; the requested scope is
+        // only a fallback for results that predate boundary reporting.
+        final boundary = decoded['execution_boundary'];
+        final host = boundary is Map<String, dynamic>
+            ? boundary['kind'] == 'host'
+            : result.arguments['execution_scope'] == 'host';
+        final run = (command: command, directory: directory, host: host);
         if (!runs.contains(run)) runs.add(run);
       } on FormatException {
         continue;
@@ -70,6 +78,6 @@ final class ProjectTaskVerificationContext {
   String get prompt => runs.isEmpty
       ? ''
       : '''Successful implementation verification commands (historical evidence):
-${runs.map((run) => jsonEncode({'command': run.command, 'working_directory': run.directory})).join('\n')}
-If rerunning verification, reuse the exact project interpreter and working directory unless current inspection shows they are unavailable. Inspect an existing project environment before proposing dependency installation. These successes do not establish current review inspection or settle a new failure.''';
+${runs.map((run) => jsonEncode({'command': run.command, 'working_directory': run.directory, if (run.host) 'execution_scope': 'host'})).join('\n')}
+If rerunning verification, reuse the exact project interpreter and working directory unless current inspection shows they are unavailable.${runs.any((run) => run.host) ? ' A run with execution_scope host passed outside the workspace sandbox, where the contained interpreter may lack its packages; rerun it with the same execution_scope through the normal approval gate rather than reporting the sandboxed interpreter as the project environment.' : ''} Inspect an existing project environment before proposing dependency installation. These successes do not establish current review inspection or settle a new failure.''';
 }
