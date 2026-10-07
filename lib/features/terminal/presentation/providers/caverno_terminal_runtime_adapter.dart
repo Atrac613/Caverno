@@ -334,12 +334,15 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     required String message,
     required int exitCode,
   }) async {
-    _chatNotifier.cancelStreaming();
+    // Fail the turns with the caller's reason first: cancelling the stream
+    // ends the active turn as a user cancellation (130), and a terminal
+    // event is final, so the order decides which code the CLI reports.
     _runtime.terminateActiveTurns(
       code: code,
       message: message,
       exitCode: exitCode,
     );
+    _chatNotifier.cancelStreaming();
     // A farm run outlives its turns; end the workflow itself too.
     _farmRun?.stop(code: code, message: message, exitCode: exitCode);
   }

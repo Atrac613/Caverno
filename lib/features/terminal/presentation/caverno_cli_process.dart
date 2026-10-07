@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,6 +58,12 @@ Future<int> runCavernoCliProcess(
     output: output ?? stdout,
     diagnostics: diagnostics ?? stderr,
   );
+  // stdout belongs to the presenter: under --json it must be pure JSON Lines.
+  // Debug builds log through debugPrint, which would otherwise interleave
+  // `flutter:` lines with the events, so route it to stderr.
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) terminal.writeStderr('$message\n');
+  };
   CavernoCliInvocation invocation;
   try {
     invocation = CavernoCliInvocation.parse(arguments);
