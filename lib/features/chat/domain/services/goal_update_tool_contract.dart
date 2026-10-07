@@ -9,6 +9,7 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'goal_update_ack.dart';
 import 'immutable_json_snapshot.dart';
+import 'tool_outcome_snapshot.dart';
 import 'tool_result_prompt_builder.dart';
 
 export 'goal_update_ack.dart';
@@ -176,8 +177,9 @@ final class GoalUpdateToolHandlerOutcome {
 }
 
 ToolResultCompletionEvidence freezeGoalUpdateCompletionEvidence(
-  ToolResultCompletionEvidence evidence,
-) => ToolResultCompletionEvidence(
+  ToolResultCompletionEvidence evidence, {
+  bool clearReportedRemainingWork = false,
+}) => ToolResultCompletionEvidence(
   boundedToolLoopExhausted: evidence.boundedToolLoopExhausted,
   unexecutedToolNames: List<String>.unmodifiable(evidence.unexecutedToolNames),
   unresolvedErrorCount: evidence.unresolvedErrorCount,
@@ -205,8 +207,11 @@ ToolResultCompletionEvidence freezeGoalUpdateCompletionEvidence(
   hasAuthoritativeDiagnosticSnapshot:
       evidence.hasAuthoritativeDiagnosticSnapshot,
   hasUnexecutedActionClaim: evidence.hasUnexecutedActionClaim,
-  hasReportedRemainingWork: evidence.hasReportedRemainingWork,
-  remainingWorkMessage: evidence.remainingWorkMessage,
+  hasReportedRemainingWork:
+      !clearReportedRemainingWork && evidence.hasReportedRemainingWork,
+  remainingWorkMessage: clearReportedRemainingWork
+      ? ''
+      : evidence.remainingWorkMessage,
   diagnosticSignature: evidence.diagnosticSignature,
 );
 
@@ -218,6 +223,9 @@ ToolResultInfo _freezeToolResult(ToolResultInfo source) => ToolResultInfo(
     argumentName: 'toolResult.arguments',
   ),
   result: source.result,
+  outcome: ToolOutcomeSnapshot.freeze(source.outcome),
+  fromEarlierLoop: source.fromEarlierLoop,
+  changesSinceCapture: List<String>.unmodifiable(source.changesSinceCapture),
 );
 
 String _requiredValue(String value, String name) {

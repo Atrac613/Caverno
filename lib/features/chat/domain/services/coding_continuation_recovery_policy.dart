@@ -1,61 +1,44 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../entities/tool_call_info.dart';
-import 'immutable_json_snapshot.dart';
+import 'coding_continuation_recovery_input.dart';
+import 'coding_continuation_recovery_prompt_builder.dart';
+import 'coding_recovery_text.dart';
+import 'reasoning_only_stop.dart';
 import 'structured_coding_execution_deferral_detector.dart';
-import 'tool_call_execution_policy.dart';
 import 'tool_definition_search_service.dart';
 
+export 'coding_continuation_recovery_input.dart';
+
 // ChatNotifier decomposition collaborator: coding-continuation-recovery-policy
-
-final class CodingContinuationRecoveryInput {
-  CodingContinuationRecoveryInput({
-    required this.candidateResponse,
-    required List<Map<String, dynamic>> toolDefinitions,
-    required this.owningTurnLatestUserText,
-    required this.requireContinuationRequest,
-    required this.isCodingWorkspaceOrMode,
-    required this.hasPendingAutoContinueWorkflow,
-    required this.saveSkillCompletedInGeneration,
-    required this.acceptsTerminalToolRoleBlockerResponse,
-    required this.bracketedToolRequestName,
-  }) : toolDefinitions = List<Map<String, dynamic>>.unmodifiable(
-         toolDefinitions.map(ImmutableJsonSnapshot.freezeMap),
-       );
-
-  final String candidateResponse;
-  final List<Map<String, dynamic>> toolDefinitions;
-  final String owningTurnLatestUserText;
-  final bool requireContinuationRequest;
-  final bool isCodingWorkspaceOrMode;
-  final bool hasPendingAutoContinueWorkflow;
-  final bool saveSkillCompletedInGeneration;
-  final bool acceptsTerminalToolRoleBlockerResponse;
-  final String? bracketedToolRequestName;
-}
 
 final class CodingContinuationRecoveryPolicy {
   const CodingContinuationRecoveryPolicy();
 
-  static const _executionPolicy = ToolCallExecutionPolicy();
   static const _structuredDeferralDetector =
       StructuredCodingExecutionDeferralDetector();
 
   String? recoveryCode(CodingContinuationRecoveryInput input) {
-    final candidate = input.candidateResponse.trim();
-    if (candidate.isEmpty) {
+    if (!input.isCodingWorkspaceOrMode ||
+        !hasCodingContinuationRecoveryTools(input.toolDefinitions)) {
       return null;
     }
-    if (!input.isCodingWorkspaceOrMode) {
-      return null;
+    // Mechanical, so it applies to project-task turns too; once per turn.
+    if (!input.reasoningOnlyRecoveryUsed &&
+        const ReasoningOnlyStop().matches(input.candidateResponse)) {
+      return ReasoningOnlyStop.recoveryCode;
     }
-    if (!hasCodingContinuationRecoveryTools(input.toolDefinitions)) {
+    final candidate = ContentParser.stripModelHistoryArtifacts(
+      input.candidateResponse,
+    );
+    if (candidate.isEmpty || input.isProjectTaskTurn) {
       return null;
     }
     if (input.saveSkillCompletedInGeneration) {
       return null;
     }
-
     final hasStructuredExecutionDeferral = _structuredDeferralDetector.matches(
       candidate,
     );
@@ -141,7 +124,7 @@ final class CodingContinuationRecoveryPolicy {
   }
 
   bool looksLikeProseOnlyCodingContinuation(String text) {
-    final trimmed = text.trim();
+    final trimmed = ContentParser.stripModelHistoryArtifacts(text);
     if (trimmed.isEmpty) {
       return false;
     }
@@ -220,7 +203,7 @@ final class CodingContinuationRecoveryPolicy {
       'next i will',
       'now i will',
     ]);
-    final hasCjkTarget = _containsAnyCodeUnitSequence(text, const [
+    final hasCjkTarget = _containsAnyCodeUnitSequence(trimmed, const [
       [0x30b3, 0x30fc, 0x30c9],
       [0x30bd, 0x30fc, 0x30b9],
       [0x30d5, 0x30a1, 0x30a4, 0x30eb],
@@ -231,9 +214,13 @@ final class CodingContinuationRecoveryPolicy {
       [0x30a8, 0x30e9, 0x30fc],
       [0x8a3a, 0x65ad],
     ]);
-    final hasCjkAction = _containsAnyCodeUnitSequence(text, const [
-      [0x78ba, 0x8a8d, 0x3057],
+    // Future and volitional forms only, like the English list: the bare stem
+    // for "check" also matched "checked" and "please check", which sent a
+    // finished release report back to work (session 4ceebb57, 19c593b74).
+    final hasCjkAction = _containsAnyCodeUnitSequence(trimmed, const [
       [0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059],
+      [0x78ba, 0x8a8d, 0x3057, 0x3066, 0x3044, 0x304d, 0x307e, 0x3059],
+      [0x78ba, 0x8a8d, 0x3057, 0x3066, 0x307f, 0x307e, 0x3059],
       [0x8abf, 0x67fb, 0x3057, 0x307e, 0x3059],
       [0x8aad, 0x307f, 0x307e, 0x3059],
       [0x30dd, 0x30fc, 0x30c6, 0x30a3, 0x30f3, 0x30b0, 0x3057, 0x307e, 0x3059],
@@ -247,6 +234,21 @@ final class CodingContinuationRecoveryPolicy {
     ]);
     return (hasEnglishTarget || hasCjkTarget) &&
         (hasEnglishAction || hasCjkAction);
+  }
+
+  bool looksLikeUnexecutedDelegation(String content) {
+    final visible = ContentParser.stripModelHistoryArtifacts(content);
+    if (visible.length > 12000) return false;
+    return visible.split('\n').any((line) {
+      final plain = line.trim().replaceAll('*', '').trim();
+      if (RegExp(r'(?:委任|委譲)します[。.!！]*$').hasMatch(plain)) {
+        return true;
+      }
+      return RegExp(
+        r"\b(?:I will|I'll|Let me) delegate\b",
+        caseSensitive: false,
+      ).hasMatch(plain);
+    });
   }
 
   ToolResultInfo buildCodingContinuationRecoveryToolResult({
@@ -268,117 +270,47 @@ final class CodingContinuationRecoveryPolicy {
     );
   }
 
+  /// [feedback] restated after a rejected recovery response, naming the
+  /// violation and the required action.
+  ToolResultInfo withProtocolCorrection(
+    ToolResultInfo feedback,
+    Map<String, dynamic> violation,
+  ) => feedback.withResult(
+    jsonEncode({
+      ...jsonDecode(feedback.result) as Map<String, dynamic>,
+      'protocol_violation': violation,
+      'requiredAction':
+          violation['required_action'] ??
+          'The rejected calls were not executed. Call only '
+              'update_goal once with completed as a JSON boolean.',
+    }),
+  );
+
   String buildCodingContinuationRecoveryPrompt(
     String candidateResponse, {
     required String recoveryCode,
     List<ToolResultInfo> executedToolResults = const [],
-  }) {
-    final partialProgressNotice = recoveryPartialProgressNotice(
-      executedToolResults,
-    );
-    if (partialProgressNotice != null) {
-      return [
-        recoveryPromptLead(recoveryCode),
-        partialProgressNotice,
-        'Do not restart the task or re-run commands that already completed successfully.',
-        'Use the available tools now to investigate and resolve only the unresolved failure above, then report the final status.',
-        'Do not restate the plan and do not answer with future-tense prose.',
-        'Previous response: ${_clipForDiagnostic(candidateResponse)}',
-      ].join('\n');
-    }
-    return [
-      recoveryPromptLead(recoveryCode),
-      'Treat that response as unexecuted.',
-      'Use the available tools now to perform the next concrete coding step.',
-      'Prefer read_file, list_directory, or search_files before editing when the target file has not been inspected.',
-      'Do not restate the plan and do not answer with future-tense prose.',
-      'Previous response: ${_clipForDiagnostic(candidateResponse)}',
-    ].join('\n');
-  }
+  }) => const CodingContinuationRecoveryPromptBuilder().build(
+    responsePreview: _clipForDiagnostic(candidateResponse),
+    lead: recoveryPromptLead(recoveryCode),
+    recoveryCode: recoveryCode,
+    executedToolResults: executedToolResults,
+  );
 
-  String? recoveryPartialProgressNotice(
-    List<ToolResultInfo> executedToolResults,
-  ) {
-    if (executedToolResults.isEmpty) {
-      return null;
-    }
-    final hasTimeout = executedToolResults.any(
-      _executionPolicy.toolResultTimedOut,
-    );
-    final hasFailedExit = _toolResultsContainFailedCommandValidation(
-      executedToolResults,
-    );
-    if (!hasTimeout && !hasFailedExit) {
-      return null;
-    }
-    final problems = <String>[
-      if (hasTimeout) 'a command timed out before completing',
-      if (hasFailedExit) 'a command exited with a non-zero status',
-    ];
-    final progressClause =
-        executedToolResults.any(_executionPolicy.toolResultHasSuccessfulExit)
-        ? 'Some commands in this turn already completed successfully, but '
-        : 'In this turn, ';
-    return '$progressClause${problems.join(' and ')}.';
-  }
+  String? recoveryPartialProgressNotice(List<ToolResultInfo> results) =>
+      const CodingContinuationRecoveryPromptBuilder().partialProgressNotice(
+        results,
+      );
 
-  String recoveryLogLabel(String recoveryCode) {
-    if (recoveryCode == 'length_truncated_pending_action') {
-      return 'length-truncated pending action recovery';
-    }
-    if (recoveryCode == 'bracketed_coding_tool_request') {
-      return 'bracketed coding tool request recovery';
-    }
-    return 'prose-only coding continuation recovery';
-  }
-
-  String recoveryReason(String recoveryCode) {
-    if (recoveryCode == 'length_truncated_pending_action') {
-      return 'The assistant reached the output-token limit while trusted tool evidence still showed incomplete executable coding work.';
-    }
-    if (recoveryCode == 'bracketed_coding_tool_request') {
-      return 'The assistant returned a bracketed coding tool request in final-answer text instead of issuing an executable tool call.';
-    }
-    return 'The assistant returned coding continuation prose instead of using an available coding tool.';
-  }
-
-  String recoveryError(String recoveryCode) {
-    if (recoveryCode == 'length_truncated_pending_action') {
-      return 'The assistant reached the output-token limit before issuing the next executable coding action.';
-    }
-    if (recoveryCode == 'bracketed_coding_tool_request') {
-      return 'The assistant response contained a bracketed coding tool request, but no executable tool call was issued.';
-    }
-    return 'The assistant response described a future coding action, but no tool call was issued.';
-  }
-
-  String recoveryRequiredAction(String recoveryCode) {
-    if (recoveryCode == 'length_truncated_pending_action') {
-      return 'Issue exactly one available tool call that advances the incomplete work.';
-    }
-    if (recoveryCode == 'bracketed_coding_tool_request') {
-      return 'Issue the requested coding tool call now. Do not describe bracketed tool blocks as already executed.';
-    }
-    return 'Use an available file, command, or test tool now. Do not restate the plan.';
-  }
-
-  String recoveryPromptLead(String recoveryCode) {
-    if (recoveryCode == 'bracketed_coding_tool_request') {
-      return 'The previous assistant response contained a bracketed coding tool request in final-answer text, but no tool call was issued.';
-    }
-    return 'The previous assistant response was a coding continuation, but no tool call was issued.';
-  }
-
-  bool _toolResultsContainFailedCommandValidation(
-    List<ToolResultInfo> toolResults,
-  ) {
-    return toolResults.any((toolResult) {
-      if (!_executionPolicy.isCommandExecutionTool(toolResult.name)) {
-        return false;
-      }
-      return _executionPolicy.toolResultHasFailedExit(toolResult);
-    });
-  }
+  /// Wording per recovery code. An unknown code reads as prose continuation,
+  /// and a code without its own lead uses the prose lead.
+  String recoveryLogLabel(String code) =>
+      CodingRecoveryText.forCode(code).label;
+  String recoveryReason(String code) => CodingRecoveryText.forCode(code).reason;
+  String recoveryError(String code) => CodingRecoveryText.forCode(code).error;
+  String recoveryRequiredAction(String code) =>
+      CodingRecoveryText.forCode(code).action;
+  String recoveryPromptLead(String code) => CodingRecoveryText.promptLead(code);
 
   String _clipForDiagnostic(String value, {int maxLength = 240}) {
     final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -392,28 +324,9 @@ final class CodingContinuationRecoveryPolicy {
     return needles.any(value.contains);
   }
 
-  bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences) {
-    return sequences.any(
-      (sequence) => _containsCodeUnitSequence(text, sequence),
-    );
-  }
-
-  bool _containsCodeUnitSequence(String text, List<int> sequence) {
-    if (sequence.isEmpty || sequence.length > text.length) {
-      return false;
-    }
-    for (var start = 0; start <= text.length - sequence.length; start += 1) {
-      var matches = true;
-      for (var offset = 0; offset < sequence.length; offset += 1) {
-        if (text.codeUnitAt(start + offset) != sequence[offset]) {
-          matches = false;
-          break;
-        }
-      }
-      if (matches) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences) =>
+      sequences.any(
+        (units) =>
+            units.isNotEmpty && text.contains(String.fromCharCodes(units)),
+      );
 }

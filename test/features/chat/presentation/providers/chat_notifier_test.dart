@@ -53,6 +53,7 @@ import 'package:caverno/features/chat/domain/services/tool_definition_search_ser
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -61,6 +62,8 @@ import 'package:caverno/features/chat/presentation/providers/hidden_prompt_launc
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_thread_scope.dart';
+import 'package:caverno/features/project_farm/data/project_task_commit_reader.dart';
+import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:caverno/features/routines/data/routine_repository.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
@@ -88,8 +91,11 @@ part 'chat_notifier_approval_cache_part.dart';
 part 'chat_notifier_ask_user_question_part.dart';
 part 'chat_notifier_assumption_confirmation_part.dart';
 part 'chat_notifier_auto_review_escalation_part.dart';
+part 'chat_notifier_background_wait_refund_part.dart';
+part 'chat_notifier_blocked_goal_part.dart';
 part 'chat_notifier_coding_verification_feedback_part.dart';
 part 'chat_notifier_command_dedup_part.dart';
+part 'chat_notifier_commit_scope_part.dart';
 part 'chat_notifier_context_surgery_part.dart';
 part 'chat_notifier_continuation_recovery_part.dart';
 part 'chat_notifier_execution_runtime_part.dart';
@@ -100,6 +106,9 @@ part 'chat_notifier_narrated_transcript_part.dart';
 part 'chat_notifier_network_mutation_part.dart';
 part 'chat_notifier_participant_turns_part.dart';
 part 'chat_notifier_pending_batch_part.dart';
+part 'chat_notifier_project_task_steps_part.dart';
+part 'chat_notifier_project_verification_repair_part.dart';
+part 'chat_notifier_review_inspection_part.dart';
 part 'chat_notifier_persistence_part.dart';
 part 'chat_notifier_planning_contract_part.dart';
 part 'chat_notifier_printed_tool_call_part.dart';
@@ -167,6 +176,7 @@ void main() {
 
   registerChatNotifierPersistenceTests(() => notifier, () => controller);
   registerChatNotifierGitGuardrailTests();
+  registerChatNotifierCommitScopeTests();
   registerChatNotifierAskUserQuestionTests();
   registerChatNotifierTurnRollbackTests();
   registerChatNotifierContextSurgeryTests();
@@ -177,6 +187,10 @@ void main() {
   registerChatNotifierAssumptionConfirmationTests();
   registerChatNotifierCommandDedupTests();
   registerChatNotifierPendingBatchTests();
+  registerChatNotifierBlockedGoalTests();
+  registerChatNotifierProjectTaskStepTests();
+  registerChatNotifierProjectVerificationRepairTests();
+  registerChatNotifierReviewInspectionTests();
   registerChatNotifierParticipantTurnTests();
   registerChatNotifierGoalAutoContinueTests();
   registerChatNotifierSavedWorkflowGuardrailTests();
@@ -190,36 +204,6 @@ void main() {
   registerChatNotifierNetworkMutationTests();
   registerChatNotifierUnexecutedActionRetryTests();
   registerChatNotifierPrintedToolCallTests();
-
-  test('failed-command correction notice keeps the original answer', () {
-    const claims = FinalAnswerClaimDetector();
-    const notice =
-        'A command exited with non-zero exit code 1, so any success, upload, '
-        'release, pass, or completion claim is unverified. Treat the command '
-        'as failed until a later command-execution tool result exits '
-        'successfully.';
-    const original =
-        'Release completed successfully.\n\n'
-        '1. Ran the build\n2. Uploaded the archive\n3. Tagged the release';
-
-    final corrected = claims.messageContentWithPrependedClaimCorrectionNotice(
-      original,
-      notice,
-    );
-
-    // The original answer stays visible and the correction comes first.
-    expect(corrected, startsWith(notice));
-    expect(corrected, contains(original));
-
-    // Running the guard again must not stack a second copy of the notice.
-    expect(
-      claims.messageContentWithPrependedClaimCorrectionNotice(
-        corrected,
-        notice,
-      ),
-      corrected,
-    );
-  });
 
   test('sendMessage marks regular streaming requests as loading', () async {
     await notifier.sendMessage('Inspect the workspace');
@@ -3808,7 +3792,13 @@ void main() {
       expect(toolService.executedToolNames, ['read_file']);
       expect(dataSource.toolResultBatches, hasLength(2));
       final blockedPayload =
-          jsonDecode(dataSource.toolResultBatches.last.single.result)
+          jsonDecode(
+                dataSource.toolResultBatches.last
+                    .singleWhere(
+                      (result) => result.name == 'local_execute_command',
+                    )
+                    .result,
+              )
               as Map<String, dynamic>;
       expect(blockedPayload, containsPair('code', 'unexecuted_file_save'));
       expect(
@@ -5517,20 +5507,6 @@ void main() {
           finishReason: 'tool_calls',
         ),
       ];
-      toolLoopResponses.addAll([
-        ChatCompletionResult(
-          content: 'Recovery still needs the target log.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-read-target-recovery',
-              name: 'read_file',
-              arguments: const {'path': '/tmp/session-log.jsonl'},
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        ChatCompletionResult(content: '', finishReason: 'stop'),
-      ]);
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -5577,6 +5553,20 @@ void main() {
         await toolNotifier.sendMessage('Find and read the interrupted log');
 
         expect(toolService.executedToolNames.last, 'read_file');
+        expect(
+          toolService.executedToolNames.where((name) => name == 'read_file'),
+          hasLength(1),
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(12));
+        expect(
+          toolDataSource.toolResultRequestMessages
+              .expand((messages) => messages)
+              .any(
+                (message) =>
+                    message.content.contains('bounded tool loop limit'),
+              ),
+          isFalse,
+        );
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
             .map((message) => message.content)
@@ -5892,7 +5882,7 @@ void main() {
   );
 
   test(
-    'sendMessage executes unsafe pending local command after bounded recovery',
+    'sendMessage executes the declared pending command before exhaustion recovery',
     () async {
       final pendingCommand = 'find /tmp -type f -name "*.jsonl" | head -50';
       final toolLoopResponses = [
@@ -5911,48 +5901,6 @@ void main() {
             ],
             finishReason: 'tool_calls',
           ),
-        ChatCompletionResult(
-          content: 'Recover with one more project probe.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-recovery-trigger',
-              name: 'local_execute_command',
-              arguments: const {
-                'command': 'probe-recovery',
-                'working_directory': '/tmp/project',
-              },
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        ChatCompletionResult(
-          content: 'Recovery asks for one more bounded probe.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-after-recovery-1',
-              name: 'local_execute_command',
-              arguments: const {
-                'command': 'probe-after-recovery-1',
-                'working_directory': '/tmp/project',
-              },
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        ChatCompletionResult(
-          content: 'One more probe before the final search.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-after-recovery-2',
-              name: 'local_execute_command',
-              arguments: const {
-                'command': 'probe-after-recovery-2',
-                'working_directory': '/tmp/project',
-              },
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
         ChatCompletionResult(
           content: 'Search for matching logs with a shell pipeline.',
           toolCalls: [
@@ -5980,9 +5928,7 @@ void main() {
           ),
         ],
         toolLoopResponses: toolLoopResponses,
-        finalAnswerChunks: const [
-          'Final answer acknowledges the unexecuted local command.',
-        ],
+        finalAnswerChunks: const ['The declared pending command completed.'],
       );
       final toolService = _FakeMcpToolService(
         results: const {
@@ -6018,7 +5964,7 @@ void main() {
         );
         expect(
           toolService.executedToolNames,
-          List.filled(15, 'local_execute_command'),
+          List.filled(13, 'local_execute_command'),
         );
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
@@ -6027,7 +5973,16 @@ void main() {
         expect(finalPrompt, contains('[Tool: local_execute_command]'));
         expect(finalPrompt, contains('*.jsonl'));
         expect(finalPrompt, contains('head -50'));
-        expect(toolDataSource.toolResultBatches, hasLength(15));
+        expect(toolDataSource.toolResultBatches, hasLength(12));
+        expect(
+          toolDataSource.toolResultRequestMessages
+              .expand((messages) => messages)
+              .any(
+                (message) =>
+                    message.content.contains('bounded tool loop limit'),
+              ),
+          isFalse,
+        );
         final completedResults = toolNotifier.takeLatestToolResults(owner!);
         expect(
           completedResults.any(
@@ -6037,7 +5992,7 @@ void main() {
         );
         expect(
           toolNotifier.state.messages.last.content,
-          contains('Final answer acknowledges the unexecuted local command.'),
+          contains('The declared pending command completed.'),
         );
       } finally {
         toolContainer.dispose();
@@ -6279,70 +6234,75 @@ void main() {
     },
   );
 
-  test('sendMessage marks plan-only final tool answers as unexecuted', () async {
-    final toolLoopResponses = _toolLoopResponsesThroughRecoveredRead();
-    final toolDataSource = _QueuedToolLoopChatDataSource(
-      initialToolCalls: [
-        ToolCallInfo(
-          id: 'tool-command-0',
-          name: 'local_execute_command',
-          arguments: const {'command': 'probe-0'},
-        ),
-      ],
-      toolLoopResponses: toolLoopResponses,
-      finalAnswerChunks: const [
-        'Investigation plan\n\n'
-            '1. Inspect the universal_ble Android implementation.\n'
-            '2. Trace the notification byte flow.\n'
-            '3. Check parser conversion boundaries.\n\n'
-            'First, I will inspect the universal_ble Android implementation.',
-      ],
-    );
-    final toolService = _FakeMcpToolService(
-      results: const {
-        'local_execute_command':
-            '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
-        'read_file':
-            '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
-      },
-    );
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final toolContainer = ProviderContainer(
-      overrides: [
-        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
-        conversationsNotifierProvider.overrideWith(
-          _TestConversationsNotifier.new,
-        ),
-        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
-        sessionMemoryServiceProvider.overrideWithValue(
-          _TestSessionMemoryService(),
-        ),
-        mcpToolServiceProvider.overrideWithValue(toolService),
-        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-        backgroundTaskServiceProvider.overrideWithValue(
-          _TestBackgroundTaskService(),
-        ),
-      ],
-    );
-    try {
-      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-      final appLogs = captureAppLog();
-      await toolNotifier.sendMessage('Find and read the interrupted log');
-
-      final finalPrompt = toolDataSource.finalAnswerMessages
-          .map((message) => message.content)
-          .join('\n');
-      expect(finalPrompt, contains('Do not restate an investigation plan'));
-      expectUnexecutedToolRequestLogged(
-        appLogs,
-        toolNotifier.state.messages.last.content,
+  test(
+    'sendMessage marks plan-only final tool answers as unexecuted',
+    () async {
+      final toolLoopResponses = _toolLoopResponsesThroughRecoveredRead();
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-0',
+            name: 'local_execute_command',
+            arguments: const {'command': 'probe-0'},
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const [
+          'Investigation plan\n\n'
+              '1. Inspect the universal_ble Android implementation.\n'
+              '2. Trace the notification byte flow.\n'
+              '3. Check parser conversion boundaries.\n\n'
+              'First, I will inspect the universal_ble Android implementation.',
+        ],
       );
-    } finally {
-      toolContainer.dispose();
-    }
-  });
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
+          'read_file':
+              '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        final appLogs = captureAppLog();
+        await toolNotifier.sendMessage('Find and read the interrupted log');
+
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(finalPrompt, contains('Do not restate an investigation plan'));
+        expectUnexecutedToolRequestLogged(
+          appLogs,
+          toolNotifier.state.messages.last.content,
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage discovers a deferred tool with tool_search before execution',
@@ -8195,7 +8155,7 @@ with open(path, "rb") as file:
   );
 
   test(
-    'buildToolLoopExhaustionRecoveryPromptForTest forbids rereading edit mismatch files when read context exists',
+    'buildToolLoopExhaustionRecoveryPromptForTest reuses inspected edit mismatch ranges',
     () {
       final prompt = notifier.buildToolLoopExhaustionRecoveryPromptForTest(
         [
@@ -8225,17 +8185,19 @@ with open(path, "rb") as file:
       expect(
         prompt,
         contains(
-          'A recent read_file result for the same path is already provided below.',
+          'A current read_file result for each failed edit path is provided below.',
         ),
       );
       expect(
         prompt,
-        contains('Do not call read_file again for the same path in this turn.'),
+        contains(
+          'If the required anchor is outside the inspected range, read that missing range with offset and limit before editing.',
+        ),
       );
       expect(
         prompt,
         contains(
-          'Use that exact file content and return only one edit_file call for the same file',
+          'Copy old_text from the inspected range, not from an older snapshot or the desired replacement.',
         ),
       );
     },
@@ -8335,10 +8297,12 @@ with open(path, "rb") as file:
             .map((batch) => batch.map((item) => item.name).toList())
             .toList(),
         [
+          // Each follow-up carries the reads it still needs, not only the
+          // batch that just ran -- see RecentReadResultCarry.
           ['list_directory'],
-          ['read_file'],
           ['list_directory', 'read_file'],
-          ['write_test_file'],
+          ['list_directory', 'read_file'],
+          ['list_directory', 'read_file', 'write_test_file'],
         ],
       );
       expect(
@@ -8539,7 +8503,7 @@ with open(path, "rb") as file:
               .toList(),
           [
             ['list_directory'],
-            ['read_file'],
+            ['list_directory', 'read_file'],
             ['list_directory', 'read_file'],
           ],
         );
@@ -8818,8 +8782,8 @@ with open(path, "rb") as file:
           toolCalls: [
             ToolCallInfo(
               id: 'tool-13',
-              name: 'read_file',
-              arguments: const {'path': 'ping_cli_recovery.py'},
+              name: 'search_files',
+              arguments: const {'query': 'ping_cli_recovery'},
             ),
           ],
           finishReason: 'tool_calls',
@@ -8844,7 +8808,10 @@ with open(path, "rb") as file:
         ],
       );
       final toolService = _FakeMcpToolService(
-        results: const {'read_file': 'print("ping")'},
+        results: const {
+          'read_file': 'print("ping")',
+          'search_files': 'No additional matches.',
+        },
       );
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -8983,10 +8950,12 @@ with open(path, "rb") as file:
             .map((batch) => batch.map((item) => item.name).toList())
             .toList(),
         [
+          // create_tests_dir is a mutating command: never carried, and it ends
+          // the carry chain for everything read before it.
           ['create_tests_dir'],
           ['read_file'],
           ['create_tests_dir', 'read_file'],
-          ['write_test_file'],
+          ['read_file', 'write_test_file'],
         ],
       );
       expect(
@@ -9043,6 +9012,12 @@ with open(path, "rb") as file:
           ),
           ChatCompletionResult(
             content: 'Now let me run the script to confirm the output.',
+            toolCalls: [duplicateCommandCall],
+            finishReason: 'tool_calls',
+          ),
+          // The bounded recovery, which asks for the same command again.
+          ChatCompletionResult(
+            content: '',
             toolCalls: [duplicateCommandCall],
             finishReason: 'tool_calls',
           ),
@@ -9279,7 +9254,7 @@ with open(path, "rb") as file:
         expect(toolDataSource.toolResultBatches, hasLength(3));
         expect(
           toolDataSource.toolResultBatches
-              .expand((batch) => batch.map((item) => item.name))
+              .expand((batch) => _ranInBatch(batch).map((item) => item.name))
               .toList(),
           ['local_execute_command', 'write_cli', 'local_execute_command'],
         );

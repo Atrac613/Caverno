@@ -15,6 +15,14 @@ import 'chat_remote_datasource.dart';
 const Object _llmSessionLogContextZoneKey = Object();
 
 class LlmSessionLogContext {
+  /// The context for a request whose turn owner is no longer known.
+  static const unassignedTurn = LlmSessionLogContext(
+    workspaceMode: WorkspaceMode.chat,
+    sessionId: 'unassigned',
+    conversationId: 'unassigned',
+    phase: 'unassigned_turn',
+  );
+
   const LlmSessionLogContext({
     required this.workspaceMode,
     required this.sessionId,
@@ -161,6 +169,8 @@ class LlmSessionLogRequest {
     this.model,
     this.temperature,
     this.maxTokens,
+    this.toolChoice,
+    this.enableThinking,
     this.chatTemplateKwargs,
     this.label,
     this.usageRole = ModelUsageRole.unknown,
@@ -179,6 +189,8 @@ class LlmSessionLogRequest {
   final String? model;
   final double? temperature;
   final int? maxTokens;
+  final Map<String, dynamic>? toolChoice;
+  final bool? enableThinking;
   final Map<String, dynamic>? chatTemplateKwargs;
 
   /// How the video on a message was actually delivered, by message id.
@@ -309,7 +321,9 @@ class LlmSessionLogStore {
   static const schemaName = 'caverno_llm_session_log_entry';
   // v2 adds the `build` field (git commit/dirty/builtAt provenance).
   // v3 adds `request.label`, naming the producer that issued the request.
-  static const schemaVersion = 4;
+  // v4 adds `request.usageRole` for exact producer attribution.
+  // v5 adds strict tool choice and thinking controls to request evidence.
+  static const schemaVersion = 5;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
   static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
@@ -432,6 +446,32 @@ class LlmSessionLogStore {
   /// finalized (the conversation store holds the final, post-transform UI
   /// content), so the LLM session log and the on-screen conversation can be
   /// traced to each other without inferring from leaked notice prose.
+  /// Native Farm decisions, without roadmap text, commands or file paths.
+  Future<void> recordProjectTaskDecision({
+    required LlmSessionLogContext context,
+    required Map<String, Object?> decision,
+    required DateTime at,
+  }) async {
+    try {
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': _utcTimestamp(at),
+        'build': BuildInfo.toJson(),
+        'context': context.toJson(),
+        'operation': 'project_task_decision',
+        'projectTaskDecision': decision,
+      };
+      await _appendLine(
+        context: context,
+        line: '${jsonEncode(_redactValue(entry))}\n',
+        at: at,
+      );
+    } catch (error) {
+      appLog('[SessionLog] Failed to write project-task decision: $error');
+    }
+  }
+
   Future<void> recordTurnExit({
     required LlmSessionLogContext? context,
     required String reason,
@@ -612,6 +652,46 @@ class LlmSessionLogStore {
     }
   }
 
+  /// Append where one native-shell command wrote outside the project
+  /// (SEC4.4i-a observe mode). Recorded after the command's tool result,
+  /// because the kernel reports are read back from the unified log.
+  ///
+  /// Only the paths are stored, never the command or its output: the entry
+  /// sits beside the tool call it names, which already carries both.
+  Future<void> recordShellWriteObservation({
+    required LlmSessionLogContext? context,
+    required DateTime at,
+    required String toolName,
+    required String tag,
+    required List<String> paths,
+    required bool truncated,
+    String? toolCallId,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': _utcTimestamp(at),
+        'build': BuildInfo.toJson(),
+        'context': effectiveContext.toJson(),
+        'operation': 'shell_write_observation',
+        'shellWriteObservation': {
+          'toolName': toolName,
+          if (toolCallId != null && toolCallId.isNotEmpty)
+            'toolCallId': toolCallId,
+          'tag': tag,
+          'outsideProjectWrites': paths,
+          if (truncated) 'truncated': true,
+        },
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _appendLine(context: effectiveContext, line: line, at: at);
+    } catch (error) {
+      appLog('[SessionLog] Failed to write shell-write observation: $error');
+    }
+  }
+
   /// Append a redacted execution-snapshot decision produced in shadow mode.
   ///
   /// The marker intentionally stores only hashes, enum names, counts, and
@@ -718,6 +798,9 @@ class LlmSessionLogStore {
       'model': request.model,
       'temperature': request.temperature,
       'maxTokens': request.maxTokens,
+      if (request.toolChoice != null) 'tool_choice': request.toolChoice,
+      if (request.enableThinking != null)
+        'enable_thinking': request.enableThinking,
       if (request.chatTemplateKwargs != null)
         'chat_template_kwargs': request.chatTemplateKwargs,
       if (request.label != null && request.label!.trim().isNotEmpty)
@@ -839,6 +922,8 @@ class LlmSessionLogStore {
       'result': _decodeJsonStringIfPossible(toolResult.result),
       if (toolResult.outcome?.isNotEmpty ?? false)
         'outcome': toolResult.outcome!.toJson(),
+      if (toolResult.changesSinceCapture.isNotEmpty)
+        'changesSinceCapture': toolResult.changesSinceCapture,
     };
   }
 

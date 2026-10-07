@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_tool_handler.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 const _handler = GoalUpdateToolHandler();
@@ -14,7 +15,7 @@ void main() {
     test('rejects an update when the owning goal is absent', () {
       final outcome = _handle(
         hasGoal: false,
-        arguments: const {'message': 'Made progress'},
+        arguments: const {'completed': false, 'message': 'Made progress'},
       );
 
       expect(outcome.ackOutcome, GoalUpdateAckOutcome.rejectedInactive);
@@ -44,7 +45,10 @@ void main() {
 
     test('returns the exact progress acknowledgement without a claim', () {
       final outcome = _handle(
-        arguments: const {'message': '  Added the parser  '},
+        arguments: const {
+          'completed': false,
+          'message': '  Added the parser  ',
+        },
       );
 
       expect(outcome.ackOutcome, GoalUpdateAckOutcome.progressLogged);
@@ -61,7 +65,10 @@ void main() {
 
     test('returns the exact blocker acknowledgement without a claim', () {
       final outcome = _handle(
-        arguments: const {'blocked_reason': '  Waiting for credentials  '},
+        arguments: const {
+          'completed': false,
+          'blocked_reason': '  Waiting for credentials  ',
+        },
       );
 
       expect(outcome.ackOutcome, GoalUpdateAckOutcome.blockerLogged);
@@ -112,6 +119,142 @@ void main() {
       expect(outcome.toolResult.isSuccess, isTrue);
       expect(outcome.toolResult.errorMessage, isNull);
       expect(outcome.completionEvidence.unresolvedErrorCount, 2);
+    });
+
+    test('project-task gaps say not to edit files just for evidence', () {
+      // Session 7ae7632b: told to "resolve" a missing file change, the model
+      // edited ROADMAP.md only to create evidence.
+      final outcome = _handle(
+        goal: _goal().copyWith(projectTaskAutoReview: true),
+        arguments: const {'completed': true},
+      );
+
+      expect(outcome.ackOutcome, GoalUpdateAckOutcome.completionRejected);
+      expect(
+        outcome.toolResult.result,
+        allOf(
+          contains('no captured file-change evidence'),
+          endsWith(
+            'Do not change files only to satisfy these checks. If the task '
+            'needs no change because the work already exists, say so and '
+            'report it with blocked_reason instead.',
+          ),
+        ),
+      );
+    });
+
+    test('an inherited change needs verification, not a blocker report', () {
+      // Session b2971ae0: a re-run found an earlier run's uncommitted work
+      // already complete, was refused for having no file change of its own,
+      // was told to report a blocker, and the workflow stopped.
+      final goal = _goal().copyWith(
+        projectTaskAutoReview: true,
+        projectTaskInheritedPaths: const ['/repo/.gitignore'],
+      );
+      final unverified = _handle(
+        goal: goal,
+        arguments: const {'completed': true},
+      );
+
+      expect(unverified.ackOutcome, GoalUpdateAckOutcome.completionRejected);
+      expect(
+        unverified.toolResult.result,
+        allOf(
+          isNot(contains('no captured file-change evidence')),
+          contains('needs successful execution verification'),
+          contains('count as this task\'s changes'),
+          isNot(contains('blocked_reason')),
+        ),
+      );
+
+      final verified = _handle(
+        goal: goal,
+        arguments: const {'completed': true},
+        ownerToolResults: [
+          ToolResultInfo(
+            id: 'pytest-result',
+            name: 'local_execute_command',
+            arguments: const {'command': 'pytest -q'},
+            result: jsonEncode({'exit_code': 0, 'stdout': '53 passed'}),
+            outcome: const ToolOutcome(exitCode: 0),
+          ),
+        ],
+      );
+      expect(verified.ackOutcome, GoalUpdateAckOutcome.completionRecorded);
+    });
+
+    test('package discovery does not block a verified inherited task', () {
+      final goal = _goal().copyWith(
+        projectTaskAutoReview: true,
+        projectTaskInheritedPaths: const ['/repo/app.py'],
+      );
+      final lookup = ToolResultInfo(
+        id: 'metadata',
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'python3 -c "import pytest; print(pytest.__file__)" 2>&1',
+        },
+        result: '{"stdout":"ModuleNotFoundError: No module named pytest"}',
+        outcome: const ToolOutcome(exitCode: 1),
+      );
+      expect(
+        _handle(
+          goal: goal,
+          arguments: const {'completed': true},
+          ownerToolResults: [lookup],
+        ).ackOutcome,
+        GoalUpdateAckOutcome.completionRejected,
+        reason: 'discovery alone never verifies implementation',
+      );
+      final verification = ToolResultInfo(
+        id: 'verify',
+        name: 'local_execute_command',
+        arguments: const {
+          'command': '.venv/bin/python -m pytest -q',
+          'working_directory': '/repo',
+        },
+        result: '{"stdout":"53 passed in 0.1s"}',
+        outcome: const ToolOutcome(exitCode: 0),
+      );
+      expect(
+        _handle(
+          goal: goal,
+          arguments: const {'completed': true},
+          ownerToolResults: [lookup, verification],
+        ).ackOutcome,
+        GoalUpdateAckOutcome.completionRecorded,
+      );
+    });
+
+    test('names the unresolved failed verification in the rejection', () {
+      ToolResultInfo run(String id, String command, int exitCode) =>
+          ToolResultInfo(
+            id: id,
+            name: 'local_execute_command',
+            arguments: {'command': command},
+            result: jsonEncode({'command': command, 'exit_code': exitCode}),
+            outcome: ToolOutcome(exitCode: exitCode),
+          );
+      final outcome = _handle(
+        goal: _goal().copyWith(
+          projectTaskAutoReview: true,
+          projectTaskInheritedPaths: const ['/w/watcher.py'],
+        ),
+        arguments: const {'completed': true},
+        ownerToolResults: [
+          run('dry', 'python3 watcher.py --dry-run 2>&1 | head -20', 120),
+          run('suite', 'python3 -m pytest -q', 0),
+        ],
+      );
+
+      expect(outcome.ackOutcome, GoalUpdateAckOutcome.completionRejected);
+      expect(
+        outcome.toolResult.result,
+        allOf(
+          contains('`python3 watcher.py --dry-run 2>&1 | head -20` failed'),
+          isNot(contains('the last verification command failed')),
+        ),
+      );
     });
 
     test('rejects completion from failures in current owner results', () {
@@ -406,6 +549,46 @@ void main() {
           reason: name,
         );
       }
+    });
+
+    test('preserves typed outcomes across owner snapshot isolation', () {
+      final mutations = [
+        const ToolFileMutation(path: '/workspace/a.py', changed: true),
+      ];
+      final results = [
+        ToolResultInfo(
+          id: 'write',
+          name: 'write_file',
+          arguments: const {'path': '/workspace/a.py'},
+          result: 'Written',
+          outcome: ToolOutcome(fileMutations: mutations),
+        ),
+        ToolResultInfo(
+          id: 'verify',
+          name: 'local_execute_command',
+          arguments: const {'command': 'python -m pytest'},
+          result: 'Verified',
+          outcome: const ToolOutcome(exitCode: 0),
+        ),
+      ];
+      final request = _request(arguments: const {'completed': true});
+      final snapshot = _snapshot(
+        request,
+        goal: _goal().copyWith(projectTaskAutoReview: true),
+        toolResults: results,
+      );
+      mutations.clear();
+      expect(snapshot.toolResults.first.outcome!.fileMutations, hasLength(1));
+      expect(
+        () => snapshot.toolResults.first.outcome!.fileMutations.clear(),
+        throwsUnsupportedError,
+      );
+      expect(
+        _handler
+            .handle(request: request, ownerSnapshot: snapshot)
+            .completionAccepted,
+        isTrue,
+      );
     });
 
     test('recursively freezes request and tool-result arguments', () {

@@ -4,6 +4,12 @@ part of 'chat_notifier_test.dart';
 // chat_notifier_test.dart to keep that file under its F1 size ratchet
 // (docs/large_file_refactor_plan.md). These tests share the library's
 // private test doubles via the part-of relationship.
+/// The results that ran in [batch], without the history the read carry
+/// re-sends ahead of them. Assertions about "the batch that just ran" use
+/// this, so they do not depend on how much earlier context was carried.
+List<ToolResultInfo> _ranInBatch(List<ToolResultInfo> batch) =>
+    batch.where((result) => !result.fromEarlierLoop).toList(growable: false);
+
 void registerChatNotifierContinuationRecoveryTests() {
   test('turn finalization recovery selects the owning generation evidence', () {
     const ownerGeneration = 41;
@@ -709,7 +715,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
       ]);
       expect(dataSource.toolResultBatches, hasLength(3));
       expect(
-        dataSource.toolResultBatches[1].single.result,
+        _ranInBatch(dataSource.toolResultBatches[1]).single.result,
         contains('prose_only_coding_continuation'),
       );
       expect(dataSource.assistantContents[1], continuationText);
@@ -833,7 +839,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
       // Recovery still fires (the failed command is a real open problem).
       expect(dataSource.toolResultBatches, hasLength(3));
       expect(
-        dataSource.toolResultBatches[1].single.result,
+        _ranInBatch(dataSource.toolResultBatches[1]).single.result,
         contains('prose_only_coding_continuation'),
       );
       // The re-prompt for the recovery turn must use the non-destructive,
@@ -842,7 +848,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
           dataSource.toolResultRequestMessages[1].last.content;
       expect(
         recoveryPrompt,
-        contains('Do not restart the task or re-run commands'),
+        contains('Do not restart the task. Reuse settled verification'),
       );
       expect(
         recoveryPrompt,
@@ -854,6 +860,200 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
       );
     },
   );
+
+  test(
+    'a reasoning-only stop gets one continuation instead of ending',
+    () async {
+      // Session 78578870: mid-task, the model ended a response inside <think>
+      // with no visible answer and no tool call, and the loop took that as the
+      // turn's end.
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-reasoning-only-stop',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 10, 1),
+        updatedAt: DateTime(2026, 10, 1),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'read-entrypoint',
+            name: 'read_file',
+            arguments: const {'path': '/tmp/project/lib/main.dart'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '<think>Now I will edit lib/main.dart.</think>',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Reading the file again before editing.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'read-again',
+                name: 'read_file',
+                arguments: const {'path': '/tmp/project/lib/main.dart'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: 'Done.', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['Done.'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'read_file': 'Read a local file.'},
+        results: const {
+          'read_file':
+              '{"path":"/tmp/project/lib/main.dart","content":"void main() {}"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(toolContainer.dispose);
+
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      standInForTheApprover(toolContainer);
+      await chatNotifier.sendMessage('Edit main.dart', bypassPlanMode: true);
+
+      expect(
+        _ranInBatch(dataSource.toolResultBatches[1]).single.result,
+        contains('reasoning_only_stop'),
+      );
+      expect(
+        dataSource.toolResultRequestMessages[1].last.content,
+        contains('contained only reasoning'),
+      );
+    },
+  );
+
+  test('a streamed reasoning-only stop gets the same continuation', () async {
+    // Session 78578870: mid-task, the model ended a response inside <think>
+    // with no visible answer and no tool call, and the loop took that as the
+    // turn's end.
+    final conversationRepository = _FakeConversationRepository();
+    final project = CodingProject(
+      id: 'project-streamed-reasoning-only-stop',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 10, 1),
+      updatedAt: DateTime(2026, 10, 1),
+    );
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'read-entrypoint',
+          name: 'read_file',
+          arguments: const {'path': '/tmp/project/lib/main.dart'},
+        ),
+      ],
+      toolLoopResponses: [
+        // Production streams reasoning outside the content (session
+        // 8ca9fb5b), so the stop arrives with empty content.
+        ChatCompletionResult(
+          content: '',
+          streamedReasoning: 'Now I will edit lib/main.dart.',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content: 'Reading the file again before editing.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'read-again',
+              name: 'read_file',
+              arguments: const {'path': '/tmp/project/lib/main.dart'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(content: 'Done.', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const ['Done.'],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {'read_file': 'Read a local file.'},
+      results: const {
+        'read_file':
+            '{"path":"/tmp/project/lib/main.dart","content":"void main() {}"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(toolContainer.dispose);
+
+    toolContainer
+        .read(conversationsNotifierProvider.notifier)
+        .activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+          createIfMissing: true,
+        );
+    final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+    standInForTheApprover(toolContainer);
+    await chatNotifier.sendMessage('Edit main.dart', bypassPlanMode: true);
+
+    expect(
+      _ranInBatch(dataSource.toolResultBatches[1]).single.result,
+      contains('reasoning_only_stop'),
+    );
+    expect(
+      dataSource.toolResultRequestMessages[1].last.content,
+      contains('contained only reasoning'),
+    );
+  });
 
   test(
     'sendMessage skips continuation recovery after a save_skill completes the turn',

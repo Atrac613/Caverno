@@ -1,0 +1,29 @@
+--- a/endpoints/OAI/utils/toolcall_formats/qwen3_coder.py
++++ b/endpoints/OAI/utils/toolcall_formats/qwen3_coder.py
+@@ -2,7 +2,7 @@
+ import json
+ from common.logger import xlogger
+ from endpoints.OAI.types.tools import ToolCall, Tool
+-from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
++from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
+ 
+ """
+ Qwen3.5 / Qwen3-Coder - pseudo-XML syntax
+@@ -61,8 +61,15 @@
+             args: dict[str, any] = {}
+             for pm in _PARAM.finditer(func_body):
+                 key = pm.group(1).strip()
+-                val = pm.group(2).strip()
+-                val = coerce_param_value(val)
++                val = pm.group(2)
++                # Remove the template's one framing newline on each side;
++                # retain all whitespace belonging to the parameter value.
++                if val.startswith("\n") and val.endswith("\n"):
++                    val = val[1:-1]
++                try:
++                    val = json.loads(val)
++                except (json.JSONDecodeError, ValueError):
++                    pass
+                 args[key] = val
+ 
+             args_json = json.dumps(args, ensure_ascii=False)

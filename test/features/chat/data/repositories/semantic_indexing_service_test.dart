@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:caverno/features/chat/data/datasources/app_database.dart';
 import 'package:caverno/features/chat/data/datasources/embeddings_client.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_chunker.dart';
@@ -82,6 +84,119 @@ void main() {
       );
       expect(ok, isTrue);
       expect(await store.count(), 3); // title + 2 messages
+    });
+
+    test(
+      'splits by input count and request bytes without losing order',
+      () async {
+        final batches = <List<String>>[];
+        final svc = SemanticIndexingService(
+          embed: (inputs) async {
+            batches.add([...inputs]);
+            return EmbeddingsResult(
+              vectors: [
+                for (final input in inputs) [double.parse(input.substring(1))],
+              ],
+              model: 'm',
+            );
+          },
+          store: store,
+          model: 'm',
+          maxInputsPerRequest: 2,
+          maxRequestBytes: 55,
+        );
+        final ok = await svc.indexConversation(
+          _conversation('a', messages: ['x1', 'x2', 'x3', 'x4']),
+        );
+        expect(ok, isTrue);
+        expect(batches.expand((batch) => batch), ['x1', 'x2', 'x3', 'x4']);
+        expect(batches.every((batch) => batch.length <= 2), isTrue);
+        expect(
+          batches.every(
+            (batch) =>
+                utf8
+                    .encode(jsonEncode({'model': 'm', 'input': batch}))
+                    .length <=
+                55,
+          ),
+          isTrue,
+        );
+        expect(await store.count(), 4);
+      },
+    );
+
+    test('splits multibyte inputs before the byte limit', () async {
+      final batches = <List<String>>[];
+      final svc = SemanticIndexingService(
+        embed: (inputs) async {
+          batches.add([...inputs]);
+          return EmbeddingsResult(
+            vectors: [
+              for (final _ in inputs) [1.0],
+            ],
+            model: 'm',
+          );
+        },
+        store: store,
+        model: 'm',
+        maxRequestBytes: 60,
+      );
+      expect(
+        await svc.indexConversation(
+          _conversation('a', messages: ['日本語の入力', '日本語の入力']),
+        ),
+        isTrue,
+      );
+      expect(batches, hasLength(2));
+      expect(batches.every((batch) => batch.length == 1), isTrue);
+      expect(
+        batches.every(
+          (batch) =>
+              utf8.encode(jsonEncode({'model': 'm', 'input': batch})).length <=
+              60,
+        ),
+        isTrue,
+      );
+    });
+
+    test('keeps the previous index when a later batch fails', () async {
+      final initial = service(
+        (inputs) async => EmbeddingsResult(
+          vectors: [
+            for (final _ in inputs) [1.0],
+          ],
+          model: 'm',
+        ),
+      );
+      expect(
+        await initial.indexConversation(_conversation('a', title: 'old')),
+        isTrue,
+      );
+
+      var calls = 0;
+      final replacement = SemanticIndexingService(
+        embed: (inputs) async {
+          calls++;
+          if (calls == 2) return null;
+          return EmbeddingsResult(
+            vectors: [
+              for (final _ in inputs) [2.0],
+            ],
+            model: 'm',
+          );
+        },
+        store: store,
+        model: 'm',
+        maxInputsPerRequest: 1,
+      );
+      expect(
+        await replacement.indexConversation(
+          _conversation('a', title: 'new', messages: ['next']),
+        ),
+        isFalse,
+      );
+      expect(calls, 2);
+      expect(await store.count(), 1);
     });
 
     test(

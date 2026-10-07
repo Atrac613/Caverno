@@ -9,17 +9,25 @@ import 'semantic_search_provider.dart';
 
 /// LL5: keeps the semantic index in sync with a conversation's searchable text.
 ///
-/// Owns the per-conversation signature map because deduping is the whole point:
-/// saves fire repeatedly during a turn, and embedding each one would spend a
-/// `/v1/embeddings` round trip per keystroke-sized change. The service is
-/// resolved per call so semantic search staying off costs nothing, and every
-/// failure path forgets the signature so the next save retries rather than
-/// treating the conversation as indexed.
+/// Coalesces changed conversations behind one embedding job at a time.
 final class ConversationSemanticIndexSync {
-  ConversationSemanticIndexSync(this._ref);
+  ConversationSemanticIndexSync(this._ref) {
+    _ref.onDispose(() {
+      _retryTimer?.cancel();
+      _active?.cancellation.cancel();
+      _pending.clear();
+    });
+  }
 
   final Ref _ref;
   final Map<String, String> _lastIndexedSignatures = <String, String>{};
+  final Map<String, _IndexJob> _pending = <String, _IndexJob>{};
+  final Map<String, int> _failureCounts = <String, int>{};
+  final Map<String, DateTime> _retryAfter = <String, DateTime>{};
+  SemanticIndexingService? _currentIndexer;
+  _IndexJob? _active;
+  Future<void>? _activeFuture;
+  Timer? _retryTimer;
 
   /// Null while semantic search is off, and while the provider container is
   /// still being disposed -- neither is an error worth failing a save for.
@@ -34,35 +42,105 @@ final class ConversationSemanticIndexSync {
   /// Indexes [conversation] unless semantic search is off, a message is still
   /// streaming, or its text has not changed since the last index.
   ///
-  /// Fire-and-forget: indexing failures never block or fail the chat loop, and
-  /// a failed turn is re-indexed next time.
+  /// Fire-and-forget: indexing failures never block or fail the chat loop.
   void schedule(Conversation conversation) {
     final indexer = _indexer;
+    if (!identical(indexer, _currentIndexer)) {
+      _currentIndexer = indexer;
+      _active?.cancellation.cancel();
+      _pending.clear();
+      _lastIndexedSignatures.clear();
+      _failureCounts.clear();
+      _retryAfter.clear();
+    }
     if (indexer == null) return;
     if (conversation.messages.any((message) => message.isStreaming)) return;
 
     final signature = signatureFor(conversation);
-    if (_lastIndexedSignatures[conversation.id] == signature) return;
-    _lastIndexedSignatures[conversation.id] = signature;
+    if (_pending[conversation.id]?.signature == signature) return;
+    if (_active?.conversation.id == conversation.id &&
+        _active?.signature == signature) {
+      _pending.remove(conversation.id);
+      return;
+    }
+    if (_lastIndexedSignatures[conversation.id] == signature &&
+        _active?.conversation.id != conversation.id &&
+        !_pending.containsKey(conversation.id)) {
+      return;
+    }
+    _pending[conversation.id] = _IndexJob(conversation, signature);
+    _startNext();
+  }
 
-    unawaited(
-      indexer
-          .indexConversation(conversation)
-          .then((indexed) {
-            // Embeddings were unavailable: forget the signature so the next
-            // turn retries instead of treating this state as indexed.
-            if (!indexed) {
-              _lastIndexedSignatures.remove(conversation.id);
-            }
-          })
-          .catchError((Object error) {
-            _lastIndexedSignatures.remove(conversation.id);
-            appLog(
-              '[ConversationsNotifier] semantic index failed for '
-              '${conversation.id}: $error',
-            );
-          }),
-    );
+  void _startNext() {
+    if (_active != null || _pending.isEmpty) return;
+    final indexer = _indexer;
+    if (indexer == null) {
+      _pending.clear();
+      return;
+    }
+    final now = DateTime.now();
+    String? nextId;
+    DateTime? earliestRetry;
+    for (final id in _pending.keys) {
+      final retry = _retryAfter[id];
+      if (retry == null || !retry.isAfter(now)) {
+        nextId = id;
+        break;
+      }
+      if (earliestRetry == null || retry.isBefore(earliestRetry)) {
+        earliestRetry = retry;
+      }
+    }
+    if (nextId == null) {
+      _retryTimer?.cancel();
+      _retryTimer = Timer(earliestRetry!.difference(now), _startNext);
+      return;
+    }
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    final job = _pending.remove(nextId)!;
+    _active = job;
+    _activeFuture = _run(job, indexer);
+  }
+
+  Future<void> _run(_IndexJob job, SemanticIndexingService indexer) async {
+    try {
+      final indexed = await indexer.indexConversation(
+        job.conversation,
+        cancellation: job.cancellation,
+      );
+      if (job.cancellation.isCancelled) return;
+      if (indexed) {
+        _failureCounts.remove(job.conversation.id);
+        _retryAfter.remove(job.conversation.id);
+        if (!_pending.containsKey(job.conversation.id)) {
+          _lastIndexedSignatures[job.conversation.id] = job.signature;
+        }
+      } else {
+        _backOff(job.conversation.id);
+      }
+    } catch (error) {
+      if (!job.cancellation.isCancelled) {
+        _backOff(job.conversation.id);
+        appLog(
+          '[ConversationsNotifier] semantic index failed for '
+          '${job.conversation.id}: $error',
+        );
+      }
+    } finally {
+      _active = null;
+      _startNext();
+    }
+  }
+
+  void _backOff(String id) {
+    final failures = (_failureCounts[id] ?? 0) + 1;
+    _failureCounts[id] = failures;
+    final seconds = (5 * (1 << (failures - 1).clamp(0, 4).toInt()))
+        .clamp(5, 60)
+        .toInt();
+    _retryAfter[id] = DateTime.now().add(Duration(seconds: seconds));
   }
 
   /// Drops index entries (and the cached signature) for deleted conversations.
@@ -70,34 +148,43 @@ final class ConversationSemanticIndexSync {
     final indexer = _indexer;
     for (final id in ids) {
       _lastIndexedSignatures.remove(id);
+      _pending.remove(id);
+      _failureCounts.remove(id);
+      _retryAfter.remove(id);
+      final active = _active?.conversation.id == id ? _active : null;
+      active?.cancellation.cancel();
       if (indexer == null) continue;
       unawaited(
-        indexer.deleteConversation(id).catchError((Object error) {
-          appLog(
-            '[ConversationsNotifier] semantic index delete failed for '
-            '$id: $error',
-          );
-        }),
+        (_activeFuture ?? Future<void>.value())
+            .then((_) => indexer.deleteConversation(id))
+            .catchError((Object error) {
+              appLog(
+                '[ConversationsNotifier] semantic index delete failed for '
+                '$id: $error',
+              );
+            }),
       );
     }
   }
 
-  /// A cheap fingerprint of the conversation's searchable text: title plus each
-  /// message's id and content length. Changes whenever a message is added,
-  /// edited, removed, or the title changes, which is exactly when re-indexing
-  /// is warranted.
+  /// A process-local fingerprint of the searchable text. Include the content
+  /// so equal-length edits still replace stale embeddings.
   String signatureFor(Conversation conversation) {
-    final buffer = StringBuffer()
-      ..write(conversation.title)
-      ..writeCharCode(0)
-      ..write(conversation.messages.length);
-    for (final message in conversation.messages) {
-      buffer
-        ..writeCharCode(0)
-        ..write(message.id)
-        ..write(':')
-        ..write(message.content.length);
-    }
-    return buffer.toString();
+    return Object.hash(
+      conversation.title,
+      Object.hashAll(
+        conversation.messages.map(
+          (message) => Object.hash(message.id, message.content),
+        ),
+      ),
+    ).toString();
   }
+}
+
+final class _IndexJob {
+  _IndexJob(this.conversation, this.signature);
+
+  final Conversation conversation;
+  final String signature;
+  final EmbeddingJobCancellation cancellation = EmbeddingJobCancellation();
 }

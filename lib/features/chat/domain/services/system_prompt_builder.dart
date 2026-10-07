@@ -32,6 +32,7 @@ class SystemPromptBuilder {
     String? projectName,
     String? projectRootPath,
     String? repoMapContext,
+    String? environmentGroundingContext,
     ConversationGoal? goal,
     ConversationWorkflowStage workflowStage = ConversationWorkflowStage.idle,
     ConversationWorkflowSpec? workflowSpec,
@@ -230,30 +231,12 @@ class SystemPromptBuilder {
             'When blocked, state the blocking condition and what is needed next.',
           );
         }
-        final remainingTokens = activeGoal.remainingTokenBudget;
-        if (remainingTokens != null) {
-          buffer.writeln(
-            'Goal token budget remaining: $remainingTokens approximate tokens.',
-          );
-        }
-        final remainingTurns = activeGoal.remainingTurnBudget;
-        if (remainingTurns != null) {
-          buffer.writeln('Goal turn budget remaining: $remainingTurns turns.');
-        }
         if (activeGoal.budgetExceeded) {
           buffer.writeln(
             'The goal budget is exhausted. Do not continue autonomous work '
             'without explicit user direction.',
           );
         }
-      }
-      if (executionSnapshot != null && executionSnapshot.hasContract) {
-        buffer.writeln(
-          'Current execution snapshot. This compact block is refreshed for every request and overrides stale execution narration in the transcript.',
-        );
-        buffer.writeln('<execution_snapshot>');
-        buffer.writeln(executionSnapshot.toPromptContext());
-        buffer.writeln('</execution_snapshot>');
       }
       if (hasProjectReadTools) {
         buffer.writeln(
@@ -501,6 +484,8 @@ class SystemPromptBuilder {
           buffer.writeln(
             assistantMode == AssistantMode.plan
                 ? 'Current plan document draft for this coding thread (source of truth while planning):'
+                : (planArtifact?.isUnreviewedOutline ?? false)
+                ? 'Generated task outline for this coding thread (no person reviewed it; follow it while implementing, and say so if it does not fit the code):'
                 : 'Approved plan document for this coding thread (source of truth while implementing):',
           );
           buffer.writeln(_clipPlanDocumentForPrompt(preferredPlanMarkdown));
@@ -876,6 +861,19 @@ class SystemPromptBuilder {
       }
     }
 
+    // Refreshed on every request, so it sits below the stable head: above it,
+    // each tool-loop request would re-prefill all of the tool guidance.
+    if (assistantMode != AssistantMode.general &&
+        executionSnapshot != null &&
+        executionSnapshot.hasContract) {
+      buffer.writeln(
+        'Current execution snapshot. This compact block is refreshed for every request and overrides stale execution narration in the transcript.',
+      );
+      buffer.writeln('<execution_snapshot>');
+      buffer.writeln(executionSnapshot.toPromptContext());
+      buffer.writeln('</execution_snapshot>');
+    }
+
     buffer
       ..writeln('Dynamic turn context:')
       ..writeln(
@@ -896,6 +894,15 @@ class SystemPromptBuilder {
         'When responding to time-relative questions, include exact dates '
         '(YYYY-MM-DD) to avoid ambiguity.',
       );
+    }
+
+    // KC2: attested toolchain and dependency versions for the selected coding
+    // project. Directly after the datetime anchor, in the dynamic tail rather
+    // than the LL6/LL22 stable prefix, because it changes per project and per
+    // lockfile edit; within a project its bytes are stable turn to turn.
+    final environmentGrounding = environmentGroundingContext?.trim();
+    if (environmentGrounding != null && environmentGrounding.isNotEmpty) {
+      buffer.writeln(environmentGrounding);
     }
 
     final memoryContext = sessionMemoryContext?.trim();
@@ -990,11 +997,6 @@ class SystemPromptBuilder {
       case ModelVisionSupport.reliable:
       case ModelVisionSupport.unknown:
         break;
-    }
-    if (profile.usableContextTokens > 0) {
-      lines.add(
-        'MODEL CAPABILITY PROFILE: Keep prompt construction within approximately ${profile.usableContextTokens} usable context tokens for this model.',
-      );
     }
     if (lines.isEmpty) {
       return '';

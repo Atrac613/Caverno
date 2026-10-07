@@ -50,4 +50,39 @@ void main() {
       completes,
     );
   });
+
+  test(
+    'writes chunks to a staging file before promoting the attachment',
+    () async {
+      final writer = await AttachmentStorageService.beginWrite(
+        originalName: 'large.bin',
+        directoryOverride: attachmentsDir,
+      );
+
+      await writer.write(<int>[1, 2]);
+      await writer.write(<int>[3, 4]);
+      final path = await writer.complete();
+
+      expect(File(path).readAsBytesSync(), [1, 2, 3, 4]);
+      expect(
+        attachmentsDir.listSync().whereType<File>().any(
+          (file) => file.path.endsWith('.part'),
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test('discards an incomplete staging file', () async {
+    final writer = await AttachmentStorageService.beginWrite(
+      originalName: 'partial.bin',
+      directoryOverride: attachmentsDir,
+    );
+
+    await writer.write(<int>[1, 2, 3]);
+    final stagingPath = writer.stagingPath;
+    await writer.discard();
+
+    expect(File(stagingPath).existsSync(), isFalse);
+  });
 }

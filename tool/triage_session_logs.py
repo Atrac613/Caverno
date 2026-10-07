@@ -18,6 +18,13 @@ Signals (per session):
                        `tool_loop` misses them. Distinct offset/limit windows of
                        one file are legitimate paging and don't count. read_file
                        is repeatable by design, so the first two repeats are free.
+  - search_churn     : distinct *rephrasings* of a search for the same needle
+                       (longest identifier token), e.g. `_formatDuration`,
+                       `_formatDuration(`, `static String _formatDuration`.
+                       Content-level where tool_loop is name-level: it tells a
+                       hunt for one fact apart from genuine exploration, which
+                       tool_loop scores identically. One rephrase is ordinary
+                       and does not score.
   - oversized_turn   : assistant turns with very large content
   - tool_error       : tool results carrying an error payload (capped; noisy)
 
@@ -51,7 +58,7 @@ import json
 import os
 import re
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 
 # Score weights. Tuned so that a single truncation or transport error is
 # noticeable while noisy-but-normal tool errors barely register.
@@ -65,6 +72,18 @@ WEIGHT_TOOL_LOOP = 2.0  # per repeat beyond the first two identical calls
 # re-reads beyond REREAD_FREE per session are penalised, and lightly.
 WEIGHT_REREAD = 0.4  # per redundant read beyond the free allowance
 REREAD_FREE = 2      # redundant reads tolerated before scoring kicks in
+# Search churn: distinct *rephrasings* of a search for the same needle. This is
+# a content-level signal where tool_loop is name-level: consecutive searches
+# score the same on tool_loop whether they hunt one fact or explore four
+# different ones, and reread only sees byte-identical repeats, so a rephrased
+# hunt is invisible to it entirely. Session c79826af spent 10 iterations and
+# ~6 min re-querying `_formatDuration` while the answer (UNDEFINED_METHOD,
+# naming the symbol) already sat in its tool results, and still ranked 19th.
+# Calibrated on the whole corpus: one rephrase is ordinary (8 sessions show
+# exactly one, nearly all on the needle `version`), so only churn beyond
+# SEARCH_CHURN_FREE scores. Two sessions reach 3; none reach 5.
+WEIGHT_SEARCH_CHURN = 1.5
+SEARCH_CHURN_FREE = 1
 WEIGHT_OVERSIZED = 1.0
 WEIGHT_TOOL_ERROR = 0.25
 # LL31 turn-exit instrument: a turn that ended with no visible answer ("the
@@ -298,6 +317,44 @@ def _read_paths(response: dict):
         yield (norm, args.get("offset"), args.get("limit"), args.get("max_chars"))
 
 
+def _search_needles(response: dict):
+    """Yield ``(needle, raw_query)`` for each search call in one response.
+
+    The needle is the longest identifier-like token in the query, lowercased
+    and stripped of leading/trailing underscores, so `_formatDuration`,
+    `_formatDuration(`, `formatDuration` and `static String _formatDuration`
+    all collapse onto `formatduration` while remaining distinct raw queries.
+    Grouping this way is what turns "8 unrelated searches" into "5 phrasings of
+    one question". Bare short numeric queries carry no needle and are skipped.
+    """
+    for call in response.get("toolCalls") or []:
+        if not isinstance(call, dict):
+            continue
+        name = call.get("name") or call.get("function", {}).get("name")
+        if name not in ("search_files", "find_files"):
+            continue
+        args = call.get("arguments")
+        if args is None:
+            args = call.get("function", {}).get("arguments")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except ValueError:
+                continue
+        if not isinstance(args, dict):
+            continue
+        raw = (args.get("query") or args.get("pattern") or "").strip()
+        tokens = [
+            t for t in re.findall(r"[A-Za-z0-9_]+", raw)
+            if not (len(t) <= 2 and t.isdigit())
+        ]
+        if not tokens:
+            continue
+        needle = max(tokens, key=len).lower().strip("_")
+        if needle:
+            yield (needle, raw)
+
+
 def _is_completion_entry(entry: dict) -> bool:
     """True when the entry records an actual LLM call rather than a marker.
 
@@ -353,6 +410,8 @@ def analyze(path: str) -> dict | None:
     run = 0
     prev_sig = None
     read_counts: Counter = Counter()
+    # needle -> set of distinct raw queries issued for it
+    search_queries: defaultdict = defaultdict(set)
     title = ""
     # Build provenance (schema v2+); v1 logs have no `build` block.
     build = next((e["build"] for e in entries if e.get("build")), {})
@@ -452,6 +511,8 @@ def analyze(path: str) -> dict | None:
             prev_sig = sig
 
         read_counts.update(_read_paths(response))
+        for needle, raw_query in _search_needles(response):
+            search_queries[needle].add(raw_query)
 
     loop_excess = max(0, max_run - (TOOL_LOOP_MIN_RUN - 1)) if max_run else 0
     # Redundant reads = byte-identical repeat read_file requests (same file +
@@ -461,6 +522,13 @@ def analyze(path: str) -> dict | None:
     reread_total = sum(read_counts.values()) - len(read_counts)
     reread_max = max(read_counts.values(), default=0)
     reread_excess = max(0, reread_total - REREAD_FREE)
+    # Search churn = extra phrasings per needle, summed. A needle searched once
+    # contributes 0; five phrasings of one needle contribute 4.
+    search_churn = sum(len(q) - 1 for q in search_queries.values() if len(q) > 1)
+    search_churn_max, search_churn_needle = max(
+        ((len(q), n) for n, q in search_queries.items()), default=(0, "")
+    )
+    search_churn_excess = max(0, search_churn - SEARCH_CHURN_FREE)
     abnormal_exits = sum(
         c for r, c in exit_reasons.items() if r in _ABNORMAL_EXIT_REASONS
     )
@@ -469,6 +537,7 @@ def analyze(path: str) -> dict | None:
         + transport * WEIGHT_TRANSPORT
         + loop_excess * WEIGHT_TOOL_LOOP
         + reread_excess * WEIGHT_REREAD
+        + search_churn_excess * WEIGHT_SEARCH_CHURN
         + oversized * WEIGHT_OVERSIZED
         + tool_errors * WEIGHT_TOOL_ERROR
         + no_answer * WEIGHT_NO_ANSWER
@@ -483,6 +552,9 @@ def analyze(path: str) -> dict | None:
         "max_tool_run": max_run,
         "reread_total": reread_total,
         "reread_max": reread_max,
+        "search_churn": search_churn,
+        "search_churn_max": search_churn_max,
+        "search_churn_needle": search_churn_needle,
         "oversized": oversized,
         "tool_errors": tool_errors,
         "no_answer": no_answer,
@@ -589,6 +661,12 @@ def main() -> int:
         reverse=True,
     )
     reread_sessions = sum(1 for r in rows if r.get("reread_total", 0) >= 1)
+    churn_offenders = sorted(
+        (r for r in rows if r.get("search_churn", 0) >= 2),
+        key=lambda r: (r["search_churn"], r.get("search_churn_max", 0)),
+        reverse=True,
+    )
+    churn_sessions = sum(1 for r in rows if r.get("search_churn", 0) >= 1)
 
     rows.sort(key=lambda r: (r["score"], r["mtime"]), reverse=True)
     rows = rows[: args.top]
@@ -601,8 +679,8 @@ def main() -> int:
             f"— pass --include-ungrounded to count them"
         )
     print(
-        f"{'score':>6}  {'len':>3} {'txp':>3} {'loop':>4} {'rerd':>4} {'big':>3} "
-        f"{'err':>3} {'stop':>4}  {'n':>3}  {'build':>9}  session"
+        f"{'score':>6}  {'len':>3} {'txp':>3} {'loop':>4} {'rerd':>4} {'chrn':>4} "
+        f"{'big':>3} {'err':>3} {'stop':>4}  {'n':>3}  {'build':>9}  session"
     )
     for r in rows:
         ident = r["path"] if args.full else os.path.basename(r["path"])
@@ -611,7 +689,8 @@ def main() -> int:
         build = r["commit"] + ("*" if r["dirty"] else "")
         print(
             f"{r['score']:>6}  {r['fr_length']:>3} {r['transport']:>3} "
-            f"{r['max_tool_run']:>4} {r['reread_total']:>4} {r['oversized']:>3} "
+            f"{r['max_tool_run']:>4} {r['reread_total']:>4} "
+            f"{r['search_churn']:>4} {r['oversized']:>3} "
             f"{r['tool_errors']:>3} {r['no_answer']:>4}  {r['entries']:>3}  "
             f"{build:>9}  {ident}{title}"
         )
@@ -636,6 +715,20 @@ def main() -> int:
             print(
                 f"  {r['reread_max']:>3}x identical, {r['reread_total']:>3} "
                 f"redundant total  {ident}{title}"
+            )
+
+    if churn_offenders:
+        print(
+            f"\n== Search churn (distinct phrasings hunting one needle; "
+            f"{churn_sessions} sessions with any) =="
+        )
+        for r in churn_offenders[:10]:
+            ident = r["path"] if args.full else os.path.basename(r["path"])
+            title = f"  {r['title']}" if r["title"] else ""
+            print(
+                f"  {r['search_churn']:>3} extra queries, worst needle "
+                f"{r['search_churn_needle']!r} x{r['search_churn_max']}"
+                f"  {ident}{title}"
             )
 
     if transform_totals:

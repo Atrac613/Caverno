@@ -8,12 +8,17 @@ void main() {
   const passphrase = 'correct horse battery staple';
   const plaintext = '''{"apiKey":"primary-secret","model":"test-model"}''';
 
-  test('round-trips settings through authenticated encryption', () {
-    final encrypted = codec.encrypt(
-      plaintext: plaintext,
-      passphrase: passphrase,
-    );
+  // PBKDF2 at the codec's 600k iterations costs ~2 s per derivation, and this
+  // file used to spend four of them building the same envelope four times.
+  // Envelopes are immutable strings and every test below decodes into its own
+  // map, so one shared fixture is the same test at a quarter of the cost. The
+  // derivations that remain are the assertions themselves.
+  late final String encrypted = codec.encrypt(
+    plaintext: plaintext,
+    passphrase: passphrase,
+  );
 
+  test('round-trips settings through authenticated encryption', () {
     expect(encrypted, isNot(contains('primary-secret')));
     expect(
       codec.decrypt(envelope: encrypted, passphrase: passphrase),
@@ -22,7 +27,9 @@ void main() {
   });
 
   test('uses independent salt and nonce values for each export', () {
-    final first = codec.encrypt(plaintext: plaintext, passphrase: passphrase);
+    // One of the two is the shared fixture, which also shows it carries no
+    // special salt or nonce.
+    final first = encrypted;
     final second = codec.encrypt(plaintext: plaintext, passphrase: passphrase);
 
     expect(first, isNot(second));
@@ -33,11 +40,6 @@ void main() {
   });
 
   test('rejects the wrong passphrase without returning plaintext', () {
-    final encrypted = codec.encrypt(
-      plaintext: plaintext,
-      passphrase: passphrase,
-    );
-
     expect(
       () => codec.decrypt(
         envelope: encrypted,
@@ -54,10 +56,6 @@ void main() {
   });
 
   test('rejects ciphertext tampering', () {
-    final encrypted = codec.encrypt(
-      plaintext: plaintext,
-      passphrase: passphrase,
-    );
     final json = jsonDecode(encrypted) as Map<String, dynamic>;
     final cipher = Map<String, dynamic>.from(json['cipher'] as Map);
     final ciphertext = cipher['ciphertext'] as String;
@@ -72,10 +70,6 @@ void main() {
   });
 
   test('rejects unsupported or unreasonably expensive envelopes', () {
-    final encrypted = codec.encrypt(
-      plaintext: plaintext,
-      passphrase: passphrase,
-    );
     final unsupported = jsonDecode(encrypted) as Map<String, dynamic>;
     unsupported['version'] = 2;
     expect(

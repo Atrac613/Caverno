@@ -3,6 +3,225 @@ part of 'chat_notifier_test.dart';
 // Saved workflow guardrail tests live in a part file so
 // chat_notifier_test.dart stays under its F1 size ratchet.
 void registerChatNotifierSavedWorkflowGuardrailTests() {
+  test('parent delegation promise is marked unexecuted', () async {
+    final conversation = Conversation(
+      id: 'conversation-post-validation-delegation',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 9, 28, 12),
+      updatedAt: DateTime(2026, 9, 28, 12, 5),
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-cli',
+            title: 'Implement the CLI',
+            targetFiles: ['bin/todo_cli.dart'],
+            validationCommand: 'dart analyze bin/todo_cli.dart',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+        ],
+      ),
+    );
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-read',
+          name: 'read_file',
+          arguments: const {'path': 'bin/todo_cli.dart'},
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const ['**タスク6を委任します。**'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'read_file':
+            '{"path":"/tmp/bin/todo_cli.dart","content":"void main() {}"}',
+        'spawn_subagent': '{"ok":false,"code":"test_refusal"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          () => _WorkflowTestConversationsNotifier(conversation),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      standInForTheApprover(toolContainer);
+      await toolContainer
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('@anabasis Continue remaining tasks');
+
+      expect(
+        toolDataSource.toolResultBatches
+            .expand((batch) => batch)
+            .any((result) => result.result.contains('unexecuted_delegation')),
+        isTrue,
+      );
+      expect(
+        toolContainer.read(chatNotifierProvider).messages.last.content,
+        contains('Delegation was not executed'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('parent can delegate after acceptance lacks a child result', () async {
+    final conversation = Conversation(
+      id: 'conversation-post-validation-acceptance',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 9, 28, 12),
+      updatedAt: DateTime(2026, 9, 28, 12, 5),
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-cli',
+            title: 'Implement the CLI',
+            targetFiles: ['bin/todo_cli.dart'],
+            validationCommand: 'dart analyze bin/todo_cli.dart',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+        ],
+      ),
+    );
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-validate',
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'dart analyze bin/todo_cli.dart',
+            'working_directory': '/tmp',
+          },
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: 'Validation passed. I will accept the task.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-accept',
+              name: 'accept_task',
+              arguments: const {
+                'workflow_task_id': 'task-cli',
+                'rationale': 'The saved validation passed.',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Acceptance needs a delegated result. I will delegate.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-delegate',
+              name: 'spawn_subagent',
+              arguments: const {
+                'workflow_task_id': 'task-cli',
+                'description': 'Verify the CLI',
+                'prompt': 'Inspect and verify the existing CLI.',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The delegation result was checked.',
+          finishReason: 'stop',
+        ),
+      ],
+      finalAnswerChunks: const ['Unexpected final answer request.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'local_execute_command':
+            '{"command":"dart analyze bin/todo_cli.dart","exit_code":0,"stdout":"No issues found!\\n","stderr":""}',
+        'accept_task': '{}',
+        'spawn_subagent': '{}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          () => _WorkflowTestConversationsNotifier(conversation),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      standInForTheApprover(toolContainer);
+      await toolContainer
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('@anabasis Validate and accept task-cli');
+
+      final acceptance = toolDataSource.toolResultBatches
+          .expand((batch) => batch)
+          .singleWhere((result) => result.name == 'accept_task');
+      expect(
+        jsonDecode(acceptance.result),
+        containsPair('code', 'acceptance_no_delegated_result'),
+      );
+      expect(toolDataSource.toolResultToolDefinitionCounts.first, 1);
+      final delegation = toolDataSource.toolResultBatches
+          .expand((batch) => batch)
+          .singleWhere((result) => result.name == 'spawn_subagent');
+      expect(
+        jsonDecode(delegation.result),
+        containsPair('code', 'anabasis_delegation_not_ready'),
+      );
+      expect(toolDataSource.toolResultBatches, hasLength(3));
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
   test(
     'sendMessage continues behavioral evidence after saved validation succeeds',
     () async {
@@ -158,7 +377,10 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
           'local_execute_command',
         ]);
         expect(toolDataSource.toolResultBatches, hasLength(4));
-        expect(toolDataSource.toolResultBatches[3].single.name, 'edit_file');
+        expect(
+          _ranInBatch(toolDataSource.toolResultBatches[3]).single.name,
+          'edit_file',
+        );
       } finally {
         toolContainer.dispose();
       }

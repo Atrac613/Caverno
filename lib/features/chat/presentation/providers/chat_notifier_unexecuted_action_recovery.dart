@@ -1,4 +1,5 @@
-// Same-library ChatNotifier extension for final-answer claim recovery.
+// Same-library ChatNotifier extension for final-answer claim recovery and the
+// duplicate-call recovery prompts.
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
 part of 'chat_notifier.dart';
@@ -26,7 +27,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       return null;
     }
     batchToolResults.add(promptFeedback);
-    executedToolResults.add(promptFeedback);
+    _turnToolResults.track(owner, executedToolResults..add(promptFeedback));
     onBlockingFeedbackPrepared?.call();
     _turnEnd.addTransform(owner, transformId);
     appLog(logMessage);
@@ -40,7 +41,10 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
           toolDefinitionsOverride: tools,
           interactionGeneration: interactionGeneration,
         ),
-        toolResults: [promptFeedback],
+        toolResults: _readResultCarryFor(interactionGeneration).resolve(
+          batchToolResults: [promptFeedback],
+          executedToolResults: executedToolResults,
+        ),
         assistantContent: candidateResponse,
         tools: tools,
       );
@@ -254,15 +258,8 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     );
   }
 
-  /// Revives the tool loop when this turn blocked a production release for
-  /// missing approval, the user granted it, and the turn is ending without the
-  /// command ever being re-issued.
-  ///
-  /// Unlike the transcript repair below, nothing here reads the answer text:
-  /// the trigger is the guard's own structured block payload, the ledger of
-  /// commands this owner executed, and the release-approval evidence. An
-  /// assistant that says nothing and one that says "release started" are
-  /// treated identically, because neither ran anything.
+  /// Re-enters the tool loop after approval when this turn ended without
+  /// re-issuing the blocked production release.
   Future<ChatCompletionResult?> _requestBlockedProductionReleaseRetry({
     required String candidateResponse,
     required List<ToolResultInfo> executedToolResults,
@@ -278,6 +275,8 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
         owner: owner,
         ownerToolResults: executedToolResults,
         ownerExecutedCommands: _turnToolResults.commands(owner),
+        ownerExecutedReleaseIdentities: _turnToolResults
+            .commandExecutionIdentities(owner),
         approvalGranted: _productionReleaseApprovals
             .evidenceFor(interactionGeneration)
             .approved,
@@ -308,11 +307,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       return null;
     }
     if (!_blockedReleaseRetrySignatures.add(plan.signature)) return null;
-    // One prompt is all this block gets. Whether the model issues the call or
-    // not, the conversation stops owing a retry for it.
-    _productionReleaseApprovals.removePendingRelease(plan.owner.conversationId);
-
-    return _requestFinalAnswerRecoveryCompletion(
+    final retryResult = await _requestFinalAnswerRecoveryCompletion(
       owner: plan.owner,
       feedback: plan.feedback,
       transformId: 'blocked_production_release_retry',
@@ -327,6 +322,22 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       interactionGeneration: interactionGeneration,
       onBlockingFeedbackPrepared: onBlockingFeedbackPrepared,
     );
+    final reissuedRelease = retryResult?.toolCalls?.any(
+      (toolCall) => _blockedReleaseRetries.matchesToolCall(
+        plan,
+        toolCall,
+        resolvedArguments: _resolveProjectScopedArguments(
+          toolCall.name,
+          toolCall.arguments,
+        ),
+      ),
+    );
+    if (reissuedRelease != true) {
+      _productionReleaseApprovals.removePendingRelease(
+        plan.owner.conversationId,
+      );
+    }
+    return retryResult;
   }
 
   /// Applies the blocked-release retry to a streamed final answer. Returns true
@@ -485,4 +496,43 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       interactionGeneration: interactionGeneration,
     );
   }
+
+  /// Redirects a model that keeps re-inspecting instead of acting.
+  String _buildDuplicateInspectionRecoveryPrompt(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+    bool hasSavedTask = true,
+    bool readOnlyReview = false,
+  }) => const DuplicateRecoveryPromptBuilder().buildInspectionPrompt(
+    toolCalls: toolCalls,
+    hasSavedTask: hasSavedTask,
+    readOnlyReview: readOnlyReview,
+    previousCommandValidationFailed: _toolResultsContainFailedCommandValidation(
+      previousToolResults,
+    ),
+    previousExactExitCodeExpectationFailed:
+        _toolResultsMentionExactNonZeroExitCodeExpectation(previousToolResults),
+    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
+      previousToolResults,
+    ),
+  );
+
+  /// Redirects a model that re-issues the same follow-up call.
+  String _buildDuplicateFollowUpRecoveryPrompt(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+    bool hasSavedTask = true,
+    bool readOnlyReview = false,
+  }) => const DuplicateRecoveryPromptBuilder().buildFollowUpPrompt(
+    toolCalls: toolCalls,
+    hasSavedTask: hasSavedTask,
+    readOnlyReview: readOnlyReview,
+    repeatedValidationTool: toolCalls.any(_isRepeatableCommandTool),
+    inspectedFailingFile: previousToolResults.any(
+      (toolResult) => toolResult.name == 'read_file',
+    ),
+    budgetReducedToolNames: ToolResultPromptBuilder.budgetReducedToolNames(
+      previousToolResults,
+    ),
+  );
 }

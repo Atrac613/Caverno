@@ -1,11 +1,8 @@
+import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
 import '../../domain/entities/video_attachment_draft.dart';
 import 'chat_state.dart' show ChatInteractionOrigin;
+import 'primary_turn_purpose.dart';
 
-/// One message waiting for its thread to be free.
-///
-/// Lifted out of chat_state.dart: it is a hand-written value class with
-/// its own equality, not part of the ChatState freezed graph, and it grows
-/// a field every time the composer learns to carry something new.
 class QueuedChatMessage {
   const QueuedChatMessage({
     required this.id,
@@ -23,12 +20,13 @@ class QueuedChatMessage {
     this.origin = ChatInteractionOrigin.local,
     this.remoteDeviceId,
     this.conversationId,
+    this.purpose = PrimaryTurnPurpose.conversation,
+    this.projectTaskCommitScope,
   });
 
-  /// The thread this message was typed in. A message queued behind another
-  /// thread's turn must come back to its own thread, never to whichever one
-  /// the user is looking at when the queue drains.
   final String? conversationId;
+  final PrimaryTurnPurpose purpose;
+  final ProjectTaskCommitScope? projectTaskCommitScope;
   final String id;
   final String content;
   final String? modelContent;
@@ -45,29 +43,8 @@ class QueuedChatMessage {
   final String? remoteDeviceId;
   bool get hasImage => imageBase64 != null && imageBase64!.isNotEmpty;
   bool get hasVideo => video != null;
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        other is QueuedChatMessage &&
-            id == other.id &&
-            content == other.content &&
-            modelContent == other.modelContent &&
-            attachmentPath == other.attachmentPath &&
-            imageBase64 == other.imageBase64 &&
-            imageMimeType == other.imageMimeType &&
-            originalImagePath == other.originalImagePath &&
-            originalImageMimeType == other.originalImageMimeType &&
-            video == other.video &&
-            languageCode == other.languageCode &&
-            isVoiceMode == other.isVoiceMode &&
-            bypassPlanMode == other.bypassPlanMode &&
-            origin == other.origin &&
-            remoteDeviceId == other.remoteDeviceId &&
-            conversationId == other.conversationId;
-  }
-
-  @override
-  int get hashCode => Object.hash(
+  // One field tuple keeps equality and hashing aligned as queued context grows.
+  Object get _equalityValues => (
     id,
     content,
     modelContent,
@@ -83,5 +60,13 @@ class QueuedChatMessage {
     origin,
     remoteDeviceId,
     conversationId,
+    purpose,
+    projectTaskCommitScope,
   );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QueuedChatMessage && _equalityValues == other._equalityValues;
+  @override
+  int get hashCode => _equalityValues.hashCode;
 }

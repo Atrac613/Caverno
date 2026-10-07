@@ -31,6 +31,8 @@ MACOS_S3_URI="${CAVERNO_SPARKLE_S3_URI:-s3://caverno-macos-releases/caverno/maco
 MACOS_RELEASE_NOTES="${CAVERNO_SPARKLE_RELEASE_NOTES_PATH:-}"
 RELEASE_LOG_DIR="${CAVERNO_RELEASE_LOG_DIR:-}"
 ALLOW_RELEASE_NOTES_VERSION_MISMATCH="${CAVERNO_ALLOW_RELEASE_NOTES_VERSION_MISMATCH:-no}"
+ALLOW_UNTAGGED_RELEASE="${CAVERNO_ALLOW_UNTAGGED_RELEASE:-no}"
+ALLOW_SPARKLE_REPUBLISH="${CAVERNO_ALLOW_SPARKLE_REPUBLISH:-no}"
 
 usage() {
   cat <<'USAGE'
@@ -66,6 +68,12 @@ Options:
   --no-pub-get                  Skip flutter pub get.
   --dry-run                     Print commands without executing them.
   --help                        Show this help.
+
+Publishing lanes (macOS, or iOS upload) refuse to run unless the tag
+VERSION+BUILD points at a clean HEAD, and macOS refuses a build number the
+public appcast already lists. Overrides, for intentional exceptions only:
+  CAVERNO_ALLOW_UNTAGGED_RELEASE=yes
+  CAVERNO_ALLOW_SPARKLE_REPUBLISH=yes
 
 Examples:
   bash tool/release_ios_macos.sh --dry-run
@@ -316,6 +324,60 @@ if [[ "${RUN_MACOS}" == "yes" && -n "${MACOS_RELEASE_NOTES}" && "${ALLOW_RELEASE
   fi
 fi
 
+# A publishing lane ships whatever the working tree holds under the pubspec
+# version, and nothing else ties the two together. On 2026-09-23 an agent
+# re-ran the 1.3.44+58 release two commits past its tag: App Store Connect
+# refused the duplicate build, but Sparkle replaced the public 1.3.44+58
+# archive with different bytes, so the version no longer named one build.
+# Both checks run in a dry run too, because that is the pre-flight agents use.
+RELEASE_TAG="${BUILD_NAME}+${BUILD_NUMBER}"
+if [[ "${RUN_MACOS}" == "yes" || ( "${RUN_IOS}" == "yes" && "${IOS_EXPORT_DESTINATION}" == "upload" ) ]]; then
+  PUBLISHES="yes"
+else
+  PUBLISHES="no"
+fi
+
+if [[ "${PUBLISHES}" == "yes" && "${ALLOW_UNTAGGED_RELEASE}" != "yes" ]]; then
+  HEAD_COMMIT="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+  TAG_COMMIT="$(git -C "${ROOT_DIR}" rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" || true)"
+  if [[ -z "${TAG_COMMIT}" ]]; then
+    echo "Release tag ${RELEASE_TAG} does not exist. Commit and tag the version bump first." >&2
+    echo "Set CAVERNO_ALLOW_UNTAGGED_RELEASE=yes for an intentional untagged release." >&2
+    exit 65
+  fi
+  if [[ "${TAG_COMMIT}" != "${HEAD_COMMIT}" ]]; then
+    echo "Release tag ${RELEASE_TAG} points at ${TAG_COMMIT:0:9}, but HEAD is ${HEAD_COMMIT:0:9}." >&2
+    echo "Releasing would ship commits the tag does not contain. Bump the version, or check out the tag." >&2
+    echo "Set CAVERNO_ALLOW_UNTAGGED_RELEASE=yes for an intentional mismatch." >&2
+    exit 65
+  fi
+  if [[ -n "$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=no)" ]]; then
+    echo "The working tree has uncommitted changes that ${RELEASE_TAG} does not contain." >&2
+    echo "Set CAVERNO_ALLOW_UNTAGGED_RELEASE=yes for an intentional dirty release." >&2
+    exit 65
+  fi
+fi
+
+if [[ "${RUN_MACOS}" == "yes" && "${ALLOW_SPARKLE_REPUBLISH}" != "yes" ]]; then
+  APPCAST_URL="${MACOS_DOWNLOAD_URL_PREFIX%/}/appcast.xml"
+  if ! APPCAST_BODY="$(curl -fsSL --max-time 20 "${APPCAST_URL}")"; then
+    echo "Could not read the published appcast: ${APPCAST_URL}" >&2
+    echo "Set CAVERNO_ALLOW_SPARKLE_REPUBLISH=yes to publish without checking it." >&2
+    exit 69
+  fi
+  PUBLISHED_BUILD="$(
+    printf '%s\n' "${APPCAST_BODY}" |
+      sed -n 's|.*<sparkle:version>\([0-9][0-9]*\)</sparkle:version>.*|\1|p' |
+      sort -n | tail -1
+  )"
+  if [[ -n "${PUBLISHED_BUILD}" && "${PUBLISHED_BUILD}" -ge "${BUILD_NUMBER}" ]]; then
+    echo "The appcast already publishes build ${PUBLISHED_BUILD}; build ${BUILD_NUMBER} would replace or trail it." >&2
+    echo "Sparkle clients never re-download a build number they have, so bump the build number." >&2
+    echo "Set CAVERNO_ALLOW_SPARKLE_REPUBLISH=yes for an intentional republish." >&2
+    exit 65
+  fi
+fi
+
 if [[ "${DRY_RUN}" != "yes" && "${RUN_IOS}" == "yes" ]]; then
   mkdir -p "${IOS_EXPORT_ROOT}"
   if [[ "${IOS_SIGNING_STYLE}" == "manual" && -z "${IOS_PROVISIONING_PROFILE}" ]]; then
@@ -453,7 +515,13 @@ run_release_lane() {
   # this known post-upload crash as success.
   if [[ "${command_status}" -ne 0 && -n "${benign_crash_pattern}" ]] &&
     grep -Eiq "${benign_crash_pattern}" "${log_path}"; then
-    echo "Ignoring known post-upload tooling crash in ${lane} lane; the App Store Connect upload already completed. Verify the build in App Store Connect." >&2
+    local benign_note="Ignoring known post-upload tooling crash in ${lane} lane; the App Store Connect upload already completed. Verify the build in App Store Connect."
+    # Also close the lane log with the verdict. Left ending on the crash, the
+    # log reads as a failed export, and an agent that opened it in session
+    # d84f819b reported a successful upload as failed and advised a rerun.
+    printf '\n[release_ios_macos] %s\n[release_ios_macos] %s lane status: succeeded\n' \
+      "${benign_note}" "${lane}" >>"${log_path}"
+    echo "${benign_note}" >&2
     return 0
   fi
   return "${command_status}"

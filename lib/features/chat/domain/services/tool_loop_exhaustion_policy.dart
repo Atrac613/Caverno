@@ -1,10 +1,12 @@
+import '../entities/tool_call_info.dart';
+import 'ask_user_question_policy.dart';
+import 'file_mutation_evidence_policy.dart';
+import 'git_write_confirmation_policy.dart';
+import 'tool_call_execution_policy.dart';
+
 // ChatNotifier decomposition collaborator: tool-loop-exhaustion-policy
 
-/// Immutable facts used to decide whether bounded tool-loop recovery may run.
-///
-/// The iteration values retain the caller's exact limit comparison. The four
-/// evidence flags must be derived from the pending calls and current batch
-/// results owned by the same chat turn.
+/// Owner-turn facts for deciding whether bounded tool-loop recovery may run.
 final class ToolLoopExhaustionDecisionInput {
   const ToolLoopExhaustionDecisionInput({
     required this.iteration,
@@ -14,7 +16,41 @@ final class ToolLoopExhaustionDecisionInput {
     required this.hasCurrentBatchToolResults,
     required this.hasPendingFileMutation,
     required this.hasPendingWriteGitCommand,
+    required this.hasPendingUserQuestion,
+    this.hasPendingCommandExecution = false,
+    this.hasPendingFileRead = false,
   });
+
+  factory ToolLoopExhaustionDecisionInput.fromPendingCalls({
+    required int iteration,
+    required int maxIterations,
+    required bool recoveryAlreadyAttempted,
+    required List<ToolCallInfo> pendingToolCalls,
+    required bool hasCurrentBatchToolResults,
+  }) => ToolLoopExhaustionDecisionInput(
+    iteration: iteration,
+    maxIterations: maxIterations,
+    recoveryAlreadyAttempted: recoveryAlreadyAttempted,
+    hasPendingToolCalls: pendingToolCalls.isNotEmpty,
+    hasCurrentBatchToolResults: hasCurrentBatchToolResults,
+    hasPendingFileMutation: pendingToolCalls.any(
+      (call) =>
+          const FileMutationEvidencePolicy().isMutationToolName(call.name),
+    ),
+    hasPendingWriteGitCommand: pendingToolCalls.any(
+      const GitWriteConfirmationPolicy().isWriteGitCommandToolCall,
+    ),
+    hasPendingUserQuestion: pendingToolCalls.any(
+      (call) => call.name.trim().toLowerCase() == askUserQuestionToolName,
+    ),
+    hasPendingCommandExecution: pendingToolCalls.any(
+      (call) =>
+          const ToolCallExecutionPolicy().isCommandExecutionTool(call.name),
+    ),
+    hasPendingFileRead: pendingToolCalls.any(
+      (call) => call.name.trim().toLowerCase() == 'read_file',
+    ),
+  );
 
   final int iteration;
   final int maxIterations;
@@ -24,6 +60,11 @@ final class ToolLoopExhaustionDecisionInput {
   final bool hasPendingFileMutation;
   final bool hasPendingWriteGitCommand;
 
+  /// Run a pending user question before recovery can answer it unasked.
+  final bool hasPendingUserQuestion;
+  final bool hasPendingCommandExecution;
+  final bool hasPendingFileRead;
+
   bool get iterationLimitReached => iteration >= maxIterations;
 }
 
@@ -32,24 +73,14 @@ final class ToolLoopExhaustionPolicy {
   const ToolLoopExhaustionPolicy();
 
   bool shouldRequestRecovery(ToolLoopExhaustionDecisionInput input) {
-    if (!input.iterationLimitReached) {
-      return false;
-    }
-    if (input.recoveryAlreadyAttempted) {
-      return false;
-    }
-    if (input.hasPendingFileMutation) {
-      return false;
-    }
-    if (!input.hasPendingToolCalls) {
-      return false;
-    }
-    if (!input.hasCurrentBatchToolResults) {
-      return false;
-    }
-    if (input.hasPendingWriteGitCommand) {
-      return false;
-    }
-    return true;
+    return input.iterationLimitReached &&
+        !input.recoveryAlreadyAttempted &&
+        !input.hasPendingFileMutation &&
+        input.hasPendingToolCalls &&
+        input.hasCurrentBatchToolResults &&
+        !input.hasPendingWriteGitCommand &&
+        !input.hasPendingUserQuestion &&
+        !input.hasPendingCommandExecution &&
+        !input.hasPendingFileRead;
   }
 }

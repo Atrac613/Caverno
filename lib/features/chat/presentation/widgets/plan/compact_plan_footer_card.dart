@@ -31,9 +31,13 @@ class CompactPlanFooterCard extends StatelessWidget {
         ? (artifact.hasApproved && artifact.hasPendingEdits
               ? 'chat.plan_document_status_pending'
               : 'chat.plan_document_status_draft')
+        : artifact.isUnreviewedOutline
+        ? 'chat.plan_document_status_unreviewed'
         : 'chat.plan_document_status_approved';
     final subtitleKey = isDraftState
         ? 'chat.plan_proposal_subtitle'
+        : artifact.isUnreviewedOutline
+        ? 'chat.plan_document_unreviewed_subtitle'
         : 'chat.plan_document_approved_subtitle';
 
     return Container(

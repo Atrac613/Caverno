@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'pub_dependency_resolver.dart';
+
 class InstalledDependencyGroundingService {
   const InstalledDependencyGroundingService();
 
@@ -165,7 +167,7 @@ class InstalledDependencyGroundingService {
       );
     }
 
-    final lockPackages = _parsePubspecLock(lockfile);
+    final lockPackages = PubDependencyResolver.parseLockfile(lockfile);
     if (!_hasPackageName(packageName) && _hasSymbol(symbol)) {
       final symbolResult = _resolveSymbolFromLockedPackages(
         ecosystem: 'dart',
@@ -175,7 +177,7 @@ class InstalledDependencyGroundingService {
         packages: lockPackages,
         symbol: symbol!,
         resolvePackageRoot: (package) =>
-            _resolveDartPackageRoot(projectRoot, package),
+            PubDependencyResolver.resolvePackageRoot(projectRoot, package),
         sourceExtensions: const {'.dart', '.md', '.yaml', '.yml'},
         maxMatches: maxMatches,
         maxChars: maxChars,
@@ -203,7 +205,10 @@ class InstalledDependencyGroundingService {
       );
     }
 
-    final rootPath = _resolveDartPackageRoot(projectRoot, package);
+    final rootPath = PubDependencyResolver.resolvePackageRoot(
+      projectRoot,
+      package,
+    );
     if (rootPath == null) {
       return _GroundingResult.error(
         ecosystem: 'dart',
@@ -538,98 +543,11 @@ class InstalledDependencyGroundingService {
     });
   }
 
-  List<_LockedPackage> _parsePubspecLock(File lockfile) {
-    final packages = <_LockedPackage>[];
-    String? currentName;
-    final block = <String>[];
-
-    void flush() {
-      final packageName = currentName;
-      if (packageName == null) return;
-      packages.add(_lockedPackageFromPubBlock(packageName, block));
-      block.clear();
-    }
-
-    var inPackages = false;
-    for (final line in lockfile.readAsLinesSync()) {
-      if (line.trim() == 'packages:') {
-        inPackages = true;
-        continue;
-      }
-      if (inPackages &&
-          line.isNotEmpty &&
-          !line.startsWith(' ') &&
-          line.trim() != 'packages:') {
-        flush();
-        currentName = null;
-        break;
-      }
-      if (!inPackages) {
-        continue;
-      }
-      final match = RegExp(r'^  ([^\s:#][^:#]*):\s*$').firstMatch(line);
-      if (match != null) {
-        flush();
-        currentName = match.group(1)!.trim();
-      } else if (currentName != null) {
-        block.add(line);
-      }
-    }
-    flush();
-    return packages;
-  }
-
-  _LockedPackage _lockedPackageFromPubBlock(
-    String packageName,
-    List<String> block,
-  ) {
-    String? dependency;
-    String? source;
-    String? version;
-    String? descriptionName;
-    String? descriptionUrl;
-    String? descriptionPath;
-    String? resolvedRef;
-
-    for (final line in block) {
-      final trimmed = line.trim();
-      if (trimmed.startsWith('dependency:')) {
-        dependency = _stripYamlScalar(trimmed.substring('dependency:'.length));
-      } else if (trimmed.startsWith('source:')) {
-        source = _stripYamlScalar(trimmed.substring('source:'.length));
-      } else if (trimmed.startsWith('version:')) {
-        version = _stripYamlScalar(trimmed.substring('version:'.length));
-      } else if (trimmed.startsWith('name:')) {
-        descriptionName = _stripYamlScalar(trimmed.substring('name:'.length));
-      } else if (trimmed.startsWith('url:')) {
-        descriptionUrl = _stripYamlScalar(trimmed.substring('url:'.length));
-      } else if (trimmed.startsWith('path:')) {
-        descriptionPath = _stripYamlScalar(trimmed.substring('path:'.length));
-      } else if (trimmed.startsWith('resolved-ref:')) {
-        resolvedRef = _stripYamlScalar(
-          trimmed.substring('resolved-ref:'.length),
-        );
-      }
-    }
-
-    return _LockedPackage(
-      name: descriptionName?.isNotEmpty == true
-          ? descriptionName!
-          : packageName,
-      version: version,
-      source: source,
-      dependency: dependency,
-      url: descriptionUrl,
-      path: descriptionPath,
-      resolvedRef: resolvedRef,
-    );
-  }
-
-  List<_LockedPackage> _parsePackageLockPackages(File lockfile) {
+  List<LockedPackage> _parsePackageLockPackages(File lockfile) {
     final decoded = jsonDecode(lockfile.readAsStringSync());
     if (decoded is! Map<String, dynamic>) return const [];
     final packages = decoded['packages'];
-    final candidates = <_LockedPackage>[];
+    final candidates = <LockedPackage>[];
     if (packages is Map<String, dynamic>) {
       for (final entry in packages.entries) {
         if (entry.key.isEmpty || !entry.key.startsWith('node_modules/')) {
@@ -639,7 +557,7 @@ class InstalledDependencyGroundingService {
         if (value is! Map<String, dynamic>) continue;
         final name = entry.key.substring('node_modules/'.length);
         candidates.add(
-          _LockedPackage(
+          LockedPackage(
             name: name,
             version: value['version'] as String?,
             source: 'npm',
@@ -657,7 +575,7 @@ class InstalledDependencyGroundingService {
         final value = entry.value;
         if (value is! Map<String, dynamic>) continue;
         candidates.add(
-          _LockedPackage(
+          LockedPackage(
             name: entry.key,
             version: value['version'] as String?,
             source: 'npm',
@@ -677,9 +595,9 @@ class InstalledDependencyGroundingService {
     required Directory projectRoot,
     required String lockfilePath,
     required String lockfileAccuracy,
-    required List<_LockedPackage> packages,
+    required List<LockedPackage> packages,
     required String symbol,
-    required String? Function(_LockedPackage package) resolvePackageRoot,
+    required String? Function(LockedPackage package) resolvePackageRoot,
     required Set<String> sourceExtensions,
     required int maxMatches,
     required int maxChars,
@@ -711,7 +629,7 @@ class InstalledDependencyGroundingService {
     return null;
   }
 
-  List<_LockedPackage> _parsePythonLockfile(File lockfile) {
+  List<LockedPackage> _parsePythonLockfile(File lockfile) {
     final basename = _basename(lockfile.path).toLowerCase();
     if (basename == 'pipfile.lock') {
       return _parsePipfileLock(lockfile);
@@ -722,10 +640,10 @@ class InstalledDependencyGroundingService {
     return _parseRequirementsLock(lockfile);
   }
 
-  List<_LockedPackage> _parsePipfileLock(File lockfile) {
+  List<LockedPackage> _parsePipfileLock(File lockfile) {
     final decoded = jsonDecode(lockfile.readAsStringSync());
     if (decoded is! Map<String, dynamic>) return const [];
-    final packages = <_LockedPackage>[];
+    final packages = <LockedPackage>[];
     for (final sectionName in const ['default', 'develop']) {
       final section = decoded[sectionName];
       if (section is! Map<String, dynamic>) continue;
@@ -738,7 +656,7 @@ class InstalledDependencyGroundingService {
           version = value.replaceFirst('==', '');
         }
         packages.add(
-          _LockedPackage(
+          LockedPackage(
             name: entry.key,
             version: version,
             source: 'pip',
@@ -753,15 +671,15 @@ class InstalledDependencyGroundingService {
     return packages;
   }
 
-  List<_LockedPackage> _parsePoetryLock(File lockfile) {
-    final packages = <_LockedPackage>[];
+  List<LockedPackage> _parsePoetryLock(File lockfile) {
+    final packages = <LockedPackage>[];
     String? name;
     String? version;
     void flush() {
       final packageName = name;
       if (packageName == null) return;
       packages.add(
-        _LockedPackage(
+        LockedPackage(
           name: packageName,
           version: version,
           source: 'poetry',
@@ -789,8 +707,8 @@ class InstalledDependencyGroundingService {
     return packages;
   }
 
-  List<_LockedPackage> _parseRequirementsLock(File lockfile) {
-    final packages = <_LockedPackage>[];
+  List<LockedPackage> _parseRequirementsLock(File lockfile) {
+    final packages = <LockedPackage>[];
     final requirementPattern = RegExp(
       r'^\s*([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?\s*==\s*([^\s;#]+)',
     );
@@ -798,7 +716,7 @@ class InstalledDependencyGroundingService {
       final match = requirementPattern.firstMatch(line);
       if (match == null) continue;
       packages.add(
-        _LockedPackage(
+        LockedPackage(
           name: match.group(1)!,
           version: match.group(2)!,
           source: 'pip',
@@ -812,8 +730,8 @@ class InstalledDependencyGroundingService {
     return packages;
   }
 
-  _LockedPackage? _selectLockedPackage(
-    List<_LockedPackage> packages,
+  LockedPackage? _selectLockedPackage(
+    List<LockedPackage> packages,
     String? packageName,
     String? symbol,
   ) {
@@ -844,76 +762,6 @@ class InstalledDependencyGroundingService {
 
   bool _hasSymbol(String? symbol) {
     return symbol != null && symbol.trim().isNotEmpty;
-  }
-
-  String? _resolveDartPackageRoot(
-    Directory projectRoot,
-    _LockedPackage package,
-  ) {
-    final packageConfigRoot = _resolveFromPackageConfig(
-      projectRoot,
-      package.name,
-    );
-    if (packageConfigRoot != null) return packageConfigRoot;
-
-    if (package.source == 'path' && package.path != null) {
-      final path = _resolveProjectPath(projectRoot, package.path!);
-      if (Directory(path).existsSync()) return path;
-    }
-
-    if (package.source == 'hosted' && package.version != null) {
-      for (final cacheRoot in _pubCacheRoots()) {
-        for (final host in const ['pub.dev', 'pub.dartlang.org']) {
-          final candidate = Directory.fromUri(
-            cacheRoot.uri.resolve(
-              'hosted/$host/${package.name}-${package.version}/',
-            ),
-          );
-          if (candidate.existsSync()) return candidate.path;
-        }
-      }
-    }
-    return null;
-  }
-
-  String? _resolveFromPackageConfig(Directory projectRoot, String packageName) {
-    final config = File.fromUri(
-      projectRoot.uri.resolve('.dart_tool/package_config.json'),
-    );
-    if (!config.existsSync()) return null;
-    final decoded = jsonDecode(config.readAsStringSync());
-    if (decoded is! Map<String, dynamic>) return null;
-    final packages = decoded['packages'];
-    if (packages is! List<dynamic>) return null;
-    for (final entry in packages) {
-      if (entry is! Map<String, dynamic>) continue;
-      if (entry['name'] != packageName) continue;
-      final rootUri = entry['rootUri'] as String?;
-      if (rootUri == null || rootUri.isEmpty) return null;
-      final resolved = Uri.parse(rootUri);
-      if (resolved.scheme == 'file') {
-        return Directory.fromUri(resolved).absolute.path;
-      }
-      if (resolved.scheme.isEmpty) {
-        return Directory.fromUri(
-          config.parent.uri.resolve(rootUri),
-        ).absolute.path;
-      }
-    }
-    return null;
-  }
-
-  List<Directory> _pubCacheRoots() {
-    final roots = <Directory>[];
-    final pubCache = Platform.environment['PUB_CACHE']?.trim();
-    if (pubCache != null && pubCache.isNotEmpty) {
-      roots.add(Directory(pubCache).absolute);
-    }
-    final home = Platform.environment['HOME']?.trim();
-    if (home != null && home.isNotEmpty) {
-      roots.add(Directory.fromUri(Directory(home).uri.resolve('.pub-cache/')));
-    }
-    return roots;
   }
 
   String? _resolveNodePackageRoot(Directory projectRoot, String packageName) {
@@ -1185,22 +1033,6 @@ class InstalledDependencyGroundingService {
     return null;
   }
 
-  String _resolveProjectPath(Directory projectRoot, String path) {
-    final uri = Uri.tryParse(path);
-    if (uri != null && uri.scheme == 'file') {
-      return Directory.fromUri(uri).absolute.path;
-    }
-    if (_isAbsolutePath(path)) return Directory(path).absolute.path;
-    return Directory.fromUri(projectRoot.uri.resolve(path)).absolute.path;
-  }
-
-  bool _isAbsolutePath(String path) {
-    if (path.startsWith('/')) return true;
-    return RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
-  }
-
-  String _stripYamlScalar(String value) => _stripQuoted(value.trim());
-
   String _stripTomlScalar(String value) => _stripQuoted(value.trim());
 
   String _stripQuoted(String value) {
@@ -1249,36 +1081,6 @@ class InstalledDependencyGroundingService {
   }) {
     return jsonEncode({'ok': false, 'code': code, 'error': message, ...extra});
   }
-}
-
-class _LockedPackage {
-  const _LockedPackage({
-    required this.name,
-    required this.version,
-    required this.source,
-    required this.dependency,
-    required this.url,
-    required this.path,
-    required this.resolvedRef,
-  });
-
-  final String name;
-  final String? version;
-  final String? source;
-  final String? dependency;
-  final String? url;
-  final String? path;
-  final String? resolvedRef;
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'version': version,
-    'source': source,
-    'dependency': dependency,
-    if (url != null) 'url': url,
-    if (path != null) 'path': path,
-    if (resolvedRef != null) 'resolved_ref': resolvedRef,
-  };
 }
 
 class _GroundingResult {

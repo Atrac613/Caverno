@@ -171,7 +171,7 @@ Future<Rag2HostedRetrievalEvalReport> runRag2HostedRetrievalEval(
         .select(store.database.embeddings)
         .get();
     final hostPreserved =
-        schemaVersion.read<int>('user_version') == 5 &&
+        schemaVersion.read<int>('user_version') == 6 &&
         conversationSearch.read<int>('count') == 1 &&
         embeddings.length == 1;
     final gate = Rag2HostedRetrievalGate.evaluate(

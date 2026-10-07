@@ -35,6 +35,7 @@ class DriftModelUsageStore implements ModelUsageSink {
     required TokenUsage usage,
     required int durationMs,
     String? label,
+    String? conversationId,
     String? finishReason,
     bool isError = false,
   }) {

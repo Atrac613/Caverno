@@ -11,94 +11,172 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     required List<Message> finalizedMessages,
     required bool shouldDropLastAssistant,
   }) async {
-    if (shouldDropLastAssistant ||
-        finalizedMessages.isEmpty ||
-        _turnFinalizationRecoveryGenerations.contains(generation)) {
+    if (shouldDropLastAssistant || finalizedMessages.isEmpty) {
       return false;
     }
     final owner = _turnOwnerForGeneration(generation);
     if (owner == null) return false;
+    // A dedicated review is already terminal, including an incomplete one.
+    // Generic coding continuation must not rewrite its authoritative report.
+    if (_primaryRoutes.reviewTerminal(generation, owner.conversationId) !=
+        null) {
+      return false;
+    }
     final lastMessage = finalizedMessages.last;
     if (lastMessage.role != MessageRole.assistant ||
         !TurnFinalMessage.hasVisibleContent(lastMessage.content)) {
       return false;
     }
-    final candidateResponse = _turnFinalizationCandidateText(
-      lastMessage.content,
-      generation: generation,
-    );
-    if (candidateResponse.isEmpty) return false;
-    if (_hasTerminalGoalSuccessToolResults(
-      _turnToolResults.completed(owner),
-      generation,
-    )) {
-      appLog(
-        '[TurnFinalization] Skipping coding continuation recovery after terminal goal success',
-      );
-      return false;
-    }
-    final shouldSkipFinalAnswerRecovery =
-        _shouldSkipCompletedToolResultFinalAnswerRecovery(
-          generation: generation,
-          candidateResponse: candidateResponse,
-          toolResults: _turnToolResults.completed(owner),
+    final candidateResponse = const TurnFinalizationRecoveryPolicy()
+        .turnFinalizationCandidateText(
+          content: lastMessage.content,
+          streamedFinalAnswer:
+              _lastStreamedToolResultFinalAnswersByGeneration[generation],
         );
-    _turnEnd.recordFinalAnswerRecoveryDecision(
-      owner,
-      shouldSkip: shouldSkipFinalAnswerRecovery,
-    );
-    if (shouldSkipFinalAnswerRecovery) {
-      appLog(
-        '[TurnFinalization] Skipping coding continuation recovery after completed tool-result final answer',
-      );
-      return false;
-    }
+    if (candidateResponse.isEmpty) return false;
+    final completedResults = _turnToolResults.completed(owner);
     final mcpToolService = _mcpToolService;
     if (mcpToolService == null || !_settings.mcpEnabled) return false;
     final allTools = mcpToolService.getOpenAiToolDefinitions();
     if (allTools.isEmpty) return false;
-    final prefixStableToolLoop = _settings.enablePrefixStableToolLoop;
-    final toolSelection = prefixStableToolLoop
-        ? ToolDefinitionSearchSelection(
-            toolSearchEnabled: false,
-            toolDefinitions: allTools,
-            selectedToolNames:
-                ToolDefinitionSearchService.toolNamesFromDefinitions(allTools),
-          )
-        : ToolDefinitionSearchService.buildInitialSelection(allTools);
-    if (_codingContinuationRecoveryCode(
-          candidateResponse: candidateResponse,
-          tools: toolSelection.toolDefinitions,
-          interactionGeneration: generation,
-          requireContinuationRequest: false,
-        ) ==
-        null) {
+    _synchronizeGoalAutoContinueSafeBoundary();
+    final allowVerificationRepair = _turnFinalizationRecoveryGenerations
+        .canRepairVerification(generation, completedResults);
+    final terminalStatusOnly =
+        !allowVerificationRepair &&
+        _primaryRoutes.isProjectTaskImplementation(generation) &&
+        _turnFinalizationRecoveryGenerations.needsVerificationStatus(
+          generation,
+          completedResults,
+        );
+    final plan = TurnFinalizationRecoveryPlan(
+      goal: _conversationForId(owner.conversationId)?.goal,
+      implementationTurn: _primaryRoutes.isProjectTaskImplementation(
+        generation,
+      ),
+      terminalStatusOnly: terminalStatusOnly,
+      allowVerificationRepair: allowVerificationRepair,
+      stepTurn: _primaryRoutes.isProjectTaskStep(generation),
+      boundarySafe: _turnRuntimeGoalSafeBoundary
+          .captureFor(owner, withinTurn: true)
+          .isSafe,
+      acknowledgement: _turnEnd
+          .stateFor(owner)
+          ?.goalUpdateAcknowledgement
+          ?.outcome,
+      parentTurn: _anabasisRoles.isParentTurn(generation),
+      response: candidateResponse,
+      completedResults: completedResults,
+      hasSavedValidation: _toolResultsContainSuccessfulCurrentSavedValidation(
+        completedResults,
+        generation,
+      ),
+      hasGitLifecycle: _toolResultsSatisfyCurrentGoalGitLifecycle(
+        completedResults,
+      ),
+      skipCompletedAnswer: _shouldSkipCompletedToolResultFinalAnswerRecovery(
+        generation: generation,
+        candidateResponse: candidateResponse,
+        toolResults: completedResults,
+      ),
+      allTools: allTools,
+      prefixStable: _settings.enablePrefixStableToolLoop,
+    );
+    _turnEnd.recordFinalAnswerRecoveryDecision(
+      owner,
+      shouldSkip: plan.skipFinalAnswer,
+    );
+    if (!plan.shouldRecover) return false;
+    final structuredTask = plan.structuredTask;
+    final toolSelection = plan.selection;
+    final forcedRecoveryCode = plan.forcedCode;
+    if (forcedRecoveryCode == null &&
+        _codingContinuationRecoveryCode(
+              candidateResponse: candidateResponse,
+              tools: toolSelection.tools,
+              interactionGeneration: generation,
+              requireContinuationRequest: false,
+            ) ==
+            null) {
       return false;
     }
 
-    _turnFinalizationRecoveryGenerations.add(generation);
+    final claimed = plan.verificationRepair
+        ? _turnFinalizationRecoveryGenerations.claimVerificationRepair(
+            generation,
+            completedResults,
+          )
+        : _turnFinalizationRecoveryGenerations.claim(
+            generation,
+            structuredTask: structuredTask || plan.structuredStep,
+            results: completedResults,
+            statusOnly: terminalStatusOnly,
+          );
+    if (!claimed) {
+      return false;
+    }
     appLog('[TurnFinalization] Requesting recovery before saving response');
     final recoveryResult = await _requestCodingContinuationRecovery(
       candidateResponse: candidateResponse,
-      tools: toolSelection.toolDefinitions,
+      tools: plan.requestTools,
       interactionGeneration: generation,
       requireContinuationRequest: false,
+      forcedRecoveryCode: forcedRecoveryCode,
+      forcedRecoveryPrompt: plan.prompt,
+      executedToolResults: completedResults,
     );
     if (!_isCurrentInteractionGeneration(generation)) return true;
     if (!ref.mounted || recoveryResult == null) return false;
     _recordHiddenEvidence(owner, candidateResponse);
-    if (!recoveryResult.hasToolCalls) {
+    if (!recoveryResult.hasToolCalls ||
+        !plan.acceptsCalls(recoveryResult.toolCalls!)) {
       _recordHiddenEvidence(owner, recoveryResult.content);
+      if (plan.verificationRepair) {
+        // No work ran. Fall through to the bounded status protocol rather
+        // than saving an answer with neither repair nor an acknowledgement.
+        return _recoverBeforeTurnFinalizationIfNeeded(
+          generation: generation,
+          finalizedMessages: finalizedMessages,
+          shouldDropLastAssistant: shouldDropLastAssistant,
+        );
+      }
+      if (plan.structuredStep) {
+        final status = const ProjectTaskStepCompletionPolicy().status(
+          response: recoveryResult.content,
+          results: completedResults,
+          goal: _conversationForId(owner.conversationId)?.goal,
+        );
+        if (!recoveryResult.hasToolCalls && status.completionAccepted) {
+          _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
+          _prepareLastAssistantForTurnFinalizationRecovery(
+            generation: generation,
+            preRecoveryContent: '',
+          );
+          _appendRecoveredAssistantResponse(
+            recoveryResult.content,
+            interactionGeneration: generation,
+          );
+        }
+      } else if (structuredTask) {
+        _turnEnd.addTransform(owner, 'coding_task_status_missing');
+      } else if (forcedRecoveryCode != null) {
+        _turnEnd.addTransform(owner, 'unexecuted_delegation_notice');
+        _appendRecoveredAssistantResponse(
+          'Delegation was not executed. No spawn_subagent result was recorded.',
+          interactionGeneration: generation,
+        );
+      }
       return false;
     }
 
     appLog('[TurnFinalization] Recovery requested tool calls');
     _prepareLastAssistantForTurnFinalizationRecovery(
       generation: generation,
-      preRecoveryContent: _contentBeforeFinalizationCandidate(
-        currentContent: lastMessage.content,
-        candidateResponse: candidateResponse,
-      ),
+      preRecoveryContent: const TurnFinalizationRecoveryPolicy()
+          .contentBeforeFinalizationCandidate(
+            currentContent: lastMessage.content,
+            candidateResponse: candidateResponse,
+          ),
     );
     final recoveredToolNames = recoveryResult.toolCalls!.map(
       (toolCall) => toolCall.name,
@@ -110,50 +188,31 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
           : candidateResponse,
       toolSearchEnabled: toolSelection.toolSearchEnabled,
       selectedToolNames: {
-        ...toolSelection.selectedToolNames,
+        ...toolSelection.selectedNames,
         ...recoveredToolNames,
       },
-      stableToolDefinitions: prefixStableToolLoop
-          ? toolSelection.toolDefinitions
+      stableToolDefinitions: _settings.enablePrefixStableToolLoop
+          ? toolSelection.tools
           : null,
       interactionGeneration: generation,
     );
     return true;
   }
 
-  bool _hasTerminalGoalSuccessToolResults(
-    List<ToolResultInfo> toolResults,
-    int interactionGeneration,
-  ) {
-    if (toolResults.isEmpty) return false;
-    const terminalSuccessPolicy = ToolTerminalSuccessPolicy();
-    return toolResults.any(
-          (toolResult) =>
-              terminalSuccessPolicy.terminalMessage(toolResult.result) != null,
-        ) ||
-        _toolResultsContainSuccessfulCurrentSavedValidation(
-          toolResults,
-          interactionGeneration,
-        ) ||
-        _toolResultsSatisfyCurrentGoalGitLifecycle(toolResults);
-  }
-
   bool _shouldSkipCompletedToolResultFinalAnswerRecovery({
     required int generation,
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
-  }) {
-    return const TurnFinalizationRecoveryPolicy()
-        .shouldSkipCompletedToolResultFinalAnswerRecovery(
-          _turnFinalizationRecoveryInput(
-            candidateResponse: candidateResponse,
-            streamedFinalAnswer:
-                _lastStreamedToolResultFinalAnswersByGeneration[generation],
-            toolResults: toolResults,
-            interactionGeneration: generation,
-          ),
-        );
-  }
+  }) => const TurnFinalizationRecoveryPolicy()
+      .shouldSkipCompletedToolResultFinalAnswerRecovery(
+        _turnFinalizationRecoveryInput(
+          candidateResponse: candidateResponse,
+          streamedFinalAnswer:
+              _lastStreamedToolResultFinalAnswersByGeneration[generation],
+          toolResults: toolResults,
+          interactionGeneration: generation,
+        ),
+      );
 
   @visibleForTesting
   void cacheStreamedToolResultFinalAnswerForTest({
@@ -181,72 +240,33 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     required String? streamedFinalAnswer,
     required List<ToolResultInfo> toolResults,
     int? interactionGeneration,
-  }) {
-    return TurnFinalizationRecoveryInput(
-      candidateResponse: candidateResponse,
-      streamedFinalAnswer: streamedFinalAnswer,
-      toolResults: toolResults,
-      hasTimedOutCommandResult: _hasTimedOutCommandResult(toolResults),
-      hasFailedCommandValidation: _toolResultsContainFailedCommandValidation(
-        toolResults,
-      ),
-      hasUnexecutedCommandActionResult: _claims
-          .hasUnexecutedCommandActionResult(toolResults),
-      hasUnexecutedFileSideEffectResult: _claims
-          .hasUnexecutedFileSideEffectResult(toolResults),
-      hasSuccessfulCurrentSavedValidation:
-          interactionGeneration != null &&
-          _toolResultsContainSuccessfulCurrentSavedValidation(
-            toolResults,
-            interactionGeneration,
-          ),
-      hasSuccessfulFileMutationEvidence: toolResults.any(
-        (toolResult) =>
-            _fileMutationEvidencePolicy.isMutationToolName(toolResult.name) &&
-            _fileMutationEvidencePolicy.isSuccessfulResult(toolResult),
-      ),
-      hasSuccessfulCommandExecutionEvidence: _claims
-          .hasSuccessfulCommandExecutionResult(toolResults),
-    );
-  }
+  }) => TurnFinalizationRecoveryInputBuilder.build(
+    candidateResponse,
+    streamedFinalAnswer,
+    toolResults,
+    timedOut: _hasTimedOutCommandResult(toolResults),
+    failedValidation: _toolResultsContainFailedCommandValidation(toolResults),
+    savedValidation:
+        interactionGeneration != null &&
+        _toolResultsContainSuccessfulCurrentSavedValidation(
+          toolResults,
+          interactionGeneration,
+        ),
+  );
 
   bool _shouldSkipCompletedToolResultCodingContinuationRecovery({
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
     required int interactionGeneration,
-  }) {
-    return const TurnFinalizationRecoveryPolicy()
-        .shouldSkipCompletedToolResultCodingContinuationRecovery(
-          _turnFinalizationRecoveryInput(
-            candidateResponse: candidateResponse,
-            streamedFinalAnswer: null,
-            toolResults: toolResults,
-            interactionGeneration: interactionGeneration,
-          ),
-        );
-  }
-
-  String _turnFinalizationCandidateText(
-    String content, {
-    required int generation,
-  }) {
-    return const TurnFinalizationRecoveryPolicy().turnFinalizationCandidateText(
-      content: content,
-      streamedFinalAnswer:
-          _lastStreamedToolResultFinalAnswersByGeneration[generation],
-    );
-  }
-
-  String _contentBeforeFinalizationCandidate({
-    required String currentContent,
-    required String candidateResponse,
-  }) {
-    return const TurnFinalizationRecoveryPolicy()
-        .contentBeforeFinalizationCandidate(
-          currentContent: currentContent,
+  }) => const TurnFinalizationRecoveryPolicy()
+      .shouldSkipCompletedToolResultCodingContinuationRecovery(
+        _turnFinalizationRecoveryInput(
           candidateResponse: candidateResponse,
-        );
-  }
+          streamedFinalAnswer: null,
+          toolResults: toolResults,
+          interactionGeneration: interactionGeneration,
+        ),
+      );
 
   void _prepareLastAssistantForTurnFinalizationRecovery({
     required int generation,

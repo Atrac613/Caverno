@@ -104,6 +104,13 @@ extension ChatNotifierGitHandlers on ChatNotifier {
     }
     final expired = _expiredApproval(toolCall.name, approvalCache);
     if (expired != null) return expired;
+    final commitFailure = await _recheckTaskCommitBeforeExecution(
+      toolCall,
+      approvalCache,
+    );
+    if (commitFailure != null) return commitFailure;
+    final revoked = _expiredApproval(toolCall.name, approvalCache);
+    if (revoked != null) return revoked;
     final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: gitArguments,
@@ -397,4 +404,161 @@ extension ChatNotifierGitHandlers on ChatNotifier {
   /// Resolves a pending git command dialog from the UI layer.
   bool resolveGitCommand({required String id, required bool approved}) =>
       _completeApproval<bool, PendingGitCommand>(id, (_) => approved);
+}
+
+extension ChatNotifierCommitScope on ChatNotifier {
+  Future<ChatTurnOwner?> sendProjectTaskCommit(
+    String prompt,
+    ProjectTaskCommitScope scope, {
+    required PrimaryTurnPurpose purpose,
+    String languageCode = 'en',
+  }) {
+    if (purpose != PrimaryTurnPurpose.projectTaskCommitPreparation &&
+        purpose != PrimaryTurnPurpose.projectTaskCommit) {
+      throw ArgumentError(
+        'A task commit scope requires a preparation or commit purpose.',
+      );
+    }
+    return ProjectTaskCommitScope.enqueue(
+      scope,
+      () => sendMessage(
+        prompt,
+        languageCode: languageCode,
+        bypassPlanMode: true,
+        purpose: purpose,
+      ),
+    );
+  }
+
+  List<Message> _commitPhaseHistory(TurnOwnerSnapshot snapshot) {
+    final generation = snapshot.owner.interactionGeneration;
+    if (!_hasCommitScope(generation)) return snapshot.messages;
+    final id = _primaryRoutes.commitPromptStart(generation);
+    return CommitPhaseHistory.from(snapshot.messages, id);
+  }
+
+  void _recordTaskCommitTerminal(int generation, bool normal) {
+    final owner = _turnOwnerForGeneration(generation);
+    if (owner != null) {
+      _primaryRoutes.recordCommitTerminal(
+        generation,
+        owner.conversationId,
+        normal,
+        results: _turnToolResults.all(owner),
+      );
+    }
+  }
+
+  ProjectTaskCommitTurnEvidence? takeProjectTaskCommitTurnEvidence(
+    ChatTurnOwner owner,
+  ) {
+    return _primaryRoutes.takeCommitTerminal(
+      owner.interactionGeneration,
+      owner.conversationId,
+    );
+  }
+
+  bool _hasCommitScope(int generation) =>
+      _primaryRoutes.isProjectTaskCommit(generation) ||
+      _primaryRoutes.isProjectTaskCommitPreparation(generation);
+
+  Set<String>? _commitScopeToolNames(int generation) {
+    if (!_hasCommitScope(generation)) return null;
+    return ProjectTaskCommitToolPolicy.toolNames(
+      preparing: _primaryRoutes.isProjectTaskCommitPreparation(generation),
+    );
+  }
+
+  McpToolResult _commitScopeFailure(String name, String reason) =>
+      ProjectTaskCommitToolPolicy.failure(name, reason);
+
+  McpToolResult? _enforceCommitScopeTool(ToolCallInfo call, int? generation) {
+    if (generation == null || !_hasCommitScope(generation)) return null;
+    return const ProjectTaskCommitToolPolicy().enforce(
+      call,
+      scope: _primaryRoutes.commitScope(generation),
+      conversationId: _turnOwnerForGeneration(generation)?.conversationId,
+      root: _projectRootForGeneration(generation),
+      preparing: _primaryRoutes.isProjectTaskCommitPreparation(generation),
+      allowedNames: _commitScopeToolNames(generation)!,
+    );
+  }
+
+  Future<McpToolResult?> _recheckTaskCommitBeforeExecution(
+    ToolCallInfo call,
+    OwnerToolApprovalCache cache,
+  ) async {
+    final generation = cache.owner.interactionGeneration;
+    if (!_primaryRoutes.isProjectTaskCommit(generation)) return null;
+    final scope = _primaryRoutes.commitScope(generation);
+    if (scope == null) {
+      return _commitScopeFailure(
+        call.name,
+        'Native commit preparation is missing.',
+      );
+    }
+    final now = await const ProjectTaskCommitReader().read(scope);
+    final problem = now == null
+        ? 'Prepared commit state could not be read.'
+        : scope.commitProblem(now);
+    return problem == null ? null : _commitScopeFailure(call.name, problem);
+  }
+
+  Future<McpToolResult> _dispatchToolCall(
+    ToolCallInfo toolCall, {
+    int? interactionGeneration,
+    String? projectRoot,
+  }) async {
+    final approvalCache = _approvalCacheForGeneration(interactionGeneration);
+    if (interactionGeneration != null && approvalCache == null) {
+      return _turnOwnerSnapshotUnavailableResult(toolCall.name);
+    }
+    final blockerRefusal = _refuseToolAfterGoalBlocker(
+      toolCall,
+      interactionGeneration: interactionGeneration,
+    );
+    if (blockerRefusal != null) return blockerRefusal;
+    final commitFailure = _enforceCommitScopeTool(
+      toolCall,
+      interactionGeneration,
+    );
+    if (commitFailure != null) return commitFailure;
+    return TurnProjectRoot.runScoped(
+      projectRoot == null
+          ? _turnProjectRootFor(interactionGeneration)
+          : TurnProjectRoot(projectRoot),
+      () => TurnGeneration.runScoped(
+        interactionGeneration,
+        () => TurnThread.runScoped(
+          interactionGeneration == null
+              ? null
+              : _activeResponseConversationIdForGeneration(
+                  interactionGeneration,
+                ),
+          () => ChatToolDispatcher(
+            enforcePlanningPolicy: (toolCall) =>
+                _enforcePlanningToolPolicy(toolCall, interactionGeneration),
+            enforceNetworkReadTaint: (toolCall) =>
+                _enforceNetworkReadTaint(toolCall, approvalCache),
+            handleComputerUseAction: _ownerComputerUseHandler(approvalCache),
+            handleComputerUseObservation:
+                _handleComputerUseActionWithoutApproval,
+            handleBrowserAction: _ownerBrowserActionHandler(approvalCache),
+            handleBrowserObservation: _handleBrowserActionWithoutApproval,
+            handleNetworkMutation: _ownerNetworkMutationHandler(approvalCache),
+            handlerRegistry: _buildToolHandlerRegistry(
+              interactionGeneration: interactionGeneration,
+              approvalCache: approvalCache,
+              projectRoot: projectRoot,
+            ),
+            executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+            ),
+            validateArguments: _mcpToolService?.checkToolArguments,
+          ).dispatch(toolCall),
+        ),
+      ),
+    );
+  }
 }

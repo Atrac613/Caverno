@@ -37,7 +37,7 @@ enum LocalCommandPermissionMatch { exact, prefix }
 
 enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 
-enum ReasoningEffortPreference { automatic, low, medium, high }
+enum ReasoningEffortPreference { automatic, low, medium, high, xhigh }
 
 enum ProReasoningDepth { standard, deep, max }
 
@@ -96,6 +96,7 @@ extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
     ReasoningEffortPreference.low => 'low',
     ReasoningEffortPreference.medium => 'medium',
     ReasoningEffortPreference.high => 'high',
+    ReasoningEffortPreference.xhigh => 'xhigh',
   };
 }
 
@@ -339,6 +340,12 @@ abstract class ModelCapabilityProfile with _$ModelCapabilityProfile {
     @Default(ModelVideoInputSupport.unknown)
     ModelVideoInputSupport videoInputSupport,
     @Default(0) int usableContextTokens,
+
+    /// The `reasoning_effort` values the endpoint accepted for this model, as
+    /// measured by `ReasoningEffortProbe`. Null when never measured or when the
+    /// endpoint refused none of them, which cannot tell "accepts all" from
+    /// "ignores the field"; the composer then offers every effort.
+    List<String>? supportedReasoningEfforts,
     DateTime? probedAt,
     @Default('') String probeSummary,
     @Default(<String, String>{}) Map<String, String> probeMetadata,
@@ -768,6 +775,23 @@ abstract class LlmEndpoint with _$LlmEndpoint {
     /// usually advertises nothing, and there is no way to tell that apart from
     /// a server that simply cannot take video -- so the person says.
     @Default(false) bool videoInputEnabled,
+
+    /// Manual opt-in for `chat_template_kwargs`, the llama.cpp chat-template
+    /// control that carries `enable_thinking`.
+    ///
+    /// Like [videoInputEnabled], nothing advertises this: a server that has
+    /// never heard of the field and a server that honours it look identical
+    /// over the wire, so the person says. Off by default, because sending it
+    /// to an endpoint that does not know it is the outcome worth avoiding.
+    ///
+    /// Until this existed, whether a request could suppress thinking was
+    /// decided by the model *name*, even though suppression is a fact about
+    /// the request: a local llama.cpp serving any unrecognised family got none
+    /// on its JSON utility calls, so goalSuggestion, memoryExtraction and
+    /// approvalAutoReview thought inside a 400-token budget and returned
+    /// nothing usable. This flag replaced that gate, so no model name takes
+    /// part in the decision any more.
+    @Default(false) bool chatTemplateKwargsEnabled,
     @JsonKey(unknownEnumValue: LlmEndpointSource.manual)
     @Default(LlmEndpointSource.manual)
     LlmEndpointSource source,
@@ -909,6 +933,8 @@ abstract class AppSettings with _$AppSettings {
     // Pro Reasoning coordinates multiple deliberation stages, so it can use a
     // dedicated model independently from ordinary chat and plan drafting.
     @Default('') String proReasoningModel,
+    // Primary tool-using turn started by /review.
+    @Default('') String codeReviewModel,
     // Reads `flutter run` output and turns failure blocks into issues. Kept
     // separate because it runs while an app is being exercised: it wants a
     // fast, cheap model, not whichever strong model the conversation uses.
@@ -922,6 +948,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String approvalAutoReviewEndpointId,
     @Default('') String planningEndpointId,
     @Default('') String proReasoningEndpointId,
+    @Default('') String codeReviewEndpointId,
     @Default('') String logAnalysisEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
@@ -1107,6 +1134,12 @@ abstract class AppSettings with _$AppSettings {
             baseUrl: trimmedBaseUrl,
             apiKey: apiKey.trim(),
             model: model.trim(),
+            // An install that predates the endpoint list has no `llmEndpoints`
+            // key for _migrateChatTemplateKwargsOptIn to walk, so its endpoint
+            // is born here instead and has to carry the same history. Without
+            // this it was seeded opted out whatever the model, which is the
+            // silent loss of suppression that migration exists to prevent.
+            chatTemplateKwargsEnabled: _hadModelNameThinkingSuppression(model),
           ),
         ],
         activeLlmEndpointId: seededLlmEndpointId,
@@ -1130,6 +1163,23 @@ abstract class AppSettings with _$AppSettings {
     return copyWith(llmEndpoints: synced, activeLlmEndpointId: activeId);
   }
 
+  /// Whether the endpoint serving [baseUrl] was marked as accepting
+  /// `chat_template_kwargs`.
+  ///
+  /// Matched on the normalized base URL because the secondary routers hand
+  /// their datasource factory a base URL and an API key, not an endpoint row.
+  /// Falls back to the active endpoint when [baseUrl] matches nothing, which
+  /// is the primary-connection case, and to false when nothing matches at all.
+  bool acceptsChatTemplateKwargsFor(String baseUrl) {
+    final normalized = LlmEndpoint.normalizeBaseUrl(baseUrl);
+    for (final endpoint in usableLlmEndpoints) {
+      if (endpoint.normalizedBaseUrl == normalized) {
+        return endpoint.chatTemplateKwargsEnabled;
+      }
+    }
+    return activeLlmEndpoint?.chatTemplateKwargsEnabled ?? false;
+  }
+
   String get effectiveMemoryExtractionModel =>
       _resolveRoleModel(memoryExtractionModel, memoryExtractionEndpointId);
 
@@ -1147,6 +1197,22 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveProReasoningModel =>
       _resolveRoleModel(proReasoningModel, proReasoningEndpointId);
+
+  String get effectiveCodeReviewModel =>
+      _resolveRoleModel(codeReviewModel, codeReviewEndpointId);
+
+  bool get hasCodeReviewRoute {
+    if (llmProvider != LlmProvider.openAiCompatible) return false;
+    final endpointId = codeReviewEndpointId.trim();
+    if (endpointId.isEmpty) return false;
+    for (final endpoint in enabledLlmEndpoints) {
+      if (endpoint.id == endpointId) {
+        return codeReviewModel.trim().isNotEmpty ||
+            endpoint.normalizedModel.isNotEmpty;
+      }
+    }
+    return false;
+  }
 
   String get effectiveLogAnalysisModel =>
       _resolveRoleModel(logAnalysisModel, logAnalysisEndpointId);
@@ -1343,7 +1409,57 @@ abstract class AppSettings with _$AppSettings {
     var migrated = _migrateApprovalMode(json);
     migrated = _migrateUnifiedEndpoints(migrated);
     migrated = _migrateProReasoningCandidateRouting(migrated);
+    migrated = _migrateChatTemplateKwargsOptIn(migrated);
     return migrated;
+  }
+
+  /// Carries the old model-name behaviour onto the endpoint flag, once.
+  ///
+  /// Suppressing thinking on the structured utility roles used to be reachable
+  /// only for models named `qwen3.8*`. That gate is gone -- the decision is now
+  /// the role plus [LlmEndpoint.chatTemplateKwargsEnabled], with no model name
+  /// in it -- so an install whose endpoint already relied on it would quietly
+  /// lose suppression. Turn the flag on for exactly the endpoints that had it,
+  /// and nothing changes for them.
+  ///
+  /// This is the only place a model name decides anything, and it runs once:
+  /// an endpoint added afterwards is opted in by the person, like any other
+  /// capability we cannot detect.
+  /// Whether a build before the endpoint opt-in would have suppressed thinking
+  /// for this model, by name alone.
+  ///
+  /// Spelled out rather than read from `ChatRequestThinkingPolicy` on
+  /// purpose. This records what the old build did, so it has to stay frozen
+  /// even if that predicate later widens, narrows or disappears -- and
+  /// settings does not otherwise depend on the chat feature.
+  static bool _hadModelNameThinkingSuppression(String model) =>
+      model.trim().toLowerCase().startsWith('qwen3.8');
+
+  static Map<String, dynamic> _migrateChatTemplateKwargsOptIn(
+    Map<String, dynamic> json,
+  ) {
+    final endpoints = json['llmEndpoints'];
+    if (endpoints is! List) return json;
+    var changed = false;
+    final migrated = <dynamic>[];
+    for (final entry in endpoints) {
+      if (entry is! Map) {
+        migrated.add(entry);
+        continue;
+      }
+      final row = Map<String, dynamic>.from(entry);
+      if (row.containsKey('chatTemplateKwargsEnabled')) {
+        migrated.add(row);
+        continue;
+      }
+      row['chatTemplateKwargsEnabled'] = _hadModelNameThinkingSuppression(
+        row['model']?.toString() ?? '',
+      );
+      changed = true;
+      migrated.add(row);
+    }
+    if (!changed) return json;
+    return <String, dynamic>{...json, 'llmEndpoints': migrated};
   }
 
   static Map<String, dynamic> _migrateProReasoningCandidateRouting(

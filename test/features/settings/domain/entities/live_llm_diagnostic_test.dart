@@ -2,6 +2,35 @@ import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.da
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('flags thinking responses that contradict the request', () {
+    LiveLlmDiagnosticThinkingMetrics metrics({
+      bool? requested,
+      int reasoning = 0,
+    }) => LiveLlmDiagnosticThinkingMetrics(
+      requested: requested,
+      responseCount: 10,
+      reasoningResponseCount: reasoning,
+      reasoningChars: reasoning * 100,
+    );
+
+    // Asked to think, and no response carried any reasoning.
+    expect(metrics(requested: true).mismatch, isTrue);
+    // Asked not to think, and some responses reasoned anyway.
+    expect(metrics(requested: false, reasoning: 2).mismatch, isTrue);
+    // Partial reasoning under a thinking request is a model choice.
+    expect(metrics(requested: true, reasoning: 3).mismatch, isFalse);
+    expect(metrics(requested: false).mismatch, isFalse);
+    // The server default was left in charge, so there is nothing to contradict.
+    expect(metrics().mismatch, isFalse);
+    expect(metrics(requested: true).toJson(), {
+      'requested': true,
+      'responseCount': 10,
+      'reasoningResponseCount': 0,
+      'reasoningChars': 0,
+      'mismatch': true,
+    });
+  });
+
   test('serializes effective-context trials in physical units', () {
     const metrics = LiveLlmDiagnosticEffectiveContextMetrics(
       configuredMaximumTokens: 8192,

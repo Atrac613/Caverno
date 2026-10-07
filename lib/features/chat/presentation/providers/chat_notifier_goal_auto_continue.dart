@@ -162,11 +162,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   bool isVerifierReplayEligibleForTest(ToolCallInfo toolCall) =>
       _goalAutoContinueTrackerRegistry.isReplayEligibleVerifierToolCall(
         toolCall,
-      ) &&
-      const ToolCapabilityClassifier()
-              .classify(toolCall.name, arguments: toolCall.arguments)
-              .commandEffect ==
-          ToolCommandEffect.verification;
+      );
 
   ToolCallInfo? _takePostMutationVerifierReplay({
     required ToolResultCompletionEvidence evidence,
@@ -178,6 +174,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     final owner = _turnOwnerForGeneration(interactionGeneration);
     final conversation = _conversationForGeneration(interactionGeneration);
     if (owner == null || conversation == null) return null;
+    if (_recordedGoalBlocker(owner) != null) return null;
     final context = _goalTrackerContext(
       owner: owner,
       conversation: conversation,
@@ -313,6 +310,18 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         conversation: _conversationForId(owner.conversationId),
         assistantResponse: assistantResponse,
         tokenUsageDelta: tokenUsageDelta,
+        projectTaskImplementation: _primaryRoutes.isProjectTaskImplementation(
+          owner.interactionGeneration,
+        ),
+        onProjectTaskStatus: (status) {
+          if (!_activeResponseRegistry.containsOwner(owner)) return;
+          _turnToolResults.addContent(
+            owner,
+            status.toToolResult(
+              'coding-task-status-${owner.interactionGeneration}',
+            ),
+          );
+        },
       );
 
   @visibleForTesting
@@ -750,6 +759,23 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (owner == null) {
       return _turnOwnerSnapshotUnavailableResult(toolCall.name);
     }
+    if (_primaryRoutes.isProjectTaskStep(interactionGeneration) &&
+        _conversationForId(owner.conversationId)?.goal?.projectTaskAutoReview ==
+            true &&
+        toolCall.arguments['completed'] == true) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        isSuccess: false,
+        result: jsonEncode({
+          'code': 'project_subtask_goal_completion_refused',
+          'completionAccepted': false,
+          'error':
+              'An intermediate subtask cannot complete the overall goal. '
+              'Finish this subtask with PROJECT_TASK_SUBTASK_DONE; use '
+              'update_goal with completed: false to report progress or a blocker.',
+        }),
+      );
+    }
     return GoalUpdateNotifierRuntimeCoordinator(
       finalizationState: _turnEnd,
       goalStore: ConversationsNotifierGoalRuntimeStore(
@@ -766,6 +792,41 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       completionPolicy: _settings.effectiveGoalCompletionPolicy,
       isOwnerCurrent: () =>
           _turnOwnerForGeneration(owner.interactionGeneration) == owner,
+    );
+  }
+}
+
+extension ChatNotifierGoalBlockerBoundary on ChatNotifier {
+  GoalUpdateCompletionAcknowledgement? _recordedGoalBlocker(
+    ChatTurnOwner owner,
+  ) {
+    final acknowledgement = _turnEnd.stateFor(owner)?.goalUpdateAcknowledgement;
+    return acknowledgement?.outcome == GoalUpdateAckOutcome.blockerLogged
+        ? acknowledgement
+        : null;
+  }
+
+  McpToolResult? _refuseToolAfterGoalBlocker(
+    ToolCallInfo toolCall, {
+    required int? interactionGeneration,
+  }) {
+    final owner = interactionGeneration == null
+        ? null
+        : _turnOwnerForGeneration(interactionGeneration);
+    if (owner == null || _recordedGoalBlocker(owner) == null) return null;
+    return GoalBlockerBoundaryResponse.refusal(toolCall.name);
+  }
+
+  String? _recordedGoalBlockerResponse(ChatTurnOwner owner) {
+    final acknowledgement = _recordedGoalBlocker(owner);
+    if (acknowledgement == null) return null;
+    return GoalBlockerBoundaryResponse.report(
+      acknowledgement.input.normalizedBlockedReason,
+      projectTask:
+          _conversationForId(
+            owner.conversationId,
+          )?.goal?.projectTaskAutoReview ==
+          true,
     );
   }
 }

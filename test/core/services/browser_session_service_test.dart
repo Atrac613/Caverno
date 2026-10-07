@@ -3,10 +3,105 @@ import 'dart:io';
 
 import 'package:caverno/core/services/browser_pinned_http_client.dart';
 import 'package:caverno/core/services/browser_session_service.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('BrowserSessionService', () {
+    test(
+      'rejects execution on an unsupported platform without opening a pane',
+      () async {
+        final service = BrowserSessionService(platformSupportedOverride: false);
+        addTearDown(service.dispose);
+        service.updateEnabled(true);
+        expect(service.isAvailable, isFalse);
+        expect(
+          jsonDecode(await service.snapshot()),
+          containsPair('code', 'unsupported_platform'),
+        );
+        expect(service.isPanelOpen, isFalse);
+        expect(service.shouldShowPanel, isFalse);
+      },
+    );
+
+    test(
+      'a timed-out browser_open leaves no navigation to replay on mount',
+      () async {
+        final service = BrowserSessionService(
+          platformSupportedOverride: true,
+          pinnedHttpClient: BrowserPinnedHttpClient(
+            addressLookup: (_) async => [InternetAddress('93.184.216.34')],
+            socketConnector: (uri, address, port) =>
+                throw StateError('unreachable'),
+          ),
+          controllerReadyTimeout: const Duration(milliseconds: 10),
+        );
+        addTearDown(service.dispose);
+        service.updateEnabled(true);
+
+        // An unattended run while the screen is locked: no frame mounts the
+        // pane, so the wait for its WebView times out.
+        final result = jsonDecode(
+          await service.openUrl('https://example.com/search?q=t-shirt'),
+        );
+
+        expect(result, containsPair('code', 'browser_not_ready'));
+        expect(service.shouldShowPanel, isFalse);
+        expect(service.currentUrl, isNull);
+
+        // Frames resume after unlock and a WebView mounts. It must not load
+        // the navigation the tool already reported as failed.
+        final controller = _RecordingWebViewController();
+        service.attachController(controller);
+
+        expect(controller.calls, isEmpty);
+      },
+    );
+
+    test('a timed-out snapshot does not leave an empty pane open', () async {
+      final service = BrowserSessionService(
+        platformSupportedOverride: true,
+        controllerReadyTimeout: const Duration(milliseconds: 10),
+      );
+      service.updateEnabled(true);
+
+      final result = jsonDecode(await service.snapshot());
+
+      expect(result, containsPair('code', 'browser_not_ready'));
+      expect(service.isPanelOpen, isFalse);
+    });
+
+    test('a stale readiness timeout leaves a newer open armed', () async {
+      final service = BrowserSessionService(
+        platformSupportedOverride: true,
+        controllerReadyTimeout: const Duration(milliseconds: 30),
+      );
+      service.updateEnabled(true);
+
+      final stale = service.snapshot();
+      service.closePanel();
+      final current = service.snapshot();
+
+      await stale;
+      expect(service.isPanelOpen, isTrue);
+
+      await current;
+      expect(service.isPanelOpen, isFalse);
+    });
+
+    test('closing the desktop window clears an idle browser session', () {
+      final service = BrowserSessionService(platformSupportedOverride: true);
+      service.updateEnabled(true);
+      service.open();
+      service.handleLoadStart('https://example.com/previous');
+
+      service.closePanelWhenIdle();
+
+      expect(service.isPanelOpen, isFalse);
+      expect(service.currentUrl, isNull);
+      expect(service.shouldShowPanel, isFalse);
+    });
+
     test('preserves Unicode filenames when resolving save targets', () async {
       final directory = Directory.systemTemp.createTempSync(
         'browser_save_target_',
@@ -124,6 +219,7 @@ void main() {
         '${root.path}${Platform.pathSeparator}nested',
       );
       final service = BrowserSessionService(
+        platformSupportedOverride: true,
         saveDirectoryOverride: saveDirectory,
       );
 
@@ -141,7 +237,7 @@ void main() {
     });
 
     test('click script returns target metadata for result grounding', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       final script = service.buildClickScriptForTest('document.body');
 
@@ -153,7 +249,7 @@ void main() {
     });
 
     test('allows only the internal blank-page navigation', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       final decision = service.navigationDecision(
         'about:blank',
@@ -165,7 +261,7 @@ void main() {
     });
 
     test('rejects unsafe schemes through the shared destination policy', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       for (final url in [
         'file:///etc/passwd',
@@ -180,7 +276,7 @@ void main() {
     });
 
     test('keeps public WebView navigation closed without peer evidence', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
 
       final decision = service.navigationDecision('https://example.com/');
 
@@ -192,7 +288,7 @@ void main() {
     test(
       'classifies public HTTP as mediated once browser tools are enabled',
       () {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         service.updateEnabled(true);
 
         final decision = service.navigationDecision('https://example.com/');
@@ -206,7 +302,7 @@ void main() {
     test(
       'preview sessions do not reroute WebView clicks to the public web',
       () {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         service.updateEnabled(true);
         service.armLocalPreviewOriginForTest(
           Uri.parse('http://127.0.0.1:4321/index.html'),
@@ -220,7 +316,7 @@ void main() {
     );
 
     test('allows only the active loopback HTML preview origin', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
       final preview = Uri.parse('http://127.0.0.1:4321/index.html');
       service.armLocalPreviewOriginForTest(preview);
 
@@ -243,7 +339,7 @@ void main() {
     });
 
     test('allows preview subresources but rejects every external origin', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
       service.armLocalPreviewOriginForTest(
         Uri.parse('http://127.0.0.1:4321/index.html'),
       );
@@ -271,7 +367,7 @@ void main() {
     test(
       'browser_open fails before mounting a WebView or resolving DNS',
       () async {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
 
         final result = jsonDecode(await service.openUrl('example.com'));
 
@@ -288,6 +384,7 @@ void main() {
       'browser_open can leave a preview session to mediate a public URL',
       () async {
         final service = BrowserSessionService(
+          platformSupportedOverride: true,
           pinnedHttpClient: BrowserPinnedHttpClient(
             addressLookup: (_) async => [InternetAddress('192.168.1.1')],
             socketConnector: (uri, address, port) =>
@@ -313,6 +410,7 @@ void main() {
       'browser_open rejects a private DNS answer before opening the panel',
       () async {
         final service = BrowserSessionService(
+          platformSupportedOverride: true,
           pinnedHttpClient: BrowserPinnedHttpClient(
             addressLookup: (_) async => [InternetAddress('127.0.0.1')],
             socketConnector: (uri, address, port) =>
@@ -334,7 +432,7 @@ void main() {
     test(
       'allows mediation-proxy subresources after the proxy starts',
       () async {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         addTearDown(service.dispose);
         final origin = await service.startMediationProxyForTest();
 
@@ -355,7 +453,7 @@ void main() {
     test(
       'maps mediation-proxy URLs back to the upstream display URL',
       () async {
-        final service = BrowserSessionService();
+        final service = BrowserSessionService(platformSupportedOverride: true);
         addTearDown(service.dispose);
         final origin = await service.startMediationProxyForTest(
           upstream: Uri.parse('https://example.com/r/foo?t=day'),
@@ -365,22 +463,22 @@ void main() {
           service.displayUrlForTest(origin.toString()),
           'https://example.com/r/foo?t=day',
         );
-      expect(
-        service.displayUrlForTest(
-          Uri(
-            scheme: origin.scheme,
-            host: origin.host,
-            port: origin.port,
-            path: '/r/bar',
-          ).toString(),
-        ),
-        'https://example.com/r/bar',
-      );
+        expect(
+          service.displayUrlForTest(
+            Uri(
+              scheme: origin.scheme,
+              host: origin.host,
+              port: origin.port,
+              path: '/r/bar',
+            ).toString(),
+          ),
+          'https://example.com/r/bar',
+        );
       },
     );
 
     test('keeps an in-flight load waiter when arming another navigation', () {
-      final service = BrowserSessionService();
+      final service = BrowserSessionService(platformSupportedOverride: true);
       final waiter = service.createLoadWaitForTest();
 
       service.armLoadCompleterForTest();
@@ -395,4 +493,16 @@ void main() {
       expect(service.loadCompleterForTest!.isCompleted, isFalse);
     });
   });
+}
+
+/// Records every member the service touches; none is expected after a
+/// timed-out open.
+class _RecordingWebViewController implements InAppWebViewController {
+  final List<Invocation> calls = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    calls.add(invocation);
+    return Future<void>.value();
+  }
 }

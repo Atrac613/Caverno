@@ -135,7 +135,7 @@ Future<Rag2DriftDaoGenerationStoreReport> runRag2DriftDaoGenerationStoreReplay(
       embeddingsPreserved &&
       conversationSearchPreserved &&
       rag2Fts5Absent &&
-      schemaVersion.data['user_version'] == 5;
+      schemaVersion.data['user_version'] == 6;
 
   final crashDir = _freshDirectory('${options.storeRoot}/crash');
   final crashPath = '${crashDir.path}/caverno.sqlite';
@@ -491,7 +491,7 @@ final class Rag2DriftDaoGenerationStoreReport {
     'fts5Decision': 'not_selected',
     'retrievalDecision': 'not_evaluated',
     'productionDecision': 'no_go',
-    'appDatabaseSchemaVersion': 5,
+    'appDatabaseSchemaVersion': 6,
     'fixtureId': fixtureId,
     'declarationIdentity': declarationIdentity,
     'reopenedGeneration': reopenedGeneration,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_issue_detector.dart';
@@ -47,6 +48,123 @@ void main() {
   });
 
   group('decoded command results', () {
+    test(
+      'detects the failing status hidden by an actual successful echo',
+      () async {
+        const command =
+            r'''bash -c 'exit 2' | head -40; echo "PIPELINE_EXIT=${PIPESTATUS[0]:-n/a}"''';
+        final execution = await Process.run('bash', [
+          '-o',
+          'pipefail',
+          '-c',
+          command,
+        ]);
+        expect(execution.exitCode, 0);
+        final issue = detector.detectFromDecodedCommandResult(
+          toolName: 'local_execute_command',
+          decoded: {
+            'command': command,
+            'exit_code': execution.exitCode,
+            'stdout': execution.stdout,
+          },
+        );
+        expect(
+          issue?.summary,
+          'Output reports a failing command exit status (2).',
+        );
+      },
+      skip: Platform.isWindows,
+    );
+
+    test('a reported zero exit allows intentional exception output', () {
+      final issue = detector.detectFromDecodedCommandResult(
+        toolName: 'local_execute_command',
+        decoded: const {
+          'command':
+              r'python3 verify_logging.py; echo "RESULT=${PIPESTATUS[0]}"',
+          'exit_code': 0,
+          'stdout':
+              'Traceback (most recent call last)\nValueError: simulated failure\n'
+              'ALL LOGGING VERIFICATIONS PASSED\nRESULT=0\n',
+        },
+      );
+      expect(issue, isNull);
+    });
+
+    test('typed process state gates background failure evidence', () {
+      for (final state in [ToolProcessState.running, ToolProcessState.exited]) {
+        final issue = detector.detect(
+          ToolResultInfo(
+            id: 'background-report',
+            name: 'process_wait',
+            arguments: const {'job_id': 'reported-job'},
+            result: jsonEncode({
+              'command':
+                  r'python3 app.py | head -40; echo "RESULT=${PIPESTATUS[0]}"',
+              'status': state == ToolProcessState.exited ? 'running' : 'exited',
+              'exit_code': 0,
+              'stdout_tail': 'RESULT=120\n',
+            }),
+            outcome: ToolOutcome(exitCode: 0, processState: state),
+          ),
+        );
+        expect(issue != null, state == ToolProcessState.exited);
+      }
+    });
+
+    test('an unavailable exit report does not turn echo into verification', () {
+      for (final output in ['done', 'RESULT=n/a', 'RESULT=0\ntruncated']) {
+        final issue = detector.detectFromDecodedCommandResult(
+          toolName: 'local_execute_command',
+          decoded: {
+            'command': r'python3 app.py; echo "RESULT=$?"',
+            'exit_code': 0,
+            'stdout': output,
+          },
+        );
+        expect(issue?.summary, contains('unavailable'), reason: output);
+      }
+    });
+
+    test('detects Python and pytest failures hidden by a successful tail', () {
+      for (final output in [
+        '/opt/python/bin/python3.14: No module named pytest\n',
+        "ModuleNotFoundError: No module named 'pytest'\n",
+        '========================= 2 failed, 4 passed in 0.14s ==========================\n',
+        '========================= 4 passed, 2 failed in 0.14s ==========================\n',
+      ]) {
+        final issue = detector.detectFromDecodedCommandResult(
+          toolName: 'local_execute_command',
+          decoded: {
+            'command': 'python3 -m pytest test_watcher.py -v 2>&1 | tail -30',
+            'exit_code': 0,
+            'stdout': output,
+          },
+        );
+        expect(issue, isNotNull, reason: output);
+        expect(issue!.source, 'stdout');
+      }
+      for (final output in [
+        '========================= 6 passed in 0.14s ==========================',
+        '========================= 0 failed, 6 passed in 0.14s ==========================',
+        'No module named pytest is an example error message.',
+        'Expected result: 2 failed, 4 passed.',
+      ]) {
+        expect(
+          detector.detectFromDecodedCommandResult(
+            toolName: 'local_execute_command',
+            decoded: {
+              'command': 'python3 -m pytest',
+              'exit_code': 0,
+              'stdout': output,
+            },
+          ),
+          isNull,
+          reason: output,
+        );
+      }
+    });
+
     test('rejects invalid envelopes, unsupported tools, and nonzero exits', () {
       expect(
         detector.detect(
@@ -111,6 +229,14 @@ void main() {
           'exit_code': 0.0,
           'command': 42,
           'working_directory': ' /tmp ',
+          'stdout': 'No data found.',
+        },
+      );
+      final masked = detector.detectFromDecodedCommandResult(
+        toolName: 'local_execute_command',
+        decoded: const {
+          'exit_code': 0.0,
+          'command': 'python3 app.py | tail -5',
           'stdout': 'Fatal exception',
         },
       );
@@ -120,7 +246,11 @@ void main() {
       expect(fallback.exitCode, 0);
       expect(decoded!.command, '42');
       expect(decoded.workingDirectory, '/tmp');
-      expect(decoded.summary, 'Output contains a runtime failure signal.');
+      expect(
+        decoded.summary,
+        'Output reports that required data was not found.',
+      );
+      expect(masked!.summary, 'Output contains a runtime failure signal.');
     });
 
     test('prefers a typed exit status over a contradictory payload', () {
@@ -194,6 +324,7 @@ void main() {
         toolName: 'local_execute_command',
         decoded: const {
           'exit_code': 0,
+          'command': 'python3 app.py 2>&1 | tee run.log',
           'stdout': 'completed',
           'stderr': 'Unhandled exception',
         },
@@ -202,6 +333,7 @@ void main() {
         toolName: 'local_execute_command',
         decoded: const {
           'exit_code': 0,
+          'command': 'python3 app.py | cat',
           'stdout': '   ',
           'stderr': 'Fatal exception',
         },
@@ -242,10 +374,58 @@ void main() {
       ]) {
         final issue = detector.detectFromDecodedCommandResult(
           toolName: 'local_execute_command',
-          decoded: {'exit_code': 0, 'stderr': output},
+          decoded: {
+            'exit_code': 0,
+            'command': 'python3 app.py 2>&1 | tail -40',
+            'stderr': output,
+          },
         );
 
         expect(issue!.summary, 'Output contains a runtime failure signal.');
+      }
+    });
+
+    test('a runtime failure line judges only a masked exit status', () {
+      // Corpus 2026-10-01: all 11 correct runtime verdicts were `... | tail`
+      // hiding a real failure; all 5 on an unmasked command were a script
+      // printing a traceback on purpose and exiting 0 (session 22d603f7).
+      const traceback =
+          'Traceback (most recent call last)\nValueError: simulated failure\n'
+          'ALL LOGGING VERIFICATIONS PASSED';
+      Map<String, dynamic> run(String command) => {
+        'exit_code': 0,
+        'command': command,
+        'stdout': traceback,
+      };
+      for (final command in [
+        '.venv/bin/python verify_logging.py',
+        'cd /w && .venv/bin/python verify_logging.py && .venv/bin/python -m pytest -v 2>&1',
+        'set -o pipefail && python3 -m pytest -q | tail -5',
+        "python3 -c 'print(\"a | b\")'",
+      ]) {
+        expect(
+          detector.detectFromDecodedCommandResult(
+            toolName: 'local_execute_command',
+            decoded: run(command),
+          ),
+          isNull,
+          reason: command,
+        );
+      }
+      for (final command in [
+        'python3 -m unittest test_watcher -v 2>&1 | tail -60',
+        'python3 -m pytest -q 2>&1 | tail -5',
+      ]) {
+        expect(
+          detector
+              .detectFromDecodedCommandResult(
+                toolName: 'local_execute_command',
+                decoded: run(command),
+              )
+              ?.summary,
+          'Output contains a runtime failure signal.',
+          reason: command,
+        );
       }
     });
 
@@ -333,6 +513,21 @@ void main() {
           ],
         }),
       );
+    });
+
+    test('keeps repeated-failure signatures stable across invocation ids', () {
+      String? signature(String id) => detector.feedbackSignature(
+        feedback('coding_output_feedback', {
+          'provider': 'command_output_guardrail',
+          'validation_status': 'failed',
+          'issues': [
+            {'summary': 'failed', 'tool_call_id': id},
+          ],
+        }),
+        feedbackToolName: 'coding_output_feedback',
+      );
+      expect(signature('first'), signature('second'));
+      expect(signature('first'), isNot(contains('tool_call_id')));
     });
 
     test('classifies raw JSON without throwing on invalid input', () {

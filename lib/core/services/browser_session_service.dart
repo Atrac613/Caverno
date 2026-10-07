@@ -160,25 +160,35 @@ class _ResolvedBrowserSaveDirectory {
 
 class BrowserSessionService extends ChangeNotifier {
   BrowserSessionService({
+    @visibleForTesting bool? platformSupportedOverride,
     Directory? saveDirectoryOverride,
     EgressDestinationPolicy destinationPolicy = const EgressDestinationPolicy(),
     BrowserPinnedHttpClient? pinnedHttpClient,
     Future<HttpServer> Function(InternetAddress address, int port)? proxyBind,
-  }) : _saveDirectoryOverride = saveDirectoryOverride,
+    Duration controllerReadyTimeout = const Duration(seconds: 12),
+  }) : _platformSupportedOverride = platformSupportedOverride,
+       _saveDirectoryOverride = saveDirectoryOverride,
        _destinationPolicy = destinationPolicy,
        _pinnedHttpClient =
            pinnedHttpClient ??
            BrowserPinnedHttpClient(destinationPolicy: destinationPolicy),
-       _proxyBind = proxyBind;
+       _proxyBind = proxyBind,
+       _controllerReadyTimeout = controllerReadyTimeout;
 
   InAppWebViewController? _controller;
   Completer<InAppWebViewController>? _controllerReady;
   Completer<void>? _loadCompleter;
+  final bool? _platformSupportedOverride;
+  bool get _platformSupported =>
+      _platformSupportedOverride ?? isPlatformSupported;
   final Directory? _saveDirectoryOverride;
   final EgressDestinationPolicy _destinationPolicy;
   final BrowserPinnedHttpClient _pinnedHttpClient;
   final Future<HttpServer> Function(InternetAddress address, int port)?
   _proxyBind;
+
+  /// How long an action waits for the pane to mount its WebView.
+  final Duration _controllerReadyTimeout;
   BrowserMediationProxy? _mediationProxy;
   String? _inFlightReroute;
 
@@ -191,6 +201,8 @@ class BrowserSessionService extends ChangeNotifier {
   bool _canGoBack = false;
   bool _canGoForward = false;
   Uri? _localPreviewOrigin;
+  int _activeActions = 0;
+  bool _closeWhenIdle = false;
 
   /// Default cap on elements returned by [snapshot] to keep results compact.
   static const int _defaultSnapshotElements = 80;
@@ -204,7 +216,7 @@ class BrowserSessionService extends ChangeNotifier {
 
   /// Whether the feature can be used right now (platform supported AND enabled
   /// in settings). Gates tool registration and execution.
-  bool get isAvailable => isPlatformSupported && _enabled;
+  bool get isAvailable => _platformSupported && _enabled;
 
   bool get isPanelOpen => _isPanelOpen;
   bool get isLoading => _isLoading;
@@ -219,7 +231,7 @@ class BrowserSessionService extends ChangeNotifier {
   /// even when those tools are disabled.
   bool get shouldShowPanel =>
       _isPanelOpen &&
-      isPlatformSupported &&
+      _platformSupported &&
       (_enabled || _localPreviewOrigin != null);
 
   Uri? get localPreviewOrigin => _localPreviewOrigin;
@@ -416,8 +428,12 @@ class BrowserSessionService extends ChangeNotifier {
   }
 
   String closePanel() {
+    _closeWhenIdle = false;
     final hadPreview = _localPreviewOrigin != null;
     _localPreviewOrigin = null;
+    _currentUrl = null;
+    _pageTitle = null;
+    _lastError = null;
     unawaited(_stopMediationProxy());
     if (_isPanelOpen) {
       _isPanelOpen = false;
@@ -431,6 +447,16 @@ class BrowserSessionService extends ChangeNotifier {
     return jsonEncode({'ok': true, 'closed': true});
   }
 
+  /// Hide a browser left open when the desktop window closes. Let an action
+  /// already using its WebView finish before unmounting the controller.
+  void closePanelWhenIdle() {
+    if (_activeActions > 0) {
+      _closeWhenIdle = true;
+      return;
+    }
+    closePanel();
+  }
+
   /// Opens the built-in browser onto a loopback HTML preview started by the
   /// user from the companion panel. Not a tool action: agent `browser_open`
   /// still cannot choose this origin until a preview is already running.
@@ -438,7 +464,7 @@ class BrowserSessionService extends ChangeNotifier {
     Uri url, {
     Duration readyTimeout = const Duration(seconds: 12),
   }) async {
-    if (!isPlatformSupported) {
+    if (!_platformSupported) {
       throw const BrowserUnavailableException();
     }
     if (!_isLoopbackHttp(url)) {
@@ -844,10 +870,10 @@ class BrowserSessionService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<InAppWebViewController> _ensureReady({
-    Duration timeout = const Duration(seconds: 12),
+    Duration? timeout,
     bool requireEnabled = true,
   }) async {
-    if (!isPlatformSupported) throw const BrowserUnavailableException();
+    if (!_platformSupported) throw const BrowserUnavailableException();
     if (requireEnabled && !_enabled) {
       throw const BrowserUnavailableException();
     }
@@ -856,8 +882,16 @@ class BrowserSessionService extends ChangeNotifier {
     if (!_isPanelOpen) open();
     final ready = _controllerReady ??= Completer<InAppWebViewController>();
     try {
-      return await ready.future.timeout(timeout);
+      return await ready.future.timeout(timeout ?? _controllerReadyTimeout);
     } on TimeoutException {
+      // No frame mounted the pane: the window is hidden, the screen is
+      // locked, or no page hosts it. Disarm the open, or the pane mounts when
+      // frames resume and attachController replays the navigation hours after
+      // the caller was told it failed. A waiter whose wait was already
+      // replaced leaves the newer open alone.
+      if (_controller == null && identical(_controllerReady, ready)) {
+        closePanel();
+      }
       throw const BrowserNotReadyException();
     }
   }
@@ -908,6 +942,7 @@ class BrowserSessionService extends ChangeNotifier {
 
   /// Runs an action with uniform error handling, returning a JSON envelope.
   Future<String> _guard(String tool, Future<String> Function() body) async {
+    _activeActions++;
     try {
       return await body();
     } on BrowserUnavailableException {
@@ -923,6 +958,11 @@ class BrowserSessionService extends ChangeNotifier {
     } catch (error) {
       appLog('[BrowserSessionService] $tool error: $error');
       return _error('browser_error', error.toString());
+    } finally {
+      _activeActions--;
+      if (_activeActions == 0 && _closeWhenIdle) {
+        closePanel();
+      }
     }
   }
 

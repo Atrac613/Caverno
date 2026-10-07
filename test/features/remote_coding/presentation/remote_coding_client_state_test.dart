@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/dashboard/domain/entities/dashboard_stats.dart';
 import 'package:caverno/features/dashboard/domain/services/dashboard_stats_codec.dart';
@@ -9,6 +10,7 @@ import 'package:caverno/features/remote_coding/data/remote_coding_repository.dar
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_platform.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,6 +48,24 @@ void main() {
     expect(decoded.allowMultiple, isTrue);
     expect(decoded.allowOther, isFalse);
     expect(decoded.otherPlaceholder, 'custom');
+  });
+
+  test('RemoteCodingPlanReview survives a JSON round-trip', () {
+    const review = RemoteCodingPlanReview(
+      id: 'review-1',
+      conversationId: 'thread-1',
+      draftMarkdown: '# Plan\n\n- [ ] Run the tests',
+      approvedMarkdown: '',
+    );
+
+    final decoded = RemoteCodingPlanReview.fromJson(review.toJson());
+    expect(decoded.id, review.id);
+    expect(decoded.conversationId, review.conversationId);
+    expect(decoded.draftMarkdown, review.draftMarkdown);
+    expect(decoded.approvedMarkdown, isEmpty);
+    expect(decoded.isPlanMode, isTrue);
+    expect(decoded.canApprove, isTrue);
+    expect(decoded.canCancel, isTrue);
   });
 
   test('copyWith can clear stale remote selection IDs', () {
@@ -133,6 +153,12 @@ void main() {
           ],
           'currentConversationId': 'thread-1',
           'messages': [message.toJson()],
+          'composer': {
+            'model': 'desktop-model',
+            'reasoningEffort': 'high',
+            'enableThinking': false,
+            'assistantMode': 'plan',
+          },
           'dashboardStatsByRange': DashboardStatsCodec.encodeByRange({
             DashboardRange.all: DashboardStats(
               sessionCount: 4,
@@ -158,6 +184,35 @@ void main() {
             'subtitle': '/tmp/app',
             'detail': 'dart test',
           },
+          'pendingPlanReview': {
+            'id': 'review-1',
+            'conversationId': 'thread-1',
+            'draftMarkdown': '# Plan\n\n- [ ] Run the tests',
+            'approvedMarkdown': '',
+          },
+          'companion': {
+            'projectRootPath': '/tmp/app',
+            'worktreePath': '/tmp/app/.worktrees/fix-crash',
+            'tasks': [
+              {
+                'id': 'task-1',
+                'title': 'Inspect the crash',
+                'status': 'completed',
+                'targetFiles': ['lib/main.dart'],
+              },
+            ],
+            'changes': [
+              {
+                'title': 'Inspect the crash',
+                'filesChanged': 1,
+                'linesAdded': 3,
+                'linesRemoved': 1,
+                'filePaths': ['lib/main.dart'],
+              },
+            ],
+            'openQuestions': ['Use the release channel?'],
+            'sourceLocators': ['docs/debugging.md#Crash flow'],
+          },
         });
 
         final state = container.read(remoteCodingClientProvider);
@@ -180,7 +235,24 @@ void main() {
         expect(state.isLoading, isTrue);
         expect(state.queuedCount, 2);
         expect(state.pendingApproval?.id, 'approval-1');
+        expect(state.pendingPlanReview?.id, 'review-1');
+        expect(state.pendingPlanReview?.conversationId, 'thread-1');
+        expect(state.companion?.projectRootPath, '/tmp/app');
+        expect(state.companion?.worktreePath, '/tmp/app/.worktrees/fix-crash');
+        expect(state.companion?.completedTaskCount, 1);
+        expect(state.companion?.changes.single.linesAdded, 3);
+        expect(state.companion?.openQuestions, ['Use the release channel?']);
+        expect(state.companion?.sourceLocators, [
+          'docs/debugging.md#Crash flow',
+        ]);
         expect(state.supportsDestinationBoundCommands, isTrue);
+        expect(state.composerSettings?.model, 'desktop-model');
+        expect(
+          state.composerSettings?.reasoningEffort,
+          ReasoningEffortPreference.high,
+        );
+        expect(state.composerSettings?.enableThinking, isFalse);
+        expect(state.composerSettings?.assistantMode, AssistantMode.plan);
       },
     );
 
@@ -240,6 +312,54 @@ void main() {
       );
     });
 
+    test('restores and clears pending plan review state', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      await notifier.applySnapshotForTest({
+        'snapshotSequence': 8,
+        'currentConversationId': 'thread-1',
+        'conversations': [
+          {
+            'id': 'thread-1',
+            'title': 'Plan thread',
+            'projectId': 'project-1',
+            'updatedAt': DateTime(2026, 5, 26, 12).toIso8601String(),
+          },
+        ],
+        'pendingPlanReview': {
+          'id': 'review-1',
+          'conversationId': 'thread-1',
+          'draftMarkdown': '# Plan\n\n- [ ] Run the tests',
+          'approvedMarkdown': '',
+          'isPlanMode': true,
+          'canApprove': true,
+          'canCancel': true,
+        },
+      });
+
+      expect(
+        container.read(remoteCodingClientProvider).pendingPlanReview?.id,
+        'review-1',
+      );
+
+      await notifier.applySnapshotForTest({
+        'snapshotSequence': 9,
+        'currentConversationId': 'thread-1',
+        'conversations': [
+          {
+            'id': 'thread-1',
+            'title': 'Plan thread',
+            'projectId': 'project-1',
+            'updatedAt': DateTime(2026, 5, 26, 12).toIso8601String(),
+          },
+        ],
+      });
+      expect(
+        container.read(remoteCodingClientProvider).pendingPlanReview,
+        isNull,
+      );
+    });
+
     test(
       'ignores older snapshots after reconnect state has advanced',
       () async {
@@ -285,6 +405,7 @@ void main() {
             {'id': 'project-old', 'name': 'Old', 'rootPath': '/tmp/old'},
           ],
           'selectedProjectId': 'project-old',
+          'companion': {'projectRootPath': '/tmp/old'},
           'isLoading': true,
           'queuedCount': 1,
           'pendingApproval': {
@@ -304,6 +425,7 @@ void main() {
         expect(state.isLoading, isFalse);
         expect(state.queuedCount, 0);
         expect(state.pendingApproval, isNull);
+        expect(state.companion, isNull);
 
         await notifier.applySnapshotForTest({
           'snapshotSequence': 1,
@@ -607,29 +729,34 @@ void main() {
       container.dispose();
     });
 
-    test('the backoff ladder holds at its longest delay instead of giving up', () {
-      final notifier = container.read(remoteCodingClientProvider.notifier);
-      final delays = <String>[];
+    test(
+      'the backoff ladder holds at its longest delay instead of giving up',
+      () {
+        final notifier = container.read(remoteCodingClientProvider.notifier);
+        final delays = <String>[];
 
-      for (var i = 0; i < 7; i++) {
-        notifier.handleUnexpectedDisconnectForTest('Connection closed.');
-        final state = container.read(remoteCodingClientProvider);
-        expect(
-          state.hasScheduledReconnect,
-          isTrue,
-          reason: 'attempt ${state.reconnectAttempt} stopped retrying',
-        );
-        delays.add(
-          RegExp(r'in (\d+) seconds').firstMatch(state.error ?? '')!.group(1)!,
-        );
-      }
+        for (var i = 0; i < 7; i++) {
+          notifier.handleUnexpectedDisconnectForTest('Connection closed.');
+          final state = container.read(remoteCodingClientProvider);
+          expect(
+            state.hasScheduledReconnect,
+            isTrue,
+            reason: 'attempt ${state.reconnectAttempt} stopped retrying',
+          );
+          delays.add(
+            RegExp(
+              r'in (\d+) seconds',
+            ).firstMatch(state.error ?? '')!.group(1)!,
+          );
+        }
 
-      // The last rung is a steady state: a desktop takes longer to wake than
-      // the three-rung ladder's ~22 seconds, so surrendering there left the
-      // person with a Reconnect button and no explanation.
-      expect(delays, ['2', '5', '15', '30', '60', '60', '60']);
-      expect(container.read(remoteCodingClientProvider).reconnectAttempt, 7);
-    });
+        // The last rung is a steady state: a desktop takes longer to wake than
+        // the three-rung ladder's ~22 seconds, so surrendering there left the
+        // person with a Reconnect button and no explanation.
+        expect(delays, ['2', '5', '15', '30', '60', '60', '60']);
+        expect(container.read(remoteCodingClientProvider).reconnectAttempt, 7);
+      },
+    );
 
     test('an explicitly requested connection re-arms the ladder', () async {
       final notifier = container.read(remoteCodingClientProvider.notifier);

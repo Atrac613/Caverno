@@ -23,10 +23,7 @@ final class GitWorkingTreeChangeEvidence {
   static const ToolCallExecutionPolicy _executionPolicy =
       ToolCallExecutionPolicy();
 
-  bool covers(
-    ToolCallInfo toolCall,
-    List<ToolResultInfo> executedToolResults,
-  ) {
+  bool covers(ToolCallInfo toolCall, List<ToolResultInfo> executedToolResults) {
     if (toolCall.name.trim().toLowerCase() != 'git_execute_command') {
       return false;
     }

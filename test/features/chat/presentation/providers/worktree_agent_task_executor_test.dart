@@ -361,6 +361,39 @@ void main() {
   });
 
   test(
+    'scoped dispatcher refuses every tool once the task is cancelled',
+    () async {
+      final worktree = Directory.systemTemp.createTempSync(
+        'worktree_agent_cancelled_',
+      );
+      addTearDown(() => worktree.deleteSync(recursive: true));
+      var cancelled = false;
+      final dispatcher = WorktreeAgentScopedToolDispatcher(
+        toolService: _RecordingMcpToolService(
+          toolDefinitions: const [_editFileToolDefinition],
+          reportChangedMutation: true,
+        ),
+        worktreePath: worktree.path,
+        isCancelled: () => cancelled,
+      );
+      ToolCallInfo edit() => ToolCallInfo(
+        id: 'call-edit',
+        name: 'edit_file',
+        arguments: const {'path': 'lib/example.dart'},
+      );
+
+      expect((await dispatcher.dispatch(edit())).isSuccess, isTrue);
+      cancelled = true;
+      final refused = await dispatcher.dispatch(edit());
+      expect(refused.isSuccess, isFalse);
+      expect(
+        '${refused.errorMessage} ${refused.result}',
+        contains('task_cancelled'),
+      );
+    },
+  );
+
+  test(
     'scoped dispatcher mutations stay out of chat rollback history',
     () async {
       final worktree = Directory.systemTemp.createTempSync(
