@@ -6,12 +6,7 @@ import 'tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: tool-loop-exhaustion-policy
 
-/// Immutable facts used to decide whether bounded tool-loop recovery may run.
-///
-/// The iteration values retain the caller's exact limit comparison. The
-/// evidence flags must be derived from the pending calls and current batch
-/// results owned by the same chat turn; the `fromPendingCalls` factory derives
-/// the pending-call ones, so a new one cannot be left out at the call site.
+/// Owner-turn facts for deciding whether bounded tool-loop recovery may run.
 final class ToolLoopExhaustionDecisionInput {
   const ToolLoopExhaustionDecisionInput({
     required this.iteration,
@@ -65,13 +60,7 @@ final class ToolLoopExhaustionDecisionInput {
   final bool hasPendingFileMutation;
   final bool hasPendingWriteGitCommand;
 
-  /// The model stopped to ask the user something when the budget ran out.
-  ///
-  /// Recovery tells it to finish without asking for confirmation, so it
-  /// answers its own question: session dd50d110 hit the limit with only
-  /// `ask_user_question` pending -- which version to release as -- and the
-  /// recovery reply settled it unasked. Declining recovery runs the pending
-  /// batch before finalization instead, which puts the question to the user.
+  /// Run a pending user question before recovery can answer it unasked.
   final bool hasPendingUserQuestion;
   final bool hasPendingCommandExecution;
   final bool hasPendingFileRead;
@@ -84,33 +73,14 @@ final class ToolLoopExhaustionPolicy {
   const ToolLoopExhaustionPolicy();
 
   bool shouldRequestRecovery(ToolLoopExhaustionDecisionInput input) {
-    if (!input.iterationLimitReached) {
-      return false;
-    }
-    if (input.recoveryAlreadyAttempted) {
-      return false;
-    }
-    if (input.hasPendingFileMutation) {
-      return false;
-    }
-    if (!input.hasPendingToolCalls) {
-      return false;
-    }
-    if (!input.hasCurrentBatchToolResults) {
-      return false;
-    }
-    if (input.hasPendingWriteGitCommand) {
-      return false;
-    }
-    if (input.hasPendingUserQuestion) {
-      return false;
-    }
-    // The normal final-batch path executes the declared command with its
-    // approval gate. Recovery must not replace an unexecuted verifier.
-    if (input.hasPendingCommandExecution) return false;
-    // A requested read may refresh an edited file or reveal a missing range.
-    // Execute it before finalization instead of substituting an older read.
-    if (input.hasPendingFileRead) return false;
-    return true;
+    return input.iterationLimitReached &&
+        !input.recoveryAlreadyAttempted &&
+        !input.hasPendingFileMutation &&
+        input.hasPendingToolCalls &&
+        input.hasCurrentBatchToolResults &&
+        !input.hasPendingWriteGitCommand &&
+        !input.hasPendingUserQuestion &&
+        !input.hasPendingCommandExecution &&
+        !input.hasPendingFileRead;
   }
 }

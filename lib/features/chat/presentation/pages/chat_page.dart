@@ -45,9 +45,11 @@ import '../coordinators/chat_dropped_attachments.dart';
 import '../coordinators/chat_dropped_attachments_take.dart';
 import '../coordinators/chat_page_composer_runtime_coordinator.dart';
 import '../coordinators/chat_page_workspace_navigation_coordinator.dart';
+import '../coordinators/chat_review_slash_command.dart';
 import '../coordinators/coding_project_picker.dart';
 import '../coordinators/feedback_slash_command_coordinator.dart';
 import '../coordinators/goal_slash_command_coordinator.dart';
+import '../coordinators/plan_approval_presenter.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
 import '../coordinators/slash_command_action_coordinator.dart';
 import '../coordinators/workflow_task_action_coordinator.dart';
@@ -305,7 +307,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   );
 
   List<SlashCommandDefinition> _buildSlashCommands(
-    BuildContext context,
     List<SlashCommandPromptTemplate> customPromptTemplates,
   ) {
     return buildSlashCommandCatalog(
@@ -336,34 +337,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     if (invocation.definition.promptTemplateId == 'review' ||
         invocation.definition.action == SlashCommandAction.review) {
-      final settings = ref.read(settingsNotifierProvider);
-      if (!isCodingWorkspace || activeProject == null) {
-        return SlashCommandExecutionResult.keepInput(
-          feedbackMessage: 'chat.slash_review_unavailable'.tr(),
-        );
-      }
-      if (!settings.hasCodeReviewRoute) {
-        return SlashCommandExecutionResult.keepInput(
-          feedbackMessage: 'chat.slash_review_not_configured'.tr(),
-        );
-      }
-      final template = builtInSlashCommandPromptTemplates.firstWhere(
-        (template) => template.id == 'review',
+      return ChatReviewSlashCommand.handle(
+        ref: ref,
+        invocation: invocation,
+        languageCode: context.locale.languageCode,
+        isCodingWorkspace: isCodingWorkspace,
+        activeProject: activeProject,
       );
-      unawaited(
-        ref
-            .read(chatNotifierProvider.notifier)
-            .sendMessage(
-              template.expand(
-                args: invocation.args,
-                commandName: invocation.commandName,
-              ),
-              languageCode: context.locale.languageCode,
-              purpose: PrimaryTurnPurpose.codeReview,
-              bypassPlanMode: true,
-            ),
-      );
-      return SlashCommandExecutionResult.handled;
     }
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final conversationsNotifier = ref.read(
@@ -783,10 +763,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               isCodingWorkspace: isCodingWorkspace,
               currentConversation: currentConversation,
             ),
-        slashCommands: _buildSlashCommands(
-          context,
-          customSlashCommandTemplates,
-        ),
+        slashCommands: _buildSlashCommands(customSlashCommandTemplates),
         onSlashCommand: (invocation) => _handleSlashCommand(
           context,
           invocation,
@@ -1214,51 +1191,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final outcome = await _planReviewActionCoordinator.approveCurrentPlan(
       currentConversation: currentConversation,
     );
-    switch (outcome) {
-      case PlanReviewApprovalMissingDocument() || PlanReviewApprovalAborted():
-        return;
-      case PlanReviewApprovalBlocked(:final errorMessage):
-        if (!context.mounted) {
-          return;
-        }
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'chat.plan_document_approval_blocked'.tr(
-                namedArgs: {'error': errorMessage},
-              ),
-            ),
-          ),
-        );
-        return;
-      case PlanReviewApprovalReady(
-        :final executionConversation,
-        :final nextTask,
-      ):
-        setState(() {
-          _composerPrefillText = '';
-          _composerPrefillVersion++;
-        });
-        messenger.showSnackBar(
-          SnackBar(content: Text('chat.plan_proposal_started'.tr())),
-        );
-        if (nextTask == null) {
-          await chatNotifier.sendMessage(
-            'chat.plan_proposal_execute_prompt'.tr(),
-            languageCode: languageCode,
-            bypassPlanMode: true,
-          );
-          return;
-        }
-        if (!context.mounted) {
-          return;
-        }
-        await _runWorkflowTask(
-          context,
-          currentConversation: executionConversation,
-          task: nextTask,
-        );
-    }
+    if (!context.mounted) return;
+    await PlanApprovalPresenter.show(
+      context: context,
+      outcome: outcome,
+      languageCode: languageCode,
+      messenger: messenger,
+      chatNotifier: chatNotifier,
+      clearComposer: () => setState(() {
+        _composerPrefillText = '';
+        _composerPrefillVersion++;
+      }),
+      runTask: _runWorkflowTask,
+    );
   }
 
   PlanReviewActionCoordinator get _planReviewActionCoordinator =>
@@ -1319,10 +1264,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final projectsState = ref.read(codingProjectsNotifierProvider);
     final rootPath = projectsState.findById(activeProjectId)?.rootPath.trim();
-    if (rootPath == null || rootPath.isEmpty) {
-      return null;
-    }
-    return rootPath;
+    return rootPath == null || rootPath.isEmpty ? null : rootPath;
   }
 
   WorkflowTaskRunCoordinator _createWorkflowTaskRunCoordinator(

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'conversation_participant.dart';
@@ -9,6 +9,7 @@ part of 'conversation_participant.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $ParticipantTurnConfigCopyWith<ParticipantTurnConfig> get copyWith => _$Particip
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ParticipantTurnConfig&&(identical(other.turnPolicy, turnPolicy) || other.turnPolicy == turnPolicy)&&(identical(other.depth, depth) || other.depth == depth)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds));
+  final _this = this as ParticipantTurnConfig;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ParticipantTurnConfig&&(identical(other.turnPolicy, _this.turnPolicy) || other.turnPolicy == _this.turnPolicy)&&(identical(other.depth, _this.depth) || other.depth == _this.depth)&&(identical(other.maxRounds, _this.maxRounds) || other.maxRounds == _this.maxRounds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,turnPolicy,depth,maxRounds);
+int get hashCode {
+  final _this = this as ParticipantTurnConfig;
+  return Object.hash(runtimeType,_this.turnPolicy,_this.depth,_this.maxRounds);
+}
 
 @override
 String toString() {
-  return 'ParticipantTurnConfig(turnPolicy: $turnPolicy, depth: $depth, maxRounds: $maxRounds)';
+  final _this = this as ParticipantTurnConfig;
+  return 'ParticipantTurnConfig(turnPolicy: ${_this.turnPolicy}, depth: ${_this.depth}, maxRounds: ${_this.maxRounds})';
 }
 
 
@@ -66,7 +72,7 @@ class _$ParticipantTurnConfigCopyWithImpl<$Res>
 /// Create a copy of ParticipantTurnConfig
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? turnPolicy = null,Object? depth = null,Object? maxRounds = null,}) {
-  return _then(_self.copyWith(
+  return _then(ParticipantTurnConfig(
 turnPolicy: null == turnPolicy ? _self.turnPolicy : turnPolicy // ignore: cast_nullable_to_non_nullable
 as ParticipantTurnPolicy,depth: null == depth ? _self.depth : depth // ignore: cast_nullable_to_non_nullable
 as ParticipantTurnDepth,maxRounds: null == maxRounds ? _self.maxRounds : maxRounds // ignore: cast_nullable_to_non_nullable
@@ -231,16 +237,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ParticipantTurnConfig&&(identical(other.turnPolicy, turnPolicy) || other.turnPolicy == turnPolicy)&&(identical(other.depth, depth) || other.depth == depth)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ParticipantTurnConfig&&(identical(other.turnPolicy, turnPolicy) || other.turnPolicy == turnPolicy)&&(identical(other.depth, depth) || other.depth == depth)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,turnPolicy,depth,maxRounds);
+int get hashCode {
+    return Object.hash(runtimeType,turnPolicy,depth,maxRounds);
+}
 
 @override
 String toString() {
-  return 'ParticipantTurnConfig(turnPolicy: $turnPolicy, depth: $depth, maxRounds: $maxRounds)';
+    return 'ParticipantTurnConfig(turnPolicy: $turnPolicy, depth: $depth, maxRounds: $maxRounds)';
 }
 
 
@@ -297,16 +305,21 @@ $ConversationParticipantCopyWith<ConversationParticipant> get copyWith => _$Conv
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationParticipant&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.roleLabel, roleLabel) || other.roleLabel == roleLabel)&&(identical(other.roleSystemPrompt, roleSystemPrompt) || other.roleSystemPrompt == roleSystemPrompt)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.model, model) || other.model == model)&&(identical(other.facilitatesTurns, facilitatesTurns) || other.facilitatesTurns == facilitatesTurns)&&(identical(other.toolApprovalMode, toolApprovalMode) || other.toolApprovalMode == toolApprovalMode)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.colorValue, colorValue) || other.colorValue == colorValue)&&(identical(other.order, order) || other.order == order)&&(identical(other.enabled, enabled) || other.enabled == enabled));
+  final _this = this as ConversationParticipant;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationParticipant&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.displayName, _this.displayName) || other.displayName == _this.displayName)&&(identical(other.roleLabel, _this.roleLabel) || other.roleLabel == _this.roleLabel)&&(identical(other.roleSystemPrompt, _this.roleSystemPrompt) || other.roleSystemPrompt == _this.roleSystemPrompt)&&(identical(other.endpointId, _this.endpointId) || other.endpointId == _this.endpointId)&&(identical(other.model, _this.model) || other.model == _this.model)&&(identical(other.facilitatesTurns, _this.facilitatesTurns) || other.facilitatesTurns == _this.facilitatesTurns)&&(identical(other.toolApprovalMode, _this.toolApprovalMode) || other.toolApprovalMode == _this.toolApprovalMode)&&(identical(other.toolsEnabled, _this.toolsEnabled) || other.toolsEnabled == _this.toolsEnabled)&&(identical(other.colorValue, _this.colorValue) || other.colorValue == _this.colorValue)&&(identical(other.order, _this.order) || other.order == _this.order)&&(identical(other.enabled, _this.enabled) || other.enabled == _this.enabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,roleLabel,roleSystemPrompt,endpointId,model,facilitatesTurns,toolApprovalMode,toolsEnabled,colorValue,order,enabled);
+int get hashCode {
+  final _this = this as ConversationParticipant;
+  return Object.hash(runtimeType,_this.id,_this.displayName,_this.roleLabel,_this.roleSystemPrompt,_this.endpointId,_this.model,_this.facilitatesTurns,_this.toolApprovalMode,_this.toolsEnabled,_this.colorValue,_this.order,_this.enabled);
+}
 
 @override
 String toString() {
-  return 'ConversationParticipant(id: $id, displayName: $displayName, roleLabel: $roleLabel, roleSystemPrompt: $roleSystemPrompt, endpointId: $endpointId, model: $model, facilitatesTurns: $facilitatesTurns, toolApprovalMode: $toolApprovalMode, toolsEnabled: $toolsEnabled, colorValue: $colorValue, order: $order, enabled: $enabled)';
+  final _this = this as ConversationParticipant;
+  return 'ConversationParticipant(id: ${_this.id}, displayName: ${_this.displayName}, roleLabel: ${_this.roleLabel}, roleSystemPrompt: ${_this.roleSystemPrompt}, endpointId: ${_this.endpointId}, model: ${_this.model}, facilitatesTurns: ${_this.facilitatesTurns}, toolApprovalMode: ${_this.toolApprovalMode}, toolsEnabled: ${_this.toolsEnabled}, colorValue: ${_this.colorValue}, order: ${_this.order}, enabled: ${_this.enabled})';
 }
 
 
@@ -335,7 +348,7 @@ class _$ConversationParticipantCopyWithImpl<$Res>
 /// Create a copy of ConversationParticipant
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? displayName = null,Object? roleLabel = null,Object? roleSystemPrompt = null,Object? endpointId = null,Object? model = null,Object? facilitatesTurns = null,Object? toolApprovalMode = null,Object? toolsEnabled = null,Object? colorValue = null,Object? order = null,Object? enabled = null,}) {
-  return _then(_self.copyWith(
+  return _then(ConversationParticipant(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,roleLabel: null == roleLabel ? _self.roleLabel : roleLabel // ignore: cast_nullable_to_non_nullable
@@ -518,16 +531,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationParticipant&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.roleLabel, roleLabel) || other.roleLabel == roleLabel)&&(identical(other.roleSystemPrompt, roleSystemPrompt) || other.roleSystemPrompt == roleSystemPrompt)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.model, model) || other.model == model)&&(identical(other.facilitatesTurns, facilitatesTurns) || other.facilitatesTurns == facilitatesTurns)&&(identical(other.toolApprovalMode, toolApprovalMode) || other.toolApprovalMode == toolApprovalMode)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.colorValue, colorValue) || other.colorValue == colorValue)&&(identical(other.order, order) || other.order == order)&&(identical(other.enabled, enabled) || other.enabled == enabled));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationParticipant&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.roleLabel, roleLabel) || other.roleLabel == roleLabel)&&(identical(other.roleSystemPrompt, roleSystemPrompt) || other.roleSystemPrompt == roleSystemPrompt)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.model, model) || other.model == model)&&(identical(other.facilitatesTurns, facilitatesTurns) || other.facilitatesTurns == facilitatesTurns)&&(identical(other.toolApprovalMode, toolApprovalMode) || other.toolApprovalMode == toolApprovalMode)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.colorValue, colorValue) || other.colorValue == colorValue)&&(identical(other.order, order) || other.order == order)&&(identical(other.enabled, enabled) || other.enabled == enabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,roleLabel,roleSystemPrompt,endpointId,model,facilitatesTurns,toolApprovalMode,toolsEnabled,colorValue,order,enabled);
+int get hashCode {
+    return Object.hash(runtimeType,id,displayName,roleLabel,roleSystemPrompt,endpointId,model,facilitatesTurns,toolApprovalMode,toolsEnabled,colorValue,order,enabled);
+}
 
 @override
 String toString() {
-  return 'ConversationParticipant(id: $id, displayName: $displayName, roleLabel: $roleLabel, roleSystemPrompt: $roleSystemPrompt, endpointId: $endpointId, model: $model, facilitatesTurns: $facilitatesTurns, toolApprovalMode: $toolApprovalMode, toolsEnabled: $toolsEnabled, colorValue: $colorValue, order: $order, enabled: $enabled)';
+    return 'ConversationParticipant(id: $id, displayName: $displayName, roleLabel: $roleLabel, roleSystemPrompt: $roleSystemPrompt, endpointId: $endpointId, model: $model, facilitatesTurns: $facilitatesTurns, toolApprovalMode: $toolApprovalMode, toolsEnabled: $toolsEnabled, colorValue: $colorValue, order: $order, enabled: $enabled)';
 }
 
 

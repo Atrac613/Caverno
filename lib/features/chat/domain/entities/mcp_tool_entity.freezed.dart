@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'mcp_tool_entity.dart';
@@ -9,6 +9,7 @@ part of 'mcp_tool_entity.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $McpToolEntityCopyWith<McpToolEntity> get copyWith => _$McpToolEntityCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other.inputSchema, inputSchema)&&(identical(other.originalName, originalName) || other.originalName == originalName)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl));
+  final _this = this as McpToolEntity;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolEntity&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.description, _this.description) || other.description == _this.description)&&const DeepCollectionEquality().equals(other.inputSchema, _this.inputSchema)&&(identical(other.originalName, _this.originalName) || other.originalName == _this.originalName)&&(identical(other.sourceUrl, _this.sourceUrl) || other.sourceUrl == _this.sourceUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,description,const DeepCollectionEquality().hash(inputSchema),originalName,sourceUrl);
+int get hashCode {
+  final _this = this as McpToolEntity;
+  return Object.hash(runtimeType,_this.name,_this.description,const DeepCollectionEquality().hash(_this.inputSchema),_this.originalName,_this.sourceUrl);
+}
 
 @override
 String toString() {
-  return 'McpToolEntity(name: $name, description: $description, inputSchema: $inputSchema, originalName: $originalName, sourceUrl: $sourceUrl)';
+  final _this = this as McpToolEntity;
+  return 'McpToolEntity(name: ${_this.name}, description: ${_this.description}, inputSchema: ${_this.inputSchema}, originalName: ${_this.originalName}, sourceUrl: ${_this.sourceUrl})';
 }
 
 
@@ -66,7 +72,7 @@ class _$McpToolEntityCopyWithImpl<$Res>
 /// Create a copy of McpToolEntity
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? description = null,Object? inputSchema = null,Object? originalName = freezed,Object? sourceUrl = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(McpToolEntity(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,inputSchema: null == inputSchema ? _self.inputSchema : inputSchema // ignore: cast_nullable_to_non_nullable
@@ -213,7 +219,7 @@ return $default(_that.name,_that.description,_that.inputSchema,_that.originalNam
 @JsonSerializable()
 
 class _McpToolEntity extends McpToolEntity {
-  const _McpToolEntity({required this.name, required this.description, required final  Map<String, dynamic> inputSchema, this.originalName, this.sourceUrl}): _inputSchema = inputSchema,super._();
+  const _McpToolEntity({required this.name, required this.description, required  Map<String, dynamic> inputSchema, this.originalName, this.sourceUrl}): _inputSchema = inputSchema,super._();
   factory _McpToolEntity.fromJson(Map<String, dynamic> json) => _$McpToolEntityFromJson(json);
 
 @override final  String name;
@@ -241,16 +247,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other._inputSchema, _inputSchema)&&(identical(other.originalName, originalName) || other.originalName == originalName)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other.inputSchema, _inputSchema)&&(identical(other.originalName, originalName) || other.originalName == originalName)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,description,const DeepCollectionEquality().hash(_inputSchema),originalName,sourceUrl);
+int get hashCode {
+    return Object.hash(runtimeType,name,description,const DeepCollectionEquality().hash(_inputSchema),originalName,sourceUrl);
+}
 
 @override
 String toString() {
-  return 'McpToolEntity(name: $name, description: $description, inputSchema: $inputSchema, originalName: $originalName, sourceUrl: $sourceUrl)';
+    return 'McpToolEntity(name: $name, description: $description, inputSchema: $inputSchema, originalName: $originalName, sourceUrl: $sourceUrl)';
 }
 
 
@@ -316,16 +324,21 @@ $McpToolResultCopyWith<McpToolResult> get copyWith => _$McpToolResultCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolResult&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.result, result) || other.result == result)&&(identical(other.isSuccess, isSuccess) || other.isSuccess == isSuccess)&&(identical(other.isExternalMcpResult, isExternalMcpResult) || other.isExternalMcpResult == isExternalMcpResult)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.outcome, outcome) || other.outcome == outcome));
+  final _this = this as McpToolResult;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolResult&&(identical(other.toolName, _this.toolName) || other.toolName == _this.toolName)&&(identical(other.result, _this.result) || other.result == _this.result)&&(identical(other.isSuccess, _this.isSuccess) || other.isSuccess == _this.isSuccess)&&(identical(other.isExternalMcpResult, _this.isExternalMcpResult) || other.isExternalMcpResult == _this.isExternalMcpResult)&&(identical(other.errorMessage, _this.errorMessage) || other.errorMessage == _this.errorMessage)&&(identical(other.outcome, _this.outcome) || other.outcome == _this.outcome));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,toolName,result,isSuccess,isExternalMcpResult,errorMessage,outcome);
+int get hashCode {
+  final _this = this as McpToolResult;
+  return Object.hash(runtimeType,_this.toolName,_this.result,_this.isSuccess,_this.isExternalMcpResult,_this.errorMessage,_this.outcome);
+}
 
 @override
 String toString() {
-  return 'McpToolResult(toolName: $toolName, result: $result, isSuccess: $isSuccess, isExternalMcpResult: $isExternalMcpResult, errorMessage: $errorMessage, outcome: $outcome)';
+  final _this = this as McpToolResult;
+  return 'McpToolResult(toolName: ${_this.toolName}, result: ${_this.result}, isSuccess: ${_this.isSuccess}, isExternalMcpResult: ${_this.isExternalMcpResult}, errorMessage: ${_this.errorMessage}, outcome: ${_this.outcome})';
 }
 
 
@@ -354,7 +367,7 @@ class _$McpToolResultCopyWithImpl<$Res>
 /// Create a copy of McpToolResult
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? toolName = null,Object? result = null,Object? isSuccess = null,Object? isExternalMcpResult = null,Object? errorMessage = freezed,Object? outcome = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(McpToolResult(
 toolName: null == toolName ? _self.toolName : toolName // ignore: cast_nullable_to_non_nullable
 as String,result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as String,isSuccess: null == isSuccess ? _self.isSuccess : isSuccess // ignore: cast_nullable_to_non_nullable
@@ -532,16 +545,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolResult&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.result, result) || other.result == result)&&(identical(other.isSuccess, isSuccess) || other.isSuccess == isSuccess)&&(identical(other.isExternalMcpResult, isExternalMcpResult) || other.isExternalMcpResult == isExternalMcpResult)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.outcome, outcome) || other.outcome == outcome));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolResult&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.result, result) || other.result == result)&&(identical(other.isSuccess, isSuccess) || other.isSuccess == isSuccess)&&(identical(other.isExternalMcpResult, isExternalMcpResult) || other.isExternalMcpResult == isExternalMcpResult)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.outcome, outcome) || other.outcome == outcome));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,toolName,result,isSuccess,isExternalMcpResult,errorMessage,outcome);
+int get hashCode {
+    return Object.hash(runtimeType,toolName,result,isSuccess,isExternalMcpResult,errorMessage,outcome);
+}
 
 @override
 String toString() {
-  return 'McpToolResult(toolName: $toolName, result: $result, isSuccess: $isSuccess, isExternalMcpResult: $isExternalMcpResult, errorMessage: $errorMessage, outcome: $outcome)';
+    return 'McpToolResult(toolName: $toolName, result: $result, isSuccess: $isSuccess, isExternalMcpResult: $isExternalMcpResult, errorMessage: $errorMessage, outcome: $outcome)';
 }
 
 
