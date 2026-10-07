@@ -34,7 +34,7 @@ void main() {
         'version', () {
       const text = '''
 ## 4.0.0
-- **Breaking**: from a newer major the project does not have.
+- _Breaking_: No longer allow `final` constructor parameters.
 
 ## 3.2.5
 - Fix a bug.
@@ -47,6 +47,9 @@ void main() {
 ''';
       expect(entries(text, '3.2.5'), [
         'Breaking: classes should now be `abstract` or `sealed`.',
+      ]);
+      expect(entries(text, '4.0.1'), [
+        '_Breaking_: No longer allow `final` constructor parameters.',
       ]);
     });
 
@@ -255,7 +258,12 @@ void main() {
       // withOpacity is not a stable coverage sentinel: the SDK section keeps
       // the newest deprecations, and a longer Flutter list drops it.
       expect(digest, contains('StateNotifierProvider'));
-      expect(digest, contains('`abstract`'));
+      // A major upgrade changes which migration belongs in the digest.
+      final freezed = const DependencyInventoryService()
+          .collect(Directory.current)!
+          .exact
+          .singleWhere((record) => record.name == 'freezed');
+      expect(digest, contains('- freezed ${freezed.lockedVersion}: '));
       expect(
         digest,
         isNot(contains('WillPopScope')),
