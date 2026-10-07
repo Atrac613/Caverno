@@ -2024,3 +2024,35 @@ The embeddings slice remains uncommitted. Next: review/commit it, then scope
 exact-preservation or edit-format measurement against existing contracts. F5
 remains `current`; RC1 stays on hold. No main integration, push, full Flutter
 suite, live-model or signed-device run is claimed.
+
+
+### Exact-preservation extraction (2026-10-08)
+
+Embeddings scoring was locally committed as `83137f2c4`. Literal preservation
+was selected before the larger edit-format family because its three requests
+and detail renderer form a bounded measurement behind the existing observed
+completion path. `live_llm_exact_preservation_probe.dart` owns prompts, synthetic
+tool-result construction, scoring, usage and previews through completion,
+message-building and clock ports. The service retains request settings, thinking
+observation and its generic selection/error/elapsed/publication boundary.
+
+Prompt bytes and direct/tool-result/URL order are unchanged. The tool-result
+message remains user-role, with its original call ID, arguments, raw JSON and
+description. Its ID and timestamp still use independent clock reads. Scoring
+compares visible content while model previews retain raw reasoning. Request
+exceptions stop later arms and reach the existing service catch boundary.
+
+Six service tests passed before extraction, including five new binding/skip/
+per-arm-failure contracts. Fifteen module tests cover all eight scoring
+combinations, prompt/envelope/clock contracts, reasoning, preview limits,
+finish-reason independence and exceptions at each request. The focused gate
+passed 148 tests across six suites, clean root/package analysis, internal-package
+tests and relay checks. The module has 49/49 executable lines covered; the
+service has 749/860 (87.09%) in this focused run. The service fell from 2,877 to
+2,746 lines and the module is 157 lines; both files have size budgets.
+See [task and evidence](f5_exact_preservation_probe_extraction_codex_task.md).
+
+This slice remains uncommitted in the worktree. Next: review/commit it, then
+freeze the edit-format measurement contract. F5 remains `current`; RC1 stays on
+hold. No main integration, push, full Flutter-suite, live-model or signed-device
+result is claimed.

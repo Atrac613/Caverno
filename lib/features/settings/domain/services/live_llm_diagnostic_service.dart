@@ -18,7 +18,6 @@ import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/services/goal_update_ack.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
-import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_diagnostic_evidence.dart';
@@ -27,6 +26,7 @@ import 'live_llm_diagnostic_response_scoring.dart';
 import 'live_llm_diagnostic_thinking_observer.dart';
 import 'live_llm_effective_context_probe.dart';
 import 'live_llm_embedding_probe.dart';
+import 'live_llm_exact_preservation_probe.dart';
 import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
@@ -76,6 +76,15 @@ class LiveLlmDiagnosticService {
   late final _chat = LiveLlmDiagnosticObservedChatCalls(
     chatDataSource,
     _thinking,
+  );
+  late final _exactPreservationProbe = LiveLlmExactPreservationProbe(
+    complete: ({required messages}) => _chat.createChatCompletion(
+      messages: messages,
+      model: _diagnosticModel,
+      temperature: _diagnosticTemperature,
+      maxTokens: _diagnosticMaxTokens,
+    ),
+    messages: (user) => _messages(user: user),
   );
   late final _streamingProbe = LiveLlmStreamingProbe(
     stream: () => chatDataSource.streamChatCompletion(
@@ -296,7 +305,8 @@ class LiveLlmDiagnosticService {
   static const _structuredOutputProbeId = LiveLlmStructuredOutputProbe.probeId;
   static const _streamingProbeId = LiveLlmStreamingProbe.probeId;
   static const _thinkingControlProbeId = 'thinking_control';
-  static const _exactPreservationProbeId = 'exact_preservation';
+  static const _exactPreservationProbeId =
+      LiveLlmExactPreservationProbe.probeId;
   static const _editFormatProbeId = 'edit_format_fidelity';
   static const _embeddingsProbeId = LiveLlmEmbeddingProbe.probeId;
   static const _effectiveContextProbeId = LiveLlmEffectiveContextProbe.probeId;
@@ -384,10 +394,6 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
   static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
-  static const _exactDirectEchoValue = '12 GiB, \u00a53,980';
-  static const _exactToolResultValue = 'ZX-900_\u03b1 2026-06-12';
-  static const _exactUrlValue =
-      'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def';
   static const editFormatPreferenceMetadataKey = 'editFormatPreference';
   static const _editFormatPath = 'lib/greeting.dart';
   static const _editFormatOriginal = '''String buildLabel(String name) {
@@ -533,7 +539,7 @@ class LiveLlmDiagnosticService {
       probeId: _exactPreservationProbeId,
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
-      run: _runExactPreservationProbe,
+      run: _exactPreservationProbe.run,
     );
     report = await _runSelectedProbe(
       report: report,
@@ -1229,117 +1235,6 @@ class LiveLlmDiagnosticService {
     }
     onReport?.call(updated);
     return updated;
-  }
-
-  Future<LiveLlmDiagnosticProbeResult> _runExactPreservationProbe() async {
-    final directResult = await _chat.createChatCompletion(
-      messages: _messages(
-        user:
-            'Reply with exactly this text and no extra characters:\n'
-            '$_exactDirectEchoValue',
-      ),
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-
-    final toolResultMessages = _messages(
-      user:
-          'Return only the product_label value from the diagnostic tool result. '
-          'Do not add quotes, punctuation, or explanatory text.',
-    );
-    toolResultMessages.add(
-      Message(
-        id: 'live-llm-diagnostic-tool-result-${DateTime.now().microsecondsSinceEpoch}',
-        content: ToolResultPromptBuilder.buildAnswerPrompt(
-          [
-            ToolResultInfo(
-              id: 'diagnostic-exact-value-call',
-              name: 'diagnostic_exact_value',
-              arguments: const {'field': 'product_label'},
-              result:
-                  'Raw result:\n'
-                  '${jsonEncode({'product_label': _exactToolResultValue})}',
-            ),
-          ],
-          descriptionsByName: const {
-            'diagnostic_exact_value':
-                'Provides exact raw values for preservation diagnostics.',
-          },
-        ),
-        role: MessageRole.user,
-        timestamp: DateTime.now(),
-      ),
-    );
-    final toolResult = await _chat.createChatCompletion(
-      messages: toolResultMessages,
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-
-    final urlResult = await _chat.createChatCompletion(
-      messages: _messages(
-        user:
-            'Reply with exactly this URL and no extra characters:\n'
-            '$_exactUrlValue',
-      ),
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-
-    final outcomes = [
-      _ExactPreservationProbeOutcome(
-        label: 'direct_echo_money_unit',
-        expected: _exactDirectEchoValue,
-        actual: LiveLlmResponseScoring.visibleContent(directResult.content),
-        rawActual: directResult.content.trim(),
-      ),
-      _ExactPreservationProbeOutcome(
-        label: 'tool_result_raw_value',
-        expected: _exactToolResultValue,
-        actual: LiveLlmResponseScoring.visibleContent(toolResult.content),
-        rawActual: toolResult.content.trim(),
-      ),
-      _ExactPreservationProbeOutcome(
-        label: 'url_preservation',
-        expected: _exactUrlValue,
-        actual: LiveLlmResponseScoring.visibleContent(urlResult.content),
-        rawActual: urlResult.content.trim(),
-      ),
-    ];
-    final failed = outcomes.where((outcome) => !outcome.passed).toList();
-    final status = failed.isEmpty
-        ? LiveLlmDiagnosticStatus.passed
-        : failed.length == outcomes.length
-        ? LiveLlmDiagnosticStatus.failed
-        : LiveLlmDiagnosticStatus.warning;
-    final summary = failed.isEmpty
-        ? 'The model preserved exact literal values across direct and tool-result prompts.'
-        : failed.length == outcomes.length
-        ? 'The model changed every exact literal preservation probe value.'
-        : 'The model changed at least one exact literal preservation probe value.';
-
-    return LiveLlmDiagnosticProbeResult(
-      id: _exactPreservationProbeId,
-      status: status,
-      summary: summary,
-      details: outcomes.map(_formatExactPreservationDetail).join('\n\n'),
-      modelContent: outcomes
-          .map(
-            (outcome) =>
-                '${outcome.label}: ${LiveLlmDiagnosticEvidence.preview(outcome.rawActual, maxChars: 360)}',
-          )
-          .join('\n'),
-      usage: LiveLlmDiagnosticEvidence.totalUsage([
-        directResult,
-        toolResult,
-        urlResult,
-      ]),
-      passedChecks: outcomes.length - failed.length,
-      totalChecks: outcomes.length,
-    );
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runEditFormatProbe() async {
@@ -2757,16 +2652,6 @@ class LiveLlmDiagnosticService {
         })
         .join('\n');
   }
-
-  String _formatExactPreservationDetail(
-    _ExactPreservationProbeOutcome outcome,
-  ) {
-    return [
-      '${outcome.label}: ${outcome.passed ? 'passed' : 'failed'}',
-      'Expected: ${outcome.expected}',
-      'Actual: ${LiveLlmDiagnosticEvidence.preview(outcome.actual, maxChars: 800)}',
-    ].join('\n');
-  }
 }
 
 class _ToolCatalogContext {
@@ -2797,22 +2682,6 @@ class _FoundationModelsLanguageProbeCase {
   final String marker;
   final String userPrompt;
   final List<Map<String, dynamic>>? tools;
-}
-
-class _ExactPreservationProbeOutcome {
-  const _ExactPreservationProbeOutcome({
-    required this.label,
-    required this.expected,
-    required this.actual,
-    required this.rawActual,
-  });
-
-  final String label;
-  final String expected;
-  final String actual;
-  final String rawActual;
-
-  bool get passed => actual == expected;
 }
 
 class _EditFormatProbeCase {

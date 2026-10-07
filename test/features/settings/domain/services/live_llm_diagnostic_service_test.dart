@@ -20,6 +20,67 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test('exact preservation binds requests, thinking and publication', () async {
+    final source = _ExactRecordingDataSource();
+    final statuses = <LiveLlmDiagnosticStatus>[];
+    final report =
+        await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false, model: 'exact-model'),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(
+          probeIds: const {'exact_preservation'},
+          onReport: (report) {
+            final status = _result(report, 'exact_preservation').status;
+            if (statuses.isEmpty || statuses.last != status) {
+              statuses.add(status);
+            }
+          },
+        );
+    expect(source.calls, 3);
+    expect(statuses, [
+      LiveLlmDiagnosticStatus.pending,
+      LiveLlmDiagnosticStatus.running,
+      LiveLlmDiagnosticStatus.passed,
+    ]);
+    expect(report.thinkingMetrics!.responseCount, 3);
+    expect(report.thinkingMetrics!.reasoningResponseCount, 3);
+    expect(_result(report, 'exact_preservation').usage.totalTokens, 39);
+  });
+
+  test('exact preservation skips an unselected probe', () async {
+    final source = _ExactRecordingDataSource();
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false, model: 'exact-model'),
+      chatDataSource: source,
+      mcpToolService: null,
+    ).run(probeIds: const <String>{});
+    expect(source.calls, 0);
+    expect(
+      _result(report, 'exact_preservation').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+  });
+
+  for (final arm in [1, 2, 3]) {
+    test(
+      'exact preservation converts arm $arm request errors to a failed report',
+      () async {
+        final source = _ExactRecordingDataSource(failingArm: arm);
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(mcpEnabled: false, model: 'exact-model'),
+          chatDataSource: source,
+          mcpToolService: null,
+        ).run(probeIds: const {'exact_preservation'});
+        final result = _result(report, 'exact_preservation');
+        expect(source.calls, arm);
+        expect(result.status, LiveLlmDiagnosticStatus.failed);
+        expect(result.details, contains('exact arm $arm'));
+        expect(result.usage.totalTokens, 0);
+      },
+    );
+  }
+
   test('streaming binds requests, thinking and publication', () async {
     final source = _StreamingRecordingDataSource();
     final statuses = <LiveLlmDiagnosticStatus>[];
@@ -2298,6 +2359,49 @@ class _ToolResultFollowUpDataSource extends _FakeDiagnosticDataSource {
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+  }
+}
+
+class _ExactRecordingDataSource extends _FakeDiagnosticDataSource {
+  _ExactRecordingDataSource({this.failingArm});
+  final int? failingArm;
+  int calls = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    calls++;
+    expect(model, 'exact-model');
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    expect(tools, isNull);
+    expect(messages.first.role, MessageRole.system);
+    expect(messages.first.content, contains('Caverno live LLM diagnostics'));
+    expect(
+      messages.skip(1).every((message) => message.role == MessageRole.user),
+      isTrue,
+    );
+    expect(messages, hasLength(calls == 2 ? 3 : 2));
+    if (calls == 2) {
+      expect(messages.last.content, contains('diagnostic_exact_value'));
+      expect(messages.last.content, contains('ZX-900_α 2026-06-12'));
+    }
+    if (calls == failingArm) throw StateError('exact arm $calls');
+    return ChatCompletionResult(
+      content:
+          '<think>preserve</think>${['12 GiB, ¥3,980', 'ZX-900_α 2026-06-12', 'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def'][calls - 1]}',
+      finishReason: 'stop',
+      usage: const TokenUsage(
+        promptTokens: 10,
+        completionTokens: 3,
+        totalTokens: 13,
+      ),
     );
   }
 }
