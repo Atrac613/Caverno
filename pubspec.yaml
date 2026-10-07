@@ -56,7 +56,7 @@ dependencies:
   flutter_riverpod: ^3.4.3
 
   # OpenAI-compatible API client
-  openai_dart: ^8.1.0
+  openai_dart: ^9.0.0
 
   # Immutable models
   freezed_annotation: ^3.1.0
@@ -98,7 +98,7 @@ dependencies:
   syncfusion_flutter_pdf: ^33.2.13
 
   # Speech I/O
-  speech_to_text: ^7.0.0
+  speech_to_text: ^7.5.0
   flutter_tts: ^4.2.0
   flutter_markdown_plus: ^1.0.12
   markdown: ^7.3.1
@@ -112,7 +112,7 @@ dependencies:
   path_provider: ^2.1.6
 
   # Local notifications
-  flutter_local_notifications: ^22.3.0
+  flutter_local_notifications: ^22.3.1
   file_picker: ^11.0.3
   super_clipboard: ^0.9.1
 
@@ -131,7 +131,7 @@ dependencies:
 
   # SSH remote server tool
   dartssh2: ^4.1.0
-  flutter_secure_storage: ^10.0.0
+  flutter_secure_storage: ^10.3.4
 
   # BLE (Bluetooth Low Energy) tool
   bluetooth_low_energy: ^6.2.1
@@ -143,7 +143,7 @@ dependencies:
 
   # AC/battery power state for the LL18 idle-maintenance gate
   # (macOS/Windows/Linux/iOS/Android)
-  battery_plus: ^7.1.1
+  battery_plus: ^7.1.2
 
   # Serial port tool (desktop only: macOS/Windows/Linux)
   flutter_libserialport: ^0.6.0
@@ -154,8 +154,8 @@ dependencies:
   # Embedded Python runtime for on-device LLM script execution
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
-  serious_python: ^4.7.0
-  drift: ^2.34.4
+  serious_python: ^5.0.0
+  drift: ^2.35.0
   sqlite3_flutter_libs: ^0.6.0+eol
   # Embedded terminal for the coding workspace bottom panel (desktop only:
   # macOS/Windows/Linux). xterm renders the screen buffer, flutter_pty spawns
@@ -178,17 +178,17 @@ dev_dependencies:
     sdk: flutter
 
   # Testing
-  analyzer: ^10.2.0
+  analyzer: ^13.3.0
   coverage: ^1.15.1
   mocktail: ^1.0.5
   pubspec_parse: ^1.6.0
   # Read-only persisted-data audit tools use the resolved SQLite API directly.
-  sqlite3: ^3.5.2
+  sqlite3: ^3.7.0
   test: ^1.31.0
 
   # Code generation
-  build_runner: ^2.15.1
-  freezed: ^3.2.5
+  build_runner: ^2.16.1
+  freezed: ^4.0.1
   json_serializable: ^6.14.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -198,7 +198,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
-  drift_dev: ^2.34.0
+  drift_dev: ^2.35.0
 
 flutter_launcher_icons:
   android: true

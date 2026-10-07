@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'subagent_task.dart';
@@ -9,6 +9,7 @@ part of 'subagent_task.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -35,16 +36,21 @@ $SubagentTaskCopyWith<SubagentTask> get copyWith => _$SubagentTaskCopyWithImpl<S
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubagentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.conversationId, conversationId) || other.conversationId == conversationId)&&(identical(other.interactionGeneration, interactionGeneration) || other.interactionGeneration == interactionGeneration)&&(identical(other.status, status) || other.status == status)&&(identical(other.description, description) || other.description == description)&&(identical(other.workflowTaskId, workflowTaskId) || other.workflowTaskId == workflowTaskId)&&(identical(other.parentToolUseId, parentToolUseId) || other.parentToolUseId == parentToolUseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.output, output) || other.output == output)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.isBackground, isBackground) || other.isBackground == isBackground)&&(identical(other.notified, notified) || other.notified == notified)&&(identical(other.error, error) || other.error == error));
+  final _this = this as SubagentTask;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubagentTask&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.conversationId, _this.conversationId) || other.conversationId == _this.conversationId)&&(identical(other.interactionGeneration, _this.interactionGeneration) || other.interactionGeneration == _this.interactionGeneration)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.workflowTaskId, _this.workflowTaskId) || other.workflowTaskId == _this.workflowTaskId)&&(identical(other.parentToolUseId, _this.parentToolUseId) || other.parentToolUseId == _this.parentToolUseId)&&(identical(other.prompt, _this.prompt) || other.prompt == _this.prompt)&&(identical(other.output, _this.output) || other.output == _this.output)&&(identical(other.resultSummary, _this.resultSummary) || other.resultSummary == _this.resultSummary)&&(identical(other.startedAt, _this.startedAt) || other.startedAt == _this.startedAt)&&(identical(other.finishedAt, _this.finishedAt) || other.finishedAt == _this.finishedAt)&&(identical(other.isBackground, _this.isBackground) || other.isBackground == _this.isBackground)&&(identical(other.notified, _this.notified) || other.notified == _this.notified)&&(identical(other.error, _this.error) || other.error == _this.error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,conversationId,interactionGeneration,status,description,workflowTaskId,parentToolUseId,prompt,output,resultSummary,startedAt,finishedAt,isBackground,notified,error);
+int get hashCode {
+  final _this = this as SubagentTask;
+  return Object.hash(runtimeType,_this.id,_this.conversationId,_this.interactionGeneration,_this.status,_this.description,_this.workflowTaskId,_this.parentToolUseId,_this.prompt,_this.output,_this.resultSummary,_this.startedAt,_this.finishedAt,_this.isBackground,_this.notified,_this.error);
+}
 
 @override
 String toString() {
-  return 'SubagentTask(id: $id, conversationId: $conversationId, interactionGeneration: $interactionGeneration, status: $status, description: $description, workflowTaskId: $workflowTaskId, parentToolUseId: $parentToolUseId, prompt: $prompt, output: $output, resultSummary: $resultSummary, startedAt: $startedAt, finishedAt: $finishedAt, isBackground: $isBackground, notified: $notified, error: $error)';
+  final _this = this as SubagentTask;
+  return 'SubagentTask(id: ${_this.id}, conversationId: ${_this.conversationId}, interactionGeneration: ${_this.interactionGeneration}, status: ${_this.status}, description: ${_this.description}, workflowTaskId: ${_this.workflowTaskId}, parentToolUseId: ${_this.parentToolUseId}, prompt: ${_this.prompt}, output: ${_this.output}, resultSummary: ${_this.resultSummary}, startedAt: ${_this.startedAt}, finishedAt: ${_this.finishedAt}, isBackground: ${_this.isBackground}, notified: ${_this.notified}, error: ${_this.error})';
 }
 
 
@@ -73,7 +79,7 @@ class _$SubagentTaskCopyWithImpl<$Res>
 /// Create a copy of SubagentTask
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? conversationId = null,Object? interactionGeneration = null,Object? status = null,Object? description = null,Object? workflowTaskId = null,Object? parentToolUseId = freezed,Object? prompt = null,Object? output = null,Object? resultSummary = null,Object? startedAt = freezed,Object? finishedAt = freezed,Object? isBackground = null,Object? notified = null,Object? error = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(SubagentTask(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,conversationId: null == conversationId ? _self.conversationId : conversationId // ignore: cast_nullable_to_non_nullable
 as String,interactionGeneration: null == interactionGeneration ? _self.interactionGeneration : interactionGeneration // ignore: cast_nullable_to_non_nullable
@@ -269,16 +275,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubagentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.conversationId, conversationId) || other.conversationId == conversationId)&&(identical(other.interactionGeneration, interactionGeneration) || other.interactionGeneration == interactionGeneration)&&(identical(other.status, status) || other.status == status)&&(identical(other.description, description) || other.description == description)&&(identical(other.workflowTaskId, workflowTaskId) || other.workflowTaskId == workflowTaskId)&&(identical(other.parentToolUseId, parentToolUseId) || other.parentToolUseId == parentToolUseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.output, output) || other.output == output)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.isBackground, isBackground) || other.isBackground == isBackground)&&(identical(other.notified, notified) || other.notified == notified)&&(identical(other.error, error) || other.error == error));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubagentTask&&(identical(other.id, id) || other.id == id)&&(identical(other.conversationId, conversationId) || other.conversationId == conversationId)&&(identical(other.interactionGeneration, interactionGeneration) || other.interactionGeneration == interactionGeneration)&&(identical(other.status, status) || other.status == status)&&(identical(other.description, description) || other.description == description)&&(identical(other.workflowTaskId, workflowTaskId) || other.workflowTaskId == workflowTaskId)&&(identical(other.parentToolUseId, parentToolUseId) || other.parentToolUseId == parentToolUseId)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.output, output) || other.output == output)&&(identical(other.resultSummary, resultSummary) || other.resultSummary == resultSummary)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.isBackground, isBackground) || other.isBackground == isBackground)&&(identical(other.notified, notified) || other.notified == notified)&&(identical(other.error, error) || other.error == error));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,conversationId,interactionGeneration,status,description,workflowTaskId,parentToolUseId,prompt,output,resultSummary,startedAt,finishedAt,isBackground,notified,error);
+int get hashCode {
+    return Object.hash(runtimeType,id,conversationId,interactionGeneration,status,description,workflowTaskId,parentToolUseId,prompt,output,resultSummary,startedAt,finishedAt,isBackground,notified,error);
+}
 
 @override
 String toString() {
-  return 'SubagentTask(id: $id, conversationId: $conversationId, interactionGeneration: $interactionGeneration, status: $status, description: $description, workflowTaskId: $workflowTaskId, parentToolUseId: $parentToolUseId, prompt: $prompt, output: $output, resultSummary: $resultSummary, startedAt: $startedAt, finishedAt: $finishedAt, isBackground: $isBackground, notified: $notified, error: $error)';
+    return 'SubagentTask(id: $id, conversationId: $conversationId, interactionGeneration: $interactionGeneration, status: $status, description: $description, workflowTaskId: $workflowTaskId, parentToolUseId: $parentToolUseId, prompt: $prompt, output: $output, resultSummary: $resultSummary, startedAt: $startedAt, finishedAt: $finishedAt, isBackground: $isBackground, notified: $notified, error: $error)';
 }
 
 
