@@ -1,5 +1,5 @@
-import '../entities/skill.dart';
-import '../entities/tool_call_info.dart';
+import '../../entities/skill.dart';
+import '../../entities/tool_call_info.dart';
 import 'enabled_skill_named_in_text.dart';
 import 'skipped_skill_load_text.dart';
 

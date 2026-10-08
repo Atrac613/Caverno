@@ -1,4 +1,4 @@
-import '../entities/skill.dart';
+import '../../entities/skill.dart';
 
 /// Picks an enabled skill whose name appears in [text].
 abstract final class EnabledSkillNamedInText {

@@ -1,5 +1,5 @@
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/save_skill_tool_contract.dart';
+import '../../domain/services/skills/save_skill_tool_contract.dart';
 import 'save_skill_runtime_contract.dart';
 
 const saveSkillUncertainBoundaryMessage =

@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 
 import '../../domain/entities/skill_catalog_entry.dart';
-import '../../domain/services/skill_markdown_parser.dart';
+import '../../domain/services/skills/skill_markdown_parser.dart';
 
 /// Loads the prebuilt skills bundled under `assets/skills/`.
 ///

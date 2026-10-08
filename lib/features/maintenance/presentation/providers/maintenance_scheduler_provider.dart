@@ -14,7 +14,7 @@ import '../../../chat/domain/entities/model_usage_role.dart';
 import '../../../chat/domain/services/model_routing/kv_cache_warmup_service.dart';
 import '../../../chat/domain/services/repo_map_precompute_cache.dart';
 import '../../../chat/domain/services/repo_map_service.dart';
-import '../../../chat/domain/services/skill_prompt_index_builder.dart';
+import '../../../chat/domain/services/skills/skill_prompt_index_builder.dart';
 import '../../../chat/domain/services/system_prompt_builder.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';

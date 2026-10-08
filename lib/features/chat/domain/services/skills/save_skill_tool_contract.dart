@@ -1,6 +1,6 @@
-import '../entities/chat_turn_owner.dart';
-import '../entities/skill.dart';
-import 'immutable_json_snapshot.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/skill.dart';
+import '../immutable_json_snapshot.dart';
 
 const String canonicalSaveSkillToolName = 'save_skill';
 

@@ -187,8 +187,8 @@
         },
         {
           "id": "loaded-skill-memory",
-          "path": "lib/features/chat/domain/services/loaded_skill_memory.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/loaded_skill_memory.dart"
+          "path": "lib/features/chat/domain/services/skills/loaded_skill_memory.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/skills/loaded_skill_memory.dart"
         },
         {
           "id": "material-assumption-ask-memory",
@@ -636,8 +636,8 @@
       "collaborators": [
         {
           "id": "save-skill-tool-handler",
-          "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/save_skill_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart"
         }
       ]
     },

@@ -6972,7 +6972,7 @@ Implementation evidence:
 - `test/features/chat/presentation/providers/chat_notifier_test.dart` covers
   approved skill creation, repeat approval prompts, and update-by-name without
   duplicates.
-- `test/features/chat/domain/services/skill_markdown_parser_test.dart` covers
+- `test/features/chat/domain/services/skills/skill_markdown_parser_test.dart` covers
   markdown composition and parsing.
 
 ### SKILL2: Chat-Driven Skill Lifecycle

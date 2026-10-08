@@ -64,7 +64,7 @@ const Set<String> _reviewedEdges = <String>{
   'lib/features/chat/domain/services/tool_loop/recent_read_result_carry.dart -> lib/features/chat/data/datasources/filesystem_path_resolver.dart',
   'lib/features/chat/domain/services/tool_loop/recent_read_result_carry.dart -> lib/features/chat/data/datasources/git_tools.dart',
   'lib/features/chat/domain/services/run_tests_tool_handler.dart -> lib/features/chat/data/datasources/filesystem_tools.dart',
-  'lib/features/chat/domain/services/save_skill_tool_handler.dart -> lib/features/chat/data/datasources/filesystem_diff_builder.dart',
+  'lib/features/chat/domain/services/skills/save_skill_tool_handler.dart -> lib/features/chat/data/datasources/filesystem_diff_builder.dart',
   'lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart -> lib/features/chat/data/datasources/filesystem_path_resolver.dart',
   'lib/features/chat/domain/services/verification/saved_validation_command_guard.dart -> lib/features/chat/data/datasources/filesystem_tools.dart',
   'lib/features/chat/domain/services/verification/saved_validation_command_guard.dart -> lib/features/chat/data/datasources/git_tools.dart',

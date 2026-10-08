@@ -7,7 +7,7 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/immutable_json_snapshot.dart';
-import '../../domain/services/save_skill_tool_handler.dart';
+import '../../domain/services/skills/save_skill_tool_handler.dart';
 
 typedef SaveSkillSnapshotCallback =
     SaveSkillSnapshotAcknowledgement Function(

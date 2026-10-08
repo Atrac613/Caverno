@@ -73,7 +73,7 @@
     "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart",
     "lib/features/chat/domain/services/run_tests_tool_handler.dart",
     "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
-    "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+    "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
     "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
     "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
     "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
@@ -11170,7 +11170,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
       "declaration": "SaveSkillToolHandler._effectUncertain",
       "signature": "McpToolResult _effectUncertain(String toolName)",
       "turnIdentityParameters": [],
@@ -11183,7 +11183,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
       "declaration": "SaveSkillToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -11196,7 +11196,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
       "declaration": "SaveSkillToolHandler._findSkillByName",
       "signature": "Skill? _findSkillByName(List<Skill> skills, String name)",
       "turnIdentityParameters": [],
@@ -11210,7 +11210,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
       "declaration": "SaveSkillToolHandler._ownerExpired",
       "signature": "McpToolResult _ownerExpired(String toolName)",
       "turnIdentityParameters": [],
@@ -11223,7 +11223,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
       "declaration": "SaveSkillToolHandler._requireIdentity",
       "signature": "void _requireIdentity(\n    SaveSkillOperationIdentity actual,\n    SaveSkillOperationIdentity expected,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -11236,7 +11236,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
       "declaration": "SaveSkillToolHandler._similarSkillResult",
       "signature": "McpToolResult _similarSkillResult(\n    String toolName,\n    List<SkillSimilarityMatch> matches,\n  )",
       "turnIdentityParameters": [],
@@ -11252,7 +11252,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/save_skill_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/skills/save_skill_tool_handler.dart",
       "declaration": "SaveSkillToolHandler.handle",
       "signature": "Future<McpToolResult> handle(SaveSkillToolRequest request)",
       "turnIdentityParameters": [],

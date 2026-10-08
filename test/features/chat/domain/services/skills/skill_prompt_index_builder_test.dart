@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/skill.dart';
-import 'package:caverno/features/chat/domain/services/skill_prompt_index_builder.dart';
+import 'package:caverno/features/chat/domain/services/skills/skill_prompt_index_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Skill _skill({

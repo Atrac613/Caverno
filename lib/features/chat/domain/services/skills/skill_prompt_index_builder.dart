@@ -1,4 +1,4 @@
-import '../entities/skill.dart';
+import '../../entities/skill.dart';
 
 /// The skill index the system prompt carries, plus the one skill a turn is
 /// working from.

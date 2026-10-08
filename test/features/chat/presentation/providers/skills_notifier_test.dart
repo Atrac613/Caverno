@@ -4,7 +4,7 @@ import 'package:caverno/features/chat/data/datasources/save_skill_runtime_contra
 import 'package:caverno/features/chat/data/repositories/skill_repository.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
-import 'package:caverno/features/chat/domain/services/save_skill_tool_contract.dart';
+import 'package:caverno/features/chat/domain/services/skills/save_skill_tool_contract.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

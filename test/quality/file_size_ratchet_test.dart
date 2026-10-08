@@ -448,7 +448,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/python_script_approval_cache_runtime_adapter.dart':
       85,
   'lib/features/chat/domain/services/create_routine_tool_handler.dart': 490,
-  'lib/features/chat/domain/services/save_skill_tool_handler.dart': 217,
+  'lib/features/chat/domain/services/skills/save_skill_tool_handler.dart': 217,
   'lib/features/chat/domain/services/immutable_json_snapshot.dart': 53,
   'lib/features/chat/domain/services/devices/ble_connect_attempt_coordinator.dart': 506,
   // +5 for a read-only isEmpty and its comment. The turn destructor runs 21
@@ -631,7 +631,7 @@ const Map<String, int> _lineBudgets = {
   // The turn-crossing half of the skill carry: a load_skill result lives for
   // exactly the turn that produced it, so the thread has to remember which
   // skill it is working from.
-  'lib/features/chat/domain/services/loaded_skill_memory.dart': 50,
+  'lib/features/chat/domain/services/skills/loaded_skill_memory.dart': 50,
   'lib/features/chat/domain/services/plan/material_assumption_ask_memory.dart': 49,
   'lib/features/chat/domain/services/plan/material_assumption_confirmation_gate.dart':
       99,
@@ -942,7 +942,7 @@ const Map<String, int> _lineBudgets = {
   // for the rewind to put them back, which is what the field was added for.
   'lib/features/chat/domain/services/conversation_checkpoint_recorder.dart': 52,
   'lib/features/chat/domain/services/conversation_default_title.dart': 46,
-  'lib/features/chat/domain/services/enabled_skill_named_in_text.dart': 21,
+  'lib/features/chat/domain/services/skills/enabled_skill_named_in_text.dart': 21,
   'lib/features/chat/domain/services/memory_update_tool_use.dart': 23,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       329,

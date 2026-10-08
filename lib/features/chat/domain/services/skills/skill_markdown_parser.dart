@@ -1,4 +1,4 @@
-import '../entities/skill.dart';
+import '../../entities/skill.dart';
 
 class ParsedSkillMarkdown {
   const ParsedSkillMarkdown({

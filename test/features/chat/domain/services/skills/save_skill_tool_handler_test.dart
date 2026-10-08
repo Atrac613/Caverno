@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
-import 'package:caverno/features/chat/domain/services/save_skill_tool_handler.dart';
-import 'package:caverno/features/chat/domain/services/skill_markdown_parser.dart';
+import 'package:caverno/features/chat/domain/services/skills/save_skill_tool_handler.dart';
+import 'package:caverno/features/chat/domain/services/skills/skill_markdown_parser.dart';
 import 'package:test/test.dart';
 
 void main() {

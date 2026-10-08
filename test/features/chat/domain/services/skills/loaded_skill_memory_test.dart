@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/loaded_skill_memory.dart';
+import 'package:caverno/features/chat/domain/services/skills/loaded_skill_memory.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

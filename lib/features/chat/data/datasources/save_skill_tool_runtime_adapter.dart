@@ -1,7 +1,7 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/save_skill_tool_handler.dart';
+import '../../domain/services/skills/save_skill_tool_handler.dart';
 import 'save_skill_runtime_contract.dart';
 import 'save_skill_runtime_result_support.dart';
 

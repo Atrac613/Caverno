@@ -2,9 +2,9 @@
 
 import 'dart:convert';
 
-import '../../data/datasources/filesystem_diff_builder.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/skill.dart';
+import '../../../data/datasources/filesystem_diff_builder.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/skill.dart';
 import 'save_skill_tool_contract.dart';
 import 'skill_markdown_parser.dart';
 import 'skill_similarity_service.dart';

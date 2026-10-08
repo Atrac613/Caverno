@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 import '../../../chat/domain/entities/skill.dart';
-import '../../../chat/domain/services/skill_markdown_parser.dart';
+import '../../../chat/domain/services/skills/skill_markdown_parser.dart';
 import '../../../chat/presentation/providers/skills_notifier.dart';
 import 'skill_catalog_sheet.dart';
 

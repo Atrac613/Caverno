@@ -6,8 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../../data/datasources/save_skill_runtime_contract.dart';
 import '../../data/repositories/skill_repository.dart';
 import '../../domain/entities/skill.dart';
-import '../../domain/services/save_skill_tool_contract.dart';
-import '../../domain/services/skill_markdown_parser.dart';
+import '../../domain/services/skills/save_skill_tool_contract.dart';
+import '../../domain/services/skills/skill_markdown_parser.dart';
 
 class SkillsState {
   const SkillsState({required this.skills});

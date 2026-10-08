@@ -1,4 +1,4 @@
-import '../entities/skill.dart';
+import '../../entities/skill.dart';
 
 /// A skill judged similar to a candidate save, with its similarity [score]
 /// (0..1, higher = more similar).

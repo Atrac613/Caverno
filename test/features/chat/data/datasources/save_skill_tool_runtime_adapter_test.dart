@@ -4,7 +4,7 @@ import 'package:caverno/features/chat/data/datasources/save_skill_tool_runtime_a
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/save_skill_tool_handler.dart';
+import 'package:caverno/features/chat/domain/services/skills/save_skill_tool_handler.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -1,4 +1,4 @@
-import 'code_unit_text_scan.dart';
+import '../code_unit_text_scan.dart';
 
 /// Text tests behind the skipped-`load_skill` recovery.
 ///

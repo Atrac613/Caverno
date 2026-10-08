@@ -44,8 +44,8 @@ import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_
 import 'package:caverno/features/chat/domain/services/coding/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart';
 import 'package:caverno/features/chat/domain/services/model_routing/model_edit_apply_telemetry_service.dart';
-import 'package:caverno/features/chat/domain/services/save_skill_tool_contract.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
+import 'package:caverno/features/chat/domain/services/skills/save_skill_tool_contract.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/tool_execution_scheduler.dart';
 import 'package:caverno/features/chat/presentation/providers/active_response_registry.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
