@@ -64,13 +64,13 @@ ripple into `ChatNotifier` via `ref.listen`; `RoutinesNotifier` +
 ## The codebase, and the saga of the 15,000-line file
 
 If you open `lib/features/chat/presentation/providers/chat_notifier.dart` you
-will meet a ~15,000-line class and briefly question this project's life choices.
-It is intentional, and the way it's tamed is worth understanding because you will
-extend it.
+will meet a ~7,300-line class (it peaked near 15,000) and briefly question this
+project's life choices. It is intentional, and the way it's tamed is worth
+understanding because you will extend it.
 
 Dart lets a class be split across files with `part` / `part of`, and lets you
 bolt on methods from another file with `extension XOnChatNotifier on ChatNotifier`.
-So `ChatNotifier` is one logical class physically spread across ~22 part-files:
+So `ChatNotifier` is one logical class physically spread across 34 part-files:
 `chat_notifier_ssh_handlers.dart`, `chat_notifier_git_handlers.dart`,
 `chat_notifier_python_handlers.dart`, `chat_notifier_mesh_routing.dart`,
 `chat_notifier_coding_continuation_recovery.dart`, and so on. Each part-file owns
@@ -89,6 +89,33 @@ guardrail against the giant file quietly getting giant-er — when you add code 
 either fit under budget or you extract a new part-file. (I once nearly blew the
 budget adding a helper; the fix was to put the pure logic in its own small,
 testable file instead. More on that pattern below — it's a good habit.)
+
+The ratchet has company now, and it is worth knowing the whole fence line
+before you move anything, because each one fails only after the previous one
+passes:
+
+- `test/quality/layer_import_ratchet_test.dart` lists every import that crosses
+  a layer the wrong way (domain reaching into data or presentation, data into
+  presentation). New ones fail; fixed ones must be deleted from the list.
+- `test/quality/thread_scoped_state_ratchet_test.dart` pins every place the
+  notifier reads the *visible* thread's state instead of its own turn's. Moving
+  code changes the IDs; the honest fix is to stop reading ambient state, not
+  to re-add the ID.
+- `tool/chat_notifier_decomposition_manifest.json` plus
+  `test/quality/chat_notifier_collaborator_boundary_test.dart` freeze the list
+  of part-files. New behaviour goes into an existing part or into a plain class
+  under `application/runtime/`, never into a new part.
+- `tool/fixtures/**` is frozen evaluation data. The RAG2 fixture names three
+  memory services by path, which is why they still sit at the root of
+  `domain/services/` while everything around them moved.
+
+And the pantry got shelves. `lib/features/chat/domain/services/` used to be 438
+files in one heap; it is now 21 folders by concern (`git/`, `python/`,
+`local_command/`, `tool_loop/`, `claims/`, `verification/`, `plan/`,
+`anabasis/`, ...) with about fifty generalists left at the root. Tests mirror
+the same folders. `docs/` got the same treatment: living documents stay at the
+top, indexed in `docs/README.md`; dated investigations live in `docs/worklog/`;
+and an agent's task brief is deleted the day its task lands. Git remembers.
 
 The other neighborhood worth knowing is **`lib/core/security/`** — the SEC1/SEC2
 perimeter (`tool_capability_classifier.dart`, `data_source_classifier.dart`,
@@ -559,10 +586,80 @@ reporting this guard as working, off `ask_user_question` calls, the whole time
 the path it was built for still threw.
 
 
+
+### Lesson 14: the wall that was only painted on the floor
+
+The farm's unattended runs hand a roadmap task to a worktree agent that may
+only read and edit files inside its worktree. The check was a string compare:
+does the resolved path start with the worktree path? A review of the merged
+farm code asked the obvious question -- what about a symlink? -- and a
+five-line test answered it. A link named `escape` pointing at a directory
+outside, then `write_file('escape/pwned.txt')`: success, and a file appeared
+outside the worktree.
+
+The chat path had been safe for weeks, because it goes through
+`ProjectMutationPathFence`, which resolves every link before it compares. The
+worktree agent had its own, older check, and nobody had walked it since the
+farm made it reachable with no human watching. The fix was to route it
+through the same fence, and the test that reproduced the escape now guards
+it. A search for the same pattern found six more lexical checks; none of them
+guarded a write, so they stayed, written down.
+
+Takeaway: a path check that never touches the filesystem is a line painted on
+the floor. When a second route to the same operation appears, it gets the
+first route's wall, not its own drawing of one.
+
+### Lesson 15: the test that was red every single time
+
+For two weeks every local full run said "1 failed", and every time someone
+said "that's the environment one". It was a test that runs a command under
+macOS `sandbox-exec` and reads the kernel's write reports back from
+`log show`. CI runs on Ubuntu, where the test skips, so CI was green.
+
+When we finally chased it, the sandbox worked, the writes happened, `log show`
+worked -- and not one sandbox report ever arrived, allowed or denied, on macOS
+26.7.1. The feature it tested, SEC4.4i-a write observation, had been recording
+"no writes outside the project" for every command. That is not a harmless
+silence: the plan was to measure those records and then relax shell approvals
+on the strength of them.
+
+The fix gave the observation a way to notice its own blindness. Every observed
+command first writes a canary file in the temp directory; if the canary's
+report is missing, the log entry says `reportingUnavailable` instead of an
+empty list. The test now passes either by seeing the real write or by seeing
+the honest "I couldn't look".
+
+Takeaways: a test that is always red is not noise, it is a feature telling you
+it is broken in the only voice it has. And any measurement that can return
+"nothing" must be able to tell "nothing happened" from "I saw nothing".
+
+### Lesson 16: the fences decide the shape of the refactor
+
+Shrinking `_executeToolCalls` (1,600 lines) looked like a job for a state
+object holding its thirty locals. Before writing one, we counted what the
+post-loop tail actually touched: 24 values read, 4 reassigned, and those 4
+never read again after the tail. So the tail moved, unchanged, into a method
+that takes them as parameters, and 473 lines left the file without a state
+object.
+
+The fences then had their say. The turn-scope ratchet caught one read of the
+on-screen thread's messages that had ridden along; it was redundant, so it
+went instead of being re-approved. Regenerating that ratchet's baseline would
+have produced a 16,000-line diff of reordering, so one 11-line entry was
+removed by hand. And the folder move a day earlier had already taught the
+same thing from the other side: three files could not move at all, because a
+frozen evaluation names them.
+
+Takeaway: before designing the big refactor, measure what the code actually
+shares, and read the fences first. They are not obstacles to route around;
+they are the previous engineers telling you where the load-bearing walls are.
+
 ## Where to start reading
 
+- The map: `docs/README.md` (living docs only; history is in `docs/worklog/`).
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its
-  `chat_notifier_*` part-files.
+  `chat_notifier_*` part-files; the loop's ending is `_finalizeToolLoop` in
+  `chat_notifier_tool_loop_batch.dart`.
 - The prompt: `lib/features/chat/domain/services/system_prompt_builder.dart`.
 - The bouncer: `lib/core/security/`.
 - The tools: `lib/features/chat/data/datasources/` (filesystem, git, shell,
