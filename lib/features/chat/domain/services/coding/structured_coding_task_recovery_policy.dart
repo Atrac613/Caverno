@@ -1,6 +1,6 @@
 import '../../entities/conversation_goal.dart';
 import '../goal/goal_update_ack.dart';
-import '../project_task_implementation_instructions.dart';
+import '../project_task/project_task_implementation_instructions.dart';
 
 /// Requests typed task status at an implementation boundary, never from prose.
 final class StructuredCodingTaskRecoveryPolicy {

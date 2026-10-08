@@ -3,7 +3,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
-import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
+import 'package:caverno/features/chat/domain/services/project_task/project_task_terminal_status.dart';
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_git_state.dart';
 import 'package:caverno/features/project_farm/domain/project_task_progress.dart';

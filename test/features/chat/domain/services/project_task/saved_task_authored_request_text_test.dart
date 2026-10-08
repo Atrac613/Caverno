@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_detector.dart';
-import 'package:caverno/features/chat/domain/services/saved_task_authored_request_text.dart';
+import 'package:caverno/features/chat/domain/services/project_task/saved_task_authored_request_text.dart';
 import 'package:caverno/features/chat/domain/services/short_prompt_contract_builder.dart';
 import 'package:test/test.dart';
 

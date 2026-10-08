@@ -1,7 +1,7 @@
 import '../../entities/conversation_goal.dart';
 import '../../entities/tool_call_info.dart';
 import '../goal/goal_update_ack.dart';
-import '../project_task_step_completion_policy.dart';
+import '../project_task/project_task_step_completion_policy.dart';
 import '../verification/project_verification_repair_policy.dart';
 import '../verification/status_recovery_verification.dart';
 import 'finalization_recovery_protocol.dart';

@@ -47,7 +47,7 @@ import 'package:caverno/features/chat/domain/services/plan/conversation_plan_has
 import 'package:caverno/features/chat/domain/services/plan/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/plan/material_contract_assumption_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_approval_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
+import 'package:caverno/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/truncation_notice.dart';

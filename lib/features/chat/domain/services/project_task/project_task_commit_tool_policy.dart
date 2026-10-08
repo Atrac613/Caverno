@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
-import '../../data/datasources/git_tools.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
+import '../../../../project_farm/domain/entities/project_task_commit_scope.dart';
+import '../../../data/datasources/git_tools.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
 
 /// Limits commit-phase tools to the accepted task scope and phase.
 final class ProjectTaskCommitToolPolicy {

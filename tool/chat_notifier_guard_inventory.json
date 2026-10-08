@@ -509,7 +509,7 @@
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7",
         "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:15",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32",
-        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35",
+        "lexical reference at lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart:35",
         "lexical reference at lib/features/chat/domain/services/tool_loop/tool_call_execution_policy.dart:13",
         "lexical reference at lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart:228",
         "lexical reference at lib/features/chat/domain/services/tool_loop/tool_terminal_response_policy.dart:28",
@@ -523,7 +523,7 @@
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:15 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32 -> FileMutationEvidencePolicy",
-        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart:35 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_loop/tool_call_execution_policy.dart:13 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart:228 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_loop/tool_terminal_response_policy.dart:28 -> FileMutationEvidencePolicy",
@@ -911,19 +911,19 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart::SavedTaskTargetScopeGuard",
-      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "id": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart::SavedTaskTargetScopeGuard",
+      "path": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
       "symbol": "SavedTaskTargetScopeGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:32",
+        "lexical reference at lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart:32",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7161",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7163",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:286"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:32 -> SavedTaskTargetScopeGuard",
+        "lexical reference at lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart:32 -> SavedTaskTargetScopeGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7161 -> SavedTaskTargetScopeGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7163 -> SavedTaskTargetScopeGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:286 -> SavedTaskTargetScopeGuard"

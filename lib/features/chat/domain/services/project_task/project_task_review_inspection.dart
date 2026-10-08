@@ -1,7 +1,7 @@
 import 'package:path/path.dart' as path;
 
-import '../entities/conversation.dart';
-import '../entities/turn_diff.dart';
+import '../../entities/conversation.dart';
+import '../../entities/turn_diff.dart';
 
 /// The task-owned files that every dedicated Farm review must inspect anew.
 final class ProjectTaskReviewInspection {

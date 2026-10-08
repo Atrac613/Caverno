@@ -12,7 +12,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
-import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
+import 'package:caverno/features/chat/domain/services/project_task/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';

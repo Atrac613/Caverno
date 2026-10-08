@@ -167,7 +167,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart::SavedTaskTargetScopeGuard",
+      "id": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart::SavedTaskTargetScopeGuard",
       "disposition": "defer",
       "question": "Was SavedTaskTargetScopeGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

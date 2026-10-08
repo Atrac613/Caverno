@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/claims/final_answer_message_notice_service.dart';
 import 'package:caverno/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_update_ack.dart';
-import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
+import 'package:caverno/features/chat/domain/services/project_task/project_task_terminal_status.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -74,7 +74,7 @@
     "lib/features/chat/domain/services/run_tests_tool_handler.dart",
     "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
     "lib/features/chat/domain/services/save_skill_tool_handler.dart",
-    "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+    "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
     "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
     "lib/features/chat/domain/services/secondary_completion_router.dart",
     "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
@@ -11283,7 +11283,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "path": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
       "declaration": "SavedTaskTargetScopeGuard.allowedTargetFilesForTask",
       "signature": "List<String> allowedTargetFilesForTask(ConversationWorkflowTask task)",
       "turnIdentityParameters": [],
@@ -11296,7 +11296,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "path": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
       "declaration": "SavedTaskTargetScopeGuard.allowsPath",
       "signature": "bool allowsPath({\n    required String path,\n    required Iterable<String> targetFiles,\n    required String? projectRoot,\n  })",
       "turnIdentityParameters": [],
@@ -11312,7 +11312,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "path": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
       "declaration": "SavedTaskTargetScopeGuard.evaluate",
       "signature": "McpToolResult? evaluate(SavedTaskTargetScopeInput input)",
       "turnIdentityParameters": [],
@@ -11331,7 +11331,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "path": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
       "declaration": "SavedTaskTargetScopeGuard.normalizePath",
       "signature": "String? normalizePath(String path, {required String? projectRoot})",
       "turnIdentityParameters": [],
@@ -11349,7 +11349,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "path": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
       "declaration": "_freezeTask",
       "signature": "ConversationWorkflowTask? _freezeTask(ConversationWorkflowTask? source)",
       "turnIdentityParameters": [],
@@ -11362,7 +11362,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
+      "path": "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
       "declaration": "_freezeToolCall",
       "signature": "ToolCallInfo _freezeToolCall(ToolCallInfo source)",
       "turnIdentityParameters": [],

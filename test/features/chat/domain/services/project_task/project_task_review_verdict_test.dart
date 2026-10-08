@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:caverno/features/chat/domain/services/project_task_review_verdict.dart';
+import 'package:caverno/features/chat/domain/services/project_task/project_task_review_verdict.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

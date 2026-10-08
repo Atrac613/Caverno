@@ -1,13 +1,13 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../entities/conversation_goal.dart';
-import '../entities/tool_call_info.dart';
-import 'goal/goal_update_ack.dart';
+import '../../entities/conversation_goal.dart';
+import '../../entities/tool_call_info.dart';
+import '../goal/goal_update_ack.dart';
+import '../tool_definition_search_service.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
+import '../verification/unresolved_verification_failure.dart';
 import 'project_task_terminal_status.dart';
-import 'tool_definition_search_service.dart';
-import 'tool_results/tool_result_prompt_builder.dart';
-import 'verification/unresolved_verification_failure.dart';
 
 /// Settles an intermediate subtask without completing its parent goal.
 final class ProjectTaskStepCompletionPolicy {

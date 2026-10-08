@@ -147,7 +147,7 @@ const Map<String, int> _lineBudgets = {
       78,
   'lib/features/chat/domain/services/coding/incomplete_coding_work_detector.dart': 30,
   'lib/features/chat/domain/services/coding/coding_future_action_detector.dart': 100,
-  'lib/features/chat/domain/services/project_task_completion_evidence.dart': 45,
+  'lib/features/chat/domain/services/project_task/project_task_completion_evidence.dart': 45,
   'lib/features/chat/domain/services/coding/structured_coding_task_recovery_policy.dart':
       29,
   'lib/features/chat/domain/services/tool_loop/tool_outcome_snapshot.dart': 23,
@@ -348,8 +348,8 @@ const Map<String, int> _lineBudgets = {
   // request, resolved through the saved task's own authored fields. Two
   // fall-throughs carry most of the body: an empty task, and the synthetic
   // request wrapper whose placeholder title carries none of the request.
-  'lib/features/chat/domain/services/saved_task_authored_request_text.dart': 63,
-  'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 113,
+  'lib/features/chat/domain/services/project_task/saved_task_authored_request_text.dart': 63,
+  'lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart': 113,
   'lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart': 96,
   // +9: the block declares itself a refusal. Reported as a success it was
   // filed as an executed commit, so the identical commit re-issued after

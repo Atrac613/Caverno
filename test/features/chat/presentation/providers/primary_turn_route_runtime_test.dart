@@ -1,7 +1,7 @@
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
-import 'package:caverno/features/chat/domain/services/project_task_review_verdict.dart';
-import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
+import 'package:caverno/features/chat/domain/services/project_task/project_task_review_verdict.dart';
+import 'package:caverno/features/chat/domain/services/project_task/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';

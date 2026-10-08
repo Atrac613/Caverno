@@ -4,7 +4,7 @@ import '../../../../../core/types/goal_completion_policy.dart';
 import '../../entities/conversation_goal.dart';
 import '../../entities/mcp_tool_entity.dart';
 import '../../entities/tool_call_info.dart';
-import '../project_task_completion_evidence.dart';
+import '../project_task/project_task_completion_evidence.dart';
 import '../tool_results/tool_result_prompt_builder.dart';
 import '../verification/unresolved_verification_failure.dart';
 

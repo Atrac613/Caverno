@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 
 enum ProjectTaskReviewDisposition { clean, findings, incomplete }
 

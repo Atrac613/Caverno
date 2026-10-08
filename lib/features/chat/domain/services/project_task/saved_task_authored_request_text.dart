@@ -1,5 +1,5 @@
-import '../entities/conversation_workflow.dart';
-import 'short_prompt_contract_builder.dart';
+import '../../entities/conversation_workflow.dart';
+import '../short_prompt_contract_builder.dart';
 
 // ChatNotifier decomposition collaborator: saved-task-authored-request-text
 

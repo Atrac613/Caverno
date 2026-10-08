@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../entities/tool_call_info.dart';
-import 'goal/goal_update_ack.dart';
+import '../../entities/tool_call_info.dart';
+import '../goal/goal_update_ack.dart';
 import 'project_task_status_contract.dart';
 
 /// The reconciled implementation or subtask verdict, independent of model prose.

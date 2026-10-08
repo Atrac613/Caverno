@@ -1,5 +1,5 @@
 import '../../chat/domain/entities/conversation.dart';
-import '../../chat/domain/services/project_task_review_verdict.dart';
+import '../../chat/domain/services/project_task/project_task_review_verdict.dart';
 import 'project_task_review_messages.dart';
 
 /// Retries only a review lacking its accepted terminal message.

@@ -1,5 +1,5 @@
-import '../entities/tool_call_info.dart';
-import 'tool_results/tool_result_prompt_builder.dart';
+import '../../entities/tool_call_info.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 
 /// Mechanical prerequisites for the implementation stage of a project task.
 /// Inherited changes predate the turn, so any verification in it follows them.

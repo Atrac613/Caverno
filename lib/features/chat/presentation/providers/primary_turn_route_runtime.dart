@@ -13,10 +13,10 @@ import '../../data/datasources/primary_route_chat_datasource.dart';
 import '../../domain/entities/context_window_observation.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/primary_model_router.dart';
-import '../../domain/services/project_task_review_evidence.dart';
-import '../../domain/services/project_task_review_verdict.dart';
-import '../../domain/services/project_task_terminal_status.dart';
-import '../../domain/services/project_task_verification_context.dart';
+import '../../domain/services/project_task/project_task_review_evidence.dart';
+import '../../domain/services/project_task/project_task_review_verdict.dart';
+import '../../domain/services/project_task/project_task_terminal_status.dart';
+import '../../domain/services/project_task/project_task_verification_context.dart';
 import 'primary_turn_purpose.dart';
 
 export 'primary_turn_purpose.dart';

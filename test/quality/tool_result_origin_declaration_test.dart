@@ -13,7 +13,7 @@ import 'package:caverno/features/chat/domain/services/anabasis/anabasis_parent_a
 import 'package:caverno/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_validation_probe_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_blocked_result.dart';
-import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
+import 'package:caverno/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/duplicate_tool_result_reuse_payload.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/tool_loop_recovery_policy.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
@@ -80,7 +80,7 @@ const _producers = <String, ToolResultOrigin>{
   // appeared in any of the three hand-maintained "synthetic" lists, and
   // `saved_task_target_scope_violation` is the single most frequent
   // never-reached-a-tool code in the measured corpus (13 of 29).
-  'lib/features/chat/domain/services/saved_task_target_scope_guard.dart':
+  'lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart':
       ToolResultOrigin.refusal,
   'lib/features/chat/data/datasources/project_read_tool_authorizer.dart':
       ToolResultOrigin.refusal,

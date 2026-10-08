@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../../entities/mcp_tool_entity.dart';
-import '../project_task_terminal_status.dart';
+import '../project_task/project_task_terminal_status.dart';
 import 'goal_update_ack.dart';
 
 /// Renders a recorded blocker without granting further execution authority.

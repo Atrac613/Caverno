@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
+import 'package:caverno/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart';
 import 'package:test/test.dart';
 
 final _ownerA = ChatTurnOwner(

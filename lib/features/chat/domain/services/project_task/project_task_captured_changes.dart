@@ -1,5 +1,5 @@
-import '../entities/conversation.dart';
-import '../entities/turn_diff.dart';
+import '../../entities/conversation.dart';
+import '../../entities/turn_diff.dart';
 
 /// Whether a roadmap task thread already holds file changes for its task:
 /// files an earlier run left uncommitted, or edits this thread's own turns

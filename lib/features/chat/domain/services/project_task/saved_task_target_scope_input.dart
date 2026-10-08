@@ -1,7 +1,7 @@
-import '../entities/chat_turn_owner.dart';
-import '../entities/conversation_workflow.dart';
-import '../entities/tool_call_info.dart';
-import 'immutable_json_snapshot.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/conversation_workflow.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
 
 /// Immutable owner snapshots used for one saved-task target-scope decision.
 ///
