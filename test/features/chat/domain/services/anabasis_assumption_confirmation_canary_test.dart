@@ -142,7 +142,7 @@ bool _productionWritesConfirmationSource() {
 /// its own widget coverage do that.
 bool _productionCallsConfirmation() {
   const definitionPath =
-      'lib/features/chat/domain/services/'
+      'lib/features/chat/domain/services/plan/'
       'conversation_contract_provenance_service.dart';
   return _productionSources()
       .where((file) => file.path != definitionPath)

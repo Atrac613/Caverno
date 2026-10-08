@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../data/datasources/filesystem_path_resolver.dart';

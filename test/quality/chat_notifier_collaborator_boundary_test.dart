@@ -276,59 +276,59 @@ void main() {
       expect(
         report.budgetKeys,
         containsAll({
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/coding/'
               'coding_continuation_recovery_policy.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/tool_results/'
               'content_tool_result_formatter.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/tool_results/'
               'content_tool_failure_formatter.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/coding/'
               'coding_verification_feedback_presentation.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/coding/'
               'coding_verification_mutation_signature.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/files/'
               'context_surgery_observation_accumulator.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/files/'
               'context_surgery_protected_path_policy.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/tool_loop/'
               'duplicate_tool_result_recovery.dart',
           'lib/features/chat/domain/services/files/file_mutation_tool_handler.dart',
           'lib/features/chat/domain/services/files/file_rollback_tool_handler.dart',
           'lib/features/chat/domain/services/files/file_turn_rollback_service.dart',
           'lib/features/chat/domain/services/local_command/local_command_tool_handler.dart',
           'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/claims/'
               'final_answer_claim_notice_applicator.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/claims/'
               'narrated_transcript_repair_planner.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/model_routing/'
               'model_edit_apply_telemetry_recorder.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/model_routing/'
               'model_switch_handoff_registry.dart',
           'lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart',
           'lib/features/chat/domain/services/local_command/process_start_result_policy.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/python/'
               'python_attachment_repair_policy.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/python/'
               'python_script_tool_handler.dart',
           'lib/features/chat/domain/services/'
               'referenced_specification_loader.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/tool_loop/'
               'request_tool_observation_collector.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/model_routing/'
               'runtime_sampler_feedback_recorder.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/project_task/'
               'saved_task_target_scope_guard.dart',
           'lib/features/chat/domain/services/'
               'create_routine_tool_handler.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/skills/'
               'save_skill_tool_handler.dart',
           'lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/tool_loop/'
               'turn_finalization_recovery_policy.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/claims/'
               'unexecuted_file_mutation_before_command_guard.dart',
-          'lib/features/chat/domain/services/'
+          'lib/features/chat/domain/services/claims/'
               'unexecuted_final_answer_tool_request_policy.dart',
         }),
       );
@@ -597,7 +597,7 @@ abstract final class ValidSample {
       );
 
       final formatter = File(
-        'lib/features/chat/domain/services/'
+        'lib/features/chat/domain/services/tool_results/'
         'content_tool_result_formatter.dart',
       );
       expect(formatter.existsSync(), isTrue);
