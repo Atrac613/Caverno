@@ -69,7 +69,9 @@ const Map<String, int> _lineBudgets = {
   // Review inspection and initial tool selection live in a bounded helper.
   // Dispatch and native commit scope checks are kept in a bounded part.
   // Request preparation moved to the existing prompt context part.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8471,
+  // -534, to 7,937: the ceiling had drifted 534 lines above the file, so
+  // extractions stopped lowering it. Pinned to the measured size 2026-10-08.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7937,
   'lib/features/chat/domain/services/anabasis/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
