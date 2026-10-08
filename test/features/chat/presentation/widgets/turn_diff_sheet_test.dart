@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
-import 'package:caverno/features/chat/domain/services/file_reference_extractor.dart';
+import 'package:caverno/features/chat/domain/services/files/file_reference_extractor.dart';
 import 'package:caverno/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

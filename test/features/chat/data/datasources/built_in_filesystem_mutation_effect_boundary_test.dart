@@ -6,7 +6,7 @@ import 'package:caverno/features/chat/data/datasources/file_mutation_runtime_con
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/services/dart_project_tooling.dart';
-import 'package:caverno/features/chat/domain/services/file_mutation_tool_handler.dart';
+import 'package:caverno/features/chat/domain/services/files/file_mutation_tool_handler.dart';
 import 'package:test/test.dart';
 
 void main() {

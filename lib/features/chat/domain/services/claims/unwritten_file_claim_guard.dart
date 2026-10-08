@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import '../../entities/tool_call_info.dart';
-import '../file_mutation_evidence_policy.dart';
-import '../file_reference_extractor.dart';
+import '../files/file_mutation_evidence_policy.dart';
+import '../files/file_reference_extractor.dart';
 
 class UnwrittenFileClaim {
   const UnwrittenFileClaim({

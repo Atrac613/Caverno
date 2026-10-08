@@ -1,5 +1,5 @@
-import '../entities/message.dart';
-import '../entities/turn_diff.dart';
+import '../../entities/message.dart';
+import '../../entities/turn_diff.dart';
 
 /// The turn diffs whose assistant message is still in [messages], so a rewind
 /// drops the diffs of the turns it removed.

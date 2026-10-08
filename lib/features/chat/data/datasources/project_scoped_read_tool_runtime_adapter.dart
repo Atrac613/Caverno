@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/project_scoped_read_tool_handler.dart';
+import '../../domain/services/files/project_scoped_read_tool_handler.dart';
 import 'project_scoped_read_runtime_contract.dart';
 
 export 'project_scoped_read_runtime_contract.dart';

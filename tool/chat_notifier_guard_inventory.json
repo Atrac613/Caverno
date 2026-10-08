@@ -391,18 +391,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart::ContextSurgeryProtectedPathPolicy",
-      "path": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
+      "id": "lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart::ContextSurgeryProtectedPathPolicy",
+      "path": "lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart",
       "symbol": "ContextSurgeryProtectedPathPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/context_surgery_protected_path_policy.dart:7",
+        "lexical reference at lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart:7",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:3837",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:15"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/context_surgery_protected_path_policy.dart:7 -> ContextSurgeryProtectedPathPolicy",
+        "lexical reference at lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart:7 -> ContextSurgeryProtectedPathPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:3837 -> ContextSurgeryProtectedPathPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:15 -> ContextSurgeryProtectedPathPolicy"
       ],
@@ -499,14 +499,14 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/file_mutation_evidence_policy.dart::FileMutationEvidencePolicy",
-      "path": "lib/features/chat/domain/services/file_mutation_evidence_policy.dart",
+      "id": "lib/features/chat/domain/services/files/file_mutation_evidence_policy.dart::FileMutationEvidencePolicy",
+      "path": "lib/features/chat/domain/services/files/file_mutation_evidence_policy.dart",
       "symbol": "FileMutationEvidencePolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart:34",
-        "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7",
+        "lexical reference at lib/features/chat/domain/services/files/file_mutation_evidence_policy.dart:7",
         "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:15",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32",
         "lexical reference at lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart:35",
@@ -520,7 +520,7 @@
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart:34 -> FileMutationEvidencePolicy",
-        "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/files/file_mutation_evidence_policy.dart:7 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:15 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart:35 -> FileMutationEvidencePolicy",

@@ -55,7 +55,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart::ContextSurgeryProtectedPathPolicy",
+      "id": "lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart::ContextSurgeryProtectedPathPolicy",
       "disposition": "defer",
       "question": "Was ContextSurgeryProtectedPathPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -83,7 +83,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/file_mutation_evidence_policy.dart::FileMutationEvidencePolicy",
+      "id": "lib/features/chat/domain/services/files/file_mutation_evidence_policy.dart::FileMutationEvidencePolicy",
       "disposition": "defer",
       "question": "Was FileMutationEvidencePolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

@@ -1,4 +1,4 @@
-part of 'file_rollback_tool_handler_test.dart';
+part of 'files/file_rollback_tool_handler_test.dart';
 
 void _runFileRollbackPreEffectCases(
   ChatTurnOwner ownerA,

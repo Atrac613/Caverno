@@ -1,5 +1,5 @@
-import '../entities/conversation.dart';
-import 'plan/conversation_plan_execution_coordinator.dart';
+import '../../entities/conversation.dart';
+import '../plan/conversation_plan_execution_coordinator.dart';
 
 // ChatNotifier decomposition collaborator: context-surgery-protected-path-policy
 

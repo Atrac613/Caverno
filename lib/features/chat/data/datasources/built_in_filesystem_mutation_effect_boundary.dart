@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/dart_project_tooling.dart';
-import '../../domain/services/file_mutation_tool_handler.dart';
+import '../../domain/services/files/file_mutation_tool_handler.dart';
 import 'file_mutation_runtime_contract.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';

@@ -1,6 +1,6 @@
 // ChatNotifier decomposition collaborator: file-rollback-tool-handler
 
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'file_rollback_tool_contract.dart';
 
 export 'file_rollback_tool_contract.dart';

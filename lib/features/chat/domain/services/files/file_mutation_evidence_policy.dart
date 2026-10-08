@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 import 'file_mutation_evidence_path_resolver.dart';
 
 /// Classifies file-mutation evidence without relying on notifier state.

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'project_scoped_read_tool_contract.dart';
 
 McpToolResult projectScopedReadExpiryResult(

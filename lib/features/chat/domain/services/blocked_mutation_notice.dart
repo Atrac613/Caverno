@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
-import 'file_mutation_evidence_policy.dart';
+import 'files/file_mutation_evidence_policy.dart';
 
 /// One file mutation the turn attempted and the runtime refused.
 final class BlockedMutation {

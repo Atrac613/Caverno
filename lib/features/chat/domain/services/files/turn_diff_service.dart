@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:uuid/uuid.dart';
 
-import '../entities/turn_diff.dart';
+import '../../entities/turn_diff.dart';
 
 class TurnDiffBuildResult {
   const TurnDiffBuildResult({required this.file, required this.operationCount});

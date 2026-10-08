@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 
 abstract final class FileMutationEvidencePathResolver {
   static String? resultPayloadPath(String result) {

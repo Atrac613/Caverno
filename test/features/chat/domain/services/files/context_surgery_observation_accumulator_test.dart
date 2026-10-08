@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/context_surgery_observation_accumulator.dart';
-import 'package:caverno/features/chat/domain/services/context_surgery_observation_service.dart';
+import 'package:caverno/features/chat/domain/services/files/context_surgery_observation_accumulator.dart';
+import 'package:caverno/features/chat/domain/services/files/context_surgery_observation_service.dart';
 import 'package:test/test.dart';
 
 void main() {

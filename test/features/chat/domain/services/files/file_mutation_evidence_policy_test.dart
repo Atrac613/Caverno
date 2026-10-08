@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/file_mutation_evidence_policy.dart';
+import 'package:caverno/features/chat/domain/services/files/file_mutation_evidence_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

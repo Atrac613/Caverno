@@ -5,7 +5,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/workflow_proposal_draft.dart';
-import '../../domain/services/context_surgery_observation_service.dart';
+import '../../domain/services/files/context_surgery_observation_service.dart';
 import 'pending_ask_user_question.dart';
 import 'pending_tool_approvals.dart';
 import 'queued_chat_message.dart';

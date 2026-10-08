@@ -292,9 +292,9 @@ void main() {
               'context_surgery_protected_path_policy.dart',
           'lib/features/chat/domain/services/'
               'duplicate_tool_result_recovery.dart',
-          'lib/features/chat/domain/services/file_mutation_tool_handler.dart',
-          'lib/features/chat/domain/services/file_rollback_tool_handler.dart',
-          'lib/features/chat/domain/services/file_turn_rollback_service.dart',
+          'lib/features/chat/domain/services/files/file_mutation_tool_handler.dart',
+          'lib/features/chat/domain/services/files/file_rollback_tool_handler.dart',
+          'lib/features/chat/domain/services/files/file_turn_rollback_service.dart',
           'lib/features/chat/domain/services/local_command/local_command_tool_handler.dart',
           'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart',
           'lib/features/chat/domain/services/'

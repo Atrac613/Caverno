@@ -32,15 +32,15 @@
     "lib/features/chat/domain/services/computer_use_tool_handler.dart",
     "lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart",
     "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
-    "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
-    "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
+    "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
+    "lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart",
     "lib/features/chat/domain/services/create_routine_tool_handler.dart",
     "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
     "lib/features/chat/domain/services/execution_snapshot_observer.dart",
     "lib/features/chat/domain/services/tool_loop/fenced_tool_arguments_detector.dart",
-    "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
-    "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
-    "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+    "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
+    "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
+    "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
     "lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart",
     "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
     "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
@@ -64,7 +64,7 @@
     "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
     "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
     "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
-    "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
+    "lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart",
     "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
     "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
     "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
@@ -4995,7 +4995,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "ContextSurgeryObservationAccumulator.apply",
       "signature": "ContextSurgeryObservationUpdateResult apply({\n    required ChatTurnOwner owner,\n    required ContextSurgeryObservationUpdate update,\n  })",
       "turnIdentityParameters": [
@@ -5015,7 +5015,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "ContextSurgeryObservationAccumulator.clear",
       "signature": "void clear()",
       "turnIdentityParameters": [],
@@ -5028,7 +5028,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "ContextSurgeryObservationAccumulator.clearConversation",
       "signature": "int clearConversation(String conversationId)",
       "turnIdentityParameters": [],
@@ -5041,7 +5041,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "ContextSurgeryObservationAccumulator.removeOwner",
       "signature": "bool removeOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -5056,7 +5056,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "ContextSurgeryObservationAccumulator.snapshotFor",
       "signature": "ContextSurgeryObservationSnapshot snapshotFor(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -5069,7 +5069,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "_freezeDefinitions",
       "signature": "List<Map<String, dynamic>> _freezeDefinitions(\n  List<Map<String, dynamic>> definitions,\n)",
       "turnIdentityParameters": [],
@@ -5082,7 +5082,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "_freezeSnapshot",
       "signature": "ContextSurgeryObservationSnapshot _freezeSnapshot(\n  ContextSurgeryObservationSnapshot snapshot,\n)",
       "turnIdentityParameters": [],
@@ -5095,7 +5095,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
       "declaration": "_freezeToolResults",
       "signature": "List<ToolResultInfo> _freezeToolResults(List<ToolResultInfo> results)",
       "turnIdentityParameters": [],
@@ -5110,7 +5110,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
+      "path": "lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart",
       "declaration": "ContextSurgeryProtectedPathPolicy.protectedPathsFor",
       "signature": "Set<String> protectedPathsFor(Conversation? conversation)",
       "turnIdentityParameters": [
@@ -5672,7 +5672,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalPort.expiredResult",
       "signature": "McpToolResult? expiredResult(ChatTurnOwner owner, String toolName)",
       "turnIdentityParameters": [
@@ -5685,7 +5685,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalPort.lookupDenial",
       "signature": "McpToolResult? lookupDenial(\n    ChatTurnOwner owner,\n    FileMutationApprovalRequest request,\n  )",
       "turnIdentityParameters": [
@@ -5698,7 +5698,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalPort.rememberDenial",
       "signature": "McpToolResult rememberDenial(\n    ChatTurnOwner owner,\n    FileMutationApprovalRequest request,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [
@@ -5711,7 +5711,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalPort.rememberResult",
       "signature": "McpToolResult rememberResult(\n    ChatTurnOwner owner,\n    FileMutationApprovalRequest request,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [
@@ -5724,7 +5724,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalPort.requestManualApproval",
       "signature": "Future<bool> requestManualApproval(\n    ChatTurnOwner owner,\n    FileMutationApprovalRequest request, {\n    required String preview,\n  })",
       "turnIdentityParameters": [
@@ -5737,7 +5737,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalPort.resolveGate",
       "signature": "Future<ToolApprovalGateDecision> resolveGate(\n    ChatTurnOwner owner,\n    FileMutationApprovalRequest request, {\n    required FileMutationPreviewLoader buildPreview,\n  })",
       "turnIdentityParameters": [
@@ -5750,7 +5750,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.approvalMode",
       "signature": "ToolApprovalMode get approvalMode",
       "turnIdentityParameters": [],
@@ -5761,7 +5761,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.arguments",
       "signature": "Map<String, dynamic> get arguments",
       "turnIdentityParameters": [],
@@ -5772,7 +5772,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.cacheArguments",
       "signature": "Map<String, dynamic> get cacheArguments",
       "turnIdentityParameters": [],
@@ -5783,7 +5783,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.conversationMessages",
       "signature": "List<Message> get conversationMessages",
       "turnIdentityParameters": [],
@@ -5794,7 +5794,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.hasUntrustedInfluence",
       "signature": "bool get hasUntrustedInfluence",
       "turnIdentityParameters": [],
@@ -5805,7 +5805,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.operation",
       "signature": "FileMutationOperation get operation",
       "turnIdentityParameters": [],
@@ -5816,7 +5816,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.path",
       "signature": "String get path",
       "turnIdentityParameters": [],
@@ -5827,7 +5827,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.reason",
       "signature": "String? get reason",
       "turnIdentityParameters": [],
@@ -5838,7 +5838,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.toolCallId",
       "signature": "String get toolCallId",
       "turnIdentityParameters": [],
@@ -5849,7 +5849,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationApprovalRequest.toolName",
       "signature": "String get toolName",
       "turnIdentityParameters": [],
@@ -5860,7 +5860,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationExecutionPort.buildPreview",
       "signature": "Future<String> buildPreview(\n    ChatTurnOwner owner,\n    FileMutationOperation operation, {\n    String? deleteContent,\n  })",
       "turnIdentityParameters": [
@@ -5873,7 +5873,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationExecutionPort.captureDeleteSnapshot",
       "signature": "Future<FileMutationDeleteSnapshot> captureDeleteSnapshot(\n    ChatTurnOwner owner,\n    String path,\n  )",
       "turnIdentityParameters": [
@@ -5886,7 +5886,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationExecutionPort.execute",
       "signature": "Future<McpToolResult> execute(\n    ChatTurnOwner owner,\n    FileMutationOperation operation,\n  )",
       "turnIdentityParameters": [
@@ -5899,7 +5899,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationExecutionPort.fingerprint",
       "signature": "Future<String> fingerprint(ChatTurnOwner owner, String path)",
       "turnIdentityParameters": [
@@ -5912,7 +5912,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationExecutionPort.isRegularFile",
       "signature": "Future<bool> isRegularFile(ChatTurnOwner owner, String path)",
       "turnIdentityParameters": [
@@ -5925,7 +5925,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationExecutionPort.preflightEdit",
       "signature": "Future<String?> preflightEdit(\n    ChatTurnOwner owner,\n    FileMutationOperation operation,\n  )",
       "turnIdentityParameters": [
@@ -5938,7 +5938,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationOperation.content",
       "signature": "String get content",
       "turnIdentityParameters": [],
@@ -5949,7 +5949,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationOperation.newText",
       "signature": "String get newText",
       "turnIdentityParameters": [],
@@ -5960,7 +5960,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationOperation.oldText",
       "signature": "String get oldText",
       "turnIdentityParameters": [],
@@ -5971,7 +5971,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationOperation.path",
       "signature": "String get path",
       "turnIdentityParameters": [],
@@ -5984,7 +5984,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationOperation.replaceAll",
       "signature": "bool get replaceAll",
       "turnIdentityParameters": [],
@@ -5995,7 +5995,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationOperation.toolName",
       "signature": "String get toolName",
       "turnIdentityParameters": [],
@@ -6006,7 +6006,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationRollbackCapturePort.captureBefore",
       "signature": "Future<Snapshot> captureBefore(ChatTurnOwner owner, String path)",
       "turnIdentityParameters": [
@@ -6019,7 +6019,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationRollbackCapturePort.recordSuccessfulMutation",
       "signature": "Future<void> recordSuccessfulMutation(\n    ChatTurnOwner owner, {\n    required Snapshot before,\n    required String path,\n  })",
       "turnIdentityParameters": [
@@ -6032,7 +6032,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler._autoReviewDeniedResult",
       "signature": "McpToolResult _autoReviewDeniedResult(String toolName, String rationale)",
       "turnIdentityParameters": [],
@@ -6045,7 +6045,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler._deleteNotRegularFileResult",
       "signature": "McpToolResult _deleteNotRegularFileResult(String toolName, String path)",
       "turnIdentityParameters": [],
@@ -6059,7 +6059,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler._deleteOutsideProjectResult",
       "signature": "McpToolResult _deleteOutsideProjectResult(String toolName, String path)",
       "turnIdentityParameters": [],
@@ -6073,7 +6073,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler._deleteSnapshotUnavailableResult",
       "signature": "McpToolResult _deleteSnapshotUnavailableResult(String toolName, String path)",
       "turnIdentityParameters": [],
@@ -6087,7 +6087,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -6100,7 +6100,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler._tryDecodeMap",
       "signature": "Map<String, dynamic>? _tryDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -6113,7 +6113,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler.fileChangedSinceApprovalResult",
       "signature": "Future<McpToolResult?> fileChangedSinceApprovalResult({\n    required ChatTurnOwner owner,\n    required String toolName,\n    required String path,\n    required String approvedStateFingerprint,\n  })",
       "turnIdentityParameters": [
@@ -6130,7 +6130,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler.handle",
       "signature": "Future<McpToolResult> handle(FileMutationToolRequest request)",
       "turnIdentityParameters": [],
@@ -6169,7 +6169,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
       "declaration": "FileMutationToolHandler.isSuccessfulMutationResult",
       "signature": "bool isSuccessfulMutationResult(McpToolResult result)",
       "turnIdentityParameters": [],
@@ -6182,7 +6182,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._autoReviewDeniedResult",
       "signature": "McpToolResult _autoReviewDeniedResult(String toolName, String rationale)",
       "turnIdentityParameters": [],
@@ -6195,7 +6195,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._effectUncertain",
       "signature": "McpToolResult _effectUncertain(String toolName)",
       "turnIdentityParameters": [],
@@ -6208,7 +6208,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -6221,7 +6221,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._ownerExpired",
       "signature": "McpToolResult _ownerExpired(String toolName)",
       "turnIdentityParameters": [],
@@ -6234,7 +6234,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._rememberDenial",
       "signature": "McpToolResult _rememberDenial(\n    FileRollbackApprovalRequest request,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [],
@@ -6250,7 +6250,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._requireBoundResponse",
       "signature": "void _requireBoundResponse(bool matches, String source)",
       "turnIdentityParameters": [],
@@ -6263,7 +6263,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._requireCheckpointIdentity",
       "signature": "void _requireCheckpointIdentity(\n    FileRollbackToolPreview target,\n    FileRollbackOperationIdentity expected,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -6276,7 +6276,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._requireIdentity",
       "signature": "void _requireIdentity(\n    FileRollbackOperationIdentity actual,\n    FileRollbackOperationIdentity expected,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -6289,7 +6289,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler._requireToolResult",
       "signature": "void _requireToolResult(\n    McpToolResult result,\n    FileRollbackOperationIdentity expected,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -6302,7 +6302,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
       "declaration": "FileRollbackToolHandler.handle",
       "signature": "Future<McpToolResult> handle(FileRollbackToolRequest request)",
       "turnIdentityParameters": [],
@@ -6333,7 +6333,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+      "path": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
       "declaration": "CallbackFileCheckpointPort.previewLastFileTurn",
       "signature": "@override\n  Future<FileTurnRollbackPreview?> previewLastFileTurn({\n    required String? conversationId,\n  })",
       "turnIdentityParameters": [],
@@ -6346,7 +6346,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+      "path": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
       "declaration": "CallbackFileCheckpointPort.rollbackLastFileTurn",
       "signature": "@override\n  Future<McpToolResult> rollbackLastFileTurn({\n    required ChatTurnOwner owner,\n    required int checkpointToken,\n  })",
       "turnIdentityParameters": [
@@ -6361,7 +6361,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+      "path": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
       "declaration": "FileCheckpointPort.previewLastFileTurn",
       "signature": "Future<FileTurnRollbackPreview?> previewLastFileTurn({\n    required String? conversationId,\n  })",
       "turnIdentityParameters": [],
@@ -6372,7 +6372,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+      "path": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
       "declaration": "FileCheckpointPort.rollbackLastFileTurn",
       "signature": "Future<McpToolResult> rollbackLastFileTurn({\n    required ChatTurnOwner owner,\n    required int checkpointToken,\n  })",
       "turnIdentityParameters": [
@@ -6385,7 +6385,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+      "path": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
       "declaration": "FileTurnRollbackService.preview",
       "signature": "Future<FileTurnRollbackPreview?> preview({\n    required String? conversationId,\n  })",
       "turnIdentityParameters": [],
@@ -6399,7 +6399,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
+      "path": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
       "declaration": "FileTurnRollbackService.rollback",
       "signature": "Future<McpToolResult> rollback({\n    required ChatTurnOwner owner,\n    required int checkpointToken,\n  })",
       "turnIdentityParameters": [
@@ -9339,7 +9339,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart",
       "declaration": "ProjectScopedReadToolHandler._expired",
       "signature": "McpToolResult _expired(ProjectScopedReadToolRequest request)",
       "turnIdentityParameters": [],
@@ -9354,7 +9354,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart",
       "declaration": "ProjectScopedReadToolHandler._isProcessObservation",
       "signature": "bool _isProcessObservation(String toolName)",
       "turnIdentityParameters": [],
@@ -9367,7 +9367,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart",
       "declaration": "ProjectScopedReadToolHandler.handle",
       "signature": "Future<McpToolResult> handle(ProjectScopedReadToolRequest request)",
       "turnIdentityParameters": [],

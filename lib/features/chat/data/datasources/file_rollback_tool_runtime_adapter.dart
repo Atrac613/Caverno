@@ -1,7 +1,7 @@
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/file_rollback_tool_contract.dart';
+import '../../domain/services/files/file_rollback_tool_contract.dart';
 import 'file_rollback_checkpoint_store.dart';
 
 typedef FileRollbackDenialLookup =

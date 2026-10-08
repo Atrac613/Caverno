@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 
 enum ContextSurgeryBlockKind {
   systemPrompt,

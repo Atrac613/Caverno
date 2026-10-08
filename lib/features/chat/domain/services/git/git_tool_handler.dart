@@ -6,7 +6,7 @@ import '../../../data/datasources/git_tools.dart';
 import '../../../data/datasources/project_scoped_tool_argument_resolver.dart';
 import '../../entities/mcp_tool_entity.dart';
 import '../../entities/tool_call_info.dart';
-import '../file_mutation_evidence_policy.dart';
+import '../files/file_mutation_evidence_policy.dart';
 import '../tool_loop/tool_call_execution_policy.dart';
 import 'git_process_execution_coordinator.dart';
 import 'git_tool_contract.dart';

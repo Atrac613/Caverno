@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 
 McpToolResult fileMutationFailure(String toolName, String message) {
   return McpToolResult(

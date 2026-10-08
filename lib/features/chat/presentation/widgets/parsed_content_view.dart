@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/utils/markdown_render_sanitizer.dart';
-import '../../domain/services/file_reference_extractor.dart';
+import '../../domain/services/files/file_reference_extractor.dart';
 import 'code_block_builder.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'markdown_style_helpers.dart';

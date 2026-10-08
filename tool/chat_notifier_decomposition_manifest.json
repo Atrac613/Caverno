@@ -365,8 +365,8 @@
         },
         {
           "id": "context-surgery-protected-path-policy",
-          "path": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart"
+          "path": "lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart"
         },
         {
           "id": "request-tool-observation-collector",
@@ -375,8 +375,8 @@
         },
         {
           "id": "context-surgery-observation-accumulator",
-          "path": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart"
+          "path": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart"
         }
       ]
     },
@@ -505,13 +505,13 @@
       "collaborators": [
         {
           "id": "file-mutation-tool-handler",
-          "path": "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/file_mutation_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/files/file_mutation_tool_handler.dart"
         },
         {
           "id": "file-rollback-tool-handler",
-          "path": "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/file_rollback_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/files/file_rollback_tool_handler.dart"
         },
         {
           "id": "lsp-go-to-definition-tool-handler",
@@ -530,8 +530,8 @@
         },
         {
           "id": "project-scoped-read-tool-handler",
-          "path": "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart"
         },
         {
           "id": "run-tests-tool-handler",
@@ -1045,8 +1045,8 @@
       "collaborators": [
         {
           "id": "file-turn-rollback-service",
-          "path": "lib/features/chat/domain/services/file_turn_rollback_service.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/file_turn_rollback_service.dart"
+          "path": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/files/file_turn_rollback_service.dart"
         }
       ]
     },

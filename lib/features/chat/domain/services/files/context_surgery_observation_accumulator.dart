@@ -1,7 +1,7 @@
-import '../entities/chat_turn_owner.dart';
-import '../entities/tool_call_info.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
 import 'context_surgery_observation_service.dart';
-import 'immutable_json_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: context-surgery-observation-accumulator
 final class ContextSurgeryObservationUpdate {

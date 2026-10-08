@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../../data/datasources/project_mutation_path_fence.dart';
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/message.dart';
+import '../../../data/datasources/project_mutation_path_fence.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/message.dart';
+import '../immutable_json_snapshot.dart';
 import 'file_mutation_result_builders.dart';
-import 'immutable_json_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: file-mutation-tool-handler
 

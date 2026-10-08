@@ -5,8 +5,8 @@ import 'package:crypto/crypto.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
+import '../../domain/services/files/project_scoped_read_tool_contract.dart';
 import '../../domain/services/immutable_json_snapshot.dart';
-import '../../domain/services/project_scoped_read_tool_contract.dart';
 
 const Set<String> projectScopedLocalReadToolNames = {
   'list_directory',

@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../data/datasources/filesystem_tools.dart';
 import '../../domain/entities/turn_diff.dart';
-import '../../domain/services/file_reference_extractor.dart';
+import '../../domain/services/files/file_reference_extractor.dart';
 import 'file_workspace_diff_parser.dart';
 
 const int _maxFilePreviewBytes = 220000;

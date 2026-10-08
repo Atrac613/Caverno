@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/file_mutation_effect_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/files/file_mutation_effect_coordinator.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -2,13 +2,13 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
-import 'package:caverno/features/chat/domain/services/file_rollback_tool_handler.dart';
+import 'package:caverno/features/chat/domain/services/files/file_rollback_tool_handler.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
 part 'file_rollback_tool_contract_cases.dart';
-part 'file_rollback_tool_post_effect_cases.dart';
-part 'file_rollback_tool_pre_effect_cases.dart';
+part '../file_rollback_tool_post_effect_cases.dart';
+part '../file_rollback_tool_pre_effect_cases.dart';
 
 const _success = McpToolResult(
   toolName: canonicalFileRollbackToolName,

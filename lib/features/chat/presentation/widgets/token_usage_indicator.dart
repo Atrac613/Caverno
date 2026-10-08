@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../settings/domain/entities/model_catalog_entry.dart';
-import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/files/context_surgery_observation_service.dart';
 import '../providers/chat_state.dart';
 
 class TokenUsageIndicator extends StatelessWidget {

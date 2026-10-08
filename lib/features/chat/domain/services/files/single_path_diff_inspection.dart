@@ -1,4 +1,4 @@
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 
 /// The one path a `git diff ... -- <path>` inspection was scoped to, or null.
 ///

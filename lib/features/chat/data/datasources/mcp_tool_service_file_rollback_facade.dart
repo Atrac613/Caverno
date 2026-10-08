@@ -1,11 +1,11 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/file_rollback_tool_handler.dart';
+import '../../domain/services/files/file_rollback_tool_handler.dart';
 import 'built_in_filesystem_tool_handler.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'file_rollback_tool_runtime_adapter.dart';
 
-export '../../domain/services/file_rollback_tool_handler.dart';
+export '../../domain/services/files/file_rollback_tool_handler.dart';
 export 'file_rollback_tool_runtime_adapter.dart';
 
 /// Exact owner boundary for single-file rollback execution.

@@ -9,7 +9,7 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/dart_project_tooling.dart';
-import '../../domain/services/file_mutation_tool_handler.dart';
+import '../../domain/services/files/file_mutation_tool_handler.dart';
 import '../../domain/services/immutable_json_snapshot.dart';
 
 part 'file_mutation_effect_runtime_contract.dart';

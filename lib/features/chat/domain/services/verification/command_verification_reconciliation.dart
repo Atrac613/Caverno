@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../entities/tool_call_info.dart';
-import '../file_mutation_evidence_policy.dart';
+import '../files/file_mutation_evidence_policy.dart';
 import '../python/inline_python_verification_contract.dart';
 import 'reconciled_verification_feedback.dart';
 import 'verification_invocation_evidence.dart';

@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/turn_diff.dart';
-import '../../domain/services/turn_diff_service.dart';
+import '../../domain/services/files/turn_diff_service.dart';
 
 typedef CodingEnvironmentProcessRunner =
     Future<ProcessResult> Function(

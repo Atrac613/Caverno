@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../../data/datasources/git_tools.dart';
 import '../../../data/datasources/local_shell_tools.dart';
 import '../../entities/tool_call_info.dart';
-import '../file_mutation_evidence_policy.dart';
+import '../files/file_mutation_evidence_policy.dart';
 import 'tool_outcome_shadow_comparison.dart';
 
 typedef ProjectPathResolver = String? Function(String path);

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/context_surgery_observation_service.dart';
+import 'package:caverno/features/chat/domain/services/files/context_surgery_observation_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

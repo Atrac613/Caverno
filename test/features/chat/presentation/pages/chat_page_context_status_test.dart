@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/context_surgery_observation_service.dart';
+import 'package:caverno/features/chat/domain/services/files/context_surgery_observation_service.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:flutter_test/flutter_test.dart';

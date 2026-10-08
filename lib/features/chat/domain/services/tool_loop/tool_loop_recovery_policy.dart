@@ -5,7 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../data/datasources/filesystem_path_resolver.dart';
 import '../../entities/tool_call_info.dart';
-import '../file_mutation_evidence_policy.dart';
+import '../files/file_mutation_evidence_policy.dart';
 import '../verification/reconciled_command_failure.dart';
 import 'tool_call_execution_policy.dart';
 

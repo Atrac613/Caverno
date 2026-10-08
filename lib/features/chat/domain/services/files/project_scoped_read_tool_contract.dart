@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
-import 'immutable_json_snapshot.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../immutable_json_snapshot.dart';
 
 Map<String, dynamic> freezeProjectScopedReadArguments(
   Map<String, dynamic> value,

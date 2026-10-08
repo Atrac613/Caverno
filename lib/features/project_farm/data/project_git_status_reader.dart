@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../chat/domain/entities/turn_diff.dart';
-import '../../chat/domain/services/turn_diff_service.dart';
+import '../../chat/domain/services/files/turn_diff_service.dart';
 import '../domain/entities/project_task_git_state.dart';
 
 /// A read-only glance at a project's git state for the dashboard.

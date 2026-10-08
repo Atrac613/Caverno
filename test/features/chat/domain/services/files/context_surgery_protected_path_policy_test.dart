@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/context_surgery_protected_path_policy.dart';
+import 'package:caverno/features/chat/domain/services/files/context_surgery_protected_path_policy.dart';
 import 'package:test/test.dart';
 
 const _policy = ContextSurgeryProtectedPathPolicy();

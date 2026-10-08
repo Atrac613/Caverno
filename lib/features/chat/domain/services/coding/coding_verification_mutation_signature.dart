@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../../data/datasources/filesystem_path_resolver.dart';
 import '../../entities/tool_call_info.dart';
-import '../file_mutation_evidence_policy.dart';
+import '../files/file_mutation_evidence_policy.dart';
 import '../immutable_json_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: coding-verification-mutation-signature

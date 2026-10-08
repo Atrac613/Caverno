@@ -301,7 +301,7 @@ Evidence:
   expands `~/` and accepts absolute paths;
 - `lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart:25-97`
   supplies a default root but does not enforce containment;
-- `lib/features/chat/domain/services/project_scoped_read_tool_handler.dart:29-69`
+- `lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart:29-69`
   performs the read without a project-root authorization check; and
 - internal read-only shell paths at
   `lib/features/chat/data/datasources/local_shell_tools.dart:785-843` have the
@@ -440,7 +440,7 @@ execution.
 
 ### SA-08: Project Mutation Containment
 
-`lib/features/chat/domain/services/file_mutation_tool_handler.dart:209-249`
+`lib/features/chat/domain/services/files/file_mutation_tool_handler.dart:209-249`
 does not authorize write/edit targets against the canonical project root, while
 delete relies on lexical prefix checks in
 `lib/features/chat/domain/services/dart_project_tooling.dart:239-265`.

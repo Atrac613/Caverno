@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../../data/datasources/project_read_tool_authorizer.dart';
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
+import '../../../data/datasources/project_read_tool_authorizer.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
 
 /// Files outside the project root that a person has explicitly released.
 ///

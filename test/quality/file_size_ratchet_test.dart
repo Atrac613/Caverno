@@ -248,7 +248,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/production_release/production_release_execution_identity.dart':
       43,
   'lib/features/chat/domain/services/production_release/production_release_prose_shadow.dart': 77,
-  'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
+  'lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart':
       102,
   'lib/features/chat/domain/services/run_tests_tool_handler.dart': 465,
   'lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart':
@@ -300,12 +300,12 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/claims/final_answer_claim_notice_input.dart': 69,
   'lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart':
       179,
-  'lib/features/chat/domain/services/file_mutation_effect_coordinator.dart':
+  'lib/features/chat/domain/services/files/file_mutation_effect_coordinator.dart':
       371,
-  'lib/features/chat/domain/services/file_mutation_tool_handler.dart': 389,
-  'lib/features/chat/domain/services/file_rollback_tool_contract.dart': 304,
-  'lib/features/chat/domain/services/file_rollback_tool_handler.dart': 225,
-  'lib/features/chat/domain/services/file_turn_rollback_service.dart': 111,
+  'lib/features/chat/domain/services/files/file_mutation_tool_handler.dart': 389,
+  'lib/features/chat/domain/services/files/file_rollback_tool_contract.dart': 304,
+  'lib/features/chat/domain/services/files/file_rollback_tool_handler.dart': 225,
+  'lib/features/chat/domain/services/files/file_turn_rollback_service.dart': 111,
   // Sticky follow-up results extracted from ChatNotifier: which earlier tool
   // results a follow-up must carry again is a decision over results, not a
   // step of the loop.
@@ -356,9 +356,9 @@ const Map<String, int> _lineBudgets = {
   // `diff --cached` was deduplicated and the refusal replayed (dd50d110).
   'lib/features/chat/domain/services/claims/uninspected_commit_guard.dart': 153,
   'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart': 93,
-  'lib/features/chat/domain/services/context_surgery_observation_accumulator.dart':
+  'lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart':
       130,
-  'lib/features/chat/domain/services/context_surgery_protected_path_policy.dart':
+  'lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart':
       20,
   'lib/features/chat/domain/services/model_switch_handoff_registry.dart': 89,
   'lib/features/chat/domain/services/model_switch_settings_policy.dart': 59,
@@ -460,7 +460,7 @@ const Map<String, int> _lineBudgets = {
       117,
   'lib/features/chat/presentation/providers/turn_goal_completion_evidence_registry.dart':
       211,
-  'lib/features/chat/domain/services/file_mutation_evidence_policy.dart': 65,
+  'lib/features/chat/domain/services/files/file_mutation_evidence_policy.dart': 65,
   'lib/features/chat/domain/services/python/python_attachment_repair_policy.dart': 145,
   'lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart':
       206,

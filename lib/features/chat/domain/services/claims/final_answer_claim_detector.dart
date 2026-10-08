@@ -4,7 +4,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../entities/tool_call_info.dart';
-import '../file_mutation_evidence_policy.dart';
+import '../files/file_mutation_evidence_policy.dart';
 import '../project_task/project_task_status_contract.dart';
 import '../tool_definition_search_service.dart';
 import '../tool_loop/fenced_tool_arguments_detector.dart';
