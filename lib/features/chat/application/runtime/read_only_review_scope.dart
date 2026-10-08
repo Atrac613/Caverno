@@ -5,7 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/recent_read_result_carry.dart';
+import '../../domain/services/tool_loop/recent_read_result_carry.dart';
 
 /// What a `/review` turn may do, enforced rather than requested.
 ///

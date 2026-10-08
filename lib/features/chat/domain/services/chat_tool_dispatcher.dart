@@ -4,7 +4,7 @@ import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
-import 'tool_argument_type_guard.dart';
+import 'tool_loop/tool_argument_type_guard.dart';
 
 typedef ChatToolHandler = Future<McpToolResult> Function(ToolCallInfo toolCall);
 typedef ChatToolPlanningPolicy = McpToolResult? Function(ToolCallInfo toolCall);

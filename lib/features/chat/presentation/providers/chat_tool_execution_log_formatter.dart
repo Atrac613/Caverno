@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/tool_execution_scheduler.dart';
+import '../../domain/services/tool_loop/tool_execution_scheduler.dart';
 
 final class ChatToolExecutionLogFormatter {
   const ChatToolExecutionLogFormatter._();

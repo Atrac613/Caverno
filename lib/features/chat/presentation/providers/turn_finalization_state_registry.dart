@@ -1,5 +1,5 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/tool_loop_exit_reason.dart';
+import '../../domain/services/tool_loop/tool_loop_exit_reason.dart';
 import 'turn_finalization_state.dart';
 
 export 'turn_finalization_goal_state_access.dart';

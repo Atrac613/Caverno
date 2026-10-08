@@ -2,8 +2,8 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/production_release/production_release_execution_identity.dart';
-import '../../domain/services/tool_call_execution_policy.dart';
-import '../../domain/services/tool_failure_classifier.dart';
+import '../../domain/services/tool_loop/tool_call_execution_policy.dart';
+import '../../domain/services/tool_loop/tool_failure_classifier.dart';
 import 'turn_tool_result_ledger.dart';
 
 /// Records only command calls that reached execution, with their exact

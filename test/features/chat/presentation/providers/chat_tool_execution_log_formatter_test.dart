@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/tool_execution_scheduler.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_execution_scheduler.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_tool_execution_log_formatter.dart';
 import 'package:flutter_test/flutter_test.dart';
 

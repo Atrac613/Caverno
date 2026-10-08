@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
-import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_outcome_shadow_comparison.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 

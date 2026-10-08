@@ -1,5 +1,5 @@
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/tool_call_execution_policy.dart';
+import '../../domain/services/tool_loop/tool_call_execution_policy.dart';
 
 /// Bounds how often one read-only command may run again within a turn.
 ///

@@ -64,4 +64,4 @@ failure artifact capture can include them without changing the artifact schema.
 ## Verification
 
 Focused coverage was added in
-`test/features/chat/domain/services/tool_execution_scheduler_test.dart`.
+`test/features/chat/domain/services/tool_loop/tool_execution_scheduler_test.dart`.

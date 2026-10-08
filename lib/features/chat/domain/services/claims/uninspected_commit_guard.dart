@@ -7,7 +7,7 @@ import '../../entities/tool_call_info.dart';
 import '../file_mutation_evidence_policy.dart';
 import '../immutable_json_snapshot.dart';
 import '../plan/proposal_parsing_text_utils.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: uninspected-commit-guard
 

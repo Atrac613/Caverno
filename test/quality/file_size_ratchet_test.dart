@@ -105,7 +105,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/anabasis/anabasis_parent_authority_tools.dart': 36,
   // +5 for the turn scope, the read-only review's refusal. It belongs in the
   // chain because it must run before the assumption gate asks the user.
-  'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 49,
+  'lib/features/chat/domain/services/tool_loop/turn_tool_policy_chain.dart': 49,
   'lib/features/chat/domain/services/anabasis/task_delegation_brief_builder.dart': 136,
   'lib/features/chat/domain/services/anabasis/delegated_premise_audit.dart': 58,
   // +10, to 155: a worktree child that named no files owes no changed-file
@@ -150,17 +150,17 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/project_task_completion_evidence.dart': 45,
   'lib/features/chat/domain/services/coding/structured_coding_task_recovery_policy.dart':
       29,
-  'lib/features/chat/domain/services/tool_outcome_snapshot.dart': 23,
+  'lib/features/chat/domain/services/tool_loop/tool_outcome_snapshot.dart': 23,
   // -4, to 87: the status request's tools, prompt and call acceptance moved
   // to StatusRecoveryVerification.
-  'lib/features/chat/domain/services/turn_finalization_recovery_plan.dart': 87,
+  'lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_plan.dart': 87,
   'lib/features/project_farm/application/project_task_review_turn_runner.dart':
       49,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
   'lib/features/chat/domain/services/content_tool_formatters.dart': 2,
   'lib/features/chat/domain/services/content_tool_failure_result_formatter.dart':
       64,
-  'lib/features/chat/domain/services/running_tool_tracker.dart': 31,
+  'lib/features/chat/domain/services/tool_loop/running_tool_tracker.dart': 31,
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
   'lib/features/chat/domain/services/ask_user_question/ask_user_question_option_parser.dart': 99,
   'lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart': 383,
@@ -261,7 +261,7 @@ const Map<String, int> _lineBudgets = {
   // together where they can be compared.
   'lib/features/chat/domain/services/ssh_tool_handler.dart': 311,
   'lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart': 419,
-  'lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart':
+  'lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart':
       69,
   'lib/features/chat/domain/services/turn_tool_approval_coordinator.dart': 489,
   'lib/features/chat/domain/services/lsp_go_to_definition_tool_contract.dart':
@@ -281,7 +281,7 @@ const Map<String, int> _lineBudgets = {
   // is a different question from whether it may run, and now lives in
   // LocalCommandWorkingDirectory.
   'lib/features/chat/domain/services/local_command/local_command_tool_handler.dart': 378,
-  'lib/features/chat/domain/services/turn_finalization_recovery_policy.dart':
+  'lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart':
       268,
   'lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart':
       64,
@@ -291,10 +291,10 @@ const Map<String, int> _lineBudgets = {
       261,
   'lib/features/chat/domain/services/production_release/blocked_production_release_retry_contract.dart':
       100,
-  'lib/features/chat/domain/services/fenced_tool_arguments_detector.dart': 74,
+  'lib/features/chat/domain/services/tool_loop/fenced_tool_arguments_detector.dart': 74,
   'lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart':
       224,
-  'lib/features/chat/domain/services/turn_tool_catalog_cache.dart': 44,
+  'lib/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart': 44,
   'lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart':
       136,
   'lib/features/chat/domain/services/claims/final_answer_claim_notice_input.dart': 69,
@@ -309,7 +309,7 @@ const Map<String, int> _lineBudgets = {
   // Sticky follow-up results extracted from ChatNotifier: which earlier tool
   // results a follow-up must carry again is a decision over results, not a
   // step of the loop.
-  'lib/features/chat/domain/services/sticky_tool_result_policy.dart': 54,
+  'lib/features/chat/domain/services/tool_loop/sticky_tool_result_policy.dart': 54,
   'lib/features/chat/domain/services/local_command/process_start_result_policy.dart': 73,
   'lib/features/chat/domain/services/referenced_specification_loader.dart': 75,
   // Route value types moved to secondary_completion_route_snapshot.dart when
@@ -363,7 +363,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/model_switch_handoff_registry.dart': 89,
   'lib/features/chat/domain/services/model_switch_settings_policy.dart': 59,
   'lib/features/chat/domain/services/model_switch_settings_comparison.dart': 28,
-  'lib/features/chat/domain/services/request_tool_observation_collector.dart':
+  'lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart':
       116,
   'lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart':
       245,
@@ -374,7 +374,7 @@ const Map<String, int> _lineBudgets = {
   // +43: the pending-call facts moved here from chat_notifier.dart (-7), and a
   // pending ask_user_question now declines recovery, whose "do not ask for
   // confirmation" had the model answer its own question (dd50d110).
-  'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 98,
+  'lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart': 98,
   // -11: the block payload and the Git working-tree evidence check moved to
   // their own collaborators.
   'lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart':
@@ -382,7 +382,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/git/git_working_tree_change_evidence.dart': 87,
   'lib/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart':
       38,
-  'lib/features/chat/domain/services/turn_tool_catalog_source.dart': 31,
+  'lib/features/chat/domain/services/tool_loop/turn_tool_catalog_source.dart': 31,
   'lib/features/chat/data/datasources/execution_snapshot_log_runtime_adapter.dart':
       32,
   'lib/features/chat/data/datasources/turn_tool_approval_runtime_ports.dart':
@@ -466,8 +466,8 @@ const Map<String, int> _lineBudgets = {
       206,
   // Reuse-payload construction extracted: matching a duplicate and deciding
   // what to echo back for it are separate jobs.
-  'lib/features/chat/domain/services/duplicate_tool_result_recovery.dart': 176,
-  'lib/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart':
+  'lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart': 176,
+  'lib/features/chat/domain/services/tool_loop/duplicate_tool_result_reuse_payload.dart':
       80,
   'lib/core/security/conversation_taint_state.dart': 82,
   // -10: credential-to-client construction (key loading, password handler)
@@ -568,7 +568,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/content_tool_continuation_prompt_builder.dart':
       61,
   'lib/features/chat/presentation/providers/tool_dedupe_keys.dart': 62,
-  'lib/features/chat/domain/services/fenced_tool_name_blocks.dart': 19,
+  'lib/features/chat/domain/services/tool_loop/fenced_tool_name_blocks.dart': 19,
   // +1 import for ConversationGoalStatusPresentation, which absorbed the
   // status->label/colour/icon mapping duplicated across three files.
   // Lowered from 2046 by the coding-terminal dock slice: the panel, its split
@@ -894,7 +894,7 @@ const Map<String, int> _lineBudgets = {
       160,
   'lib/features/chat/data/datasources/chat_completion_embedded_tool_call_parser.dart':
       70,
-  'lib/features/chat/domain/services/printed_tool_call_recovery.dart': 45,
+  'lib/features/chat/domain/services/tool_loop/printed_tool_call_recovery.dart': 45,
   'lib/features/settings/domain/services/local_llm_endpoint_predicate.dart': 56,
   'lib/features/settings/domain/services/local_llm_health_service.dart': 100,
   'lib/features/chat/presentation/widgets/local_llm_health_section.dart': 265,
@@ -1126,9 +1126,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/coding_continuation_recovery_request.dart':
       98,
   'lib/features/chat/domain/services/local_command/masked_inspection_command_policy.dart': 11,
-  'lib/features/chat/domain/services/turn_finalization_recovery_budget.dart':
+  'lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_budget.dart':
       59,
-  'lib/features/chat/domain/services/turn_finalization_recovery_input_builder.dart':
+  'lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_input_builder.dart':
       39,
   'lib/features/chat/data/datasources/local_shell_process_runner.dart': 234,
   'lib/features/chat/domain/services/tool_result_prompt_builder.dart': 2064,

@@ -65,7 +65,7 @@ do not change.
 
 | Behavior | Pinned by |
 |---|---|
-| Tool dedup: execution key **keeps** `reason`, failure key **strips** it | `test/features/chat/domain/services/tool_call_execution_policy_test.dart` |
+| Tool dedup: execution key **keeps** `reason`, failure key **strips** it | `test/features/chat/domain/services/tool_loop/tool_call_execution_policy_test.dart` |
 | Approval cache ignores `reason` | `test/features/chat/presentation/providers/tool_approval_cache_test.dart` |
 | `read_file` is repeatable (no dedup guard) | `test/features/chat/presentation/providers/chat_notifier_read_only_inspection_guard_test.dart` |
 | False-completion claim correction: notice prepended, never stacked, original answer preserved, notice strings verbatim | `chat_notifier_test.dart` via `messageContentWithPrependedClaimCorrectionNoticeForTest` (main file ~L4960) |
@@ -494,7 +494,7 @@ class FinalAnswerClaimDetector {
 flutter analyze
 tool/codex_verify.sh --test test/features/chat/presentation/providers/chat_notifier_test.dart \
   --test test/features/chat/presentation/providers/chat_notifier_read_only_inspection_guard_test.dart \
-  --test test/features/chat/domain/services/tool_call_execution_policy_test.dart \
+  --test test/features/chat/domain/services/tool_loop/tool_call_execution_policy_test.dart \
   --test test/features/chat/domain/services/claims/final_answer_claim_detector_test.dart
 ```
 

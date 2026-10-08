@@ -26,9 +26,7 @@ import 'package:caverno/features/chat/domain/services/conversation_checkpoint_re
 import 'package:caverno/features/chat/domain/services/conversation_execution_recovery_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_execution_summary_service.dart';
 import 'package:caverno/features/chat/domain/services/enabled_skill_named_in_text.dart';
-import 'package:caverno/features/chat/domain/services/execution_budget_policy.dart';
 import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
-import 'package:caverno/features/chat/domain/services/fenced_tool_name_blocks.dart';
 import 'package:caverno/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_completion_elicitation_prompt.dart';
@@ -52,11 +50,13 @@ import 'package:caverno/features/chat/domain/services/pro_reasoning_run_coordina
 import 'package:caverno/features/chat/domain/services/pro_reasoning_synthesis_recovery.dart';
 import 'package:caverno/features/chat/domain/services/repo_map_lsp_symbol_cache.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/execution_budget_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/fenced_tool_name_blocks.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/truncation_notice.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/turn_tool_catalog_source.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_taint_recorder.dart';
-import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
-import 'package:caverno/features/chat/domain/services/turn_tool_catalog_cache.dart';
-import 'package:caverno/features/chat/domain/services/turn_tool_catalog_source.dart';
 import 'package:caverno/features/chat/domain/services/verification/stalled_diagnostic_repair_contract.dart';
 import 'package:caverno/features/chat/domain/services/verification/verification_cadence_policy.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -72,8 +72,6 @@ part 'conversation_execution_recovery_service_cases.dart';
 part 'conversation_execution_summary_service_cases.dart';
 part 'conversation_workflow_stage_decision_rehearsal_cases.dart';
 part 'diagnostic_signature_cases.dart';
-part 'execution_budget_policy_cases.dart';
-part 'fenced_tool_name_blocks_cases.dart';
 part 'goal/goal_auto_continue_prompt_builder_cases.dart';
 part 'goal/goal_completion_elicitation_prompt_cases.dart';
 part 'immutable_json_snapshot_cases.dart';
@@ -91,8 +89,10 @@ part 'pro_reasoning_models_cases.dart';
 part 'pro_reasoning_run_coordinator_cases.dart';
 part 'pro_reasoning_synthesis_recovery_cases.dart';
 part 'repo_map_lsp_symbol_cache_cases.dart';
+part 'tool_loop/execution_budget_policy_cases.dart';
+part 'tool_loop/fenced_tool_name_blocks_cases.dart';
+part 'tool_loop/turn_tool_catalog_source_cases.dart';
 part 'tool_result_taint_recorder_cases.dart';
-part 'turn_tool_catalog_source_cases.dart';
 part 'verification/verification_cadence_policy_cases.dart';
 
 void main() {

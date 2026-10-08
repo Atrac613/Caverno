@@ -35,9 +35,9 @@
     "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
     "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
     "lib/features/chat/domain/services/create_routine_tool_handler.dart",
-    "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+    "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
     "lib/features/chat/domain/services/execution_snapshot_observer.dart",
-    "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
+    "lib/features/chat/domain/services/tool_loop/fenced_tool_arguments_detector.dart",
     "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
     "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
     "lib/features/chat/domain/services/file_turn_rollback_service.dart",
@@ -70,7 +70,7 @@
     "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
     "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
     "lib/features/chat/domain/services/referenced_specification_loader.dart",
-    "lib/features/chat/domain/services/request_tool_observation_collector.dart",
+    "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart",
     "lib/features/chat/domain/services/run_tests_tool_handler.dart",
     "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
     "lib/features/chat/domain/services/save_skill_tool_handler.dart",
@@ -83,11 +83,11 @@
     "lib/features/chat/domain/services/ssh_tool_handler.dart",
     "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
     "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
-    "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
-    "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
-    "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+    "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart",
+    "lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart",
+    "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
     "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
-    "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
+    "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart",
     "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
     "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
     "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
@@ -5427,7 +5427,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecovery._buildReusePayload",
       "signature": "String _buildReusePayload(\n    ToolResultInfo previousResult, {\n    required String currentToolCallId,\n  })",
       "turnIdentityParameters": [],
@@ -5441,7 +5441,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecovery._dedupe",
       "signature": "List<ToolResultInfo> _dedupe(\n    List<ToolResultInfo> toolResults, {\n    required ProjectPathResolver resolveProjectPath,\n  })",
       "turnIdentityParameters": [],
@@ -5455,7 +5455,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecovery._executionKeyForResult",
       "signature": "String _executionKeyForResult(\n    ToolResultInfo toolResult, {\n    required ProjectPathResolver resolveProjectPath,\n  })",
       "turnIdentityParameters": [],
@@ -5469,7 +5469,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecovery._latestMatchingResult",
       "signature": "ToolResultInfo? _latestMatchingResult({\n    required ToolCallInfo toolCall,\n    required List<ToolResultInfo> executedToolResults,\n    required ProjectPathResolver resolveProjectPath,\n  })",
       "turnIdentityParameters": [],
@@ -5483,7 +5483,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecovery._projectPathResolver",
       "signature": "ProjectPathResolver _projectPathResolver(String? projectRoot)",
       "turnIdentityParameters": [],
@@ -5496,7 +5496,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecovery._tryDecodeMap",
       "signature": "Map<String, dynamic>? _tryDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -5509,7 +5509,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecovery.recover",
       "signature": "List<ToolResultInfo> recover(DuplicateToolResultRecoveryInput input)",
       "turnIdentityParameters": [],
@@ -5530,7 +5530,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecoveryInput._freezeArguments",
       "signature": "static Map<String, dynamic> _freezeArguments(\n    Map<String, dynamic> arguments,\n  )",
       "turnIdentityParameters": [],
@@ -5543,7 +5543,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecoveryInput._freezeToolCall",
       "signature": "static ToolCallInfo _freezeToolCall(ToolCallInfo call)",
       "turnIdentityParameters": [],
@@ -5557,7 +5557,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecoveryInput._freezeToolResult",
       "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -5571,7 +5571,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
       "declaration": "DuplicateToolResultRecoveryInput._freezeValue",
       "signature": "static Object? _freezeValue(Object? value)",
       "turnIdentityParameters": [],
@@ -5639,7 +5639,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/fenced_tool_arguments_detector.dart",
       "declaration": "FencedToolArgumentsDetector._decodeJsonObject",
       "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
       "turnIdentityParameters": [],
@@ -5652,7 +5652,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/fenced_tool_arguments_detector.dart",
       "declaration": "FencedToolArgumentsDetector.detect",
       "signature": "/// The first fenced argument object in [content], or null.\n  FencedToolArguments? detect(String content)",
       "turnIdentityParameters": [],
@@ -10737,7 +10737,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/request_tool_observation_collector.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart",
       "declaration": "RequestToolObservationCollector._externalMcpToolNames",
       "signature": "Set<String> _externalMcpToolNames(RequestToolCatalogSnapshot catalog)",
       "turnIdentityParameters": [],
@@ -10750,7 +10750,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/request_tool_observation_collector.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart",
       "declaration": "RequestToolObservationCollector.collect",
       "signature": "RequestToolObservation collect(RequestToolObservationInput input)",
       "turnIdentityParameters": [],
@@ -10767,7 +10767,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/request_tool_observation_collector.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart",
       "declaration": "_freezeDefinitions",
       "signature": "List<Map<String, dynamic>> _freezeDefinitions(\n  List<Map<String, dynamic>> definitions,\n)",
       "turnIdentityParameters": [],
@@ -13023,7 +13023,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart",
       "declaration": "ToolLoopExhaustionDecisionInput.iterationLimitReached",
       "signature": "bool get iterationLimitReached",
       "turnIdentityParameters": [],
@@ -13034,7 +13034,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart",
       "declaration": "ToolLoopExhaustionPolicy.shouldRequestRecovery",
       "signature": "bool shouldRequestRecovery(ToolLoopExhaustionDecisionInput input)",
       "turnIdentityParameters": [],
@@ -13045,7 +13045,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart",
       "declaration": "TruncatedToolCallArgumentsGuard.casualtyToolCallIds",
       "signature": "/// The ids of [result]'s tool calls that the truncation ate.\n  ///\n  /// Empty unless [truncated], because a completion that finished normally\n  /// with empty arguments is a model error rather than a lost generation.\n  Set<String> casualtyToolCallIds(\n    ChatCompletionResult result, {\n    required bool truncated,\n  })",
       "turnIdentityParameters": [],
@@ -13060,7 +13060,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart",
       "declaration": "TruncatedToolCallArgumentsGuard.diagnosticFor",
       "signature": "/// The diagnostic to return in place of executing [toolCall].\n  McpToolResult diagnosticFor(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -13074,7 +13074,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart",
       "declaration": "TruncatedToolCallArgumentsGuard.isCasualty",
       "signature": "/// Whether [toolCall] is one of the casualties in [casualtyToolCallIds], and\n  /// so must be answered rather than executed.\n  bool isCasualty(ToolCallInfo toolCall, Set<String> casualtyToolCallIds)",
       "turnIdentityParameters": [],
@@ -13087,7 +13087,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryInput._freezeToolResult",
       "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -13101,7 +13101,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy._containsAny",
       "signature": "bool _containsAny(String value, List<String> markers)",
       "turnIdentityParameters": [],
@@ -13114,7 +13114,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy._containsAnyCodeUnitSequence",
       "signature": "bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences)",
       "turnIdentityParameters": [],
@@ -13128,7 +13128,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy._containsCodeUnitSequence",
       "signature": "bool _containsCodeUnitSequence(String text, List<int> sequence)",
       "turnIdentityParameters": [],
@@ -13139,7 +13139,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy.contentBeforeFinalizationCandidate",
       "signature": "String contentBeforeFinalizationCandidate({\n    required String currentContent,\n    required String candidateResponse,\n  })",
       "turnIdentityParameters": [],
@@ -13155,7 +13155,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy.hasSuccessfulFinalAnswerToolEvidence",
       "signature": "bool hasSuccessfulFinalAnswerToolEvidence(\n    TurnFinalizationRecoveryInput input,\n  )",
       "turnIdentityParameters": [],
@@ -13166,7 +13166,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy.looksLikeCodingFutureAction",
       "signature": "bool looksLikeCodingFutureAction(String content)",
       "turnIdentityParameters": [],
@@ -13182,7 +13182,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy.looksLikeCompletedCodingFinalAnswer",
       "signature": "bool looksLikeCompletedCodingFinalAnswer(String content)",
       "turnIdentityParameters": [],
@@ -13198,7 +13198,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy.shouldSkipCompletedToolResultCodingContinuationRecovery",
       "signature": "bool shouldSkipCompletedToolResultCodingContinuationRecovery(\n    TurnFinalizationRecoveryInput input,\n  )",
       "turnIdentityParameters": [],
@@ -13214,7 +13214,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy.shouldSkipCompletedToolResultFinalAnswerRecovery",
       "signature": "bool shouldSkipCompletedToolResultFinalAnswerRecovery(\n    TurnFinalizationRecoveryInput input,\n  )",
       "turnIdentityParameters": [],
@@ -13228,7 +13228,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
       "declaration": "TurnFinalizationRecoveryPolicy.turnFinalizationCandidateText",
       "signature": "String turnFinalizationCandidateText({\n    required String content,\n    required String? streamedFinalAnswer,\n  })",
       "turnIdentityParameters": [],
@@ -13664,7 +13664,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart",
       "declaration": "TurnToolCatalogCache.keyFor",
       "signature": "/// Order-independent, so a selection rebuilt in a different order is still\n  /// recognized as the same one.\n  String keyFor(Set<String> selection)",
       "turnIdentityParameters": [],
@@ -13679,7 +13679,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
+      "path": "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart",
       "declaration": "TurnToolCatalogCache.resolve",
       "signature": "List<Map<String, dynamic>> resolve({\n    required Set<String> selection,\n    required List<Map<String, dynamic>> Function() compute,\n  })",
       "turnIdentityParameters": [],

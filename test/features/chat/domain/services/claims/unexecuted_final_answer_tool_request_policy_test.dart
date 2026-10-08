@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart';
-import 'package:caverno/features/chat/domain/services/tool_loop_exit_reason.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_loop_exit_reason.dart';
 import 'package:test/test.dart';
 
 const _policy = UnexecutedFinalAnswerToolRequestPolicy();

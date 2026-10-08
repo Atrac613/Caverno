@@ -21,7 +21,7 @@ import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/subagent_tool_contract.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
-import 'package:caverno/features/chat/domain/services/successful_read_result_replay_cache.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/successful_read_result_replay_cache.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';

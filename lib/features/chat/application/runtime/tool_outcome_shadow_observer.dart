@@ -2,7 +2,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/utils/logger.dart';
 import '../../data/datasources/llm_session_log_store.dart';
-import '../../domain/services/tool_outcome_shadow_comparison.dart';
+import '../../domain/services/tool_loop/tool_outcome_shadow_comparison.dart';
 
 /// Observes LL34 exit-code migration coverage without affecting tool behavior.
 Future<void> observeToolOutcomeShadow({

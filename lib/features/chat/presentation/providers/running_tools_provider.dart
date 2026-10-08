@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/services/running_tool_tracker.dart';
-import '../../domain/services/tool_work_timer.dart';
+import '../../domain/services/tool_loop/running_tool_tracker.dart';
+import '../../domain/services/tool_loop/tool_work_timer.dart';
 import 'conversation_work_time_providers.dart';
 
 /// Which tools each thread's turn is running right now, keyed by conversation.

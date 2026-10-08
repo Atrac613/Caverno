@@ -4,7 +4,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 
 import '../../data/datasources/chat_remote_datasource.dart';
-import '../../domain/services/tool_execution_scheduler.dart';
+import '../../domain/services/tool_loop/tool_execution_scheduler.dart';
 
 /// Publishes non-terminal runtime events for notifier-owned turn handles.
 final class RuntimeTurnEventPublisher {

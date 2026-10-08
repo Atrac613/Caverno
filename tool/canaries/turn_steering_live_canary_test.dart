@@ -45,7 +45,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
-import 'package:caverno/features/chat/domain/services/turn_steering_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/turn_steering_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';

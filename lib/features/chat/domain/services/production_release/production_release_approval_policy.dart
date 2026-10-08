@@ -6,7 +6,7 @@ import '../../entities/mcp_tool_entity.dart';
 import '../../entities/tool_call_info.dart';
 import '../ask_user_question/ask_user_question_text_normalization.dart';
 import '../ask_user_question/ask_user_question_turn_cache.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 import 'production_release_approval_wording_predicates.dart';
 import 'production_release_blocked_result.dart';
 

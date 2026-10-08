@@ -1,5 +1,5 @@
 import '../../entities/tool_call_info.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 import 'production_release_approval_policy.dart';
 import 'production_release_execution_identity.dart';
 

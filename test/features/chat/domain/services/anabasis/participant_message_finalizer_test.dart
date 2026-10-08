@@ -2,7 +2,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/participant_message_finalizer.dart';
-import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/truncation_notice.dart';
 import 'package:test/test.dart';
 
 void main() {

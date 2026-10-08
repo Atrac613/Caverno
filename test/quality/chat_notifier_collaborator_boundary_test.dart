@@ -323,7 +323,7 @@ void main() {
               'create_routine_tool_handler.dart',
           'lib/features/chat/domain/services/'
               'save_skill_tool_handler.dart',
-          'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart',
+          'lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart',
           'lib/features/chat/domain/services/'
               'turn_finalization_recovery_policy.dart',
           'lib/features/chat/domain/services/'

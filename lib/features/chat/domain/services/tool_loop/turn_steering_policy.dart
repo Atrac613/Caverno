@@ -1,0 +1,81 @@
+import '../../entities/message.dart';
+import 'turn_steering_prompt_builder.dart';
+
+/// The decisions behind mid-turn interruption, separated from the notifier
+/// state they are applied to.
+///
+/// Everything here is a pure function of its arguments, so the rules can be
+/// tested without a running turn. The notifier keeps only the plumbing: which
+/// registry to read, whose messages to rewrite, where to route the state.
+final class TurnSteeringPolicy {
+  const TurnSteeringPolicy._();
+
+  /// How many times one turn may abandon a stream to take an interruption.
+  ///
+  /// A restart re-issues the turn's request, so this is what keeps a user
+  /// typing corrections faster than the model answers from looping the turn.
+  static const int restartBudgetPerTurn = 2;
+
+  /// Whether a message typed against a busy thread can join its turn.
+  ///
+  /// Attachments and voice are excluded, not unsupported: an image would need
+  /// the vision payload plumbed through the continuation request, and voice
+  /// mode already interrupts by cancelling (barge-in). Both fall back to the
+  /// queue, which handles them today. So does a message whose model-facing
+  /// content differs from what the user typed, since the continuation request
+  /// carries only the visible text.
+  static bool canSteer({
+    required String content,
+    required bool hasImage,
+    required bool isVoiceMode,
+    bool hasModelContent = false,
+  }) =>
+      content.trim().isNotEmpty &&
+      !hasImage &&
+      !isVoiceMode &&
+      !hasModelContent;
+
+  /// Where an interruption belongs in [messages].
+  ///
+  /// Ahead of the reply still being written, so the transcript keeps the order
+  /// the user lived through: the interruption arrived while that reply was in
+  /// flight, not after it finished. Requests filter streaming messages out
+  /// anyway, so this placement is for the reader, not the model.
+  static int insertIndex(List<Message> messages) {
+    var index = messages.length;
+    while (index > 0 && messages[index - 1].isStreaming) {
+      index -= 1;
+    }
+    return index;
+  }
+
+  /// The directive that tells the model the last [carried] user turns are an
+  /// interruption, or null when the turn has carried none.
+  ///
+  /// Keyed by [generation] and derived from the carried count rather than
+  /// consumed, so it stays in place for the rest of the turn instead of only
+  /// for the request that first carried the message.
+  static Message? directiveMessage({
+    required int generation,
+    required int carried,
+  }) => carried == 0
+      ? null
+      : Message(
+          id: 'system_turn_steering_$generation',
+          content: TurnSteeringPromptBuilder.directive(steerCount: carried),
+          role: MessageRole.system,
+          timestamp: DateTime.now(),
+        );
+
+  /// The transcript entry for one interruption.
+  static Message steeringMessage({
+    required String id,
+    required String content,
+    required DateTime receivedAt,
+  }) => Message(
+    id: id,
+    content: content.trim(),
+    role: MessageRole.user,
+    timestamp: receivedAt,
+  );
+}

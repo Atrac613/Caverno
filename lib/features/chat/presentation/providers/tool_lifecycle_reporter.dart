@@ -2,7 +2,7 @@ import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/tool_execution_scheduler.dart';
+import '../../domain/services/tool_loop/tool_execution_scheduler.dart';
 import 'chat_tool_execution_log_formatter.dart';
 import 'runtime_turn_event_publisher.dart';
 

@@ -1,5 +1,5 @@
 import '../../domain/services/goal/goal_update_tool_contract.dart';
-import '../../domain/services/tool_loop_exit_reason.dart';
+import '../../domain/services/tool_loop/tool_loop_exit_reason.dart';
 
 enum CompletedToolResultFinalAnswerRecoveryDecision {
   notEvaluated('not_evaluated'),

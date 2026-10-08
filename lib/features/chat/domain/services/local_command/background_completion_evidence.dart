@@ -4,7 +4,7 @@ import '../../entities/subagent_task.dart';
 import '../../entities/tool_call_info.dart';
 import '../claims/final_answer_claim_detector.dart';
 import '../plan/proposal_parsing_text_utils.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 import 'local_command_tool_contract.dart';
 
 /// Interprets captured process and owner-bound child completion evidence.

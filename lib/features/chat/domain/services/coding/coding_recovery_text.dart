@@ -1,4 +1,4 @@
-import '../reasoning_only_stop.dart';
+import '../tool_loop/reasoning_only_stop.dart';
 
 typedef RecoveryText = ({
   String label,

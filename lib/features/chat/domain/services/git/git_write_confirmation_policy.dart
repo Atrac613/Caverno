@@ -4,7 +4,7 @@ import '../../../data/datasources/git_tools.dart';
 import '../../entities/chat_turn_owner.dart';
 import '../../entities/tool_call_info.dart';
 import '../immutable_json_snapshot.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 
 /// Immutable assistant question and pending calls for one exact turn owner.
 final class GitWriteConfirmationInput {

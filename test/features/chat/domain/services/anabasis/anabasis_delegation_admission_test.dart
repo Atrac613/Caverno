@@ -4,7 +4,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/anabasis_delegation_admission.dart';
-import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_failure_classifier.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

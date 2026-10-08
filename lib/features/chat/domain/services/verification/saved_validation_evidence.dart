@@ -3,7 +3,7 @@ import '../../../data/datasources/git_tools.dart';
 import '../../entities/tool_call_info.dart';
 import '../file_mutation_evidence_policy.dart';
 import '../saved_task_target_scope_guard.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 
 /// Compares captured executions against the owning turn's saved validation.
 final class SavedValidationEvidence {

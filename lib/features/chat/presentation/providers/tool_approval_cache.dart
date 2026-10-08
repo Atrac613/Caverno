@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/tool_call_execution_policy.dart';
+import '../../domain/services/tool_loop/tool_call_execution_policy.dart';
 
 /// Cached approval decision for one normalized tool call.
 class ToolApprovalCacheEntry {

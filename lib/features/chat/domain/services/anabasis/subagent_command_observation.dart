@@ -6,7 +6,7 @@ import '../../entities/mcp_tool_entity.dart';
 import '../../entities/subagent_task.dart';
 import '../../entities/tool_call_info.dart';
 import '../plan/material_contract_assumption_guard.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 
 /// Keeps command observations distinct from accepting a delegated result.
 class SubagentCommandObservation {

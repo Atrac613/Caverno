@@ -6,7 +6,7 @@ import '../../entities/tool_call_info.dart';
 import '../local_command/exit_status_mask.dart';
 import '../local_command/masked_inspection_command_policy.dart';
 import '../local_command/shell_exit_status_report.dart';
-import '../tool_outcome_shadow_comparison.dart';
+import '../tool_loop/tool_outcome_shadow_comparison.dart';
 import '../verification/command_output_signal_detector.dart';
 import '../verification/verification_metadata_query_policy.dart';
 import 'coding_command_output_issue.dart';

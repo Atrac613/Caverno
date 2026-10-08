@@ -6,7 +6,7 @@ import 'file_mutation_evidence_policy.dart';
 import 'local_command/shell_exit_status_report.dart';
 import 'python/compound_python_runtime_repair.dart';
 import 'python/inline_python_verification_contract.dart';
-import 'tool_call_execution_policy.dart';
+import 'tool_loop/tool_call_execution_policy.dart';
 import 'verification/unresolved_verification_failure.dart';
 
 /// Summarizes what a turn changed and ran for a structured status request.

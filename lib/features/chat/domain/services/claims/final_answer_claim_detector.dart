@@ -4,11 +4,11 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../entities/tool_call_info.dart';
-import '../fenced_tool_arguments_detector.dart';
 import '../file_mutation_evidence_policy.dart';
 import '../project_task_status_contract.dart';
-import '../tool_call_execution_policy.dart';
 import '../tool_definition_search_service.dart';
+import '../tool_loop/fenced_tool_arguments_detector.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 import '../verification/command_verification_reconciliation.dart';
 import 'narrated_transcript_claim_guard.dart';
 import 'unexecuted_command_claim_reconciliation.dart';

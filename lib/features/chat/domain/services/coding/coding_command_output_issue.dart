@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../tool_outcome_shadow_comparison.dart';
+import '../tool_loop/tool_outcome_shadow_comparison.dart';
 
 class CodingCommandOutputIssue {
   const CodingCommandOutputIssue({

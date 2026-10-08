@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../data/datasources/filesystem_tools.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/tool_call_execution_policy.dart';
+import '../../domain/services/tool_loop/tool_call_execution_policy.dart';
 
 /// Builds tool deduplication keys from explicit project context.
 abstract final class ToolDedupeKeys {

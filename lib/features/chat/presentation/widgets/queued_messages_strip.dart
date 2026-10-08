@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/services/turn_steering_policy.dart';
+import '../../domain/services/tool_loop/turn_steering_policy.dart';
 import '../providers/chat_state.dart';
 
 class QueuedMessagesStrip extends StatelessWidget {

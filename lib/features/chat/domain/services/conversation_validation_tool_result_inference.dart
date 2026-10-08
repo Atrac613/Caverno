@@ -6,7 +6,7 @@ import '../../../../core/utils/logger.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/tool_call_info.dart';
 import 'coding/coding_command_output_guardrail_service.dart';
-import 'tool_outcome_shadow_comparison.dart';
+import 'tool_loop/tool_outcome_shadow_comparison.dart';
 
 class ConversationValidationToolResultInput {
   const ConversationValidationToolResultInput({

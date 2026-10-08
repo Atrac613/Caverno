@@ -1,5 +1,5 @@
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/tool_loop_exhaustion_policy.dart';
+import '../../domain/services/tool_loop/tool_loop_exhaustion_policy.dart';
 
 /// Whether to extend the tool-loop budget, instead of finalizing, when a turn
 /// that has changed files reaches the limit with work still pending.

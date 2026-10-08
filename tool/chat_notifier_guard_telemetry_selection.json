@@ -69,14 +69,14 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart::DuplicateToolResultRecovery",
+      "id": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart::DuplicateToolResultRecovery",
       "disposition": "defer",
       "question": "Was DuplicateToolResultRecovery evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/execution_budget_policy.dart::ExecutionBudgetPolicy",
+      "id": "lib/features/chat/domain/services/tool_loop/execution_budget_policy.dart::ExecutionBudgetPolicy",
       "disposition": "defer",
       "question": "Was ExecutionBudgetPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -195,42 +195,42 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/tool_call_execution_policy.dart::ToolCallExecutionPolicy",
+      "id": "lib/features/chat/domain/services/tool_loop/tool_call_execution_policy.dart::ToolCallExecutionPolicy",
       "disposition": "defer",
       "question": "Was ToolCallExecutionPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart::ToolLoopExhaustionPolicy",
+      "id": "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart::ToolLoopExhaustionPolicy",
       "disposition": "defer",
       "question": "Was ToolLoopExhaustionPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/tool_loop_recovery_policy.dart::ToolLoopRecoveryPolicy",
+      "id": "lib/features/chat/domain/services/tool_loop/tool_loop_recovery_policy.dart::ToolLoopRecoveryPolicy",
       "disposition": "defer",
       "question": "Was ToolLoopRecoveryPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/tool_terminal_response_policy.dart::ToolTerminalResponsePolicy",
+      "id": "lib/features/chat/domain/services/tool_loop/tool_terminal_response_policy.dart::ToolTerminalResponsePolicy",
       "disposition": "defer",
       "question": "Was ToolTerminalResponsePolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/tool_terminal_success_policy.dart::ToolTerminalSuccessPolicy",
+      "id": "lib/features/chat/domain/services/tool_loop/tool_terminal_success_policy.dart::ToolTerminalSuccessPolicy",
       "disposition": "defer",
       "question": "Was ToolTerminalSuccessPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart::TurnFinalizationRecoveryPolicy",
+      "id": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart::TurnFinalizationRecoveryPolicy",
       "disposition": "defer",
       "question": "Was TurnFinalizationRecoveryPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

@@ -1,7 +1,7 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/tool_call_execution_policy.dart';
+import '../../domain/services/tool_loop/tool_call_execution_policy.dart';
 
 /// Which answer a turn owes the user when every tool call it just asked for had
 /// already run this turn.

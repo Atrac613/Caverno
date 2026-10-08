@@ -5,8 +5,8 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../entities/tool_call_info.dart';
 import '../immutable_json_snapshot.dart';
-import '../tool_loop_exit_reason.dart';
-import '../turn_finalization_recovery_policy.dart';
+import '../tool_loop/tool_loop_exit_reason.dart';
+import '../tool_loop/turn_finalization_recovery_policy.dart';
 import 'final_answer_claim_detector.dart';
 
 // ChatNotifier decomposition collaborator: unexecuted-final-answer-tool-request-policy

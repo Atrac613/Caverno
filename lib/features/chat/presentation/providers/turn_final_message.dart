@@ -1,7 +1,7 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../../domain/entities/message.dart';
-import '../../domain/services/truncation_notice.dart';
+import '../../domain/services/tool_loop/truncation_notice.dart';
 
 /// How a turn's last message should be finalized.
 ///

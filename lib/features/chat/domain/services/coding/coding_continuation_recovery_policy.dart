@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../../entities/tool_call_info.dart';
-import '../reasoning_only_stop.dart';
 import '../tool_definition_search_service.dart';
+import '../tool_loop/reasoning_only_stop.dart';
 import 'coding_continuation_recovery_input.dart';
 import 'coding_continuation_recovery_prompt_builder.dart';
 import 'coding_recovery_text.dart';

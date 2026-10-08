@@ -20,7 +20,7 @@ recently added guards.
   send anything else, and the turn aborted on the verbatim repeat. A string
   that is exactly the JSON text of the declared type is now decoded and the
   call dispatched; everything else is still rejected.
-  (`lib/features/chat/domain/services/tool_argument_type_guard.dart`)
+  (`lib/features/chat/domain/services/tool_loop/tool_argument_type_guard.dart`)
 
 ### Testing
 

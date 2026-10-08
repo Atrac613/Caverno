@@ -4,7 +4,7 @@ import '../../entities/chat_turn_owner.dart';
 import '../../entities/conversation_participant.dart';
 import '../../entities/message.dart';
 import '../plan/proposal_parsing_text_utils.dart';
-import '../truncation_notice.dart';
+import '../tool_loop/truncation_notice.dart';
 import 'participant_turn_coordinator.dart';
 
 // ChatNotifier decomposition collaborator: participant-message-finalizer

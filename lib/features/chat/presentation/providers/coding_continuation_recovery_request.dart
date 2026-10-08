@@ -4,8 +4,8 @@ import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/coding/coding_continuation_recovery_policy.dart';
 import '../../domain/services/coding/coding_recovery_message.dart';
 import '../../domain/services/coding/coding_recovery_protocol.dart';
-import '../../domain/services/reasoning_only_stop.dart';
 import '../../domain/services/structured_task_status_evidence.dart';
+import '../../domain/services/tool_loop/reasoning_only_stop.dart';
 import '../../domain/services/verification/project_verification_repair_policy.dart';
 
 typedef RecoveryCompletionCreator =

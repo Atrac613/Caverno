@@ -242,8 +242,8 @@
         },
         {
           "id": "tool-loop-exhaustion-policy",
-          "path": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart"
         },
         {
           "id": "git-write-confirmation-policy",
@@ -370,8 +370,8 @@
         },
         {
           "id": "request-tool-observation-collector",
-          "path": "lib/features/chat/domain/services/request_tool_observation_collector.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/request_tool_observation_collector.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart"
         },
         {
           "id": "context-surgery-observation-accumulator",
@@ -391,8 +391,8 @@
       "collaborators": [
         {
           "id": "duplicate-tool-result-recovery",
-          "path": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/duplicate_tool_result_recovery.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart"
         }
       ]
     },
@@ -766,8 +766,8 @@
         },
         {
           "id": "fenced-tool-arguments-detector",
-          "path": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/fenced_tool_arguments_detector.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/fenced_tool_arguments_detector.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/fenced_tool_arguments_detector.dart"
         },
         {
           "id": "unexecuted-command-action-retry-policy",
@@ -1072,8 +1072,8 @@
       "collaborators": [
         {
           "id": "turn-finalization-recovery-policy",
-          "path": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart"
         }
       ]
     },
@@ -1272,23 +1272,23 @@
         },
         {
           "id": "truncated-tool-call-arguments-guard",
-          "path": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart"
         },
         {
           "id": "turn-tool-catalog-cache",
-          "path": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_catalog_cache.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart"
         },
         {
           "id": "turn-tool-catalog-source",
-          "path": "lib/features/chat/domain/services/turn_tool_catalog_source.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_catalog_source.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_source.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_source.dart"
         },
         {
           "id": "running-tool-tracker",
-          "path": "lib/features/chat/domain/services/running_tool_tracker.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/running_tool_tracker.dart"
+          "path": "lib/features/chat/domain/services/tool_loop/running_tool_tracker.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_loop/running_tool_tracker.dart"
         }
       ]
     },

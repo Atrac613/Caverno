@@ -1,5 +1,5 @@
 import '../../entities/tool_call_info.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 import '../verification/reconciled_command_failure.dart';
 import '../verification/verification_metadata_query_policy.dart';
 

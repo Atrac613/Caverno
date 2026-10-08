@@ -6,7 +6,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart';
 import 'package:caverno/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart';
-import 'package:caverno/features/chat/domain/services/tool_terminal_response_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_terminal_response_policy.dart';
 import 'package:test/test.dart';
 
 final _ownerA = ChatTurnOwner(

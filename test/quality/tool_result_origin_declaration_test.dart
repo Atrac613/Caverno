@@ -11,11 +11,11 @@ import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart';
-import 'package:caverno/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_validation_probe_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_blocked_result.dart';
 import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
-import 'package:caverno/features/chat/domain/services/tool_loop_recovery_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/duplicate_tool_result_reuse_payload.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_loop_recovery_policy.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -52,7 +52,7 @@ const _producers = <String, ToolResultOrigin>{
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart':
       ToolResultOrigin.harness,
-  'lib/features/chat/domain/services/tool_loop_recovery_policy.dart':
+  'lib/features/chat/domain/services/tool_loop/tool_loop_recovery_policy.dart':
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart':
       ToolResultOrigin.harness,
@@ -60,7 +60,7 @@ const _producers = <String, ToolResultOrigin>{
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart':
       ToolResultOrigin.harness,
-  'lib/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart':
+  'lib/features/chat/domain/services/tool_loop/duplicate_tool_result_reuse_payload.dart':
       ToolResultOrigin.harness,
   // Refusals: a permission, scope or safety rule stopped a call that was
   // otherwise ready to run. This is the population a "was stopped" rate means.

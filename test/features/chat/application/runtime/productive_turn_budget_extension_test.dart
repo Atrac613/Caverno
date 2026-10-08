@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/application/runtime/productive_turn_budget_extension.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/tool_loop_exhaustion_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 

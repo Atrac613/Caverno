@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding/coding_command_output_issue_detector.dart';
-import 'package:caverno/features/chat/domain/services/tool_outcome_shadow_comparison.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_outcome_shadow_comparison.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 

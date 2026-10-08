@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/tool_call_execution_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_call_execution_policy.dart';
 import 'package:caverno/features/chat/presentation/providers/tool_dedupe_keys.dart';
 import 'package:flutter_test/flutter_test.dart';
 

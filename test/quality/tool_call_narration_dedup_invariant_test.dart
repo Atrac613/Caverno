@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/tool_call_execution_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_call_execution_policy.dart';
 import 'package:caverno/features/chat/presentation/providers/tool_approval_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 

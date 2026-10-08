@@ -27,7 +27,7 @@ carry the same context as a normal follow-up, and carried reads survive
   sessions d84f819b and e6b3d03c re-read both after staging. `git add` only
   changes the index, so it is now carried past with a "git add" change label
   and only status/diff results it made stale are dropped.
-  (`lib/features/chat/domain/services/recent_read_result_carry.dart`)
+  (`lib/features/chat/domain/services/tool_loop/recent_read_result_carry.dart`)
 
 ### Testing
 

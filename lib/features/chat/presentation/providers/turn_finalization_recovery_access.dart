@@ -1,5 +1,5 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/reasoning_only_stop.dart';
+import '../../domain/services/tool_loop/reasoning_only_stop.dart';
 import 'turn_finalization_state_registry.dart';
 
 /// Keeps continuation-recovery bookkeeping out of the generic registry.

@@ -1,7 +1,7 @@
 import '../../entities/tool_call_info.dart';
 import '../local_command/literal_shell_words.dart';
 import '../python/pytest_shell_invocation.dart';
-import '../tool_call_execution_policy.dart';
+import '../tool_loop/tool_call_execution_policy.dart';
 
 /// Detects fabricated terminal transcripts in a final answer: fenced code
 /// blocks that present `$`-prefixed commands together with their output as if

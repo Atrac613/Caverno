@@ -1,5 +1,5 @@
 import '../entities/tool_call_info.dart';
-import 'tool_loop_context_digest.dart';
+import 'tool_loop/tool_loop_context_digest.dart';
 
 /// Builds the assistant text a tool-result follow-up carries.
 ///

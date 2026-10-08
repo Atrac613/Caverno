@@ -1,6 +1,6 @@
 import '../entities/message.dart';
 import 'plan/proposal_parsing_text_utils.dart';
-import 'truncation_notice.dart';
+import 'tool_loop/truncation_notice.dart';
 
 /// Recovers a Pro Reasoning synthesis that reached the model token limit.
 final class ProReasoningSynthesisRecovery {
