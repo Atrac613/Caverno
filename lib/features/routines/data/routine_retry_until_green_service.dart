@@ -5,7 +5,7 @@ import '../../chat/data/datasources/mcp_tool_service.dart';
 import '../../chat/data/repositories/retry_until_green_report_repository.dart';
 import '../../chat/domain/entities/chat_turn_owner.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
-import '../../chat/domain/services/best_of_n_coordinator.dart';
+import '../../chat/domain/services/model_routing/best_of_n_coordinator.dart';
 import '../../chat/domain/services/retry_until_green_coordinator.dart';
 import '../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../domain/entities/routine.dart';

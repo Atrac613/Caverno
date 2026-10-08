@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/best_of_n_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/retry_until_green_coordinator.dart';
 import 'package:caverno/features/maintenance/domain/services/ll37_objective_verification_panel.dart';
 import 'package:caverno/features/maintenance/domain/services/ll37_retry_until_green_candidate_adapter.dart';

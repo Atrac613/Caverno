@@ -3,7 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../../../presentation/providers/chat_state.dart';
 import '../../entities/conversation.dart';
 import '../../entities/conversation_workflow.dart';
-import '../runtime_sampler_feedback_recorder.dart';
+import '../model_routing/runtime_sampler_feedback_recorder.dart';
 import 'proposal_parsing_text_utils.dart';
 import 'task_precondition_parsing.dart';
 import 'workflow_proposal_parser.dart';

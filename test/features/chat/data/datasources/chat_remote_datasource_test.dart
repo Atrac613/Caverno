@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/chat_request_thinking_policy.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/chat_request_thinking_policy.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

@@ -55,9 +55,9 @@
     "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
     "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
     "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart",
-    "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
-    "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
-    "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+    "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
+    "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
+    "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart",
     "lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart",
     "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
     "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
@@ -72,11 +72,11 @@
     "lib/features/chat/domain/services/referenced_specification_loader.dart",
     "lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart",
     "lib/features/chat/domain/services/run_tests_tool_handler.dart",
-    "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+    "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
     "lib/features/chat/domain/services/save_skill_tool_handler.dart",
     "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
     "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
-    "lib/features/chat/domain/services/secondary_completion_router.dart",
+    "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
     "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
     "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
     "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
@@ -8088,7 +8088,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
       "declaration": "ModelCapabilityProfileStorePort.persist",
       "signature": "Future<void> persist({\n    required ChatTurnOwner owner,\n    required ModelCapabilityProfile profile,\n  })",
       "turnIdentityParameters": [
@@ -8101,7 +8101,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
       "declaration": "ModelEditApplyTelemetryBaseline.resolve",
       "signature": "static ModelCapabilityProfile resolve({\n    required ModelCapabilityProfile? effectiveProfile,\n    required LlmProvider provider,\n    required String baseUrl,\n    required String model,\n  })",
       "turnIdentityParameters": [],
@@ -8115,7 +8115,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
       "declaration": "ModelEditApplyTelemetryRecordResult.didPersist",
       "signature": "bool get didPersist",
       "turnIdentityParameters": [],
@@ -8126,7 +8126,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
       "declaration": "ModelEditApplyTelemetryRecorder.record",
       "signature": "Future<ModelEditApplyTelemetryRecordResult> record({\n    required ChatTurnOwner owner,\n    required ToolResultInfo toolResult,\n    required ModelCapabilityProfile baselineProfile,\n  })",
       "turnIdentityParameters": [
@@ -8148,7 +8148,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
       "declaration": "RuntimeSamplerFeedbackPort.record",
       "signature": "Future<void> record({\n    required ChatTurnOwner owner,\n    required ModelCapabilityProfile baselineProfile,\n    required LlmSamplerRuntimeFeedbackSignal signal,\n  })",
       "turnIdentityParameters": [
@@ -8161,7 +8161,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.clearAll",
       "signature": "void clearAll()",
       "turnIdentityParameters": [],
@@ -8175,7 +8175,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.clearPendingHandoff",
       "signature": "void clearPendingHandoff(String conversationId)",
       "turnIdentityParameters": [],
@@ -8188,7 +8188,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.clearPendingHandoffs",
       "signature": "void clearPendingHandoffs()",
       "turnIdentityParameters": [],
@@ -8201,7 +8201,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.clearPromptCompactions",
       "signature": "void clearPromptCompactions()",
       "turnIdentityParameters": [],
@@ -8214,7 +8214,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.consumePromptCompaction",
       "signature": "bool consumePromptCompaction({\n    required ChatTurnOwner owner,\n    required bool forceCompaction,\n    required bool hasModelSwitchHandoff,\n  })",
       "turnIdentityParameters": [
@@ -8229,7 +8229,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.createPromptMessage",
       "signature": "Message? createPromptMessage(String? brief)",
       "turnIdentityParameters": [],
@@ -8243,7 +8243,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.discardPromptCompaction",
       "signature": "bool discardPromptCompaction(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -8258,7 +8258,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.hasPendingFor",
       "signature": "bool hasPendingFor(String conversationId)",
       "turnIdentityParameters": [],
@@ -8271,7 +8271,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.requestPromptCompaction",
       "signature": "bool requestPromptCompaction(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -8286,7 +8286,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.schedule",
       "signature": "/// Schedules a handoff only when an owning conversation is available.\n  ///\n  /// A model switch can happen before any conversation is selected. In that\n  /// case there is no safe key for retaining a brief, so the registry leaves\n  /// every existing owner entry unchanged and returns null.\n  String? schedule({\n    required Conversation? conversation,\n    required List<Message> messages,\n    required String previousModel,\n    required String nextModel,\n  })",
       "turnIdentityParameters": [
@@ -8302,7 +8302,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
       "declaration": "ModelSwitchHandoffRegistry.take",
       "signature": "String? take(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -8317,7 +8317,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart",
       "declaration": "ModelSwitchSettingsPolicy._previousModelForPreparation",
       "signature": "String? _previousModelForPreparation(AppSettings previous, AppSettings next)",
       "turnIdentityParameters": [],
@@ -8330,7 +8330,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart",
       "declaration": "ModelSwitchSettingsPolicy._routeId",
       "signature": "String _routeId(AppSettings settings)",
       "turnIdentityParameters": [],
@@ -8343,7 +8343,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart",
       "declaration": "ModelSwitchSettingsPolicy._shouldRebuildDataSource",
       "signature": "bool _shouldRebuildDataSource(AppSettings previous, AppSettings next)",
       "turnIdentityParameters": [],
@@ -8354,7 +8354,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart",
       "declaration": "ModelSwitchSettingsPolicy.compare",
       "signature": "ModelSwitchSettingsComparison compare({\n    required AppSettings previous,\n    required AppSettings next,\n  })",
       "turnIdentityParameters": [],
@@ -11058,7 +11058,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "RuntimeSamplerFeedbackEventBinding.record",
       "signature": "Future<void> record()",
       "turnIdentityParameters": [],
@@ -11071,7 +11071,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "RuntimeSamplerFeedbackEventSink.recordEvent",
       "signature": "Future<bool> recordEvent(RuntimeSamplerFeedbackEvent event)",
       "turnIdentityParameters": [],
@@ -11082,7 +11082,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "RuntimeSamplerFeedbackRecorder._signalFor",
       "signature": "LlmSamplerRuntimeFeedbackSignal? _signalFor(\n    RuntimeSamplerFeedbackEvent event,\n  )",
       "turnIdentityParameters": [],
@@ -11096,7 +11096,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "RuntimeSamplerFeedbackRecorder.record",
       "signature": "@override\n  Future<void> record({\n    required ChatTurnOwner owner,\n    required ModelCapabilityProfile baselineProfile,\n    required LlmSamplerRuntimeFeedbackSignal signal,\n  })",
       "turnIdentityParameters": [
@@ -11112,7 +11112,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "RuntimeSamplerFeedbackRecorder.recordEvent",
       "signature": "/// Records [event] without allowing telemetry failures into the chat loop.\n  @override\n  Future<bool> recordEvent(RuntimeSamplerFeedbackEvent event)",
       "turnIdentityParameters": [],
@@ -11127,7 +11127,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "RuntimeSamplerFeedbackRequiredPort.record",
       "signature": "@override\n  Future<void> record({\n    required ChatTurnOwner owner,\n    required ModelCapabilityProfile baselineProfile,\n    required LlmSamplerRuntimeFeedbackSignal signal,\n  })",
       "turnIdentityParameters": [
@@ -11144,7 +11144,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "_freezeProfile",
       "signature": "ModelCapabilityProfile _freezeProfile(ModelCapabilityProfile source)",
       "turnIdentityParameters": [],
@@ -11157,7 +11157,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
+      "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
       "declaration": "_freezeSignal",
       "signature": "LlmSamplerRuntimeFeedbackSignal _freezeSignal(\n  LlmSamplerRuntimeFeedbackSignal source,\n)",
       "turnIdentityParameters": [],
@@ -11499,7 +11499,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
+      "path": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
       "declaration": "CallbackSecondaryCompletionLogPort.recordPlanningAttempt",
       "signature": "@override\n  void recordPlanningAttempt(SecondaryCompletionRouteMetadata metadata)",
       "turnIdentityParameters": [],
@@ -11512,7 +11512,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
+      "path": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
       "declaration": "SecondaryCompletionLogPort.recordPlanningAttempt",
       "signature": "void recordPlanningAttempt(SecondaryCompletionRouteMetadata metadata)",
       "turnIdentityParameters": [],
@@ -11523,7 +11523,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
+      "path": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
       "declaration": "SecondaryCompletionRouter._run",
       "signature": "/// Every secondary completion funnels through here, which makes it the one\n  /// place that can stamp the usage role. Doing it per call site would be both\n  /// repetitive and fragile: a role started with `unawaited(...)` from inside a\n  /// chat turn otherwise inherits that turn's zone.\n  Future<T> _run<T>({\n    required D primaryDataSource,\n    required SecondaryCompletionRouteSnapshot route,\n    required String endpointId,\n    required SecondaryCompletionOperation<D, T> operation,\n  })",
       "turnIdentityParameters": [],
@@ -11537,7 +11537,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
+      "path": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
       "declaration": "SecondaryCompletionRouter._runRouted",
       "signature": "Future<T> _runRouted<T>({\n    required D primaryDataSource,\n    required SecondaryCompletionRouteSnapshot route,\n    required String endpointId,\n    required SecondaryCompletionOperation<D, T> operation,\n  })",
       "turnIdentityParameters": [],
@@ -11550,7 +11550,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
+      "path": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
       "declaration": "SecondaryCompletionRouter.run",
       "signature": "Future<T> run<T>({\n    required D primaryDataSource,\n    required SecondaryCompletionRouteSnapshot route,\n    required SecondaryCompletionOperation<D, T> operation,\n  })",
       "turnIdentityParameters": [],
@@ -11563,7 +11563,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
+      "path": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
       "declaration": "SecondaryCompletionRouter.runPlanning",
       "signature": "Future<T> runPlanning<T>({\n    required D primaryDataSource,\n    required SecondaryCompletionRouteSnapshot route,\n    required SecondaryCompletionOperation<D, T> operation,\n  })",
       "turnIdentityParameters": [],

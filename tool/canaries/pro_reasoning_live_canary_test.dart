@@ -20,7 +20,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_sink.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
-import 'package:caverno/features/chat/domain/services/pro_reasoning_models.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/pro_reasoning_models.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';

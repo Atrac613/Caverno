@@ -3,7 +3,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/domain/entities/message.dart';
-import '../../../chat/domain/services/chat_request_thinking_policy.dart';
+import '../../../chat/domain/services/model_routing/chat_request_thinking_policy.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 

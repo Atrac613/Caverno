@@ -1,6 +1,6 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
-import '../chat_request_thinking_policy.dart';
+import '../model_routing/chat_request_thinking_policy.dart';
 
 /// A tool-loop response that ended inside the model's reasoning: no visible
 /// answer and no tool call.

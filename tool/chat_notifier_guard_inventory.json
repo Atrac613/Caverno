@@ -670,17 +670,17 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/model_switch_settings_policy.dart::ModelSwitchSettingsPolicy",
-      "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
+      "id": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart::ModelSwitchSettingsPolicy",
+      "path": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart",
       "symbol": "ModelSwitchSettingsPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/model_switch_settings_policy.dart:22",
+        "lexical reference at lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart:22",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_context_surgery.dart:15"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/model_switch_settings_policy.dart:22 -> ModelSwitchSettingsPolicy",
+        "lexical reference at lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart:22 -> ModelSwitchSettingsPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_context_surgery.dart:15 -> ModelSwitchSettingsPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",

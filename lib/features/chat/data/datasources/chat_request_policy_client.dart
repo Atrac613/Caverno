@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/model_usage_role.dart';
-import '../../domain/services/chat_request_thinking_policy.dart';
+import '../../domain/services/model_routing/chat_request_thinking_policy.dart';
 
 /// Applies [ChatRequestThinkingPolicy] to every outgoing chat completion.
 ///

@@ -14,7 +14,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
-import 'package:caverno/features/chat/domain/services/chat_request_prefix_stability_service.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/chat_request_prefix_stability_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';

@@ -1,7 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
-import '../../domain/services/pro_reasoning_models.dart';
+import '../../domain/services/model_routing/pro_reasoning_models.dart';
 
 class ProReasoningProgressCard extends StatelessWidget {
   const ProReasoningProgressCard({

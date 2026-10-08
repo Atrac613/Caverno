@@ -3,8 +3,8 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/model_capability_profile_store_runtime_adapter.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/model_edit_apply_telemetry_recorder.dart';
-import '../../domain/services/runtime_sampler_feedback_recorder.dart';
+import '../../domain/services/model_routing/model_edit_apply_telemetry_recorder.dart';
+import '../../domain/services/model_routing/runtime_sampler_feedback_recorder.dart';
 
 /// Connects owner-aware edit telemetry to settings persistence.
 final class ModelEditApplyTelemetryRuntimeAdapter {

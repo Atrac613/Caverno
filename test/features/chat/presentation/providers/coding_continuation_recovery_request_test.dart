@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/data/datasources/strict_tool_choice_policy
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/chat_request_thinking_policy.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/chat_request_thinking_policy.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_continuation_recovery_request.dart';
 import 'package:flutter_test/flutter_test.dart';
 

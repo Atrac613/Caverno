@@ -7,7 +7,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_compaction_service.dart';
-import 'package:caverno/features/chat/domain/services/model_switch_handoff_brief_service.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/model_switch_handoff_brief_service.dart';
 
 Future<void> main(List<String> args) async {
   final options = Ll14ModelSwitchMeasurementOptions.parse(

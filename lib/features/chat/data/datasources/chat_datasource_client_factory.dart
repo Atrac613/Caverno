@@ -3,7 +3,7 @@ import 'package:openai_dart/openai_dart.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/security/llm_endpoint_transport_policy.dart';
-import '../../domain/services/chat_request_thinking_policy.dart';
+import '../../domain/services/model_routing/chat_request_thinking_policy.dart';
 import 'anthropic_messages_client.dart';
 import 'chat_request_policy_client.dart';
 import 'video_content_part_client.dart';

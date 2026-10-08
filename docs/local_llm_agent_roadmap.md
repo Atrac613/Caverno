@@ -2216,7 +2216,7 @@ Implementation evidence:
   non-interactive, single report).
 
 Verification:
-- `test/features/chat/domain/services/best_of_n_coordinator_test.dart`
+- `test/features/chat/domain/services/model_routing/best_of_n_coordinator_test.dart`
 - `test/features/chat/data/datasources/best_of_n_runner_test.dart`
   (real on-disk checkpoint rollback restore; no-edit candidate safety; full
   coordinator run leaving only the winner's edit)

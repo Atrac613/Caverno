@@ -1,4 +1,4 @@
-import '../../chat/domain/services/model_edit_apply_telemetry_service.dart';
+import '../../chat/domain/services/model_routing/model_edit_apply_telemetry_service.dart';
 import '../domain/services/failure_trace_miner.dart';
 
 class _EditFailureKind {

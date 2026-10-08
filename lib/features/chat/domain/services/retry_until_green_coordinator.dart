@@ -1,4 +1,4 @@
-import 'best_of_n_coordinator.dart';
+import 'model_routing/best_of_n_coordinator.dart';
 
 class RetryUntilGreenMechanicalVerification {
   const RetryUntilGreenMechanicalVerification({

@@ -2,7 +2,7 @@ import '../../entities/conversation.dart';
 import '../../entities/conversation_workflow.dart';
 import '../../entities/message.dart';
 import '../../entities/workflow_proposal_draft.dart';
-import '../runtime_sampler_feedback_recorder.dart';
+import '../model_routing/runtime_sampler_feedback_recorder.dart';
 import 'proposal_option_extraction.dart';
 import 'proposal_parsing_text_utils.dart';
 import 'workflow_task_proposal_quality_service.dart';

@@ -7,7 +7,7 @@ import '../entities/conversation_workflow.dart';
 import '../entities/model_usage_role.dart';
 import 'anabasis/anabasis_parent_prompt_block.dart';
 import 'execution_snapshot_projector.dart';
-import 'weak_model_edit_harness_service.dart';
+import 'model_routing/weak_model_edit_harness_service.dart';
 
 class SystemPromptBuilder {
   SystemPromptBuilder._();

@@ -25,7 +25,7 @@ import 'package:caverno/features/chat/domain/entities/chat_completion_terminal_m
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
-import 'package:caverno/features/chat/domain/services/chat_request_thinking_policy.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/chat_request_thinking_policy.dart';
 import 'package:caverno/features/chat/domain/services/python/python_script_tool_contract.dart';
 // drift exports an `isNull` column predicate that shadows the matcher the
 // other parts in this suite use. No part here needs drift's.

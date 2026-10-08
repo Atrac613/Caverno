@@ -5,7 +5,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../../entities/conversation_workflow.dart';
 import '../loose_json_scalar_extractor.dart';
-import '../runtime_sampler_feedback_recorder.dart';
+import '../model_routing/runtime_sampler_feedback_recorder.dart';
 
 // ChatNotifier decomposition collaborator: proposal-parsing-text-utils
 class ProposalJsonExtractor {

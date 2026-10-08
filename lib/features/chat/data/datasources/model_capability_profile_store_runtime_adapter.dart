@@ -1,6 +1,6 @@
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/model_edit_apply_telemetry_recorder.dart';
+import '../../domain/services/model_routing/model_edit_apply_telemetry_recorder.dart';
 
 /// Owner-independent persistence used after exact-turn validation.
 abstract interface class ModelCapabilityProfilePersistencePort {

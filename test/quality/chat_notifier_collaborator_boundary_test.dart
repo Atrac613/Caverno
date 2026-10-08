@@ -305,7 +305,7 @@ void main() {
               'model_edit_apply_telemetry_recorder.dart',
           'lib/features/chat/domain/services/'
               'model_switch_handoff_registry.dart',
-          'lib/features/chat/domain/services/model_switch_settings_policy.dart',
+          'lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart',
           'lib/features/chat/domain/services/local_command/process_start_result_policy.dart',
           'lib/features/chat/domain/services/'
               'python_attachment_repair_policy.dart',

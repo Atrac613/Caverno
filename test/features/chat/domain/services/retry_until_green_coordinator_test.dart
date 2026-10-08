@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/best_of_n_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/retry_until_green_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 

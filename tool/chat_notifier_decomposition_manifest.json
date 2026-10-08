@@ -355,13 +355,13 @@
       "collaborators": [
         {
           "id": "model-switch-settings-policy",
-          "path": "lib/features/chat/domain/services/model_switch_settings_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/model_switch_settings_policy.dart"
+          "path": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart"
         },
         {
           "id": "model-switch-handoff-registry",
-          "path": "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/model_switch_handoff_registry.dart"
+          "path": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart"
         },
         {
           "id": "context-surgery-protected-path-policy",
@@ -551,8 +551,8 @@
       "collaborators": [
         {
           "id": "secondary-completion-router",
-          "path": "lib/features/chat/domain/services/secondary_completion_router.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/secondary_completion_router.dart"
+          "path": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart"
         }
       ]
     },
@@ -997,13 +997,13 @@
       "collaborators": [
         {
           "id": "model-edit-apply-telemetry-recorder",
-          "path": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart"
+          "path": "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart"
         },
         {
           "id": "runtime-sampler-feedback-recorder",
-          "path": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart"
+          "path": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart"
         },
         {
           "id": "content-tool-failure-formatter",

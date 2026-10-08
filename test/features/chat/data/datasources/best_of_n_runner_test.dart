@@ -5,8 +5,8 @@ import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/coding/coding_verification_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/best_of_n_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CodingVerificationSnapshot _snapshot(

@@ -118,7 +118,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/model_switch_settings_policy.dart::ModelSwitchSettingsPolicy",
+      "id": "lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart::ModelSwitchSettingsPolicy",
       "disposition": "defer",
       "question": "Was ModelSwitchSettingsPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

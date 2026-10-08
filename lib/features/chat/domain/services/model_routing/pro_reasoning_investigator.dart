@@ -1,0 +1,341 @@
+import 'dart:async';
+import 'dart:convert';
+
+import '../../../data/datasources/chat_datasource.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/message.dart';
+import '../../entities/tool_call_info.dart';
+import 'pro_reasoning_models.dart';
+import 'pro_reasoning_prompt_builder.dart';
+
+typedef ProReasoningReadOnlyToolRunner =
+    Future<McpToolResult> Function(ToolCallInfo toolCall);
+
+typedef ProReasoningInvestigationCallObserver =
+    FutureOr<void> Function({
+      required List<Message> messages,
+      required List<Map<String, dynamic>> tools,
+      required ChatCompletionResult result,
+      required DateTime startedAt,
+      required DateTime finishedAt,
+    });
+
+/// Runs the bounded, read-only evidence pass used by Pro Reasoning.
+///
+/// Tool results are fed back as user-role evidence messages. This follows the
+/// main chat loop's compatibility path for local models that mishandle native
+/// tool-role history while still keeping the investigator mutation-free.
+final class ProReasoningInvestigator {
+  const ProReasoningInvestigator({
+    this.promptBuilder = const ProReasoningPromptBuilder(),
+    this.maxResultCharacters = 6000,
+    this.maxEvidenceCharacters = 24000,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now;
+
+  final ProReasoningPromptBuilder promptBuilder;
+  final int maxResultCharacters;
+  final int maxEvidenceCharacters;
+  final DateTime Function() _clock;
+
+  static const allowedToolNames = <String>{
+    'get_current_datetime',
+    'web_search',
+    'web_url_read',
+    'web_fetch',
+    'fetch_url',
+    'search_web',
+    'searxng_web_search',
+    'read_file',
+    'inspect_file',
+    'find_files',
+    'search_files',
+    'list_directory',
+  };
+
+  static const _allowedExternalToolNames = <String>{
+    'web_search',
+    'web_url_read',
+    'web_fetch',
+    'fetch_url',
+    'search_web',
+    'searxng_web_search',
+  };
+  static const _externalSearchToolNames = <String>{
+    'web_search',
+    'search_web',
+    'searxng_web_search',
+  };
+  static const _externalToolNames = _allowedExternalToolNames;
+  static const _maxConsecutiveExternalFailureIterations = 2;
+  static const _evidenceTruncationMarker =
+      '[Evidence compacted to the Pro Reasoning context budget.]';
+  static const _evidenceRecordTruncationMarker =
+      '\n[Middle of evidence record compacted.]\n';
+
+  static const _externalVerificationUnavailable =
+      'External source verification status: unavailable. The question '
+      'contains an external URL, but no web_search or web_url_read tool is '
+      'available. Local file results cannot establish whether the linked '
+      'resource exists or what it contains. Treat those claims as unverified.';
+
+  static const _externalVerificationFailed =
+      'External source verification stopped after repeated tool failures. '
+      'Do not infer that a linked resource is missing from these failures; '
+      'treat its existence and contents as unverified.';
+
+  List<Map<String, dynamic>> readOnlyDefinitions(
+    List<Map<String, dynamic>> definitions,
+  ) {
+    final hasExternalSearch = definitions.any((definition) {
+      return definition[McpToolEntity.openAiExternalToolKey] == true &&
+          _externalSearchToolNames.contains(_definitionName(definition));
+    });
+    return definitions
+        .where((definition) {
+          final name = _definitionName(definition);
+          final isExternal =
+              definition[McpToolEntity.openAiExternalToolKey] == true;
+          if (hasExternalSearch && name == 'web_search' && !isExternal) {
+            return false;
+          }
+          if (isExternal && !_allowedExternalToolNames.contains(name)) {
+            return false;
+          }
+          return allowedToolNames.contains(name);
+        })
+        .map(Map<String, dynamic>.from)
+        .toList(growable: false);
+  }
+
+  Future<String> investigate({
+    required ChatDataSource dataSource,
+    required String model,
+    required String question,
+    required ProReasoningFrame frame,
+    required int maxIterations,
+    required DateTime deadline,
+    required bool Function() isCancelled,
+    required List<Map<String, dynamic>> toolDefinitions,
+    required ProReasoningReadOnlyToolRunner runTool,
+    ProReasoningInvestigationCallObserver? onLlmCall,
+  }) async {
+    final tools = readOnlyDefinitions(toolDefinitions);
+    final externalVerificationUnavailable =
+        _containsExternalUrl(question) &&
+        !_containsAnyDefinition(tools, _externalToolNames);
+    final now = _clock();
+    final messages = <Message>[
+      Message(
+        id: 'pro_reasoning_investigation_system',
+        role: MessageRole.system,
+        timestamp: now,
+        content:
+            'You are a careful research assistant. Gather evidence, then '
+            'return a concise evidence summary with uncertainties.',
+      ),
+      Message(
+        id: 'pro_reasoning_investigation_user',
+        role: MessageRole.user,
+        timestamp: now,
+        content: [
+          promptBuilder.buildInvestigationPrompt(
+            question: question,
+            frame: frame,
+          ),
+          if (externalVerificationUnavailable) _externalVerificationUnavailable,
+        ].join('\n\n'),
+      ),
+    ];
+    final evidence = <String>[
+      if (externalVerificationUnavailable) _externalVerificationUnavailable,
+    ];
+    final iterations = maxIterations < 0 ? 0 : maxIterations;
+    var consecutiveExternalFailureIterations = 0;
+
+    for (var iteration = 0; iteration < iterations; iteration++) {
+      if (isCancelled() || !_clock().isBefore(deadline)) break;
+      final callMessages = List<Message>.unmodifiable(messages);
+      final startedAt = _clock();
+      final result = await dataSource.createChatCompletion(
+        messages: callMessages,
+        tools: tools.isEmpty ? null : tools,
+        model: model,
+        temperature: 0.1,
+        maxTokens: 1200,
+      );
+      final finishedAt = _clock();
+      await onLlmCall?.call(
+        messages: callMessages,
+        tools: tools,
+        result: result,
+        startedAt: startedAt,
+        finishedAt: finishedAt,
+      );
+
+      final toolCalls = result.toolCalls ?? const <ToolCallInfo>[];
+      if (toolCalls.isEmpty) {
+        final summary = result.content.trim();
+        if (summary.isNotEmpty) {
+          evidence.add('Investigator summary:\n${_truncate(summary)}');
+        }
+        break;
+      }
+
+      final feedback = <Map<String, dynamic>>[];
+      var attemptedExternalVerification = false;
+      var externalVerificationSucceeded = false;
+      for (final toolCall in toolCalls) {
+        if (isCancelled() || !_clock().isBefore(deadline)) break;
+        if (!allowedToolNames.contains(toolCall.name) ||
+            !_containsDefinition(tools, toolCall.name)) {
+          feedback.add({
+            'tool': toolCall.name,
+            'ok': false,
+            'error': 'Tool denied by the Pro Reasoning read-only policy.',
+          });
+          continue;
+        }
+        McpToolResult toolResult;
+        try {
+          toolResult = await runTool(toolCall);
+        } catch (error) {
+          toolResult = McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: error.toString(),
+          );
+        }
+        if (_externalToolNames.contains(toolCall.name)) {
+          attemptedExternalVerification = true;
+          externalVerificationSucceeded |= toolResult.isSuccess;
+        }
+        final resultText = _truncate(toolResult.result);
+        final record = <String, dynamic>{
+          'tool': toolCall.name,
+          'arguments': toolCall.arguments,
+          'ok': toolResult.isSuccess,
+          if (resultText.isNotEmpty) 'result': resultText,
+          if (toolResult.errorMessage?.trim().isNotEmpty == true)
+            'error': toolResult.errorMessage!.trim(),
+        };
+        feedback.add(record);
+        evidence.add(_renderEvidence(record));
+      }
+      if (feedback.isEmpty) break;
+      messages.add(
+        Message(
+          id: 'pro_reasoning_investigation_feedback_$iteration',
+          role: MessageRole.user,
+          timestamp: _clock(),
+          content:
+              'Read-only tool evidence follows. Use it to decide whether more '
+              'evidence is needed. Do not repeat a completed lookup.\n'
+              '${jsonEncode(feedback)}',
+        ),
+      );
+      if (attemptedExternalVerification && !externalVerificationSucceeded) {
+        consecutiveExternalFailureIterations++;
+      } else {
+        consecutiveExternalFailureIterations = 0;
+      }
+      if (consecutiveExternalFailureIterations >=
+          _maxConsecutiveExternalFailureIterations) {
+        evidence.add(_externalVerificationFailed);
+        break;
+      }
+      if (_rawEvidenceLength(evidence) >= maxEvidenceCharacters) {
+        break;
+      }
+    }
+
+    return _renderEvidenceBlock(evidence);
+  }
+
+  String _renderEvidence(Map<String, dynamic> record) {
+    final buffer = StringBuffer('- ${record['tool']}');
+    final arguments = record['arguments'];
+    if (arguments is Map && arguments.isNotEmpty) {
+      buffer.write(' ${jsonEncode(arguments)}');
+    }
+    buffer.write(record['ok'] == true ? '\n  Result: ' : '\n  Error: ');
+    buffer.write(record['result'] ?? record['error'] ?? 'No result returned.');
+    return buffer.toString();
+  }
+
+  String _renderEvidenceBlock(List<String> evidence) {
+    if (evidence.isEmpty || maxEvidenceCharacters <= 0) return '';
+    final rendered = evidence.join('\n');
+    if (rendered.length <= maxEvidenceCharacters) return rendered;
+
+    final markerBudget = _evidenceTruncationMarker.length + 1;
+    final separatorBudget = evidence.length - 1;
+    final recordBudget = maxEvidenceCharacters - markerBudget - separatorBudget;
+    if (recordBudget <= 0) {
+      return _evidenceTruncationMarker.substring(
+        0,
+        maxEvidenceCharacters.clamp(0, _evidenceTruncationMarker.length),
+      );
+    }
+    final perRecordBudget = recordBudget ~/ evidence.length;
+    var remainder = recordBudget % evidence.length;
+    final compacted = <String>[];
+    for (final record in evidence) {
+      final budget = perRecordBudget + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      compacted.add(_compactEvidenceRecord(record, budget));
+    }
+    return '${compacted.join('\n')}\n$_evidenceTruncationMarker';
+  }
+
+  int _rawEvidenceLength(List<String> evidence) {
+    if (evidence.isEmpty) return 0;
+    return evidence.fold<int>(0, (total, record) => total + record.length) +
+        evidence.length -
+        1;
+  }
+
+  String _compactEvidenceRecord(String value, int maxCharacters) {
+    if (maxCharacters <= 0) return '';
+    if (value.length <= maxCharacters) return value;
+    if (maxCharacters <= _evidenceRecordTruncationMarker.length) {
+      return value.substring(0, maxCharacters);
+    }
+    final contentBudget =
+        maxCharacters - _evidenceRecordTruncationMarker.length;
+    final headBudget = (contentBudget + 1) ~/ 2;
+    final tailBudget = contentBudget - headBudget;
+    return '${value.substring(0, headBudget).trimRight()}'
+        '$_evidenceRecordTruncationMarker'
+        '${value.substring(value.length - tailBudget).trimLeft()}';
+  }
+
+  String _truncate(String value) {
+    final trimmed = value.trim();
+    if (trimmed.length <= maxResultCharacters) return trimmed;
+    return '${trimmed.substring(0, maxResultCharacters).trimRight()}\n'
+        '[Tool result truncated.]';
+  }
+
+  bool _containsDefinition(
+    List<Map<String, dynamic>> definitions,
+    String name,
+  ) => definitions.any((definition) => _definitionName(definition) == name);
+
+  bool _containsAnyDefinition(
+    List<Map<String, dynamic>> definitions,
+    Set<String> names,
+  ) => definitions.any(
+    (definition) => names.contains(_definitionName(definition)),
+  );
+
+  bool _containsExternalUrl(String value) =>
+      RegExp(r'https?://[^\s<>()]+', caseSensitive: false).hasMatch(value);
+
+  String _definitionName(Map<String, dynamic> definition) {
+    final function = definition['function'];
+    if (function is! Map) return '';
+    return function['name']?.toString().trim() ?? '';
+  }
+}

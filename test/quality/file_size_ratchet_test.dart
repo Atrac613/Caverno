@@ -314,7 +314,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/referenced_specification_loader.dart': 75,
   // Route value types moved to secondary_completion_route_snapshot.dart when
   // the usage role joined them.
-  'lib/features/chat/domain/services/secondary_completion_router.dart': 124,
+  'lib/features/chat/domain/services/model_routing/secondary_completion_router.dart': 124,
   // 180: this file copies ExecutionSnapshot field by field, so a new
   // collection on the snapshot costs it exactly one line. The seven
   // repetitions of List<String>.unmodifiable were collapsed into _frozen
@@ -339,7 +339,7 @@ const Map<String, int> _lineBudgets = {
       31,
   'lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart':
       64,
-  'lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart':
+  'lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart':
       191,
   'lib/features/chat/domain/services/verification/saved_validation_command_guard.dart': 180,
   // -24: the frozen input snapshot moved to saved_task_target_scope_input.dart
@@ -360,12 +360,12 @@ const Map<String, int> _lineBudgets = {
       130,
   'lib/features/chat/domain/services/files/context_surgery_protected_path_policy.dart':
       20,
-  'lib/features/chat/domain/services/model_switch_handoff_registry.dart': 89,
-  'lib/features/chat/domain/services/model_switch_settings_policy.dart': 59,
-  'lib/features/chat/domain/services/model_switch_settings_comparison.dart': 28,
+  'lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart': 89,
+  'lib/features/chat/domain/services/model_routing/model_switch_settings_policy.dart': 59,
+  'lib/features/chat/domain/services/model_routing/model_switch_settings_comparison.dart': 28,
   'lib/features/chat/domain/services/tool_loop/request_tool_observation_collector.dart':
       116,
-  'lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart':
+  'lib/features/chat/domain/services/model_routing/runtime_sampler_feedback_recorder.dart':
       245,
   'lib/features/chat/domain/services/plan/proposal_option_extraction.dart': 621,
   // -21: escaped loose scalar decoding moved behind its own bounded parser.

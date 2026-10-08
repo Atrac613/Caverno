@@ -1,4 +1,4 @@
-import '../../../chat/domain/services/chat_request_thinking_policy.dart';
+import '../../../chat/domain/services/model_routing/chat_request_thinking_policy.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 

@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_service.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/model_edit_apply_telemetry_service.dart';
 import 'package:caverno/features/maintenance/data/model_edit_failure_trace_extractor.dart';
 import 'package:caverno/features/maintenance/domain/services/failure_trace_miner.dart';
 import 'package:flutter_test/flutter_test.dart';

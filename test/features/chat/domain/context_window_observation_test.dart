@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/context_window_observation.dart';
-import 'package:caverno/features/chat/domain/services/reported_context_limit.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/reported_context_limit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

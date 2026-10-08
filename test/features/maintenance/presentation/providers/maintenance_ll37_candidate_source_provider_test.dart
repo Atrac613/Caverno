@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno/features/chat/data/repositories/retry_until_green_report_repository.dart';
 import 'package:caverno/features/chat/data/repositories/worktree_agent_task_repository.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
-import 'package:caverno/features/chat/domain/services/best_of_n_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/model_routing/best_of_n_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/retry_until_green_coordinator.dart';
 import 'package:caverno/features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
