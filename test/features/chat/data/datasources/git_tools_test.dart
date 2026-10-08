@@ -21,6 +21,40 @@ void main() {
     },
   );
 
+  test('returns a single-file diff larger than 8,000 characters whole', () async {
+    // Session e295a196: the 14,614-char diff of test_state.py reached the
+    // reviewer cut to its first 8,000 characters.
+    final root = Directory.systemTemp.createTempSync('git_tools_diff_')
+      ..resolveSymbolicLinksSync();
+    addTearDown(() => root.deleteSync(recursive: true));
+    final path = root.resolveSymbolicLinksSync();
+    Future<void> git(List<String> args) async {
+      final result = await Process.run('git', args, workingDirectory: path);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+    }
+
+    await git(['init', '-q']);
+    await git(['config', 'user.email', 'fixture@example.invalid']);
+    await git(['config', 'user.name', 'Fixture']);
+    File('$path/test_state.py').writeAsStringSync('# start\n');
+    await git(['add', '.']);
+    await git(['-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'init']);
+    File('$path/test_state.py').writeAsStringSync(
+      '# start\n${List.generate(300, (i) => 'def test_case_$i(): assert $i == $i').join('\n')}\n',
+    );
+
+    final execution = await GitTools.executeResult(
+      command: 'diff HEAD -- test_state.py',
+      workingDirectory: path,
+      projectRoot: path,
+    );
+    final payload = jsonDecode(execution.result) as Map<String, dynamic>;
+    final stdout = payload['stdout'] as String;
+    expect(stdout.length, greaterThan(8000));
+    expect(payload.containsKey('stdout_truncated'), isFalse);
+    expect(stdout, contains('def test_case_299()'));
+  });
+
   group('GitTools.normalizeCommand', () {
     test('strips a leading git binary prefix', () {
       expect(GitTools.normalizeCommand('git status --short'), 'status --short');

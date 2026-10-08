@@ -52,7 +52,13 @@ final class GitOutputLineLimit {
 
 class GitTools {
   /// Maximum characters returned for stdout/stderr.
-  static const int _kMaxOutputChars = 8000;
+  ///
+  /// Matches the prompt budget's single-result allowance, which trims larger
+  /// output with a middle elision and a recovery hint. At 8,000 this cut the
+  /// tail off every bigger diff before the budget ran: in session e295a196 a
+  /// review asked for `diff HEAD -- test_state.py` (14,614 chars) one file at
+  /// a time and still received only its first 8,000, so it ended incomplete.
+  static const int _kMaxOutputChars = 20000;
   static final RegExp _modelControlTokenPattern = RegExp(r'<\|[^>]*\|>');
 
   /// Timeout for git command execution.
