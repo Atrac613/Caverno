@@ -1,5 +1,5 @@
-import '../entities/flutter_run_issue.dart';
-import '../entities/flutter_run_session.dart';
+import '../../entities/flutter_run_issue.dart';
+import '../../entities/flutter_run_session.dart';
 import 'flutter_run_candidate_factory.dart';
 
 /// Cuts failure-shaped blocks out of run output.

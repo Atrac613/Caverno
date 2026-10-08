@@ -1,4 +1,4 @@
-import '../entities/flutter_run_issue.dart';
+import '../../entities/flutter_run_issue.dart';
 
 /// The issues found in one run, keyed by signature.
 ///

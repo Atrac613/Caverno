@@ -648,11 +648,11 @@ const Map<String, int> _lineBudgets = {
   // -2, to 286: baebb517b's button visibility became
   // ThreadScrollToBottomVisibility and the anchor type its own file.
   'lib/features/chat/presentation/pages/thread_scroll_coordinator.dart': 286,
-  'lib/features/chat/domain/services/flutter_run_command_builder.dart': 140,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_command_builder.dart': 140,
   // The device listing moved to flutter_run_device_lister.dart when it grew
   // a stream, a timeout and a drain.
-  'lib/features/chat/domain/services/flutter_run_session_controller.dart': 225,
-  'lib/features/chat/domain/services/flutter_run_device_lister.dart': 145,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_session_controller.dart': 225,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_device_lister.dart': 145,
   'lib/features/chat/domain/entities/flutter_run_session.dart': 130,
   'lib/features/chat/domain/entities/flutter_run_device.dart': 50,
   'lib/features/chat/data/datasources/flutter_run_process_runner.dart': 140,
@@ -672,14 +672,14 @@ const Map<String, int> _lineBudgets = {
   // Candidate construction and identity moved to flutter_run_candidate_factory
   // when the tail window joined them: what counts as failure-shaped is one
   // question, what makes two blocks the same problem is another.
-  'lib/features/chat/domain/services/flutter_run_log_segmenter.dart': 220,
-  'lib/features/chat/domain/services/flutter_run_candidate_factory.dart': 115,
-  'lib/features/chat/domain/services/flutter_run_issue_analyser.dart': 100,
-  'lib/features/chat/domain/services/flutter_run_issue_request.dart': 60,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_log_segmenter.dart': 220,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_candidate_factory.dart': 115,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_issue_analyser.dart': 100,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_issue_request.dart': 60,
   // The store (issues by signature, and the counting rule) split from the
   // policy that decides when to spend a model call on one.
-  'lib/features/chat/domain/services/flutter_run_issue_collector.dart': 160,
-  'lib/features/chat/domain/services/flutter_run_issue_store.dart': 70,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_issue_collector.dart': 160,
+  'lib/features/chat/domain/services/flutter_run/flutter_run_issue_store.dart': 70,
   'lib/features/chat/domain/entities/flutter_run_issue.dart': 125,
   // Lowered from 2332 by the same extraction (label, colour and icon).
   // Lowered after the slash-command completion list moved to

@@ -1,5 +1,5 @@
-import '../entities/flutter_run_issue.dart';
-import '../entities/flutter_run_session.dart';
+import '../../entities/flutter_run_issue.dart';
+import '../../entities/flutter_run_session.dart';
 import 'flutter_run_log_segmenter.dart';
 
 /// Builds candidates and gives them the identity the whole feature turns on.

@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/flutter_run_issue_request.dart';
+import 'package:caverno/features/chat/domain/services/flutter_run/flutter_run_issue_request.dart';
 import 'package:caverno/features/project_farm/domain/next_step_proposal_contract.dart';
 import 'package:caverno/features/project_farm/domain/project_task_decomposition_contract.dart';
 import 'package:caverno/features/project_farm/domain/roadmap_next_task_contract.dart';

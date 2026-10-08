@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:caverno/features/chat/data/datasources/flutter_run_process_runner.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_device.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_session.dart';
-import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
-import 'package:caverno/features/chat/domain/services/flutter_run_session_controller.dart';
+import 'package:caverno/features/chat/domain/services/flutter_run/flutter_run_command_builder.dart';
+import 'package:caverno/features/chat/domain/services/flutter_run/flutter_run_session_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

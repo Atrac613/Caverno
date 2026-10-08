@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import '../../data/datasources/flutter_run_process_runner.dart';
-import '../entities/flutter_run_device.dart';
-import '../entities/flutter_run_session.dart';
+import '../../../data/datasources/flutter_run_process_runner.dart';
+import '../../entities/flutter_run_device.dart';
+import '../../entities/flutter_run_session.dart';
 import 'flutter_run_command_builder.dart';
 
 /// Devices found, or the reason none were.

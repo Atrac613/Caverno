@@ -7,7 +7,7 @@ import 'package:caverno/features/chat/data/datasources/flutter_run_process_runne
 import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
+import 'package:caverno/features/chat/domain/services/flutter_run/flutter_run_command_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/flutter_run_provider.dart';
 import 'package:caverno/features/chat/presentation/widgets/flutter_run_control_section.dart';

@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/domain/entities/flutter_run_issue.dart';
 import 'package:caverno/features/chat/domain/entities/flutter_run_session.dart';
-import 'package:caverno/features/chat/domain/services/flutter_run_log_segmenter.dart';
+import 'package:caverno/features/chat/domain/services/flutter_run/flutter_run_log_segmenter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Shapes copied from real `flutter run` output. The segmenter is judged

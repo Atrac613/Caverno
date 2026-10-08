@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import '../../data/datasources/chat_datasource.dart';
-import '../entities/flutter_run_issue.dart';
-import '../entities/flutter_run_session.dart';
+import '../../../data/datasources/chat_datasource.dart';
+import '../../entities/flutter_run_issue.dart';
+import '../../entities/flutter_run_session.dart';
 import 'flutter_run_issue_analyser.dart';
 import 'flutter_run_issue_store.dart';
 import 'flutter_run_log_segmenter.dart';

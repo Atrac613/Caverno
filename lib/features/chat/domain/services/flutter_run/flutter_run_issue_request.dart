@@ -1,4 +1,4 @@
-import '../entities/flutter_run_issue.dart';
+import '../../entities/flutter_run_issue.dart';
 
 /// What the analyser asks the model for, and the shape it must answer in.
 class FlutterRunIssueRequest {

@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/flutter_run_command_builder.dart';
+import 'package:caverno/features/chat/domain/services/flutter_run/flutter_run_command_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

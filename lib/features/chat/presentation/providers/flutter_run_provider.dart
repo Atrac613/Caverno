@@ -6,9 +6,9 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/flutter_run_process_runner.dart';
 import '../../domain/entities/flutter_run_issue.dart';
 import '../../domain/entities/flutter_run_session.dart';
-import '../../domain/services/flutter_run_command_builder.dart';
-import '../../domain/services/flutter_run_issue_collector.dart';
-import '../../domain/services/flutter_run_session_controller.dart';
+import '../../domain/services/flutter_run/flutter_run_command_builder.dart';
+import '../../domain/services/flutter_run/flutter_run_issue_collector.dart';
+import '../../domain/services/flutter_run/flutter_run_session_controller.dart';
 import 'chat_data_source_provider.dart';
 
 final flutterRunProcessRunnerProvider = Provider<FlutterRunProcessRunner>((
