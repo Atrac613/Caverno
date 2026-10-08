@@ -219,6 +219,72 @@ void main() {
     expect(counts.skippedCount, 1);
   });
 
+  group('a system interpreter failure and the project environment', () {
+    // Session 1df8a06d: told that a different command passing never settles
+    // a failed system `python3` check, the model tried to pip install into
+    // the externally managed host interpreter although `.venv` had passed.
+    final failed = command(
+      'system',
+      'cd /workspace && python3 verify_prices.py',
+      stdout: "ModuleNotFoundError: No module named 'requests'",
+      exitCode: 1,
+    );
+    test('a project venv pass of the same command settles it', () {
+      for (final interpreter in [
+        '.venv/bin/python',
+        '/workspace/venv/bin/python3',
+      ]) {
+        final passed = command(
+          'venv',
+          '$interpreter verify_prices.py',
+          stdout: 'all checks passed',
+        );
+        expect(
+          const UnresolvedVerificationFailure().latest([failed, passed]),
+          isNull,
+          reason: interpreter,
+        );
+        expect(
+          const UnresolvedVerificationFailure().latest([passed, failed]),
+          same(failed),
+          reason: 'only a later pass settles it',
+        );
+      }
+    });
+    test('another interpreter, script or a failed venv run does not', () {
+      for (final other in [
+        command('host', '/usr/bin/python3 verify_prices.py', stdout: 'ok'),
+        command('other', '.venv/bin/python other_check.py', stdout: 'ok'),
+        command(
+          'outside',
+          '/tmp/env/bin/python verify_prices.py',
+          stdout: 'ok',
+        ),
+        command(
+          'venv-failed',
+          '.venv/bin/python verify_prices.py',
+          stdout: 'AssertionError',
+          exitCode: 1,
+        ),
+      ]) {
+        expect(
+          const UnresolvedVerificationFailure().latest([failed, other]),
+          isNotNull,
+          reason: other.arguments['command'] as String,
+        );
+      }
+    });
+    test('the gap names the project environment, not a host install', () {
+      expect(
+        const UnresolvedVerificationFailure().describe([failed]),
+        allOf(
+          contains('.venv/bin/python'),
+          contains('never install packages into a system'),
+        ),
+      );
+    });
+  });
+
   group('guardrail feedback on commands that verify nothing', () {
     // Session 17398f84: an import probe and a venv setup command each got an
     // Error diagnostic that no later pass could settle, so a subtask whose

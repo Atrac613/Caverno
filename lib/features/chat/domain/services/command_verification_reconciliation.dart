@@ -30,6 +30,8 @@ abstract final class CommandVerificationReconciliation {
       if (scope == null) continue;
       final inline = scope.inlineContract;
       if (successfulScopes.contains(scope.key) ||
+          (scope.projectEnvKey != null &&
+              successfulScopes.contains(scope.projectEnvKey)) ||
           (scope.runtimeLaunchFailed &&
               successfulRuntimeRepairs.contains(scope.runtimeRepairKey)) ||
           (inline != null &&

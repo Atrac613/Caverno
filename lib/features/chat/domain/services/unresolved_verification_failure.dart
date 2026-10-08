@@ -113,10 +113,16 @@ final class UnresolvedVerificationFailure {
           'not clear this failure. Report blocked_reason only for a concrete '
           'blocker';
     }
+    final projectEnv = scope?.projectEnvKey == null
+        ? ''
+        : ' Running the same command with the project\'s own environment '
+              'interpreter (for example .venv/bin/python) also settles it; '
+              'never install packages into a system or externally managed '
+              'interpreter to make it pass.';
     return 'the verification `$command` failed'
         '$exitDetail and has not passed since; '
         'a different command passing does not clear it. Re-run it until it '
         'passes, or report blocked_reason if it cannot pass in this '
-        'environment';
+        'environment.$projectEnv';
   }
 }

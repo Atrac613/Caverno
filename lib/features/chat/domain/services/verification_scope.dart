@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
 import 'inline_python_verification_contract.dart';
+import 'literal_shell_words.dart';
 import 'pytest_verification_identity.dart';
 import 'shell_exit_status_report.dart';
 import 'verification_command_sequence.dart';
@@ -28,6 +29,7 @@ final class VerificationScope {
     this.runtimeRepairKey,
     this.runtimeLaunchFailed = false,
     this.pytestRunner,
+    this.projectEnvKey,
   });
 
   final String key;
@@ -36,6 +38,13 @@ final class VerificationScope {
   final InlinePythonVerificationContract? inlineContract;
   final String? runtimeRepairKey;
   final bool runtimeLaunchFailed;
+
+  /// For a command run by a system Python interpreter: the key a passing run
+  /// of the same command under the project's own environment covers. Session
+  /// 1df8a06d was told a different command passing never settles a failed
+  /// system `python3` check, so the model tried to pip install into the
+  /// externally managed host interpreter although `.venv` already passed.
+  final String? projectEnvKey;
 
   /// The pytest run [key] names, when the scope is that run's identity.
   final PytestVerificationIdentity? pytestRunner;
@@ -137,7 +146,17 @@ final class VerificationScope {
                 _endsWithLaunchFailure((decoded?['stderr'] ?? '').toString()))
         ? terminal
         : null;
+    // `cd <root> && python3 verify.py` is still one Python step.
+    final singleStep = sequence == null
+        ? command
+        : sequence.steps.length == 1
+        ? sequence.steps.single
+        : null;
+    final env = singleStep != null && inline == null
+        ? _projectEnvRun(singleStep, directory)
+        : null;
     return VerificationScope._(
+      projectEnvKey: env?.inProject == false ? env!.key : null,
       launchFailedRunner?.verificationKey ??
           (sequence != null
               ? sequence.key
@@ -163,6 +182,7 @@ final class VerificationScope {
             (decoded?['stderr'] ?? '').toString().trim(),
           ),
       coveredKeys: [
+        if (env?.inProject == true && ranClean) env!.key,
         if (sequence?.terminalPytest case final runner?) runner.verificationKey,
         // `&&` runs a step only after the previous one exited 0, so a passing
         // sequence also settles an earlier standalone run of each plain step.
@@ -174,6 +194,34 @@ final class VerificationScope {
               InlinePythonVerificationContract.parse(step, directory) == null)
             _exactKey(step, directory),
       ],
+    );
+  }
+
+  /// A single Python command keyed without its interpreter, and whether that
+  /// interpreter lives in an environment inside [directory] (`.venv/bin/python`)
+  /// rather than on the system (`python3`, `/opt/homebrew/bin/python3`).
+  static ({String key, bool inProject})? _projectEnvRun(
+    String command,
+    String directory,
+  ) {
+    final words = LiteralShellWords.parse(command.trim());
+    if (words == null || words.length < 2) return null;
+    final interpreter = words.first;
+    if (!RegExp(
+      r'^python(?:\d+(?:\.\d+)*)?$',
+    ).hasMatch(path.basename(interpreter))) {
+      return null;
+    }
+    final resolved = path.isAbsolute(interpreter)
+        ? path.normalize(interpreter)
+        : path.normalize(path.join(directory, interpreter));
+    final inProject =
+        interpreter.contains('/') &&
+        path.isWithin(directory, resolved) &&
+        path.basename(path.dirname(resolved)) == 'bin';
+    return (
+      key: 'project-env:${_exactKey(words.skip(1).join(' '), directory)}',
+      inProject: inProject,
     );
   }
 
