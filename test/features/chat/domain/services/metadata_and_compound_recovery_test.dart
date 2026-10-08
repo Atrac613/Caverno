@@ -4,13 +4,13 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding/coding_command_output_issue_detector.dart';
 import 'package:caverno/features/chat/domain/services/coding/coding_continuation_recovery_prompt_builder.dart';
-import 'package:caverno/features/chat/domain/services/command_verification_reconciliation.dart';
 import 'package:caverno/features/chat/domain/services/local_command/literal_environment_inspection_policy.dart';
 import 'package:caverno/features/chat/domain/services/project_task_step_completion_policy.dart';
 import 'package:caverno/features/chat/domain/services/python/compound_python_runtime_repair.dart';
 import 'package:caverno/features/chat/domain/services/structured_task_status_evidence.dart';
-import 'package:caverno/features/chat/domain/services/unresolved_verification_failure.dart';
-import 'package:caverno/features/chat/domain/services/verification_metadata_query_policy.dart';
+import 'package:caverno/features/chat/domain/services/verification/command_verification_reconciliation.dart';
+import 'package:caverno/features/chat/domain/services/verification/unresolved_verification_failure.dart';
+import 'package:caverno/features/chat/domain/services/verification/verification_metadata_query_policy.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 

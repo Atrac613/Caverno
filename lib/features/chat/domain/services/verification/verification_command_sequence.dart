@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:path/path.dart' as path;
 
-import 'local_command/literal_environment_inspection_policy.dart';
-import 'local_command/literal_shell_words.dart';
-import 'python/inline_python_verification_contract.dart';
-import 'python/pytest_shell_invocation.dart';
-import 'python/pytest_verification_identity.dart';
+import '../local_command/literal_environment_inspection_policy.dart';
+import '../local_command/literal_shell_words.dart';
+import '../python/inline_python_verification_contract.dart';
+import '../python/pytest_shell_invocation.dart';
+import '../python/pytest_verification_identity.dart';
 
 /// Verification after the last mutation in a literal, success-linked sequence.
 /// This describes evidence only; approval still classifies the entire command.

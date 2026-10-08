@@ -8,7 +8,7 @@ import 'plan/conversation_plan_execution_coordinator.dart';
 import 'plan/conversation_plan_hash.dart';
 import 'plan/conversation_task_readiness.dart';
 import 'plan/task_lifecycle_state.dart';
-import 'verification_cadence_policy.dart';
+import 'verification/verification_cadence_policy.dart';
 
 enum ExecutionSnapshotAction {
   idle,

@@ -7,7 +7,7 @@ import 'goal/goal_update_ack.dart';
 import 'project_task_terminal_status.dart';
 import 'tool_definition_search_service.dart';
 import 'tool_result_prompt_builder.dart';
-import 'unresolved_verification_failure.dart';
+import 'verification/unresolved_verification_failure.dart';
 
 /// Settles an intermediate subtask without completing its parent goal.
 final class ProjectTaskStepCompletionPolicy {

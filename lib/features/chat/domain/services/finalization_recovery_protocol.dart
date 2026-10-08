@@ -5,7 +5,7 @@ import 'goal/goal_update_ack.dart';
 import 'turn_finalization_delegation_recovery.dart';
 import 'turn_finalization_recovery_decision.dart';
 import 'turn_finalization_recovery_plan.dart';
-import 'unresolved_verification_failure.dart';
+import 'verification/unresolved_verification_failure.dart';
 
 /// Composes protocol eligibility with the selected recovery request.
 final class FinalizationRecoveryProtocol {

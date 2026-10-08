@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
-import 'command_verification_reconciliation.dart';
 import 'file_mutation_evidence_policy.dart';
+import 'verification/command_verification_reconciliation.dart';
 
 /// Exact successful runners offered as hints, never as fresh review evidence.
 final class ProjectTaskVerificationContext {

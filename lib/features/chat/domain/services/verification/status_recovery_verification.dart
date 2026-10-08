@@ -1,12 +1,12 @@
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../entities/conversation_goal.dart';
-import '../entities/tool_call_info.dart';
-import 'coding/structured_coding_task_recovery_policy.dart';
-import 'goal/goal_update_ack.dart';
-import 'project_task_completion_evidence.dart';
-import 'tool_definition_search_service.dart';
-import 'tool_result_prompt_builder.dart';
+import '../../entities/conversation_goal.dart';
+import '../../entities/tool_call_info.dart';
+import '../coding/structured_coding_task_recovery_policy.dart';
+import '../goal/goal_update_ack.dart';
+import '../project_task_completion_evidence.dart';
+import '../tool_definition_search_service.dart';
+import '../tool_result_prompt_builder.dart';
 
 /// Lets a project-task status recovery run the verification that the
 /// completion gate itself demands.

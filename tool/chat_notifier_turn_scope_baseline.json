@@ -26,7 +26,7 @@
     "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
     "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
     "lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart",
-    "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+    "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
     "lib/features/chat/domain/services/computer_use_action_policy.dart",
     "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
     "lib/features/chat/domain/services/computer_use_tool_handler.dart",
@@ -75,7 +75,7 @@
     "lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart",
     "lib/features/chat/domain/services/save_skill_tool_handler.dart",
     "lib/features/chat/domain/services/saved_task_target_scope_guard.dart",
-    "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+    "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
     "lib/features/chat/domain/services/secondary_completion_router.dart",
     "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
     "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
@@ -91,7 +91,7 @@
     "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
     "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
     "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
-    "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
+    "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart",
     "lib/features/chat/presentation/providers/chat_notifier.dart",
     "lib/features/chat/presentation/providers/chat_notifier_approval_handlers.dart",
     "lib/features/chat/presentation/providers/chat_notifier_ask_user_question.dart",
@@ -3956,7 +3956,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
       "declaration": "CommandDiagnosticVerifierReplayDecision.isBlocked",
       "signature": "bool get isBlocked",
       "turnIdentityParameters": [],
@@ -3967,7 +3967,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
       "declaration": "CommandDiagnosticVerifierReplayGuard._isContractMutation",
       "signature": "bool _isContractMutation(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -3980,7 +3980,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
       "declaration": "CommandDiagnosticVerifierReplayGuard.evaluate",
       "signature": "CommandDiagnosticVerifierReplayDecision evaluate(\n    CommandDiagnosticVerifierReplayInput input,\n  )",
       "turnIdentityParameters": [],
@@ -4000,7 +4000,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
       "declaration": "CommandDiagnosticVerifierReplayGuard.matches",
       "signature": "bool matches(McpToolResult result)",
       "turnIdentityParameters": [],
@@ -4013,7 +4013,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
       "declaration": "_freezeToolCall",
       "signature": "ToolCallInfo _freezeToolCall(ToolCallInfo source)",
       "turnIdentityParameters": [],
@@ -11376,7 +11376,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "SavedValidationCommandGuard._normalizePath",
       "signature": "String? _normalizePath(String path, String? ownerProjectRoot)",
       "turnIdentityParameters": [],
@@ -11394,7 +11394,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "SavedValidationCommandGuard.evaluate",
       "signature": "McpToolResult? evaluate(SavedValidationCommandInput input)",
       "turnIdentityParameters": [],
@@ -11412,7 +11412,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "SavedValidationCommandGuard.isShellControlArgument",
       "signature": "bool isShellControlArgument(String value)",
       "turnIdentityParameters": [],
@@ -11423,7 +11423,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "SavedValidationCommandGuard.looksLikeModifiedSavedValidationCommand",
       "signature": "bool looksLikeModifiedSavedValidationCommand({\n    required String command,\n    required String validationCommand,\n    required String normalizedCommand,\n    required String normalizedValidationCommand,\n    required String? ownerProjectRoot,\n  })",
       "turnIdentityParameters": [],
@@ -11439,7 +11439,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "SavedValidationCommandGuard.looksLikePathResolvedSavedValidationCommand",
       "signature": "bool looksLikePathResolvedSavedValidationCommand({\n    required String command,\n    required String validationCommand,\n    required String? ownerProjectRoot,\n  })",
       "turnIdentityParameters": [],
@@ -11454,7 +11454,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "SavedValidationCommandGuard.savedValidationPathArgumentIndex",
       "signature": "int? savedValidationPathArgumentIndex(List<String> args)",
       "turnIdentityParameters": [],
@@ -11468,7 +11468,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "SavedValidationCommandGuard.simpleCommandSegmentArgs",
       "signature": "List<String> simpleCommandSegmentArgs(String command)",
       "turnIdentityParameters": [],
@@ -11485,7 +11485,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "declaration": "_freezeToolCall",
       "signature": "ToolCallInfo _freezeToolCall(ToolCallInfo source)",
       "turnIdentityParameters": [],
@@ -14039,7 +14039,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
+      "path": "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart",
       "declaration": "VerifierReplayCandidatePolicy.isEligible",
       "signature": "/// Whether [toolCall] is shaped like something safe to run again.\n  ///\n  /// `run_tests` always is: it takes no free-form command. A local command\n  /// qualifies only when it ran in the foreground and is a single plain\n  /// command.\n  bool isEligible(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -14054,7 +14054,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
+      "path": "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart",
       "declaration": "VerifierReplayCandidatePolicy.priority",
       "signature": "/// How strongly [toolCall] should be preferred when several are eligible.\n  ///\n  /// A dedicated test run outranks an arbitrary command, and a command that\n  /// names itself a verifier is treated as one.\n  int priority(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],

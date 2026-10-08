@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import '../entities/tool_call_info.dart';
-import 'coding/coding_command_output_issue_detector.dart';
+import '../../entities/tool_call_info.dart';
+import '../coding/coding_command_output_issue_detector.dart';
+import '../local_command/shell_exit_status_report.dart';
+import '../python/inline_python_verification_contract.dart';
 import 'command_verification_reconciliation.dart';
-import 'local_command/shell_exit_status_report.dart';
-import 'python/inline_python_verification_contract.dart';
 
 /// Names the verification command whose failure still blocks completion.
 ///

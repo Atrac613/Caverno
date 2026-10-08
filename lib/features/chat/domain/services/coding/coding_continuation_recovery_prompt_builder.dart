@@ -1,7 +1,7 @@
 import '../../entities/tool_call_info.dart';
-import '../reconciled_command_failure.dart';
 import '../tool_call_execution_policy.dart';
-import '../verification_metadata_query_policy.dart';
+import '../verification/reconciled_command_failure.dart';
+import '../verification/verification_metadata_query_policy.dart';
 
 /// Keeps completed progress intact while requesting the next executable action.
 final class CodingContinuationRecoveryPromptBuilder {

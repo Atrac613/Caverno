@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/verifier_replay_candidate_policy.dart';
+import 'package:caverno/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _policy = VerifierReplayCandidatePolicy();

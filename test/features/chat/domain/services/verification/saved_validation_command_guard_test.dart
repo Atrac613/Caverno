@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/saved_validation_command_guard.dart';
+import 'package:caverno/features/chat/domain/services/verification/saved_validation_command_guard.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 
 /// Keeps evidence checks and the parent's acceptance available after validation.
 class PostSavedValidationToolPolicy {

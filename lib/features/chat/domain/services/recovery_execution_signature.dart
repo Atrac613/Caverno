@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
 import 'coding/coding_command_output_issue_detector.dart';
-import 'command_verification_reconciliation.dart';
+import 'verification/command_verification_reconciliation.dart';
 
 /// Stable fresh-execution identity for bounded finalization recovery.
 abstract final class RecoveryExecutionSignature {

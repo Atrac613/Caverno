@@ -1,6 +1,6 @@
-import '../entities/tool_call_info.dart';
-import 'execution_snapshot_projector.dart';
-import 'tool_result_prompt_builder.dart';
+import '../../entities/tool_call_info.dart';
+import '../execution_snapshot_projector.dart';
+import '../tool_result_prompt_builder.dart';
 
 class CommandDiagnosticStreakObservation {
   const CommandDiagnosticStreakObservation({

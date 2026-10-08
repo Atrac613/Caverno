@@ -1,6 +1,6 @@
 import '../../entities/tool_call_info.dart';
-import '../project_verification_repair_policy.dart';
-import '../status_recovery_verification.dart';
+import '../verification/project_verification_repair_policy.dart';
+import '../verification/status_recovery_verification.dart';
 
 /// Chooses the matching call contract for repair and status-only requests.
 abstract final class CodingRecoveryProtocol {

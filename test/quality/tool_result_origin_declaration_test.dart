@@ -56,7 +56,7 @@ const _producers = <String, ToolResultOrigin>{
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':
       ToolResultOrigin.harness,
-  'lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart':
+  'lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart':
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart':
       ToolResultOrigin.harness,
@@ -70,7 +70,7 @@ const _producers = <String, ToolResultOrigin>{
       ToolResultOrigin.refusal,
   'lib/features/chat/data/datasources/project_mutation_path_fence.dart':
       ToolResultOrigin.refusal,
-  'lib/features/chat/domain/services/saved_validation_command_guard.dart':
+  'lib/features/chat/domain/services/verification/saved_validation_command_guard.dart':
       ToolResultOrigin.refusal,
   'lib/features/chat/data/datasources/chat_turn_owner_required_tool_result.dart':
       ToolResultOrigin.refusal,

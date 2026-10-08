@@ -212,8 +212,8 @@
         },
         {
           "id": "saved-validation-command-guard",
-          "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/saved_validation_command_guard.dart"
+          "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart"
         },
         {
           "id": "saved-task-authored-request-text",
@@ -257,8 +257,8 @@
         },
         {
           "id": "command-diagnostic-verifier-replay-guard",
-          "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart"
+          "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart"
         },
         {
           "id": "coding-command-output-guardrail-service",
@@ -1199,8 +1199,8 @@
         },
         {
           "id": "verifier-replay-candidate-policy",
-          "path": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart"
+          "path": "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart"
         }
       ]
     },

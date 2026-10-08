@@ -4,7 +4,6 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
-import 'command_verification_reconciliation.dart';
 import 'fenced_tool_arguments_detector.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'narrated_transcript_claim_guard.dart';
@@ -12,6 +11,7 @@ import 'project_task_status_contract.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_definition_search_service.dart';
 import 'unexecuted_command_claim_reconciliation.dart';
+import 'verification/command_verification_reconciliation.dart';
 
 class FinalAnswerClaimDetector {
   const FinalAnswerClaimDetector({

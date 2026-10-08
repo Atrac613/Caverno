@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/stalled_diagnostic_repair_contract.dart';
+import 'package:caverno/features/chat/domain/services/verification/stalled_diagnostic_repair_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

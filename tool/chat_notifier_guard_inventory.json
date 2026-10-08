@@ -314,18 +314,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart::CommandDiagnosticVerifierReplayGuard",
-      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
+      "id": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart::CommandDiagnosticVerifierReplayGuard",
+      "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
       "symbol": "CommandDiagnosticVerifierReplayGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:65",
+        "lexical reference at lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart:65",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:296",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:461"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:65 -> CommandDiagnosticVerifierReplayGuard",
+        "lexical reference at lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart:65 -> CommandDiagnosticVerifierReplayGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:296 -> CommandDiagnosticVerifierReplayGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:461 -> CommandDiagnosticVerifierReplayGuard"
       ],
@@ -339,18 +339,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart::CommandDiagnosticVerifierReplayPolicy",
-      "path": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart",
+      "id": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_policy.dart::CommandDiagnosticVerifierReplayPolicy",
+      "path": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_policy.dart",
       "symbol": "CommandDiagnosticVerifierReplayPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:68",
-        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart:4"
+        "lexical reference at lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart:68",
+        "lexical reference at lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_policy.dart:4"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart:68 -> CommandDiagnosticVerifierReplayPolicy",
-        "lexical reference at lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart:4 -> CommandDiagnosticVerifierReplayPolicy"
+        "lexical reference at lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart:68 -> CommandDiagnosticVerifierReplayPolicy",
+        "lexical reference at lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_policy.dart:4 -> CommandDiagnosticVerifierReplayPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,
@@ -938,17 +938,17 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/saved_validation_command_guard.dart::SavedValidationCommandGuard",
-      "path": "lib/features/chat/domain/services/saved_validation_command_guard.dart",
+      "id": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart::SavedValidationCommandGuard",
+      "path": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
       "symbol": "SavedValidationCommandGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:30",
+        "lexical reference at lib/features/chat/domain/services/verification/saved_validation_command_guard.dart:30",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:274"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:30 -> SavedValidationCommandGuard",
+        "lexical reference at lib/features/chat/domain/services/verification/saved_validation_command_guard.dart:30 -> SavedValidationCommandGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:274 -> SavedValidationCommandGuard"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
@@ -1033,8 +1033,8 @@
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:68",
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:69",
         "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153",
-        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:32",
-        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33",
+        "lexical reference at lib/features/chat/domain/services/verification/saved_validation_command_guard.dart:32",
+        "lexical reference at lib/features/chat/domain/services/verification/saved_validation_command_guard.dart:33",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:6",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:9",
         "lexical reference at lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart:29",
@@ -1064,8 +1064,8 @@
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:68 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:69 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:32 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/verification/saved_validation_command_guard.dart:32 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/verification/saved_validation_command_guard.dart:33 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:6 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:9 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart:29 -> ToolCallExecutionPolicy",
@@ -1342,18 +1342,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/verification_cadence_policy.dart::VerificationCadencePolicy",
-      "path": "lib/features/chat/domain/services/verification_cadence_policy.dart",
+      "id": "lib/features/chat/domain/services/verification/verification_cadence_policy.dart::VerificationCadencePolicy",
+      "path": "lib/features/chat/domain/services/verification/verification_cadence_policy.dart",
       "symbol": "VerificationCadencePolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/execution_snapshot_projector.dart:296",
-        "lexical reference at lib/features/chat/domain/services/verification_cadence_policy.dart:4"
+        "lexical reference at lib/features/chat/domain/services/verification/verification_cadence_policy.dart:4"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/execution_snapshot_projector.dart:296 -> VerificationCadencePolicy",
-        "lexical reference at lib/features/chat/domain/services/verification_cadence_policy.dart:4 -> VerificationCadencePolicy"
+        "lexical reference at lib/features/chat/domain/services/verification/verification_cadence_policy.dart:4 -> VerificationCadencePolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,
@@ -1365,18 +1365,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart::VerifierReplayCandidatePolicy",
-      "path": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
+      "id": "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart::VerifierReplayCandidatePolicy",
+      "path": "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart",
       "symbol": "VerifierReplayCandidatePolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:15",
-        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:56"
+        "lexical reference at lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart:15",
+        "lexical reference at lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart:56"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:15 -> VerifierReplayCandidatePolicy",
-        "lexical reference at lib/features/chat/domain/services/verifier_replay_candidate_policy.dart:56 -> VerifierReplayCandidatePolicy"
+        "lexical reference at lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart:15 -> VerifierReplayCandidatePolicy",
+        "lexical reference at lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart:56 -> VerifierReplayCandidatePolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,

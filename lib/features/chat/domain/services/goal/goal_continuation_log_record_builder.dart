@@ -2,7 +2,7 @@ import '../../entities/chat_turn_owner.dart';
 import '../../entities/conversation_goal.dart';
 import '../immutable_json_snapshot.dart';
 import '../tool_result_prompt_builder.dart';
-import '../verification_cadence_policy.dart';
+import '../verification/verification_cadence_policy.dart';
 import 'conversation_goal_auto_continue_policy.dart';
 import 'goal_auto_continue_evidence_marker.dart';
 import 'goal_auto_continue_tracker_registry.dart';

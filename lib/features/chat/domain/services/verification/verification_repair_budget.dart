@@ -1,5 +1,5 @@
-import '../entities/tool_call_info.dart';
-import 'recovery_execution_signature.dart';
+import '../../entities/tool_call_info.dart';
+import '../recovery_execution_signature.dart';
 import 'unresolved_verification_failure.dart';
 
 /// Reserves repair attempts and tracks the status report each repair owes.

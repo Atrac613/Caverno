@@ -1,10 +1,11 @@
 import 'dart:convert';
+
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
 import 'command_diagnostic_verifier_replay_policy.dart';
-import 'immutable_json_snapshot.dart';
 import 'stalled_diagnostic_repair_contract.dart';
 
 // ChatNotifier decomposition collaborator: command-diagnostic-verifier-replay-guard

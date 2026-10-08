@@ -4,9 +4,9 @@ import '../../../../../core/types/workspace_mode.dart';
 import '../../entities/chat_turn_owner.dart';
 import '../../entities/tool_call_info.dart';
 import '../immutable_json_snapshot.dart';
-import '../stalled_diagnostic_repair_contract.dart';
 import '../tool_result_prompt_builder.dart';
-import '../verifier_replay_candidate_policy.dart';
+import '../verification/stalled_diagnostic_repair_contract.dart';
+import '../verification/verifier_replay_candidate_policy.dart';
 
 // ChatNotifier decomposition collaborator: goal-auto-continue-tracker-registry
 typedef VerifierReplayIdFactory = String Function(int mutationGeneration);

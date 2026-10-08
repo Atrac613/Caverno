@@ -3,7 +3,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
 import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
+import 'package:caverno/features/chat/domain/services/verification/verification_cadence_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

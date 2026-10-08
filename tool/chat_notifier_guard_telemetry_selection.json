@@ -34,14 +34,14 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart::CommandDiagnosticVerifierReplayGuard",
+      "id": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart::CommandDiagnosticVerifierReplayGuard",
       "disposition": "defer",
       "question": "Was CommandDiagnosticVerifierReplayGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart::CommandDiagnosticVerifierReplayPolicy",
+      "id": "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_policy.dart::CommandDiagnosticVerifierReplayPolicy",
       "disposition": "defer",
       "question": "Was CommandDiagnosticVerifierReplayPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -174,7 +174,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/saved_validation_command_guard.dart::SavedValidationCommandGuard",
+      "id": "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart::SavedValidationCommandGuard",
       "disposition": "defer",
       "question": "Was SavedValidationCommandGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -258,14 +258,14 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/verification_cadence_policy.dart::VerificationCadencePolicy",
+      "id": "lib/features/chat/domain/services/verification/verification_cadence_policy.dart::VerificationCadencePolicy",
       "disposition": "defer",
       "question": "Was VerificationCadencePolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart::VerifierReplayCandidatePolicy",
+      "id": "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart::VerifierReplayCandidatePolicy",
       "disposition": "defer",
       "question": "Was VerifierReplayCandidatePolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

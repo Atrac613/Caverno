@@ -1,6 +1,6 @@
 import '../../entities/conversation_goal.dart';
 import '../tool_result_prompt_builder.dart';
-import '../verification_cadence_policy.dart';
+import '../verification/verification_cadence_policy.dart';
 
 const int kGoalAutoContinueDefaultTurnBudget = 10;
 const int kGoalAutoContinueDiagnosticRepairBudget = 2;

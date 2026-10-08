@@ -3,9 +3,9 @@ import '../entities/tool_call_info.dart';
 import 'coding/structured_coding_task_recovery_policy.dart';
 import 'project_task_step_completion_policy.dart';
 import 'project_task_terminal_status.dart';
-import 'project_verification_repair_policy.dart';
-import 'status_recovery_verification.dart';
 import 'turn_finalization_recovery_plan.dart';
+import 'verification/project_verification_repair_policy.dart';
+import 'verification/status_recovery_verification.dart';
 
 /// Selects tools and prompts after the recovery protocol has been decided.
 abstract final class FinalizationRecoveryRequest {

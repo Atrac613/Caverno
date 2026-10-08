@@ -1,5 +1,5 @@
-import 'package:caverno/features/chat/domain/services/command_diagnostic_verifier_replay_policy.dart';
-import 'package:caverno/features/chat/domain/services/stalled_diagnostic_repair_contract.dart';
+import 'package:caverno/features/chat/domain/services/verification/command_diagnostic_verifier_replay_policy.dart';
+import 'package:caverno/features/chat/domain/services/verification/stalled_diagnostic_repair_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

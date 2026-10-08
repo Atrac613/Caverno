@@ -1,4 +1,4 @@
-import 'dart_project_tooling.dart';
+import '../dart_project_tooling.dart';
 
 /// A verification target the turn that asked for it also wrote.
 class MutatedVerificationTarget {

@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:path/path.dart' as path;
 
 import '../../entities/tool_call_info.dart';
-import '../command_verification_reconciliation.dart';
 import '../local_command/literal_shell_words.dart';
-import '../verification_command_sequence.dart';
+import '../verification/command_verification_reconciliation.dart';
+import '../verification/verification_command_sequence.dart';
 import 'pytest_verification_identity.dart';
 
 /// Suggests a fresh full-chain execution; never fabricates a successful result.

@@ -1,5 +1,5 @@
-import '../entities/tool_call_info.dart';
-import 'tool_definition_search_service.dart';
+import '../../entities/tool_call_info.dart';
+import '../tool_definition_search_service.dart';
 
 /// Reopens project work before a failed check is reduced to a status report.
 abstract final class ProjectVerificationRepairPolicy {

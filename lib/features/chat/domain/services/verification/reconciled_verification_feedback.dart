@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 
 /// Removes only feedback tied to superseded or advisory source invocations.
 abstract final class ReconciledVerificationFeedback {

@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:path/path.dart' as path;
 
-import '../entities/tool_call_info.dart';
-import 'local_command/literal_environment_inspection_policy.dart';
-import 'local_command/literal_shell_segments.dart';
-import 'local_command/literal_shell_words.dart';
-import 'python/pytest_metadata_inspection_policy.dart';
+import '../../entities/tool_call_info.dart';
+import '../local_command/literal_environment_inspection_policy.dart';
+import '../local_command/literal_shell_segments.dart';
+import '../local_command/literal_shell_words.dart';
+import '../python/pytest_metadata_inspection_policy.dart';
 
 /// Classifies execution evidence only, never approval or mutation freshness.
 abstract final class VerificationMetadataQueryPolicy {

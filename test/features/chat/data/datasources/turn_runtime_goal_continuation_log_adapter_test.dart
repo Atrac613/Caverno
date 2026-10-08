@@ -8,7 +8,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
-import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
+import 'package:caverno/features/chat/domain/services/verification/verification_cadence_policy.dart';
 import 'package:test/test.dart';
 
 void main() {

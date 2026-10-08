@@ -324,7 +324,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/execution_snapshot_observer.dart': 180,
   'lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart':
       380,
-  'lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart':
+  'lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart':
       142,
   'lib/features/chat/domain/services/chat_command_guardrail_collaborators.dart':
       3,
@@ -341,7 +341,7 @@ const Map<String, int> _lineBudgets = {
       64,
   'lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart':
       191,
-  'lib/features/chat/domain/services/saved_validation_command_guard.dart': 180,
+  'lib/features/chat/domain/services/verification/saved_validation_command_guard.dart': 180,
   // -24: the frozen input snapshot moved to saved_task_target_scope_input.dart
   // and is re-exported, so the guard file holds only the decision.
   // Introduction budget. The guard's view of an executor-driven turn's
@@ -775,7 +775,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2382,
   'lib/features/chat/domain/services/content_tool_result_formatter.dart': 132,
-  'lib/features/chat/domain/services/verifier_replay_candidate_policy.dart': 56,
+  'lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart': 56,
   'lib/features/chat/domain/services/plan/workflow_task_run_lifecycle_policy.dart':
       56,
   'lib/features/chat/domain/services/plan/workflow_task_turn_route_policy.dart': 43,
@@ -1104,13 +1104,13 @@ const Map<String, int> _lineBudgets = {
       210,
   'lib/features/settings/presentation/pages/live_llm_diagnostic_page.dart':
       1675,
-  'lib/features/chat/domain/services/command_verification_reconciliation.dart':
+  'lib/features/chat/domain/services/verification/command_verification_reconciliation.dart':
       139,
   'lib/features/chat/domain/services/python/pytest_verification_identity.dart': 61,
   'lib/features/chat/domain/services/local_command/literal_shell_words.dart': 40,
   'lib/features/chat/domain/services/python/pytest_shell_invocation.dart': 31,
   'lib/features/chat/domain/services/python/pytest_test_outcome_parser.dart': 24,
-  'lib/features/chat/domain/services/executed_verifier_replay_policy.dart': 63,
+  'lib/features/chat/domain/services/verification/executed_verifier_replay_policy.dart': 63,
   'lib/features/chat/domain/services/python/verified_pytest_replay_policy.dart': 174,
   'lib/features/chat/domain/services/python/pytest_replay_state_policy.dart': 43,
   'lib/features/chat/domain/services/local_command/literal_shell_segments.dart': 30,

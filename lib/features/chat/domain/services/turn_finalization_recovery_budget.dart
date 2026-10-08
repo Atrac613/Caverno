@@ -1,6 +1,6 @@
 import '../entities/tool_call_info.dart';
 import 'recovery_execution_signature.dart';
-import 'verification_repair_budget.dart';
+import 'verification/verification_repair_budget.dart';
 
 /// Bounds recovery while reserving status reports for finished verification.
 final class TurnFinalizationRecoveryBudget {
