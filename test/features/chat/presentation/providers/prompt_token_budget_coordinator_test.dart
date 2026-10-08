@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:caverno/core/constants/api_constants.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/context_window_observation_store.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/conversation_compaction_service.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
 import 'package:caverno/features/chat/presentation/providers/prompt_token_budget_coordinator.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -286,6 +290,87 @@ void main() {
       coordinator.recordEstimate(turn, buildMessages(4));
       coordinator.recordMeasurement(turn, completed(27575));
       expect(store.read(route.key), isNull);
+    });
+  });
+
+  group('tool result scale', () {
+    late ContextWindowObservationStore store;
+    const key = 'https://api.example.com/v1|review-model';
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      store = ContextWindowObservationStore(
+        await SharedPreferences.getInstance(),
+      );
+      coordinator.observeWith(store);
+    });
+
+    test('a known window scales up to the cost cap', () {
+      coordinator.budgetFor(
+        settingsWithWindow(65536),
+        'thread-a',
+        route: (key: key, window: 1050000),
+      );
+      expect(
+        coordinator.toolResultScale('thread-a'),
+        PromptTokenBudgetCoordinator.costCapTokens /
+            PromptTokenBudgetCoordinator.referenceWindowTokens,
+      );
+      coordinator.budgetFor(
+        settingsWithWindow(65536),
+        'thread-b',
+        route: (key: 'local', window: 65536),
+      );
+      expect(coordinator.toolResultScale('thread-b'), 1);
+    });
+
+    test('an unknown window grows only through pressured fits', () {
+      coordinator.budgetFor(
+        settingsWithWindow(65536),
+        'thread-a',
+        route: (key: key, window: null),
+      );
+      expect(coordinator.toolResultScale('thread-a'), 1);
+      final crowded = [
+        for (var i = 0; i < 8; i++)
+          ToolResultInfo(
+            id: 'r$i',
+            name: 'read_file',
+            arguments: {'path': '/p/$i.py'},
+            result: jsonEncode({
+              'path': '/p/$i.py',
+              'content': List.filled(9000, 'x').join(),
+            }),
+          ),
+      ];
+      coordinator.budgetToolResults(
+        turn,
+        crowded,
+        mode: ToolResultPromptBudgetMode.normal,
+        protectedPaths: const {},
+        summaryFirst: false,
+      );
+      coordinator.recordEstimate(turn, buildMessages(4));
+      coordinator.recordMeasurement(
+        turn,
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'stop',
+          usage: const TokenUsage(
+            promptTokens: 27000,
+            completionTokens: 1,
+            totalTokens: 27001,
+          ),
+        ),
+      );
+      expect(coordinator.toolResultScale('thread-a'), 1.5);
+      expect(
+        coordinator.recordLengthFailure(
+          turn,
+          Exception('maximum context length is 70000 tokens'),
+        ),
+        isTrue,
+      );
+      expect(coordinator.toolResultScale('thread-a'), 1);
     });
   });
 }

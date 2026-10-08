@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/domain/entities/app_settings.dart';
@@ -7,8 +9,10 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/reported_context_limit.dart';
+import '../../domain/services/tool_result_prompt_builder.dart';
 import 'prompt_token_calibration_registry.dart';
 
 /// Decides how much conversation history a prompt may carry.
@@ -20,7 +24,16 @@ final class PromptTokenBudgetCoordinator {
   final PromptTokenCalibrationRegistry _calibrations =
       PromptTokenCalibrationRegistry();
   final Map<String, String> _routeKeys = <String, String>{};
+  final Map<String, int?> _routeWindows = <String, int?>{};
+  final Set<String> _pressured = <String>{};
   ContextWindowObservationStore? _observations;
+
+  /// The window the fixed tool-result budgets were tuned for.
+  static const int referenceWindowTokens = 65536;
+
+  /// Cost ceiling: tool results never scale past a prompt of this size, even
+  /// on a model with a million-token window.
+  static const int costCapTokens = 200000;
 
   /// Starts recording what requests prove about each route's context window.
   void attach(Ref ref) =>
@@ -41,6 +54,7 @@ final class PromptTokenBudgetCoordinator {
   }) {
     if (route != null && conversationId != null) {
       _routeKeys[conversationId] = route.key;
+      _routeWindows[conversationId] = route.window;
     }
     final routeWindow = route?.window ?? 0;
     return PromptTokenBudget._(
@@ -75,9 +89,62 @@ final class PromptTokenBudgetCoordinator {
       measuredPromptTokens: result.usage.promptTokens,
     );
     final key = _routeKeys[owner.conversationId];
+    final pressured = _pressured.remove(owner.conversationId);
     if (key != null && result.usage.promptTokens > 0) {
-      _observations?.accept(key, result.usage.promptTokens);
+      _observations?.accept(
+        key,
+        result.usage.promptTokens,
+        pressured: pressured,
+      );
     }
+  }
+
+  /// How far this conversation's route may widen the normal tool-result
+  /// budget: a known window relative to [referenceWindowTokens], otherwise the
+  /// learned scale, never past a learned ceiling or [costCapTokens].
+  double toolResultScale(String? conversationId) {
+    final key = conversationId == null ? null : _routeKeys[conversationId];
+    final observed = key == null ? null : _observations?.read(key);
+    final window = conversationId == null
+        ? null
+        : _routeWindows[conversationId];
+    var scale = window != null && window > 0
+        ? window / referenceWindowTokens
+        : observed?.budgetScale ?? 1;
+    final ceiling = observed?.ceilingTokens;
+    if (ceiling != null) {
+      scale = math.min(scale, ceiling / referenceWindowTokens);
+    }
+    return scale.clamp(1.0, costCapTokens / referenceWindowTokens);
+  }
+
+  /// Budgets [results] for [owner]'s prompt at its route's scale, noting
+  /// whether the budget had to shorten anything so a fitting request can
+  /// earn the route more room.
+  List<ToolResultInfo> budgetToolResults(
+    ChatTurnOwner? owner,
+    List<ToolResultInfo> results, {
+    required ToolResultPromptBudgetMode mode,
+    required Set<String> protectedPaths,
+    required bool summaryFirst,
+  }) {
+    final budgeted = ToolResultPromptBuilder.budgetToolResults(
+      results,
+      mode: mode,
+      protectedPaths: protectedPaths,
+      summaryFirst: summaryFirst,
+      scale: toolResultScale(owner?.conversationId),
+    );
+    if (owner != null &&
+        mode == ToolResultPromptBudgetMode.normal &&
+        budgeted.any(
+          (result) => result.result.contains(
+            ToolResultPromptBuilder.promptBudgetReductionMarker,
+          ),
+        )) {
+      _pressured.add(owner.conversationId);
+    }
+    return budgeted;
   }
 
   /// Whether [error] is a context-length rejection; when it is, records the

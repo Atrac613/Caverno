@@ -303,6 +303,17 @@ class _ToolResultPromptBudget {
   final int maxCommandOutputChars;
   final int maxListItems;
   final int maxImageAttachments;
+
+  /// The same budget with every character allowance multiplied by [factor].
+  _ToolResultPromptBudget scaled(double factor) => _ToolResultPromptBudget(
+    maxTotalResultChars: (maxTotalResultChars * factor).round(),
+    maxSingleResultChars: (maxSingleResultChars * factor).round(),
+    maxStringValueChars: (maxStringValueChars * factor).round(),
+    maxReadFileContentChars: (maxReadFileContentChars * factor).round(),
+    maxCommandOutputChars: (maxCommandOutputChars * factor).round(),
+    maxListItems: maxListItems,
+    maxImageAttachments: maxImageAttachments,
+  );
 }
 
 class ToolResultPromptBuilder {
@@ -397,6 +408,7 @@ class ToolResultPromptBuilder {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
     Set<String> protectedPaths = const {},
     bool summaryFirst = false,
+    double scale = 1,
   }) {
     if (toolResults.isEmpty) {
       return const [];
@@ -408,7 +420,12 @@ class ToolResultPromptBuilder {
             protectedPaths: protectedPaths,
           )
         : toolResults;
-    final budget = _budgetForMode(mode, summaryFirst: summaryFirst);
+    // [scale] widens only the normal budget for a model with a larger
+    // window; the compact retry after a context-length error stays fixed.
+    final base = _budgetForMode(mode, summaryFirst: summaryFirst);
+    final budget = mode == ToolResultPromptBudgetMode.normal && scale > 1
+        ? base.scaled(scale)
+        : base;
     final imageResultIndexes = <int>[];
     for (var index = 0; index < sourceToolResults.length; index += 1) {
       final decoded = _tryDecodeJsonMap(sourceToolResults[index].result);

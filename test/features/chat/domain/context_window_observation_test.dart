@@ -41,6 +41,29 @@ void main() {
     );
   });
 
+  test('a pressured fit earns budget scale and a rejection halves it', () {
+    var observed = const ContextWindowObservation();
+    for (var i = 0; i < 3; i++) {
+      observed = observed.accept(20000 + i, pressured: true)!;
+    }
+    expect(observed.budgetScale, 2.5);
+    expect(
+      observed.accept(19000),
+      isNull,
+      reason: 'an unpressured smaller fit proves nothing new',
+    );
+    for (var i = 0; i < 10; i++) {
+      observed = observed.accept(30000 + i, pressured: true)!;
+    }
+    expect(observed.budgetScale, ContextWindowObservation.maxBudgetScale);
+    final rejected = observed.reject(promptTokens: 90000)!;
+    expect(rejected.budgetScale, ContextWindowObservation.maxBudgetScale / 2);
+    expect(
+      ContextWindowObservation.fromJson(rejected.toJson()).budgetScale,
+      rejected.budgetScale,
+    );
+  });
+
   test('keys an endpoint and model case-insensitively', () {
     expect(
       ContextWindowObservation.keyFor(

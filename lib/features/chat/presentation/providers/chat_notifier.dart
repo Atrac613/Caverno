@@ -4219,7 +4219,8 @@ class ChatNotifier extends Notifier<ChatState> {
     required Set<String> protectedPaths,
     required ChatTurnOwner? observationOwner,
   }) {
-    final budgetedToolResults = ToolResultPromptBuilder.budgetToolResults(
+    final budgetedToolResults = _promptTokenBudget.budgetToolResults(
+      observationOwner,
       toolResults,
       mode: mode,
       protectedPaths: mode == ToolResultPromptBudgetMode.compact

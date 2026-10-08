@@ -379,6 +379,47 @@ void main() {
       });
     }
 
+    test('scale widens only the normal budget', () {
+      // Session e1309587: a review on a million-token model got every diff
+      // and file cut to a few KB by the fixed 48,000-char budget.
+      final results = [
+        for (var i = 0; i < 8; i++)
+          ToolResultInfo(
+            id: 'diff-$i',
+            name: 'git_execute_command',
+            arguments: {'command': 'diff HEAD -- f$i.py a'},
+            result: jsonEncode({
+              'exit_code': 0,
+              'stdout': List.filled(7000, 'd').join(),
+            }),
+          ),
+      ];
+      bool reduced(List<ToolResultInfo> budgeted) => budgeted.any(
+        (r) => r.result.contains(
+          ToolResultPromptBuilder.promptBudgetReductionMarker,
+        ),
+      );
+      expect(
+        reduced(ToolResultPromptBuilder.budgetToolResults(results)),
+        isTrue,
+      );
+      expect(
+        reduced(ToolResultPromptBuilder.budgetToolResults(results, scale: 3)),
+        isFalse,
+      );
+      expect(
+        reduced(
+          ToolResultPromptBuilder.budgetToolResults(
+            results,
+            mode: ToolResultPromptBudgetMode.compact,
+            scale: 3,
+          ),
+        ),
+        isTrue,
+        reason: 'the compact retry stays fixed',
+      );
+    });
+
     test('newest single-file diff may exceed the command output cap', () {
       // test_state.py's diff in session 0372d7fb was 14.6 KB.
       final diff = List.filled(14600, 'd').join();

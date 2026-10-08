@@ -41,8 +41,12 @@ final class ContextWindowObservationStore {
 
   ContextWindowObservation? read(String key) => _all[key];
 
-  void accept(String key, int promptTokens) =>
-      _update(key, (current) => current.accept(promptTokens), 'accepted');
+  void accept(String key, int promptTokens, {bool pressured = false}) =>
+      _update(
+        key,
+        (current) => current.accept(promptTokens, pressured: pressured),
+        'accepted',
+      );
 
   void reject(String key, {int? promptTokens, int? reportedLimit}) => _update(
     key,
