@@ -381,26 +381,43 @@ class ToolResultPromptBuilder {
     return deduped;
   }
 
-  /// Repeated whole-file reads can crowd the relevant lines out of the final
-  /// answer prompt. Keep the newest identical observation of each file.
-  static List<ToolResultInfo> dedupeReadFileResultsForAnswer(
+  /// Repeated whole-file reads and single-file diffs can crowd the relevant
+  /// lines out of the final answer prompt. Keep the newest identical
+  /// observation of each file.
+  ///
+  /// Session 4e99fa94: a review that hit the tool-loop limit answered from 33
+  /// results, a dozen of them verbatim repeats of `git diff HEAD -- <path>`.
+  /// The shared budget cut every copy of state.py to about 5 KB, each losing
+  /// the repaired lines, and the reviewer re-raised the fixed finding.
+  static List<ToolResultInfo> dedupeRepeatedInspectionsForAnswer(
     List<ToolResultInfo> toolResults,
   ) {
-    final seen = <(String, String)>{};
+    final seen = <(String, String, String)>{};
     final retained = <ToolResultInfo>[];
     for (final toolResult in toolResults.reversed) {
-      if (toolResult.name == 'read_file') {
-        final payload = _tryDecodeJsonMap(toolResult.result);
-        final path = payload?['path'];
-        if (path is String &&
-            path.isNotEmpty &&
-            payload?['content'] is String) {
-          if (!seen.add((path, toolResult.result))) continue;
-        }
+      final path = _repeatableInspectionPath(toolResult);
+      if (path != null &&
+          !seen.add((toolResult.name, path, toolResult.result))) {
+        continue;
       }
       retained.add(toolResult);
     }
     return retained.reversed.toList(growable: false);
+  }
+
+  /// The file a successful, side-effect-free inspection observed, when an
+  /// identical later result makes the earlier one redundant.
+  static String? _repeatableInspectionPath(ToolResultInfo toolResult) {
+    final payload = _tryDecodeJsonMap(toolResult.result);
+    if (toolResult.name == 'read_file') {
+      final path = payload?['path'];
+      return path is String && path.isNotEmpty && payload?['content'] is String
+          ? path
+          : null;
+    }
+    final diffPath = singlePathDiffInspection(toolResult);
+    if (diffPath == null || payload?['exit_code'] != 0) return null;
+    return diffPath;
   }
 
   static List<ToolResultInfo> budgetToolResults(

@@ -35,7 +35,7 @@ void main() {
         }),
       );
       expect(
-        ToolResultPromptBuilder.dedupeReadFileResultsForAnswer([
+        ToolResultPromptBuilder.dedupeRepeatedInspectionsForAnswer([
           failed,
           failed,
         ]),
@@ -58,9 +58,8 @@ void main() {
         isTrue,
       );
 
-      final deduped = ToolResultPromptBuilder.dedupeReadFileResultsForAnswer(
-        results,
-      );
+      final deduped =
+          ToolResultPromptBuilder.dedupeRepeatedInspectionsForAnswer(results);
       expect(deduped.map((result) => result.id), [
         'watcher-2',
         'latest',
@@ -74,6 +73,62 @@ void main() {
         isFalse,
       );
       expect(budgeted[1].result, contains('assert \\"FAIL1\\" not in st'));
+    });
+
+    test('repeated single-file diffs do not hide a repaired line', () {
+      ToolResultInfo diff(
+        String path,
+        String stdout,
+        String id, {
+        String command = 'git diff HEAD',
+        int exitCode = 0,
+      }) => ToolResultInfo(
+        id: id,
+        name: 'git_execute_command',
+        arguments: {'command': '$command -- $path'},
+        result: jsonEncode({
+          'command': 'git diff HEAD -- $path',
+          'exit_code': exitCode,
+          'stdout': stdout,
+        }),
+      );
+
+      final stateDiff =
+          '${'a' * 3500}\n'
+          '+    try:\n'
+          '+        change_rate = (change / old_price) * 100.0\n'
+          '+    except OverflowError:\n'
+          '${'b' * 3500}';
+      final failed = diff('state.py', '', 'failed', exitCode: 128);
+      final results = <ToolResultInfo>[
+        for (var i = 0; i < 3; i++) ...[
+          diff('state.py', stateDiff, 'state-$i', command: 'diff HEAD'),
+          diff('watcher.py', 'w' * 7000, 'watcher-$i'),
+          diff('notifier.py', 'n' * 7000, 'notifier-$i'),
+        ],
+        failed,
+        failed,
+      ];
+
+      final deduped =
+          ToolResultPromptBuilder.dedupeRepeatedInspectionsForAnswer(results);
+      expect(deduped.map((result) => result.id), [
+        'state-2',
+        'watcher-2',
+        'notifier-2',
+        'failed',
+        'failed',
+      ]);
+      expect(
+        ToolResultPromptBuilder.budgetToolResults(results)
+            .where((result) => result.id.startsWith('state-'))
+            .map((result) => result.result.contains('change_rate = (change')),
+        everyElement(isFalse),
+      );
+      expect(
+        ToolResultPromptBuilder.budgetToolResults(deduped).first.result,
+        contains('change_rate = (change / old_price)'),
+      );
     });
 
     group('unfinished background jobs', () {
