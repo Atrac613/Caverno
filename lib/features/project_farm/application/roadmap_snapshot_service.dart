@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -174,10 +175,32 @@ final class RoadmapSnapshotService {
     for (final candidate in candidates) {
       final absolute = containedPath(projectRoot, candidate);
       if (absolute == null) continue;
+      if (!await resolvesInsideProject(projectRoot, absolute)) continue;
       final text = await _readFile(absolute);
       if (text != null) return (relativePath: candidate, text: text);
     }
     return null;
+  }
+}
+
+/// Whether [absolutePath], once symlinks are resolved, still lies inside
+/// [projectRoot]. [containedPath] is lexical, so a committed `ROADMAP.md` link
+/// to a file elsewhere would otherwise be read into the dashboard and the
+/// proposal prompt. A path that does not exist has nothing to read and passes.
+Future<bool> resolvesInsideProject(
+  String projectRoot,
+  String absolutePath,
+) async {
+  if (await FileSystemEntity.type(absolutePath) ==
+      FileSystemEntityType.notFound) {
+    return true;
+  }
+  try {
+    final root = await Directory(projectRoot).resolveSymbolicLinks();
+    final target = await File(absolutePath).resolveSymbolicLinks();
+    return p.isWithin(root, target);
+  } on FileSystemException {
+    return false;
   }
 }
 

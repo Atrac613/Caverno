@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/project_farm/application/roadmap_snapshot_service.dart';
@@ -263,6 +264,31 @@ void main() {
 
     await subject.setPinnedTask('p1', null);
     expect(subject.pinnedTaskFor('p1'), isNull);
+  });
+
+  test('refuses a roadmap that is a symlink to a file outside', () async {
+    final project = Directory.systemTemp.createTempSync('roadmap_project_');
+    final outside = Directory.systemTemp.createTempSync('roadmap_outside_');
+    addTearDown(() {
+      project.deleteSync(recursive: true);
+      outside.deleteSync(recursive: true);
+    });
+    final secret = File('${outside.path}/secret.md')..writeAsStringSync('x');
+    Link('${project.path}/ROADMAP.md').createSync(secret.path);
+    File('${project.path}/PLAN.md').writeAsStringSync('y');
+
+    expect(
+      await resolvesInsideProject(project.path, '${project.path}/ROADMAP.md'),
+      isFalse,
+    );
+    expect(
+      await resolvesInsideProject(project.path, '${project.path}/PLAN.md'),
+      isTrue,
+    );
+    expect(
+      await resolvesInsideProject(project.path, '${project.path}/missing.md'),
+      isTrue,
+    );
   });
 
   test('refuses a roadmap path outside the project', () {
