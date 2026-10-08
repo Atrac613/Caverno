@@ -10,7 +10,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/types/assistant_mode.dart';
 import '../../../core/utils/attachment_format.dart';
 import '../../chat/domain/entities/conversation_plan_artifact.dart';
-import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/domain/services/approval/pending_approval_summary.dart';
 import '../../chat/presentation/pages/approval_dialog_presenter.dart';
 import '../../chat/presentation/providers/custom_slash_commands_notifier.dart';
 import '../../chat/presentation/slash_commands/slash_command.dart';

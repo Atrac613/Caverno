@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/domain/services/approval/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';

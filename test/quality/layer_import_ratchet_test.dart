@@ -48,7 +48,7 @@ const Set<String> _reviewedEdges = <String>{
   'lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart -> lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart',
   'lib/features/chat/domain/services/memory_extraction_coordinator.dart -> lib/features/chat/data/datasources/chat_datasource.dart',
   'lib/features/chat/domain/services/outside_root_read_grants.dart -> lib/features/chat/data/datasources/project_read_tool_authorizer.dart',
-  'lib/features/chat/domain/services/pending_approval_summary.dart -> lib/features/chat/presentation/providers/chat_state.dart',
+  'lib/features/chat/domain/services/approval/pending_approval_summary.dart -> lib/features/chat/presentation/providers/chat_state.dart',
   'lib/features/chat/domain/services/plan/planning_tool_policy.dart -> lib/features/chat/data/datasources/git_tools.dart',
   'lib/features/chat/domain/services/plan/planning_tool_policy.dart -> lib/features/chat/data/datasources/local_shell_tools.dart',
   'lib/features/chat/domain/services/pro_reasoning_candidate_explorer.dart -> lib/features/chat/data/datasources/llama_cpp_slot_discovery.dart',

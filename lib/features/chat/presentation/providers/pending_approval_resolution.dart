@@ -1,5 +1,5 @@
 import '../../../../core/services/notification_service.dart';
-import '../../domain/services/pending_approval_summary.dart';
+import '../../domain/services/approval/pending_approval_summary.dart';
 import 'chat_notifier.dart';
 import 'chat_state.dart';
 

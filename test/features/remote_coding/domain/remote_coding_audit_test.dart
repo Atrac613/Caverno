@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/domain/services/approval/pending_approval_summary.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_audit.dart';
 import 'package:flutter_test/flutter_test.dart';
 

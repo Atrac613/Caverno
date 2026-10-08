@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/domain/services/approval/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/pending_approval_resolution.dart';
 import 'package:flutter_test/flutter_test.dart';

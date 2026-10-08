@@ -1,4 +1,4 @@
-import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/domain/services/approval/pending_approval_summary.dart';
 import '../../chat/presentation/providers/chat_state.dart';
 import '../../remote_coding/domain/remote_coding_models.dart';
 import 'watch_snapshot.dart';

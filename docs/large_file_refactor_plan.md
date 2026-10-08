@@ -22,7 +22,7 @@ completed.
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9121 | Chat orchestration, tool loops, memory, workflows, persistence |
 | `lib/features/chat/presentation/providers/chat_state.dart` | 819 | Chat state plus owner-bound pending approval projections |
 | `lib/features/chat/presentation/providers/thread_scoped_chat_state.dart` | 249 | Per-conversation presentation state and owner-aware approval clearing |
-| `lib/features/chat/domain/services/tool_approval_auto_review_service.dart` | 339 | Shared approval policy, audit decisions, and owner-expiry validation |
+| `lib/features/chat/domain/services/approval/tool_approval_auto_review_service.dart` | 339 | Shared approval policy, audit decisions, and owner-expiry validation |
 | `lib/features/chat/domain/services/file_mutation_evidence_policy.dart` | 65 | File-mutation classification, success evidence, and path precedence |
 | `lib/features/chat/domain/services/claims/hidden_assistant_evidence_scorer.dart` | 21 | Pure hidden-assistant lexical evidence scoring |
 | `lib/features/chat/domain/services/tool_loop/duplicate_tool_result_recovery.dart` | 209 | Owner-root-aware duplicate result reuse, fallback filtering, and deduplication |

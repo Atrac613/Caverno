@@ -1,4 +1,4 @@
-import '../../../../core/security/tool_perimeter_context.dart';
+import '../../../../../core/security/tool_perimeter_context.dart';
 import 'tool_approval_auto_review_contract.dart';
 
 /// Builds review context without deciding or granting execution authority.

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/application/runtime/turn_runtime_owner_lease_registry.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/domain/services/approval/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/thread_scoped_chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/thread_scoped_message_queue.dart';

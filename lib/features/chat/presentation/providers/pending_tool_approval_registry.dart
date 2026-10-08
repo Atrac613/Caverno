@@ -1,5 +1,5 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/approval_wait_ledger.dart';
+import '../../domain/services/approval/approval_wait_ledger.dart';
 import 'pending_tool_approvals.dart';
 
 /// Every pending approval in the app, keyed by id and by owning turn.

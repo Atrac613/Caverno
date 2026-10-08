@@ -1,4 +1,4 @@
-import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/domain/services/approval/pending_approval_summary.dart';
 
 /// The interactions a desktop can grant a paired device over its **own** turns.
 ///

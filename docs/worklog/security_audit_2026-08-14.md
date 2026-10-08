@@ -413,7 +413,7 @@ Evidence:
 
 - `lib/core/security/taint_policy.dart:4-12` explicitly documents advisory-only
   policy;
-- `lib/features/chat/domain/services/tool_approval_auto_review_service.dart:109-152`
+- `lib/features/chat/domain/services/approval/tool_approval_auto_review_service.dart:109-152`
   resolves cache/full-access paths before taint can impose a hard decision; and
 - `lib/features/chat/presentation/providers/chat_notifier_approval_handlers.dart:233-267`
   supplies the influence flag, but it cannot constrain the earlier paths.

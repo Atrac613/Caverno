@@ -1,5 +1,5 @@
 import '../../entities/conversation_work_time.dart';
-import '../approval_wait_ledger.dart';
+import '../approval/approval_wait_ledger.dart';
 
 /// Turns a conversation's tool lifecycle transitions into tool work time.
 ///

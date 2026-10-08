@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/notification_providers.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/utils/logger.dart';
-import '../../chat/domain/services/pending_approval_summary.dart';
+import '../../chat/domain/services/approval/pending_approval_summary.dart';
 import '../../chat/presentation/providers/pending_approval_resolution.dart';
 import '../data/remote_coding_mobile_notification_gateway.dart';
 import '../data/remote_coding_notification_payload.dart';

@@ -6,8 +6,8 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/anabasis/participant_tool_executor.dart';
+import '../../domain/services/approval/turn_tool_approval_coordinator.dart';
 import '../../domain/services/immutable_json_snapshot.dart';
-import '../../domain/services/turn_tool_approval_coordinator.dart';
 
 typedef ParticipantToolApprovalCallback =
     Future<ParticipantToolApprovalAcknowledgement> Function(

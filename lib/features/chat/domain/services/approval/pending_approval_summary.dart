@@ -1,4 +1,4 @@
-import '../../presentation/providers/chat_state.dart';
+import '../../../presentation/providers/chat_state.dart';
 
 /// A pending tool approval flattened into one displayable shape.
 ///

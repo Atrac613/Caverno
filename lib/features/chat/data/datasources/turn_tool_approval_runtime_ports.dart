@@ -1,6 +1,6 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/tool_approval_auto_review_service.dart';
-import '../../domain/services/turn_tool_approval_coordinator.dart';
+import '../../domain/services/approval/tool_approval_auto_review_service.dart';
+import '../../domain/services/approval/turn_tool_approval_coordinator.dart';
 
 typedef ManualToolApprovalCallback =
     Future<ManualToolApprovalDecision> Function(

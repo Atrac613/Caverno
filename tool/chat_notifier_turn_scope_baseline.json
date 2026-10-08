@@ -86,7 +86,7 @@
     "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart",
     "lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart",
     "lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_policy.dart",
-    "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+    "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
     "lib/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart",
     "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
     "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
@@ -13242,7 +13242,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ManualToolApprovalDecision.isApproved",
       "signature": "bool get isApproved",
       "turnIdentityParameters": [],
@@ -13253,7 +13253,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ManualToolApprovalPort.requestApproval",
       "signature": "Future<ManualToolApprovalDecision> requestApproval(\n    ChatTurnOwner owner,\n    ManualToolApprovalRequest request,\n  )",
       "turnIdentityParameters": [
@@ -13266,7 +13266,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ToolApprovalAuditPort.record",
       "signature": "Future<void> record(ChatTurnOwner owner, ToolApprovalAuditRecord record)",
       "turnIdentityParameters": [
@@ -13279,7 +13279,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ToolApprovalAutoReviewPort.review",
       "signature": "Future<ToolApprovalAutoReviewDecision?> review(\n    ChatTurnOwner owner,\n    ToolApprovalAutoReviewRequest request, {\n    required ToolApprovalAutoReviewDomain domain,\n  })",
       "turnIdentityParameters": [
@@ -13292,7 +13292,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ToolApprovalOutcome.isApproved",
       "signature": "bool get isApproved",
       "turnIdentityParameters": [],
@@ -13303,7 +13303,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ToolApprovalOutcome.reusedCachedApproval",
       "signature": "bool get reusedCachedApproval",
       "turnIdentityParameters": [],
@@ -13314,7 +13314,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ToolApprovalOwnerPort.isCurrent",
       "signature": "bool isCurrent(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -13327,7 +13327,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "ToolApprovalRequest._freezeMap",
       "signature": "static Map<String, dynamic> _freezeMap(Map<String, dynamic> value)",
       "turnIdentityParameters": [],
@@ -13340,7 +13340,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._cacheKey",
       "signature": "String? _cacheKey(ToolApprovalRequest request)",
       "turnIdentityParameters": [],
@@ -13354,7 +13354,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._entriesFor",
       "signature": "Map<String, _CachedApprovalDecision> _entriesFor(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -13369,7 +13369,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._expiredOutcome",
       "signature": "ToolApprovalOutcome _expiredOutcome(String toolName)",
       "turnIdentityParameters": [],
@@ -13383,7 +13383,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._normalizeValue",
       "signature": "Object? _normalizeValue(Object? value)",
       "turnIdentityParameters": [],
@@ -13401,7 +13401,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._ownerIsCurrent",
       "signature": "bool _ownerIsCurrent(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -13417,7 +13417,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._recordAuditBestEffort",
       "signature": "Future<void> _recordAuditBestEffort(\n    ToolApprovalRequest request, {\n    required Map<String, dynamic> arguments,\n    required String outcome,\n    required String decisionSource,\n    String? rationale,\n    String? riskLevel,\n  })",
       "turnIdentityParameters": [],
@@ -13431,7 +13431,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._rememberDenial",
       "signature": "void _rememberDenial(ToolApprovalRequest request, McpToolResult result)",
       "turnIdentityParameters": [],
@@ -13446,7 +13446,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator._runAutoReview",
       "signature": "Future<ToolApprovalAutoReviewDecision?> _runAutoReview(\n    ToolApprovalRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -13460,7 +13460,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.autoReviewDeniedResult",
       "signature": "McpToolResult autoReviewDeniedResult({\n    required String toolName,\n    required String rationale,\n  })",
       "turnIdentityParameters": [],
@@ -13473,7 +13473,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.buildAutoReviewRequest",
       "signature": "ToolApprovalAutoReviewRequest buildAutoReviewRequest(\n    ToolApprovalRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -13487,7 +13487,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.clearAll",
       "signature": "void clearAll()",
       "turnIdentityParameters": [],
@@ -13501,7 +13501,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.clearOwner",
       "signature": "bool clearOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -13517,7 +13517,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.domainEscalatesDeniedActionToManual",
       "signature": "bool domainEscalatesDeniedActionToManual(\n    ToolApprovalAutoReviewDomain domain,\n  )",
       "turnIdentityParameters": [],
@@ -13528,7 +13528,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.escalatedWarningMessage",
       "signature": "String? escalatedWarningMessage(\n    ToolApprovalGateDecision gate,\n    String? fallback,\n  )",
       "turnIdentityParameters": [],
@@ -13539,7 +13539,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.escalatedWarningTitle",
       "signature": "String? escalatedWarningTitle(\n    ToolApprovalGateDecision gate,\n    String? fallback,\n  )",
       "turnIdentityParameters": [],
@@ -13550,7 +13550,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.expiredResult",
       "signature": "McpToolResult? expiredResult(ToolApprovalRequest request)",
       "turnIdentityParameters": [],
@@ -13564,7 +13564,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.preflightCachedDenial",
       "signature": "Future<ToolApprovalPreflight> preflightCachedDenial(\n    ToolApprovalRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -13582,7 +13582,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.rememberApprovalResult",
       "signature": "McpToolResult rememberApprovalResult(\n    ToolApprovalRequest request,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [],
@@ -13597,7 +13597,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.rememberDenial",
       "signature": "McpToolResult rememberDenial(\n    ToolApprovalRequest request,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [],
@@ -13611,7 +13611,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.resolve",
       "signature": "Future<ToolApprovalOutcome> resolve(ToolApprovalRequest request)",
       "turnIdentityParameters": [],
@@ -13625,7 +13625,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "TurnToolApprovalCoordinator.resolveAfterPreflight",
       "signature": "Future<ToolApprovalOutcome> resolveAfterPreflight(\n    ToolApprovalPreflight preflight, {\n    String? targetDisplayName,\n  })",
       "turnIdentityParameters": [],
@@ -13653,7 +13653,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
+      "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
       "declaration": "_CachedApprovalDecision.isApproved",
       "signature": "bool get isApproved",
       "turnIdentityParameters": [],

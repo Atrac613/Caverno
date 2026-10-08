@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../../../../core/security/data_source_classifier.dart';
-import '../../../../core/security/taint_policy.dart';
-import '../entities/message.dart';
+import '../../../../../core/security/data_source_classifier.dart';
+import '../../../../../core/security/taint_policy.dart';
+import '../../entities/message.dart';
 import 'tool_approval_auto_review_contract.dart';
 import 'tool_approval_auto_review_prompts.dart';
 import 'tool_approval_review_packet.dart';

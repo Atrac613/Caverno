@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/datasources/background_process_types.dart';
 import '../../domain/entities/conversation_work_time.dart';
-import '../../domain/services/approval_wait_ledger.dart';
+import '../../domain/services/approval/approval_wait_ledger.dart';
 import 'model_usage_providers.dart';
 
 export 'model_usage_providers.dart' show conversationWorkTimeStoreProvider;

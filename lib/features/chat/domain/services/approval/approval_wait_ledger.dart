@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/conversation_work_time.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/conversation_work_time.dart';
 
 /// Measures how long each conversation's turns sat blocked on approvals.
 ///

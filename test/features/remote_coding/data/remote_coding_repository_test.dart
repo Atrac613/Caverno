@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/domain/services/approval/pending_approval_summary.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_contract.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_secure_store.dart';

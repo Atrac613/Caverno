@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/conversation_work_time.dart';
-import 'package:caverno/features/chat/domain/services/approval_wait_ledger.dart';
+import 'package:caverno/features/chat/domain/services/approval/approval_wait_ledger.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/tool_work_timer.dart';
 import 'package:flutter_test/flutter_test.dart';
 

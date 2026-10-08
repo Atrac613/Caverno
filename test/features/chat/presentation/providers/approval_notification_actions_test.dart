@@ -8,7 +8,7 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository.
 import 'package:caverno/features/chat/data/repositories/conversation_repository_api.dart';
 import 'package:caverno/features/chat/data/repositories/key_value_store.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/domain/services/approval/pending_approval_summary.dart';
 import 'package:caverno/features/chat/presentation/providers/approval_notification_actions.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';

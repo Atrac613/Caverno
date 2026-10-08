@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/approval_wait_ledger.dart';
+import 'package:caverno/features/chat/domain/services/approval/approval_wait_ledger.dart';
 import 'package:caverno/features/chat/presentation/providers/pending_tool_approvals.dart';
 import 'package:flutter_test/flutter_test.dart';
 

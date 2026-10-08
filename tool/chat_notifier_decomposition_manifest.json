@@ -25,8 +25,8 @@
       "collaborators": [
         {
           "id": "turn-tool-approval-coordinator",
-          "path": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart"
+          "path": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart"
         }
       ]
     },

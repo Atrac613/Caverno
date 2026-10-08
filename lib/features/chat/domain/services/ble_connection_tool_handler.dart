@@ -3,8 +3,8 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/message.dart';
-import 'tool_approval_auto_review_service.dart';
-import 'turn_tool_approval_coordinator.dart';
+import 'approval/tool_approval_auto_review_service.dart';
+import 'approval/turn_tool_approval_coordinator.dart';
 
 // ChatNotifier decomposition collaborator: ble-connection-tool-handler
 

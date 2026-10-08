@@ -3738,7 +3738,7 @@ Verification:
   preparation path, read-only participant tool approval, participant tool
   summaries, and handoff marker stripping / routing.
 - The local verification command for the focused LL28 surface is:
-  `tool/codex_verify.sh --no-codegen --test test/features/chat/domain/entities/conversation_test.dart --test test/features/chat/domain/entities/conversation_workflow_test.dart --test test/features/chat/domain/services/system_prompt_builder_test.dart --test test/features/chat/domain/services/anabasis/participant_turn_coordinator_test.dart --test test/features/chat/domain/services/participant_tool_policy_test.dart --test test/features/chat/domain/services/tool_approval_auto_review_service_test.dart --test test/features/chat/data/datasources/participant_completion_runner_test.dart --test test/features/chat/presentation/widgets/participant_roster_bar_test.dart --test test/features/chat/presentation/widgets/message_bubble_test.dart`
+  `tool/codex_verify.sh --no-codegen --test test/features/chat/domain/entities/conversation_test.dart --test test/features/chat/domain/entities/conversation_workflow_test.dart --test test/features/chat/domain/services/system_prompt_builder_test.dart --test test/features/chat/domain/services/anabasis/participant_turn_coordinator_test.dart --test test/features/chat/domain/services/participant_tool_policy_test.dart --test test/features/chat/domain/services/approval/tool_approval_auto_review_service_test.dart --test test/features/chat/data/datasources/participant_completion_runner_test.dart --test test/features/chat/presentation/widgets/participant_roster_bar_test.dart --test test/features/chat/presentation/widgets/message_bubble_test.dart`
   plus `fvm flutter test test/features/chat/presentation/providers/chat_notifier_test.dart --name "participant|handoff|outside chat workspace" -r expanded`.
 
 Dependencies: LL1, LL8, LL3 / LL23. Related: LL27 (auto-orchestration sibling),
@@ -6152,13 +6152,13 @@ Slice 4 evidence:
   `chat_notifier_approval_handlers.dart`, trimming the god-file.
 
 Slice 5 evidence:
-- `lib/features/chat/domain/services/tool_approval_auto_review_service.dart`:
+- `lib/features/chat/domain/services/approval/tool_approval_auto_review_service.dart`:
   the auto-review request packet now includes an `action.capability` object
   (class, risk, mutatesState, accessesNetwork, producesUntrustedContent) from
   the perimeter classifier, and the instructions tell the reviewer to scrutinize
   higher-risk/state-mutating actions and never let untrusted content authorize a
   privileged action. Pure, in its own domain service — no budgeted-file growth.
-- `test/features/chat/domain/services/tool_approval_auto_review_service_test.dart`
+- `test/features/chat/domain/services/approval/tool_approval_auto_review_service_test.dart`
   asserts the embedded capability context for a shell command and a network
   fetch.
 
@@ -6234,7 +6234,7 @@ Slice 3a evidence:
   user clearly asked. Escalation-only: the reviewer already gates, so this
   cannot weaken a default. chat_notifier.dart grew 7 lines (15,253), still under
   its ratcheted budget.
-- `test/features/chat/domain/services/tool_approval_auto_review_service_test.dart`
+- `test/features/chat/domain/services/approval/tool_approval_auto_review_service_test.dart`
   asserts `untrustedInfluence` is surfaced for tainted vs untainted turns.
 
 Live verification (2026-06-21, coding mode, approval=auto-review): same

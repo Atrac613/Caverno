@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
-import 'package:caverno/features/chat/domain/services/pending_approval_summary.dart';
+import 'package:caverno/features/chat/domain/services/approval/pending_approval_summary.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_mobile_notification_gateway.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_receipt_store.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_notification_relay_contract.dart';

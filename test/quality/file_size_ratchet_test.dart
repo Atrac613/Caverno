@@ -263,7 +263,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart': 419,
   'lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart':
       69,
-  'lib/features/chat/domain/services/turn_tool_approval_coordinator.dart': 489,
+  'lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart': 489,
   'lib/features/chat/domain/services/lsp_go_to_definition_tool_contract.dart':
       252,
   'lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart':
@@ -536,7 +536,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/thread_scoped_chat_state.dart': 210,
   // -27: the five reviewer policy prompts are prose that changes when a
   // reviewer misreads an action, not when the permission boundary moves.
-  'lib/features/chat/domain/services/tool_approval_auto_review_service.dart':
+  'lib/features/chat/domain/services/approval/tool_approval_auto_review_service.dart':
       304,
   'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart':
       290,

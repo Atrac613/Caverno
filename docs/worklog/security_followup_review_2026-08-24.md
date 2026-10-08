@@ -290,7 +290,7 @@ Weakness found and fixed on 2026-09-02:
   authenticated id, so the two tests agreed in practice. The guard now reads
   `origin` as well, so they keep agreeing after a refactor rather than by
   coincidence.
-- Covered by `test/features/chat/domain/services/pending_approval_summary_test.dart`
+- Covered by `test/features/chat/domain/services/approval/pending_approval_summary_test.dart`
   and `test/features/watch/domain/watch_approval_mapper_test.dart`, both of which
   fail if the origin check is removed.
 

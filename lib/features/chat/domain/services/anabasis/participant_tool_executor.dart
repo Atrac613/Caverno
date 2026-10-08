@@ -5,9 +5,9 @@ import '../../entities/conversation_participant.dart';
 import '../../entities/mcp_tool_entity.dart';
 import '../../entities/message.dart';
 import '../../entities/tool_call_info.dart';
+import '../approval/tool_approval_auto_review_service.dart';
+import '../approval/turn_tool_approval_coordinator.dart';
 import '../immutable_json_snapshot.dart';
-import '../tool_approval_auto_review_service.dart';
-import '../turn_tool_approval_coordinator.dart';
 import 'participant_tool_policy.dart';
 
 // ChatNotifier decomposition collaborator: participant-tool-executor
