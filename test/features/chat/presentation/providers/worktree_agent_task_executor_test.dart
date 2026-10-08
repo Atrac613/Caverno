@@ -438,6 +438,74 @@ void main() {
       expect(target.readAsStringSync(), 'worktree edit\n');
     },
   );
+
+  group('scoped dispatcher mutation fence', () {
+    late Directory worktree;
+    late Directory outside;
+    late WorktreeAgentScopedToolDispatcher dispatcher;
+
+    setUp(() {
+      worktree = Directory.systemTemp.createTempSync('worktree_fence_');
+      outside = Directory.systemTemp.createTempSync('worktree_outside_');
+      dispatcher = WorktreeAgentScopedToolDispatcher(
+        toolService: McpToolService(),
+        worktreePath: worktree.path,
+      );
+    });
+
+    tearDown(() {
+      worktree.deleteSync(recursive: true);
+      outside.deleteSync(recursive: true);
+    });
+
+    Future<McpToolResult> write(String path) => dispatcher.dispatch(
+      ToolCallInfo(
+        id: 'call-write',
+        name: 'write_file',
+        arguments: {'path': path, 'content': 'x'},
+      ),
+    );
+
+    test(
+      'refuses a write through a directory symlink leaving the worktree',
+      () async {
+        Link('${worktree.path}/escape').createSync(outside.path);
+
+        final result = await write('escape/pwned.txt');
+
+        expect(result.isSuccess, isFalse);
+        expect(result.result, contains('project_mutation_outside_root'));
+        expect(File('${outside.path}/pwned.txt').existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'refuses a write to a file symlink pointing outside the worktree',
+      () async {
+        final target = File('${outside.path}/target.txt')
+          ..writeAsStringSync('original');
+        Link('${worktree.path}/notes.txt').createSync(target.path);
+
+        final result = await write('notes.txt');
+
+        expect(result.isSuccess, isFalse);
+        expect(target.readAsStringSync(), 'original');
+      },
+    );
+
+    test('refuses a mutation with no path', () async {
+      final result = await write('');
+
+      expect(result.isSuccess, isFalse);
+    });
+
+    test('still writes an ordinary file inside the worktree', () async {
+      final result = await write('lib/new.dart');
+
+      expect(result.isSuccess, isTrue);
+      expect(File('${worktree.path}/lib/new.dart').readAsStringSync(), 'x');
+    });
+  });
 }
 
 ProviderContainer _container(

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
@@ -11,6 +12,7 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
+import '../../data/datasources/project_mutation_path_fence.dart';
 import '../../data/datasources/project_read_tool_authorizer.dart';
 import '../../data/datasources/project_scoped_read_runtime_contract.dart';
 import '../../domain/entities/chat_turn_owner.dart';
@@ -345,17 +347,6 @@ class WorktreeAgentScopedToolDispatcher {
     'delete_file',
   };
 
-  static const Map<String, String> _pathArgumentByToolName = {
-    'list_directory': 'path',
-    'read_file': 'path',
-    'inspect_file': 'path',
-    'find_files': 'path',
-    'search_files': 'path',
-    'write_file': 'path',
-    'edit_file': 'path',
-    'delete_file': 'path',
-  };
-
   static const Set<String> _rootDefaultToolNames = {
     'list_directory',
     'find_files',
@@ -427,10 +418,26 @@ class WorktreeAgentScopedToolDispatcher {
         ..clear()
         ..addAll(authorization.arguments!);
     } else {
-      final scopeFailure = _scopePathArgument(toolCall.name, scopedArguments);
-      if (scopeFailure != null) {
-        return scopeFailure;
+      // Resolve symlinks before comparing: a lexical prefix check let a link
+      // committed in the worktree carry a write outside it, with no human
+      // watching once a run is unattended.
+      final authorization = await ProjectMutationPathFence.authorizeCall(
+        toolName: toolCall.name,
+        projectRoot: _worktreePath,
+        rawPath: (scopedArguments['path'] as String?) ?? '',
+      );
+      if (!authorization.isAllowed) {
+        return authorization.deniedResult!;
       }
+      // Hand the tool the verified target spelled under the worktree path the
+      // evidence recorder knows, not under the canonical root.
+      scopedArguments['path'] = p.join(
+        _worktreePath,
+        p.relative(
+          authorization.canonicalPath!,
+          from: authorization.canonicalRoot!,
+        ),
+      );
     }
     final result = await service.executeTool(
       name: toolCall.name,
@@ -438,50 +445,6 @@ class WorktreeAgentScopedToolDispatcher {
     );
     _evidenceRecorder?.record(result);
     return result;
-  }
-
-  McpToolResult? _scopePathArgument(
-    String toolName,
-    Map<String, dynamic> arguments,
-  ) {
-    final pathKey = _pathArgumentByToolName[toolName];
-    if (pathKey == null) {
-      return null;
-    }
-
-    final rawPath = (arguments[pathKey] as String?)?.trim() ?? '';
-    if (rawPath.isEmpty && _rootDefaultToolNames.contains(toolName)) {
-      arguments[pathKey] = _worktreePath;
-      return null;
-    }
-    if (rawPath.isEmpty) {
-      return null;
-    }
-
-    final scopedPath = _resolveAgainstWorktree(rawPath);
-    if (!_isInsideWorktree(scopedPath)) {
-      return _blockedResult(
-        toolName,
-        code: 'worktree_scope_violation',
-        message: 'Path is outside the assigned worktree.',
-      );
-    }
-    arguments[pathKey] = scopedPath;
-    return null;
-  }
-
-  String _resolveAgainstWorktree(String path) {
-    if (_isAbsolutePath(path)) {
-      return _normalizeAbsolutePath(path);
-    }
-    return _normalizeAbsolutePath(
-      '$_worktreePath${Platform.pathSeparator}$path',
-    );
-  }
-
-  bool _isInsideWorktree(String path) {
-    return path == _worktreePath ||
-        path.startsWith('$_worktreePath${Platform.pathSeparator}');
   }
 
   McpToolResult _blockedResult(
