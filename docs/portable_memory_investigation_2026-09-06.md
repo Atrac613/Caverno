@@ -42,7 +42,7 @@ quality, recoverability, or behavioral continuity.
 | [SessionMemoryService](../lib/features/chat/domain/services/session_memory_service.dart) | Builds model-independent text context. Historical task context requires an explicit history reference; at most three summaries and six scored memories are injected. | Preserve bounded, selective retrieval when adding portability. |
 | [MemoryEntry](../lib/features/chat/domain/entities/session_memory.dart) | Carries confidence, importance, expiry, update time, and source conversation ID. | Provenance exists, but this entry has no source-message reference, assertion-origin field, or supersession history. |
 | [SettingsFileService](../lib/features/settings/data/settings_file_service.dart) | Imports and exports AppSettings, including an encrypted settings path. | Settings transfer is not a chat-memory archive; reuse applicable file/validation patterns rather than claim portability already exists. |
-| [SaveSkillToolHandler](../lib/features/chat/domain/services/save_skill_tool_handler.dart) | Saves skills through an approval port, with existing-skill review support. | Conversation-to-skill authoring already exists; it is not a new feature proposal. |
+| [SaveSkillToolHandler](../lib/features/chat/domain/services/skills/save_skill_tool_handler.dart) | Saves skills through an approval port, with existing-skill review support. | Conversation-to-skill authoring already exists; it is not a new feature proposal. |
 
 The repository's `loadMemories` drops expired entries, and its normal upsert
 paths deduplicate and cap lists. A faithful archive cannot blindly compose those
