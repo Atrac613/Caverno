@@ -213,6 +213,109 @@ void registerChatNotifierReviewInspectionTests() {
   }
 }
 
+void registerChatNotifierReviewLoopLimitTests() {
+  test(
+    'a review answering after the loop limit still records its verdict',
+    () async {
+      // Session ca60617b: the review read until the tool loop limit, answered
+      // after its last batch, and its JSON findings were shown raw while the
+      // workflow stopped for want of a verdict.
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_review_limit_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final project = CodingProject(
+        id: 'review-project',
+        name: 'Review',
+        rootPath: root.path,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final findings = jsonEncode({
+        'status': 'findings',
+        'findings': ['watcher.py:202: float(value) can raise OverflowError.'],
+        'verificationLimits': <String>[],
+        'summary': 'Read every changed file and its diff.',
+      });
+      final source = _QueuedToolLoopChatDataSource(
+        initialToolCalls: const [],
+        toolLoopResponses: List.generate(
+          40,
+          (index) => ChatCompletionResult(
+            toolCalls: [
+              ToolCallInfo(
+                id: 'read-$index',
+                name: 'read_file',
+                arguments: {'path': '${root.path}/file_$index.py'},
+              ),
+            ],
+            content: '',
+            finishReason: 'tool_calls',
+          ),
+        ),
+        finalAnswerChunks: [findings],
+      );
+      final service = _FakeMcpToolService(
+        results: {'read_file': '{"content":"current code"}'},
+      );
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _FarmReviewInspectionSettings.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(source),
+          primaryRouteEndpointDataSourceFactoryProvider.overrideWithValue(
+            ({required baseUrl, required apiKey, required endpointId}) =>
+                source,
+          ),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TrackingSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(service),
+          appLifecycleServiceProvider.overrideWithValue(lifecycle),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      _activatePendingBatchProject(container, project);
+      _activateStructuredProjectTask(
+        container,
+        project,
+        inheritedPaths: ['fixture.py'],
+      );
+      final notifier = container.read(chatNotifierProvider.notifier);
+      final owner = await notifier.sendMessage(
+        'Review task changes',
+        bypassPlanMode: true,
+        purpose: PrimaryTurnPurpose.codeReview,
+      );
+      await notifier.waitForTurnCompletion(owner!);
+
+      expect(
+        source.finalAnswerMessages,
+        isNotEmpty,
+        reason: 'the answer must come after the loop limit',
+      );
+      final verdict = notifier.takeProjectTaskReviewVerdict(owner);
+      expect(verdict?.disposition.name, 'findings');
+      final shown = notifier.state.messages.last.content;
+      expect(shown, isNot(startsWith('{"status"')));
+      expect(shown, contains('OverflowError'));
+      expect(shown, endsWith('PROJECT_TASK_REVIEW_FINDINGS'));
+    },
+  );
+}
+
 class _FarmReviewInspectionSettings
     extends _ToolEnabledNoConfirmSettingsNotifier {
   _FarmReviewInspectionSettings({this.disabled = false});

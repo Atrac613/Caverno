@@ -352,18 +352,13 @@ extension ChatNotifierReviewInspection on ChatNotifier {
             true) {
       return null;
     }
-    final retained = _primaryRoutes.reviewTerminal(
+    final (:verdict, :fresh) = _primaryRoutes.captureReview(
       generation,
       owner.conversationId,
-    );
-    if (retained != null) {
-      return retained.response;
-    }
-    final verdict = ProjectTaskReviewEvidence.resolve(
       response: response,
       finishReason: finishReason,
       results: results,
-      inspectionMissing:
+      inspectionMissing: () =>
           _guardReviewInspection(
             candidateResponse: response,
             toolResults: results,
@@ -371,19 +366,18 @@ extension ChatNotifierReviewInspection on ChatNotifier {
           ) !=
           null,
     );
-    _primaryRoutes.recordReviewTerminal(
-      generation,
-      owner.conversationId,
-      verdict,
-    );
-    _turnToolResults.addContent(
-      owner,
-      verdict.toMemoryToolResult('coding-review-status-$generation'),
-    );
-    _turnEnd.addTransform(
-      owner,
-      'project_task_review_${verdict.disposition.name}',
-    );
+    if (fresh) {
+      _turnToolResults.addContent(
+        owner,
+        verdict.toMemoryToolResult('coding-review-status-$generation'),
+      );
+      _turnEnd.addTransform(
+        owner,
+        'project_task_review_${verdict.disposition.name}',
+      );
+    }
+    // The verdict is what the transcript shows, never the raw JSON reply.
+    _replaceLastMessageContentForGeneration(generation, verdict.response);
     return verdict.response;
   }
 

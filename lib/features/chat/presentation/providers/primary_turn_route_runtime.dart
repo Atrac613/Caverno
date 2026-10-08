@@ -13,6 +13,7 @@ import '../../data/datasources/primary_route_chat_datasource.dart';
 import '../../domain/entities/context_window_observation.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/primary_model_router.dart';
+import '../../domain/services/project_task_review_evidence.dart';
 import '../../domain/services/project_task_review_verdict.dart';
 import '../../domain/services/project_task_terminal_status.dart';
 import '../../domain/services/project_task_verification_context.dart';
@@ -299,6 +300,29 @@ final class PrimaryTurnRouteRuntime {
     if (_reviewTerminals.length > 16) {
       _reviewTerminals.remove(_reviewTerminals.keys.first);
     }
+  }
+
+  /// The verdict a project-task review turn reported, resolved once per
+  /// generation. [fresh] is true only for the call that resolved it, so the
+  /// caller records its memory and transform once.
+  ({ProjectTaskReviewVerdict verdict, bool fresh}) captureReview(
+    int generation,
+    String conversationId, {
+    required String response,
+    required String finishReason,
+    required List<ToolResultInfo> results,
+    required bool Function() inspectionMissing,
+  }) {
+    final retained = reviewTerminal(generation, conversationId);
+    if (retained != null) return (verdict: retained, fresh: false);
+    final verdict = ProjectTaskReviewEvidence.resolve(
+      response: response,
+      finishReason: finishReason,
+      results: results,
+      inspectionMissing: inspectionMissing(),
+    );
+    recordReviewTerminal(generation, conversationId, verdict);
+    return (verdict: verdict, fresh: true);
   }
 
   ProjectTaskReviewVerdict? takeReviewTerminal(

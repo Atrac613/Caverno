@@ -191,6 +191,7 @@ void main() {
   registerChatNotifierProjectTaskStepTests();
   registerChatNotifierProjectVerificationRepairTests();
   registerChatNotifierReviewInspectionTests();
+  registerChatNotifierReviewLoopLimitTests();
   registerChatNotifierParticipantTurnTests();
   registerChatNotifierGoalAutoContinueTests();
   registerChatNotifierSavedWorkflowGuardrailTests();

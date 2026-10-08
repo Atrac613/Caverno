@@ -178,7 +178,6 @@ import '../../domain/services/process_start_result_policy.dart';
 import '../../domain/services/production_release_approval_coordinator.dart';
 import '../../domain/services/project_task_captured_changes.dart';
 import '../../domain/services/project_task_commit_tool_policy.dart';
-import '../../domain/services/project_task_review_evidence.dart';
 import '../../domain/services/project_task_review_inspection.dart';
 import '../../domain/services/project_task_review_verdict.dart';
 import '../../domain/services/project_task_step_completion_policy.dart';
@@ -5382,10 +5381,6 @@ class ChatNotifier extends Notifier<ChatState> {
           results: executedToolResults,
         );
         if (reviewResponse != null) {
-          _replaceLastMessageContentForGeneration(
-            interactionGeneration,
-            reviewResponse,
-          );
           currentAssistantContent = reviewResponse;
           hasTextResponse = true;
           break;
@@ -6224,6 +6219,13 @@ class ChatNotifier extends Notifier<ChatState> {
             );
           }
         }
+        // A review ending at the loop limit answers here (session ca60617b).
+        _captureProjectTaskReviewResponse(
+          owner: turnOwner,
+          response: streamedFinalAnswer,
+          finishReason: _responseMetadata.finishReasonFor(turnOwner) ?? '',
+          results: finalToolResults,
+        );
       }
     } else if (!hasTextResponse) {
       appLog('[Tool] Tool loop reached maximum iterations (no text response)');
