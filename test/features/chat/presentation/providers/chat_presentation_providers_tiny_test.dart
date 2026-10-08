@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
+
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
@@ -38,11 +39,11 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/participant_turn_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart';
 import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_service.dart';
-import 'package:caverno/features/chat/domain/services/participant_turn_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/save_skill_tool_contract.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_execution_scheduler.dart';

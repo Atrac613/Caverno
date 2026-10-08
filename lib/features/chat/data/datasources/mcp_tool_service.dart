@@ -15,7 +15,7 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/subagent_tool_definitions.dart';
+import '../../domain/services/anabasis/subagent_tool_definitions.dart';
 import '../../domain/services/tool_argument_type_guard.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../repositories/chat_memory_repository.dart';

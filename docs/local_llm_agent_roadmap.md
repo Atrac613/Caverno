@@ -529,7 +529,7 @@ Evidence:
 - `lib/features/chat/domain/services/tool_loop_recovery_policy.dart`
 - `lib/features/chat/presentation/providers/chat_notifier_tool_handler_registry.dart`
 - `lib/features/routines/data/routine_tool_runner.dart`
-- `lib/features/chat/domain/services/subagent_execution_service.dart`
+- `lib/features/chat/domain/services/anabasis/subagent_execution_service.dart`
 - `test/features/chat/domain/services/chat_tool_dispatcher_test.dart`
 - `test/features/chat/domain/services/planning_tool_policy_test.dart`
 - `test/features/chat/domain/services/tool_call_batch_executor_test.dart`
@@ -3738,7 +3738,7 @@ Verification:
   preparation path, read-only participant tool approval, participant tool
   summaries, and handoff marker stripping / routing.
 - The local verification command for the focused LL28 surface is:
-  `tool/codex_verify.sh --no-codegen --test test/features/chat/domain/entities/conversation_test.dart --test test/features/chat/domain/entities/conversation_workflow_test.dart --test test/features/chat/domain/services/system_prompt_builder_test.dart --test test/features/chat/domain/services/participant_turn_coordinator_test.dart --test test/features/chat/domain/services/participant_tool_policy_test.dart --test test/features/chat/domain/services/tool_approval_auto_review_service_test.dart --test test/features/chat/data/datasources/participant_completion_runner_test.dart --test test/features/chat/presentation/widgets/participant_roster_bar_test.dart --test test/features/chat/presentation/widgets/message_bubble_test.dart`
+  `tool/codex_verify.sh --no-codegen --test test/features/chat/domain/entities/conversation_test.dart --test test/features/chat/domain/entities/conversation_workflow_test.dart --test test/features/chat/domain/services/system_prompt_builder_test.dart --test test/features/chat/domain/services/anabasis/participant_turn_coordinator_test.dart --test test/features/chat/domain/services/participant_tool_policy_test.dart --test test/features/chat/domain/services/tool_approval_auto_review_service_test.dart --test test/features/chat/data/datasources/participant_completion_runner_test.dart --test test/features/chat/presentation/widgets/participant_roster_bar_test.dart --test test/features/chat/presentation/widgets/message_bubble_test.dart`
   plus `fvm flutter test test/features/chat/presentation/providers/chat_notifier_test.dart --name "participant|handoff|outside chat workspace" -r expanded`.
 
 Dependencies: LL1, LL8, LL3 / LL23. Related: LL27 (auto-orchestration sibling),

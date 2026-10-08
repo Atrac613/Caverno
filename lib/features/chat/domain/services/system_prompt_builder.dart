@@ -5,7 +5,7 @@ import '../entities/conversation_goal.dart';
 import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/model_usage_role.dart';
-import 'anabasis_parent_prompt_block.dart';
+import 'anabasis/anabasis_parent_prompt_block.dart';
 import 'execution_snapshot_projector.dart';
 import 'weak_model_edit_harness_service.dart';
 

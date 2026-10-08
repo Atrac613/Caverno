@@ -21,7 +21,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/domain/services/anabasis_parent_prompt_block.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/anabasis_parent_prompt_block.dart';
 
 Future<void> main(List<String> args) async {
   final options = _Options.parse(args, Platform.environment);

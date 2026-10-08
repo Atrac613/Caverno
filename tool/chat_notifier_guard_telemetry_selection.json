@@ -125,14 +125,14 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/participant_message_finalizer.dart::ParticipantMessageVisibilityPolicy",
+      "id": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart::ParticipantMessageVisibilityPolicy",
       "disposition": "defer",
       "question": "Was ParticipantMessageVisibilityPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/participant_tool_policy.dart::ParticipantToolPolicy",
+      "id": "lib/features/chat/domain/services/anabasis/participant_tool_policy.dart::ParticipantToolPolicy",
       "disposition": "defer",
       "question": "Was ParticipantToolPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -181,7 +181,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/subagent_tool_policy.dart::SubagentToolPolicy",
+      "id": "lib/features/chat/domain/services/anabasis/subagent_tool_policy.dart::SubagentToolPolicy",
       "disposition": "defer",
       "question": "Was SubagentToolPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

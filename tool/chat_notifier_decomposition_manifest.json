@@ -587,18 +587,18 @@
       "collaborators": [
         {
           "id": "participant-message-finalizer",
-          "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/participant_message_finalizer.dart"
+          "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart"
         },
         {
           "id": "participant-tool-executor",
-          "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/participant_tool_executor.dart"
+          "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart"
         },
         {
           "id": "participant-turn-planner",
-          "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/participant_turn_planner.dart"
+          "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart"
         }
       ]
     },
@@ -705,8 +705,8 @@
       "collaborators": [
         {
           "id": "subagent-tool-handler",
-          "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/subagent_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart"
         }
       ]
     },

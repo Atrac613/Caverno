@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/participant_tool_executor.dart';
-import '../../domain/services/participant_tool_policy.dart';
+import '../../domain/services/anabasis/participant_tool_executor.dart';
+import '../../domain/services/anabasis/participant_tool_policy.dart';
 import '../../domain/services/turn_tool_approval_coordinator.dart';
 import 'participant_tool_runtime_contract.dart';
 

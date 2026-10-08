@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
-import 'package:caverno/features/chat/domain/services/subagent_tool_contract.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/subagent_tool_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 SubagentTask _task({

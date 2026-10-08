@@ -9,7 +9,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_validation_probe_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_blocked_result.dart';
@@ -88,7 +88,7 @@ const _producers = <String, ToolResultOrigin>{
   // Found the same way, 2026-09-11: the Anabasis parent boundary was the most
   // frequent undeclared code in the twelve days after the instrument landed
   // (8 of 15), and it is unambiguously a refusal.
-  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart':
+  'lib/features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart':
       ToolResultOrigin.refusal,
   // Malformed: the arguments were the problem, not the user's rules. Counting
   // a syntax retry as a refusal is what `malformed` exists to prevent.

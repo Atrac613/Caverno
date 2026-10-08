@@ -34,7 +34,8 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
-import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/participant_turn_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/analysis_options_lint_edit_guard.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
@@ -45,7 +46,6 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_projecti
 import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/goal/conversation_goal_suggestion_service.dart';
 import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
-import 'package:caverno/features/chat/domain/services/participant_turn_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_approval_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';

@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/data/repositories/worktree_agent_task_repository.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
-import 'package:caverno/features/chat/domain/services/worktree_agent_assignment_planner.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/worktree_agent_assignment_planner.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

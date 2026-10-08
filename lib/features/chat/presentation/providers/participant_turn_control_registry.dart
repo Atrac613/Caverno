@@ -1,6 +1,6 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation_participant.dart';
-import '../../domain/services/participant_turn_coordinator.dart';
+import '../../domain/services/anabasis/participant_turn_coordinator.dart';
 
 /// Immutable continuation data retained while one participant turn is paused.
 final class ParticipantTurnPauseSnapshot {

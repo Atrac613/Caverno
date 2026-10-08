@@ -59,9 +59,9 @@
     "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
     "lib/features/chat/domain/services/model_switch_settings_policy.dart",
     "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
-    "lib/features/chat/domain/services/participant_message_finalizer.dart",
-    "lib/features/chat/domain/services/participant_tool_executor.dart",
-    "lib/features/chat/domain/services/participant_turn_planner.dart",
+    "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
+    "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
+    "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
     "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
     "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
     "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
@@ -81,7 +81,7 @@
     "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
     "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
     "lib/features/chat/domain/services/ssh_tool_handler.dart",
-    "lib/features/chat/domain/services/subagent_tool_handler.dart",
+    "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
     "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
     "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
     "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
@@ -8416,7 +8416,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationPlan.preparedMessagesToSave",
       "signature": "List<Message> get preparedMessagesToSave",
       "turnIdentityParameters": [],
@@ -8429,7 +8429,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationPlan.shouldAutoRead",
       "signature": "bool get shouldAutoRead",
       "turnIdentityParameters": [],
@@ -8440,7 +8440,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationPlan.shouldUpdateVisibleState",
       "signature": "bool get shouldUpdateVisibleState",
       "turnIdentityParameters": [],
@@ -8451,7 +8451,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationPlan.visibleIsLoading",
       "signature": "bool? get visibleIsLoading",
       "turnIdentityParameters": [],
@@ -8462,7 +8462,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.autoReadContent",
       "signature": "String? get autoReadContent",
       "turnIdentityParameters": [],
@@ -8473,7 +8473,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.content",
       "signature": "String get content",
       "turnIdentityParameters": [],
@@ -8484,7 +8484,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.handoffTargetParticipantId",
       "signature": "String? get handoffTargetParticipantId",
       "turnIdentityParameters": [],
@@ -8495,7 +8495,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.metricsDisposition",
       "signature": "ParticipantResponseMetricsDisposition get metricsDisposition",
       "turnIdentityParameters": [],
@@ -8506,7 +8506,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.owner",
       "signature": "ChatTurnOwner get owner",
       "turnIdentityParameters": [],
@@ -8517,7 +8517,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.shouldApplyOwnerMessages",
       "signature": "bool get shouldApplyOwnerMessages",
       "turnIdentityParameters": [],
@@ -8528,7 +8528,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.shouldAutoRead",
       "signature": "bool get shouldAutoRead",
       "turnIdentityParameters": [],
@@ -8539,7 +8539,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.shouldPersist",
       "signature": "bool get shouldPersist",
       "turnIdentityParameters": [],
@@ -8550,7 +8550,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.shouldUpdateTokenUsage",
       "signature": "bool get shouldUpdateTokenUsage",
       "turnIdentityParameters": [],
@@ -8561,7 +8561,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.shouldUpdateVisibleState",
       "signature": "bool get shouldUpdateVisibleState",
       "turnIdentityParameters": [],
@@ -8572,7 +8572,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.status",
       "signature": "ParticipantMessageFinalizationStatus get status",
       "turnIdentityParameters": [],
@@ -8583,7 +8583,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.visibleIsLoading",
       "signature": "bool? get visibleIsLoading",
       "turnIdentityParameters": [],
@@ -8594,7 +8594,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizationResult.visibleStateDisposition",
       "signature": "ParticipantVisibleStateDisposition get visibleStateDisposition",
       "turnIdentityParameters": [],
@@ -8605,7 +8605,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizer._handoffTarget",
       "signature": "ConversationParticipant? _handoffTarget(\n    ParticipantTurnHandoff? handoff,\n    List<ConversationParticipant> participants,\n  )",
       "turnIdentityParameters": [],
@@ -8618,7 +8618,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizer._inactivePlan",
       "signature": "ParticipantMessageFinalizationPlan _inactivePlan(\n    ParticipantMessageFinalizationInput input,\n    ParticipantMessageFinalizationStatus status,\n  )",
       "turnIdentityParameters": [],
@@ -8631,7 +8631,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizer._normalizedToolNames",
       "signature": "List<String> _normalizedToolNames(List<String> toolNames)",
       "turnIdentityParameters": [],
@@ -8648,7 +8648,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizer._resultFor",
       "signature": "ParticipantMessageFinalizationResult _resultFor(\n    ParticipantMessageFinalizationPlan plan,\n    List<Message> updatedMessages,\n  )",
       "turnIdentityParameters": [],
@@ -8661,7 +8661,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizer.applyMetrics",
       "signature": "/// Attaches consumed metrics without repeating content finalization.\n  ParticipantMessageFinalizationResult applyMetrics(\n    ParticipantMessageFinalizationPlan plan,\n    MessageResponseMetrics? responseMetrics,\n  )",
       "turnIdentityParameters": [],
@@ -8676,7 +8676,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizer.completeAfterDiscard",
       "signature": "/// Completes a plan only after its metadata has been discarded.\n  ParticipantMessageFinalizationResult completeAfterDiscard(\n    ParticipantMessageFinalizationPlan plan,\n  )",
       "turnIdentityParameters": [],
@@ -8690,7 +8690,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageFinalizer.plan",
       "signature": "ParticipantMessageFinalizationPlan plan(\n    ParticipantMessageFinalizationInput input,\n  )",
       "turnIdentityParameters": [],
@@ -8713,7 +8713,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageVisibilityPolicy.hasVisibleAssistantContent",
       "signature": "static bool hasVisibleAssistantContent(String content)",
       "turnIdentityParameters": [],
@@ -8728,7 +8728,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "declaration": "ParticipantMessageVisibilityPolicy.shouldKeepSavedMessage",
       "signature": "static bool shouldKeepSavedMessage(Message message)",
       "turnIdentityParameters": [],
@@ -8741,7 +8741,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolActivityPort.update",
       "signature": "ParticipantToolScopeAcknowledgement update(\n    ParticipantToolActivityUpdate update,\n  )",
       "turnIdentityParameters": [],
@@ -8752,7 +8752,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolApprovalPort.resolve",
       "signature": "Future<ParticipantToolApprovalResult> resolve(\n    ParticipantToolApprovalRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -8763,7 +8763,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolExecutionPort.execute",
       "signature": "Future<ParticipantToolExecutionResult> execute(\n    ParticipantToolExecutionRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -8774,7 +8774,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolExecutor._approvalRequest",
       "signature": "ParticipantToolApprovalRequest _approvalRequest(\n    ParticipantToolSession session,\n    ToolCallInfo toolCall,\n    Map<String, dynamic> toolArguments,\n  )",
       "turnIdentityParameters": [],
@@ -8788,7 +8788,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolExecutor._requireScope",
       "signature": "void _requireScope(\n    ParticipantToolScope actual,\n    ParticipantToolScope expected,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -8802,7 +8802,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolExecutor.definitionsFor",
       "signature": "/// Returns the immutable participant-safe definitions advertised to the LLM.\n  List<Map<String, dynamic>> definitionsFor(ParticipantToolSession session)",
       "turnIdentityParameters": [],
@@ -8815,7 +8815,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolExecutor.execute",
       "signature": "Future<McpToolResult> execute(\n    ParticipantToolSession session,\n    ToolCallInfo toolCall,\n  )",
       "turnIdentityParameters": [],
@@ -8839,7 +8839,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolExecutor.manualApprovalDeniedResult",
       "signature": "static McpToolResult manualApprovalDeniedResult(String toolName)",
       "turnIdentityParameters": [],
@@ -8853,7 +8853,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolScope.==",
       "signature": "@override\n  bool operator ==(Object other)",
       "turnIdentityParameters": [],
@@ -8867,7 +8867,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolScope.hashCode",
       "signature": "@override\n  int get hashCode",
       "turnIdentityParameters": [],
@@ -8880,7 +8880,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolScope.matches",
       "signature": "bool matches(ParticipantToolScope other)",
       "turnIdentityParameters": [],
@@ -8891,7 +8891,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "ParticipantToolTaintPort.record",
       "signature": "ParticipantToolScopeAcknowledgement record(ParticipantToolTaintEvent event)",
       "turnIdentityParameters": [],
@@ -8902,7 +8902,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_tool_executor.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
       "declaration": "_freezeMap",
       "signature": "Map<String, dynamic> _freezeMap(Map<String, dynamic> value)",
       "turnIdentityParameters": [],
@@ -8915,7 +8915,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "ParticipantTurnPlanner._plan",
       "signature": "ParticipantTurnPlan _plan(\n    ParticipantTurnPlannerState state, {\n    bool participantsChanged = false,\n  })",
       "turnIdentityParameters": [],
@@ -8935,7 +8935,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "ParticipantTurnPlanner._terminalPlan",
       "signature": "ParticipantTurnPlan _terminalPlan(\n    ParticipantTurnStepKind kind,\n    ParticipantTurnPlannerState state, {\n    bool participantsChanged = false,\n    required String exitReason,\n  })",
       "turnIdentityParameters": [],
@@ -8948,7 +8948,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "ParticipantTurnPlanner.advance",
       "signature": "ParticipantTurnPlan advance({\n    required ParticipantTurnPlannerState state,\n    required String completedContent,\n    String? handoffParticipantId,\n    required bool stopRequested,\n  })",
       "turnIdentityParameters": [],
@@ -8964,7 +8964,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "ParticipantTurnPlanner.start",
       "signature": "ParticipantTurnPlan start({\n    required ChatTurnOwner owner,\n    required List<ConversationParticipant> participants,\n    required String primaryModel,\n    required ParticipantTurnConfig config,\n    ParticipantTurnCursor cursor = const ParticipantTurnCursor(),\n    String? preferredParticipantId,\n    String? lastSpeakerParticipantId,\n    String completedContent = '',\n    bool stopRequested = false,\n  })",
       "turnIdentityParameters": [
@@ -8983,7 +8983,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "_activeRuntime",
       "signature": "ParticipantTurnRuntimeProjection _activeRuntime({\n  required ConversationParticipant participant,\n  required ParticipantTurnConfig config,\n  required int roundNumber,\n  required bool stopRequested,\n})",
       "turnIdentityParameters": [],
@@ -8997,7 +8997,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "_clampedMaxRounds",
       "signature": "int _clampedMaxRounds(ParticipantTurnConfig config)",
       "turnIdentityParameters": [],
@@ -9008,7 +9008,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "_pausedRuntime",
       "signature": "ParticipantTurnRuntimeProjection _pausedRuntime(\n  ParticipantTurnPlannerState state,\n)",
       "turnIdentityParameters": [],
@@ -9022,7 +9022,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/participant_turn_planner.dart",
+      "path": "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
       "declaration": "_sameParticipants",
       "signature": "bool _sameParticipants(\n  List<ConversationParticipant> left,\n  List<ConversationParticipant> right,\n)",
       "turnIdentityParameters": [],
@@ -12692,7 +12692,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._dispatchChild",
       "signature": "Future<McpToolResult> _dispatchChild(\n    SubagentTaskIdentity identity,\n    ToolCallInfo toolCall,\n    Set<String> allowlist,\n  )",
       "turnIdentityParameters": [],
@@ -12710,7 +12710,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String error)",
       "turnIdentityParameters": [],
@@ -12723,7 +12723,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._handleGetResult",
       "signature": "McpToolResult _handleGetResult(SubagentToolRequest request)",
       "turnIdentityParameters": [],
@@ -12743,7 +12743,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._handleSpawn",
       "signature": "Future<McpToolResult> _handleSpawn(SubagentToolRequest request)",
       "turnIdentityParameters": [],
@@ -12770,7 +12770,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._isActiveSnapshot",
       "signature": "bool _isActiveSnapshot(\n    SubagentTaskSnapshot? snapshot,\n    SubagentTaskIdentity identity,\n  )",
       "turnIdentityParameters": [],
@@ -12783,7 +12783,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._isSnapshot",
       "signature": "bool _isSnapshot(\n    SubagentTaskSnapshot? snapshot,\n    SubagentTaskIdentity identity,\n  )",
       "turnIdentityParameters": [],
@@ -12796,7 +12796,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._matches",
       "signature": "bool _matches(SubagentTask task, SubagentTaskIdentity identity)",
       "turnIdentityParameters": [],
@@ -12809,7 +12809,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._matchesLookup",
       "signature": "bool _matchesLookup(\n    SubagentResultSnapshot? snapshot,\n    SubagentResultLookup lookup,\n  )",
       "turnIdentityParameters": [],
@@ -12822,7 +12822,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._notifyDone",
       "signature": "Future<void> _notifyDone(SubagentTaskIdentity identity)",
       "turnIdentityParameters": [],
@@ -12842,7 +12842,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._run",
       "signature": "Future<SubagentExecutionCompletion> _run(SubagentExecutionRequest request)",
       "turnIdentityParameters": [],
@@ -12856,7 +12856,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._runBackground",
       "signature": "Future<void> _runBackground(SubagentExecutionRequest execution)",
       "turnIdentityParameters": [],
@@ -12879,7 +12879,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._sameChildRequest",
       "signature": "bool _sameChildRequest(\n    ChildToolExecutionRequest actual,\n    ChildToolExecutionRequest expected,\n  )",
       "turnIdentityParameters": [],
@@ -12892,7 +12892,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._settleFailure",
       "signature": "Future<void> _settleFailure(\n    SubagentTaskIdentity identity,\n    String error,\n  )",
       "turnIdentityParameters": [],
@@ -12910,7 +12910,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._spawnFailure",
       "signature": "McpToolResult _spawnFailure(\n    String toolName,\n    SubagentTaskIdentity identity,\n    String description,\n    String error,\n  )",
       "turnIdentityParameters": [],
@@ -12924,7 +12924,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler._startBackground",
       "signature": "McpToolResult _startBackground(\n    String toolName,\n    SubagentExecutionRequest execution,\n  )",
       "turnIdentityParameters": [],
@@ -12946,7 +12946,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "SubagentToolHandler.handle",
       "signature": "Future<McpToolResult> handle(SubagentToolRequest request)",
       "turnIdentityParameters": [],
@@ -12961,7 +12961,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/subagent_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
       "declaration": "_trimString",
       "signature": "String _trimString(Map<String, dynamic> arguments, String key)",
       "turnIdentityParameters": [],

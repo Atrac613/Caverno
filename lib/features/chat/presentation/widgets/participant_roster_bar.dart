@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/conversation_participant.dart';
-import '../../domain/services/participant_turn_coordinator.dart';
+import '../../domain/services/anabasis/participant_turn_coordinator.dart';
 import '../providers/chat_state.dart';
 
 typedef ParticipantRosterChanged =

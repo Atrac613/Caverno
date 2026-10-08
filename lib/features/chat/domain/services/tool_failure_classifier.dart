@@ -4,10 +4,10 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
-import 'anabasis_delegation_admission.dart';
-import 'anabasis_parent_authority_guard.dart';
+import 'anabasis/anabasis_delegation_admission.dart';
+import 'anabasis/anabasis_parent_authority_guard.dart';
+import 'anabasis/subagent_tool_contract.dart';
 import 'material_contract_assumption_guard.dart';
-import 'subagent_tool_contract.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_outcome_shadow_comparison.dart';
 

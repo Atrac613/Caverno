@@ -2,8 +2,8 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/subagent_tool_contract.dart';
-import '../../domain/services/subagent_tool_handler.dart';
+import '../../domain/services/anabasis/subagent_tool_contract.dart';
+import '../../domain/services/anabasis/subagent_tool_handler.dart';
 
 typedef SubagentTaskLookupCallback =
     SubagentTask? Function(ChatTurnOwner owner, String taskId);

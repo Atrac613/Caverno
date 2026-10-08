@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../domain/entities/worktree_agent_task.dart';
-import '../../domain/services/worktree_agent_assignment_planner.dart';
+import '../../domain/services/anabasis/worktree_agent_assignment_planner.dart';
 import 'worktree_agent_git_reservation_probe.dart';
 import 'worktree_agent_git_worktree_preparer.dart';
 import 'worktree_agent_task_launcher.dart';

@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 "$SCRIPT_DIR/codex_verify.sh" \
   --no-codegen \
-  --test test/features/chat/domain/services/worktree_agent_assignment_planner_test.dart \
+  --test test/features/chat/domain/services/anabasis/worktree_agent_assignment_planner_test.dart \
   --test test/features/chat/presentation/providers/worktree_agent_git_reservation_probe_test.dart \
   --test test/features/chat/presentation/providers/worktree_agent_git_worktree_preparer_test.dart \
   --test test/features/chat/presentation/providers/worktree_agent_task_registry_notifier_test.dart \

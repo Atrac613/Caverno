@@ -5,7 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../data/repositories/worktree_agent_task_repository.dart';
 import '../../domain/entities/worktree_agent_task.dart';
-import '../../domain/services/worktree_agent_assignment_planner.dart';
+import '../../domain/services/anabasis/worktree_agent_assignment_planner.dart';
 
 class WorktreeAgentTaskRegistryState {
   const WorktreeAgentTaskRegistryState({required this.tasks});

@@ -1,7 +1,7 @@
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
+import '../../domain/services/anabasis/subagent_tool_contract.dart';
 import '../../domain/services/chat_tool_handler_catalog.dart';
-import '../../domain/services/subagent_tool_contract.dart';
 
 typedef SubagentChildOwnerCurrentCallback =
     bool Function(SubagentTaskIdentity identity);

@@ -70,8 +70,8 @@ const Map<String, int> _lineBudgets = {
   // Dispatch and native commit scope checks are kept in a bounded part.
   // Request preparation moved to the existing prompt context part.
   'lib/features/chat/presentation/providers/chat_notifier.dart': 8471,
-  'lib/features/chat/domain/services/anabasis_address.dart': 44,
-  'lib/features/chat/domain/services/anabasis_turn_roles.dart': 56,
+  'lib/features/chat/domain/services/anabasis/anabasis_address.dart': 44,
+  'lib/features/chat/domain/services/anabasis/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
   // whole point of giving it a tool to record one with.
   // +14, to 55: the parent is told which children are waiting to be judged. The
@@ -83,7 +83,7 @@ const Map<String, int> _lineBudgets = {
   // and nothing in the block connected the label to the argument -- a name the
   // model had no reason to act on, which is the shape that cost three turns
   // earlier the same day.
-  'lib/features/chat/domain/services/anabasis_parent_prompt_block.dart': 60,
+  'lib/features/chat/domain/services/anabasis/anabasis_parent_prompt_block.dart': 60,
   // +6, to 43, on its first day: the labels became the parameter names the tools
   // actually take, after a live parent passed the workflow id to
   // get_subagent_result. The six lines are why -- a format note that reads as
@@ -92,7 +92,7 @@ const Map<String, int> _lineBudgets = {
   // because they are the kind an acceptance can rest on. Only those bound to a
   // saved task appear -- the UI's and LL37's branches are not the parent's to
   // judge.
-  'lib/features/chat/domain/services/delegated_result_digest.dart': 61,
+  'lib/features/chat/domain/services/anabasis/delegated_result_digest.dart': 61,
   // +1 for a ToolResultOrigin declaration, on the same grounds as the eight
   // entries further down: the marker cannot be extracted anywhere, because
   // being at the producer is the whole point. This one was found by the
@@ -101,20 +101,20 @@ const Map<String, int> _lineBudgets = {
   // docs/text_heuristic_inventory.md.
   // 77 -> 70: the exempt-tool list left for its own file when it stopped being
   // one name. What stayed is the decision; what moved is the policy it reads.
-  'lib/features/chat/domain/services/anabasis_parent_authority_guard.dart': 70,
-  'lib/features/chat/domain/services/anabasis_parent_authority_tools.dart': 36,
+  'lib/features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart': 70,
+  'lib/features/chat/domain/services/anabasis/anabasis_parent_authority_tools.dart': 36,
   // +5 for the turn scope, the read-only review's refusal. It belongs in the
   // chain because it must run before the assumption gate asks the user.
   'lib/features/chat/domain/services/turn_tool_policy_chain.dart': 49,
-  'lib/features/chat/domain/services/task_delegation_brief_builder.dart': 136,
-  'lib/features/chat/domain/services/delegated_premise_audit.dart': 58,
+  'lib/features/chat/domain/services/anabasis/task_delegation_brief_builder.dart': 136,
+  'lib/features/chat/domain/services/anabasis/delegated_premise_audit.dart': 58,
   // +10, to 155: a worktree child that named no files owes no changed-file
   // evidence. The rule was already on the subagent side, and its absence here was
   // a contradiction by construction -- runnerFor sends a task with only a
   // validation command to a worktree, where this level could then never be
   // satisfied. A live run refused an acceptance for evidence it was never going
   // to have.
-  'lib/features/chat/domain/services/task_acceptance_audit.dart': 155,
+  'lib/features/chat/domain/services/anabasis/task_acceptance_audit.dart': 155,
   'lib/features/chat/domain/services/dangling_precondition_repair.dart': 84,
   // +16, to 200: a worktree result outranks a subagent one for the same task,
   // and its evidence is named rather than counted -- which branch, which command
@@ -123,7 +123,7 @@ const Map<String, int> _lineBudgets = {
   // had the parent accept early, read a list of levels a running child cannot yet
   // satisfy, and delegate again instead of polling -- the levels were true and
   // told it the wrong thing to do.
-  'lib/features/chat/domain/services/task_acceptance_decision.dart': 220,
+  'lib/features/chat/domain/services/anabasis/task_acceptance_decision.dart': 220,
   // +49, to 124: the worktree route's two answers. Enqueued rather than
   // completed, because a branch, a verification and a changed-file list do not
   // exist yet at the moment the parent asks; and refused rather than silently
@@ -136,7 +136,7 @@ const Map<String, int> _lineBudgets = {
   // for one task in the only run that got that far, which spends the budget
   // twice and leaves the audit looking at whichever began last -- the one
   // furthest from done.
-  'lib/features/chat/domain/services/subagent_result_payloads.dart': 188,
+  'lib/features/chat/domain/services/anabasis/subagent_result_payloads.dart': 188,
   'lib/features/chat/domain/services/run_tests_command_builder.dart': 111,
   // -21, to 402: the input class moved to coding_continuation_recovery_input
   // .dart, and the per-code wording became one table, which paid for the
@@ -207,11 +207,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart':
       137,
   'lib/features/chat/domain/services/goal/goal_update_tool_handler.dart': 64,
-  'lib/features/chat/domain/services/participant_message_finalizer.dart': 364,
-  'lib/features/chat/domain/services/participant_tool_executor.dart': 349,
+  'lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart': 364,
+  'lib/features/chat/domain/services/anabasis/participant_tool_executor.dart': 349,
   'lib/features/chat/data/datasources/participant_tool_production_ports.dart':
       259,
-  'lib/features/chat/domain/services/participant_turn_planner.dart': 304,
+  'lib/features/chat/domain/services/anabasis/participant_turn_planner.dart': 304,
   // HEU1 split the release gate into the live token verdict, the retired
   // wording predicates it shadows, and the pieces both blocked-release paths
   // share, so the vocabulary can be deleted as a file rather than edited out
@@ -260,7 +260,7 @@ const Map<String, int> _lineBudgets = {
   // The flow file now carries the flow; the words the model plans against sit
   // together where they can be compared.
   'lib/features/chat/domain/services/ssh_tool_handler.dart': 311,
-  'lib/features/chat/domain/services/subagent_tool_handler.dart': 419,
+  'lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart': 419,
   'lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart':
       69,
   'lib/features/chat/domain/services/turn_tool_approval_coordinator.dart': 489,

@@ -526,7 +526,7 @@ Loopback HTTP and credentialless LAN HTTP remain available for local servers.
 
 `lib/core/services/tool_approval_audit_log.dart:251-272` redacts only top-level
 keys, while participant arguments are nested under `toolArguments` in
-`lib/features/chat/domain/services/participant_tool_executor.dart:290-318`.
+`lib/features/chat/domain/services/anabasis/participant_tool_executor.dart:290-318`.
 Use the recursive shared redactor, test nested maps/lists and private keys, and
 create audit directories/files with owner-only permissions. Creation at
 `lib/core/services/tool_approval_audit_log.dart:171-184` does not explicitly

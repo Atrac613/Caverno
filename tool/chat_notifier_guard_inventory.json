@@ -721,18 +721,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/participant_message_finalizer.dart::ParticipantMessageVisibilityPolicy",
-      "path": "lib/features/chat/domain/services/participant_message_finalizer.dart",
+      "id": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart::ParticipantMessageVisibilityPolicy",
+      "path": "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
       "symbol": "ParticipantMessageVisibilityPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:212",
-        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:238"
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart:212",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart:238"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:212 -> ParticipantMessageVisibilityPolicy",
-        "lexical reference at lib/features/chat/domain/services/participant_message_finalizer.dart:238 -> ParticipantMessageVisibilityPolicy"
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart:212 -> ParticipantMessageVisibilityPolicy",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart:238 -> ParticipantMessageVisibilityPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,
@@ -744,25 +744,25 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/participant_tool_policy.dart::ParticipantToolPolicy",
-      "path": "lib/features/chat/domain/services/participant_tool_policy.dart",
+      "id": "lib/features/chat/domain/services/anabasis/participant_tool_policy.dart::ParticipantToolPolicy",
+      "path": "lib/features/chat/domain/services/anabasis/participant_tool_policy.dart",
       "symbol": "ParticipantToolPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
         "lexical reference at lib/features/chat/data/datasources/participant_tool_runtime_adapter.dart:35",
-        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:185",
-        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:198",
-        "lexical reference at lib/features/chat/domain/services/participant_tool_policy.dart:7",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_tool_executor.dart:185",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_tool_executor.dart:198",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_tool_policy.dart:7",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:294",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:379",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:389"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/data/datasources/participant_tool_runtime_adapter.dart:35 -> ParticipantToolPolicy",
-        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:185 -> ParticipantToolPolicy",
-        "lexical reference at lib/features/chat/domain/services/participant_tool_executor.dart:198 -> ParticipantToolPolicy",
-        "lexical reference at lib/features/chat/domain/services/participant_tool_policy.dart:7 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_tool_executor.dart:185 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_tool_executor.dart:198 -> ParticipantToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/anabasis/participant_tool_policy.dart:7 -> ParticipantToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:294 -> ParticipantToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:379 -> ParticipantToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_participant_turns.dart:389 -> ParticipantToolPolicy"
@@ -961,22 +961,22 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/subagent_tool_policy.dart::SubagentToolPolicy",
-      "path": "lib/features/chat/domain/services/subagent_tool_policy.dart",
+      "id": "lib/features/chat/domain/services/anabasis/subagent_tool_policy.dart::SubagentToolPolicy",
+      "path": "lib/features/chat/domain/services/anabasis/subagent_tool_policy.dart",
       "symbol": "SubagentToolPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:108",
-        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:31",
-        "lexical reference at lib/features/chat/domain/services/subagent_tool_policy.dart:13",
+        "lexical reference at lib/features/chat/domain/services/anabasis/subagent_execution_service.dart:108",
+        "lexical reference at lib/features/chat/domain/services/anabasis/subagent_execution_service.dart:31",
+        "lexical reference at lib/features/chat/domain/services/anabasis/subagent_tool_policy.dart:13",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:258",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:44"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:108 -> SubagentToolPolicy",
-        "lexical reference at lib/features/chat/domain/services/subagent_execution_service.dart:31 -> SubagentToolPolicy",
-        "lexical reference at lib/features/chat/domain/services/subagent_tool_policy.dart:13 -> SubagentToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/anabasis/subagent_execution_service.dart:108 -> SubagentToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/anabasis/subagent_execution_service.dart:31 -> SubagentToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/anabasis/subagent_tool_policy.dart:13 -> SubagentToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:258 -> SubagentToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_subagent_handlers.dart:44 -> SubagentToolPolicy"
       ],

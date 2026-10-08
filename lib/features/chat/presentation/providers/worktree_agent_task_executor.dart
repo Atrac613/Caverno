@@ -17,7 +17,7 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/worktree_agent_task.dart';
-import '../../domain/services/subagent_execution_service.dart';
+import '../../domain/services/anabasis/subagent_execution_service.dart';
 import 'chat_notifier.dart';
 import 'mcp_tool_provider.dart';
 import 'worktree_agent_execution_evidence_recorder.dart';

@@ -6,7 +6,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/participant_tool_executor.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/participant_tool_executor.dart';
 import 'package:caverno/features/chat/domain/services/turn_tool_approval_coordinator.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';

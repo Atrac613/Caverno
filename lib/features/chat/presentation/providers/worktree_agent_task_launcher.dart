@@ -5,7 +5,7 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/worktree_agent_task.dart';
-import '../../domain/services/worktree_agent_assignment_planner.dart';
+import '../../domain/services/anabasis/worktree_agent_assignment_planner.dart';
 import 'coding_projects_notifier.dart';
 import 'worktree_agent_git_reservation_probe.dart';
 import 'worktree_agent_task_registry_notifier.dart';

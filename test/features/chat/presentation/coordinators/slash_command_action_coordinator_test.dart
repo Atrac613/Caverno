@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
-import 'package:caverno/features/chat/domain/services/worktree_agent_assignment_planner.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/worktree_agent_assignment_planner.dart';
 import 'package:caverno/features/chat/presentation/coordinators/slash_command_action_coordinator.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_launcher.dart';

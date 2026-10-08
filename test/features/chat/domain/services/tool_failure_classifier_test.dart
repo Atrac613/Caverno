@@ -5,8 +5,8 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/anabasis_delegation_admission.dart';
-import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/anabasis_delegation_admission.dart';
+import 'package:caverno/features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart';
 import 'package:caverno/features/chat/domain/services/tool_failure_classifier.dart';
