@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
-import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
+import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/project_task_captured_changes.dart';
 import 'package:flutter_test/flutter_test.dart';
 

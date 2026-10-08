@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../entities/tool_call_info.dart';
+import 'claims/hidden_assistant_evidence_scorer.dart';
 import 'file_mutation_evidence_policy.dart';
-import 'hidden_assistant_evidence_scorer.dart';
 
 typedef ToolResponseTextPredicate = bool Function(String value);
 typedef CodeUnitSequencePredicate =

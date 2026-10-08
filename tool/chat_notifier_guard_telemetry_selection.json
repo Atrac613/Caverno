@@ -237,21 +237,21 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart::UnexecutedFileMutationBeforeCommandGuard",
+      "id": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart::UnexecutedFileMutationBeforeCommandGuard",
       "disposition": "defer",
       "question": "Was UnexecutedFileMutationBeforeCommandGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart::UnexecutedFinalAnswerToolRequestPolicy",
+      "id": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart::UnexecutedFinalAnswerToolRequestPolicy",
       "disposition": "defer",
       "question": "Was UnexecutedFinalAnswerToolRequestPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/unwritten_file_claim_guard.dart::UnwrittenFileClaimGuard",
+      "id": "lib/features/chat/domain/services/claims/unwritten_file_claim_guard.dart::UnwrittenFileClaimGuard",
       "disposition": "defer",
       "question": "Was UnwrittenFileClaimGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

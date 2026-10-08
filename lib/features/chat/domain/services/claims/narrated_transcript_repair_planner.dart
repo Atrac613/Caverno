@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/tool_call_info.dart';
-import 'immutable_json_snapshot.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
 import 'narrated_transcript_claim_guard.dart';
 
 // ChatNotifier decomposition collaborator: narrated-transcript-repair-planner

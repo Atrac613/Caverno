@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart';
 import 'package:caverno/features/chat/domain/services/fenced_tool_arguments_detector.dart';
-import 'package:caverno/features/chat/domain/services/unexecuted_command_action_retry_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -5,12 +5,12 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
+import 'claims/unexecuted_command_claim_reconciliation.dart';
 import 'coding/coding_command_output_issue_detector.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'http_response_interpretation.dart';
 import 'single_path_diff_inspection.dart';
-import 'unexecuted_command_claim_reconciliation.dart';
 import 'verification/command_verification_reconciliation.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }

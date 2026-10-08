@@ -24,12 +24,12 @@ completed.
 | `lib/features/chat/presentation/providers/thread_scoped_chat_state.dart` | 249 | Per-conversation presentation state and owner-aware approval clearing |
 | `lib/features/chat/domain/services/tool_approval_auto_review_service.dart` | 339 | Shared approval policy, audit decisions, and owner-expiry validation |
 | `lib/features/chat/domain/services/file_mutation_evidence_policy.dart` | 65 | File-mutation classification, success evidence, and path precedence |
-| `lib/features/chat/domain/services/hidden_assistant_evidence_scorer.dart` | 21 | Pure hidden-assistant lexical evidence scoring |
+| `lib/features/chat/domain/services/claims/hidden_assistant_evidence_scorer.dart` | 21 | Pure hidden-assistant lexical evidence scoring |
 | `lib/features/chat/domain/services/duplicate_tool_result_recovery.dart` | 209 | Owner-root-aware duplicate result reuse, fallback filtering, and deduplication |
 | `lib/features/chat/domain/services/tool_terminal_response_policy.dart` | 725 | Terminal response decisions delegated to focused evidence and recovery policies |
 | `lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart` | 206 | Stateless verification summaries, signatures, blockers, and telemetry |
 | `lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart` | 64 | Owner-rooted ordered mutation signatures from immutable tool evidence |
-| `lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart` | 281 | Immutable embedded-tool diagnostics and final-answer notice decisions |
+| `lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart` | 281 | Immutable embedded-tool diagnostics and final-answer notice decisions |
 | `lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart` | 133 | Compatibility facade for command-output and preflight guardrails |
 | `lib/features/chat/domain/services/coding/coding_command_output_issue_detector.dart` | 298 | Command-output issue decoding, ordering, feedback, and signatures |
 | `lib/features/chat/domain/services/coding/coding_command_preflight_issue_detector.dart` | 356 | Masked exit-status and Dart command preflight detection |

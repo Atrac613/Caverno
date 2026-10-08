@@ -1,4 +1,4 @@
-import 'final_answer_claim_detector.dart';
+import 'claims/final_answer_claim_detector.dart';
 
 class ConversationExecutionProgressInferenceResult {
   const ConversationExecutionProgressInferenceResult({

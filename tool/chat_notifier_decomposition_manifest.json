@@ -227,8 +227,8 @@
         },
         {
           "id": "unexecuted-file-mutation-before-command-guard",
-          "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart"
+          "path": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart"
         },
         {
           "id": "git-working-tree-change-evidence",
@@ -237,8 +237,8 @@
         },
         {
           "id": "unexecuted-file-mutation-block-payload",
-          "path": "lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart"
+          "path": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart"
         },
         {
           "id": "tool-loop-exhaustion-policy",
@@ -277,8 +277,8 @@
         },
         {
           "id": "uninspected-commit-guard",
-          "path": "lib/features/chat/domain/services/uninspected_commit_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/uninspected_commit_guard.dart"
+          "path": "lib/features/chat/domain/services/claims/uninspected_commit_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/claims/uninspected_commit_guard.dart"
         },
         {
           "id": "production-release-approval-policy",
@@ -746,18 +746,18 @@
       "collaborators": [
         {
           "id": "unexecuted-final-answer-tool-request-policy",
-          "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart"
+          "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart"
         },
         {
           "id": "final-answer-claim-notice-applicator",
-          "path": "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart"
+          "path": "lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart"
         },
         {
           "id": "narrated-transcript-repair-planner",
-          "path": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart"
+          "path": "lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart"
         },
         {
           "id": "blocked-production-release-retry-policy",
@@ -771,8 +771,8 @@
         },
         {
           "id": "unexecuted-command-action-retry-policy",
-          "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart"
+          "path": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart"
         }
       ]
     },

@@ -10,12 +10,12 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart';
+import 'package:caverno/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_validation_probe_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_blocked_result.dart';
 import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop_recovery_policy.dart';
-import 'package:caverno/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,15 +46,15 @@ import 'package:flutter_test/flutter_test.dart';
 const _producers = <String, ToolResultOrigin>{
   // Harness-authored: no tool ran and no rule forbade one. The loop is
   // steering itself.
-  'lib/features/chat/domain/services/final_answer_claim_detector.dart':
+  'lib/features/chat/domain/services/claims/final_answer_claim_detector.dart':
       ToolResultOrigin.harness,
-  'lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart':
       ToolResultOrigin.harness,
-  'lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart':
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/tool_loop_recovery_policy.dart':
       ToolResultOrigin.harness,
-  'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart':
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart':
       ToolResultOrigin.harness,

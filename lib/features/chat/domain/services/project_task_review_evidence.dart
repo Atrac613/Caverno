@@ -1,5 +1,5 @@
 import '../entities/tool_call_info.dart';
-import 'final_answer_claim_detector.dart';
+import 'claims/final_answer_claim_detector.dart';
 import 'project_task_review_verdict.dart';
 import 'tool_result_prompt_builder.dart';
 

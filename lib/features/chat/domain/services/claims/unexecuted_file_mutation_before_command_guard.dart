@@ -1,13 +1,13 @@
 // ChatNotifier decomposition collaborator: unexecuted-file-mutation-before-command-guard
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
-import 'file_mutation_evidence_policy.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
+import '../file_mutation_evidence_policy.dart';
+import '../git/git_working_tree_change_evidence.dart';
+import '../tool_call_execution_policy.dart';
+import '../tool_evidence_snapshot.dart';
 import 'final_answer_claim_detector.dart';
-import 'git/git_working_tree_change_evidence.dart';
-import 'tool_call_execution_policy.dart';
-import 'tool_evidence_snapshot.dart';
 import 'unexecuted_file_mutation_block_payload.dart';
 
 /// Immutable owner-turn evidence used before executing one command.

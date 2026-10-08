@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import '../../entities/conversation_workflow.dart';
 import '../../entities/tool_call_info.dart';
+import '../claims/hidden_assistant_evidence_scorer.dart';
 import '../dart_project_tooling.dart';
-import '../hidden_assistant_evidence_scorer.dart';
 import 'coding_verification_feedback_service.dart';
 
 // ChatNotifier decomposition collaborator: coding-verification-feedback-presentation

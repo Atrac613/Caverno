@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/tool_call_info.dart';
-import 'fenced_tool_arguments_detector.dart';
-import 'immutable_json_snapshot.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/tool_call_info.dart';
+import '../fenced_tool_arguments_detector.dart';
+import '../immutable_json_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: unexecuted-command-action-retry-policy
 

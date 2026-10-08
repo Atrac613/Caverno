@@ -446,7 +446,7 @@ class TaskProposalParser {
 
 ### Implementation Notes
 
-- New file: `lib/features/chat/domain/services/final_answer_claim_detector.dart`.
+- New file: `lib/features/chat/domain/services/claims/final_answer_claim_detector.dart`.
 
 ```dart
 class FinalAnswerClaimDetector {
@@ -483,7 +483,7 @@ class FinalAnswerClaimDetector {
   `chat_notifier_read_only_inspection_guard_test.dart`,
   `tool_call_execution_policy_test.dart`.
 - New focused test
-  `test/features/chat/domain/services/final_answer_claim_detector_test.dart`:
+  `test/features/chat/domain/services/claims/final_answer_claim_detector_test.dart`:
   success-claim detection, unexecuted-tool detection, notice prepend
   idempotency (calling the transform on already-noticed content must not
   stack).
@@ -495,7 +495,7 @@ flutter analyze
 tool/codex_verify.sh --test test/features/chat/presentation/providers/chat_notifier_test.dart \
   --test test/features/chat/presentation/providers/chat_notifier_read_only_inspection_guard_test.dart \
   --test test/features/chat/domain/services/tool_call_execution_policy_test.dart \
-  --test test/features/chat/domain/services/final_answer_claim_detector_test.dart
+  --test test/features/chat/domain/services/claims/final_answer_claim_detector_test.dart
 ```
 
 ---

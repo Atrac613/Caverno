@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
+import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_detector.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ToolResultInfo _result(String name, String result) =>

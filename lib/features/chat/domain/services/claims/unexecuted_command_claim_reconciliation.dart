@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../entities/tool_call_info.dart';
-import 'verification/command_verification_reconciliation.dart';
+import '../../entities/tool_call_info.dart';
+import '../verification/command_verification_reconciliation.dart';
 
 /// Settles only notices explicitly based on the absence of execution evidence.
 abstract final class UnexecutedCommandClaimReconciliation {

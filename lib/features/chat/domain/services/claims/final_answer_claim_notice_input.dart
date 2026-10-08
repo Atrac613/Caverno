@@ -1,6 +1,6 @@
-import '../entities/tool_call_info.dart';
-import 'immutable_json_snapshot.dart';
-import 'tool_outcome_snapshot.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
+import '../tool_outcome_snapshot.dart';
 
 /// Immutable owner-scoped evidence used to annotate one final answer.
 final class FinalAnswerClaimNoticeInput {

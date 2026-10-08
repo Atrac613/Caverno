@@ -41,7 +41,7 @@
     "lib/features/chat/domain/services/file_mutation_tool_handler.dart",
     "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
     "lib/features/chat/domain/services/file_turn_rollback_service.dart",
-    "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart",
+    "lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart",
     "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
     "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
     "lib/features/chat/domain/services/git/git_tool_handler.dart",
@@ -58,7 +58,7 @@
     "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
     "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
     "lib/features/chat/domain/services/model_switch_settings_policy.dart",
-    "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
+    "lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart",
     "lib/features/chat/domain/services/anabasis/participant_message_finalizer.dart",
     "lib/features/chat/domain/services/anabasis/participant_tool_executor.dart",
     "lib/features/chat/domain/services/anabasis/participant_turn_planner.dart",
@@ -88,9 +88,9 @@
     "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
     "lib/features/chat/domain/services/turn_tool_approval_coordinator.dart",
     "lib/features/chat/domain/services/turn_tool_catalog_cache.dart",
-    "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
-    "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
-    "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+    "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
+    "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
+    "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
     "lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart",
     "lib/features/chat/presentation/providers/chat_notifier.dart",
     "lib/features/chat/presentation/providers/chat_notifier_approval_handlers.dart",
@@ -6414,7 +6414,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart",
+      "path": "lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart",
       "declaration": "FinalAnswerClaimNoticeApplicator._appendNotice",
       "signature": "String _appendNotice(String content, String notice)",
       "turnIdentityParameters": [],
@@ -6427,7 +6427,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart",
+      "path": "lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart",
       "declaration": "FinalAnswerClaimNoticeApplicator.apply",
       "signature": "FinalAnswerClaimNoticeResult apply(FinalAnswerClaimNoticeInput input)",
       "turnIdentityParameters": [],
@@ -6445,7 +6445,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart",
+      "path": "lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart",
       "declaration": "FinalAnswerClaimNoticeInput._freezeToolResult",
       "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -8370,7 +8370,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
+      "path": "lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart",
       "declaration": "NarratedTranscriptRepairInput._freezeToolResult",
       "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -8384,7 +8384,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
+      "path": "lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart",
       "declaration": "NarratedTranscriptRepairPlanner.evaluate",
       "signature": "NarratedTranscriptRepairDisposition evaluate(\n    NarratedTranscriptRepairInput input,\n  )",
       "turnIdentityParameters": [],
@@ -8403,7 +8403,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/narrated_transcript_repair_planner.dart",
+      "path": "lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart",
       "declaration": "NarratedTranscriptRepairPlanner.plan",
       "signature": "NarratedTranscriptRepairPlan? plan(NarratedTranscriptRepairInput input)",
       "turnIdentityParameters": [],
@@ -13693,7 +13693,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
       "declaration": "UnexecutedCommandActionRetryInput._freezeToolResult",
       "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -13707,7 +13707,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
       "declaration": "UnexecutedCommandActionRetryPolicy._buildFeedback",
       "signature": "ToolResultInfo _buildFeedback(\n    String feedbackId,\n    FencedToolArguments? fenced,\n  )",
       "turnIdentityParameters": [],
@@ -13721,7 +13721,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
       "declaration": "UnexecutedCommandActionRetryPolicy._decodeJsonObject",
       "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
       "turnIdentityParameters": [],
@@ -13734,7 +13734,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
       "declaration": "UnexecutedCommandActionRetryPolicy._hasUnexecutedClaim",
       "signature": "bool _hasUnexecutedClaim(List<ToolResultInfo> toolResults)",
       "turnIdentityParameters": [],
@@ -13748,7 +13748,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
       "declaration": "UnexecutedCommandActionRetryPolicy.evaluate",
       "signature": "UnexecutedCommandActionRetryDisposition evaluate(\n    UnexecutedCommandActionRetryInput input,\n  )",
       "turnIdentityParameters": [],
@@ -13766,7 +13766,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart",
       "declaration": "UnexecutedCommandActionRetryPolicy.ownerKey",
       "signature": "/// One retry per turn. A second pass on the same turn would trade a wrong\n  /// answer for a loop.\n  String ownerKey(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -13779,7 +13779,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
       "declaration": "UnexecutedFileMutationBeforeCommandGuard.evaluate",
       "signature": "McpToolResult? evaluate(UnexecutedFileMutationGuardInput input)",
       "turnIdentityParameters": [],
@@ -13802,7 +13802,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
       "declaration": "_freezeToolCall",
       "signature": "ToolCallInfo _freezeToolCall(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -13816,7 +13816,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
       "declaration": "_freezeToolResult",
       "signature": "ToolResultInfo _freezeToolResult(ToolResultInfo toolResult)",
       "turnIdentityParameters": [],
@@ -13830,7 +13830,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy._buildNewToolResults",
       "signature": "List<ToolResultInfo> _buildNewToolResults(\n    UnexecutedFinalAnswerToolRequestInput input,\n  )",
       "turnIdentityParameters": [],
@@ -13848,7 +13848,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy._jsonLooksLikeCommandProposal",
       "signature": "bool _jsonLooksLikeCommandProposal(String snippet)",
       "turnIdentityParameters": [],
@@ -13862,7 +13862,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy._jsonMapLooksLikeCommandProposal",
       "signature": "bool _jsonMapLooksLikeCommandProposal(Map<Object?, Object?> value)",
       "turnIdentityParameters": [],
@@ -13880,7 +13880,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy._jsonValueLooksLikeCommandProposal",
       "signature": "bool _jsonValueLooksLikeCommandProposal(Object? value)",
       "turnIdentityParameters": [],
@@ -13896,7 +13896,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy._shouldSkipNoticeForToolResults",
       "signature": "bool _shouldSkipNoticeForToolResults(\n    UnexecutedFinalAnswerToolRequestInput input, {\n    required List<ToolResultInfo> allToolResults,\n  })",
       "turnIdentityParameters": [],
@@ -13917,7 +13917,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy._tryDecodeMap",
       "signature": "Map<String, dynamic>? _tryDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -13930,7 +13930,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy.analyze",
       "signature": "UnexecutedFinalAnswerToolRequestAnalysis analyze(\n    UnexecutedFinalAnswerToolRequestInput input,\n  )",
       "turnIdentityParameters": [],
@@ -13947,7 +13947,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy.bracketedToolRequestName",
       "signature": "String? bracketedToolRequestName(String content)",
       "turnIdentityParameters": [],
@@ -13962,7 +13962,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy.looksLikeBracketedToolRequest",
       "signature": "bool looksLikeBracketedToolRequest(String content)",
       "turnIdentityParameters": [],
@@ -13975,7 +13975,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy.looksLikePlanOnlyFinalToolAnswer",
       "signature": "bool looksLikePlanOnlyFinalToolAnswer(String content)",
       "turnIdentityParameters": [],
@@ -13988,7 +13988,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy.looksLikeStructuredToolRequest",
       "signature": "bool looksLikeStructuredToolRequest(String content)",
       "turnIdentityParameters": [],
@@ -14008,7 +14008,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "UnexecutedFinalAnswerToolRequestPolicy.looksLikeUnexecutedToolRequest",
       "signature": "bool looksLikeUnexecutedToolRequest(String content)",
       "turnIdentityParameters": [],
@@ -14025,7 +14025,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "declaration": "_freezeToolResult",
       "signature": "ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],

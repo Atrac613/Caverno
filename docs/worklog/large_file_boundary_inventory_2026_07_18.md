@@ -103,7 +103,7 @@ totals. Later outcome sections record lower current boundaries.
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1,202 |
 | `lib/features/settings/presentation/pages/general_settings_page.dart` | 1,189 |
 | `lib/features/routines/data/routine_execution_service.dart` | 1,165 |
-| `lib/features/chat/domain/services/final_answer_claim_detector.dart` | 1,125 |
+| `lib/features/chat/domain/services/claims/final_answer_claim_detector.dart` | 1,125 |
 | `lib/features/settings/domain/entities/app_settings.dart` | 1,123 |
 | `lib/features/chat/presentation/widgets/message_bubble.dart` | 1,114 |
 | `lib/features/chat/domain/services/plan/conversation_plan_execution_coordinator.dart` | 1,074 |

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
+import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/python/literal_python_stdin_verification.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/verification/command_verification_reconciliation.dart';

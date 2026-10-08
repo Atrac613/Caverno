@@ -1,6 +1,6 @@
 import '../entities/tool_call_info.dart';
+import 'claims/final_answer_claim_detector.dart';
 import 'file_mutation_evidence_policy.dart';
-import 'final_answer_claim_detector.dart';
 import 'turn_finalization_recovery_policy.dart';
 
 /// Combines turn-owned validation facts with pure tool-result evidence.

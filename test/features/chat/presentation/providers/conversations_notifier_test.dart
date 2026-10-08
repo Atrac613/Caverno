@@ -13,8 +13,8 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
+import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
-import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

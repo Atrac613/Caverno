@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/narrated_transcript_repair_planner.dart';
+import 'package:caverno/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart';
 import 'package:test/test.dart';
 
 const _planner = NarratedTranscriptRepairPlanner();

@@ -1,5 +1,5 @@
+import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/conversation_execution_progress_inference.dart';
-import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

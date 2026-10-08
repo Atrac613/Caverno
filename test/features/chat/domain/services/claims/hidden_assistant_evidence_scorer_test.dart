@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/hidden_assistant_evidence_scorer.dart';
+import 'package:caverno/features/chat/domain/services/claims/hidden_assistant_evidence_scorer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

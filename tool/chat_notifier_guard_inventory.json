@@ -295,15 +295,15 @@
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart:53",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:55",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:56",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:70"
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:55",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:56",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:70"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart:53 -> CodingVerificationClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:55 -> CodingVerificationClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:56 -> CodingVerificationClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:70 -> CodingVerificationClaimGuard"
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:55 -> CodingVerificationClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:56 -> CodingVerificationClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:70 -> CodingVerificationClaimGuard"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
       "telemetryEvent": "tool_result.trigger:completionClaim",
@@ -507,29 +507,29 @@
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart:34",
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:15",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32",
         "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35",
         "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:13",
         "lexical reference at lib/features/chat/domain/services/tool_result_prompt_builder.dart:228",
         "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:28",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:42",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:43",
-        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:45",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:42",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:43",
+        "lexical reference at lib/features/chat/domain/services/claims/unwritten_file_claim_guard.dart:45",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:343"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart:34 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7 -> FileMutationEvidencePolicy",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:15 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:13 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_result_prompt_builder.dart:228 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:28 -> FileMutationEvidencePolicy",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:42 -> FileMutationEvidencePolicy",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:43 -> FileMutationEvidencePolicy",
-        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:45 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:42 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:43 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unwritten_file_claim_guard.dart:45 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:343 -> FileMutationEvidencePolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
@@ -542,20 +542,20 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/final_answer_recovery_policy.dart::FinalAnswerRecoveryPolicy",
-      "path": "lib/features/chat/domain/services/final_answer_recovery_policy.dart",
+      "id": "lib/features/chat/domain/services/claims/final_answer_recovery_policy.dart::FinalAnswerRecoveryPolicy",
+      "path": "lib/features/chat/domain/services/claims/final_answer_recovery_policy.dart",
       "symbol": "FinalAnswerRecoveryPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/final_answer_recovery_policy.dart:16",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_recovery_policy.dart:16",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:342",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:46",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:48",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:58"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/final_answer_recovery_policy.dart:16 -> FinalAnswerRecoveryPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_recovery_policy.dart:16 -> FinalAnswerRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:342 -> FinalAnswerRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:46 -> FinalAnswerRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart:48 -> FinalAnswerRecoveryPolicy",
@@ -693,24 +693,24 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/narrated_transcript_claim_guard.dart::NarratedTranscriptClaimGuard",
-      "path": "lib/features/chat/domain/services/narrated_transcript_claim_guard.dart",
+      "id": "lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart::NarratedTranscriptClaimGuard",
+      "path": "lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart",
       "symbol": "NarratedTranscriptClaimGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:57",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:58",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:71",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:40",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_repair_planner.dart:94"
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:57",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:58",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:71",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart:40",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart:94"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:57 -> NarratedTranscriptClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:58 -> NarratedTranscriptClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:71 -> NarratedTranscriptClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:40 -> NarratedTranscriptClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_repair_planner.dart:94 -> NarratedTranscriptClaimGuard"
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:57 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:58 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:71 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart:40 -> NarratedTranscriptClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart:94 -> NarratedTranscriptClaimGuard"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
       "telemetryEvent": "turn_exit.transforms:narrated_transcript_repair",
@@ -1023,13 +1023,13 @@
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart:40",
         "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:10",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:13",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:31",
         "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:28",
         "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:29",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart:41",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart:44",
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:68",
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:69",
         "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153",
@@ -1045,8 +1045,8 @@
         "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:16",
         "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:17",
         "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:20",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:40",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:41",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:40",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:41",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:339",
         "lexical reference at lib/features/chat/presentation/providers/tool_approval_cache.dart:29",
         "lexical reference at lib/features/chat/presentation/providers/tool_dedupe_keys.dart:9"
@@ -1054,13 +1054,13 @@
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart:40 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:10 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_detector.dart:13 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:31 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:28 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:29 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart:41 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/narrated_transcript_claim_guard.dart:44 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:68 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:69 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153 -> ToolCallExecutionPolicy",
@@ -1076,8 +1076,8 @@
         "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:16 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:17 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/tool_failure_classifier.dart:20 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:40 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:41 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:40 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:41 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:339 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/presentation/providers/tool_approval_cache.dart:29 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/presentation/providers/tool_dedupe_keys.dart:9 -> ToolCallExecutionPolicy"
@@ -1227,7 +1227,7 @@
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
         "lexical reference at lib/features/chat/domain/services/turn_finalization_recovery_policy.dart:46",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:73",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart:73",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:146",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:218",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:233",
@@ -1235,7 +1235,7 @@
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/domain/services/turn_finalization_recovery_policy.dart:46 -> TurnFinalizationRecoveryPolicy",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:73 -> TurnFinalizationRecoveryPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart:73 -> TurnFinalizationRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:146 -> TurnFinalizationRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:218 -> TurnFinalizationRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_turn_finalization_recovery.dart:233 -> TurnFinalizationRecoveryPolicy",
@@ -1251,17 +1251,17 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart::UnexecutedFileMutationBeforeCommandGuard",
-      "path": "lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart",
+      "id": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart::UnexecutedFileMutationBeforeCommandGuard",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart",
       "symbol": "UnexecutedFileMutationBeforeCommandGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:38",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:38",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:320"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart:38 -> UnexecutedFileMutationBeforeCommandGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart:38 -> UnexecutedFileMutationBeforeCommandGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:320 -> UnexecutedFileMutationBeforeCommandGuard"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
@@ -1274,14 +1274,14 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart::UnexecutedFinalAnswerToolRequestPolicy",
-      "path": "lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart",
+      "id": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart::UnexecutedFinalAnswerToolRequestPolicy",
+      "path": "lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart",
       "symbol": "UnexecutedFinalAnswerToolRequestPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:65",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:94",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart:65",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart:94",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7890",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7892",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7914",
@@ -1293,8 +1293,8 @@
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_unexecuted_action_recovery.dart:17"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:65 -> UnexecutedFinalAnswerToolRequestPolicy",
-        "lexical reference at lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart:94 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart:65 -> UnexecutedFinalAnswerToolRequestPolicy",
+        "lexical reference at lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart:94 -> UnexecutedFinalAnswerToolRequestPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7890 -> UnexecutedFinalAnswerToolRequestPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7892 -> UnexecutedFinalAnswerToolRequestPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7914 -> UnexecutedFinalAnswerToolRequestPolicy",
@@ -1315,22 +1315,22 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/unwritten_file_claim_guard.dart::UnwrittenFileClaimGuard",
-      "path": "lib/features/chat/domain/services/unwritten_file_claim_guard.dart",
+      "id": "lib/features/chat/domain/services/claims/unwritten_file_claim_guard.dart::UnwrittenFileClaimGuard",
+      "path": "lib/features/chat/domain/services/claims/unwritten_file_claim_guard.dart",
       "symbol": "UnwrittenFileClaimGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:59",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:60",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:72",
-        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:43"
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:59",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:60",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:72",
+        "lexical reference at lib/features/chat/domain/services/claims/unwritten_file_claim_guard.dart:43"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:59 -> UnwrittenFileClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:60 -> UnwrittenFileClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:72 -> UnwrittenFileClaimGuard",
-        "lexical reference at lib/features/chat/domain/services/unwritten_file_claim_guard.dart:43 -> UnwrittenFileClaimGuard"
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:59 -> UnwrittenFileClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:60 -> UnwrittenFileClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart:72 -> UnwrittenFileClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/claims/unwritten_file_claim_guard.dart:43 -> UnwrittenFileClaimGuard"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
       "telemetryEvent": null,

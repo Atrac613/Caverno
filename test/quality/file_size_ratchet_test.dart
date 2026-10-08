@@ -285,20 +285,20 @@ const Map<String, int> _lineBudgets = {
       268,
   'lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart':
       64,
-  'lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart':
       283,
   'lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart':
       261,
   'lib/features/chat/domain/services/production_release/blocked_production_release_retry_contract.dart':
       100,
   'lib/features/chat/domain/services/fenced_tool_arguments_detector.dart': 74,
-  'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart':
       224,
   'lib/features/chat/domain/services/turn_tool_catalog_cache.dart': 44,
-  'lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart':
+  'lib/features/chat/domain/services/claims/final_answer_claim_notice_applicator.dart':
       136,
-  'lib/features/chat/domain/services/final_answer_claim_notice_input.dart': 69,
-  'lib/features/chat/domain/services/narrated_transcript_repair_planner.dart':
+  'lib/features/chat/domain/services/claims/final_answer_claim_notice_input.dart': 69,
+  'lib/features/chat/domain/services/claims/narrated_transcript_repair_planner.dart':
       179,
   'lib/features/chat/domain/services/file_mutation_effect_coordinator.dart':
       371,
@@ -354,7 +354,7 @@ const Map<String, int> _lineBudgets = {
   // +9: the block declares itself a refusal. Reported as a success it was
   // filed as an executed commit, so the identical commit re-issued after
   // `diff --cached` was deduplicated and the refusal replayed (dd50d110).
-  'lib/features/chat/domain/services/uninspected_commit_guard.dart': 153,
+  'lib/features/chat/domain/services/claims/uninspected_commit_guard.dart': 153,
   'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart': 93,
   'lib/features/chat/domain/services/context_surgery_observation_accumulator.dart':
       130,
@@ -377,10 +377,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart': 98,
   // -11: the block payload and the Git working-tree evidence check moved to
   // their own collaborators.
-  'lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_file_mutation_before_command_guard.dart':
       104,
   'lib/features/chat/domain/services/git/git_working_tree_change_evidence.dart': 87,
-  'lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart':
       38,
   'lib/features/chat/domain/services/turn_tool_catalog_source.dart': 31,
   'lib/features/chat/data/datasources/execution_snapshot_log_runtime_adapter.dart':
@@ -548,7 +548,7 @@ const Map<String, int> _lineBudgets = {
       187,
   'lib/features/chat/presentation/providers/hidden_assistant_evidence_registry.dart':
       105,
-  'lib/features/chat/domain/services/hidden_assistant_evidence_scorer.dart': 21,
+  'lib/features/chat/domain/services/claims/hidden_assistant_evidence_scorer.dart': 21,
   'lib/features/chat/presentation/providers/turn_message_persistence_coordinator.dart':
       156,
   'lib/features/chat/presentation/providers/thread_scoped_message_queue.dart':
@@ -1119,7 +1119,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/local_command/literal_environment_inspection_policy.dart':
       32,
   'lib/features/chat/domain/services/local_command/environment_query_words_policy.dart': 58,
-  'lib/features/chat/domain/services/unexecuted_command_claim_reconciliation.dart':
+  'lib/features/chat/domain/services/claims/unexecuted_command_claim_reconciliation.dart':
       46,
   // -8: the status protocol violation moved to StatusRecoveryVerification,
   // beside the acceptance rule it reports on.
