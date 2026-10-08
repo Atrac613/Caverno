@@ -34,7 +34,7 @@ Method notes
 - Only records with `schemaName == caverno_llm_session_log_entry` are read.
   `build/integration_test_reports` also holds `flutter test` machine output --
   257k lines of it -- which silently inflated earlier published figures
-  (docs/session_log_corpus_contamination_2026-08-05.md).
+  (docs/worklog/session_log_corpus_contamination_2026-08-05.md).
 - Responses are read from `response`, one per entry, so the conversation replay
   that forces `analyze_tool_results.py` to de-duplicate by message id does not
   apply here.

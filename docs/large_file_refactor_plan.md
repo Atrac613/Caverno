@@ -11,7 +11,7 @@ The baseline tracked-boundary inventory below was created on 2026-07-18 with
 `wc -l`, then selected rows were refreshed as focused extraction outcomes
 landed. The complete baseline production scan, test scan, coverage ranking,
 same-library aggregates, and active-worktree ownership audit are recorded in
-`docs/large_file_boundary_inventory_2026_07_18.md`. On 2026-07-19, the user
+`docs/worklog/large_file_boundary_inventory_2026_07_18.md`. On 2026-07-19, the user
 confirmed that the listed auxiliary worktrees are inactive and must not block
 refactor selection; the audit remains historical context. The ChatNotifier rows
 were refreshed on 2026-07-30 when corrective prerequisites P6 and P12
@@ -1521,9 +1521,9 @@ Next slice:
   The complete stack is integrated into `main` as `f80132bf`.
 - The planned permission action group is complete, and the 2026-07-18 full
   inventory refresh is recorded in
-  `docs/large_file_boundary_inventory_2026_07_18.md`.
+  `docs/worklog/large_file_boundary_inventory_2026_07_18.md`.
 - The integrated-main production and ownership ranking is refreshed in
-  `docs/large_file_boundary_inventory_2026_07_18.md`. The recovery route and
+  `docs/worklog/large_file_boundary_inventory_2026_07_18.md`. The recovery route and
   evidence contract and pure typed route-policy extraction are complete. The
   policy selects only from already-derived evidence and owns no prompt,
   progress mutation, page state, retry body, or recursion.

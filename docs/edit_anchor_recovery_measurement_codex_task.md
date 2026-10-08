@@ -60,13 +60,13 @@ structural and the hashline direction below becomes worth costing.
 
 ### Related docs
 
-- `docs/reread_loop_mechanism_2026-07-21.md` — **read this first.** It records
+- `docs/worklog/reread_loop_mechanism_2026-07-21.md` — **read this first.** It records
   the measurement, the corrections, and the instrument failures. The
   "Instrument failure" section is not optional background; it is the list of
   traps you will otherwise walk into.
-- `docs/ll34_tool_outcome_census_2026-07-21.md` — tool traffic distribution and
+- `docs/worklog/ll34_tool_outcome_census_2026-07-21.md` — tool traffic distribution and
   its verification.
-- `docs/grok_build_comparison_2026_07_21.md` — where the hashline idea comes
+- `docs/worklog/grok_build_comparison_2026_07_21.md` — where the hashline idea comes
   from, and the local-first constraints on adopting anything from that source.
 - `docs/local_llm_agent_roadmap.md` — LL34 in the Grounded Verification Track.
 
@@ -188,7 +188,7 @@ Do not skip this section; it is why the measurement is worth doing.
   case where **hashline-style anchoring** becomes worth costing: address a
   region by line number plus a content hash, with bounded re-location when the
   line has shifted, instead of quoting the block back. See
-  `docs/grok_build_comparison_2026_07_21.md`; Grok Build ships this as
+  `docs/worklog/grok_build_comparison_2026_07_21.md`; Grok Build ships this as
   `grok_build_hashline` with three candidate schemes and its own benchmark
   harness. Adopt the design, not the code — that source is Apache-2.0 and
   in-tree copying would need NOTICE handling.

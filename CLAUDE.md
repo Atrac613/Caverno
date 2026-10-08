@@ -170,6 +170,11 @@ the worker's two test entrypoints are in
 
 ## Working Practice
 
+- Docs layout: `docs/` holds living documents only (indexed in
+  `docs/README.md`); dated investigations, findings and measurements go to
+  `docs/worklog/` with a date in the file name. Delete an agent task document
+  (`*_codex_task.md`, `*_task.md`, handoffs) in the commit that finishes the
+  task; git history keeps it.
 - Start large or risky changes with a short implementation plan before editing:
   anything touching multiple feature layers, tool execution, Plan Mode,
   Computer Use, persistence, generated entities, or release gates.
@@ -281,5 +286,6 @@ python3 test/python/check_fix_firings_test.py     # its own tests, no Flutter
 | [`docs/lint_policy.md`](docs/lint_policy.md) | Which lints were adopted or rejected, and the rules for running `dart fix` |
 | [`docs/live_llm_canary_agent_runbook.md`](docs/live_llm_canary_agent_runbook.md) | Live LLM canary preflight, bounded probes, evidence, failure triage |
 | [`docs/large_file_refactor_plan.md`](docs/large_file_refactor_plan.md) | How to slice a large-file refactor without losing behavior |
+| [`docs/README.md`](docs/README.md) | Index of living docs; what goes in `docs/` vs `docs/worklog/` |
 | [`docs/roadmap.md`](docs/roadmap.md) | Cross-track roadmap index |
 | [`AGENTS.md`](AGENTS.md) | The Codex entrypoint. Shorter and independently maintained; it carries scope/verification and authorization rules this file does not |

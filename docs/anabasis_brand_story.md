@@ -11,7 +11,7 @@ here so the gap stays visible rather than being quietly forgotten:
 
 - The "Initial MVP" section below describes a state-summarising command. That
   framing was superseded — see
-  [`anabasis_mvp_plan_superseded.md`](anabasis_mvp_plan_superseded.md) for the
+  [`anabasis_mvp_plan_superseded.md`](worklog/anabasis_mvp_plan_superseded.md) for the
   full plan it belonged to and why it did not survive contact with the
   codebase. The design principle further down ("Anabasis should not pretend
   that the shadows are the world") did survive, and became

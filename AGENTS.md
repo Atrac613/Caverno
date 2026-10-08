@@ -70,6 +70,11 @@ without asking for approval at each step.
 
 ## Conditional references
 
+- Docs layout: `docs/` holds living documents only (indexed in
+  `docs/README.md`); dated investigations, findings and measurements go to
+  `docs/worklog/` with a date in the file name. Delete an agent task document
+  (`*_codex_task.md`, `*_task.md`, handoffs) in the commit that finishes the
+  task; git history keeps it.
 - When drafting non-trivial task descriptions, use `docs/codex_task_template.md`.
 - Large-file refactors: follow `docs/large_file_refactor_plan.md`.
 - macOS `flutter_tester` canaries targeting an HTTP LAN LLM endpoint: use

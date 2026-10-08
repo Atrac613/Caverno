@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Count turns that end on an announced-but-unexecuted next step.
 
-Motivated by `docs/session_2659093b_deferred_verification_2026-07-22.md`, where
+Motivated by `docs/worklog/session_2659093b_deferred_verification_2026-07-22.md`, where
 a turn ended with "next I will actually run the commands to verify" and then
 stopped, with no guard firing and auto-continue skipping. That was n=1; this
 counts how often the shape occurs.

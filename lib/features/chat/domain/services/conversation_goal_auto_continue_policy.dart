@@ -131,7 +131,7 @@ class GoalAutoContinuePolicyInput {
   /// generation. The two can therefore disagree, and a real session did:
   /// mutations 3, verification generation -1, cadence `required`, while the
   /// evidence reported nothing incomplete. See
-  /// `docs/session_2659093b_deferred_verification_2026-07-22.md`.
+  /// `docs/worklog/session_2659093b_deferred_verification_2026-07-22.md`.
   final VerificationCadence verificationCadence;
 
   /// Whether verification is owed, by either measure. Used for the

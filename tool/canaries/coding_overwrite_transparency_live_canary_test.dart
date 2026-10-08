@@ -158,7 +158,7 @@ void main() {
   // it succeeds and reports the same byte count as a real edit, which is what
   // lets an edit -> re-read -> edit loop run forever. The existing test above
   // writes NEW content (`changed: true`), so it never reaches this branch.
-  // See docs/grounded_verification_live_canary_gap_2026-07-21.md.
+  // See docs/worklog/grounded_verification_live_canary_gap_2026-07-21.md.
   test(
     '${testNamePrefix}live LLM is told a byte-identical write changed nothing',
     () async {

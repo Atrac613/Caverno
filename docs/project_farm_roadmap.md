@@ -95,7 +95,7 @@ Measured 2026-09-26 against main `a33200f14`; execution-boundary notes updated
   `chat_notifier.dart`. A message queued for another thread waits until the
   user opens that thread. Turns started while their thread was visible keep
   running in the background. The per-thread split that would remove this
-  limit is stage 3 of `docs/multi_thread_architecture_study.md` and has not
+  limit is stage 3 of `docs/worklog/multi_thread_architecture_study.md` and has not
   been started.
 - **Creating and cancelling act on the visible thread.**
   `ConversationsNotifier.createNewConversation` and `ensureCurrentConversation`
@@ -329,7 +329,7 @@ Spike B findings, 2026-09-26, against main `a33200f14`:
    10 in `_sendMessageNow` itself (seven `state.messages`, three
    `currentConversation`). Starting a turn on a non-visible thread is
    therefore not a local change. It is stage 2 of
-   `docs/multi_thread_architecture_study.md`: a turn object built from a
+   `docs/worklog/multi_thread_architecture_study.md`: a turn object built from a
    conversation id, with those reads moved onto it.
 2. **Plan approval shows validation commands.**
    - `ConversationPlanDocumentBuilder` writes `- Validation:` lines into the

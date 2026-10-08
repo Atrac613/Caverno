@@ -380,9 +380,9 @@ Acceptance criteria:
   documented exception with an owner.
 
 Evidence:
-- `docs/plan_mode_release_candidate_signoff_2026-05-13.md`
-- `docs/plan_mode_release_candidate_signoff_2026-05-13_rerun.md`
-- `docs/plan_mode_release_candidate_signoff_2026-05-13_pm14_rerun.md`
+- `docs/worklog/plan_mode_release_candidate_signoff_2026-05-13.md`
+- `docs/worklog/plan_mode_release_candidate_signoff_2026-05-13_rerun.md`
+- `docs/worklog/plan_mode_release_candidate_signoff_2026-05-13_pm14_rerun.md`
 - `docs/plan_mode_live_smoke_compatibility_triage.md`
 - `docs/plan_mode_release_candidate_gate.md`
 - `docs/plan_mode_model_endpoint_compatibility.md`
@@ -454,7 +454,7 @@ Acceptance criteria:
 - User-facing strings and tests cover any changed UX behavior.
 
 Evidence:
-- `docs/plan_mode_product_ux_finalization_2026-05-13.md`
+- `docs/worklog/plan_mode_product_ux_finalization_2026-05-13.md`
 - `lib/features/chat/presentation/widgets/plan/timeline_plan_card.dart`
 - `lib/features/chat/presentation/widgets/plan/plan_hydrated_task_row.dart`
 - `test/features/chat/presentation/widgets/plan/timeline_plan_card_test.dart`
@@ -486,7 +486,7 @@ Acceptance criteria:
 - Settings and release docs stay aligned on supported compatibility behavior.
 
 Evidence:
-- `docs/plan_mode_settings_compatibility_ux_2026-05-13.md`
+- `docs/worklog/plan_mode_settings_compatibility_ux_2026-05-13.md`
 - `docs/plan_mode_model_endpoint_compatibility.md`
 - `lib/features/settings/presentation/pages/general_settings_page.dart`
 - `assets/translations/en.json`
@@ -518,7 +518,7 @@ Acceptance criteria:
 - Diagnostic output avoids API keys and other secrets.
 
 Evidence:
-- `docs/plan_mode_supportability_2026-05-13.md`
+- `docs/worklog/plan_mode_supportability_2026-05-13.md`
 - `docs/plan_mode_model_endpoint_compatibility.md`
 - `lib/features/settings/presentation/pages/general_settings_page.dart`
 - `assets/translations/en.json`
@@ -547,7 +547,7 @@ Acceptance criteria:
 - Store or demo assets reflect the final product behavior.
 
 Evidence:
-- `docs/plan_mode_release_package_2026-05-13.md`
+- `docs/worklog/plan_mode_release_package_2026-05-13.md`
 - `README.md`
 - `test/docs/plan_mode_mvp_handoff_docs_test.dart`
 - `fvm flutter test test/docs/plan_mode_mvp_handoff_docs_test.dart`
@@ -574,8 +574,8 @@ Acceptance criteria:
   process.
 
 Evidence:
-- `docs/plan_mode_post_release_guardrails_2026-05-13.md`
-- `docs/plan_mode_release_package_2026-05-13.md`
+- `docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md`
+- `docs/worklog/plan_mode_release_package_2026-05-13.md`
 - `README.md`
 - `test/docs/plan_mode_mvp_handoff_docs_test.dart`
 - `fvm flutter test test/docs/plan_mode_mvp_handoff_docs_test.dart`
@@ -607,10 +607,10 @@ Acceptance criteria:
 - The roadmap names PM20 as the current productization baseline.
 
 Evidence:
-- `docs/plan_mode_release_candidate_final_signoff_2026-05-13.md`
-- `docs/plan_mode_product_ux_finalization_2026-05-13.md`
-- `docs/plan_mode_release_package_2026-05-13.md`
-- `docs/plan_mode_post_release_guardrails_2026-05-13.md`
+- `docs/worklog/plan_mode_release_candidate_final_signoff_2026-05-13.md`
+- `docs/worklog/plan_mode_product_ux_finalization_2026-05-13.md`
+- `docs/worklog/plan_mode_release_package_2026-05-13.md`
+- `docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md`
 - `build/integration_test_reports/plan_mode_live_suite_macos_1778676005689/plan_mode_live_suite_macos_report.json`
 - `build/integration_test_reports/plan_mode_ping_cli_canary_1778676312/canary_summary.json`
 - `test/docs/plan_mode_mvp_handoff_docs_test.dart`

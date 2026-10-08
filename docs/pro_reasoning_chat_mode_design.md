@@ -4,7 +4,7 @@ Status: **implemented and live-canary verified** (2026-08-13)
 Roadmap item: LL40 in `docs/local_llm_agent_roadmap.md`
 Related: LL7 (Best-of-N), LL20 (parallel slot substrate), LL26 (A0 mesh
 selection), LL27 (collaborative orchestration),
-`docs/multi_model_orchestration_research.md`
+`docs/worklog/multi_model_orchestration_research.md`
 
 ---
 
@@ -45,7 +45,7 @@ for every host queue to enforce the host-placement rule in §2.5.
 Across The Mesh (A0)" as `later`, describing it as "high-confidence and cheap …
 ships almost entirely on existing parts". Its optional extension — "a single
 *synthesis* pass over the top candidates" — is stage 5 below.
-`docs/multi_model_orchestration_research.md` §5 recommends A0 as the one
+`docs/worklog/multi_model_orchestration_research.md` §5 recommends A0 as the one
 architecture worth wiring now.
 
 The important divergence: **LL26 is about code, and code has ground truth.** Its
@@ -162,7 +162,7 @@ sharing one GPU, and none of them survives moving to separate machines:
 | Model diversity | none (same weights) | real, if hosts run different models |
 
 So the rule is: **fan out across hosts, never across slots on one GPU.** This is
-`docs/multi_model_orchestration_research.md`'s core claim — over a mesh, latency
+`docs/worklog/multi_model_orchestration_research.md`'s core claim — over a mesh, latency
 is `max(workers) + aggregation`, not `sum` — and it makes LL40 the chat-side
 delivery of LL26/A0 rather than a compromise around it.
 
@@ -245,7 +245,7 @@ Five rules follow, none of which the original design assumed:
    this into trusting the status code.
 5. **Heterogeneity is the point, not a defect.** Different servers running
    different model families is exactly the diversity
-   `docs/multi_model_orchestration_research.md` says a selection ensemble needs;
+   `docs/worklog/multi_model_orchestration_research.md` says a selection ensemble needs;
    the risk it warns about is a *homogeneous* pool. The cost is that the
    coordinator must carry a per-endpoint capability record instead of one global
    request shape.

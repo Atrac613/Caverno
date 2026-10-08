@@ -30,7 +30,7 @@ abstract final class GoalAutoContinueEvidenceMarker {
       // absence made a skip undiagnosable from the log alone: a real session
       // showed cadence `required` in the prompt one second before
       // auto-continue skipped, with no way to tell what the policy received.
-      // See docs/session_cfaa8297_cadence_not_observable_2026-07-22.md.
+      // See docs/worklog/session_cfaa8297_cadence_not_observable_2026-07-22.md.
       'verificationCadence': verificationCadence.name,
       'mutationGeneration': mutationGeneration,
       'verificationGeneration': verificationGeneration,

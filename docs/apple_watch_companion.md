@@ -68,7 +68,7 @@ The exclusion is written the way the Remote Coding gate is written — `origin`
 first, a remote interaction with a missing owner counted against resolving here
 rather than for it. Reading only `remoteDeviceId` inverts that, and the two
 agreed in the shipped build only by coincidence. Recorded as SA-24 in
-`docs/security_followup_review_2026-08-24.md`.
+`docs/worklog/security_followup_review_2026-08-24.md`.
 
 ## Payload budget
 
@@ -175,7 +175,7 @@ show nothing, because that interaction never touches `ChatState` — it arrives
 over the Remote Coding socket, in `RemoteCodingClientState`.
 
 `WatchSessionNotifier` now watches both. The reading that makes it safe is
-recorded as SA-27 in `docs/security_followup_review_2026-08-24.md`; the short
+recorded as SA-27 in `docs/worklog/security_followup_review_2026-08-24.md`; the short
 version is that the watch is a peripheral of this phone, so showing the phone's
 own remote-coding approval on it adds no principal, and the wrist inherits
 exactly the authority SA-26 gave the phone and no more.

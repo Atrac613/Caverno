@@ -8,7 +8,7 @@ was replaced by ``write_file``. It also counts same-file reads between the
 failure and that next action, plus consecutive anchor-failure streak lengths.
 
 The analysis corrects for the two traps documented in
-``docs/reread_loop_mechanism_2026-07-21.md``:
+``docs/worklog/reread_loop_mechanism_2026-07-21.md``:
 
 1. History replay is removed by de-duplicating messages by stable id within
    each session log.

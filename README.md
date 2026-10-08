@@ -89,7 +89,7 @@ of the ANA4 single-goal workspace.
 
 The current point-in-time security assessment, stable finding IDs, release
 decision, and remediation map are recorded in
-[`docs/security_audit_2026-08-14.md`](docs/security_audit_2026-08-14.md).
+[`docs/worklog/security_audit_2026-08-14.md`](docs/worklog/security_audit_2026-08-14.md).
 `SEC1`, `SEC2`, `SEC4`, and `RC1` in the roadmap own the open release blockers.
 
 ## Requirements
@@ -397,13 +397,13 @@ scenario coverage and promotion rules live in
 Model and endpoint compatibility notes live in
 [`docs/plan_mode_model_endpoint_compatibility.md`](docs/plan_mode_model_endpoint_compatibility.md).
 The user-facing Plan Mode release package lives in
-[`docs/plan_mode_release_package_2026-05-13.md`](docs/plan_mode_release_package_2026-05-13.md).
+[`docs/worklog/plan_mode_release_package_2026-05-13.md`](docs/worklog/plan_mode_release_package_2026-05-13.md).
 The current final release candidate decision lives in
-[`docs/plan_mode_release_candidate_final_signoff_2026-05-13.md`](docs/plan_mode_release_candidate_final_signoff_2026-05-13.md).
+[`docs/worklog/plan_mode_release_candidate_final_signoff_2026-05-13.md`](docs/worklog/plan_mode_release_candidate_final_signoff_2026-05-13.md).
 For issue reports, copy the redacted Plan Mode support snapshot from Settings >
 General and attach the latest relevant report path.
 Post-release guardrails, canary cadence, and hotfix rules live in
-[`docs/plan_mode_post_release_guardrails_2026-05-13.md`](docs/plan_mode_post_release_guardrails_2026-05-13.md).
+[`docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md`](docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md).
 Additional implementation notes for the ping CLI stabilization work live in
 [`docs/plan_mode_ping_cli_stabilization_playbook.md`](docs/plan_mode_ping_cli_stabilization_playbook.md).
 

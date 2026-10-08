@@ -7,7 +7,7 @@ roadmap; dated investigation notes below preserve the implementation history.
 ## Anabasis Orchestrator Track
 
 The 2026-09-04 build of ANA0-ANA3 is narrated in
-`docs/anabasis_orchestrator_build_2026-09-04.md`: the three decisions settled by
+`docs/worklog/anabasis_orchestrator_build_2026-09-04.md`: the three decisions settled by
 live measurement, the two defects only the running app found, and the
 extractions the ratchet asked for. It exists because that work was squashed
 into one commit.
@@ -18,7 +18,7 @@ and not a fourth authoritative conversation state. The full design, including
 the Existing Caverno Mapping that decides what may be built, is in
 `docs/ANABASIS_ORCHESTRATOR_ARCHITECTURE.md`. The concept and naming reference
 is `docs/anabasis_brand_story.md`; the superseded first plan, kept as the
-record of why it was superseded, is `docs/anabasis_mvp_plan_superseded.md`.
+record of why it was superseded, is `docs/worklog/anabasis_mvp_plan_superseded.md`.
 
 These milestones use `ANA<number>` and live here rather than in the Local LLM
 roadmap because this is orchestration policy and a user-facing surface, not

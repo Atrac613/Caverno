@@ -40,7 +40,7 @@ CAVERNO_HOME (default ~/.caverno) + /session_logs.
 Only *grounded* logs are counted — those carrying at least one LLM
 request/response. A log with turn markers but no inference is test output, not a
 session, and mixing the two silently inflated every published figure before
-2026-08-05 (see ``docs/session_log_corpus_contamination_2026-08-05.md``).
+2026-08-05 (see ``docs/worklog/session_log_corpus_contamination_2026-08-05.md``).
 
 Pure python3, no Flutter/Dart/Caverno runtime, so any coding agent with shell
 access can run it.
@@ -260,7 +260,7 @@ def _iter_log_files(root: str):
     `build/integration_test_reports/<run>/session_logs/<surface>/*.jsonl` —
     three levels down, and invisible to the fixed one/two-level globs this used
     to do. That is the *coding* evidence three roadmap milestones are gated on
-    (see docs/canary_evidence_outside_the_corpus_2026-08-06.md), so
+    (see docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md), so
     `--dir build/integration_test_reports` has to work.
     """
     yield from glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True)
@@ -366,7 +366,7 @@ def _is_completion_entry(entry: dict) -> bool:
     *operations* is what broke here, because two markers were added to the app
     after this tool learned the two it skips, and every one of their entries was
     then scored as an aborted request (89% of the reported transport errors —
-    see docs/triage_marker_transport_inflation_2026-08-06.md). A new marker type
+    see docs/worklog/triage_marker_transport_inflation_2026-08-06.md). A new marker type
     cannot leak into scoring through this predicate.
     """
     return bool(entry.get("request")) or bool(entry.get("response"))

@@ -5,7 +5,7 @@ Why this exists
 ---------------
 The obvious way to ask "how often does X happen?" is to grep the session logs.
 Two things make that wrong, and both produced published-then-withdrawn numbers
-(see docs/reread_loop_mechanism_2026-07-21.md):
+(see docs/worklog/reread_loop_mechanism_2026-07-21.md):
 
 1. **Replay.** Every log record carries the whole conversation, so a message
    from turn 1 appears again in every later record. One session measured here
@@ -69,7 +69,7 @@ def iter_log_paths(root: pathlib.Path) -> list[pathlib.Path]:
     nothing there. That tree is the *coding* corpus — 452 turns against the
     chat-dominated 190 in `~/.caverno/session_logs` — and the edit-anchor
     decision, the traffic census, and the re-read analysis were all computed
-    without it (docs/canary_evidence_outside_the_corpus_2026-08-06.md).
+    without it (docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md).
     """
     return sorted(set(root.glob("**/*.jsonl")))
 
@@ -249,7 +249,7 @@ def main() -> int:
     # denominator. Files with turn markers and no LLM traffic are test output
     # and contribute nothing here (no request payload to parse), but quoting
     # the raw file count as "session logs" is how a 171-log corpus got reported
-    # as 1,735 (docs/session_log_corpus_contamination_2026-08-05.md).
+    # as 1,735 (docs/worklog/session_log_corpus_contamination_2026-08-05.md).
     print(f"== Distinct tool results ({root}) ==")
     print(
         f"{len(per_session)} session logs with tool traffic "

@@ -177,7 +177,7 @@ structurally unmotivated to build:
 | Local LLM | LL26 | later | S-M | LL7, LL8, LL20 | Parallel Best-of-N candidate selection across the mesh (A0): generate candidates concurrently on resident endpoints (PC1/PC2) via LL20 slots over the LL8 mesh, then keep the verifier-passed candidate (LL7). A latency-neutral selection ensemble; concretizes the Best-of-N half of LL8's deferred fan-out. High-confidence and cheap, but sequenced after LL24. |
 | Local LLM | LL27 | later | L | LL26, LL12, LL19, LL1 | Collaborative multi-model orchestration over the mesh: layered aggregation (Mixture-of-Agents), role conductor, and debate so resident models cooperate on one turn. Guiding thesis: a Trinity-style role conductor (small coordinator → Thinker/Worker/Verifier on resident workers). Future research challenge, gated by the LL12/LL19 eval harness on "beats the best currently validated single-model path including latency". |
 | Local LLM | LL28 | done | M | LL1, LL8, LL3 | User-facing multi-participant group discussion: invite a second resident model (PC2) into the same thread as named participants with per-participant roles (facilitator / senior engineer / …), round-robin turn-taking when no facilitator is present, facilitator-managed handoff routing when one is present, and selectable single-round / multi-round depth, reusing the LL8 mesh endpoint resolver (health fallback) and the existing `ToolApprovalMode` (manual / auto / full) for read-only per-participant tools. The manually-driven, *visible* sibling of LL27 — user-judged, no eval gate; an auto-moderator turn policy is the bridge toward LL27. |
-| Local LLM | LL29 | later | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort). Demoted 2026-07-21: its LL31 evidence gate came back negative (`tool_failure_abort` 1.6% of 377 turns), so it waits for a triage that shows the abort path rising. **The demotion's basis is withdrawn (2026-08-06):** that 1.6% was measured on a corpus that is mostly chat, while the never-read canary tree — 452 coding turns — puts `tool_failure_abort` at **14.2%** (`docs/canary_evidence_outside_the_corpus_2026-08-06.md`). Canary fixtures are deliberately hard, so this does not re-promote the item on its own; it means the gate was answered on the population where the abort path would be rarest, and needs re-asking. Scope, unchanged: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
+| Local LLM | LL29 | later | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort). Demoted 2026-07-21: its LL31 evidence gate came back negative (`tool_failure_abort` 1.6% of 377 turns), so it waits for a triage that shows the abort path rising. **The demotion's basis is withdrawn (2026-08-06):** that 1.6% was measured on a corpus that is mostly chat, while the never-read canary tree — 452 coding turns — puts `tool_failure_abort` at **14.2%** (`docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md`). Canary fixtures are deliberately hard, so this does not re-promote the item on its own; it means the gate was answered on the population where the abort path would be rarest, and needs re-asking. Scope, unchanged: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
 | Local LLM | LL30 | done | M | LL14, LL6, LL31 | Compaction structural pre-pass, gated on LL31 triage evidence: before summarization, run a no-LLM tool-result prune — dedupe identical tool outputs, replace old ones with informative one-line summaries that keep *what happened* (`[run_command] \`flutter test\` → exit 0, 47 lines`), truncate oversized tool-call arguments inside parsed JSON so the payload stays valid, and strip stale image payloads; switch the protected tail from a fixed message count to a token budget and add an anti-thrashing back-off. Extends LL14 with the Hermes `context_compressor._prune_old_tool_results` / `_summarize_tool_result` pattern. |
 | Local LLM | LL31 | done | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
 | Local LLM | LL33 | done | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
@@ -208,7 +208,7 @@ structurally unmotivated to build:
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: the baseline is implemented, but the 2026-08-14 audit reopened classifier exhaustiveness, host-read trust, and external-MCP routine policy. |
 | Security | SEC2 | done | M | SEC1, LL23 | Taint-aware tool execution: the decision now precedes cache/full-access authorization, and tainted ungated network reads receive a fresh owner-scoped preflight. |
 | Security | SEC3 | later | S-M | SEC1, MCP-GOV2 | MCP permission diff and audit view for server/tool changes. |
-| Security | SEC4 | current | L | F2 | Runtime trust, egress, transport, and local-data hardening: close the release blockers in `docs/security_audit_2026-08-14.md` and `docs/security_followup_review_2026-08-24.md` through small reviewable slices co-owned with SEC1/SEC2 where noted. |
+| Security | SEC4 | current | L | F2 | Runtime trust, egress, transport, and local-data hardening: close the release blockers in `docs/worklog/security_audit_2026-08-14.md` and `docs/worklog/security_followup_review_2026-08-24.md` through small reviewable slices co-owned with SEC1/SEC2 where noted. |
 | Model Library | MLIB1 | later | M | LL3, LL9 | Local Model Pack Manifest: provenance, checksum, quantization, license, and verified capability metadata per local model artifact. |
 | Model Library | MLIB2 | later | M | MLIB1 | Model provenance and license registry with revision history and local-only export boundaries. |
 | Model Library | MLIB3 | later | S-M | MLIB1, LL12, LL19 | Verified capability/eval badges backed by probes and personal eval runs. |
@@ -874,7 +874,7 @@ Live canary evidence:
   from 10 to 8 overall and from 4 to 2 in the direct first-edit case. Average
   first mutation index improved from 3.00 to 2.67.
 - Full measurement notes are in
-  `docs/ll4_repo_map_live_measurement_2026-06-13.md`.
+  `docs/worklog/ll4_repo_map_live_measurement_2026-06-13.md`.
 - The post-fix run also validates the git lifecycle recovery path: duplicate
   successful command calls recover to the next step, benign completion summaries
   containing `remaining arguments` still close the goal, and extra follow-up
@@ -1005,7 +1005,7 @@ behavior.
 
 Scope:
 - Classify final answers across both corpora — the split recorded in
-  `docs/canary_evidence_outside_the_corpus_2026-08-06.md`, coding evidence in
+  `docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md`, coding evidence in
   `build/integration_test_reports` and interactive evidence in the session logs
   — for version-sensitive assertions in visible prose, response code blocks,
   and changed code artifacts, attributed to the four classes above.
@@ -1341,7 +1341,7 @@ discussion.
 
 ### RAG1: Retrieval Evaluation Contract
 
-Status: `done` — completion audit: `docs/rag1_completion_audit_2026-08-25.md`.
+Status: `done` — completion audit: `docs/worklog/rag1_completion_audit_2026-08-25.md`.
 
 Scope:
 - Add a versioned mini-repository, query/qrels/answer-key schemas, and
@@ -1425,14 +1425,14 @@ IDF-weighted coverage thresholds. Trigram recovered 16/16 answerable cases and
 all Japanese cases, but the best threshold still retrieved 2/4 no-answer
 cases. RAG2 therefore remains `later`; a holdout evidence-sufficiency experiment
 must pass before migration work. Evidence:
-`docs/rag2_lexical_policy_spike_2026-08-25.md`.
+`docs/worklog/rag2_lexical_policy_spike_2026-08-25.md`.
 
 Holdout follow-up (2026-08-25): a seed-only grid over passage coverage, segment
 concentration, and BM25 margin was frozen before evaluation on a separate
 20-case corpus. Seed and holdout both scored 15/16 answerable hits and 2/4
 no-answer retrievals. Topical safety passages remained indistinguishable from
 answer-bearing evidence, so adding lexical thresholds is closed as a No-Go.
-Evidence: `docs/rag2_evidence_sufficiency_holdout_2026-08-25.md`.
+Evidence: `docs/worklog/rag2_evidence_sufficiency_holdout_2026-08-25.md`.
 
 Claim-support diagnostic (2026-08-25): the frozen policy was evaluated against
 oracle answer-key citations without changing retrieval. Seed relevance was
@@ -1441,7 +1441,7 @@ historical side; holdout relevance and full support were both 15/16. Both
 datasets still returned topical-but-insufficient safety passages for 2/4
 no-answer cases. The oracle makes the metric distinction reviewable but is not
 runtime eligible, so RAG2 remains No-Go. Evidence:
-`docs/rag2_claim_support_oracle_2026-08-25.md`.
+`docs/worklog/rag2_claim_support_oracle_2026-08-25.md`.
 
 Runtime-signal follow-up (2026-08-25): three query-and-passage-only candidates
 were selected on seed by F1, precision, and recall, then applied unchanged to
@@ -1451,7 +1451,7 @@ against oracle claim-support labels. This is a synthetic pass but production
 No-Go: only 40 inspected cases exist, the rules are intent-specific, and benign
 negative statements and multilingual paraphrases are not represented. Freeze
 a new untouched adversarial corpus before changing or promoting the signal.
-Evidence: `docs/rag2_runtime_answerability_signal_2026-08-25.md`.
+Evidence: `docs/worklog/rag2_runtime_answerability_signal_2026-08-25.md`.
 
 Untouched adversarial audit (2026-08-25): the frozen winner was applied without
 decision-rule changes to a newly hashed 20-case corpus. Recall stayed 1.000,
@@ -1461,7 +1461,7 @@ unanswerable-adversarial precision to 0.000. RAG2 remains No-Go, and adding more
 intent keywords is closed. The next offline experiment must score post-answer
 claim verification as supported/contradicted/absent while keeping retrieval and
 generation metrics separate. Evidence:
-`docs/rag2_runtime_adversarial_audit_2026-08-25.md`.
+`docs/worklog/rag2_runtime_adversarial_audit_2026-08-25.md`.
 
 Post-answer claim verification (2026-08-25): a versioned set of 36 fixed claims
 balanced across supported, contradicted, and absent was evaluated over all
@@ -1472,7 +1472,7 @@ for stale claims, while topical overlap confused absent and contradicted. More
 threshold tuning is closed. The next offline slice must preserve hit-level
 source identity, authority, and revision order for claim verification without
 building production storage. Evidence:
-`docs/rag2_post_answer_claim_verification_2026-08-25.md`.
+`docs/worklog/rag2_post_answer_claim_verification_2026-08-25.md`.
 
 Authority-aware follow-up (2026-08-25): storage-independent source identity,
 current/historical authority, and revision metadata were attached to every
@@ -1483,7 +1483,7 @@ but prose-based authority inference regressed historical seed cases, while
 negation and topical-overlap errors remained. Do not add temporal keywords.
 The next offline slice must give each generated claim explicit scope and cited
 source IDs, then fail closed on missing, mismatched, or superseded citations.
-Evidence: `docs/rag2_authority_claim_verification_2026-08-25.md`.
+Evidence: `docs/worklog/rag2_authority_claim_verification_2026-08-25.md`.
 
 Structured-claim follow-up (2026-08-25): all 36 fixed claims received explicit
 `current`/`historical`/`unspecified` scope and cited source IDs. Missing,
@@ -1493,7 +1493,7 @@ both holdouts; holdouts pass but seed does not. Four residual failures isolate
 code-to-prose facts, URL-to-port expression, and negation polarity. Keep
 envelopes, retrieval, and thresholds frozen; the next offline slice must apply
 a fail-closed semantic support verifier only to citations that clear structural
-checks. Evidence: `docs/rag2_structured_claim_envelopes_2026-08-25.md`.
+checks. Evidence: `docs/worklog/rag2_structured_claim_envelopes_2026-08-25.md`.
 
 Semantic-verifier follow-up (2026-08-25): a deterministic verifier runs only
 after the frozen citation, scope, authority, and revision checks. Bounded
@@ -1504,7 +1504,7 @@ independent promotion evidence because those residuals informed the verifier
 design. Keep the verifier and 36-claim suite frozen; the next offline slice
 must use a new blinded semantic holdout with positive and negative controls.
 Production remains No-Go. Evidence:
-`docs/rag2_semantic_claim_verification_2026-08-25.md`.
+`docs/worklog/rag2_semantic_claim_verification_2026-08-25.md`.
 
 Blinded semantic holdout (2026-08-25): verifier v1 and the original 36 claims
 were frozen, then 12 balanced independent controls measured double negation,
@@ -1514,7 +1514,7 @@ errors prove bag-of-terms normalization cannot bind a value to a relation or
 represent boolean parity and modality. RAG2 remains No-Go. Freeze this holdout;
 the next offline slice may compare one relation-aware atomic-fact verifier v2
 without candidate-specific rules. Evidence:
-`docs/rag2_blinded_semantic_holdout_2026-08-25.md`.
+`docs/worklog/rag2_blinded_semantic_holdout_2026-08-25.md`.
 
 Relation-aware verifier comparison (2026-08-25): one v2 binds numeric values to
 code assignments and URI components, computes boolean negation parity, and
@@ -1524,7 +1524,7 @@ holdout from 0.672 to 1.000. All gates pass, but the holdout informed v2, so the
 48 claims are now a regression suite rather than independent promotion
 evidence. Production remains No-Go. Freeze both verifiers and all claims; the
 next offline slice must be a second independent compositional holdout.
-Evidence: `docs/rag2_relation_aware_claim_verification_2026-08-25.md`.
+Evidence: `docs/worklog/rag2_relation_aware_claim_verification_2026-08-25.md`.
 
 Second compositional holdout (2026-08-25): both verifiers and the existing 48
 claims were frozen before adding 12 balanced controls that combine multiple
@@ -1536,7 +1536,7 @@ conditional and normative state. Close further regex and alias patches. Freeze
 all 60 claims; the next offline slice must define typed evidence facts and
 measure an oracle matcher upper bound separately from extraction. RAG2 remains
 No-Go. Evidence:
-`docs/rag2_compositional_semantic_holdout_2026-08-25.md`.
+`docs/worklog/rag2_compositional_semantic_holdout_2026-08-25.md`.
 
 Typed evidence-fact oracle (2026-08-25): a versioned contract now represents
 subject, relation, typed value, scope, polarity, modality, source span, and
@@ -1547,7 +1547,7 @@ establishing the representation and matching upper bound. Extraction remains
 `not_evaluated`, so production stays No-Go. Freeze the contract and matcher;
 the next offline slice must score candidate-independent fact extraction by
 source family and its downstream claim verdicts. Evidence:
-`docs/rag2_typed_fact_oracle_2026-08-25.md`.
+`docs/worklog/rag2_typed_fact_oracle_2026-08-25.md`.
 
 Typed fact extraction v1 (2026-08-25): candidate-independent deterministic
 paths recover 4/4 Dart constant-assignment facts and 5/5 Markdown URI-port
@@ -1557,7 +1557,7 @@ remain fail-closed at 0/5, leaving overall precision 1.000, recall 0.643, and F1
 source-family gate fails and production remains No-Go. Freeze extraction v1;
 the next slice must apply it unchanged to a new untouched extraction holdout
 before any prose extractor is designed. Evidence:
-`docs/rag2_typed_fact_extraction_2026-08-25.md`.
+`docs/worklog/rag2_typed_fact_extraction_2026-08-25.md`.
 
 Independent extraction holdout (2026-08-25): frozen v1 was applied unchanged
 to a new hashed corpus with Dart literal and unsupported-expression controls,
@@ -1567,7 +1567,7 @@ prose stays 0.000/0.000; overall precision/recall/F1 is 0.714/0.455/0.556.
 Interpolated strings and malformed ports cause false facts. Freeze the holdout;
 the next slice may harden syntax-boundary precision only, without adding missed
 URI phrasing, aliases, or prose rules. Production remains No-Go. Evidence:
-`docs/rag2_typed_fact_extraction_holdout_2026-08-25.md`.
+`docs/worklog/rag2_typed_fact_extraction_holdout_2026-08-25.md`.
 
 Extraction v2 precision hardening (2026-08-25): a separate path uses analyzer
 AST simple-literal classification and complete URI-token validation while v1,
@@ -1576,7 +1576,7 @@ holdout, overall precision rises from 0.714 to 1.000, recall stays 0.455, and F1
 rises from 0.556 to 0.625. The known false facts are removed, but this is not
 independent promotion evidence. Freeze v2 and require a third untouched
 precision holdout; URI recall, prose extraction, and production remain No-Go.
-Evidence: `docs/rag2_typed_fact_extraction_v2_2026-08-25.md`.
+Evidence: `docs/worklog/rag2_typed_fact_extraction_v2_2026-08-25.md`.
 
 Independent v2 precision holdout (2026-08-25): frozen v2 scores precision
 1.000 for both Dart assignments and Markdown URIs on a third untouched corpus,
@@ -1585,7 +1585,7 @@ Recall remains 0.750 for Dart, 0.667 for URI relations, and 0.000 for prose;
 overall recall is 0.500, so extraction and production remain No-Go. Before
 adding recall, the next slice must distinguish unsupported extraction from a
 true absent-fact verdict with a versioned typed outcome. Evidence:
-`docs/rag2_typed_fact_extraction_v2_holdout_2026-08-25.md`.
+`docs/worklog/rag2_typed_fact_extraction_v2_holdout_2026-08-25.md`.
 
 Initial extraction outcome contract v1 (2026-08-25, later withdrawn): frozen v2
 was applied unchanged to all three extraction datasets. The instrument accounts for all
@@ -1594,7 +1594,7 @@ relations, and 12 unsupported prose spans. Availability is 0.909 for Dart,
 0.750 for URI, and 0.000 for prose, with false extraction rate 0.000. Its
 initial contract Go and unary-negative follow-up were withdrawn by the audit
 below. Evidence:
-`docs/rag2_typed_fact_extraction_outcomes_2026-08-25.md`.
+`docs/worklog/rag2_typed_fact_extraction_outcomes_2026-08-25.md`.
 
 Outcome-contract audit (2026-08-25): withdraw the v1 contract Go. Its gate did
 not require the 19 existing true positives, so zero extraction could pass, and
@@ -1605,7 +1605,7 @@ absence. Accounting is Go, runtime availability is not evaluated, and the
 contract remains No-Go. Stop extraction v3. Next label retrieved passages as
 answer support, abstention support, topical only, or irrelevant and reconcile
 the RAG2 promotion gate before deciding whether typed facts continue. Evidence:
-`docs/rag2_typed_fact_extraction_outcome_audit_2026-08-25.md`.
+`docs/worklog/rag2_typed_fact_extraction_outcome_audit_2026-08-25.md`.
 
 Passage-role reconciliation (2026-08-25): frozen trigram retrieval was
 re-scored without ranking changes against a versioned four-role oracle. It
@@ -1617,7 +1617,7 @@ evidence. Withdraw that gate, keep role classification unavailable at runtime,
 and close typed facts as diagnostic rather than a RAG2 prerequisite. Production
 remains No-Go. Next define only the storage-independent Knowledge Object and
 Chunk contract with deterministic replay and invalidation evidence. Evidence:
-`docs/rag2_passage_role_oracle_2026-08-25.md`.
+`docs/worklog/rag2_passage_role_oracle_2026-08-25.md`.
 
 Knowledge Object contract and audit (2026-08-25): the initial
 `rag2-knowledge-object-contract-v1` Go is withdrawn. Its duplicate-content
@@ -1632,7 +1632,7 @@ remains No-Go. Before source discovery, define an offline attestation contract
 for persisted project identity, canonical root, Git/working-tree revision,
 derived source trust, SEC1 read-only classification, and bounded text/binary
 handling. Evidence: `docs/rag2_knowledge_object_contract_2026-08-25.md` and
-`docs/rag2_knowledge_object_contract_audit_2026-08-25.md`.
+`docs/worklog/rag2_knowledge_object_contract_audit_2026-08-25.md`.
 
 Provenance attestation contract (2026-08-25):
 `rag2-provenance-attestation-contract-v1` binds project identity to persisted
@@ -1658,7 +1658,7 @@ Reports omit source text and absolute roots. The offline contract is Go;
 production discovery and production remain No-Go, and storage is not evaluated.
 Next add only an opt-in, bounded, manifest-only live shadow for one explicitly
 selected `CodingProject`, with no persistence or prompt/tool/model wiring.
-Evidence: `docs/rag2_source_discovery_chunking_replay_2026-08-26.md`.
+Evidence: `docs/worklog/rag2_source_discovery_chunking_replay_2026-08-26.md`.
 
 Live acquisition boundary (2026-08-26): an explicit metadata-only manifest
 shadow, aggregate source-scope measurement, and fixed three-command Git batch
@@ -1669,7 +1669,7 @@ profile: runtime-only exceeds the default ceiling, and retaining runtime,
 tests, and top-level docs exceeds the hard ceiling. Before storage, compare
 answer-bearing coverage of the measured profiles with fixed active-project
 questions. Evidence:
-`docs/rag2_batch_manifest_shadow_integration_2026-08-26.md`.
+`docs/worklog/rag2_batch_manifest_shadow_integration_2026-08-26.md`.
 
 Source-role oracle replay (2026-08-26): eight active-project questions retain
 validated required sources in runtime, documentation, test, tooling, and
@@ -1681,7 +1681,7 @@ default-limit-aware eligibility. The three measured profiles still cover 2/8,
 required-source presence, not retrieval or complete-support evidence. V2 is
 frozen as a development fixture; the later structural candidate and holdout
 decision are recorded below.
-Evidence: `docs/rag2_source_role_coverage_replay_2026-08-26.md`.
+Evidence: `docs/worklog/rag2_source_role_coverage_replay_2026-08-26.md`.
 
 Structural profile candidate (2026-08-26):
 `structural_stratified_v1` was frozen before loading the question fixture. It
@@ -1692,8 +1692,8 @@ with no development evidence-path overlap was frozen before candidate use; the
 unchanged one-time replay covered 4/8. Close stratified stable-hash sampling and
 do not tune or revive v1. A resumed source-scope experiment must predeclare a
 different question-independent policy and reserve a new untouched holdout.
-Evidence: `docs/rag2_structural_profile_candidate_2026-08-26.md` and
-`docs/rag2_structural_profile_holdout_2026-08-26.md`.
+Evidence: `docs/worklog/rag2_structural_profile_candidate_2026-08-26.md` and
+`docs/worklog/rag2_structural_profile_holdout_2026-08-26.md`.
 
 Explicit source roots hypothesis (2026-08-26):
 `rag2-explicit-complete-source-roots-v1` replaces automatic partial sampling
@@ -1714,9 +1714,9 @@ complete source roots are promotion scope Go. CI now reruns live Git-backed
 acquisition against both frozen declarations and scores questions from the
 admitted set. Storage, retrieval, settings, and application wiring remain out
 of scope. Evidence:
-`docs/rag2_explicit_source_roots_hypothesis_2026-08-26.md`,
-`docs/rag2_explicit_source_roots_promotion_eval_2026-08-26.md`, and
-`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`.
+`docs/worklog/rag2_explicit_source_roots_hypothesis_2026-08-26.md`,
+`docs/worklog/rag2_explicit_source_roots_promotion_eval_2026-08-26.md`, and
+`docs/worklog/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`.
 
 Backend-neutral storage replay (2026-08-26):
 `rag2-storage-replay-contract-v1` composes Knowledge Object v2 identity and
@@ -1738,7 +1738,7 @@ three-command batch Git evidence, and all-source attestation in CI. Scope
 questions are classified from the admitted set, not a duplicated path-prefix
 oracle. Selected-metadata hashes remain checkout observations and are not CI
 pins. This does not select a persistence backend. Evidence:
-`docs/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`.
+`docs/worklog/rag2_explicit_source_roots_acquisition_ci_2026-08-26.md`.
 
 Declaration identity alignment (2026-08-27):
 Acquisition and storage hash the same sorted source roots through
@@ -1754,7 +1754,7 @@ refuses schema version 2 without mutating the committed record, isolates two
 projects that share the same sorted roots, and rejects a snapshot from another
 project. Attested chunk text is stored; reports omit it. This does not select
 SQLite, FTS5, or Drift. Evidence:
-`docs/rag2_persistence_reopen_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_persistence_reopen_hypothesis_2026-08-27.md`.
 
 SQLite durability mapping (2026-08-27):
 `rag2-sqlite-durability-contract-v1` maps the frozen generation contract onto
@@ -1762,7 +1762,7 @@ an isolated sqlite3 file. A new connection reopens generation 2, a killed
 writer with an uncommitted replacement leaves generation 1, and unsupported
 schema fails closed. Drift, FTS5, retrieval, and production remain unselected
 in that instrument. Evidence:
-`docs/rag2_sqlite_durability_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_sqlite_durability_hypothesis_2026-08-27.md`.
 
 Drift additive schema mapping (2026-08-27):
 `rag2-drift-additive-schema-contract-v1` hosts the same row contract on
@@ -1771,7 +1771,7 @@ payloads, conversation-search FTS5 contents, and model-usage rows upgrades
 without rewriting those rows. Generation 2 reopens through a new Drift
 connection. RAG2 FTS5, retrieval, settings, tools, and production remain
 unselected. Evidence:
-`docs/rag2_drift_additive_schema_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_drift_additive_schema_hypothesis_2026-08-27.md`.
 
 Drift DAO generation store (2026-08-27):
 `rag2-drift-dao-generation-store-contract-v1` applies and reopens the frozen
@@ -1779,7 +1779,7 @@ envelope through Drift `select` and `insertOnConflictUpdate`. Killing an
 uncommitted Drift writer recovers generation 1. Concurrent Drift writers
 serialize. RAG2 FTS5, retrieval, settings, tools, and production remain
 unselected. Evidence:
-`docs/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_drift_dao_generation_store_hypothesis_2026-08-27.md`.
 
 Isolated FTS5 additive index (2026-08-27):
 `rag2-fts5-additive-index-contract-v1` creates `rag2_chunk_search` beside
@@ -1788,7 +1788,7 @@ declaration, generation, and snapshot hash. Atomic replacement rolls back on
 injected failure. Every chunk must MATCH. Two projects stay isolated.
 Generation 2 still reopens through the Drift DAO. `AppDatabase` stays at schema
 version 5. Retrieval, settings, tools, and production remain unselected.
-Evidence: `docs/rag2_fts5_additive_index_hypothesis_2026-08-27.md`.
+Evidence: `docs/worklog/rag2_fts5_additive_index_hypothesis_2026-08-27.md`.
 
 AppDatabase-hosted FTS5 (2026-08-27):
 `rag2-fts5-appdatabase-host-contract-v1` hosts `rag2_chunk_search` on
@@ -1797,7 +1797,7 @@ unindexed apply leave RAG2 FTS5 absent. Opt-in apply writes the generation
 row and index in one transaction. Injected commit failure and a killed
 uncommitted writer recover the previous generation and index. Retrieval,
 settings, tools, and production remain unselected. Evidence:
-`docs/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_fts5_appdatabase_host_hypothesis_2026-08-27.md`.
 
 Incremental FTS5 index (2026-08-27):
 `rag2-fts5-incremental-index-contract-v1` patches a hosted slot from the
@@ -1806,7 +1806,7 @@ skips unchanged FTS5 `rowid` and `content`, rewrites metadata-updated terms,
 deletes removed ids, and inserts added ids. Injected commit failure and a
 killed uncommitted writer recover the previous generation and unchanged
 rowids. Retrieval, settings, tools, and production remain unselected.
-Evidence: `docs/rag2_fts5_incremental_index_hypothesis_2026-08-27.md`.
+Evidence: `docs/worklog/rag2_fts5_incremental_index_hypothesis_2026-08-27.md`.
 
 FTS5 visibility drop (2026-08-27):
 `rag2-fts5-visibility-drop-contract-v1` hides or removes a hosted slot for
@@ -1816,7 +1816,7 @@ makes MATCH return zero rows; a later indexed apply may restore the slot.
 failure and a killed uncommitted drop recover generation 2 and its
 envelope, terms, and MATCH. A neighbor project stays visible. Retrieval,
 settings, tools, and production remain unselected. Evidence:
-`docs/rag2_fts5_visibility_drop_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_fts5_visibility_drop_hypothesis_2026-08-27.md`.
 
 FTS5 rebuild/reopen (2026-08-27):
 `rag2-fts5-rebuild-reopen-contract-v1` repairs a hosted slot from the
@@ -1825,7 +1825,7 @@ or mismatched slot without bumping generation. Rebuild twice and reopen
 keep envelope, terms, and MATCH. Injected commit failure and a killed
 uncommitted rebuild of a cleared slot leave the previous slot. A neighbor
 project stays visible. Retrieval, settings, tools, and production remain
-unselected. Evidence: `docs/rag2_fts5_rebuild_reopen_hypothesis_2026-08-27.md`.
+unselected. Evidence: `docs/worklog/rag2_fts5_rebuild_reopen_hypothesis_2026-08-27.md`.
 
 FTS5 hosted query (2026-08-27):
 `rag2-fts5-hosted-query-contract-v1` reads one hosted slot through
@@ -1836,7 +1836,7 @@ closed. Clear hides hits; rebuild restores them. Host and neighbor each
 hit their own ids with no cross-leak. An unindexed generation stays
 without RAG2 FTS5. Retrieval, settings, tools, and production remain
 unselected. Evidence:
-`docs/rag2_fts5_hosted_query_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_fts5_hosted_query_hypothesis_2026-08-27.md`.
 
 FTS5 hosted query projection (2026-08-27):
 `rag2-fts5-hosted-query-projection-contract-v1` joins MATCH hits to the
@@ -1846,7 +1846,7 @@ span, source trust, and the generation envelope without chunk content.
 Unknown or divergent FTS rows fail closed. Host and neighbor each project
 their own ids. An unindexed generation stays without RAG2 FTS5.
 Retrieval, settings, tools, and production remain unselected. Evidence:
-`docs/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md`.
+`docs/worklog/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md`.
 
 Hosted retrieval evaluation (2026-08-30):
 `rag2-hosted-retrieval-eval-contract-v1` runs the frozen
@@ -1860,7 +1860,7 @@ embedding row pass. The evaluation contract is Go; the candidate,
 production retrieval, prompting, tools, and RAG3 are No-Go. Freeze this
 candidate. A new attempt requires a predeclared answerability hypothesis
 and untouched holdout rather than another lexical threshold. Evidence:
-`docs/rag2_hosted_retrieval_eval_2026-08-30.md`.
+`docs/worklog/rag2_hosted_retrieval_eval_2026-08-30.md`.
 
 Hosted passage-role v2 promotion (2026-08-30):
 `rag2-hosted-passage-role-eval-contract-v2` preserves the v1 No-Go but
@@ -1874,7 +1874,7 @@ abstention support, one carries topical-only evidence, and one returns no
 evidence. Runtime role remains `unknown`. RAG2 is complete; production
 retrieval, prompting, tools, and RAG3 wiring remain No-Go pending the separate
 RAG3 contract. Evidence:
-`docs/rag2_hosted_passage_role_eval_2026-08-30.md`.
+`docs/worklog/rag2_hosted_passage_role_eval_2026-08-30.md`.
 
 Scope:
 - Add storage-independent Knowledge Object, Chunk, Provenance, retriever, fusion,
@@ -2152,7 +2152,7 @@ Initial implementation slice:
   `gemma-4-26B-A4B-it-Q4_K_M.gguf` showed default follow-up
   `cache_n=0, prompt_n=374, prompt_ms=255.571`, while prefix-stable follow-up
   produced `cache_n=2279, prompt_n=88, prompt_ms=128.025` with a 96.3% cached
-  prompt share. See `docs/ll6_prefix_stability_live_measurement_2026-06-14.md`.
+  prompt share. See `docs/worklog/ll6_prefix_stability_live_measurement_2026-06-14.md`.
 
 Deferred follow-up:
 - Runtime `id_slot` pinning in the app transport remains an LL6 extension or
@@ -2786,7 +2786,7 @@ Initial implementation slice:
   long-conversation fixture from 66 messages / 7291 estimated prompt tokens /
   `prompt_ms=2045.685` to 12 messages / 2253 estimated prompt tokens /
   `prompt_ms=586.408`. See
-  `docs/ll14_model_switch_handoff_live_measurement_2026-06-14.md`.
+  `docs/worklog/ll14_model_switch_handoff_live_measurement_2026-06-14.md`.
 
 Acceptance criteria:
 - Eviction never removes results the current task still references (guarded
@@ -3497,7 +3497,7 @@ Implementation status:
   turn-finalization recovery counts. Broader schema-driven tool-failure
   injection still needs deeper tool-loop machinery and a later dedicated slice.
   Session-log triage for the continuation-stall signature is recorded in
-  `docs/ll23_recovery_session_log_triage_2026-06-18.md`.
+  `docs/worklog/ll23_recovery_session_log_triage_2026-06-18.md`.
 
 
 ### LL24: Task-Based Primary-Model Routing
@@ -3610,7 +3610,7 @@ Optional extension — verifier-grounded synthesis pass:
   +6.7pts: synthesis helps even without model diversity, so this is cheap to try on
   an already-resident pool. Keep it behind the eval gate (LL12/LL19) and accept it
   only if `select+synthesize+re-verify` beats plain `select` on the user's tasks;
-  otherwise stay with selection. Full rationale: `docs/multi_model_orchestration_research.md`.
+  otherwise stay with selection. Full rationale: `docs/worklog/multi_model_orchestration_research.md`.
 
 ### LL27: Collaborative Multi-Model Orchestration (Future Challenge)
 
@@ -3646,7 +3646,7 @@ Known risks to validate before any build:
   debate / MoA.
 
 Full survey and candidate architectures (A0–A3): see
-`docs/multi_model_orchestration_research.md`.
+`docs/worklog/multi_model_orchestration_research.md`.
 
 Dependencies: LL26 (parallel selection substrate), LL12 / LL19 (eval gate), LL1
 (role→endpoint map), LL13 (mesh worktree agents). Related: EDGE2 (on-device
@@ -4343,7 +4343,7 @@ Shipped 2026-07-21 in two slices. `297d4f52` added
 `ConversationToolResultPruner` (dedupe + one-line outcome summaries) inside
 `buildArtifact`. Measuring it revealed the prune fed the already-capped summary
 half and changed no prompt tokens
-(`docs/ll30_prune_reaches_the_capped_half_2026-07-21.md`); `879b46f9` added the
+(`docs/worklog/ll30_prune_reaches_the_capped_half_2026-07-21.md`); `879b46f9` added the
 protected-tail token budget, which is where post-compaction tokens actually
 fall. The tail degrades overflow content via the same pruner and persists it as
 artifact content overrides, so no message is dropped and the LL6 prefix is only
@@ -4394,7 +4394,7 @@ Source: Hermes/Nous agent `agent/context_compressor.py`
 `_truncate_tool_call_args_json`, token-budget tail in `_find_tail_cut_by_tokens`,
 anti-thrashing in `should_compress`).
 
-Second source (2026-07-21, `docs/grok_build_comparison_2026_07_21.md`): Grok
+Second source (2026-07-21, `docs/worklog/grok_build_comparison_2026_07_21.md`): Grok
 Build ships a graduated version of the same prune in
 `xai-chat-state/src/actor/request_builder.rs:166` — above 50% context
 utilization, the last 3 turns are untouched, older tool results over 4000 chars
@@ -4475,7 +4475,7 @@ reported as `finishReason: "stop"` — the lexical fragment rule outranking
 mechanical ground truth, which is the LL34-LL37 pattern, though four instances
 justify no change. The leak is closed at the store and the triage tool now
 counts only grounded logs; see
-`docs/session_log_corpus_contamination_2026-08-05.md`.
+`docs/worklog/session_log_corpus_contamination_2026-08-05.md`.
 
 **Second instrument correction, 2026-08-06** — the triage tool's transport-error
 signal was **89.2% its own instrumentation**: 282 of 316 reported errors were
@@ -4490,7 +4490,7 @@ it looked. The skip is now structural (an entry is scored only if it carries a
 `test/python/triage_session_logs_test.py` covers it, including an invented
 future marker. No other signal moved (`max_tool_run`, `fr_length`, `oversized`,
 `tool_errors` are identical across the corpus before and after). Full record:
-`docs/triage_marker_transport_inflation_2026-08-06.md`.
+`docs/worklog/triage_marker_transport_inflation_2026-08-06.md`.
 
 The two corrections share a shape worth naming: **a filter written against the
 corpus as it was, silently outgrown by the corpus.** Both were found by reading
@@ -4579,7 +4579,7 @@ These four milestones share one product goal: **no terminal state is decided by
 reading the assistant's prose.** They were scoped from a comparison of
 Caverno's guard surfaces against Grok Build (xAI's published agent CLI source in
 `tmp/grok-build`); the full source record is
-`docs/grok_build_comparison_2026_07_21.md`.
+`docs/worklog/grok_build_comparison_2026_07_21.md`.
 
 The organizing rule, taken from how Grok Build treats its own regex panel:
 
@@ -4690,7 +4690,7 @@ Historical problem (implementation and observation now complete):
   layer, and none of it is inherent: it is a consequence of discarding
   structure at the tool boundary and reconstructing it four times.
 
-Measured payoff (`docs/ll34_tool_outcome_census_2026-07-21.md`, 992 session
+Measured payoff (`docs/worklog/ll34_tool_outcome_census_2026-07-21.md`, 992 session
 logs): only **41 of 106** registered tools are ever invoked, and tool traffic is
 extremely top-heavy. Seven tools carry the originally-scoped envelope and cover
 **41.3%** of all tool results; adding a read outcome brings it to **67.6%** with
@@ -4752,7 +4752,7 @@ from 2026-08-05 plus two from a run on build `6dceec29` (TODO MVP canary,
 Next: move the comparison to a session-log marker, as `goal_completion_shadow`
 already is, so it accumulates somewhere a triage can count. Waiting is not a
 plan for an instrument whose output rotates away
-(`docs/canary_evidence_outside_the_corpus_2026-08-06.md`).
+(`docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md`).
 
 Scope:
 - Add typed outcome fields to the tool-result envelope alongside the existing
@@ -4851,7 +4851,7 @@ tells the model the file is UNCHANGED instead of "updated or overwrote". It
 closes a real ambiguity — a byte-identical write was indistinguishable from a
 real one — but it is **not** the dominant failure's driver: counting the logs
 afterwards put no-op mutations at 1 of 23 edit-bearing re-read sessions against
-anchor mismatch at 19 (`docs/reread_loop_mechanism_2026-07-21.md`).
+anchor mismatch at 19 (`docs/worklog/reread_loop_mechanism_2026-07-21.md`).
 
 **Implemented 2026-08-09 — the `read_file` content hash, producer and consumer.**
 `readFile` now hashes the *whole file* (reusing the mutation precondition's
@@ -4960,10 +4960,10 @@ three exit 1 and two exit 0, all `agree`, with zero `disagree`, zero
 the global default remains off. The deterministic measurement still reduces
 the tool-heavy fixture from 13,844 to 5,152 estimated tokens, a 62.8% reduction.
 
-Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
-traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
+Source: Grok Build comparison, class 3 (`docs/worklog/grok_build_comparison_2026_07_21.md`);
+traffic evidence in `docs/worklog/ll34_tool_outcome_census_2026-07-21.md`.
 
-**Re-sized on coding data, 2026-08-07** (`docs/coding_corpus_measurement_2026-08-07.md`).
+**Re-sized on coding data, 2026-08-07** (`docs/worklog/coding_corpus_measurement_2026-08-07.md`).
 The census above was computed on the chat-dominated corpus. On the 3,773 tool
 results in the canary tree only **10 tools are ever invoked** (against 35), and
 the distribution shifts in this milestone's favour:
@@ -5040,7 +5040,7 @@ and the disagreement labels appear in `tool/triage_session_logs.py` output.
 
 **Correction, same day — the one disagreement was a fixture.** 1,569 of the
 1,740 files in the corpus were written by `flutter test`, not by the app
-(`docs/session_log_corpus_contamination_2026-08-05.md`). All four
+(`docs/worklog/session_log_corpus_contamination_2026-08-05.md`). All four
 `goal_completion_lexical_only` records in it are test output. The real reading
 is **7 shadow turns across 171 real logs, with zero recorded disagreements on
 all three labels** — including the one this item's motivation predicted.
@@ -5067,7 +5067,7 @@ category error: every record is one.
 The corpus's 7 grounded records are 6 `tool_accepted_lexical_missed` plus 1
 `tool_rejected_lexical_completed`, all dated 2026-07-22 → 2026-07-24 — they
 predate both readings. And the canary logs, which no measurement had ever read
-(`docs/canary_evidence_outside_the_corpus_2026-08-06.md`), hold 26 more:
+(`docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md`), hold 26 more:
 
 | label | corpus | canary |
 | --- | ---: | ---: |
@@ -5293,7 +5293,7 @@ First firing distribution, 2026-08-05 — **1,735 real session logs**
 One label is 82% of all firings. The rest are single digits.
 
 **Correction, same day.** This table counted test output as sessions
-(`docs/session_log_corpus_contamination_2026-08-05.md`). Over the 171 logs that
+(`docs/worklog/session_log_corpus_contamination_2026-08-05.md`). Over the 171 logs that
 recorded an actual LLM call the distribution is **32 firings across 4 labels**:
 `unexecuted_command_action_notice` 26, `unverified_read_only_inspection_notice`
 3, `coding_continuation_recovery_prose_only_coding_continuation` 2,
@@ -5319,7 +5319,7 @@ still is — zero firings.
 **Correction, 2026-08-06 — three of those seven have fired.** The zeros were
 measured on `~/.caverno/session_logs`, which is mostly chat; the live canaries
 write to their own run directories and had never been counted
-(`docs/canary_evidence_outside_the_corpus_2026-08-06.md`). Across 452 coding
+(`docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md`). Across 452 coding
 turns there: `final_answer_concise_retry` **24**,
 `truncated_tool_call_arguments_feedback` **13**, `verification_claim_notice`
 **2**. `final_answer_concise_retry` is the largest transform label in that
@@ -5351,7 +5351,7 @@ before recording. A clean `qwen3.6-27b-vision` run on build `4c0efc96` passed
 `pending_action_length_recovery` plus the bounded continuation-recovery label.
 The verifier transitioned from typed exit 1 to typed exit 0; both LL34 shadow
 comparisons agreed. See
-`docs/ll36_final_answer_transform_coverage_2026-08-09.md`.
+`docs/worklog/ll36_final_answer_transform_coverage_2026-08-09.md`.
 
 The two distributions barely overlap — the corpus's dominant label
 (`unexecuted_command_action_notice`, 26) fires twice in the canary tree — so
@@ -5407,10 +5407,10 @@ Source: Grok Build comparison, class 2; `goal_stop_detector.rs`
 (`GoalPrematureStopDetected { pattern }` and its precision/recall rationale).
 
 Progress (2026-07-22): both additive halves are done. The firing surface was
-completed 2026-07-21 (`docs/ll36_guard_firing_surface_2026-07-21.md`), and
+completed 2026-07-21 (`docs/worklog/ll36_guard_firing_surface_2026-07-21.md`), and
 structural enforcement landed as
 `test/quality/lexical_guard_advisory_test.dart`
-(`docs/ll36_structural_enforcement_2026-07-22.md`): the eight lexical guards
+(`docs/worklog/ll36_structural_enforcement_2026-07-22.md`): the eight lexical guards
 measured as already advisory, so the slice locks that in with a transitive
 import-reachability check plus a symbol check, both verified against negative
 controls. One real leak was found and broken
@@ -5447,7 +5447,7 @@ Four post-change canaries on `qwen3.6-27b-vision` and
 detector stopped follow-up tools mechanically but had relied on its generated
 completion sentence for goal persistence; it now records that owner-scoped
 grounded completion directly. See
-`docs/ll36_delete_by_measurement_2026-08-10.md`. LL36 has no remaining
+`docs/worklog/ll36_delete_by_measurement_2026-08-10.md`. LL36 has no remaining
 implementation; ongoing transform and compatibility monitoring is operational
 evidence for LL37 feasibility and future deletion decisions.
 
@@ -5853,7 +5853,7 @@ Measurement start (2026-08-10):
 Source: Grok Build `session/goal_classifier.rs`,
 `session/templates/goal_verifier_prompt.md`, `goal_strategist_prompt.md`. The
 inline/idle split, the fidelity gate, and the inverted uncertainty default are
-Caverno adaptations — see `docs/grok_build_comparison_2026_07_21.md`.
+Caverno adaptations — see `docs/worklog/grok_build_comparison_2026_07_21.md`.
 
 ### LL32: Deferred Subdirectory Instruction And Skill Discovery
 
@@ -6173,7 +6173,7 @@ Audit reopening (2026-08-14):
 - These are policy-input defects, not merely missing UI labels. SEC1 remains
   `current` until slice 7 has exhaustive classifier and containment tests. The
   canonical evidence and remediation mapping are in
-  `docs/security_audit_2026-08-14.md` (SA-03, SA-04, and SA-09).
+  `docs/worklog/security_audit_2026-08-14.md` (SA-03, SA-04, and SA-09).
 
 ### SEC2: Taint-Aware Tool Execution
 
@@ -6255,7 +6255,7 @@ The approval service evaluates taint before cache/full access, HTTP mutations
 cannot reach generic fallback execution, and tainted ungated network reads stop
 at a fresh owner-scoped preflight. Adversarial cache, full-access, and
 fetch-then-mutate regressions cover the shortcuts identified in
-`docs/security_audit_2026-08-14.md` SA-03 and SA-07.
+`docs/worklog/security_audit_2026-08-14.md` SA-03 and SA-07.
 
 Slice 1 evidence:
 - `lib/core/security/taint_policy.dart`: `TaintDecision` (allow / requireApproval
@@ -6300,8 +6300,8 @@ Status: `current`
 
 Sources of truth:
 
-- `docs/security_audit_2026-08-14.md`
-- `docs/security_followup_review_2026-08-24.md`
+- `docs/worklog/security_audit_2026-08-14.md`
+- `docs/worklog/security_followup_review_2026-08-24.md`
 
 Scope:
 - Close the audit findings that cross the narrower SEC1 classifier and SEC2
@@ -6426,7 +6426,7 @@ Slice plan:
    `docs/sec4_7c_supply_chain_residuals_task.md`.
 
 Acceptance criteria:
-- The P0 release criteria in `docs/security_audit_2026-08-14.md` are all met.
+- The P0 release criteria in `docs/worklog/security_audit_2026-08-14.md` are all met.
 - Imported settings fixtures containing enabled hooks, trusted stdio MCP, full
   access, and saved permissions persist only sanitized state and cause zero
   effects before fresh review across rebuild, next-turn, restart, and resync.

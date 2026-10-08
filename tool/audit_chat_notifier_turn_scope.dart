@@ -531,7 +531,7 @@ void validateProgramManifest(ChatNotifierDecompositionManifest manifest) {
   // releases moved out of `_terminalizeRuntimeTurn` into a `TurnReleaseScope`
   // the turn owns, so the part is partially extracted and `keep` is no longer
   // the true status. Nothing else moved, and the authorization covers one
-  // slice; see `docs/chat_notifier_renewal_question_six_review.md`.
+  // slice; see `docs/worklog/chat_notifier_renewal_question_six_review.md`.
   const expectedKeepParts = {
     'chat_notifier_response_finalization.dart',
     'chat_notifier_error_handling.dart',

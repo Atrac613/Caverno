@@ -10,7 +10,7 @@ This track controls output produced by repository development commands and
 consumed by external coding agents. It does not change Caverno's product prompt
 or tool-result behavior; LL34 continues to own the in-app summary-first policy.
 The measurement baseline and prioritization are recorded in
-`docs/codex_output_efficiency_investigation_2026-09-04.md`.
+`docs/worklog/codex_output_efficiency_investigation_2026-09-04.md`.
 
 ### DX1: Flutter Test Output Summarization
 

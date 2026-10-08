@@ -12,9 +12,9 @@
 
 - Affected components: the RAG1 fixture/evaluator, the RAG2 Drift generation
   store, the AppDatabase-hosted `rag2_chunk_search` slot, and tool-only reports.
-- Related docs: `docs/rag1_completion_audit_2026-08-25.md`,
+- Related docs: `docs/worklog/rag1_completion_audit_2026-08-25.md`,
   `docs/rag2_investigation_handoff_2026-08-25.md`, and
-  `docs/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md`.
+  `docs/worklog/rag2_fts5_hosted_query_projection_hypothesis_2026-08-27.md`.
 - Reference pattern: tool-level RAG2 replay programs with deterministic JSON
   and Markdown output plus focused Flutter tests.
 - Release gate: RAG2 remains No-Go unless the frozen candidate clears every

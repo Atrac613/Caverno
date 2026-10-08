@@ -95,7 +95,7 @@ class ToolLoopContextDigest {
   /// turns, 56.2% mutated a file and then continued a mean of 2.4 further
   /// steps — up to 27 — unable to see what they had changed, and 29.9% of them
   /// ran no command or check after their last edit
-  /// (`docs/self_correction_baseline_2026-08-30.md`).
+  /// (`docs/worklog/self_correction_baseline_2026-08-30.md`).
   ///
   /// The section exists to *state a fact the model cannot otherwise recover*,
   /// never to discourage a repeat. Re-writing a file is how a bad edit is

@@ -1,0 +1,692 @@
+# Caverno Security Follow-Up Review (2026-08-24)
+
+Status: High severity remediation complete; defense-in-depth queue open.
+SA-24 added 2026-09-02 for the Apple Watch resolution channel.
+SA-25 added 2026-09-06 for a desktop's own approval on its owner's phone,
+and superseded the same day by SA-26 after its premise was measured wrong.
+SA-27 added 2026-09-06 for Remote Coding interactions on the Apple Watch.
+
+Reviewed revision: `a3d35fc9e592`.
+
+## Decision
+
+SA-19 through SA-23 were remediated on 2026-08-24.
+
+This review extends the point-in-time audit in
+`docs/worklog/security_audit_2026-08-14.md`. It does not renumber or rewrite that
+audit's original findings.
+
+## Scope And Method
+
+The review traced injection, authentication and authorization, deserialization,
+and sensitive-data paths through:
+
+- local foreground and background command execution;
+- HTML Preview file serving and WebView navigation;
+- HTTP and stdio MCP response parsing plus settings QR import;
+- LLM session logs and debug app logs; and
+- authenticated Remote Coding approval and question resolution.
+
+The source review was followed by 49 focused Flutter tests covering the current
+local-command guard, HTML Preview server, browser navigation, MCP client, and
+Remote Coding server. Those tests passed, but none exercised the adversarial
+cases listed below. No destructive exploit or real credential capture was
+performed.
+
+## Findings Summary
+
+| ID | Severity | Evidence | Finding | Roadmap slice |
+|---|---|---|---|---|
+| SA-19 | High | Confirmed source path; activation depends on Full Access or approval | Opaque native-shell commands can compute an out-of-project write target after the lexical fence | SEC4.4g |
+| SA-20 | High | Confirmed source path | Active HTML Preview content can read served project files and use unrestricted subresource egress | SEC4.3e |
+| SA-21 | Medium | Remediated 2026-08-24 | MCP HTTP, MCP stdio, and compressed QR inputs lacked complete pre-parse resource limits | SEC4.3f |
+| SA-22 | Medium | Remediated 2026-08-24 | Sensitive diagnostic storage lacked owner-only permissions, structured MCP redaction, and a privacy-preserving new-install default | SEC4.6k |
+| SA-23 | Low | Remediated 2026-08-24 | Remote Coding resolved pending interactions by ID without rechecking origin or device ownership | SEC4.5g / RC1 |
+
+No unsafe object-instantiation primitive was found. The deserialization risk in
+SA-21 is resource exhaustion rather than arbitrary code execution.
+
+## SA-19: Opaque Shell Project-Containment Bypass
+
+Preconditions:
+
+- a coding project is selected;
+- the model or an authenticated Remote Coding client supplies a native-shell
+  command; and
+- Full Access, auto-review, or an explicit approval permits execution.
+
+Evidence:
+
+- `lib/features/chat/data/datasources/local_command_mutation_guard.dart:45-110`
+  authorizes only candidates that
+  `lib/features/chat/data/datasources/local_command_mutation_guard.dart:251-267`
+  can recognize as `~`, `..`, or absolute paths;
+- `lib/features/chat/data/datasources/local_shell_tools.dart:192-208` forwards
+  every non-internal command unchanged to `sh -c` or `cmd /C`; and
+- `lib/features/chat/presentation/providers/chat_notifier_local_file_handlers.dart:373-383`
+  marks execution as Full Access eligible while requiring a special manual
+  decision only for paths the lexical scan found.
+
+An interpreter, environment expansion, or command substitution can construct an
+external target without placing that target in the scanned command text. This
+breaks the selected-project boundary independently of the earlier standalone
+shell-separator fix.
+
+Minimal production patch:
+
+1. Classify every native-shell command as either structurally modeled or opaque.
+2. When a project root exists, route opaque commands through a distinct
+   host-write capability that requires fresh, non-cacheable manual approval.
+3. Evaluate that requirement before saved approvals, auto-review, and Full
+   Access.
+4. Apply the same boundary to foreground execution and `process_start`.
+5. Keep OS-level filesystem sandboxing as the path to enforce containment after
+   approval; do not claim opaque commands are project-contained without it.
+
+Exit evidence:
+
+- computed interpreter paths, environment expansion, command substitution, and
+  runtime-created symlink escapes cannot use Full Access or cached approval;
+- denial causes zero target process starts; and
+- in-project structured commands retain their existing behavior.
+
+## SA-20: HTML Preview Active-Content Exfiltration
+
+Preconditions:
+
+- the user opens an HTML Preview for a project containing malicious or
+  model-generated active content.
+
+Evidence:
+
+- `lib/features/chat/domain/services/html_preview_static_server.dart:63-91`
+  serves files below the project root while
+  `lib/features/chat/domain/services/html_preview_static_server.dart:113-153`
+  excludes only selected path and key patterns, not all non-preview files;
+- `lib/features/chat/presentation/pages/chat_page_browser_builders.dart:405-430`
+  enables JavaScript and installs a navigation callback; and
+- `lib/core/services/browser_session_service.dart:270-309` controls navigation
+  destinations but does not constrain fetch, WebSocket, image, form, script, or
+  other subresource egress.
+
+Same-origin JavaScript can read a predictable project file through the loopback
+server and send the content to an external destination.
+
+Minimal production patch:
+
+1. Serve only an explicit preview entry directory and declared web assets.
+2. Add a response Content Security Policy with `connect-src 'none'`, external
+   images/scripts/fonts disabled, `form-action 'none'`, `frame-src 'none'`,
+   `object-src 'none'`, and `base-uri 'none'`.
+3. Add `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, and
+   `Cache-Control: no-store`.
+4. Keep top-level navigation rejection and add platform-supported subresource
+   request interception as defense in depth.
+
+Exit evidence:
+
+- malicious fetch, beacon, form, WebSocket, iframe, and external-resource cases
+  cannot cross the preview origin;
+- ordinary same-origin preview assets still load; and
+- source, credential, and configuration files outside the declared preview
+  surface return `404`.
+
+## SA-21: Unbounded MCP And QR Deserialization
+
+Evidence:
+
+- `lib/features/chat/data/datasources/mcp_client.dart:249-269` uses `http.post`,
+  buffers `bodyBytes`, and only then decodes the response, while
+  `lib/features/chat/data/datasources/mcp_client.dart:279-306` scans and decodes
+  every extracted JSON document;
+- `lib/features/chat/data/datasources/mcp_stdio_client.dart:66-78` places an
+  unbounded byte stream through `LineSplitter` before
+  `lib/features/chat/data/datasources/mcp_stdio_client.dart:161-177` calls
+  `jsonDecode`; and
+- `lib/features/settings/data/settings_qr_service.dart:25-31` expands gzip input
+  before enforcing a decoded-size limit.
+
+A malicious or compromised configured endpoint can exhaust memory with a large
+or never-terminated response. A compressed settings payload can consume
+disproportionate memory before schema validation.
+
+Minimal production patch:
+
+1. Reuse the SEC4.3d streaming pattern with a 1 MiB MCP wire-byte ceiling,
+   content-length precheck, total deadline, and idle timeout.
+2. Terminate a stdio MCP server when one response line exceeds the configured
+   limit; bound stderr diagnostics as well.
+3. Bound the number of extracted JSON documents and aggregate tool-content
+   length.
+4. Enforce compressed-input and decompressed-output limits during QR decoding,
+   before JSON parsing.
+
+Exit evidence must cover declared-length, chunked, never-newline, excessive
+JSON-document, and compression-expansion cases.
+
+Remediation status (partially completed 2026-08-24): SEC4.3f-A replaces
+body-buffering MCP HTTP requests with bounded stream consumption. It rejects a
+declared or actual response over 1 MiB and enforces total and between-chunk idle
+deadlines before UTF-8 or JSON decoding. Declared-length, chunked, stalled-body,
+and existing transport compatibility tests pass. SEC4.3f-B adds a 1 MiB
+pre-newline stdout/stderr ceiling that terminates the child on violation, caps
+HTTP/SSE responses at 32 JSON documents, and caps returned tool text at 524,288
+characters across HTTP and stdio. Never-newline, stderr, plain/SSE
+document-count, exact-boundary, and aggregate-content tests pass. SEC4.3f-C
+rejects Base64 text beyond the derived compressed budget before decoding,
+rejects compressed input over 256 KiB, and caps chunked gzip output at 1 MiB
+before UTF-8 or JSON decoding. Compressed-input, high-expansion, exact-boundary,
+generation, and malformed-input tests pass. SA-21 is closed.
+
+## SA-22: Sensitive Diagnostic Storage
+
+Remediation status (2026-08-24): SEC4.6k-A hardens the default Caverno root and
+app/session log directories to `0700`, migrates current and rotated logs to
+`0600`, and secures empty new files before append. SEC4.6k-B recursively
+redacts HTTP/stdio MCP diagnostics, suppresses session IDs and process
+arguments, and replaces HTTP response and stdio stderr bodies with size
+metadata. SEC4.6k-C defaults session logging off when no settings exist while
+preserving explicit saved values and the legacy missing-field default-on
+migration. SA-22 is closed.
+
+Evidence:
+
+- `lib/features/settings/domain/entities/app_settings.dart:982` defaults LLM
+  session logging to enabled, while
+  `lib/features/chat/data/datasources/llm_session_log_store.dart:687-717` and
+  `lib/features/chat/data/datasources/llm_session_log_store.dart:758-809`
+  persist message content, tool arguments, and tool results;
+- `lib/features/chat/data/datasources/llm_session_log_store.dart:666-682` and
+  `lib/core/utils/app_log_file.dart:55-80` create directories and append files
+  without applying `SensitiveFilePermissions`;
+- a local inspection found 877 session-log files and eight app-log files at
+  mode `0644`, with their log directories at `0755`; and
+- `lib/features/chat/data/datasources/mcp_client.dart:79-92`,
+  `lib/features/chat/data/datasources/mcp_client.dart:193-214`, and
+  `lib/features/chat/data/datasources/mcp_client.dart:304-306` interpolate header
+  maps, session identifiers, arguments, and response bodies into strings before
+  the structured redactor can inspect keys.
+
+Minimal production patch:
+
+1. Harden the Caverno root and both log directories to `0700` before file
+   creation.
+2. Create empty current files, migrate current and rotated files to `0600`, and
+   only then append content.
+3. Replace string-concatenated structured diagnostics with a helper that parses
+   and recursively redacts structured values.
+4. Treat MCP session identifiers as sensitive and omit full response bodies by
+   default.
+5. Default session logging off for new installations while preserving an
+   explicit existing user choice.
+
+Exit evidence must cover new files, migrated files, rotation, permission
+failure, nested secrets, MCP headers, and JSON embedded in diagnostic strings.
+
+## SA-23: Remote Interaction Resolution Ownership
+
+Evidence:
+
+- `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart:1121-1188`
+  publishes only remote-origin pending approvals and questions; but
+- `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart:966-1025`
+  accepts an authenticated client's identifier and resolves the matching
+  pending object without rechecking its origin or initiating device.
+
+UUID identifiers and the absence of a normal desktop-origin disclosure path
+reduce exploitability. Authorization must nevertheless be enforced at the
+mutation boundary rather than relying on identifier secrecy.
+
+Minimal production patch:
+
+1. Reject resolution unless the current pending object has remote origin.
+2. If paired devices are separate principals, persist the initiating
+   `deviceId` with the pending interaction and require an exact match.
+3. Return the existing generic not-found error for authorization failures.
+
+Exit evidence must cover desktop-origin rejection, stale identifiers, revoked
+devices, reconnects, and the documented same-device or cross-device policy.
+
+Remediation: SEC4.5g treats paired devices as separate principals. The
+authenticated initiating `deviceId` now follows a queued remote turn into file,
+local-command, git-command, and question pending objects. Per-client snapshots
+hide pending interactions owned by another device, and the mutation boundary
+rechecks remote origin, exact device ownership, and an active pairing before
+resolution. Same-device reconnects retain access; desktop-origin, stale,
+cross-device, and revoked-device attempts receive the existing generic
+not-found or authentication error. SA-23 is closed.
+
+## SA-24: Apple Watch Interaction Resolution Channel
+
+Opened 2026-09-02, alongside the Apple Watch companion (WATCH1-WATCH6). This is
+a scope note and a hardening, not an exploited finding.
+
+Context:
+
+- The companion adds a **second channel that can resolve pending approvals and
+  questions**, reached over `WCSession` rather than the authenticated WSS
+  transport SA-23 was written about.
+- It deliberately does **not** pass through the SEC4.5g device gate. That gate
+  scopes an interaction to the paired device that started the turn; applying it
+  to the watch would hide every iPhone-initiated approval from the watch, which
+  is the companion's whole purpose. The watch is treated as a peripheral of this
+  device: it sends with `ChatInteractionOrigin.local` and sees local-origin
+  interactions.
+- Its authority comes from the pairing itself. `WCSession` reaches exactly the
+  one watch paired with this phone; there is no address, token, or listener a
+  third party could reach. Nothing about SA-23's transport surface changes.
+
+Weakness found and fixed on 2026-09-02:
+
+- `PendingApprovalSummary.isOwnedByRemoteDevice` excluded remote interactions by
+  testing `remoteDeviceId` for emptiness — inferring "remote" from the presence
+  of an owner id. The reference gate
+  (`RemoteCodingServerNotifier._canResolveInteraction`) checks `origin` first
+  and counts a remote interaction with a missing owner as **not** resolvable.
+  The watch filter inverted that: a remote-origin pending that lost its owner id
+  would have been shown on, and resolvable from, the wrist.
+- Not reachable in the shipped build. `ChatNotifier` nulls `remoteDeviceId` for
+  local-origin turns, and the single remote producer always supplies an
+  authenticated id, so the two tests agreed in practice. The guard now reads
+  `origin` as well, so they keep agreeing after a refactor rather than by
+  coincidence.
+- Covered by `test/features/chat/domain/services/pending_approval_summary_test.dart`
+  and `test/features/watch/domain/watch_approval_mapper_test.dart`, both of which
+  fail if the origin check is removed.
+
+Residual scope, deliberately not addressed here:
+
+- Kinds the watch can answer are limited by what mobile can raise at all: file,
+  shell, and git approvals are gated behind `isDesktopPlatform` in
+  `mcp_tool_service.dart` and cannot occur on iOS.
+- The watch presents an approval in less detail than the phone does. Kinds that
+  need structured input — SSH credentials, computer-use smoke arming — are shown
+  read-only and must be completed on the iPhone.
+- Actionable approval notifications carry Approve/Deny only when the approval id
+  is known and the kind is a plain yes/no, so a queued second approval cannot
+  receive a decision meant for the first.
+
+## SA-25: A Desktop's Own Approval On Its Owner's Paired Phone
+
+Opened 2026-09-06 as WATCH13. This is a policy question SEC4.5g never answered,
+not a finding: nothing is currently exposed, and the milestone exists because
+the *absence* of exposure is itself a product problem.
+
+Decision: **superseded by SA-26 on 2026-09-06.** As written below, a paired
+device may see the desktop's own pending approval and may not resolve one. The
+reasoning rests on a claim about marginal authority that measurement refuted
+within the day — a paired phone already holds the desktop's execution authority
+through `sendMessage`. The entry is kept because the mistake is instructive:
+the argument below is sound about iOS and answers a question nobody asked, and
+nothing in it was checked against what a remote turn actually runs.
+
+### The question
+
+`RemoteCodingServerNotifier._canResolveInteraction`
+(`remote_coding_server_notifier.dart:1274-1289`) admits an interaction only when
+`origin == ChatInteractionOrigin.remote`, the owner id is non-empty, it equals
+the authenticated device id, and that device still holds an active pairing. A
+turn started at the Mac carries `ChatInteractionOrigin.local` and no owner, so
+it fails the first clause for every paired device — including the phone
+belonging to the person sitting at that Mac.
+
+SEC4.5g decided that paired device A may not resolve paired device B's turn.
+It did not decide whether the *desktop's own* approval may reach a device that
+person paired to it. WATCH10 established that this, not missing transport, is
+why a blocked desktop turn is silent on the phone.
+
+### Why the WATCH1 argument does not extend
+
+SA-24 accepted that the Apple Watch is a peripheral of the phone rather than a
+principal, and let it see local-origin approvals. The tempting move is to run
+that argument one hop further: the phone is a peripheral of the desktop.
+
+It does not survive the hop, for a reason specific to this codebase:
+
+- The watch gains **no authority** it did not already have. It answers only
+  what the phone could already answer, and `WCSession` reaches exactly the one
+  watch physically paired to that phone.
+- The phone would gain authority it **structurally cannot hold**. File, local
+  command, and git approvals are gated behind `isDesktopPlatform`
+  (`mcp_tool_service.dart:287`, `:293`, `:322`) and cannot arise on iOS at all.
+  Under SEC4.4g every native shell command needs a fresh, non-cacheable
+  approval, so these are the highest-consequence approvals the app raises.
+  Widening the gate would make an unlocked phone a remote-execution console for
+  a machine it is not.
+
+The peripheral argument holds where the peripheral adds no authority. Here it
+would create it. So the two cases are not the same shape, and SA-24 is not a
+precedent for this one.
+
+### Why a view is different from a resolution
+
+Today the same predicate serves both: `_pendingRemoteApproval` (`:1182`) and
+`_pendingRemoteQuestion` (`:1149`) decide what a client *sees*, and
+`_canResolveApproval` (`:1242`) with `_handleResolveApproval` (`:970`) /
+`_handleResolveQuestion` (`:1007`) decide what it may *answer*. Because one
+predicate answers both questions, the desktop's own approval is not merely
+unanswerable from the phone — it is invisible, and the turn stalls with no
+account of why.
+
+Showing it costs nothing in the threat model. The same authenticated socket
+already carries the desktop's project list, thread titles, transcript content,
+and terminal output to that phone; the text of a pending approval is not more
+sensitive than what the client already receives. What it buys is the whole
+practical complaint: the person who walked away learns the Mac is waiting, and
+on what.
+
+Granting a resolution is where the authority is created, and it is the part
+this decision declines.
+
+### Consequences to honour when it is implemented
+
+1. **Two predicates, not a loosened one.** Split view from resolution rather
+   than relaxing `_canResolveInteraction` in place. WATCH13 already recorded
+   that a widening must be a distinct origin case; SA-24 recorded the shape of
+   the mistake, where reading `remoteDeviceId` alone inverted the check. A
+   predicate that answers two questions cannot be widened for one of them.
+2. **The resolution boundary keeps the existing predicate unchanged.** The
+   mutation path must still reject desktop-origin interactions with the
+   existing generic not-found error, so a client that guesses an id learns
+   nothing from the failure.
+3. **A visible approval must not become an actionable one.** The client's
+   approval sheet, the actionable notification built in WATCH10, and any
+   WATCH11 wrist card must all render a desktop-origin pending as read-only,
+   with the reason stated on screen rather than as a silently missing button.
+4. **The watch is unaffected by this decision.** `WatchApprovalMapper.map`
+   reads this device's own `ChatState`; a desktop's approval reaches the phone
+   as a `RemoteCodingApproval` on a different state tree, so nothing arrives at
+   the wrist until WATCH11 puts it there deliberately.
+5. **Two paired phones both see it.** That is consistent with the rest of the
+   snapshot, which is already identical for every authenticated client apart
+   from the ownership filter. No precedence question arises, because no device
+   may answer.
+
+### What is left open
+
+Whether a desktop may *opt in* to letting one named paired device resolve its
+own approvals — default off, per device, revocable — is a separate decision. It
+should not be taken until the view path has shipped and there is evidence that
+seeing the stall is not enough. Recording it here so a later reader does not
+mistake this decision for a refusal to ever consider it.
+
+### Exit evidence when the view path ships
+
+- A desktop-origin pending approval appears in the per-client snapshot and is
+  rendered read-only on the client.
+- `resolveApproval` and `resolveQuestion` for that same id are rejected with
+  the existing generic not-found error, from the paired device that is the
+  desktop owner's own phone.
+- A revoked device sees neither.
+- The watch snapshot is unchanged by the presence of a desktop-origin approval.
+
+## SA-26: Desktop-Equivalent Authority On A Paired Phone
+
+Opened 2026-09-06. **Supersedes SA-25**, which was decided one day earlier on a
+premise this entry retracts. SA-25 is left in place above rather than deleted,
+because the mistake is the useful part of the record.
+
+Decision: **a paired device may hold desktop-equivalent authority over threads
+that already exist, including approvals raised by the desktop's own turns.**
+Project creation stays off the phone. The authority is granted per device by
+the desktop owner, is bound to what the phone actually displayed, and is
+audited. Cross-device isolation is untouched.
+
+### What SA-25 got wrong
+
+SA-25 argued that letting a phone resolve the desktop's own approval would give
+it "authority it structurally cannot hold", because file, shell, and git
+approvals are gated behind `isDesktopPlatform` and cannot arise on iOS.
+
+That is true about iOS and irrelevant to the question. The turn does not run on
+the phone. `_handleSendMessage`
+(`remote_coding_server_notifier.dart`) hands the message to the **desktop's**
+`ChatNotifier` with `origin: ChatInteractionOrigin.remote` and the phone's
+device id, and that turn carries the desktop's entire tool catalogue. Any
+`PendingLocalCommand` it raises is stamped with that phone as owner, projected
+to it, and resolvable by it.
+
+So a paired phone can already make the Mac execute an arbitrary shell command:
+send a message asking for it, then approve the request it provokes. **Pairing
+already confers the desktop's execution authority.** That is the design, not an
+oversight — but it means the marginal authority in answering a desktop-origin
+approval is not new, and is strictly weaker than what `sendMessage` grants: the
+phone answers a question rather than authoring the request.
+
+The gate SA-25 declined to widen was therefore not holding back the authority
+it was described as holding back.
+
+### Where the boundary actually is
+
+Pairing. It is well built, and the review of 2026-09-06 found nothing to fix in
+it:
+
+- TLS with the certificate pin carried in the pairing payload,
+  `SecurityContext(withTrustedRoots: false)` on both ends so every certificate
+  reaches the pin check, and `ensureConfidentialBeforeCredentials` refusing to
+  send credentials over a transport that is not confidential. Release builds
+  fail closed before a plaintext bind (`remote_coding_listen_policy.dart`).
+- A pairing ticket that lives five minutes, is single-use, carries a 24-byte
+  random secret, is consumed through a challenge-response, and exists only
+  because a human asked for it at the Mac.
+- A 32-byte device token, stored as a SHA-256 hash on the desktop and compared
+  in constant time, held in the phone's secure storage.
+- Revocation that clears the token and closes that device's live sockets.
+
+### The four residual threats, and what answers each
+
+Because the boundary is pairing rather than the origin gate, the useful
+controls are the ones that act at the moment of consequence.
+
+| | Threat | Control |
+|---|---|---|
+| T1 | A stolen, unlocked phone is a bearer of the desktop's execution authority | Device-local authentication (Face ID / passcode) immediately before a mutating resolution is sent |
+| T2 | Blind approval: the notification's Approve button resolves without the command ever being read | Make the surface where the decision is taken carry the whole question — see the correction below |
+| T3 | Confused deputy: the model at the Mac proposes something dangerous and a small screen rubber-stamps it | The per-device grant is per kind, so the dangerous kinds are opt-in rather than implied; optionally, offer desktop-origin approvals only once the Mac is idle or locked |
+| T4 | No record on the desktop of what a remote device approved | Audit every remote resolution with device id, kind, body, and timestamp, and surface it in the desktop UI — **shipped 2026-09-06**, see below |
+
+T2's control is a prerequisite for the grant in T3, not a parallel nicety: a
+grant of authority over a command the holder cannot be shown to have read is
+not a grant, it is an accident waiting for a plausible-looking payload.
+
+**Correction, 2026-09-06.** The control was first written as a digest of the
+rendered body, carried on the resolution and checked by the desktop. Measuring
+it before building it showed it would have been ceremonial: an approval id is a
+UUID minted at construction, every field of a `Pending*` is final, and the
+desktop resolves strictly by id against what is pending now. A different body
+is therefore always a different id, and the id check already binds the
+decision to the request. A digest would have attested to something the
+transport already guaranteed.
+
+What the intent actually required was the other half, and that half was broken.
+The notification body is built from the summary's `title`, which for a shell
+command is the command alone, so a **destructive** command arrived on the lock
+screen and the paired watch with Approve/Deny beside it and nothing saying it
+was destructive — the warning existed, in the sheet nobody had opened.
+`PendingApprovalSummary` now carries `warning` separately from `detail`, and
+the notification body states it. The buttons stay: the objection was never to
+answering from a notification, it was to answering a question that had been
+abridged on its way there.
+
+### What this authorizes, in order
+
+1. **Carry every approval kind, for turns the phone already owns.** Eleven
+   kinds exist in `PendingApprovalKinds`; only four carry `origin` /
+   `remoteDeviceId`, and `RemoteCodingApprovalKind` knows three. A remote turn
+   that raises an SSH, browser, BLE, serial, computer-use, or participant-tool
+   approval therefore blocks the desktop with nothing shown on the phone and
+   nobody able to answer. That is a live defect in the case SEC4.5g already
+   permits, and it carries no policy question at all. Fix it by threading
+   origin through the remaining pending types and projecting through the
+   existing `describePendingApproval` flattener rather than the bespoke
+   three-kind switch.
+2. **Make the decision surface carry the whole question** — see the correction
+   above for why this replaced the digest.
+3. **Grant desktop-equivalent authority per device**, defaulting to what a
+   device has today, with the widening — including desktop-origin approvals —
+   as an explicit per-device opt-in.
+
+Shipped 2026-09-06 as `RemoteCodingPairedDevice.desktopOriginKinds`, empty by
+default. `_canResolveInteraction` switches on origin first and answers the two
+cases separately: remote origin is unchanged from SEC4.5g, and local origin —
+the desktop's own turn, which belongs to no device — is admitted only for a
+kind this desktop granted this device. An owner id present on a local-origin
+interaction is treated as a contradiction rather than a permission.
+
+The grant is per kind rather than one switch because the kinds are not
+interchangeable: answering a question the Mac asked is not the act of
+approving a shell command it wants to run, and a single "trust this phone"
+would make them the same act. Unknown kinds are dropped when settings are
+read, so a grant cannot outlive the kind it names. Withdrawing one re-sends
+the snapshot immediately rather than at the next reconnect.
+
+A device sees exactly what it may answer; there is no view-without-resolve
+tier. That was SA-25's shape and it is not carried forward — with a grant
+available, "show me what the Mac is stuck on" is a grant of the question kind
+rather than a separate predicate. If the two ever need to diverge, they need
+two predicates, not a loosened one.
+
+Device-local authentication (T1) and the audit surface (T4) follow. Neither
+gates the first three.
+
+**T4 shipped 2026-09-06.** `RemoteCodingAuditEntry` records every decision a
+paired device takes on one of this desktop's interactions: when, which device
+(by the name it had at the time, since a device can be renamed or revoked),
+which kind, the body it was shown, the decision, and whether the turn was one
+the device started (`remote`) or one this desktop started under a grant
+(`local`). The desktop's Remote Coding settings list them newest first.
+
+Three choices worth stating:
+
+- **Refusals are recorded too**, with why. A refused resolution is what a
+  misconfigured grant, a stale client, and a device reaching for something it
+  was never given all look like, and none of them leave any other trace.
+- **Only for an id that names something real.** An unknown id records nothing,
+  so a probing client cannot evict real entries from a bounded log by asking
+  about ids that never existed.
+- **Not part of the diagnostics, and therefore not in the support packet.**
+  Entries carry command text and paths; the support packet exists to be copied
+  out of the machine. It lives under its own preferences key rather than in the
+  server settings the packet is built from, which is a structural guarantee
+  rather than a redaction rule someone has to remember.
+
+Recording never fails a resolution: losing a record is bad, but refusing to
+resolve an approval because the record could not be written would turn an audit
+into an outage.
+
+### What does not change
+
+- **SEC4.5g's actual property.** Paired device A still may not see or resolve
+  paired device B's turn. Nothing here widens the principal set between paired
+  devices; it changes what a device may do with the *desktop's* own
+  interactions, and only when the desktop owner grants it.
+- **Project creation stays off the phone.** `capabilities.projectManagement`
+  remains false.
+- **Structured-input kinds stay read-only on compact surfaces.** SSH
+  credentials and computer-use smoke arming need a gesture a notification or a
+  watch cannot represent honestly; `PendingApprovalSummary.isSimpleDecision`
+  already says which those are, and it must reach the wire.
+
+## SA-27: Remote Coding Interactions On The Apple Watch
+
+Opened 2026-09-06 with WATCH11. A scope note, like SA-24, rather than a finding.
+
+Decision: **the wrist may show and answer a Remote Coding interaction that
+reached this phone, and nothing more.**
+
+### Why this does not widen the principal set
+
+SEC4.5g scopes a Remote Coding interaction to the paired device that started
+the turn. That device is the iPhone. SA-24 established the watch as a
+peripheral of the phone rather than a principal of its own — it reaches exactly
+the one watch physically paired to that phone, over `WCSession`, with no
+address a third party could hold. Showing the phone's own remote-coding
+approval on the phone's own watch therefore adds no principal.
+
+SA-26 then decided what the phone itself may answer. The wrist inherits that
+and no more: a desktop withholds a kind it has not granted this device, so
+anything arriving on the phone is answerable in principle, and
+`isSimpleDecision` decides whether it is answerable *from a watch*. SSH
+credentials and computer-use smoke arming stay read-only on the wrist however
+the grant is set, because no compact surface can collect them honestly.
+
+### The trap this deliberately avoids
+
+Reaching Remote Coding is a **second source**, not a relaxation of
+`WatchApprovalMapper`'s `isOwnedByRemoteDevice` exclusion. That guard covers
+the desktop-as-server case, where this device is the host and another paired
+device owns the interaction; it cannot fire on iOS, because `ChatState` there
+never holds a remote-origin approval. Loosening it to make remote coding
+visible would have left the desktop showing one paired device's approvals to
+another — undoing SEC4.5g on the machine where it matters. The two paths stay
+separate, and the mapper carries a comment saying so.
+
+### What the implementation had to get right
+
+- **The card names its host.** Approving a shell command without knowing which
+  machine runs it is the failure this milestone exists to avoid, so
+  `WatchApproval.host` is rendered above the command rather than beneath it.
+- **Routing is by an explicit source, not by a display field.** SA-24 recorded
+  the cost of inferring identity from a value's presence; `source` is carried
+  as its own field, and a resolution is sent to the notifier that owns it.
+  Routing a desktop's approval to this phone's chat notifier resolves nothing
+  and reports success, which is a silent failure rather than a loud one.
+- **One card, ranked across sources.** The wrist shows one interaction, so
+  local and remote candidates are ranked by the same consequence order every
+  compact surface uses, with a tie going to the local one — it belongs to the
+  device the watch is paired to, and can be finished there.
+
+### Residual scope
+
+- The transcript stays local-only. Two conversations on one wrist screen is a
+  separate design problem, and the payload budget cannot carry both.
+- The conversation goal is deliberately not sourced from a desktop. Carrying it
+  would mean a goal field on the Remote Coding wire — the same privacy-boundary
+  change that blocks WATCH5 — to power a screen that has never run on iOS and
+  whose decision ("this goal is complete") closes work from the surface with the
+  least context. If unattended goal confirmation ever earns a wrist, it should
+  arrive as an `ask_user_question` over the path this milestone just built,
+  rather than as a second mechanism for "something needs your answer".
+
+## Roadmap Order
+
+| Order | Slice | Status | Release role |
+|---|---|---|---|
+| 1 | SEC4.4g opaque local-command authority | done 2026-08-24 | Closed SA-19 for unrestricted local commands |
+| 2 | SEC4.3e HTML Preview active-content containment | done 2026-08-24 | Closed SA-20 for HTML Preview |
+| 3 | SEC4.3f application-owned deserialization limits | done 2026-08-24 | Closed SA-21 across MCP HTTP/stdio, JSON/content, and settings QR boundaries |
+| 4 | SEC4.6k sensitive diagnostic storage | done 2026-08-24 | Local data protection |
+| 5 | SEC4.5g / RC1 remote interaction ownership | done 2026-08-24 | Authorization defense in depth |
+
+Create one task document from `docs/codex_task_template.md` per slice. Do not
+combine the two High severity fixes or mix any of these slices with remaining
+SEC4.7 supply-chain work.
+
+SEC4.4g remediation requires every native-shell foreground command,
+`background:true` command, and `process_start` to obtain fresh, non-cacheable
+`opaque_host_write` approval when a project is selected. Literal outside paths
+retain their more specific decision. Bounded internal argv reads retain their
+fast path. This closes SA-19.
+
+SEC4.3e remediation binds each preview to its selected entry directory and
+browser-consumable asset types after canonical symlink resolution. Restrictive
+CSP and response headers disable connect, form, frame, object, worker, manifest,
+referrer, cache, and DNS-prefetch channels; platform-reported WebView requests
+outside the active preview origin are rejected as defense in depth. This closes
+SA-20.
+
+## Verification Baseline
+
+The follow-up review ran:
+
+```bash
+fvm flutter test --no-pub \
+  test/features/chat/data/datasources/local_command_mutation_guard_test.dart \
+  test/features/chat/domain/services/html_preview_static_server_test.dart \
+  test/core/services/browser_session_service_test.dart \
+  test/features/chat/data/datasources/mcp_client_test.dart \
+  test/features/remote_coding/presentation/remote_coding_server_notifier_test.dart
+```
+
+Result: 49 tests passed. Add the adversarial regressions above before using that
+suite as closure evidence.

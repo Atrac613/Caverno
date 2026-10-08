@@ -146,7 +146,7 @@ that reaches longer-lived state only through explicit boundaries.
 ## Prerequisite: reconcile the existing program's state
 
 Reconciled on 2026-08-02 with
-`docs/chat_notifier_decomposition_task_index.md` remaining authoritative:
+`docs/worklog/chat_notifier_decomposition_task_index.md` remaining authoritative:
 
 - P1a-P14 and Workstreams 4 and 5 are complete.
 - Workstream 8 is complete under its narrow-interface review, but none of
@@ -257,7 +257,7 @@ committing to a renewal:
   callbacks introduced, files touched, public surface added, and production
   line delta. It must not absorb conversation- or thread-scoped state. Line
   delta is a reported cost consequence, not a structural pass/fail condition.
-  Use `docs/chat_notifier_turn_runtime_prototype_port_matrix.md` as the bounded
+  Use `docs/worklog/chat_notifier_turn_runtime_prototype_port_matrix.md` as the bounded
   dependency contract: the first slice covers the two manifest-reserved
   symbols and their 10-member path, not all 26 external private members in the
   selected part.
@@ -333,7 +333,7 @@ prototype.** The selected-path focused gate passes, and the seeded live baseline
 passes three of four runs while all four reach the verifier in turn 1 and emit
 at least two ordered continuations. The one observed flake has a bounded
 attribution rule. See
-`docs/chat_notifier_turn_runtime_preprototype_decision.md`. Before editing
+`docs/worklog/chat_notifier_turn_runtime_preprototype_decision.md`. Before editing
 production, re-run the selector and static gate validation from the clean
 decision-contract commit and record that full revision as the comparison base.
 
@@ -346,7 +346,7 @@ selected live canary passed. The `+708` production-line delta and 19 public
 declarations are a material cost: Phase 2 must define reusable ports, a public
 surface budget, reversible slices, and renewed stop conditions before broad
 extraction. See
-`docs/chat_notifier_turn_runtime_phase_1_5_decision.md`.
+`docs/worklog/chat_notifier_turn_runtime_phase_1_5_decision.md`.
 
 **Proceed to Phase 2 only if all structural gates pass and the comparison
 shows:**
@@ -374,7 +374,7 @@ rather than at seven capability boundaries. Review question 6 was re-asked
 against measured evidence: the diagnosis strengthened, the cost case was wrong
 twice in the optimistic direction, and forty turn-local stores each need a
 manual scope determination that does not amortize. See
-`docs/chat_notifier_renewal_question_six_review.md`.
+`docs/worklog/chat_notifier_renewal_question_six_review.md`.
 
 ## Honest cost and risk
 

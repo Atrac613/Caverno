@@ -19,7 +19,7 @@ milestones. An omitted row does not mean a capability is unplanned.
 | Local execution, foundation, knowledge, and platform milestones | [Local LLM Agent Roadmap](local_llm_agent_roadmap.md#milestone-index) |
 | User-created Tools | [Tools MVP Roadmap](tools_mvp_roadmap.md) |
 | Terminal and conversation branching | [CLI roadmap](caverno_cli_roadmap.md), [Fork roadmap](conversation_fork_roadmap.md) |
-| Watch and remote interaction | [Watch roadmap](apple_watch_roadmap.md), [security follow-up](security_followup_review_2026-08-24.md) |
+| Watch and remote interaction | [Watch roadmap](apple_watch_roadmap.md), [security follow-up](worklog/security_followup_review_2026-08-24.md) |
 | macOS Computer Use | [Grounding release roadmap](macos_computer_use_element_grounding_release_roadmap.md) |
 | User memory continuity | [Portable Memory And Model Continuity](portable_memory_investigation_2026-09-06.md) |
 | Repository developer efficiency | [Developer Efficiency Roadmap](codex_developer_efficiency_roadmap.md) |
@@ -225,8 +225,8 @@ separate from active work and do not imply a current release sign-off.
 ## Security Promotion Gates
 
 The canonical security finding record is
-[Security Audit](security_audit_2026-08-14.md), with evidence and the patch plan
-in [Security Follow-Up Review](security_followup_review_2026-08-24.md). Its P0 exit criteria, including
+[Security Audit](worklog/security_audit_2026-08-14.md), with evidence and the patch plan
+in [Security Follow-Up Review](worklog/security_followup_review_2026-08-24.md). Its P0 exit criteria, including
 follow-up findings SA-19 and SA-20, override feature-track promotion. Schema-only
 and empty Tools work may proceed independently, but TOOL effect integration,
 HOOK2/HOOK3, executable integration expansion, HTML Preview promotion, and

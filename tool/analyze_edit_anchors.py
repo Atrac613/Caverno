@@ -18,7 +18,7 @@ Buckets, in the order they are tested:
 
 Kept in tool/ rather than written ad hoc: two throwaway versions of this
 analysis produced clean-looking but meaningless results today (see
-docs/reread_loop_mechanism_2026-07-21.md), and a script that lives somewhere
+docs/worklog/reread_loop_mechanism_2026-07-21.md), and a script that lives somewhere
 can be checked instead of rebuilt.
 
 Usage:  python3 tool/analyze_edit_anchors.py

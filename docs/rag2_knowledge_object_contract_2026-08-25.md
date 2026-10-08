@@ -14,7 +14,7 @@ retained chunks whose provenance metadata changed, omitted object add/remove
 events, and serialized raw source text into its JSON report. The v1 Go must not
 be used as authorization for source discovery, storage, retrieval, or runtime
 prompting. The corrective audit is recorded in
-`docs/rag2_knowledge_object_contract_audit_2026-08-25.md`.
+`docs/worklog/rag2_knowledge_object_contract_audit_2026-08-25.md`.
 
 ## Task
 
@@ -30,7 +30,7 @@ prompting. The corrective audit is recorded in
 - Evaluator: `tool/rag2_knowledge_object_replay.dart`
 - Fixture: `tool/fixtures/rag2_knowledge_object_replay/fixture.json`
 - Test: `test/tool/rag2_knowledge_object_replay_test.dart`
-- Prior decision: `docs/rag2_passage_role_oracle_2026-08-25.md`
+- Prior decision: `docs/worklog/rag2_passage_role_oracle_2026-08-25.md`
 
 ## V2 contract
 

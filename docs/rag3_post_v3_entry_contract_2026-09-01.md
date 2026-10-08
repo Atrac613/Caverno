@@ -91,8 +91,8 @@ This decision changes no runtime behavior and authorizes no network run.
 
 ## Evidence
 
-- `docs/rag3_promotion_eval_2026-08-31.md`
-- `docs/rag3_abstention_vector_instrument_2026-08-31.md`
-- `docs/rag3_evidence_role_classifier_instrument_2026-08-31.md`
-- `docs/rag3_support_filter_latency_decision_2026-08-31.md`
-- `docs/rag3_compact_support_filter_instrument_2026-09-01.md`
+- `docs/worklog/rag3_promotion_eval_2026-08-31.md`
+- `docs/worklog/rag3_abstention_vector_instrument_2026-08-31.md`
+- `docs/worklog/rag3_evidence_role_classifier_instrument_2026-08-31.md`
+- `docs/worklog/rag3_support_filter_latency_decision_2026-08-31.md`
+- `docs/worklog/rag3_compact_support_filter_instrument_2026-09-01.md`

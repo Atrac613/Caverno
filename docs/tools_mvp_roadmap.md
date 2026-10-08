@@ -89,7 +89,7 @@ for executable capability work. TOOL0 may add only empty navigation and product
 vocabulary. TOOL1 and later milestones must not connect a manifest action to
 shell, files, network, MCP, routines, secrets, or Remote Coding until the
 corresponding SEC4 P0 boundary is closed. See
-`docs/security_audit_2026-08-14.md` and
+`docs/worklog/security_audit_2026-08-14.md` and
 `docs/local_llm_agent_roadmap.md` SEC4.
 
 ## Architecture

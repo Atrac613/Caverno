@@ -7765,7 +7765,7 @@ void main() {
       // entry point, generateWorkflowProposal, does not -- it ends with a bare
       // `state = state.copyWith(...)` (chat_notifier.dart:3118) after awaiting
       // the model. That path is not covered here; see the P2 notes in
-      // docs/chat_notifier_state_authority_by_lifetime.md.
+      // docs/worklog/chat_notifier_state_authority_by_lifetime.md.
       final releaseProposal = Completer<void>();
       final proposalRequested = Completer<void>();
       late final ProviderContainer container;

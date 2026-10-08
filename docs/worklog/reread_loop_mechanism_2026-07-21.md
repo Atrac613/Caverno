@@ -1,0 +1,224 @@
+# Re-read Loop: What Actually Drives It (2026-07-21)
+
+Question this answers: **the LL31 triage says redundant file re-reads are the
+dominant real failure — what mechanism produces them?**
+
+This was run to validate a causal claim before continuing to build on it. The
+claim did not survive.
+
+## Method
+
+Over the 992 local session logs, count read-heavy sessions (≥3 `read_file`
+renders) and check which mutation signals appear alongside the re-reads:
+`old_text was not found` (an edit whose anchor did not match) versus
+`no_change` / `already_applied` (a mutation that ran and changed nothing).
+
+## Result
+
+| Population | Sessions |
+|------------|---------:|
+| Read-heavy sessions (≥3 reads) | 46 |
+| …with any `edit_file` | 23 |
+| …showing `not found` (anchor mismatch) | **19** |
+| …showing `no_change` / `already_applied` (no-op mutation) | **1** |
+
+The 23 read-heavy sessions with **no edits at all** are a separate population:
+pure redundant reading with no mutation involved (`ad90955c` — 44 reads, 0
+edits; `b73801da` — 27 reads, 0 edits; `f6ffbf97` — 23 reads, 0 edits). Those
+are context-digest territory (LL30), not mutation-feedback territory.
+
+So the re-read population splits three ways:
+
+1. **No mutation at all** — 23 of 46. The model re-reads without editing.
+2. **Edit anchor mismatch** — 19 of 23 edit-bearing sessions. The dominant
+   mutation-linked driver.
+3. **No-op mutation** — 1 of 23. Rare.
+
+## Consequence: a correction, the second on this claim
+
+`docs/worklog/ll34_tool_outcome_census_2026-07-21.md` first claimed the `read_file`
+content hash addressed the dominant failure; that was corrected to the mutation
+`changed` fact. **That correction was also wrong.** The `changed` fact targets
+population 3 — one session in twenty-three.
+
+The shipped `changed` work is not wasted: a byte-identical write really was
+indistinguishable from a real one, and the fact closes that ambiguity cheaply.
+But its billing as "the signal behind the dominant measured failure" is not
+supported by the logs, and this document supersedes that claim.
+
+The general lesson is narrower than "measure first": all three claims came from
+reading code and reasoning about plausible mechanisms. Each was plausible. The
+distribution was only knowable by counting.
+
+## Where the evidence actually points
+
+The worst offender, session `119292cb` (11 identical reads), shows the pattern
+directly: `read → edit → edit → read → read → edit → …`, 12 edits against 10
+byte-identical reads, with 29 `not found` occurrences and zero no-op reports.
+The model was not writing identical content — its edit anchors kept missing.
+
+And the harness participates in the loop. `FilesystemTools._oldTextNotFoundError`
+(`filesystem_tools.dart:783`) branches on file size:
+
+- **≤4096 bytes**: inlines `current_content` so the model can copy `old_text`
+  verbatim. Good — no re-read needed.
+- **>4096 bytes**: the hint reads *"Re-read the file and copy old_text verbatim
+  from its current content"*.
+
+For any file over 4 KB — which is most source files — **the harness instructs
+the re-read that then shows up in the triage as redundant**. The loop is not
+purely a model failure; the tool asks for it, the model complies, the anchor
+misses again, and the cycle repeats.
+
+## Instrument failure: occurrence counts in this document are not trustworthy
+
+Following up on the proposed target below produced a methodological finding
+that partially undermines this document's own numbers. Recorded here rather
+than quietly fixed, because the counts were already acted on.
+
+**Contamination 1 — substring matching against inlined file content.** The
+`old_text` not-found error inlines `current_content` for files ≤4096 bytes, so
+the *file being edited* becomes part of the log text. In session `73fa0bf3`, 84
+occurrences of `not found` break down as 20 real tool errors and **64 lines of
+the app's own source** (a TODO CLI that prints `Todo item ... not found`).
+Every count in this document derived from the loose string `not found` is
+inflated by an unknown amount.
+
+**Contamination 2 — errors with no corresponding tool call.** Re-running with
+the exact error string `old_text was not found` gives 982 total occurrences,
+but only 99 carry either hint variant, and several of the worst sessions have
+**zero** `[Tool: edit_file]` renders while showing dozens of errors
+(`0461c455`: 10 reads, 0 edits, 55 errors; `d65fa545`: 0 reads, 0 edits, 36).
+An error cannot occur without an edit, so the text is reaching the log by some
+path other than a rendered tool result — most plausibly conversation history
+replayed into each record. That was not accounted for, and it means **no
+per-occurrence figure here is defensible.**
+
+What survives:
+
+| Claim | Status |
+|-------|--------|
+| 46 read-heavy sessions; 23 with edits; 19 with a real not-found | Session-level presence, re-verified with the exact error string — **holds** |
+| 23 of 46 read-heavy sessions involve no mutation at all | Presence-based — **holds** |
+| Session `119292cb` shows read/edit alternation with failing anchors | Single traced session — **holds as n=1** |
+| "29 not-found occurrences" in `119292cb` | **Withdrawn** (contamination 1) |
+| 73% / 27% split between the two hint branches | **Unverified** — the hint strings are distinctive enough to avoid contamination 1, but the 99 occurrences may still be replay-inflated |
+
+The pattern that prompted this check — a model re-issuing an edit it had already
+applied successfully (visible in `73fa0bf3`, rows 7-8: the identical
+`TodoList._();` → `TodoList();` edit succeeding then failing) — could not be
+counted at all: the extraction matched 2 of that session's not-found edits.
+A null result from a broken instrument is not a null result, so no claim is
+made about its frequency.
+
+**Before any further claim about this loop, the instrument has to be fixed:**
+parse the log records and count each tool result once, in the record where it
+first appears, instead of grepping the concatenated text. That belongs in
+`tool/` next to `triage_session_logs.py` so the next question costs seconds
+rather than a rebuild — the ad-hoc scripts behind this document were thrown
+away, which is part of why it took four attempts to notice they were wrong.
+
+## Re-measured with the instrument (tool/analyze_tool_results.py)
+
+The instrument now exists. It de-duplicates messages by their stable id and
+parses payloads instead of grepping, and it reports the replay factor it
+corrected for: **13783 message slots collapse to 2011 distinct messages, 6.9x**.
+
+Corrected counts across 999 session logs:
+
+| Measure | Grep estimate | Instrument | Note |
+|---------|--------------:|-----------:|------|
+| `old_text was not found` errors | 982 | **57** | 17x inflated by replay + payload contamination |
+| `edit_file` results | — | 155 | in 33 sessions |
+| **`edit_file` calls failing on the anchor** | — | **37%** | 57 of 155 |
+| `read_file` share of tool traffic | 26.3% | 26.4% | census technique validated |
+| `local_execute_command` share | 16.9% | 17.0% | census technique validated |
+
+Two conclusions, of opposite sign:
+
+**The traffic census was sound.** Its `[Tool: ]` marker counts land within 0.1
+points of the instrument's, so the LL34 sizing work built on it stands. The
+marker is distinctive enough to resist payload contamination, and tool-result
+messages turn out to be barely replayed even though system and user messages
+are.
+
+**The error counts were not.** 982 was really 57. Anything derived from
+grepping payload prose in this investigation should be treated as withdrawn,
+which is what the section above already does.
+
+### What the corrected numbers show
+
+**Over a third of all `edit_file` calls fail because the anchor does not
+match** (57 of 155, across 33 sessions). That is a large, independently
+verifiable defect rate, and it does not depend on any claim about re-read
+loops: even if anchor failures caused no re-reads at all, a tool that fails 37%
+of the time is worth fixing on its own terms.
+
+What remains unproven is the causal link to re-reads. Co-occurrence is
+established (19 of 23 edit-bearing read-heavy sessions) and one session was
+traced end to end, but no counted evidence connects the two. The honest
+statement is: anchor failure is a confirmed high-rate defect; whether fixing it
+reduces re-reads is a hypothesis the instrument can now test before and after.
+
+For reference, command failure rates from the same run: `local_execute_command`
+exits non-zero in roughly 15% of calls (237 zero against 41 non-zero, dominated
+by 127 "command not found"), and `run_tests` reports Dart's exit 65 sixteen
+times.
+
+### Why the anchors miss (tool/analyze_edit_anchors.py)
+
+Rather than design a fix for a 37% failure rate, classify the 57 failures first
+by comparing each attempted `old_text` against the `current_content` the error
+returns for files under 4 KB.
+
+| Bucket | Count | Share |
+|--------|------:|------:|
+| No `current_content` (file >4 KB) | 23 | 40.4% |
+| Absent entirely | 19 | 33.3% |
+| First line matches, block drifted | 12 | 21.1% |
+| Already applied (`new_text` is in the file) | 3 | 5.3% |
+| **Whitespace differs** | **0** | **0%** |
+| **Indentation differs** | **0** | **0%** |
+
+**The zeroes are the most useful result.** Whitespace and indentation mismatch
+is the intuitive explanation for anchor failure, and it accounts for none of
+these. A fix aimed at normalizing whitespace would have moved nothing.
+
+Of the 34 failures that can be classified, **91% are the model writing
+`old_text` from memory instead of copying it** — 19 wholly absent, 12 where the
+first line is real but the block below it drifted. A sample from the "absent"
+bucket is a three-line import block: plausible-looking, reconstructed, not
+present. The remaining 3 are repeats of an edit already applied.
+
+This matters for what a fix should be. The failure is not information scarcity:
+the small-file branch already returns the file, and these attempts were made
+anyway. It is that reconstructing a multi-line verbatim anchor from context is
+something the model is bad at. Approaches that make verbatim reproduction
+unnecessary — addressing a region by line and a content hash rather than by
+quoting it back — target the actual mechanism. Grok Build's hashline anchors
+(`docs/worklog/grok_build_comparison_2026_07_21.md`, noted there as experimental and
+parked pending "edit-staleness telemetry") are exactly that shape, and this is
+the telemetry.
+
+Still unmeasured, and needed before building: whether the attempt *after* a
+failure succeeds once `current_content` has been supplied. That is the question
+that decides whether the loop is self-correcting or not, and it needs a
+sequential pass rather than a per-failure classification.
+
+## Proposed next target (superseded by the classification above)
+
+Give the large-file branch what the small-file branch already gives: enough
+current content to copy from, without a full re-read. Rather than inlining a
+whole large file, locate the region the failed `old_text` most nearly matches
+and return that window, so the model can correct its anchor in place.
+
+Acceptance would be measured, not argued: `tool/triage_session_logs.py` already
+reports the re-read distribution, and this document's counts are the baseline
+to compare against. The build provenance recorded in each session log
+(`build.commit`) makes before/after separable.
+
+Baseline at the time of writing (all logs predate the LL34 work):
+
+- 1498 turns scanned, 97.9% exiting `text_response`
+- 46 sessions with any byte-identical re-read
+- worst single repeat: 11 identical reads

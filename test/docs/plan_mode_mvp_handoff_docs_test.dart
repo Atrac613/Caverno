@@ -15,17 +15,22 @@ void main() {
         readme,
         contains('docs/plan_mode_model_endpoint_compatibility.md'),
       );
-      expect(readme, contains('docs/plan_mode_release_package_2026-05-13.md'));
+      expect(
+        readme,
+        contains('docs/worklog/plan_mode_release_package_2026-05-13.md'),
+      );
       expect(
         readme,
         contains(
-          'docs/plan_mode_release_candidate_final_signoff_2026-05-13.md',
+          'docs/worklog/plan_mode_release_candidate_final_signoff_2026-05-13.md',
         ),
       );
       expect(readme, contains('Plan Mode support snapshot'));
       expect(
         readme,
-        contains('docs/plan_mode_post_release_guardrails_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md',
+        ),
       );
       expect(readme, contains('tool/run_plan_mode_pm5_live_gate.sh'));
       expect(readme, contains('CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1'));
@@ -199,7 +204,7 @@ void main() {
 
     test('release package records PM18 user-facing release surface', () {
       final releasePackage = File(
-        'docs/plan_mode_release_package_2026-05-13.md',
+        'docs/worklog/plan_mode_release_package_2026-05-13.md',
       ).readAsStringSync();
 
       expect(
@@ -213,18 +218,20 @@ void main() {
       expect(releasePackage, contains('Plan Mode support snapshot'));
       expect(
         releasePackage,
-        contains('docs/plan_mode_supportability_2026-05-13.md'),
+        contains('docs/worklog/plan_mode_supportability_2026-05-13.md'),
       );
       expect(
         releasePackage,
-        contains('docs/plan_mode_post_release_guardrails_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md',
+        ),
       );
       expect(releasePackage, contains('Settings > General'));
     });
 
     test('post-release guardrails record PM19 cadence and hotfix rules', () {
       final guardrails = File(
-        'docs/plan_mode_post_release_guardrails_2026-05-13.md',
+        'docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md',
       ).readAsStringSync();
 
       expect(
@@ -242,7 +249,7 @@ void main() {
 
     test('final release candidate sign-off records PM20 pass decision', () {
       final signoff = File(
-        'docs/plan_mode_release_candidate_final_signoff_2026-05-13.md',
+        'docs/worklog/plan_mode_release_candidate_final_signoff_2026-05-13.md',
       ).readAsStringSync();
 
       expect(
@@ -259,17 +266,21 @@ void main() {
       expect(signoff, contains('plan_mode_ping_cli_canary_1778676312'));
       expect(
         signoff,
-        contains('docs/plan_mode_product_ux_finalization_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_product_ux_finalization_2026-05-13.md',
+        ),
       );
       expect(
         signoff,
-        contains('docs/plan_mode_post_release_guardrails_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md',
+        ),
       );
     });
 
     test('release candidate sign-off records PM13 execution result', () {
       final signoff = File(
-        'docs/plan_mode_release_candidate_signoff_2026-05-13.md',
+        'docs/worklog/plan_mode_release_candidate_signoff_2026-05-13.md',
       ).readAsStringSync();
 
       expect(
@@ -293,7 +304,7 @@ void main() {
 
     test('release candidate rerun records PM13 live smoke blocker', () {
       final signoff = File(
-        'docs/plan_mode_release_candidate_signoff_2026-05-13_rerun.md',
+        'docs/worklog/plan_mode_release_candidate_signoff_2026-05-13_rerun.md',
       ).readAsStringSync();
 
       expect(
@@ -355,12 +366,14 @@ void main() {
       expect(roadmap, contains('### PM13: Release Candidate Execution'));
       expect(
         roadmap,
-        contains('docs/plan_mode_release_candidate_signoff_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_release_candidate_signoff_2026-05-13.md',
+        ),
       );
       expect(
         roadmap,
         contains(
-          'docs/plan_mode_release_candidate_signoff_2026-05-13_rerun.md',
+          'docs/worklog/plan_mode_release_candidate_signoff_2026-05-13_rerun.md',
         ),
       );
       expect(roadmap, contains('blocked: environment'));
@@ -372,25 +385,37 @@ void main() {
       expect(roadmap, contains('### PM15: Product UX Finalization'));
       expect(
         roadmap,
-        contains('docs/plan_mode_product_ux_finalization_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_product_ux_finalization_2026-05-13.md',
+        ),
       );
       expect(roadmap, contains('| Plan Mode | PM16 | done |'));
       expect(roadmap, contains('### PM16: Settings and Compatibility UX'));
       expect(
         roadmap,
-        contains('docs/plan_mode_settings_compatibility_ux_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_settings_compatibility_ux_2026-05-13.md',
+        ),
       );
       expect(roadmap, contains('| Plan Mode | PM17 | done |'));
       expect(roadmap, contains('### PM17: Supportability'));
-      expect(roadmap, contains('docs/plan_mode_supportability_2026-05-13.md'));
+      expect(
+        roadmap,
+        contains('docs/worklog/plan_mode_supportability_2026-05-13.md'),
+      );
       expect(roadmap, contains('| Plan Mode | PM18 | done |'));
       expect(roadmap, contains('### PM18: Release Packaging'));
-      expect(roadmap, contains('docs/plan_mode_release_package_2026-05-13.md'));
+      expect(
+        roadmap,
+        contains('docs/worklog/plan_mode_release_package_2026-05-13.md'),
+      );
       expect(roadmap, contains('| Plan Mode | PM19 | done |'));
       expect(roadmap, contains('### PM19: Post-Release Guardrails'));
       expect(
         roadmap,
-        contains('docs/plan_mode_post_release_guardrails_2026-05-13.md'),
+        contains(
+          'docs/worklog/plan_mode_post_release_guardrails_2026-05-13.md',
+        ),
       );
       expect(roadmap, contains('| Plan Mode | PM20 | done |'));
       expect(
@@ -400,7 +425,7 @@ void main() {
       expect(
         roadmap,
         contains(
-          'docs/plan_mode_release_candidate_final_signoff_2026-05-13.md',
+          'docs/worklog/plan_mode_release_candidate_final_signoff_2026-05-13.md',
         ),
       );
     });

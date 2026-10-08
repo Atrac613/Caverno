@@ -15,7 +15,7 @@ build environment.
 
 ## Context And Audit Decision
 
-[The audit reassessment](security_command_approval_reassessment_2026-10-01.md)
+[The audit reassessment](worklog/security_command_approval_reassessment_2026-10-01.md)
 reproduces SA-01 and SA-19 against disposable fixtures. Arbitrary project code
 can construct paths that no command scanner sees. Direct argv execution has
 the same authority problem as a shell. The audited requirement admits enforced

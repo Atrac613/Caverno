@@ -22,7 +22,7 @@ configuration before use, expires that review after 30 days, and checks it
 again at the process/client boundary. Any resync or executable identity change
 requires another review. Environment values remain hidden in the review UI,
 while their normalized values remain part of the identity so secret changes
-invalidate prior approval. See `docs/security_audit_2026-08-14.md` SA-02.
+invalidate prior approval. See `docs/worklog/security_audit_2026-08-14.md` SA-02.
 
 ```json
 {

@@ -15,7 +15,7 @@
 - Evaluator: `tool/rag2_provenance_attestation_replay.dart`
 - Fixture: `tool/fixtures/rag2_provenance_attestation_replay/fixture.json`
 - Test: `test/tool/rag2_provenance_attestation_replay_test.dart`
-- Predecessor: `docs/rag2_knowledge_object_contract_audit_2026-08-25.md`
+- Predecessor: `docs/worklog/rag2_knowledge_object_contract_audit_2026-08-25.md`
 
 The Knowledge Object v2 audit deferred source discovery because `projectId`,
 `revision`, and `sourceTrust` were caller-declared labels. This contract accepts
@@ -131,12 +131,12 @@ The fixture-root-only source-discovery and candidate-chunking replay completed
 on 2026-08-26. It consumes this attestation contract and freezes file count,
 per-file bytes, corpus bytes, symlink rejection, generated-file exclusions,
 Markdown heading boundaries, and Dart symbol boundaries. See
-`docs/rag2_source_discovery_chunking_replay_2026-08-26.md`.
+`docs/worklog/rag2_source_discovery_chunking_replay_2026-08-26.md`.
 
 The bounded typed Git collector prerequisite completed later on 2026-08-26. It
 uses exact NUL-delimited probes, requires project-root/repository-root equality,
 and fails closed on command and resource failures. See
-`docs/rag2_git_evidence_collector_2026-08-26.md`.
+`docs/worklog/rag2_git_evidence_collector_2026-08-26.md`.
 
 The next slice may add only an opt-in, manifest-only live shadow for one
 explicitly selected project through that collector. Production indexing, FTS5,

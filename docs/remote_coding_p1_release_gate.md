@@ -53,7 +53,7 @@ nothing, and the checker had no such sections at all, so a passing report said
 nothing about the two requirements RC1 exists for. Each gate now reads the
 implementation *and* the name of the test that proves it, so neither the code
 nor its coverage can be removed while the gate stays green. See
-`docs/security_audit_2026-08-14.md` SA-06 and SA-10.
+`docs/worklog/security_audit_2026-08-14.md` SA-06 and SA-10.
 
 ## Command
 

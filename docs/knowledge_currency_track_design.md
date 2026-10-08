@@ -118,7 +118,7 @@ and never implement a fix whose target has not been counted.
 
 Scope:
 - Classify final answers across both corpora (the split recorded in
-  `docs/canary_evidence_outside_the_corpus_2026-08-06.md`: coding evidence in
+  `docs/worklog/canary_evidence_outside_the_corpus_2026-08-06.md`: coding evidence in
   `build/integration_test_reports`, interactive evidence in the session logs)
   for version-sensitive assertions, attributed to classes 1-4 of §2. Include
   assertions in visible prose, response code blocks, and changed code artifacts;

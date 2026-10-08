@@ -320,7 +320,7 @@ void main() {
       'docs/macos_computer_use_real_app_observe_runbook.md',
     ).readAsStringSync();
     polishReviewSummary = File(
-      'docs/macos_computer_use_polish_review_summary.md',
+      'docs/worklog/macos_computer_use_polish_review_summary.md',
     ).readAsStringSync();
   });
 

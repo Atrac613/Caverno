@@ -822,7 +822,7 @@ Trust model — a new judgement, not a restatement:
   coding means adding a second source, not widening the existing gate — and
   conflating the two would quietly undo SEC4.5g on desktop.
 - Write the reading into `docs/apple_watch_companion.md` and record it beside
-  SA-24 in `docs/security_followup_review_2026-08-24.md` before shipping.
+  SA-24 in `docs/worklog/security_followup_review_2026-08-24.md` before shipping.
 
 Acceptance criteria:
 - A pending approval on the connected desktop renders on the wrist naming its
@@ -948,7 +948,7 @@ weaker than `sendMessage`, since the phone answers a question rather than
 authoring the request.
 
 Decision, settled 2026-09-06 as **SA-26** in
-`docs/security_followup_review_2026-08-24.md`: **a paired device may hold
+`docs/worklog/security_followup_review_2026-08-24.md`: **a paired device may hold
 desktop-equivalent authority over threads that already exist**, granted per
 device by the desktop owner, bound to what the phone displayed, and audited.
 Project creation stays off the phone. Cross-device isolation is untouched:
@@ -1004,7 +1004,7 @@ approval kinds of eleven, so a turn blocking on an SSH or browser approval
 changed nothing a client could observe until something else broadcast.
 
 Verified on hardware 2026-09-06. Part 1 of
-`docs/watch_remote_coding_device_verification_2026-09-06.md` was walked end to
+`docs/worklog/watch_remote_coding_device_verification_2026-09-06.md` was walked end to
 end: an ungranted desktop-origin approval was withheld while the Mac sat blocked
 on it, and a granted one arrived, was answered from the phone, and closed the
 desktop's own sheet. Read-only rendering, grant withdrawal, and revocation all
@@ -1026,7 +1026,7 @@ That session also found two defects no test could have: every attention
 indicator on the watch was unreachable whenever the phone had more than one
 thread (four `ToolbarItem`s sharing `.topBarTrailing`, which watchOS renders one
 of), and the compose bar was clipped by the display edge. Both are recorded in
-`docs/watch_remote_coding_device_verification_2026-09-06.md`.
+`docs/worklog/watch_remote_coding_device_verification_2026-09-06.md`.
 
 Open follow-up, tracked as SA-26's T1 rather than a WATCH13 slice:
 device-local authentication before a mutating resolution. It is unstarted —

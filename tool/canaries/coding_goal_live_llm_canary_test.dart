@@ -159,7 +159,7 @@ void main() {
   // tool. This one offers the tool and asserts the real round trip: the model
   // calls it, the ChatNotifier handler resolves a real ack, and the ack text
   // comes back into the conversation. See
-  // docs/grounded_verification_live_canary_gap_2026-07-21.md.
+  // docs/worklog/grounded_verification_live_canary_gap_2026-07-21.md.
   test(
     'live LLM reports goal completion through the update_goal tool',
     () async {

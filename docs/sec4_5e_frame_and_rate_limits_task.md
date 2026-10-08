@@ -15,7 +15,7 @@
 - Affected components: `RemoteCodingResourcePolicy`, the Remote Coding server
   receive loop, socket lifecycle, and focused policy/server tests.
 - Related docs: `docs/roadmap.md`, `docs/local_llm_agent_roadmap.md`,
-  `docs/security_audit_2026-08-14.md`, and
+  `docs/worklog/security_audit_2026-08-14.md`, and
   `docs/remote_coding_p0_release_gate.md`.
 - Reference pattern: SEC4.5e-A keeps resource decisions in a directly tested
   domain policy while the server owns WebSocket effects and cleanup.

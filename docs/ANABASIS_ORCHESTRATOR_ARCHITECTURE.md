@@ -18,9 +18,9 @@ evidence.
 | Document | Role |
 | --- | --- |
 | [`anabasis_brand_story.md`](anabasis_brand_story.md) | Concept and naming. The *why*: the cave metaphor, the name, and the design principle it produces. |
-| [`anabasis_mvp_plan_superseded.md`](anabasis_mvp_plan_superseded.md) | The first MVP plan, superseded by this document. Kept as the record of why — it is the concrete evidence behind §0. |
+| [`anabasis_mvp_plan_superseded.md`](worklog/anabasis_mvp_plan_superseded.md) | The first MVP plan, superseded by this document. Kept as the record of why — it is the concrete evidence behind §0. |
 | [`roadmap.md`](roadmap.md) | Milestone tracking under "Anabasis Orchestrator Track" (`ANA<number>`). |
-| [`chat_notifier_concept_overlap_inventory.md`](chat_notifier_concept_overlap_inventory.md) | The 2026-08-02 finding that the user has three durable concepts, not four or five. §0 exists because of it. |
+| [`chat_notifier_concept_overlap_inventory.md`](worklog/chat_notifier_concept_overlap_inventory.md) | The 2026-08-02 finding that the user has three durable concepts, not four or five. §0 exists because of it. |
 
 ---
 
