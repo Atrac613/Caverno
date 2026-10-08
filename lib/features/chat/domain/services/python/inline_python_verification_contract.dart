@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:path/path.dart' as path;
 
-import 'literal_shell_words.dart';
+import '../literal_shell_words.dart';
 
 /// Keeps an inline verifier's checks fixed while its fixture can be repaired.
 /// Unsupported shell or Python forms retain the full command's exact scope.

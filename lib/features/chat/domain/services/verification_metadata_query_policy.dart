@@ -7,7 +7,7 @@ import '../entities/tool_call_info.dart';
 import 'literal_environment_inspection_policy.dart';
 import 'literal_shell_segments.dart';
 import 'literal_shell_words.dart';
-import 'pytest_metadata_inspection_policy.dart';
+import 'python/pytest_metadata_inspection_policy.dart';
 
 /// Classifies execution evidence only, never approval or mutation freshness.
 abstract final class VerificationMetadataQueryPolicy {

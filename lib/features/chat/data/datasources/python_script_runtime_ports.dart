@@ -1,8 +1,8 @@
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/python_script_tool_contract.dart';
-import '../../domain/services/python_staging_lease_registry.dart';
+import '../../domain/services/python/python_script_tool_contract.dart';
+import '../../domain/services/python/python_staging_lease_registry.dart';
 import 'python_execution_authority.dart';
 import 'python_script_runtime_contract.dart';
 

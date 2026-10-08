@@ -1,4 +1,4 @@
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'python_script_tool_contract.dart';
 import 'python_staging_lease_registry.dart';
 

@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
-import 'pytest_verification_identity.dart';
+import 'python/pytest_verification_identity.dart';
 
 /// Captures the actual foreground verifier, removing only recognized wrappers.
 abstract final class ExecutedVerifierReplayPolicy {

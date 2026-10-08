@@ -441,10 +441,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/python_script_runtime_ports.dart': 446,
   'lib/features/chat/data/datasources/python_script_tool_runtime_adapter.dart':
       335,
-  'lib/features/chat/domain/services/python_script_tool_contract.dart': 407,
-  'lib/features/chat/domain/services/python_script_tool_handler.dart': 492,
-  'lib/features/chat/domain/services/python_staging_lease_registry.dart': 335,
-  'lib/features/chat/domain/services/python_staging_lease_types.dart': 220,
+  'lib/features/chat/domain/services/python/python_script_tool_contract.dart': 407,
+  'lib/features/chat/domain/services/python/python_script_tool_handler.dart': 492,
+  'lib/features/chat/domain/services/python/python_staging_lease_registry.dart': 335,
+  'lib/features/chat/domain/services/python/python_staging_lease_types.dart': 220,
   'lib/features/chat/presentation/providers/python_script_approval_cache_runtime_adapter.dart':
       85,
   'lib/features/chat/domain/services/create_routine_tool_handler.dart': 490,
@@ -461,7 +461,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/turn_goal_completion_evidence_registry.dart':
       211,
   'lib/features/chat/domain/services/file_mutation_evidence_policy.dart': 65,
-  'lib/features/chat/domain/services/python_attachment_repair_policy.dart': 145,
+  'lib/features/chat/domain/services/python/python_attachment_repair_policy.dart': 145,
   'lib/features/chat/domain/services/coding_verification_feedback_presentation.dart':
       206,
   // Reuse-payload construction extracted: matching a duplicate and deciding
@@ -1106,15 +1106,15 @@ const Map<String, int> _lineBudgets = {
       1675,
   'lib/features/chat/domain/services/command_verification_reconciliation.dart':
       139,
-  'lib/features/chat/domain/services/pytest_verification_identity.dart': 61,
+  'lib/features/chat/domain/services/python/pytest_verification_identity.dart': 61,
   'lib/features/chat/domain/services/literal_shell_words.dart': 40,
-  'lib/features/chat/domain/services/pytest_shell_invocation.dart': 31,
-  'lib/features/chat/domain/services/pytest_test_outcome_parser.dart': 24,
+  'lib/features/chat/domain/services/python/pytest_shell_invocation.dart': 31,
+  'lib/features/chat/domain/services/python/pytest_test_outcome_parser.dart': 24,
   'lib/features/chat/domain/services/executed_verifier_replay_policy.dart': 63,
-  'lib/features/chat/domain/services/verified_pytest_replay_policy.dart': 174,
-  'lib/features/chat/domain/services/pytest_replay_state_policy.dart': 43,
+  'lib/features/chat/domain/services/python/verified_pytest_replay_policy.dart': 174,
+  'lib/features/chat/domain/services/python/pytest_replay_state_policy.dart': 43,
   'lib/features/chat/domain/services/literal_shell_segments.dart': 30,
-  'lib/features/chat/domain/services/pytest_metadata_inspection_policy.dart':
+  'lib/features/chat/domain/services/python/pytest_metadata_inspection_policy.dart':
       11,
   'lib/features/chat/domain/services/literal_environment_inspection_policy.dart':
       32,

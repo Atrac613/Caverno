@@ -2,11 +2,11 @@ import 'dart:convert';
 
 import 'package:path/path.dart' as path;
 
-import '../entities/tool_call_info.dart';
-import 'command_verification_reconciliation.dart';
-import 'literal_shell_words.dart';
+import '../../entities/tool_call_info.dart';
+import '../command_verification_reconciliation.dart';
+import '../literal_shell_words.dart';
+import '../verification_command_sequence.dart';
 import 'pytest_verification_identity.dart';
-import 'verification_command_sequence.dart';
 
 /// Suggests a fresh full-chain execution; never fabricates a successful result.
 abstract final class CompoundPythonRuntimeRepair {

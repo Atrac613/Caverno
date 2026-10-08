@@ -7,8 +7,8 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/python_script_tool_contract.dart';
-import '../../domain/services/python_staging_lease_registry.dart';
+import '../../domain/services/python/python_script_tool_contract.dart';
+import '../../domain/services/python/python_staging_lease_registry.dart';
 import 'python_execution_authority.dart';
 
 typedef PythonOwnerMessagesCallback =

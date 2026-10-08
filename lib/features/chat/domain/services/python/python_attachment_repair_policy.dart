@@ -1,4 +1,4 @@
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
 
 // ChatNotifier decomposition collaborator: python-attachment-repair-policy
 

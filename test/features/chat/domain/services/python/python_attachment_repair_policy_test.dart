@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/python_attachment_repair_policy.dart';
+import 'package:caverno/features/chat/domain/services/python/python_attachment_repair_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _policy = PythonAttachmentRepairPolicy();

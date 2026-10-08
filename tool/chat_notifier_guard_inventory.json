@@ -876,13 +876,13 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/python_attachment_repair_policy.dart::PythonAttachmentRepairPolicy",
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "id": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart::PythonAttachmentRepairPolicy",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "symbol": "PythonAttachmentRepairPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/python_attachment_repair_policy.dart:25",
+        "lexical reference at lib/features/chat/domain/services/python/python_attachment_repair_policy.dart:25",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2033",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2037",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:100",
@@ -892,7 +892,7 @@
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:39"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/python_attachment_repair_policy.dart:25 -> PythonAttachmentRepairPolicy",
+        "lexical reference at lib/features/chat/domain/services/python/python_attachment_repair_policy.dart:25 -> PythonAttachmentRepairPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2033 -> PythonAttachmentRepairPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:2037 -> PythonAttachmentRepairPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_python_attachment_repair.dart:100 -> PythonAttachmentRepairPolicy",

@@ -160,7 +160,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/python_attachment_repair_policy.dart::PythonAttachmentRepairPolicy",
+      "id": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart::PythonAttachmentRepairPolicy",
       "disposition": "defer",
       "question": "Was PythonAttachmentRepairPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

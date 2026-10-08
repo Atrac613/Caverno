@@ -729,8 +729,8 @@
       "collaborators": [
         {
           "id": "python-attachment-repair-policy",
-          "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/python_attachment_repair_policy.dart"
+          "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart"
         }
       ]
     },
@@ -838,8 +838,8 @@
       "collaborators": [
         {
           "id": "python-script-tool-handler",
-          "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/python_script_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/python/python_script_tool_handler.dart"
         }
       ]
     },

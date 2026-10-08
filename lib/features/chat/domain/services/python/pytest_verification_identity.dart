@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:path/path.dart' as path;
 
-import 'literal_shell_words.dart';
+import '../literal_shell_words.dart';
 import 'pytest_shell_invocation.dart';
 import 'pytest_test_outcome_parser.dart';
 import 'pytest_verification_scope.dart';

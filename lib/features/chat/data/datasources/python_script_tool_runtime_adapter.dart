@@ -1,12 +1,12 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/python_script_tool_handler.dart';
-import '../../domain/services/python_staging_lease_registry.dart';
+import '../../domain/services/python/python_script_tool_handler.dart';
+import '../../domain/services/python/python_staging_lease_registry.dart';
 import 'python_script_runtime_contract.dart';
 import 'python_script_runtime_ports.dart';
 
-export '../../domain/services/python_staging_lease_registry.dart';
+export '../../domain/services/python/python_staging_lease_registry.dart';
 export 'python_execution_authority.dart';
 export 'python_input_staging_runtime_adapter.dart';
 export 'python_script_runtime_contract.dart';

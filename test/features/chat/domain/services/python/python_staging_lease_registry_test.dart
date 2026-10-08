@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/python_staging_lease_registry.dart';
+import 'package:caverno/features/chat/domain/services/python/python_staging_lease_registry.dart';
 import 'package:test/test.dart';
 
 void main() {

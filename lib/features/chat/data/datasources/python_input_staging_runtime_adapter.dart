@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import '../../domain/services/python_script_tool_contract.dart';
-import '../../domain/services/python_staging_lease_registry.dart';
+import '../../domain/services/python/python_script_tool_contract.dart';
+import '../../domain/services/python/python_staging_lease_registry.dart';
 import 'python_input_staging.dart';
 import 'python_script_runtime_contract.dart';
 

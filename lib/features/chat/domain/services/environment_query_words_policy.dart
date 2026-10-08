@@ -1,6 +1,6 @@
 import 'package:path/path.dart' as path;
 
-import 'pytest_metadata_inspection_policy.dart';
+import 'python/pytest_metadata_inspection_policy.dart';
 
 /// Recognizes one environment query after shell syntax has been validated.
 abstract final class EnvironmentQueryWordsPolicy {

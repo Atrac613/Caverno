@@ -67,8 +67,8 @@
     "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
     "lib/features/chat/domain/services/proposal_option_extraction.dart",
     "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
-    "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
-    "lib/features/chat/domain/services/python_script_tool_handler.dart",
+    "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
+    "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
     "lib/features/chat/domain/services/referenced_specification_loader.dart",
     "lib/features/chat/domain/services/request_tool_observation_collector.dart",
     "lib/features/chat/domain/services/run_tests_tool_handler.dart",
@@ -10318,7 +10318,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy._canRepair",
       "signature": "bool _canRepair(PythonAttachmentRepairInput input)",
       "turnIdentityParameters": [],
@@ -10333,7 +10333,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy._containsAny",
       "signature": "bool _containsAny(String value, List<String> needles)",
       "turnIdentityParameters": [],
@@ -10346,7 +10346,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.buildPythonAttachmentPathFailureRepairPrompt",
       "signature": "static String buildPythonAttachmentPathFailureRepairPrompt()",
       "turnIdentityParameters": [],
@@ -10359,7 +10359,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.buildSkippedPythonAttachmentAnalysisRepairPrompt",
       "signature": "static String buildSkippedPythonAttachmentAnalysisRepairPrompt()",
       "turnIdentityParameters": [],
@@ -10372,7 +10372,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.containsCjkAnalysisMarker",
       "signature": "bool containsCjkAnalysisMarker(String value)",
       "turnIdentityParameters": [],
@@ -10386,7 +10386,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.hasRunPythonScriptPathFailure",
       "signature": "bool hasRunPythonScriptPathFailure(List<ToolResultInfo> toolResults)",
       "turnIdentityParameters": [],
@@ -10402,7 +10402,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.hasRunPythonScriptToolResult",
       "signature": "bool hasRunPythonScriptToolResult(List<ToolResultInfo> toolResults)",
       "turnIdentityParameters": [],
@@ -10417,7 +10417,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.looksLikePythonAttachmentAnalysisRequest",
       "signature": "bool looksLikePythonAttachmentAnalysisRequest(String text)",
       "turnIdentityParameters": [],
@@ -10433,7 +10433,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.shouldRepairPythonAttachmentPathFailure",
       "signature": "bool shouldRepairPythonAttachmentPathFailure(\n    PythonAttachmentRepairInput input,\n  )",
       "turnIdentityParameters": [],
@@ -10447,7 +10447,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_attachment_repair_policy.dart",
+      "path": "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
       "declaration": "PythonAttachmentRepairPolicy.shouldRepairSkippedPythonAttachmentAnalysis",
       "signature": "bool shouldRepairSkippedPythonAttachmentAnalysis(\n    PythonAttachmentRepairInput input,\n  )",
       "turnIdentityParameters": [],
@@ -10461,7 +10461,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._afterOutcome",
       "signature": "PythonStagedHandlerOutcome _afterOutcome(PythonScriptToolRequest request)",
       "turnIdentityParameters": [],
@@ -10475,7 +10475,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._beforeOutcome",
       "signature": "PythonStagedHandlerOutcome _beforeOutcome(PythonScriptToolRequest request)",
       "turnIdentityParameters": [],
@@ -10489,7 +10489,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._cleanup",
       "signature": "Future<void> _cleanup({\n    required PythonScriptToolRequest request,\n    required PythonStagingAttempt attempt,\n    required PythonStagingLeaseToken token,\n    required PythonStagingLease? activeLease,\n    required List<PythonStagingCleanupClaim> queuedClaims,\n  })",
       "turnIdentityParameters": [],
@@ -10510,7 +10510,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._expiryBeforeExecution",
       "signature": "McpToolResult? _expiryBeforeExecution(\n    PythonScriptToolRequest request,\n    PythonStagingAttempt attempt,\n    PythonStagingLeaseToken token,\n  )",
       "turnIdentityParameters": [],
@@ -10525,7 +10525,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._expiryState",
       "signature": "({bool expired, McpToolResult? result}) _expiryState(\n    PythonScriptToolRequest request,\n    PythonStagingAttempt attempt,\n  )",
       "turnIdentityParameters": [],
@@ -10540,7 +10540,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._finishExecutedOutcome",
       "signature": "Future<McpToolResult> _finishExecutedOutcome({\n    required PythonScriptToolRequest request,\n    required PythonStagingAttempt attempt,\n    required PythonScriptApprovalKey key,\n    required PythonStagedHandlerOutcome outcome,\n  })",
       "turnIdentityParameters": [],
@@ -10556,7 +10556,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._rememberDenial",
       "signature": "McpToolResult _rememberDenial({\n    required PythonScriptToolRequest request,\n    required PythonStagingAttempt attempt,\n    required PythonStagingLeaseToken token,\n    required PythonScriptApprovalKey key,\n    required McpToolResult result,\n  })",
       "turnIdentityParameters": [],
@@ -10572,7 +10572,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler._runStaged",
       "signature": "Future<PythonStagedHandlerOutcome> _runStaged({\n    required PythonScriptToolRequest request,\n    required PythonStagingAttempt attempt,\n    required PythonStagingLeaseToken token,\n    required PythonScriptApprovalKey approvalKey,\n    required PythonStagingAllocation allocation,\n    required void Function() onExecutionStarted,\n  })",
       "turnIdentityParameters": [],
@@ -10603,7 +10603,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/python_script_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
       "declaration": "PythonScriptToolHandler.handle",
       "signature": "Future<McpToolResult> handle(PythonScriptToolRequest request)",
       "turnIdentityParameters": [],

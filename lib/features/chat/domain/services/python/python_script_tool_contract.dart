@@ -1,9 +1,9 @@
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/message.dart';
-import 'immutable_json_snapshot.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/message.dart';
+import '../immutable_json_snapshot.dart';
 import 'python_staging_lease_registry.dart';
 
 Map<String, dynamic> freezePythonToolMap(Map<String, dynamic> value) {

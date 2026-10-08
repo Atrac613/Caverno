@@ -4,9 +4,9 @@ import 'package:path/path.dart' as path;
 
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_issue_detector.dart';
-import 'inline_python_verification_contract.dart';
 import 'literal_shell_words.dart';
-import 'pytest_verification_identity.dart';
+import 'python/inline_python_verification_contract.dart';
+import 'python/pytest_verification_identity.dart';
 import 'shell_exit_status_report.dart';
 import 'verification_command_sequence.dart';
 
