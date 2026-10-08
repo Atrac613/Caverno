@@ -191,6 +191,11 @@ structurally unmotivated to build:
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Local LLM | LL41 | later | M | LL34, LL35, LL37 | Deterministic goal verification contract: a `ConversationGoal` may carry a user-declared verification command and acceptance criteria whose exit code is ground truth for the goal auto-continue stop decision. Adds no judge and no inline panel — LL37's no-inline-stage decision stands; this is ground truth, not a verdict. Evidence-gated on an LL31 turn-exit triage of `awaitingConfirmation` and `noProgress` terminations. |
 | Local LLM | LL42 | later | S-M | F6, LL6 | Measure tool-definition cost across request paths and trim oversized initial catalogs where task-scoped selection preserves tool reachability and safety. Start with representative chat, coding, Plan Mode, Remote Coding, and routine turns; promote one measured path at a time. |
+| Local LLM | LL43 | next | S | LL6, LL33 | Request envelope fingerprint and cache-break detection: log a digest of each request's stable envelope (model, call config, system prompt, tool catalog) plus the provider's cache-read count on every request, including zero, so a prefix break is a field comparison in triage instead of a hand diff. Instrument only; no request-construction change. From the DeepSeek Harness comparison (`docs/deepseek_harness_comparison_2026-10-08.md`). |
+| Local LLM | LL44 | later | S-M | LL34, HEU3 | Non-execution as a typed fact: one typed field states whether the tool body ran and why not (refused by policy, approval denied, cancelled before dispatch, timed out, failed to spawn), so the failure classifier, the executed-call ledger, and the turn digest stop parsing `ok` / `executed` markers out of the result JSON. Evidence-gated: the motivating commit-guard defect was fixed per producer in `6ab0621de`; promote on the next non-execution misclassification. |
+| Local LLM | LL45 | next | S-M | F3, LL8 | Structured LLM request failure: capture a provider-neutral failure value at the transport boundary (code, HTTP status, retry-after, provider request id) and derive both retry policy and user-facing text from it, replacing substring classification in `ChatErrorMessageBuilder`. Non-provider errors (storage, local I/O) never reach the provider classifier. |
+| Local LLM | LL46 | later | S | LL33, LL36 | Model-visible injection inventory: one entry per harness producer that injects text into model input, keyed on its LL33 transform id, recording the text, its settle condition, its token cost, and whether it appends or rewrites the cached prefix. A test fails when a producer has no entry. |
+| Local LLM | LL47 | later | S-M | LL14, LL30, SEC1 | Oversized tool-output spill files: when a result is truncated to head and tail, write the complete output to a private owner-only file and name its path in the result so the model can read the omitted part. The spill location must be readable through the model's own read fence, decided with SEC1. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
 | Retrieval | RAG3 | blocked | M | RAG2, LL5, F6, LL39 | No measured candidate is eligible. The frozen hybrid candidate failed the unavailable-evidence gate; deterministic score, intent, and cross-arm policies lack a support signal; verbose semantic filtering misses the latency gate; compact v3 misses both quality and latency gates. Current candidate families are closed. Bounded vector persistence, `search_knowledge`, prompting, promotion, and runtime wiring remain blocked. Evidence: `docs/rag3_post_v3_entry_contract_2026-09-01.md`. |
@@ -4329,6 +4334,12 @@ Source: Hermes/Nous agent `agent/tool_guardrails.py`
 `append_toolguard_guidance`) and `agent/tool_executor.py`
 (`_append_guardrail_observation` warn-injection vs. opt-in block).
 
+Corroborated 2026-10-08 by DeepSeek Harness `repeat-tool-reminder`: an
+advisory reminder at 3, 5, and 8 consecutive identical calls (exact arguments,
+key-order-insensitive), which never blocks or delays the call and resets on a
+new user message. See `docs/deepseek_harness_comparison_2026-10-08.md`. This
+does not change the evidence gate below.
+
 Gated on: LL31 triage evidence — confirm tool-call abort actually dominates the
 exit-reason distribution before building this. If confirmed, next action: add a
 graded-decision helper next to `ToolLoopRecoveryPolicy` and rewire the
@@ -5975,6 +5986,157 @@ Acceptance criteria:
 
 Next action: capture a per-path tool-definition census and compare it with
 actual tool use before choosing the first path beyond `/review`.
+
+## Harness Contract Track (LL43-LL47)
+
+Source: `docs/deepseek_harness_comparison_2026-10-08.md`. Each milestone
+turns a fact the harness currently infers into a fact a producer states, and
+each one is tied to a defect Caverno has already shipped. Design only is
+adopted; no DeepSeek Harness source or prompt text is copied.
+
+Order: LL45 closes an open defect and LL43 is a cheap instrument that can land
+beside it. LL44 is evidence-gated because its motivating defect was fixed per
+producer. LL46 and LL47 stay `later` until LL43 and LL45 ship.
+
+### LL43: Request Envelope Fingerprint And Cache-Break Detection
+
+Status: `next`
+
+Context:
+- LL6 built a prefix-stable request mode and measured it once. Nothing records
+  the request envelope per request at runtime, and the session log writes
+  `cachedPromptTokens` only when it is positive
+  (`llm_session_log_store.dart`), so a cache miss is an absent field.
+- Two prefix breaks were found by hand-diffing requests: the per-minute prompt
+  clock (11.4 min of a 71.7-min session spent re-prefilling, fixed by pinning
+  the clock per turn) and mid-loop tool-catalog flapping (fixed by
+  `TurnToolCatalogSource`).
+
+Scope:
+- Per request, log separate digests of the model id, call config, rendered
+  system prompt, and serialized tool catalog, and always log the provider's
+  cache-read count, writing `0` explicitly.
+- Teach `tool/triage_session_logs.py` to flag a request whose cache-read count
+  falls while its predecessor's envelope digests are unchanged, and to name
+  which digest changed when they are not.
+
+Not in scope: full request reconstruction from the log. LL33 deferred Level 3
+event sourcing on evidence, and API1 owns any future event core.
+
+Acceptance criteria:
+- A focused test proves the digests are stable across two requests in one tool
+  loop and change when the system prompt or tool catalog changes.
+- Replaying the prompt-clock regression (clock not pinned) in a test flags the
+  changed system-prompt digest.
+- A real session log shows the new fields, including an explicit zero.
+
+Next action: add the digests and the explicit zero to the session-log entry,
+then the triage rule.
+
+### LL44: Non-Execution As A Typed Fact
+
+Status: `later`
+
+Context:
+- `ToolOutcome.exitCode` documents that `null` covers "denied, timed out, or
+  failed to spawn", with no field separating the three.
+- Non-execution is declared inside the result JSON string (`ok: false`,
+  `ToolResultOrigin` markers), and each consumer parses it back:
+  `ToolLoopContextDigest._wasNeverExecuted`, `ToolFailureClassifier`, and the
+  `executedToolCallKeys` ledger. HEU3's instrument found producers that no
+  hand-maintained list contained.
+- The motivating defect is fixed: `UninspectedCommitGuard` returned a
+  success-typed refusal, so after `git diff --cached` the identical commit was
+  deduped and the refusal replayed, and the digest listed blocked
+  `git commit` / `git tag` calls as run (3 of 9 guard-firing sessions,
+  2026-09-26). `6ab0621de` declared the commit and tag guard blocks as
+  refusals. The fix was per producer; the next producer that forgets the
+  marker repeats the defect class.
+
+Scope:
+- One typed field on the result stating whether the tool body was invoked,
+  plus the reason when it was not. Timeout and exit status stay separate
+  fields, because a process can time out and still exit 0.
+- Consumers read the field instead of parsing the result string; the string
+  markers remain for the model.
+- A test fails when a producer that returns without invoking the body leaves
+  the field unset.
+
+Gate: promote when a session or canary shows another non-executed call
+classified as executed, failed, or succeeded, or when HEU3's undeclared count
+grows. Without that, the per-producer markers are sufficient.
+
+Next action: none until the gate fires; keep the commit-guard regression test
+(refused commit → `git diff --cached` → identical commit executes) as the
+reference case.
+
+### LL45: Structured LLM Request Failure
+
+Status: `next`
+
+Context:
+- `ChatErrorMessageBuilder` classifies by substring (`contains('401')`,
+  `contains('429')`). On 2026-10-08 a `SqliteException(14)` whose message
+  embedded the conversation payload was shown as "Authentication failed". A
+  branch fix narrows the match to a word-bounded `401` in the first 300
+  characters, which still keeps text as the classifier.
+- `RateLimitException.retryAfter` is already read structurally in
+  `chat_completion_request_fallback.dart`, so one structured case exists.
+
+Scope:
+- A provider-neutral failure value captured where the transport still holds
+  the response: stable code (auth, rate limit, server, timeout, transport,
+  context overflow, empty response, invalid request, unknown), HTTP status,
+  retry-after, and provider request id when exposed.
+- User-facing text and retry policy both derive from that value. Retryability
+  is a policy decision, not a field on the failure.
+- Storage and local I/O errors are classified before the provider classifier
+  and never reach it.
+
+Acceptance criteria:
+- Fixtures for each code, including an error message that contains `401` in
+  embedded payload text, which must not classify as auth.
+- No `contains(` on error text remains in the provider failure path.
+- Context-length retry keeps its current behavior, now keyed on the code.
+
+Next action: map every exception the transport layer can raise today to a
+code, then switch `ChatErrorMessageBuilder` to the value.
+
+### LL46: Model-Visible Injection Inventory
+
+Status: `later`
+
+Scope: one entry per harness producer that injects text into model input,
+keyed on its LL33 transform id: the text or template, the settle condition,
+the approximate token cost, and whether the injection appends after the cached
+prefix or rewrites earlier history. A test fails when a transform id has no
+entry.
+
+Why: several shipped defects were notice defects — a brace made a claim notice
+permanent, claim notices deleted the answer, guardrail feedback on
+non-verification commands never settled. An inventory makes the settle
+condition and cache effect reviewable before a producer ships.
+
+Next action: after LL43-LL45, generate the first inventory from the existing
+transform ids and check it against `tool/check_fix_firings.py` signatures.
+
+### LL47: Oversized Tool-Output Spill Files
+
+Status: `later`
+
+Scope: when a tool result is truncated to head and tail
+(`BoundedCommandOutput`), write the complete output to a private owner-only
+file created exclusively with a random name, and name its path and the
+omitted size in the result. The model reads the omitted part through its
+normal read tool.
+
+Constraint: the read fence does not cover `~/.caverno`, so the spill location
+has to be readable through the model's own tools without widening the
+perimeter. Decide it with SEC1 before any implementation. Retention follows
+the session-log retention rules.
+
+Next action: measure how often truncated results are followed by a re-run of
+the same command with a narrower filter, which is the cost this removes.
 
 ## Future Platform Vision Milestone Notes
 
