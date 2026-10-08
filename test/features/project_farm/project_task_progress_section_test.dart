@@ -187,16 +187,35 @@ void main() {
         );
         expect(
           resume,
-          outcome == ProjectTaskOutcome.findingsRemain ||
-                  outcome == ProjectTaskOutcome.stopped
-              ? findsOneWidget
-              : findsNothing,
+          outcome == ProjectTaskOutcome.running ||
+                  outcome == ProjectTaskOutcome.committed
+              ? findsNothing
+              : findsOneWidget,
         );
       });
     }
 
     testWidgets('a started task offers resume after a restart', (tester) async {
       await pump(tester, null, startedTask: true);
+      expect(resume, findsOneWidget);
+    });
+
+    // Work done after a stop moves the task on: the finished run's own
+    // verdict gives way to the stage the saved thread shows.
+    testWidgets('a saved task shows its derived stage after a run ends', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const ProjectTaskProgress(
+          phase: ProjectTaskPhase.review,
+          outcome: ProjectTaskOutcome.findingsRemain,
+        ),
+        startedTask: true,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('project_task_progress.paused'), findsOneWidget);
+      expect(find.text('project_task_progress.findings_remain'), findsNothing);
       expect(resume, findsOneWidget);
     });
   });

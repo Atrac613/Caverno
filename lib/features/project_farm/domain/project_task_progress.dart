@@ -4,7 +4,20 @@
 enum ProjectTaskPhase { decompose, implement, review, repair, commit }
 
 /// How the workflow run ended, or [running] while it has not.
-enum ProjectTaskOutcome { running, committed, findingsRemain, stopped }
+///
+/// [paused], [unreviewed] and [readyToCommit] are derived from the saved
+/// thread and git when no run is live: a task stopped part-way through its
+/// subtasks, one whose changes are newer than its last review, and one whose
+/// current changes passed review but are not committed.
+enum ProjectTaskOutcome {
+  running,
+  committed,
+  findingsRemain,
+  stopped,
+  paused,
+  unreviewed,
+  readyToCommit,
+}
 
 /// Where a project task's workflow stands, for the sidebar.
 ///

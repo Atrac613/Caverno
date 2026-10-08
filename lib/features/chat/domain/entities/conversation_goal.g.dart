@@ -18,6 +18,15 @@ _ConversationGoal _$ConversationGoalFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const <String>[],
+      projectTaskReview:
+          $enumDecodeNullable(
+            _$ProjectTaskReviewStateEnumMap,
+            json['projectTaskReview'],
+            unknownValue: ProjectTaskReviewState.none,
+          ) ??
+          ProjectTaskReviewState.none,
+      projectTaskReviewedPatch:
+          json['projectTaskReviewedPatch'] as String? ?? '',
       status:
           $enumDecodeNullable(
             _$ConversationGoalStatusEnumMap,
@@ -54,6 +63,9 @@ Map<String, dynamic> _$ConversationGoalToJson(_ConversationGoal instance) =>
       'autoContinue': instance.autoContinue,
       'projectTaskAutoReview': instance.projectTaskAutoReview,
       'projectTaskInheritedPaths': instance.projectTaskInheritedPaths,
+      'projectTaskReview':
+          _$ProjectTaskReviewStateEnumMap[instance.projectTaskReview]!,
+      'projectTaskReviewedPatch': instance.projectTaskReviewedPatch,
       'status': _$ConversationGoalStatusEnumMap[instance.status]!,
       'tokenBudget': instance.tokenBudget,
       'tokenUsage': instance.tokenUsage,
@@ -69,6 +81,12 @@ Map<String, dynamic> _$ConversationGoalToJson(_ConversationGoal instance) =>
       'blockedAt': instance.blockedAt?.toIso8601String(),
       'lastBlockerSeenAt': instance.lastBlockerSeenAt?.toIso8601String(),
     };
+
+const _$ProjectTaskReviewStateEnumMap = {
+  ProjectTaskReviewState.none: 'none',
+  ProjectTaskReviewState.clean: 'clean',
+  ProjectTaskReviewState.findings: 'findings',
+};
 
 const _$ConversationGoalStatusEnumMap = {
   ConversationGoalStatus.active: 'active',

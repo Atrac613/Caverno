@@ -23,6 +23,9 @@ enum ConversationGoalStatus {
   awaitingConfirmation,
 }
 
+/// The last dedicated review verdict a roadmap task's workflow recorded.
+enum ProjectTaskReviewState { none, clean, findings }
+
 @freezed
 abstract class ConversationGoal with _$ConversationGoal {
   const ConversationGoal._();
@@ -40,6 +43,15 @@ abstract class ConversationGoal with _$ConversationGoal {
     /// turn that only verifies them is not refused for having no change of its
     /// own and pushed to report a blocker.
     @Default(<String>[]) List<String> projectTaskInheritedPaths,
+
+    /// The last review verdict of this roadmap task, and a fingerprint of the
+    /// task patch it covered. The sidebar compares the fingerprint with the
+    /// current patch, so a change made after the review, by a later turn or by
+    /// hand, reads as unreviewed instead of keeping the old verdict.
+    @JsonKey(unknownEnumValue: ProjectTaskReviewState.none)
+    @Default(ProjectTaskReviewState.none)
+    ProjectTaskReviewState projectTaskReview,
+    @Default('') String projectTaskReviewedPatch,
     @JsonKey(unknownEnumValue: ConversationGoalStatus.active)
     @Default(ConversationGoalStatus.active)
     ConversationGoalStatus status,

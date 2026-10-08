@@ -1939,6 +1939,9 @@
     "commit": "Commit",
     "subtasks_done": "{}/{} done",
     "repair_round": "Repair {}/{}",
+    "paused": "Paused",
+    "unreviewed": "Unreviewed changes",
+    "ready_to_commit": "Ready to commit",
     "resume": "Resume"
   },
   "project_dashboard": {

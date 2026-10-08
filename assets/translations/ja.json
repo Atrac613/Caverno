@@ -1939,6 +1939,9 @@
     "commit": "コミット",
     "subtasks_done": "{}/{} 完了",
     "repair_round": "修正 {}/{}",
+    "paused": "中断中",
+    "unreviewed": "未レビューの変更あり",
+    "ready_to_commit": "コミット待ち",
     "resume": "再開"
   },
   "project_dashboard": {

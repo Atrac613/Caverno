@@ -7,6 +7,7 @@ import 'package:caverno/features/chat/domain/services/project_task_terminal_stat
 import 'package:caverno/features/project_farm/application/project_task_review_workflow.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_git_state.dart';
 import 'package:caverno/features/project_farm/domain/project_task_progress.dart';
+import 'package:caverno/features/project_farm/domain/project_task_status.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/project_task_commit_test_support.dart';
@@ -90,7 +91,13 @@ void main() {
     void Function(Map<String, Object?>)? onDecision,
     List<String> dirtyPaths = const [],
     List<bool>? reviewRoutes,
+    List<TurnDiffFile>? taskPatch,
+    List<(ProjectTaskReviewState, String)>? reviews,
   }) => ProjectTaskReviewWorkflow(
+    readTaskPatch: taskPatch == null ? null : (_) async => taskPatch,
+    recordReview: reviews == null
+        ? null
+        : (review, patch) async => reviews.add((review, patch)),
     projectRoot: '/repo',
     prepareCommit: (_, _) async => true,
     readCommitSnapshot: (scope) async =>
@@ -214,6 +221,60 @@ void main() {
       expect(await workflow().resume(), ProjectTaskReviewResult.committed);
       expect(sendPrompts, isEmpty);
       expect(reports.last.outcome, ProjectTaskOutcome.committed);
+    });
+
+    const reviewedPatch = [
+      TurnDiffFile(
+        filePath: 'lib/parser.dart',
+        unifiedPatch: '@@ -1 +1 @@\n-old\n+new',
+      ),
+    ];
+
+    void reviewedClean() {
+      stoppedAfter(subtasks.map((task) => task.id).toSet());
+      reply('Edited.', withDiff: true);
+      conversation = conversation.copyWith(
+        goal: conversation.goal!.copyWith(
+          projectTaskReview: ProjectTaskReviewState.clean,
+          projectTaskReviewedPatch: ProjectTaskStatus.fingerprint(
+            reviewedPatch,
+          ),
+        ),
+      );
+    }
+
+    test('commits a change a clean review already covered', () async {
+      reviewedClean();
+      final routes = <bool>[];
+      expect(
+        await workflow(
+          dirtyPaths: const ['lib/parser.dart'],
+          reviewRoutes: routes,
+          taskPatch: reviewedPatch,
+        ).resume(),
+        ProjectTaskReviewResult.committed,
+      );
+      expect(routes, isEmpty, reason: 'no second review of the same patch');
+      expect(commits, 1);
+    });
+
+    test('reviews again when the change moved on after review', () async {
+      reviewedClean();
+      final routes = <bool>[];
+      expect(
+        await workflow(
+          dirtyPaths: const ['lib/parser.dart'],
+          reviewRoutes: routes,
+          taskPatch: const [
+            TurnDiffFile(
+              filePath: 'lib/parser.dart',
+              unifiedPatch: '@@ -1 +1 @@\n-old\n+newer',
+            ),
+          ],
+        ).resume(),
+        ProjectTaskReviewResult.committed,
+      );
+      expect(routes, [isTrue]);
     });
 
     test('an unstarted thread is not resumed', () async {
@@ -613,4 +674,25 @@ void main() {
       ]);
     },
   );
+
+  test('records the review verdict with the patch it covered', () async {
+    final reviews = <(ProjectTaskReviewState, String)>[];
+    const patch = [
+      TurnDiffFile(
+        filePath: 'lib/parser.dart',
+        unifiedPatch: '@@ -1 +1 @@\n-old\n+new',
+      ),
+    ];
+    expect(
+      await workflow(
+        dirtyPaths: const ['lib/parser.dart'],
+        taskPatch: patch,
+        reviews: reviews,
+      ).run(),
+      ProjectTaskReviewResult.committed,
+    );
+    expect(reviews, [
+      (ProjectTaskReviewState.clean, ProjectTaskStatus.fingerprint(patch)),
+    ]);
+  });
 }

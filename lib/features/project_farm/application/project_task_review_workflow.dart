@@ -13,6 +13,7 @@ import '../../chat/presentation/slash_commands/slash_command_prompt_template.dar
 import '../domain/entities/project_task_commit_scope.dart';
 import '../domain/entities/project_task_git_state.dart';
 import '../domain/project_task_progress.dart';
+import '../domain/project_task_status.dart';
 import 'project_task_commit_sequence.dart';
 import 'project_task_commit_turn_evidence.dart';
 
@@ -44,6 +45,7 @@ final class ProjectTaskReviewWorkflow {
     this.inheritedFiles = const [],
     this.recordPriorChanges,
     this.readTaskPatch,
+    this.recordReview,
   });
 
   final void Function(Map<String, Object?> decision)? onDecision;
@@ -107,6 +109,12 @@ final class ProjectTaskReviewWorkflow {
   /// commit stage commits.
   final Future<List<TurnDiffFile>?> Function(List<String> paths)? readTaskPatch;
 
+  /// Saves a review verdict with the fingerprint of the patch it covered, so
+  /// the task's state can be derived after the run ends: see
+  /// [ProjectTaskStatus].
+  final Future<void> Function(ProjectTaskReviewState review, String patch)?
+  recordReview;
+
   static const maxRepairRounds = 2;
   static const maxMissingDiffRetries = 1;
 
@@ -142,10 +150,12 @@ final class ProjectTaskReviewWorkflow {
     );
   }
 
-  /// Continues a stopped task from where its saved state shows it stopped:
-  /// the first unfinished subtask, else review of the current task changes,
-  /// so manual fixes made after the stop are reviewed and committed too.
-  /// A task whose files carry no uncommitted change is already committed.
+  /// Continues a stopped task from where its saved state shows it stopped,
+  /// as [ProjectTaskStatus] derives it: the first unfinished subtask; the
+  /// commit, when the current changes are the ones a clean review covered;
+  /// else review of the current task changes, so manual fixes made after the
+  /// stop are reviewed and committed too. A task whose files carry no
+  /// uncommitted change is already committed.
   Future<ProjectTaskReviewResult> resume() async {
     stopReason = null;
     final task = readConversation();
@@ -155,35 +165,38 @@ final class ProjectTaskReviewWorkflow {
     final objective = task.goal?.normalizedObjective;
     if (objective == null) return _stop('the task has no goal objective');
     final subtasks = task.workflowSpec?.tasks ?? const [];
-    final done = {
-      for (final progress in task.executionProgress)
-        if (progress.status == ConversationWorkflowTaskStatus.completed)
-          progress.taskId,
-    };
-    final next = subtasks.indexWhere((subtask) => !done.contains(subtask.id));
-    final implemented = subtasks.isEmpty
-        ? task.goal?.status == ConversationGoalStatus.completed
-        : next < 0;
-    if (!implemented) {
-      return _execute(
-        objective,
-        subtasks,
-        diffBaseline: 0,
-        firstSubtask: next < 0 ? 0 : next,
-      );
+    final paths = {
+      ...ProjectTaskStatus.taskPaths(task),
+      ..._taskPaths(task),
+    }.toList();
+    final files = await readTaskPatch?.call(paths);
+    final status = ProjectTaskStatus.stage(
+      task,
+      git: await readGitState(paths),
+      patch: files == null ? null : ProjectTaskStatus.fingerprint(files),
+    );
+    switch (status.outcome) {
+      case ProjectTaskOutcome.paused:
+        return _execute(
+          objective,
+          subtasks,
+          diffBaseline: 0,
+          firstSubtask: status.subtaskIndex,
+        );
+      case ProjectTaskOutcome.committed:
+        _report(status);
+        return ProjectTaskReviewResult.committed;
+      case ProjectTaskOutcome.readyToCommit:
+        _progress = status.copyWith(outcome: ProjectTaskOutcome.running);
+        return _commit(task, objective);
+      default:
+        return _execute(
+          objective,
+          subtasks,
+          diffBaseline: 0,
+          reviewFirst: true,
+        );
     }
-    final paths = _taskPaths(task);
-    final state = await readGitState(paths);
-    if (paths.isNotEmpty && state != null && state.dirtyPaths.isEmpty) {
-      _report(
-        const ProjectTaskProgress(
-          phase: ProjectTaskPhase.commit,
-          outcome: ProjectTaskOutcome.committed,
-        ),
-      );
-      return ProjectTaskReviewResult.committed;
-    }
-    return _execute(objective, subtasks, diffBaseline: 0, reviewFirst: true);
   }
 
   Future<ProjectTaskReviewResult> _execute(
@@ -351,9 +364,16 @@ ${_taskPaths(after).map((path) => '- $path').join('\n')}''';
         );
       }
       final reviewReport = verdict?.response ?? review.content;
-      if (_endsWithMarker(reviewReport, _clean)) {
-        return _commit(reviewed, objective);
+      final clean = _endsWithMarker(reviewReport, _clean);
+      if (clean || _endsWithMarker(reviewReport, _findings)) {
+        await recordReview?.call(
+          clean
+              ? ProjectTaskReviewState.clean
+              : ProjectTaskReviewState.findings,
+          ProjectTaskStatus.fingerprint(patch.files),
+        );
       }
+      if (clean) return _commit(reviewed, objective);
       if (!_endsWithMarker(reviewReport, _findings)) {
         return _stop(
           'the review ended without $_clean or $_findings '

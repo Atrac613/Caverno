@@ -21,7 +21,11 @@ mixin _$ConversationGoal {
 /// run's earlier subtask turns'. They count as this task's changes, so a
 /// turn that only verifies them is not refused for having no change of its
 /// own and pushed to report a blocker.
- List<String> get projectTaskInheritedPaths;@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus get status; int get tokenBudget; int get tokenUsage; int get turnBudget; int get turnsUsed; String get completionSummary; String get blockedReason; String get blockerSignature; int get blockerRepeatCount; DateTime get createdAt; DateTime get updatedAt; DateTime? get completedAt; DateTime? get blockedAt; DateTime? get lastBlockerSeenAt;
+ List<String> get projectTaskInheritedPaths;/// The last review verdict of this roadmap task, and a fingerprint of the
+/// task patch it covered. The sidebar compares the fingerprint with the
+/// current patch, so a change made after the review, by a later turn or by
+/// hand, reads as unreviewed instead of keeping the old verdict.
+@JsonKey(unknownEnumValue: ProjectTaskReviewState.none) ProjectTaskReviewState get projectTaskReview; String get projectTaskReviewedPatch;@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus get status; int get tokenBudget; int get tokenUsage; int get turnBudget; int get turnsUsed; String get completionSummary; String get blockedReason; String get blockerSignature; int get blockerRepeatCount; DateTime get createdAt; DateTime get updatedAt; DateTime? get completedAt; DateTime? get blockedAt; DateTime? get lastBlockerSeenAt;
 /// Create a copy of ConversationGoal
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -35,20 +39,20 @@ $ConversationGoalCopyWith<ConversationGoal> get copyWith => _$ConversationGoalCo
 @override
 bool operator ==(Object other) {
   final _this = this as ConversationGoal;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationGoal&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.objective, _this.objective) || other.objective == _this.objective)&&(identical(other.enabled, _this.enabled) || other.enabled == _this.enabled)&&(identical(other.autoContinue, _this.autoContinue) || other.autoContinue == _this.autoContinue)&&(identical(other.projectTaskAutoReview, _this.projectTaskAutoReview) || other.projectTaskAutoReview == _this.projectTaskAutoReview)&&const DeepCollectionEquality().equals(other.projectTaskInheritedPaths, _this.projectTaskInheritedPaths)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.tokenBudget, _this.tokenBudget) || other.tokenBudget == _this.tokenBudget)&&(identical(other.tokenUsage, _this.tokenUsage) || other.tokenUsage == _this.tokenUsage)&&(identical(other.turnBudget, _this.turnBudget) || other.turnBudget == _this.turnBudget)&&(identical(other.turnsUsed, _this.turnsUsed) || other.turnsUsed == _this.turnsUsed)&&(identical(other.completionSummary, _this.completionSummary) || other.completionSummary == _this.completionSummary)&&(identical(other.blockedReason, _this.blockedReason) || other.blockedReason == _this.blockedReason)&&(identical(other.blockerSignature, _this.blockerSignature) || other.blockerSignature == _this.blockerSignature)&&(identical(other.blockerRepeatCount, _this.blockerRepeatCount) || other.blockerRepeatCount == _this.blockerRepeatCount)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.completedAt, _this.completedAt) || other.completedAt == _this.completedAt)&&(identical(other.blockedAt, _this.blockedAt) || other.blockedAt == _this.blockedAt)&&(identical(other.lastBlockerSeenAt, _this.lastBlockerSeenAt) || other.lastBlockerSeenAt == _this.lastBlockerSeenAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationGoal&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.objective, _this.objective) || other.objective == _this.objective)&&(identical(other.enabled, _this.enabled) || other.enabled == _this.enabled)&&(identical(other.autoContinue, _this.autoContinue) || other.autoContinue == _this.autoContinue)&&(identical(other.projectTaskAutoReview, _this.projectTaskAutoReview) || other.projectTaskAutoReview == _this.projectTaskAutoReview)&&const DeepCollectionEquality().equals(other.projectTaskInheritedPaths, _this.projectTaskInheritedPaths)&&(identical(other.projectTaskReview, _this.projectTaskReview) || other.projectTaskReview == _this.projectTaskReview)&&(identical(other.projectTaskReviewedPatch, _this.projectTaskReviewedPatch) || other.projectTaskReviewedPatch == _this.projectTaskReviewedPatch)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.tokenBudget, _this.tokenBudget) || other.tokenBudget == _this.tokenBudget)&&(identical(other.tokenUsage, _this.tokenUsage) || other.tokenUsage == _this.tokenUsage)&&(identical(other.turnBudget, _this.turnBudget) || other.turnBudget == _this.turnBudget)&&(identical(other.turnsUsed, _this.turnsUsed) || other.turnsUsed == _this.turnsUsed)&&(identical(other.completionSummary, _this.completionSummary) || other.completionSummary == _this.completionSummary)&&(identical(other.blockedReason, _this.blockedReason) || other.blockedReason == _this.blockedReason)&&(identical(other.blockerSignature, _this.blockerSignature) || other.blockerSignature == _this.blockerSignature)&&(identical(other.blockerRepeatCount, _this.blockerRepeatCount) || other.blockerRepeatCount == _this.blockerRepeatCount)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.completedAt, _this.completedAt) || other.completedAt == _this.completedAt)&&(identical(other.blockedAt, _this.blockedAt) || other.blockedAt == _this.blockedAt)&&(identical(other.lastBlockerSeenAt, _this.lastBlockerSeenAt) || other.lastBlockerSeenAt == _this.lastBlockerSeenAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as ConversationGoal;
-  return Object.hashAll([runtimeType,_this.id,_this.objective,_this.enabled,_this.autoContinue,_this.projectTaskAutoReview,const DeepCollectionEquality().hash(_this.projectTaskInheritedPaths),_this.status,_this.tokenBudget,_this.tokenUsage,_this.turnBudget,_this.turnsUsed,_this.completionSummary,_this.blockedReason,_this.blockerSignature,_this.blockerRepeatCount,_this.createdAt,_this.updatedAt,_this.completedAt,_this.blockedAt,_this.lastBlockerSeenAt]);
+  return Object.hashAll([runtimeType,_this.id,_this.objective,_this.enabled,_this.autoContinue,_this.projectTaskAutoReview,const DeepCollectionEquality().hash(_this.projectTaskInheritedPaths),_this.projectTaskReview,_this.projectTaskReviewedPatch,_this.status,_this.tokenBudget,_this.tokenUsage,_this.turnBudget,_this.turnsUsed,_this.completionSummary,_this.blockedReason,_this.blockerSignature,_this.blockerRepeatCount,_this.createdAt,_this.updatedAt,_this.completedAt,_this.blockedAt,_this.lastBlockerSeenAt]);
 }
 
 @override
 String toString() {
   final _this = this as ConversationGoal;
-  return 'ConversationGoal(id: ${_this.id}, objective: ${_this.objective}, enabled: ${_this.enabled}, autoContinue: ${_this.autoContinue}, projectTaskAutoReview: ${_this.projectTaskAutoReview}, projectTaskInheritedPaths: ${_this.projectTaskInheritedPaths}, status: ${_this.status}, tokenBudget: ${_this.tokenBudget}, tokenUsage: ${_this.tokenUsage}, turnBudget: ${_this.turnBudget}, turnsUsed: ${_this.turnsUsed}, completionSummary: ${_this.completionSummary}, blockedReason: ${_this.blockedReason}, blockerSignature: ${_this.blockerSignature}, blockerRepeatCount: ${_this.blockerRepeatCount}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, completedAt: ${_this.completedAt}, blockedAt: ${_this.blockedAt}, lastBlockerSeenAt: ${_this.lastBlockerSeenAt})';
+  return 'ConversationGoal(id: ${_this.id}, objective: ${_this.objective}, enabled: ${_this.enabled}, autoContinue: ${_this.autoContinue}, projectTaskAutoReview: ${_this.projectTaskAutoReview}, projectTaskInheritedPaths: ${_this.projectTaskInheritedPaths}, projectTaskReview: ${_this.projectTaskReview}, projectTaskReviewedPatch: ${_this.projectTaskReviewedPatch}, status: ${_this.status}, tokenBudget: ${_this.tokenBudget}, tokenUsage: ${_this.tokenUsage}, turnBudget: ${_this.turnBudget}, turnsUsed: ${_this.turnsUsed}, completionSummary: ${_this.completionSummary}, blockedReason: ${_this.blockedReason}, blockerSignature: ${_this.blockerSignature}, blockerRepeatCount: ${_this.blockerRepeatCount}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, completedAt: ${_this.completedAt}, blockedAt: ${_this.blockedAt}, lastBlockerSeenAt: ${_this.lastBlockerSeenAt})';
 }
 
 
@@ -59,7 +63,7 @@ abstract mixin class $ConversationGoalCopyWith<$Res>  {
   factory $ConversationGoalCopyWith(ConversationGoal value, $Res Function(ConversationGoal) _then) = _$ConversationGoalCopyWithImpl;
 @useResult
 $Res call({
- String id, String objective, bool enabled, bool autoContinue, bool projectTaskAutoReview, List<String> projectTaskInheritedPaths,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
+ String id, String objective, bool enabled, bool autoContinue, bool projectTaskAutoReview, List<String> projectTaskInheritedPaths,@JsonKey(unknownEnumValue: ProjectTaskReviewState.none) ProjectTaskReviewState projectTaskReview, String projectTaskReviewedPatch,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
 });
 
 
@@ -76,7 +80,7 @@ class _$ConversationGoalCopyWithImpl<$Res>
 
 /// Create a copy of ConversationGoal
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? autoContinue = null,Object? projectTaskAutoReview = null,Object? projectTaskInheritedPaths = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? autoContinue = null,Object? projectTaskAutoReview = null,Object? projectTaskInheritedPaths = null,Object? projectTaskReview = null,Object? projectTaskReviewedPatch = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
   return _then(ConversationGoal(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,objective: null == objective ? _self.objective : objective // ignore: cast_nullable_to_non_nullable
@@ -84,7 +88,9 @@ as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nul
 as bool,autoContinue: null == autoContinue ? _self.autoContinue : autoContinue // ignore: cast_nullable_to_non_nullable
 as bool,projectTaskAutoReview: null == projectTaskAutoReview ? _self.projectTaskAutoReview : projectTaskAutoReview // ignore: cast_nullable_to_non_nullable
 as bool,projectTaskInheritedPaths: null == projectTaskInheritedPaths ? _self.projectTaskInheritedPaths : projectTaskInheritedPaths // ignore: cast_nullable_to_non_nullable
-as List<String>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as List<String>,projectTaskReview: null == projectTaskReview ? _self.projectTaskReview : projectTaskReview // ignore: cast_nullable_to_non_nullable
+as ProjectTaskReviewState,projectTaskReviewedPatch: null == projectTaskReviewedPatch ? _self.projectTaskReviewedPatch : projectTaskReviewedPatch // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConversationGoalStatus,tokenBudget: null == tokenBudget ? _self.tokenBudget : tokenBudget // ignore: cast_nullable_to_non_nullable
 as int,tokenUsage: null == tokenUsage ? _self.tokenUsage : tokenUsage // ignore: cast_nullable_to_non_nullable
 as int,turnBudget: null == turnBudget ? _self.turnBudget : turnBudget // ignore: cast_nullable_to_non_nullable
@@ -183,10 +189,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled,  bool autoContinue,  bool projectTaskAutoReview,  List<String> projectTaskInheritedPaths, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled,  bool autoContinue,  bool projectTaskAutoReview,  List<String> projectTaskInheritedPaths, @JsonKey(unknownEnumValue: ProjectTaskReviewState.none)  ProjectTaskReviewState projectTaskReview,  String projectTaskReviewedPatch, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationGoal() when $default != null:
-return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.projectTaskAutoReview,_that.projectTaskInheritedPaths,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
+return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.projectTaskAutoReview,_that.projectTaskInheritedPaths,_that.projectTaskReview,_that.projectTaskReviewedPatch,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
   return orElse();
 
 }
@@ -204,10 +210,10 @@ return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled,  bool autoContinue,  bool projectTaskAutoReview,  List<String> projectTaskInheritedPaths, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled,  bool autoContinue,  bool projectTaskAutoReview,  List<String> projectTaskInheritedPaths, @JsonKey(unknownEnumValue: ProjectTaskReviewState.none)  ProjectTaskReviewState projectTaskReview,  String projectTaskReviewedPatch, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationGoal():
-return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.projectTaskAutoReview,_that.projectTaskInheritedPaths,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
+return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.projectTaskAutoReview,_that.projectTaskInheritedPaths,_that.projectTaskReview,_that.projectTaskReviewedPatch,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -224,10 +230,10 @@ return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String objective,  bool enabled,  bool autoContinue,  bool projectTaskAutoReview,  List<String> projectTaskInheritedPaths, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String objective,  bool enabled,  bool autoContinue,  bool projectTaskAutoReview,  List<String> projectTaskInheritedPaths, @JsonKey(unknownEnumValue: ProjectTaskReviewState.none)  ProjectTaskReviewState projectTaskReview,  String projectTaskReviewedPatch, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationGoal() when $default != null:
-return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.projectTaskAutoReview,_that.projectTaskInheritedPaths,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
+return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.projectTaskAutoReview,_that.projectTaskInheritedPaths,_that.projectTaskReview,_that.projectTaskReviewedPatch,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
   return null;
 
 }
@@ -239,7 +245,7 @@ return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.
 @JsonSerializable()
 
 class _ConversationGoal extends ConversationGoal {
-  const _ConversationGoal({required this.id, this.objective = '', this.enabled = true, this.autoContinue = false, this.projectTaskAutoReview = false,  List<String> projectTaskInheritedPaths = const <String>[], @JsonKey(unknownEnumValue: ConversationGoalStatus.active) this.status = ConversationGoalStatus.active, this.tokenBudget = 0, this.tokenUsage = 0, this.turnBudget = 0, this.turnsUsed = 0, this.completionSummary = '', this.blockedReason = '', this.blockerSignature = '', this.blockerRepeatCount = 0, required this.createdAt, required this.updatedAt, this.completedAt, this.blockedAt, this.lastBlockerSeenAt}): _projectTaskInheritedPaths = projectTaskInheritedPaths,super._();
+  const _ConversationGoal({required this.id, this.objective = '', this.enabled = true, this.autoContinue = false, this.projectTaskAutoReview = false,  List<String> projectTaskInheritedPaths = const <String>[], @JsonKey(unknownEnumValue: ProjectTaskReviewState.none) this.projectTaskReview = ProjectTaskReviewState.none, this.projectTaskReviewedPatch = '', @JsonKey(unknownEnumValue: ConversationGoalStatus.active) this.status = ConversationGoalStatus.active, this.tokenBudget = 0, this.tokenUsage = 0, this.turnBudget = 0, this.turnsUsed = 0, this.completionSummary = '', this.blockedReason = '', this.blockerSignature = '', this.blockerRepeatCount = 0, required this.createdAt, required this.updatedAt, this.completedAt, this.blockedAt, this.lastBlockerSeenAt}): _projectTaskInheritedPaths = projectTaskInheritedPaths,super._();
   factory _ConversationGoal.fromJson(Map<String, dynamic> json) => _$ConversationGoalFromJson(json);
 
 @override final  String id;
@@ -264,6 +270,12 @@ class _ConversationGoal extends ConversationGoal {
   return EqualUnmodifiableListView(_projectTaskInheritedPaths);
 }
 
+/// The last review verdict of this roadmap task, and a fingerprint of the
+/// task patch it covered. The sidebar compares the fingerprint with the
+/// current patch, so a change made after the review, by a later turn or by
+/// hand, reads as unreviewed instead of keeping the old verdict.
+@override@JsonKey(unknownEnumValue: ProjectTaskReviewState.none) final  ProjectTaskReviewState projectTaskReview;
+@override@JsonKey() final  String projectTaskReviewedPatch;
 @override@JsonKey(unknownEnumValue: ConversationGoalStatus.active) final  ConversationGoalStatus status;
 @override@JsonKey() final  int tokenBudget;
 @override@JsonKey() final  int tokenUsage;
@@ -292,18 +304,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationGoal&&(identical(other.id, id) || other.id == id)&&(identical(other.objective, objective) || other.objective == objective)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.autoContinue, autoContinue) || other.autoContinue == autoContinue)&&(identical(other.projectTaskAutoReview, projectTaskAutoReview) || other.projectTaskAutoReview == projectTaskAutoReview)&&const DeepCollectionEquality().equals(other.projectTaskInheritedPaths, _projectTaskInheritedPaths)&&(identical(other.status, status) || other.status == status)&&(identical(other.tokenBudget, tokenBudget) || other.tokenBudget == tokenBudget)&&(identical(other.tokenUsage, tokenUsage) || other.tokenUsage == tokenUsage)&&(identical(other.turnBudget, turnBudget) || other.turnBudget == turnBudget)&&(identical(other.turnsUsed, turnsUsed) || other.turnsUsed == turnsUsed)&&(identical(other.completionSummary, completionSummary) || other.completionSummary == completionSummary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.blockerSignature, blockerSignature) || other.blockerSignature == blockerSignature)&&(identical(other.blockerRepeatCount, blockerRepeatCount) || other.blockerRepeatCount == blockerRepeatCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt)&&(identical(other.blockedAt, blockedAt) || other.blockedAt == blockedAt)&&(identical(other.lastBlockerSeenAt, lastBlockerSeenAt) || other.lastBlockerSeenAt == lastBlockerSeenAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationGoal&&(identical(other.id, id) || other.id == id)&&(identical(other.objective, objective) || other.objective == objective)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.autoContinue, autoContinue) || other.autoContinue == autoContinue)&&(identical(other.projectTaskAutoReview, projectTaskAutoReview) || other.projectTaskAutoReview == projectTaskAutoReview)&&const DeepCollectionEquality().equals(other.projectTaskInheritedPaths, _projectTaskInheritedPaths)&&(identical(other.projectTaskReview, projectTaskReview) || other.projectTaskReview == projectTaskReview)&&(identical(other.projectTaskReviewedPatch, projectTaskReviewedPatch) || other.projectTaskReviewedPatch == projectTaskReviewedPatch)&&(identical(other.status, status) || other.status == status)&&(identical(other.tokenBudget, tokenBudget) || other.tokenBudget == tokenBudget)&&(identical(other.tokenUsage, tokenUsage) || other.tokenUsage == tokenUsage)&&(identical(other.turnBudget, turnBudget) || other.turnBudget == turnBudget)&&(identical(other.turnsUsed, turnsUsed) || other.turnsUsed == turnsUsed)&&(identical(other.completionSummary, completionSummary) || other.completionSummary == completionSummary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.blockerSignature, blockerSignature) || other.blockerSignature == blockerSignature)&&(identical(other.blockerRepeatCount, blockerRepeatCount) || other.blockerRepeatCount == blockerRepeatCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt)&&(identical(other.blockedAt, blockedAt) || other.blockedAt == blockedAt)&&(identical(other.lastBlockerSeenAt, lastBlockerSeenAt) || other.lastBlockerSeenAt == lastBlockerSeenAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hashAll([runtimeType,id,objective,enabled,autoContinue,projectTaskAutoReview,const DeepCollectionEquality().hash(_projectTaskInheritedPaths),status,tokenBudget,tokenUsage,turnBudget,turnsUsed,completionSummary,blockedReason,blockerSignature,blockerRepeatCount,createdAt,updatedAt,completedAt,blockedAt,lastBlockerSeenAt]);
+    return Object.hashAll([runtimeType,id,objective,enabled,autoContinue,projectTaskAutoReview,const DeepCollectionEquality().hash(_projectTaskInheritedPaths),projectTaskReview,projectTaskReviewedPatch,status,tokenBudget,tokenUsage,turnBudget,turnsUsed,completionSummary,blockedReason,blockerSignature,blockerRepeatCount,createdAt,updatedAt,completedAt,blockedAt,lastBlockerSeenAt]);
 }
 
 @override
 String toString() {
-    return 'ConversationGoal(id: $id, objective: $objective, enabled: $enabled, autoContinue: $autoContinue, projectTaskAutoReview: $projectTaskAutoReview, projectTaskInheritedPaths: $projectTaskInheritedPaths, status: $status, tokenBudget: $tokenBudget, tokenUsage: $tokenUsage, turnBudget: $turnBudget, turnsUsed: $turnsUsed, completionSummary: $completionSummary, blockedReason: $blockedReason, blockerSignature: $blockerSignature, blockerRepeatCount: $blockerRepeatCount, createdAt: $createdAt, updatedAt: $updatedAt, completedAt: $completedAt, blockedAt: $blockedAt, lastBlockerSeenAt: $lastBlockerSeenAt)';
+    return 'ConversationGoal(id: $id, objective: $objective, enabled: $enabled, autoContinue: $autoContinue, projectTaskAutoReview: $projectTaskAutoReview, projectTaskInheritedPaths: $projectTaskInheritedPaths, projectTaskReview: $projectTaskReview, projectTaskReviewedPatch: $projectTaskReviewedPatch, status: $status, tokenBudget: $tokenBudget, tokenUsage: $tokenUsage, turnBudget: $turnBudget, turnsUsed: $turnsUsed, completionSummary: $completionSummary, blockedReason: $blockedReason, blockerSignature: $blockerSignature, blockerRepeatCount: $blockerRepeatCount, createdAt: $createdAt, updatedAt: $updatedAt, completedAt: $completedAt, blockedAt: $blockedAt, lastBlockerSeenAt: $lastBlockerSeenAt)';
 }
 
 
@@ -314,7 +326,7 @@ abstract mixin class _$ConversationGoalCopyWith<$Res> implements $ConversationGo
   factory _$ConversationGoalCopyWith(_ConversationGoal value, $Res Function(_ConversationGoal) _then) = __$ConversationGoalCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String objective, bool enabled, bool autoContinue, bool projectTaskAutoReview, List<String> projectTaskInheritedPaths,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
+ String id, String objective, bool enabled, bool autoContinue, bool projectTaskAutoReview, List<String> projectTaskInheritedPaths,@JsonKey(unknownEnumValue: ProjectTaskReviewState.none) ProjectTaskReviewState projectTaskReview, String projectTaskReviewedPatch,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
 });
 
 
@@ -331,7 +343,7 @@ class __$ConversationGoalCopyWithImpl<$Res>
 
 /// Create a copy of ConversationGoal
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? autoContinue = null,Object? projectTaskAutoReview = null,Object? projectTaskInheritedPaths = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? autoContinue = null,Object? projectTaskAutoReview = null,Object? projectTaskInheritedPaths = null,Object? projectTaskReview = null,Object? projectTaskReviewedPatch = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
   return _then(_ConversationGoal(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,objective: null == objective ? _self.objective : objective // ignore: cast_nullable_to_non_nullable
@@ -339,7 +351,9 @@ as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nul
 as bool,autoContinue: null == autoContinue ? _self.autoContinue : autoContinue // ignore: cast_nullable_to_non_nullable
 as bool,projectTaskAutoReview: null == projectTaskAutoReview ? _self.projectTaskAutoReview : projectTaskAutoReview // ignore: cast_nullable_to_non_nullable
 as bool,projectTaskInheritedPaths: null == projectTaskInheritedPaths ? _self._projectTaskInheritedPaths : projectTaskInheritedPaths // ignore: cast_nullable_to_non_nullable
-as List<String>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as List<String>,projectTaskReview: null == projectTaskReview ? _self.projectTaskReview : projectTaskReview // ignore: cast_nullable_to_non_nullable
+as ProjectTaskReviewState,projectTaskReviewedPatch: null == projectTaskReviewedPatch ? _self.projectTaskReviewedPatch : projectTaskReviewedPatch // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConversationGoalStatus,tokenBudget: null == tokenBudget ? _self.tokenBudget : tokenBudget // ignore: cast_nullable_to_non_nullable
 as int,tokenUsage: null == tokenUsage ? _self.tokenUsage : tokenUsage // ignore: cast_nullable_to_non_nullable
 as int,turnBudget: null == turnBudget ? _self.turnBudget : turnBudget // ignore: cast_nullable_to_non_nullable

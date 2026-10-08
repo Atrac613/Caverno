@@ -349,6 +349,18 @@ final class ProjectTaskWorkflowSession {
             ),
           );
         },
+        recordReview: (review, patch) async {
+          final goal = readTask()?.goal;
+          if (goal == null) return;
+          await conversations.persistRuntimeGoal(
+            conversationId: conversationId,
+            goal: goal.copyWith(
+              projectTaskReview: review,
+              projectTaskReviewedPatch: patch,
+              updatedAt: DateTime.now(),
+            ),
+          );
+        },
         onProgress: (progress) => read(
           projectTaskProgressProvider.notifier,
         ).report(conversationId, progress),

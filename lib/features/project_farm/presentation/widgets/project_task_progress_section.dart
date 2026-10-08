@@ -7,6 +7,7 @@ import '../../application/project_task_review_workflow.dart';
 import '../../domain/project_task_progress.dart';
 import '../project_task_review_launcher.dart';
 import '../providers/project_task_progress_provider.dart';
+import '../providers/project_task_status_provider.dart';
 
 enum _StepState { done, active, pending, failed }
 
@@ -23,11 +24,22 @@ class ProjectTaskProgressSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(
+    final live = ref.watch(
       projectTaskProgressProvider.select((all) => all[conversationId]),
     );
-    // A run's progress lives in memory, so after a restart a stopped task
-    // shows none; its saved thread still says it can be resumed.
+    // A live run reports its own stage. Otherwise the stage is derived from
+    // the saved thread and git, so work done after a stop shows; the stop
+    // reason is kept while the derived stage is still the one it stopped in.
+    final derived = ref.watch(projectTaskStatusProvider(conversationId)).value;
+    final progress =
+        live?.outcome == ProjectTaskOutcome.running || derived == null
+        ? live
+        : live?.outcome == ProjectTaskOutcome.stopped &&
+              _row(live!.phase) == _row(derived.phase)
+        ? derived.copyWith(stopReason: live.stopReason)
+        : derived;
+    // Until git has been read after a restart, the saved thread still says
+    // a started task can be resumed.
     final startedTask = ref.watch(
       conversationsNotifierProvider.select((state) {
         final task = state.conversationForId(conversationId);
@@ -37,8 +49,8 @@ class ProjectTaskProgressSection extends ConsumerWidget {
     );
     final resumable = progress == null
         ? startedTask
-        : progress.outcome == ProjectTaskOutcome.findingsRemain ||
-              progress.outcome == ProjectTaskOutcome.stopped;
+        : progress.outcome != ProjectTaskOutcome.running &&
+              progress.outcome != ProjectTaskOutcome.committed;
     if (progress == null && !resumable) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final resumeButton = resumable
@@ -99,6 +111,18 @@ class ProjectTaskProgressSection extends ConsumerWidget {
         'project_task_progress.stopped',
         theme.colorScheme.error,
       ),
+      ProjectTaskOutcome.paused => (
+        'project_task_progress.paused',
+        theme.colorScheme.onSurfaceVariant,
+      ),
+      ProjectTaskOutcome.unreviewed => (
+        'project_task_progress.unreviewed',
+        theme.colorScheme.tertiary,
+      ),
+      ProjectTaskOutcome.readyToCommit => (
+        'project_task_progress.ready_to_commit',
+        theme.colorScheme.primary,
+      ),
     };
     final stopReason = progress.stopReason;
     return Padding(
@@ -136,7 +160,7 @@ class ProjectTaskProgressSection extends ConsumerWidget {
                 state: row.state,
               ),
             ),
-          if (progress.outcome == ProjectTaskOutcome.stopped &&
+          if (progress.outcome != ProjectTaskOutcome.committed &&
               stopReason != null)
             Text(
               stopReason,
@@ -150,25 +174,30 @@ class ProjectTaskProgressSection extends ConsumerWidget {
     );
   }
 
+  static int _row(ProjectTaskPhase phase) => switch (phase) {
+    ProjectTaskPhase.decompose => 0,
+    ProjectTaskPhase.implement => 1,
+    ProjectTaskPhase.review || ProjectTaskPhase.repair => 2,
+    ProjectTaskPhase.commit => 3,
+  };
+
   /// Review and repair alternate, so they share one row whose detail names
   /// the repair round.
   static List<({String label, String? detail, _StepState state})> _rows(
     ProjectTaskProgress progress,
   ) {
-    final current = switch (progress.phase) {
-      ProjectTaskPhase.decompose => 0,
-      ProjectTaskPhase.implement => 1,
-      ProjectTaskPhase.review || ProjectTaskPhase.repair => 2,
-      ProjectTaskPhase.commit => 3,
-    };
+    final current = _row(progress.phase);
     _StepState stateOf(int row) {
       if (progress.outcome == ProjectTaskOutcome.committed || row < current) {
         return _StepState.done;
       }
       if (row > current) return _StepState.pending;
-      return progress.outcome == ProjectTaskOutcome.running
-          ? _StepState.active
-          : _StepState.failed;
+      return switch (progress.outcome) {
+        ProjectTaskOutcome.running => _StepState.active,
+        ProjectTaskOutcome.stopped ||
+        ProjectTaskOutcome.findingsRemain => _StepState.failed,
+        _ => _StepState.pending,
+      };
     }
 
     // Completed subtasks, as the Plan Mode progress rows count them. The
