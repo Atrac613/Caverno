@@ -56,9 +56,9 @@ completed.
 | `lib/features/chat/presentation/coordinators/workflow_editor_action_coordinator.dart` | 88 | Workflow editor save, clear, and proposal persistence |
 | `lib/features/chat/presentation/coordinators/workflow_task_action_coordinator.dart` | 258 | Workflow task proposal, editor, menu routing, and status persistence |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2380 | Saved-workflow execution, typed recovery dispatch, evidence, side effects, and recursion |
-| `lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart` | 56 | Pure auto-continuation selection and terminal-status classification |
-| `lib/features/chat/domain/services/workflow_task_turn_route_policy.dart` | 43 | Pure typed recovery order and post-recovery gates |
-| `lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart` | 54 | Pure structured, command-output, and raw-text tool failure classification |
+| `lib/features/chat/domain/services/plan/workflow_task_run_lifecycle_policy.dart` | 56 | Pure auto-continuation selection and terminal-status classification |
+| `lib/features/chat/domain/services/plan/workflow_task_turn_route_policy.dart` | 43 | Pure typed recovery order and post-recovery gates |
+| `lib/features/chat/domain/services/plan/workflow_tool_result_failure_detector.dart` | 54 | Pure structured, command-output, and raw-text tool failure classification |
 | `lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart` | 218 | Legacy workflow metadata editor presentation and normalization |
 | `lib/features/chat/presentation/widgets/workflow/workflow_task_editor_sheet.dart` | 209 | Legacy workflow task editor presentation and normalization |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1191 | Tool registry, public execution facade, remaining built-in adapters |

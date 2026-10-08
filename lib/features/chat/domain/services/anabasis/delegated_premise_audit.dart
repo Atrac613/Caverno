@@ -1,5 +1,5 @@
 import '../../entities/conversation.dart';
-import '../conversation_contract_provenance_service.dart';
+import '../plan/conversation_contract_provenance_service.dart';
 
 /// Whether the premises a child was sent out with still hold.
 ///

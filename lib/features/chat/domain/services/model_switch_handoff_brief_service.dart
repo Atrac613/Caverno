@@ -1,7 +1,7 @@
 import '../entities/conversation.dart';
 import '../entities/message.dart';
 import 'conversation_compaction_service.dart';
-import 'conversation_plan_execution_coordinator.dart';
+import 'plan/conversation_plan_execution_coordinator.dart';
 
 class ModelSwitchHandoffBriefService {
   ModelSwitchHandoffBriefService._();

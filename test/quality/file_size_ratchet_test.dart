@@ -115,7 +115,7 @@ const Map<String, int> _lineBudgets = {
   // satisfied. A live run refused an acceptance for evidence it was never going
   // to have.
   'lib/features/chat/domain/services/anabasis/task_acceptance_audit.dart': 155,
-  'lib/features/chat/domain/services/dangling_precondition_repair.dart': 84,
+  'lib/features/chat/domain/services/plan/dangling_precondition_repair.dart': 84,
   // +16, to 200: a worktree result outranks a subagent one for the same task,
   // and its evidence is named rather than counted -- which branch, which command
   // -- because that line is what the next turn reads instead of redoing the work.
@@ -335,9 +335,9 @@ const Map<String, int> _lineBudgets = {
   // so the turn digest stops listing a blocked `tag -a` as run.
   'lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart': 162,
   'lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart': 53,
-  'lib/features/chat/domain/services/material_contract_assumption_arming.dart':
+  'lib/features/chat/domain/services/plan/material_contract_assumption_arming.dart':
       31,
-  'lib/features/chat/domain/services/material_contract_assumption_guard.dart':
+  'lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart':
       64,
   'lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart':
       191,
@@ -367,9 +367,9 @@ const Map<String, int> _lineBudgets = {
       116,
   'lib/features/chat/domain/services/runtime_sampler_feedback_recorder.dart':
       245,
-  'lib/features/chat/domain/services/proposal_option_extraction.dart': 621,
+  'lib/features/chat/domain/services/plan/proposal_option_extraction.dart': 621,
   // -21: escaped loose scalar decoding moved behind its own bounded parser.
-  'lib/features/chat/domain/services/proposal_parsing_text_utils.dart': 672,
+  'lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart': 672,
   'lib/features/chat/domain/services/loose_json_scalar_extractor.dart': 37,
   // +43: the pending-call facts moved here from chat_notifier.dart (-7), and a
   // pending ask_user_question now declines recovery, whose "do not ask for
@@ -632,8 +632,8 @@ const Map<String, int> _lineBudgets = {
   // exactly the turn that produced it, so the thread has to remember which
   // skill it is working from.
   'lib/features/chat/domain/services/loaded_skill_memory.dart': 50,
-  'lib/features/chat/domain/services/material_assumption_ask_memory.dart': 49,
-  'lib/features/chat/domain/services/material_assumption_confirmation_gate.dart':
+  'lib/features/chat/domain/services/plan/material_assumption_ask_memory.dart': 49,
+  'lib/features/chat/domain/services/plan/material_assumption_confirmation_gate.dart':
       99,
   'lib/features/chat/domain/services/computer_use_action_presentation.dart':
       113,
@@ -776,10 +776,10 @@ const Map<String, int> _lineBudgets = {
       2382,
   'lib/features/chat/domain/services/content_tool_result_formatter.dart': 132,
   'lib/features/chat/domain/services/verifier_replay_candidate_policy.dart': 56,
-  'lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart':
+  'lib/features/chat/domain/services/plan/workflow_task_run_lifecycle_policy.dart':
       56,
-  'lib/features/chat/domain/services/workflow_task_turn_route_policy.dart': 43,
-  'lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart':
+  'lib/features/chat/domain/services/plan/workflow_task_turn_route_policy.dart': 43,
+  'lib/features/chat/domain/services/plan/workflow_tool_result_failure_detector.dart':
       54,
   'lib/features/chat/domain/services/coding_command_output_guardrail_service.dart':
       161,

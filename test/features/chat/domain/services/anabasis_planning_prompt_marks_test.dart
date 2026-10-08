@@ -1,10 +1,10 @@
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_planning_prompt_service.dart';
-import 'package:caverno/features/chat/domain/services/material_contract_assumption_arming.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_planning_prompt_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/material_contract_assumption_arming.dart';
 import 'package:test/test.dart';
 
 /// Anabasis ANA0 PR 3b — the planning prompt is the producer, and it is the

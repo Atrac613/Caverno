@@ -1,7 +1,7 @@
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_document_builder.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 

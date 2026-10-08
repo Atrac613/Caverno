@@ -1,5 +1,5 @@
 import '../entities/conversation_workflow.dart';
-import 'conversation_plan_hash.dart';
+import 'plan/conversation_plan_hash.dart';
 
 class SpecificationContractInput {
   const SpecificationContractInput({required this.path, required this.content});

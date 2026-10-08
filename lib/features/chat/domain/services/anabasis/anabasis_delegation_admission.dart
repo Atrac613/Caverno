@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../entities/conversation.dart';
 import '../../entities/mcp_tool_entity.dart';
 import '../../entities/tool_call_info.dart';
-import '../conversation_task_readiness.dart';
+import '../plan/conversation_task_readiness.dart';
 import 'task_delegation_brief_builder.dart';
 
 /// Binds planned delegation to current saved state before a child can run.

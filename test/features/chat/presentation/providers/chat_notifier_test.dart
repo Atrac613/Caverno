@@ -40,12 +40,12 @@ import 'package:caverno/features/chat/domain/services/analysis_options_lint_edit
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/goal/conversation_goal_suggestion_service.dart';
-import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/material_contract_assumption_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_approval_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';

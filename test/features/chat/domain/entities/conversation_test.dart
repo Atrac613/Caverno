@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_participant.d
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_hash.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

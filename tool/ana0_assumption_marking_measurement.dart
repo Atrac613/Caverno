@@ -5,12 +5,12 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/workflow_proposal_draft.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_planning_prompt_service.dart';
-import 'package:caverno/features/chat/domain/services/workflow_proposal_parser.dart';
-import 'package:caverno/features/chat/domain/services/workflow_task_proposal_quality_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_planning_prompt_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/workflow_proposal_parser.dart';
+import 'package:caverno/features/chat/domain/services/plan/workflow_task_proposal_quality_service.dart';
 
 /// Anabasis ANA0 PR 3c — how often does the model mark what it is assuming?
 ///

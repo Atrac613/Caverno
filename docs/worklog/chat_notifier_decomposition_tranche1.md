@@ -49,7 +49,7 @@ preparing a later tool-loop extraction.
 
 The repo already contains the target pattern:
 
-- Service: `lib/features/chat/domain/services/workflow_task_proposal_quality_service.dart`
+- Service: `lib/features/chat/domain/services/plan/workflow_task_proposal_quality_service.dart`
   (instance class, injectable `createId` defaulting to `Uuid().v4`).
 - Delegate part file: `lib/features/chat/presentation/providers/chat_notifier_task_proposal_quality.dart`
   — a `part of 'chat_notifier.dart'` file whose
@@ -109,7 +109,7 @@ After the last code slice (Task 7): `tool/codex_verify.sh --coverage`.
 
 ### Implementation Notes
 
-- New file: `lib/features/chat/domain/services/planning_research_collector.dart`.
+- New file: `lib/features/chat/domain/services/plan/planning_research_collector.dart`.
 - API sketch:
 
 ```dart
@@ -161,7 +161,7 @@ class PlanningResearchCollector {
   from read-only tools" (in `chat_notifier_test.dart`, uses
   `_PlanningResearchMcpToolService`) passes unchanged.
 - New focused tests in
-  `test/features/chat/domain/services/planning_research_collector_test.dart`:
+  `test/features/chat/domain/services/plan/planning_research_collector_test.dart`:
   query building, risk synthesis, highlight extraction, and the
   tool-result-JSON-decode-failure path (collector must degrade gracefully).
 
@@ -170,7 +170,7 @@ class PlanningResearchCollector {
 ```bash
 flutter analyze
 tool/codex_verify.sh --test test/features/chat/presentation/providers/chat_notifier_test.dart \
-  --test test/features/chat/domain/services/planning_research_collector_test.dart
+  --test test/features/chat/domain/services/plan/planning_research_collector_test.dart
 ```
 
 ---
@@ -197,7 +197,7 @@ tool/codex_verify.sh --test test/features/chat/presentation/providers/chat_notif
 
 ### Implementation Notes
 
-- New file: `lib/features/chat/domain/services/proposal_parsing_text_utils.dart`.
+- New file: `lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart`.
 - Shape: static helpers for the pure functions, plus:
 
 ```dart
@@ -232,7 +232,7 @@ class ProposalJsonExtractor {
 - ~600-line reduction in `chat_notifier.dart`.
 - Zero edits in `chat_notifier_workflow_proposal_test.dart` (59 tests green).
 - New focused test file
-  `test/features/chat/domain/services/proposal_parsing_text_utils_test.dart`
+  `test/features/chat/domain/services/plan/proposal_parsing_text_utils_test.dart`
   covering: JSON repair happy path, repair-hook call counts (use a counter
   callback), section collection, truncation detection.
 
@@ -265,7 +265,7 @@ Shared commands plus the new test file.
 
 ### Implementation Notes
 
-- New file: `lib/features/chat/domain/services/workflow_proposal_parser.dart`.
+- New file: `lib/features/chat/domain/services/plan/workflow_proposal_parser.dart`.
 - API sketch:
 
 ```dart
@@ -335,7 +335,7 @@ class WorkflowProposalParser {
 
 ### Implementation Notes
 
-- New file: `lib/features/chat/domain/services/task_proposal_parser.dart`.
+- New file: `lib/features/chat/domain/services/plan/task_proposal_parser.dart`.
 
 ```dart
 class TaskProposalParser {
@@ -381,7 +381,7 @@ class TaskProposalParser {
 
 ### Implementation Notes
 
-- New file: `lib/features/chat/domain/services/proposal_option_extraction.dart`
+- New file: `lib/features/chat/domain/services/plan/proposal_option_extraction.dart`
   (class `PlanningDecisionPromotion` with static methods, or top-level
   functions — match repo style).
 - Move: `_removeAnsweredOpenQuestions`, `_promoteChoiceLikeOpenQuestions`,

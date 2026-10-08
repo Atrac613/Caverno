@@ -54,7 +54,7 @@
     "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart",
     "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
     "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
-    "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
+    "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart",
     "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
     "lib/features/chat/domain/services/model_switch_handoff_registry.dart",
     "lib/features/chat/domain/services/model_switch_settings_policy.dart",
@@ -65,8 +65,8 @@
     "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
     "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
     "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
-    "lib/features/chat/domain/services/proposal_option_extraction.dart",
-    "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+    "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
+    "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
     "lib/features/chat/domain/services/python/python_attachment_repair_policy.dart",
     "lib/features/chat/domain/services/python/python_script_tool_handler.dart",
     "lib/features/chat/domain/services/referenced_specification_loader.dart",
@@ -8060,7 +8060,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
+      "path": "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart",
       "declaration": "MaterialContractAssumptionGuard.evaluate",
       "signature": "McpToolResult? evaluate(\n    ToolCallInfo toolCall, {\n    required WorkspaceMode workspaceMode,\n    required List<ConversationContractItemProvenance> blockingAssumptions,\n  })",
       "turnIdentityParameters": [],
@@ -8075,7 +8075,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
+      "path": "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart",
       "declaration": "MaterialContractAssumptionGuard.isContractMutation",
       "signature": "bool isContractMutation(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -9386,7 +9386,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.buildAlternativeChoiceDecisionFromOpenQuestion",
       "signature": "static WorkflowPlanningDecision?\n  buildAlternativeChoiceDecisionFromOpenQuestion(String question)",
       "turnIdentityParameters": [],
@@ -9410,7 +9410,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.buildOrderedChoiceDecisionFromOpenQuestion",
       "signature": "static WorkflowPlanningDecision? buildOrderedChoiceDecisionFromOpenQuestion(\n    String question,\n  )",
       "turnIdentityParameters": [],
@@ -9434,7 +9434,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.buildYesNoDecisionFromOpenQuestion",
       "signature": "static WorkflowPlanningDecision? buildYesNoDecisionFromOpenQuestion(\n    String question,\n  )",
       "turnIdentityParameters": [],
@@ -9452,7 +9452,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.cleanDecisionOptionLabel",
       "signature": "static String cleanDecisionOptionLabel(String value)",
       "turnIdentityParameters": [],
@@ -9469,7 +9469,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.containsJapaneseText",
       "signature": "static bool containsJapaneseText(String value)",
       "turnIdentityParameters": [],
@@ -9483,7 +9483,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.decisionOptionId",
       "signature": "static String decisionOptionId(String label)",
       "turnIdentityParameters": [],
@@ -9497,7 +9497,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.extractEnglishAlternativeOptions",
       "signature": "static List<String> extractEnglishAlternativeOptions(String question)",
       "turnIdentityParameters": [],
@@ -9520,7 +9520,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.extractEnglishOrderedOptions",
       "signature": "static List<String> extractEnglishOrderedOptions(String question)",
       "turnIdentityParameters": [],
@@ -9537,7 +9537,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.extractJapaneseAlternativeOptions",
       "signature": "static List<String> extractJapaneseAlternativeOptions(String question)",
       "turnIdentityParameters": [],
@@ -9556,7 +9556,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.extractJapaneseOrderedOptions",
       "signature": "static List<String> extractJapaneseOrderedOptions(String question)",
       "turnIdentityParameters": [],
@@ -9573,7 +9573,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.filterUnansweredWorkflowDecisions",
       "signature": "static List<WorkflowPlanningDecision> filterUnansweredWorkflowDecisions(\n    List<WorkflowPlanningDecision> decisions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
       "turnIdentityParameters": [],
@@ -9592,7 +9592,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.looksLikeYesNoOpenQuestion",
       "signature": "static bool looksLikeYesNoOpenQuestion(String question)",
       "turnIdentityParameters": [],
@@ -9611,7 +9611,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.mergeWorkflowDecisionAnswers",
       "signature": "static void mergeWorkflowDecisionAnswers(\n    List<WorkflowPlanningDecisionAnswer> current,\n    List<WorkflowPlanningDecisionAnswer> updates,\n  )",
       "turnIdentityParameters": [],
@@ -9625,7 +9625,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.normalizeWorkflowDecisionText",
       "signature": "static String normalizeWorkflowDecisionText(String value)",
       "turnIdentityParameters": [],
@@ -9641,7 +9641,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.promoteChoiceLikeOpenQuestions",
       "signature": "static List<WorkflowPlanningDecision> promoteChoiceLikeOpenQuestions(\n    List<String> openQuestions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
       "turnIdentityParameters": [],
@@ -9663,7 +9663,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.promoteOpenQuestionsToPlanningPrompts",
       "signature": "static List<WorkflowPlanningDecision> promoteOpenQuestionsToPlanningPrompts(\n    List<String> openQuestions, {\n    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  })",
       "turnIdentityParameters": [],
@@ -9676,7 +9676,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.removeAnsweredOpenQuestions",
       "signature": "static WorkflowProposalDraft removeAnsweredOpenQuestions(\n    WorkflowProposalDraft proposal,\n    List<WorkflowPlanningDecisionAnswer> decisionAnswers,\n  )",
       "turnIdentityParameters": [],
@@ -9696,7 +9696,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.splitEnglishChoiceList",
       "signature": "static List<String> splitEnglishChoiceList(String value)",
       "turnIdentityParameters": [],
@@ -9718,7 +9718,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.splitJapaneseChoiceList",
       "signature": "static List<String> splitJapaneseChoiceList(String value)",
       "turnIdentityParameters": [],
@@ -9739,7 +9739,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.stripChoiceSuffix",
       "signature": "static String stripChoiceSuffix(String value)",
       "turnIdentityParameters": [],
@@ -9754,7 +9754,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.stripEnglishChoicePrefix",
       "signature": "static String stripEnglishChoicePrefix(String value)",
       "turnIdentityParameters": [],
@@ -9769,7 +9769,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
       "declaration": "PlanningDecisionPromotion.stripJapaneseChoicePrefix",
       "signature": "static String stripJapaneseChoicePrefix(String value)",
       "turnIdentityParameters": [],
@@ -9784,7 +9784,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalJsonExtractor._recordJsonRepairFeedback",
       "signature": "void _recordJsonRepairFeedback()",
       "turnIdentityParameters": [],
@@ -9798,7 +9798,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalJsonExtractor.extractJsonMap",
       "signature": "Map<String, dynamic>? extractJsonMap(String rawContent)",
       "turnIdentityParameters": [],
@@ -9820,7 +9820,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils._stripWrappingQuotes",
       "signature": "static String _stripWrappingQuotes(String value)",
       "turnIdentityParameters": [],
@@ -9834,7 +9834,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.appendTextValue",
       "signature": "static String appendTextValue(String current, String next)",
       "turnIdentityParameters": [],
@@ -9845,7 +9845,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.asCleanString",
       "signature": "static String asCleanString(Object? value)",
       "turnIdentityParameters": [],
@@ -9859,7 +9859,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.asStringList",
       "signature": "static List<String> asStringList(Object? value)",
       "turnIdentityParameters": [],
@@ -9877,7 +9877,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.collectProposalSections",
       "signature": "static Map<String, List<String>> collectProposalSections(String rawContent)",
       "turnIdentityParameters": [],
@@ -9895,7 +9895,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.extractInlineTaskPlanCandidate",
       "signature": "static String extractInlineTaskPlanCandidate(String rawContent)",
       "turnIdentityParameters": [],
@@ -9911,7 +9911,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.extractLooseJsonScalar",
       "signature": "static String? extractLooseJsonScalar(\n    String rawContent, {\n    required List<String> keys,\n  })",
       "turnIdentityParameters": [],
@@ -9928,7 +9928,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.extractLooseJsonStringList",
       "signature": "static List<String> extractLooseJsonStringList(\n    String rawContent, {\n    required List<String> keys,\n  })",
       "turnIdentityParameters": [],
@@ -9950,7 +9950,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.extractPlainTextForProposal",
       "signature": "static String extractPlainTextForProposal(String content)",
       "turnIdentityParameters": [],
@@ -9969,7 +9969,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.extractProposalReasoningContent",
       "signature": "static String extractProposalReasoningContent(String rawContent)",
       "turnIdentityParameters": [],
@@ -9988,7 +9988,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.extractStructuredTaskProposalReasoning",
       "signature": "static String extractStructuredTaskProposalReasoning(String rawContent)",
       "turnIdentityParameters": [],
@@ -10012,7 +10012,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.extractStructuredWorkflowProposalReasoning",
       "signature": "static String extractStructuredWorkflowProposalReasoning(String rawContent)",
       "turnIdentityParameters": [],
@@ -10036,7 +10036,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.inferWorkflowStageFromLooseProposalContent",
       "signature": "static ConversationWorkflowStage inferWorkflowStageFromLooseProposalContent(\n    String rawContent,\n  )",
       "turnIdentityParameters": [],
@@ -10049,7 +10049,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.inferWorkflowStageFromSectionKeys",
       "signature": "static ConversationWorkflowStage? inferWorkflowStageFromSectionKeys(\n    Map<String, List<String>> sections,\n  )",
       "turnIdentityParameters": [],
@@ -10060,7 +10060,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.isCompletionTruncated",
       "signature": "static bool isCompletionTruncated(String finishReason)",
       "turnIdentityParameters": [],
@@ -10074,7 +10074,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.isWorkflowListSection",
       "signature": "static bool isWorkflowListSection(String section)",
       "turnIdentityParameters": [],
@@ -10085,7 +10085,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.looksLikeStructuredReasoningListItem",
       "signature": "static bool looksLikeStructuredReasoningListItem(String line)",
       "turnIdentityParameters": [],
@@ -10100,7 +10100,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.matchTaskFieldLine",
       "signature": "static (String, String)? matchTaskFieldLine(String line)",
       "turnIdentityParameters": [],
@@ -10118,7 +10118,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.matchTaskTitleLine",
       "signature": "static String? matchTaskTitleLine(String line, {String? currentField})",
       "turnIdentityParameters": [],
@@ -10139,7 +10139,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.matchWorkflowSectionLine",
       "signature": "static (String, String)? matchWorkflowSectionLine(String line)",
       "turnIdentityParameters": [],
@@ -10158,7 +10158,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.normalizeProposalContent",
       "signature": "static String normalizeProposalContent(String rawContent)",
       "turnIdentityParameters": [],
@@ -10173,7 +10173,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.proposalPreview",
       "signature": "static String proposalPreview(String rawContent)",
       "turnIdentityParameters": [],
@@ -10190,7 +10190,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.repairJsonCandidate",
       "signature": "static String? repairJsonCandidate(String value)",
       "turnIdentityParameters": [],
@@ -10216,7 +10216,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.sanitizeInlineReasoningTaskTitle",
       "signature": "static String sanitizeInlineReasoningTaskTitle(String rawValue)",
       "turnIdentityParameters": [],
@@ -10234,7 +10234,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.sanitizeReasoningProposalValue",
       "signature": "static String sanitizeReasoningProposalValue(\n    String value, {\n    bool preferSingleSentence = false,\n  })",
       "turnIdentityParameters": [],
@@ -10254,7 +10254,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.stripMarkdownListMarker",
       "signature": "static String stripMarkdownListMarker(String value)",
       "turnIdentityParameters": [],
@@ -10269,7 +10269,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.taskFieldDisplayLabel",
       "signature": "static String taskFieldDisplayLabel(String field)",
       "turnIdentityParameters": [],
@@ -10280,7 +10280,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.tryDecodeMap",
       "signature": "static Map<String, dynamic>? tryDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -10293,7 +10293,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.tryRepairAndDecodeMap",
       "signature": "static Map<String, dynamic>? tryRepairAndDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -10307,7 +10307,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
+      "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
       "declaration": "ProposalParsingTextUtils.workflowSectionDisplayLabel",
       "signature": "static String workflowSectionDisplayLabel(String section)",
       "turnIdentityParameters": [],

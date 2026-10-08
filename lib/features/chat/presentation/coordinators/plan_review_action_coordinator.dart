@@ -1,8 +1,8 @@
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
-import '../../domain/services/conversation_plan_execution_coordinator.dart';
-import '../../domain/services/conversation_plan_projection_service.dart';
+import '../../domain/services/plan/conversation_plan_execution_coordinator.dart';
+import '../../domain/services/plan/conversation_plan_projection_service.dart';
 import '../providers/conversations_notifier.dart';
 
 sealed class PlanReviewApprovalOutcome {

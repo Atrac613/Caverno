@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../domain/entities/conversation_workflow.dart';
-import '../../../domain/services/conversation_contract_provenance_service.dart';
+import '../../../domain/services/plan/conversation_contract_provenance_service.dart';
 import 'contract_item_line.dart';
 
 // Re-exported so the plan's labelled sections reach their callers through

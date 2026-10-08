@@ -1,7 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../../core/types/workspace_mode.dart';
-import '../services/conversation_plan_hash.dart';
+import '../services/plan/conversation_plan_hash.dart';
 import 'conversation_compaction_artifact.dart';
 import 'conversation_goal.dart';
 import 'conversation_participant.dart';

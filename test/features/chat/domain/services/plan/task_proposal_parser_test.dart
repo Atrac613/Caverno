@@ -1,0 +1,200 @@
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/plan/task_proposal_parser.dart';
+import 'package:caverno/features/chat/domain/services/plan/workflow_task_proposal_quality_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  late int taskIdIndex;
+  late int fallbackIdIndex;
+  late TaskProposalParser parser;
+
+  setUp(() {
+    taskIdIndex = 0;
+    fallbackIdIndex = 0;
+    final qualityService = WorkflowTaskProposalQualityService(
+      createId: () => 'fallback-${++fallbackIdIndex}',
+    );
+    parser = TaskProposalParser(
+      qualityService: qualityService,
+      createId: () => 'task-${++taskIdIndex}',
+    );
+  });
+
+  test('parses structured task proposal payloads', () {
+    final proposal = parser.parse('''
+{"tasks":[
+  {"title":"Add workflow proposal card","targetFiles":["lib/features/chat/presentation/pages/chat_page.dart"],"validationCommand":"flutter analyze","notes":"Keep approval UI compact"},
+  {"title":"Hook proposal state into ChatState","targetFiles":["lib/features/chat/presentation/providers/chat_state.dart"],"validationCommand":"","notes":""}
+]}
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks, hasLength(2));
+    expect(proposal.tasks.first.id, 'task-1');
+    expect(proposal.tasks.first.title, 'Add workflow proposal card');
+    expect(proposal.tasks.first.targetFiles, [
+      'lib/features/chat/presentation/pages/chat_page.dart',
+    ]);
+    expect(proposal.tasks.first.validationCommand, 'flutter analyze');
+    expect(proposal.tasks.first.notes, 'Keep approval UI compact');
+    expect(
+      proposal.tasks.every(
+        (task) => task.status == ConversationWorkflowTaskStatus.pending,
+      ),
+      isTrue,
+    );
+  });
+
+  test('parses task proposals from plain text sections', () {
+    final proposal = parser.parse('''
+Task: Add workflow proposal card
+Target files:
+- lib/features/chat/presentation/pages/chat_page.dart
+Validation command: flutter analyze
+Notes: Keep approval UI compact
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks, hasLength(1));
+    expect(proposal.tasks.single.id, 'task-1');
+    expect(proposal.tasks.single.title, 'Add workflow proposal card');
+    expect(proposal.tasks.single.targetFiles, [
+      'lib/features/chat/presentation/pages/chat_page.dart',
+    ]);
+    expect(proposal.tasks.single.validationCommand, 'flutter analyze');
+    expect(proposal.tasks.single.notes, 'Keep approval UI compact');
+  });
+
+  test('builds truncation fallback tasks from workflow context', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Ping CLI',
+      messages: [
+        Message(
+          id: 'user-1',
+          content: 'Build a Python CLI tool that pings specific hosts',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 20, 21, 30),
+        ),
+      ],
+      createdAt: DateTime(2026, 4, 20, 21, 30),
+      updatedAt: DateTime(2026, 4, 20, 21, 30),
+      workflowSpec: const ConversationWorkflowSpec(
+        goal:
+            'Develop a Python CLI tool for continuous pinging with JSON output support.',
+        constraints: ['Python-based implementation', 'CLI-driven interface'],
+        acceptanceCriteria: [
+          'Support continuous pinging',
+          'Output valid JSON behind a flag',
+        ],
+      ),
+    );
+
+    final proposal = parser.buildTruncationFallback(
+      currentConversation: conversation,
+      rawContent:
+          '<think>Use argparse, add a ping loop, and validate JSON output.</think>',
+      projectLooksEmpty: true,
+    );
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks.length, greaterThanOrEqualTo(2));
+    expect(proposal.tasks.first.id, 'fallback-1');
+    expect(
+      proposal.tasks.map((task) => task.title),
+      contains('Initialize project structure and requirements.txt'),
+    );
+  });
+
+  test('preserves a complete quoted command in truncated proposal JSON', () {
+    final proposal = parser.parseTaskProposalFromLooseJson(r'''
+{"tasks":[
+  {"title":"Create sample data","targetFiles":["sample.jsonl"],"validationCommand":"test -f sample.jsonl && python3 -c \"print('ok')\""},
+  {"title":"Implement the CLI","targetFiles":["count.py"],"notes":"unfinished
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks, hasLength(2));
+    expect(
+      proposal.tasks.first.validationCommand,
+      '''test -f sample.jsonl && python3 -c "print('ok')"''',
+    );
+    expect(proposal.tasks.last.validationCommand, isEmpty);
+  });
+
+  group('precondition edges (ANA1 PR 2c)', () {
+    test('reads the array the schema asks for', () {
+      final proposal = parser.parse('''
+{"tasks":[
+  {"title":"Audit the record ids","preconditions":[]},
+  {"title":"Write the sync engine","preconditions":[
+    {"kind":"task","ref":"Audit the record ids"},
+    {"kind":"assumption","ref":"Record ids are stable"},
+    {"kind":"question","ref":"Last-write-wins or merge?"}
+  ]}
+]}
+''');
+
+      expect(proposal, isNotNull);
+      expect(proposal!.tasks.first.preconditions, isEmpty);
+      expect(proposal.tasks.last.preconditions, [
+        const ConversationTaskPrecondition(
+          kind: ConversationTaskPreconditionKind.task,
+          ref: 'Audit the record ids',
+        ),
+        const ConversationTaskPrecondition(
+          kind: ConversationTaskPreconditionKind.assumption,
+          ref: 'Record ids are stable',
+        ),
+        const ConversationTaskPrecondition(
+          kind: ConversationTaskPreconditionKind.question,
+          ref: 'Last-write-wins or merge?',
+        ),
+      ]);
+    });
+
+    test('an edge flattened into a string is still read', () {
+      final proposal = parser.parse('''
+{"tasks":[{"title":"Write the sync engine","preconditions":["task: Audit the record ids"]}]}
+''');
+
+      expect(
+        proposal!.tasks.single.preconditions.single.ref,
+        'Audit the record ids',
+        reason:
+            'Rejecting the loose shape would report a channel failure where '
+            'the model in fact used the channel.',
+      );
+    });
+
+    test('an unreadable edge costs the edge, not the task', () {
+      final proposal = parser.parse('''
+{"tasks":[{"title":"Write the sync engine","preconditions":[
+  {"kind":"dependency","ref":"Audit"},
+  {"kind":"task","ref":""},
+  {"kind":"task","ref":"Audit the record ids"}
+]}]}
+''');
+
+      expect(proposal!.tasks.single.title, 'Write the sync engine');
+      expect(
+        proposal.tasks.single.preconditions.single.ref,
+        'Audit the record ids',
+        reason:
+            'A precondition is optional, and a plan is not worth losing over '
+            'one malformed entry.',
+      );
+    });
+
+    test('a proposal written before this field parses unchanged', () {
+      final proposal = parser.parse('''
+{"tasks":[{"title":"Write the sync engine","validationCommand":"dart test"}]}
+''');
+
+      expect(proposal!.tasks.single.preconditions, isEmpty);
+      expect(proposal.tasks.single.validationCommand, 'dart test');
+    });
+  });
+}

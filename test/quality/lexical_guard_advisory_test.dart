@@ -32,7 +32,7 @@ const _advisoryOnlyGuards = <String>[
   'lib/features/chat/domain/services/narrated_transcript_claim_guard.dart',
   'lib/features/chat/domain/services/structured_coding_execution_deferral_detector.dart',
   'lib/features/chat/domain/services/unwritten_file_claim_guard.dart',
-  'lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart',
+  'lib/features/chat/domain/services/plan/workflow_tool_result_failure_detector.dart',
 ];
 
 /// Libraries that define or persist terminal state. Reaching any of these from

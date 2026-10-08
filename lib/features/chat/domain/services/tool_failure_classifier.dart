@@ -7,7 +7,7 @@ import '../entities/tool_call_info.dart';
 import 'anabasis/anabasis_delegation_admission.dart';
 import 'anabasis/anabasis_parent_authority_guard.dart';
 import 'anabasis/subagent_tool_contract.dart';
-import 'material_contract_assumption_guard.dart';
+import 'plan/material_contract_assumption_guard.dart';
 import 'tool_call_execution_policy.dart';
 import 'tool_outcome_shadow_comparison.dart';
 

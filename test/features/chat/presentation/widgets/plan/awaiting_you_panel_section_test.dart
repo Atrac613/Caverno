@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
 import 'package:caverno/features/chat/presentation/widgets/plan/plan_open_question_section.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';

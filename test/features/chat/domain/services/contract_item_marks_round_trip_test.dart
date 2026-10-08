@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_projection_service.dart';
 import 'package:test/test.dart';
 
 /// Anabasis ANA0 PR 3a — the epistemic marks round-trip.

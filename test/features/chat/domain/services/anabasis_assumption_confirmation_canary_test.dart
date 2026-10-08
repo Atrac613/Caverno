@@ -6,8 +6,8 @@ import 'dart:io';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/material_contract_assumption_arming.dart';
-import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
+import 'package:caverno/features/chat/domain/services/plan/material_contract_assumption_arming.dart';
+import 'package:caverno/features/chat/domain/services/plan/material_contract_assumption_guard.dart';
 import 'package:test/test.dart';
 
 /// Anabasis MVP 0, PR 1 — the canary that defines the confirmation path.

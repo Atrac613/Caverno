@@ -6,12 +6,12 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
-import '../../domain/services/conversation_plan_execution_coordinator.dart';
-import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
-import '../../domain/services/workflow_task_run_lifecycle_policy.dart';
-import '../../domain/services/workflow_task_turn_route_policy.dart';
-import '../../domain/services/workflow_tool_result_failure_detector.dart';
+import '../../domain/services/plan/conversation_plan_execution_coordinator.dart';
+import '../../domain/services/plan/conversation_plan_execution_guardrails.dart';
+import '../../domain/services/plan/workflow_task_run_lifecycle_policy.dart';
+import '../../domain/services/plan/workflow_task_turn_route_policy.dart';
+import '../../domain/services/plan/workflow_tool_result_failure_detector.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/conversations_notifier.dart';
 

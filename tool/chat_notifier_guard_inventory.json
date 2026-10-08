@@ -643,19 +643,19 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/material_contract_assumption_guard.dart::MaterialContractAssumptionGuard",
-      "path": "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
+      "id": "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart::MaterialContractAssumptionGuard",
+      "path": "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart",
       "symbol": "MaterialContractAssumptionGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/material_contract_assumption_guard.dart:14",
+        "lexical reference at lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart:14",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:183",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:198",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:484"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/material_contract_assumption_guard.dart:14 -> MaterialContractAssumptionGuard",
+        "lexical reference at lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart:14 -> MaterialContractAssumptionGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:183 -> MaterialContractAssumptionGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:198 -> MaterialContractAssumptionGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:484 -> MaterialContractAssumptionGuard"
@@ -799,19 +799,19 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/planning_tool_policy.dart::PlanningToolPolicy",
-      "path": "lib/features/chat/domain/services/planning_tool_policy.dart",
+      "id": "lib/features/chat/domain/services/plan/planning_tool_policy.dart::PlanningToolPolicy",
+      "path": "lib/features/chat/domain/services/plan/planning_tool_policy.dart",
       "symbol": "PlanningToolPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/planning_tool_policy.dart:17",
+        "lexical reference at lib/features/chat/domain/services/plan/planning_tool_policy.dart:17",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:346",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7542",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7586"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/planning_tool_policy.dart:17 -> PlanningToolPolicy",
+        "lexical reference at lib/features/chat/domain/services/plan/planning_tool_policy.dart:17 -> PlanningToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:346 -> PlanningToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7542 -> PlanningToolPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:7586 -> PlanningToolPolicy"
@@ -1388,8 +1388,8 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart::WorkflowTaskRunLifecyclePolicy",
-      "path": "lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart",
+      "id": "lib/features/chat/domain/services/plan/workflow_task_run_lifecycle_policy.dart::WorkflowTaskRunLifecyclePolicy",
+      "path": "lib/features/chat/domain/services/plan/workflow_task_run_lifecycle_policy.dart",
       "symbol": "WorkflowTaskRunLifecyclePolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
@@ -1411,8 +1411,8 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/workflow_task_turn_route_policy.dart::WorkflowTaskTurnRoutePolicy",
-      "path": "lib/features/chat/domain/services/workflow_task_turn_route_policy.dart",
+      "id": "lib/features/chat/domain/services/plan/workflow_task_turn_route_policy.dart::WorkflowTaskTurnRoutePolicy",
+      "path": "lib/features/chat/domain/services/plan/workflow_task_turn_route_policy.dart",
       "symbol": "WorkflowTaskTurnRoutePolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",

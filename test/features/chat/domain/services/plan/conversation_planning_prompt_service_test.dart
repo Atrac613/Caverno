@@ -1,0 +1,476 @@
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_planning_prompt_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/planning_executor_profile.dart';
+import 'package:caverno/features/chat/domain/services/plan/task_precondition_parsing.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('workflow proposal prompt includes execution and open question state', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Plan thread',
+      messages: const [],
+      createdAt: DateTime(2026, 4, 18, 10),
+      updatedAt: DateTime(2026, 4, 18, 10, 5),
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        goal: 'Ship the markdown-first task runner',
+        openQuestions: ['Should blocked tasks force a replan immediately?'],
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Refresh the approved projection',
+            status: ConversationWorkflowTaskStatus.blocked,
+            validationCommand: 'flutter test',
+          ),
+        ],
+      ),
+      executionProgress: [
+        ConversationExecutionTaskProgress(
+          taskId: 'task-1',
+          status: ConversationWorkflowTaskStatus.blocked,
+          summary: 'Waiting on a failing smoke test',
+          blockedReason: 'The smoke suite is still red',
+          events: [
+            ConversationExecutionTaskEvent(
+              type: ConversationExecutionTaskEventType.blocked,
+              createdAt: DateTime(2026, 4, 18, 10, 4),
+              blockedReason: 'The smoke suite is still red',
+            ),
+          ],
+        ),
+      ],
+      openQuestionProgress: [
+        ConversationOpenQuestionProgress(
+          questionId: Conversation.openQuestionIdFor(
+            'Should blocked tasks force a replan immediately?',
+          ),
+          question: 'Should blocked tasks force a replan immediately?',
+          status: ConversationOpenQuestionStatus.needsUserInput,
+          note:
+              'Yes. Trigger a narrow replan when the validation path stays red.',
+        ),
+      ],
+    );
+
+    final prompt =
+        ConversationPlanningPromptService.buildWorkflowProposalRequest(
+          currentConversation: conversation,
+          messages: [
+            Message(
+              id: 'message-1',
+              role: MessageRole.user,
+              content: 'Please replan the blocked task.',
+              timestamp: DateTime(2026, 4, 18, 10, 6),
+            ),
+          ],
+          languageCode: 'en',
+          additionalPlanningContext: 'Focus on the current blocker first.',
+        );
+
+    expect(prompt, contains('Execution progress:'));
+    expect(prompt, contains('Waiting on a failing smoke test'));
+    expect(prompt, contains('Open question progress:'));
+    expect(
+      prompt,
+      contains(
+        '[needsUserInput] Should blocked tasks force a replan immediately?',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'note: Yes. Trigger a narrow replan when the validation path stays red.',
+      ),
+    );
+    expect(prompt, contains('Requested replan focus:'));
+    expect(
+      prompt,
+      contains(
+        'Preserve exact literal values from user messages, saved plans, research context, and tool results in every JSON text field.',
+      ),
+    );
+    expect(prompt, contains('placeholders such as "EXACT..." or "the URL"'));
+  });
+
+  test('proposal transcript keeps only visible plain text content', () {
+    final transcript =
+        ConversationPlanningPromptService.buildProposalTranscript([
+          Message(
+            id: 'message-1',
+            role: MessageRole.user,
+            content: 'User request',
+            timestamp: DateTime(2026, 4, 18, 11),
+          ),
+          Message(
+            id: 'message-2',
+            role: MessageRole.assistant,
+            content: '<think>hidden</think>Visible answer',
+            timestamp: DateTime(2026, 4, 18, 11, 1),
+          ),
+        ]);
+
+    expect(transcript, contains('- user: User request'));
+    expect(transcript, contains('- assistant: Visible answer'));
+    expect(transcript, isNot(contains('hidden')));
+  });
+
+  test('proposal transcript preserves tail exact values in long messages', () {
+    const exactValue =
+        'EXACT_PRESERVATION_VALUE: https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';
+    final longPrefix = List<String>.filled(
+      90,
+      'context-before-literal',
+    ).join(' ');
+    final transcript =
+        ConversationPlanningPromptService.buildProposalTranscript([
+          Message(
+            id: 'message-long',
+            role: MessageRole.user,
+            content: '$longPrefix\n$exactValue',
+            timestamp: DateTime(2026, 6, 11, 9),
+          ),
+        ]);
+
+    expect(transcript, contains(exactValue));
+    expect(
+      transcript,
+      contains('[middle omitted; tail preserved for exact values]'),
+    );
+  });
+
+  test('the task prompt teaches an edge shape the parser accepts', () {
+    // ANA1 PR 2c. The prompt and the extractor are string literals in
+    // different files and nothing else relates them, so the kinds are read
+    // back out of the generated prompt rather than restated here — the same
+    // reason ANA0 PR 3b's marker test reads its forms out of the prompt.
+    final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+      currentConversation: Conversation(
+        id: 'conversation-preconditions',
+        title: 'Plan thread',
+        messages: const [],
+        createdAt: DateTime(2026, 9, 4, 10),
+        updatedAt: DateTime(2026, 9, 4, 10, 5),
+        workflowStage: ConversationWorkflowStage.tasks,
+        workflowSpec: const ConversationWorkflowSpec(goal: 'Add sync'),
+      ),
+      messages: const [],
+      languageCode: 'en',
+    );
+
+    expect(prompt, contains('"preconditions"'));
+    final taught = RegExp(
+      r'\{"kind":"(\w+)"',
+    ).allMatches(prompt).map((match) => match.group(1)!).toSet();
+    expect(
+      taught,
+      isNotEmpty,
+      reason: 'A schema line that names no kind teaches nothing.',
+    );
+    for (final kind in taught) {
+      expect(
+        TaskPreconditionParsing.kindNamed(kind),
+        isNotNull,
+        reason:
+            'The prompt tells the model to write "$kind", so the parser '
+            'has to read it.',
+      );
+    }
+    expect(
+      taught,
+      containsAll(
+        ConversationTaskPreconditionKind.values.map((kind) => kind.name),
+      ),
+      reason:
+          'A kind the parser supports but the prompt never mentions is an '
+          'edge the model will not know it may write.',
+    );
+  });
+
+  test('task proposal prompt forbids research notes as task titles', () {
+    final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+      currentConversation: Conversation(
+        id: 'conversation-2',
+        title: 'Plan thread',
+        messages: const [],
+        createdAt: DateTime(2026, 4, 19, 10),
+        updatedAt: DateTime(2026, 4, 19, 10, 5),
+        workflowStage: ConversationWorkflowStage.tasks,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Build a ping CLI',
+          constraints: ['Keep dependencies minimal'],
+          acceptanceCriteria: ['The CLI can ping one or more hosts'],
+        ),
+      ),
+      messages: [
+        Message(
+          id: 'message-3',
+          role: MessageRole.user,
+          content: 'Create a Python CLI that pings specific hosts.',
+          timestamp: DateTime(2026, 4, 19, 10, 6),
+        ),
+      ],
+      languageCode: 'en',
+    );
+
+    expect(
+      prompt,
+      contains(
+        'Every task title must describe an action the agent can perform immediately.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not turn research notes, current-state observations, or repo summaries into task titles.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not emit placeholder headings as tasks, such as "Subsequent tasks should involve:" or any heading-like label that only introduces later tasks.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Order tasks by dependency so the first task can start immediately.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If the workspace is empty or nearly empty, put scaffolding or initial file creation before feature tasks.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'For ping or other long-running CLI tasks, validationCommand must be bounded and exit on its own. Prefer one-shot checks such as --help, -c 1, --count 1, or a dedicated verification script instead of commands that can run forever.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Include a final verification task whose validationCommand covers the saved acceptance criteria and observable functional requirements that earlier file-level checks do not exercise.',
+      ),
+    );
+    expect(
+      prompt,
+      contains('Keep validation commands hermetic to the project workspace.'),
+    );
+    expect(prompt, contains('do not invent absolute paths'));
+    expect(prompt, contains('Do not append "echo \$?"'));
+    // Measured live: a plan wrote `test -s todo_app.md && grep -q …`, and both
+    // runners refuse a shell control operator rather than running it -- so the
+    // worktree child came back `verified: false` for a command that never ran.
+    // The prompt had invited compound commands while nothing would execute one.
+    expect(
+      prompt,
+      contains('A validationCommand must be one command.'),
+    );
+    // Measured live: a reading task listed the file it read in targetFiles, so
+    // the audit owed changed-file evidence for a file nobody was going to change,
+    // and the acceptance was refused with the verification already green. The
+    // field was never defined for the planner while three consumers read it as
+    // "will change".
+    expect(
+      prompt,
+      contains('targetFiles are the files the task will create or change.'),
+    );
+    // Measured live, twice in a row: the plan gave its first task three
+    // assumption preconditions whose refs were question-shaped sentences it had
+    // invented, so nothing resolved them, nothing could confirm them, and the
+    // ready queue stayed empty for the whole run.
+    expect(
+      prompt,
+      contains('A ref that matches nothing in the plan cannot ever be satisfied'),
+    );
+    expect(prompt, contains('are refused rather than run'));
+    expect(
+      prompt,
+      contains(
+        'A verification task must list every implementation file that its failed validation may need to repair in targetFiles.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Prefer deterministic CLI validation such as --help or loopback hosts.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'require any non-zero exit code instead of one exact non-zero code',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'For simple Python CLI tasks, prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly requests a package.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'In an empty or nearly empty workspace, avoid splitting the same source file across multiple implementation tasks in the first pass. Prefer one implementation task per source file, then separate verification or documentation tasks.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Preserve exact literal values from user messages, saved workflow fields, research context, and tool results in title, targetFiles, validationCommand, and notes.',
+      ),
+    );
+    expect(prompt, contains('placeholders such as "EXACT..." or "the URL"'));
+  });
+
+  test('compact task proposal prompt trims verbose planning context', () {
+    final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+      currentConversation: Conversation(
+        id: 'conversation-3',
+        title: 'Compact plan thread',
+        messages: const [],
+        createdAt: DateTime(2026, 4, 20, 9),
+        updatedAt: DateTime(2026, 4, 20, 9, 5),
+        workflowStage: ConversationWorkflowStage.tasks,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Build a Python ping CLI with continuous mode and JSON output',
+          constraints: [
+            'Keep dependencies minimal',
+            'Support continuous mode',
+            'Support JSON output',
+          ],
+          acceptanceCriteria: [
+            'Ping one host successfully',
+            'Support continuous mode',
+            'Return JSON output behind a flag',
+          ],
+        ),
+      ),
+      messages: [
+        Message(
+          id: 'message-4',
+          role: MessageRole.user,
+          content:
+              'Create a Python CLI that pings specific hosts and can loop forever.',
+          timestamp: DateTime(2026, 4, 20, 9, 6),
+        ),
+        Message(
+          id: 'message-5',
+          role: MessageRole.assistant,
+          content:
+              'I can propose a compact task list once the planning decisions are resolved.',
+          timestamp: DateTime(2026, 4, 20, 9, 7),
+        ),
+      ],
+      languageCode: 'en',
+      compact: true,
+    );
+
+    expect(
+      prompt,
+      contains(
+        '- Keep notes brief and keep the whole response under 180 tokens.',
+      ),
+    );
+    expect(prompt, isNot(contains('Saved plan document:')));
+    expect(prompt, isNot(contains('Execution progress:')));
+    expect(
+      prompt,
+      contains(
+        '- constraints: Keep dependencies minimal | Support continuous mode',
+      ),
+    );
+  });
+
+  group('plan executor disclosure', () {
+    final conversation = Conversation(
+      id: 'conversation-executor',
+      title: 'Plan thread',
+      messages: const [],
+      createdAt: DateTime(2026, 7, 25, 10),
+      updatedAt: DateTime(2026, 7, 25, 10, 5),
+      workflowStage: ConversationWorkflowStage.tasks,
+      workflowSpec: const ConversationWorkflowSpec(goal: 'Build a ping CLI'),
+    );
+    const executorProfile = PlanningExecutorProfile(
+      model: 'executor-model',
+      usableContextTokens: 32768,
+      toolLoopMaxIterations: 12,
+    );
+
+    test('both prompts stay unchanged when planner and executor match', () {
+      final workflowPrompt =
+          ConversationPlanningPromptService.buildWorkflowProposalRequest(
+            currentConversation: conversation,
+            messages: const [],
+            languageCode: 'en',
+          );
+      final taskPrompt =
+          ConversationPlanningPromptService.buildTaskProposalRequest(
+            currentConversation: conversation,
+            messages: const [],
+            languageCode: 'en',
+          );
+
+      expect(workflowPrompt, isNot(contains('Plan executor')));
+      expect(taskPrompt, isNot(contains('Plan executor')));
+    });
+
+    test('task prompt carries the executor budget when routed', () {
+      final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+        currentConversation: conversation,
+        messages: const [],
+        languageCode: 'en',
+        executorProfile: executorProfile,
+      );
+
+      expect(prompt, contains('Plan executor:'));
+      expect(prompt, contains('- model: executor-model'));
+      expect(prompt, contains('- usableContextTokens: 32768'));
+      expect(prompt, contains('- toolLoopMaxIterations: 12'));
+      expect(
+        prompt,
+        contains('Prefer more, smaller tasks over few large ones.'),
+      );
+    });
+
+    test('workflow prompt carries the executor budget when routed', () {
+      final prompt =
+          ConversationPlanningPromptService.buildWorkflowProposalRequest(
+            currentConversation: conversation,
+            messages: const [],
+            languageCode: 'en',
+            executorProfile: executorProfile,
+          );
+
+      expect(prompt, contains('Plan executor:'));
+      expect(prompt, contains('- model: executor-model'));
+    });
+
+    test('compact retries keep a one-line executor disclosure', () {
+      final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+        currentConversation: conversation,
+        messages: const [],
+        languageCode: 'en',
+        executorProfile: executorProfile,
+        compact: true,
+      );
+
+      expect(
+        prompt,
+        contains('Plan executor (a different model runs this plan)'),
+      );
+      expect(prompt, contains('context: 32768 tokens'));
+      expect(
+        prompt,
+        isNot(contains('- usableContextTokens:')),
+        reason: 'the compact retry budget must not re-expand the block',
+      );
+    });
+  });
+}

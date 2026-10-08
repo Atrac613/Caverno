@@ -1,8 +1,8 @@
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/material_contract_assumption_guard.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/material_contract_assumption_guard.dart';
 import 'package:test/test.dart';
 
 const _service = ConversationContractProvenanceService();

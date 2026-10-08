@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_projection_service.dart';
 import 'package:test/test.dart';
 
 /// ANA1 PR 2. The plan document is the authoritative middle: a precondition

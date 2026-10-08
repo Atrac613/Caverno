@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../domain/entities/conversation.dart';
 import '../../../domain/entities/conversation_workflow.dart';
 import '../../../domain/services/conversation_execution_summary_service.dart';
-import '../../../domain/services/task_lifecycle_state.dart';
+import '../../../domain/services/plan/task_lifecycle_state.dart';
 import '../workflow_status_presentation.dart';
 
 class PlanHydratedTaskRow extends StatelessWidget {

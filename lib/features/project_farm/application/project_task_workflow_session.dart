@@ -11,7 +11,7 @@ import '../../chat/domain/entities/conversation_goal.dart';
 import '../../chat/domain/entities/conversation_plan_artifact.dart';
 import '../../chat/domain/entities/conversation_workflow.dart';
 import '../../chat/domain/entities/turn_diff.dart';
-import '../../chat/domain/services/conversation_plan_document_builder.dart';
+import '../../chat/domain/services/plan/conversation_plan_document_builder.dart';
 import '../../chat/domain/services/project_task_review_verdict.dart';
 import '../../chat/domain/services/project_task_terminal_status.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';

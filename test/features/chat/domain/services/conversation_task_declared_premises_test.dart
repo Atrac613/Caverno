@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/task_delegation_brief_builder.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_task_precondition_refs.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_task_precondition_refs.dart';
 import 'package:test/test.dart';
 
 const _declared = ConversationTaskPreconditionRefs();

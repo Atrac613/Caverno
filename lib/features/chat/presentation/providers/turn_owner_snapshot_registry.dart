@@ -5,8 +5,8 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
-import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/execution_snapshot_projector.dart';
+import '../../domain/services/plan/conversation_plan_execution_coordinator.dart';
 
 final class TurnOwnerSnapshot {
   TurnOwnerSnapshot({

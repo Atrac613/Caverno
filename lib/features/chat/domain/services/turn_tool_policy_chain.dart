@@ -3,7 +3,7 @@ import '../entities/mcp_tool_entity.dart';
 import '../entities/model_usage_role.dart';
 import '../entities/tool_call_info.dart';
 import 'anabasis/anabasis_parent_authority_guard.dart';
-import 'material_assumption_confirmation_gate.dart';
+import 'plan/material_assumption_confirmation_gate.dart';
 
 /// The policies every tool call in a turn passes through, in order.
 ///

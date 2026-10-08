@@ -33,8 +33,8 @@ import 'dart:io';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/conversation_planning_prompt_service.dart';
-import 'package:caverno/features/chat/domain/services/task_precondition_parsing.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_planning_prompt_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/task_precondition_parsing.dart';
 
 Future<void> main(List<String> args) async {
   final options = ChannelMeasurementOptions.parse(args, Platform.environment);

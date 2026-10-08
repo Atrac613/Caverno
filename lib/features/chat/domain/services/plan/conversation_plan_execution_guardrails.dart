@@ -1,0 +1,1679 @@
+import 'dart:convert';
+
+import '../../entities/conversation_workflow.dart';
+import '../../entities/tool_call_info.dart';
+import '../coding_command_output_guardrail_service.dart';
+import '../tool_outcome_shadow_comparison.dart';
+
+class ConversationPlanExecutionDriftAssessment {
+  const ConversationPlanExecutionDriftAssessment({
+    required this.touchedTargetFiles,
+    required this.unrelatedTouchedPaths,
+    required this.scaffoldCommands,
+    required this.benignSupportCommands,
+    required this.repeatedTargetFiles,
+    required this.remainingTargetFiles,
+  });
+
+  final List<String> touchedTargetFiles;
+  final List<String> unrelatedTouchedPaths;
+  final List<String> scaffoldCommands;
+  final List<String> benignSupportCommands;
+  final List<String> repeatedTargetFiles;
+  final List<String> remainingTargetFiles;
+
+  bool get hasDrift =>
+      (touchedTargetFiles.isEmpty &&
+          (unrelatedTouchedPaths.isNotEmpty || scaffoldCommands.isNotEmpty)) ||
+      (repeatedTargetFiles.isNotEmpty && remainingTargetFiles.isNotEmpty);
+}
+
+class ConversationPlanExecutionCompletionAssessment {
+  const ConversationPlanExecutionCompletionAssessment({
+    required this.requiresValidation,
+    required this.hasTargetFiles,
+    required this.hasFailure,
+    required this.touchedTargetFiles,
+    required this.untouchedTargetFiles,
+    required this.unrelatedTouchedPaths,
+    required this.scaffoldCommands,
+    required this.benignSupportCommands,
+    required this.successfulValidationCommands,
+    required this.failedValidationCommands,
+    required this.allowsLightValidationCompletion,
+  });
+
+  final bool requiresValidation;
+  final bool hasTargetFiles;
+  final bool hasFailure;
+  final List<String> touchedTargetFiles;
+  final List<String> untouchedTargetFiles;
+  final List<String> unrelatedTouchedPaths;
+  final List<String> scaffoldCommands;
+  final List<String> benignSupportCommands;
+  final List<String> successfulValidationCommands;
+  final List<String> failedValidationCommands;
+  final bool allowsLightValidationCompletion;
+
+  bool get touchedAllTargetFiles =>
+      !hasTargetFiles || untouchedTargetFiles.isEmpty;
+
+  bool get completedFromSuccessfulValidation =>
+      !hasFailure &&
+      unrelatedTouchedPaths.isEmpty &&
+      scaffoldCommands.isEmpty &&
+      successfulValidationCommands.isNotEmpty;
+
+  bool get completedFromTargetCoverage =>
+      !hasFailure &&
+      touchedAllTargetFiles &&
+      unrelatedTouchedPaths.isEmpty &&
+      scaffoldCommands.isEmpty &&
+      (!requiresValidation || allowsLightValidationCompletion);
+
+  bool get hasCompletionEvidenceIgnoringFailures =>
+      ((successfulValidationCommands.isNotEmpty) ||
+          (touchedAllTargetFiles &&
+              (!requiresValidation || allowsLightValidationCompletion))) &&
+      unrelatedTouchedPaths.isEmpty &&
+      scaffoldCommands.isEmpty;
+
+  bool get shouldMarkCompleted {
+    return completedFromSuccessfulValidation || completedFromTargetCoverage;
+  }
+}
+
+class ConversationPlanExecutionGuardrails {
+  static bool hasRecoverableValidationFailureRoute({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required bool onlyRecoverableMalformedFailures,
+    required String? recoverableMissingTargetFile,
+  }) =>
+      onlyRecoverableMalformedFailures ||
+      recoverableMissingTargetFile != null ||
+      unavailableToolNames(toolResults).isNotEmpty ||
+      missingPythonTestDependency(task: task, toolResults: toolResults) !=
+          null ||
+      missingPythonRuntimeDependency(task: task, toolResults: toolResults) !=
+          null ||
+      blockedPythonImportModule(toolResults) != null;
+
+  ConversationPlanExecutionGuardrails._();
+
+  static const _readOnlyInspectionToolNames = <String>{
+    'find_files',
+    'inspect_file',
+    'list_directory',
+    'lsp_go_to_definition',
+    'read_file',
+    'resolve_installed_dependency',
+    'search_files',
+  };
+
+  static const _completionSignals = <String>[
+    ' is complete',
+    ' is now complete',
+    ' has been completed',
+    ' completed',
+    ' done',
+    ' finished',
+  ];
+
+  static final RegExp _markdownEmphasisPattern = RegExp(r'[`*_]');
+  static final RegExp _whitespaceRunPattern = RegExp(r'\s+');
+  static final RegExp _missingPythonModulePattern = RegExp(
+    "No module named ['\\\"]([^'\\\"]+)['\\\"]",
+    caseSensitive: false,
+  );
+  static final RegExp _inferredTargetPathPattern = RegExp(
+    r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+    caseSensitive: false,
+  );
+
+  static List<String> effectiveTargetPathsForTask(
+    ConversationWorkflowTask task,
+  ) => _effectiveTargetPaths(task).toList(growable: false);
+
+  static List<String> validationExecutablePathsForTask(
+    ConversationWorkflowTask task,
+  ) {
+    final command = task.validationCommand.trim();
+    if (command.isEmpty) {
+      return const <String>[];
+    }
+    final candidates = _inferredTargetPathPattern
+        .allMatches(command)
+        .map((match) => _normalizePath(match.group(1)))
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    final executablePrefix = RegExp(
+      r'(?:^|&&|\|\||;)\s*(?:fvm\s+)?(?:dart\s+(?:run|analyze|test)\s+|python3?\s+|pytest\s+|node\s+|bun\s+|deno\s+run\s+|ruby\s+|bash\s+|sh\s+|go\s+run\s+)',
+      caseSensitive: false,
+    );
+    return candidates
+        .where((path) {
+          final pathIndex = command.toLowerCase().indexOf(path.toLowerCase());
+          if (pathIndex < 0) {
+            return false;
+          }
+          final prefix = command.substring(0, pathIndex);
+          final matches = executablePrefix.allMatches(prefix).toList();
+          if (matches.isEmpty) {
+            return false;
+          }
+          final latestMatch = matches.last;
+          return prefix.substring(latestMatch.end).trim().isEmpty;
+        })
+        .toList(growable: false);
+  }
+
+  static ConversationPlanExecutionDriftAssessment assessTaskDrift({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    List<String> changedFilePaths = const <String>[],
+  }) {
+    final isScaffoldTask = _isScaffoldLikeTask(task);
+    final declaredTargets = _effectiveTargetPaths(task);
+    final normalizedChangedPaths = _normalizeChangedFilePaths(changedFilePaths);
+    final inferredMutationTargets = declaredTargets.isEmpty
+        ? {
+            ..._inferTargetPathsFromFileMutations(toolResults),
+            ...normalizedChangedPaths,
+          }
+        : const <String>{};
+    final normalizedTargets = declaredTargets.isNotEmpty
+        ? declaredTargets
+        : inferredMutationTargets;
+    final targetDirectories = _targetDirectories(normalizedTargets);
+    final touchedTargetFiles = <String>{};
+    final targetTouchCounts = <String, int>{};
+    final unrelatedTouchedPaths = <String>{};
+    final scaffoldCommands = <String>{};
+    final benignSupportCommands = <String>{};
+    final fileMutationToolPaths = <String>{};
+
+    for (final toolResult in toolResults) {
+      if (toolResult.name == 'write_file' ||
+          toolResult.name == 'edit_file' ||
+          toolResult.name == 'delete_file') {
+        final path = _normalizePath(toolResult.arguments['path']?.toString());
+        if (path.isEmpty) {
+          continue;
+        }
+        fileMutationToolPaths.add(path);
+        _recordTouchedPath(
+          path: path,
+          normalizedTargets: normalizedTargets,
+          isScaffoldTask: isScaffoldTask,
+          touchedTargetFiles: touchedTargetFiles,
+          unrelatedTouchedPaths: unrelatedTouchedPaths,
+          targetTouchCounts: targetTouchCounts,
+        );
+        continue;
+      }
+
+      if (toolResult.name == 'local_execute_command' ||
+          toolResult.name == 'git_execute_command') {
+        final command =
+            toolResult.arguments['command']?.toString().trim() ?? '';
+        if (command.isEmpty) {
+          continue;
+        }
+        final normalizedCommand = command.toLowerCase();
+        final referencesTarget = normalizedTargets.any(
+          (target) => normalizedCommand.contains(target.toLowerCase()),
+        );
+        final referencesValidation =
+            task.validationCommand.trim().isNotEmpty &&
+            normalizedCommand.contains(task.validationCommand.toLowerCase());
+        final referencesTargetDirectory = targetDirectories.any(
+          (directory) => normalizedCommand.contains(directory.toLowerCase()),
+        );
+        if (!referencesTarget &&
+            !referencesValidation &&
+            _looksLikeScaffoldCommand(normalizedCommand)) {
+          if (referencesTargetDirectory) {
+            benignSupportCommands.add(command);
+          } else {
+            scaffoldCommands.add(command);
+          }
+        }
+      }
+    }
+
+    for (final path in normalizedChangedPaths) {
+      if (fileMutationToolPaths.contains(path)) {
+        continue;
+      }
+      _recordTouchedPath(
+        path: path,
+        normalizedTargets: normalizedTargets,
+        isScaffoldTask: isScaffoldTask,
+        touchedTargetFiles: touchedTargetFiles,
+        unrelatedTouchedPaths: unrelatedTouchedPaths,
+        targetTouchCounts: targetTouchCounts,
+      );
+    }
+
+    final repeatedTargetFiles = targetTouchCounts.entries
+        .where((entry) => entry.value > 1)
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    final remainingTargetFiles = normalizedTargets
+        .where((target) => !touchedTargetFiles.contains(target))
+        .toList(growable: false);
+
+    return ConversationPlanExecutionDriftAssessment(
+      touchedTargetFiles: touchedTargetFiles.toList(growable: false),
+      unrelatedTouchedPaths: unrelatedTouchedPaths.toList(growable: false),
+      scaffoldCommands: scaffoldCommands.toList(growable: false),
+      benignSupportCommands: benignSupportCommands.toList(growable: false),
+      repeatedTargetFiles: repeatedTargetFiles,
+      remainingTargetFiles: remainingTargetFiles,
+    );
+  }
+
+  static ConversationPlanExecutionCompletionAssessment assessTaskCompletion({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    List<String> changedFilePaths = const <String>[],
+  }) {
+    final isScaffoldTask = _isScaffoldLikeTask(task);
+    final declaredTargets = _effectiveTargetPaths(task);
+    final normalizedChangedPaths = _normalizeChangedFilePaths(changedFilePaths);
+    final inferredMutationTargets = declaredTargets.isEmpty
+        ? {
+            ..._inferTargetPathsFromFileMutations(toolResults),
+            ...normalizedChangedPaths,
+          }
+        : const <String>{};
+    final normalizedTargets = declaredTargets.isNotEmpty
+        ? declaredTargets
+        : inferredMutationTargets;
+    final targetDirectories = _targetDirectories(normalizedTargets);
+    final touchedTargetFiles = <String>{};
+    final unrelatedTouchedPaths = <String>{};
+    final scaffoldCommands = <String>{};
+    final benignSupportCommands = <String>{};
+    final successfulValidationCommands = <String>{};
+    final failedValidationCommands = <String>{};
+    final fileMutationToolPaths = <String>{};
+    var lastFileMutationFailureIndex = -1;
+    var lastPersistentFailureIndex = -1;
+    var lastValidationFailureIndex = -1;
+    var lastSuccessfulValidationIndex = -1;
+    var lastUnexecutedFileSaveFailureIndex = -1;
+    var lastSuccessfulFileMutationIndex = -1;
+
+    for (var index = 0; index < toolResults.length; index++) {
+      final toolResult = toolResults[index];
+      final resultLooksLikeFailure = _looksLikeFailureResult(toolResult);
+
+      if (toolResult.name == 'write_file' ||
+          toolResult.name == 'edit_file' ||
+          toolResult.name == 'delete_file' ||
+          toolResult.name == 'rollback_last_file_change') {
+        if (resultLooksLikeFailure) {
+          lastFileMutationFailureIndex = index;
+        } else {
+          lastSuccessfulFileMutationIndex = index;
+        }
+        final path = _normalizePath(toolResult.arguments['path']?.toString());
+        if (path.isEmpty) {
+          continue;
+        }
+        fileMutationToolPaths.add(path);
+        _recordTouchedPath(
+          path: path,
+          normalizedTargets: normalizedTargets,
+          isScaffoldTask: isScaffoldTask,
+          touchedTargetFiles: touchedTargetFiles,
+          unrelatedTouchedPaths: unrelatedTouchedPaths,
+        );
+        continue;
+      }
+
+      if (toolResult.name == 'local_execute_command' ||
+          toolResult.name == 'git_execute_command' ||
+          toolResult.name == 'ssh_execute_command') {
+        final command = _extractCommand(toolResult);
+        if (_matchesValidationCommand(command, task.validationCommand) ||
+            _matchesPythonTestFallbackValidationCommand(
+              task: task,
+              command: command,
+            ) ||
+            (declaredTargets.isEmpty &&
+                _looksLikeDirectTargetExecutionCommand(
+                  command: command,
+                  targets: normalizedTargets,
+                ))) {
+          final exitCode = _extractExitCode(toolResult);
+          final looksLikeFailure = _looksLikeFailureResult(toolResult);
+          final succeeded = exitCode == null
+              ? !looksLikeFailure
+              : exitCode == 0 && !looksLikeFailure;
+          if (succeeded) {
+            successfulValidationCommands.add(command);
+            lastSuccessfulValidationIndex = index;
+          } else {
+            failedValidationCommands.add(command);
+            lastValidationFailureIndex = index;
+          }
+        } else {
+          if (resultLooksLikeFailure) {
+            if (_isUnexecutedFileSaveFailure(toolResult)) {
+              lastUnexecutedFileSaveFailureIndex = index;
+            } else {
+              lastPersistentFailureIndex = index;
+            }
+          }
+          if (!resultLooksLikeFailure &&
+              (toolResult.name == 'local_execute_command' ||
+                  toolResult.name == 'git_execute_command') &&
+              command.isNotEmpty) {
+            final normalizedCommand = command.toLowerCase();
+            final referencesTarget = normalizedTargets.any(
+              (target) => normalizedCommand.contains(target.toLowerCase()),
+            );
+            final referencesValidation =
+                task.validationCommand.trim().isNotEmpty &&
+                normalizedCommand.contains(
+                  task.validationCommand.toLowerCase(),
+                );
+            final referencesTargetDirectory = targetDirectories.any(
+              (directory) =>
+                  normalizedCommand.contains(directory.toLowerCase()),
+            );
+            if (!referencesTarget &&
+                !referencesValidation &&
+                _looksLikeScaffoldCommand(normalizedCommand)) {
+              if (referencesTargetDirectory) {
+                benignSupportCommands.add(command);
+              } else {
+                scaffoldCommands.add(command);
+              }
+            }
+          }
+        }
+        continue;
+      }
+
+      if (toolResult.name == 'run_tests') {
+        final testPath = _normalizeText(
+          toolResult.arguments['test_path'] ?? toolResult.arguments['path'],
+        );
+        if (!_matchesRunTestsValidation(task.validationCommand, testPath)) {
+          if (resultLooksLikeFailure) {
+            lastPersistentFailureIndex = index;
+          }
+          continue;
+        }
+        final resultSummary = testPath == null
+            ? 'run_tests'
+            : 'run_tests $testPath';
+        final exitCode = _extractExitCode(toolResult);
+        final looksLikeFailure = _looksLikeFailureResult(toolResult);
+        final succeeded = exitCode == null
+            ? !looksLikeFailure
+            : exitCode == 0 && !looksLikeFailure;
+        if (succeeded) {
+          successfulValidationCommands.add(resultSummary);
+          lastSuccessfulValidationIndex = index;
+        } else {
+          failedValidationCommands.add(resultSummary);
+          lastValidationFailureIndex = index;
+        }
+        continue;
+      }
+
+      if (resultLooksLikeFailure &&
+          !_readOnlyInspectionToolNames.contains(toolResult.name)) {
+        lastPersistentFailureIndex = index;
+      }
+    }
+
+    for (final path in normalizedChangedPaths) {
+      if (fileMutationToolPaths.contains(path)) {
+        continue;
+      }
+      _recordTouchedPath(
+        path: path,
+        normalizedTargets: normalizedTargets,
+        isScaffoldTask: isScaffoldTask,
+        touchedTargetFiles: touchedTargetFiles,
+        unrelatedTouchedPaths: unrelatedTouchedPaths,
+      );
+    }
+
+    final untouchedTargetFiles = normalizedTargets
+        .where((target) => !touchedTargetFiles.contains(target))
+        .toList(growable: false);
+    final lastPersistentFailureRecoveryIndex =
+        lastSuccessfulValidationIndex >= 0
+        ? lastSuccessfulValidationIndex
+        : lastSuccessfulFileMutationIndex;
+
+    return ConversationPlanExecutionCompletionAssessment(
+      requiresValidation:
+          task.validationCommand.trim().isNotEmpty ||
+          inferredMutationTargets.isNotEmpty,
+      hasTargetFiles: normalizedTargets.isNotEmpty,
+      hasFailure:
+          lastFileMutationFailureIndex > lastSuccessfulValidationIndex ||
+          lastPersistentFailureIndex > lastPersistentFailureRecoveryIndex ||
+          lastUnexecutedFileSaveFailureIndex >
+              lastSuccessfulFileMutationIndex ||
+          lastValidationFailureIndex > lastSuccessfulValidationIndex,
+      touchedTargetFiles: touchedTargetFiles.toList(growable: false),
+      untouchedTargetFiles: untouchedTargetFiles,
+      unrelatedTouchedPaths: unrelatedTouchedPaths.toList(growable: false),
+      scaffoldCommands: scaffoldCommands.toList(growable: false),
+      benignSupportCommands: benignSupportCommands.toList(growable: false),
+      successfulValidationCommands: successfulValidationCommands.toList(
+        growable: false,
+      ),
+      failedValidationCommands: failedValidationCommands.toList(
+        growable: false,
+      ),
+      allowsLightValidationCompletion:
+          inferredMutationTargets.isEmpty &&
+          _looksLikeLightValidationCommand(task.validationCommand),
+    );
+  }
+
+  static List<String> unavailableToolNames(List<ToolResultInfo> toolResults) {
+    final names = <String>{};
+    for (final toolResult in toolResults) {
+      final normalizedResult = toolResult.result.toLowerCase();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      if (code == 'tool_not_available' ||
+          normalizedResult.contains('no matching tool available')) {
+        names.add(
+          _normalizeText(decoded?['toolName']) ?? toolResult.name.trim(),
+        );
+      }
+    }
+    return names.where((name) => name.isNotEmpty).toList(growable: false);
+  }
+
+  static List<String> editMismatchPaths(List<ToolResultInfo> toolResults) {
+    final paths = <String>{};
+    for (final toolResult in toolResults) {
+      final normalizedResult = toolResult.result.toLowerCase();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      if (code != 'edit_mismatch' &&
+          !normalizedResult.contains(
+            'old_text was not found in the target file',
+          )) {
+        continue;
+      }
+      final path = _normalizePath(
+        _normalizeText(decoded?['path']) ??
+            _normalizeText(toolResult.arguments['path']),
+      );
+      if (path.isNotEmpty) {
+        paths.add(path);
+      }
+    }
+    return paths.toList(growable: false);
+  }
+
+  static bool hasMalformedFileMutationFailure(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return toolResults.any(_isRecoverableMalformedFailure);
+  }
+
+  static List<String> malformedFileMutationPaths(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final paths = <String>{};
+    for (final toolResult in toolResults) {
+      if (!_isRecoverableMalformedFailure(toolResult)) {
+        continue;
+      }
+      final decoded = _tryDecodeMap(toolResult.result);
+      final path = _normalizePath(
+        _normalizeText(decoded?['path']) ??
+            _normalizeText(toolResult.arguments['path']),
+      );
+      if (path.isNotEmpty) {
+        paths.add(path);
+      }
+    }
+    return paths.toList(growable: false);
+  }
+
+  static bool hasOnlyRecoverableMalformedFailures(
+    List<ToolResultInfo> toolResults,
+  ) {
+    var sawFailure = false;
+    for (final toolResult in toolResults) {
+      if (!_looksLikeFailureResult(toolResult)) {
+        continue;
+      }
+      sawFailure = true;
+      if (!_isRecoverableMalformedFailure(toolResult)) {
+        return false;
+      }
+    }
+    return sawFailure;
+  }
+
+  static List<String> missingWorkspaceTargetFiles({
+    required ConversationWorkflowTask task,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
+    final normalizedExisting = existingTargetPaths
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    return normalizedTargets
+        .where((target) => !normalizedExisting.contains(target))
+        .toList(growable: false);
+  }
+
+  static bool looksLikeScaffoldTask(ConversationWorkflowTask task) {
+    return _isScaffoldLikeTask(task);
+  }
+
+  static bool canFinalizeScaffoldFromWorkspaceTargets({
+    required ConversationWorkflowTask task,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    if (!_isScaffoldLikeTask(task)) {
+      return false;
+    }
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    if (missingTargets.isNotEmpty) {
+      return false;
+    }
+    final validationCommand = task.validationCommand.trim();
+    return validationCommand.isEmpty ||
+        _looksLikeLightValidationCommand(validationCommand);
+  }
+
+  /// Whether the task's own saved validation command is among the commands that
+  /// actually succeeded.
+  ///
+  /// [ConversationPlanExecutionCompletionAssessment.successfulValidationCommands]
+  /// holds *any* validation-looking command that passed, so without this a task
+  /// can be completed on a neighbouring task's evidence — observed live: an
+  /// acceptance-verification task whose walk-through was never run was reported
+  /// complete while the only command executed was the previous task's
+  /// `dart analyze`. A task that saved no command keeps the previous behaviour.
+  ///
+  /// Comparison is normalized for the wrappers a run legitimately adds: a
+  /// `cd <dir> &&` prefix and whitespace differences.
+  static bool savedValidationCommandSucceeded({
+    required ConversationWorkflowTask task,
+    required Iterable<String> successfulValidationCommands,
+  }) {
+    final saved = _normalizeValidationCommandForMatch(task.validationCommand);
+    if (saved.isEmpty) return true;
+    for (final command in successfulValidationCommands) {
+      final candidate = _normalizeValidationCommandForMatch(command);
+      if (candidate.isEmpty) continue;
+      if (candidate == saved ||
+          candidate.contains(saved) ||
+          saved.contains(candidate)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static final RegExp _leadingCdPrefix = RegExp(r'^cd\s+\S+\s*&&\s*');
+
+  static String _normalizeValidationCommandForMatch(String command) {
+    var normalized = command.trim();
+    while (_leadingCdPrefix.hasMatch(normalized)) {
+      normalized = normalized.replaceFirst(_leadingCdPrefix, '').trim();
+    }
+    return normalized.replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  static bool canPromoteScaffoldCompletionFromWorkspaceValidation({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    if (!_isScaffoldLikeTask(task)) {
+      return false;
+    }
+
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.hasFailure ||
+        completionAssessment.successfulValidationCommands.isEmpty ||
+        completionAssessment.unrelatedTouchedPaths.isNotEmpty ||
+        completionAssessment.scaffoldCommands.isNotEmpty) {
+      return false;
+    }
+
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    if (missingTargets.isNotEmpty) {
+      return false;
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    return validationCommand.isEmpty ||
+        _looksLikeLightValidationCommand(validationCommand);
+  }
+
+  static bool canPromoteCompletionFromWorkspaceValidation({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.hasFailure ||
+        !completionAssessment.hasTargetFiles ||
+        completionAssessment.successfulValidationCommands.isEmpty ||
+        completionAssessment.scaffoldCommands.isNotEmpty ||
+        !savedValidationCommandSucceeded(
+          task: task,
+          successfulValidationCommands:
+              completionAssessment.successfulValidationCommands,
+        )) {
+      return false;
+    }
+
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    return missingTargets.isEmpty;
+  }
+
+  static bool canPromoteCompletionFromWorkspaceTargets({
+    required ConversationWorkflowTask task,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
+    if (normalizedTargets.isEmpty) {
+      return false;
+    }
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    return missingTargets.isEmpty;
+  }
+
+  static bool assistantMentionsTaskHandoff({
+    required ConversationWorkflowTask task,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final normalizedResponse = _normalizeAssistantEvidenceText(
+      assistantResponse,
+    );
+    final normalizedTaskTitle = _normalizeAssistantEvidenceText(task.title);
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    if (!_assistantMentionsCurrentTaskIdentity(
+      task: task,
+      normalizedResponse: normalizedResponse,
+    )) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = _normalizeAssistantEvidenceText(
+        futureTaskTitle,
+      );
+      if (normalizedFutureTaskTitle.isEmpty ||
+          normalizedFutureTaskTitle == normalizedTaskTitle) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool assistantMentionsTaskHandoffInAnyResponse({
+    required ConversationWorkflowTask task,
+    required Iterable<String> assistantResponses,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    for (final response in assistantResponses) {
+      if (assistantMentionsTaskHandoff(
+        task: task,
+        assistantResponse: response,
+        futureTaskTitles: futureTaskTitles,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool assistantMentionsTaskCompletion({
+    required ConversationWorkflowTask task,
+    required String assistantResponse,
+  }) {
+    final normalizedResponse = _normalizeAssistantEvidenceText(
+      assistantResponse,
+    );
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    if (!_assistantMentionsCurrentTaskIdentity(
+      task: task,
+      normalizedResponse: normalizedResponse,
+    )) {
+      return false;
+    }
+
+    return _completionSignals.any(normalizedResponse.contains);
+  }
+
+  static bool assistantMentionsTaskCompletionInAnyResponse({
+    required ConversationWorkflowTask task,
+    required Iterable<String> assistantResponses,
+  }) {
+    for (final response in assistantResponses) {
+      if (assistantMentionsTaskCompletion(
+        task: task,
+        assistantResponse: response,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _assistantMentionsCurrentTaskIdentity({
+    required ConversationWorkflowTask task,
+    required String normalizedResponse,
+  }) {
+    final normalizedTaskTitle = _normalizeAssistantEvidenceText(task.title);
+    if (normalizedTaskTitle.isNotEmpty &&
+        normalizedResponse.contains(normalizedTaskTitle)) {
+      return true;
+    }
+
+    final effectiveTargets = _effectiveTargetPaths(task);
+    for (final target in effectiveTargets) {
+      final normalizedTarget = _normalizeAssistantEvidenceText(target);
+      final basename = _normalizeAssistantEvidenceText(target.split('/').last);
+      if (basename.isNotEmpty && normalizedResponse.contains(basename)) {
+        return true;
+      }
+      if (normalizedTarget.isNotEmpty &&
+          normalizedResponse.contains(normalizedTarget)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static String _normalizeAssistantEvidenceText(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(_markdownEmphasisPattern, '')
+        .replaceAll(_whitespaceRunPattern, ' ')
+        .trim();
+  }
+
+  static bool canPromoteCompletionFromTaskHandoff({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.hasFailure ||
+        completionAssessment.unrelatedTouchedPaths.isNotEmpty ||
+        completionAssessment.scaffoldCommands.isNotEmpty ||
+        completionAssessment.touchedTargetFiles.isEmpty ||
+        !completionAssessment.touchedAllTargetFiles) {
+      return false;
+    }
+
+    if (!assistantMentionsTaskHandoff(
+      task: task,
+      assistantResponse: assistantResponse,
+      futureTaskTitles: futureTaskTitles,
+    )) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    if (normalizedTaskTitle.isEmpty ||
+        !normalizedResponse.contains(normalizedTaskTitle)) {
+      return false;
+    }
+
+    return _completionSignals.any(normalizedResponse.contains);
+  }
+
+  static bool canPromoteCompletionFromHistoricalValidationHandoff({
+    required ConversationWorkflowTask task,
+    required ConversationExecutionTaskProgress? progress,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    if (progress == null ||
+        progress.validationStatus !=
+            ConversationExecutionValidationStatus.passed) {
+      return false;
+    }
+
+    final taskValidationCommand = task.validationCommand.trim().toLowerCase();
+    final historicalValidationCommand = progress.lastValidationCommand
+        .trim()
+        .toLowerCase();
+    if (taskValidationCommand.isNotEmpty &&
+        historicalValidationCommand.isNotEmpty &&
+        historicalValidationCommand != taskValidationCommand) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool canPromoteCompletionFromCurrentValidationHandoff({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.successfulValidationCommands.isEmpty) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool hasOnlyUnavailableToolFailures(List<ToolResultInfo> toolResults) {
+    var sawFailure = false;
+    for (final toolResult in toolResults) {
+      if (!_looksLikeFailureResult(toolResult)) {
+        continue;
+      }
+      sawFailure = true;
+      final normalizedResult = toolResult.result.toLowerCase();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      if (code != 'tool_not_available' &&
+          !normalizedResult.contains('no matching tool available')) {
+        return false;
+      }
+    }
+    return sawFailure;
+  }
+
+  static bool hasOnlySyntheticNonExecutionResults(
+    List<ToolResultInfo> toolResults,
+  ) {
+    if (toolResults.isEmpty) {
+      return false;
+    }
+    return toolResults.every((toolResult) {
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      final reason = _normalizeText(decoded?['reason'])?.toLowerCase();
+      return switch (code) {
+        'unexecuted_browser_action' ||
+        'unexecuted_command_action' ||
+        'unexecuted_file_save' ||
+        'unverified_read_only_inspection_claim' ||
+        'tool_call_not_executed' => true,
+        _ => reason == 'bounded_tool_loop_exhausted',
+      };
+    });
+  }
+
+  static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
+    for (final toolResult in toolResults) {
+      final decoded = _tryDecodeMap(toolResult.result);
+      final candidates = <String>[
+        toolResult.result,
+        _normalizeText(decoded?['stderr']) ?? '',
+        _normalizeText(decoded?['error']) ?? '',
+        _normalizeText(decoded?['stdout']) ?? '',
+      ];
+      for (final candidate in candidates) {
+        if (candidate.isEmpty) {
+          continue;
+        }
+        final match = _missingPythonModulePattern.firstMatch(candidate);
+        if (match != null) {
+          return match.group(1)?.trim();
+        }
+      }
+    }
+    return null;
+  }
+
+  static String? missingTargetFileFromValidationFailure({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
+    if (normalizedTargets.isEmpty) {
+      return null;
+    }
+
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'local_execute_command' &&
+          toolResult.name != 'git_execute_command' &&
+          toolResult.name != 'ssh_execute_command') {
+        continue;
+      }
+      final command = _extractCommand(toolResult);
+      if (!_matchesValidationCommand(command, task.validationCommand)) {
+        continue;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      final looksLikeMissingPathFailure =
+          normalizedResult.contains('no such file or directory') ||
+          normalizedResult.contains("can't open file") ||
+          normalizedResult.contains('cannot open') ||
+          normalizedResult.contains('not found');
+      if (!looksLikeMissingPathFailure) {
+        continue;
+      }
+
+      for (final target in normalizedTargets) {
+        final targetBasename = target.split('/').last.toLowerCase();
+        if (targetBasename.isNotEmpty &&
+            normalizedResult.contains(targetBasename)) {
+          return target;
+        }
+      }
+
+      if (normalizedTargets.length == 1) {
+        return normalizedTargets.first;
+      }
+    }
+    return null;
+  }
+
+  static String? failedPythonValidationCommand({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'local_execute_command' &&
+          toolResult.name != 'git_execute_command' &&
+          toolResult.name != 'ssh_execute_command') {
+        continue;
+      }
+      final command = _extractCommand(toolResult);
+      if (!_matchesValidationCommand(command, task.validationCommand)) {
+        continue;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      if (normalizedResult.contains('modulenotfounderror') ||
+          normalizedResult.contains('no module named')) {
+        return command;
+      }
+    }
+    return null;
+  }
+
+  static String? missingPythonTestDependency({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'local_execute_command' &&
+          toolResult.name != 'git_execute_command' &&
+          toolResult.name != 'ssh_execute_command') {
+        continue;
+      }
+      final command = _extractCommand(toolResult);
+      if (!_matchesValidationCommand(command, task.validationCommand)) {
+        continue;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      if (normalizedResult.contains('no module named pytest') ||
+          normalizedResult.contains("no module named 'pytest'") ||
+          normalizedResult.contains('pytest: command not found') ||
+          normalizedResult.contains('/pytest: not found')) {
+        return 'pytest';
+      }
+    }
+    return null;
+  }
+
+  static String? missingPythonRuntimeDependency({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final failedCommand = failedPythonValidationCommand(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (failedCommand == null) {
+      return null;
+    }
+    if (suggestPythonSrcLayoutRetryCommand(
+          task: task,
+          failedCommand: failedCommand,
+        ) !=
+        null) {
+      return null;
+    }
+
+    final missingDependency = blockedPythonImportModule(toolResults);
+    final normalizedDependency = missingDependency?.trim().toLowerCase() ?? '';
+    if (normalizedDependency.isEmpty || normalizedDependency == 'pytest') {
+      return null;
+    }
+
+    final targetModuleTokens = _effectiveTargetPaths(task)
+        .expand((path) => path.split('/'))
+        .map((segment) => segment.trim().toLowerCase())
+        .where((segment) => segment.isNotEmpty)
+        .map((segment) => segment.replaceAll('.py', ''))
+        .toSet();
+    if (targetModuleTokens.contains(normalizedDependency)) {
+      return null;
+    }
+
+    return missingDependency;
+  }
+
+  static String? suggestPythonTestDependencyFallbackCommand({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String missingDependency,
+  }) {
+    if (missingDependency.trim().toLowerCase() != 'pytest') {
+      return null;
+    }
+    if (!_isPytestValidationCommand(failedCommand)) {
+      return null;
+    }
+    final fallbackTarget = _firstPythonVerificationTarget(task);
+    if (fallbackTarget == null) {
+      return null;
+    }
+    final commandPrefix = _pythonCommandPrefixForValidationCommand(
+      failedCommand,
+    );
+    return '$commandPrefix $fallbackTarget';
+  }
+
+  static String? suggestPythonSrcLayoutRetryCommand({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+  }) {
+    final command = failedCommand.trim();
+    if (command.isEmpty) {
+      return null;
+    }
+    final normalizedTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.startsWith('src/'))
+        .toList(growable: false);
+    if (normalizedTargets.isEmpty) {
+      return null;
+    }
+    final normalizedCommand = command.toLowerCase();
+    final isPythonCommand =
+        normalizedCommand.startsWith('python ') ||
+        normalizedCommand.startsWith('python3 ') ||
+        normalizedCommand.startsWith('python -') ||
+        normalizedCommand.startsWith('python3 -');
+    if (!isPythonCommand) {
+      return null;
+    }
+    if (normalizedCommand.contains('pythonpath=') ||
+        normalizedCommand.startsWith('cd src &&') ||
+        normalizedCommand.startsWith('(cd src')) {
+      return null;
+    }
+    return 'PYTHONPATH=src $command';
+  }
+
+  static List<String> _matchedTargets(
+    String path,
+    Set<String> normalizedTargets,
+  ) {
+    return normalizedTargets
+        .where(
+          (target) =>
+              path == target ||
+              path.endsWith('/$target') ||
+              path.endsWith(target),
+        )
+        .toList(growable: false);
+  }
+
+  static Set<String> _normalizeChangedFilePaths(List<String> paths) {
+    return paths.map(_normalizePath).where((path) => path.isNotEmpty).toSet();
+  }
+
+  static void _recordTouchedPath({
+    required String path,
+    required Set<String> normalizedTargets,
+    required bool isScaffoldTask,
+    required Set<String> touchedTargetFiles,
+    required Set<String> unrelatedTouchedPaths,
+    Map<String, int>? targetTouchCounts,
+  }) {
+    final matchedTargets = _matchedTargets(path, normalizedTargets);
+    if (matchedTargets.isNotEmpty) {
+      touchedTargetFiles.add(path);
+      touchedTargetFiles.addAll(matchedTargets);
+      for (final target in matchedTargets) {
+        targetTouchCounts?.update(
+          target,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    } else if (isScaffoldTask && _isScaffoldSupportPath(path)) {
+      return;
+    } else {
+      unrelatedTouchedPaths.add(path);
+    }
+  }
+
+  static bool _matchesValidationCommand(
+    String command,
+    String validationCommand,
+  ) {
+    final normalizedCommand = command.trim().toLowerCase().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+    final normalizedValidation = validationCommand
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ');
+    if (normalizedCommand.isEmpty || normalizedValidation.isEmpty) {
+      return false;
+    }
+    if (normalizedCommand == normalizedValidation ||
+        normalizedCommand.startsWith('$normalizedValidation && ') ||
+        normalizedCommand.endsWith(' && $normalizedValidation') ||
+        normalizedCommand.contains(' && $normalizedValidation && ')) {
+      return true;
+    }
+    return normalizedValidation == 'ls' &&
+        normalizedCommand.startsWith('ls -') &&
+        !RegExp(r'(^| )(\&\&|\|\||;|\|)( |$)').hasMatch(normalizedCommand);
+  }
+
+  static bool _matchesPythonTestFallbackValidationCommand({
+    required ConversationWorkflowTask task,
+    required String command,
+  }) {
+    final fallbackCommand = suggestPythonTestDependencyFallbackCommand(
+      task: task,
+      failedCommand: task.validationCommand,
+      missingDependency: 'pytest',
+    );
+    if (fallbackCommand == null) {
+      return false;
+    }
+    return _matchesValidationCommand(command, fallbackCommand);
+  }
+
+  static bool _matchesRunTestsValidation(
+    String validationCommand,
+    String? testPath,
+  ) {
+    final normalizedValidation = validationCommand.trim().toLowerCase();
+    final normalizedTestPath = testPath?.trim().toLowerCase() ?? '';
+    if (normalizedValidation.isEmpty || normalizedTestPath.isEmpty) {
+      return false;
+    }
+    return normalizedValidation.contains(normalizedTestPath) ||
+        normalizedValidation.contains('run_tests');
+  }
+
+  static String _normalizePath(String? value) {
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) {
+      return '';
+    }
+    return raw.replaceAll('\\', '/');
+  }
+
+  static bool _isPytestValidationCommand(String command) {
+    final normalized = command.trim().toLowerCase();
+    return normalized.startsWith('pytest ') ||
+        normalized == 'pytest' ||
+        normalized.startsWith('python -m pytest') ||
+        normalized.startsWith('python3 -m pytest');
+  }
+
+  static String? _firstPythonVerificationTarget(ConversationWorkflowTask task) {
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
+    for (final target in normalizedTargets) {
+      final normalizedTarget = target.trim().toLowerCase();
+      if (!normalizedTarget.endsWith('.py')) {
+        continue;
+      }
+      if (normalizedTarget.contains('/test') ||
+          normalizedTarget.startsWith('test') ||
+          normalizedTarget.contains('verify')) {
+        return target;
+      }
+    }
+    for (final target in normalizedTargets) {
+      if (target.endsWith('.py')) {
+        return target;
+      }
+    }
+    return null;
+  }
+
+  static String _pythonCommandPrefixForValidationCommand(String command) {
+    final normalized = command.trim().toLowerCase();
+    if (normalized.startsWith('python ')) {
+      return 'python';
+    }
+    return 'python3';
+  }
+
+  static bool _looksLikeScaffoldCommand(String normalizedCommand) {
+    const scaffoldPatterns = <String>[
+      'mkdir ',
+      'mkdir -p',
+      'poetry init',
+      'poetry add',
+      'pip install',
+      'uv init',
+      'uv add',
+      'npm init',
+      'yarn init',
+      'pnpm init',
+      'cargo init',
+      'flutter create',
+      'touch ',
+    ];
+    return scaffoldPatterns.any(normalizedCommand.contains);
+  }
+
+  static bool _looksLikeLightValidationCommand(String validationCommand) {
+    final normalized = validationCommand.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return true;
+    }
+    return normalized.startsWith('ls ') ||
+        normalized == 'ls' ||
+        normalized.startsWith('find ') ||
+        normalized.startsWith('test -f ') ||
+        normalized.startsWith('test -d ') ||
+        normalized.startsWith('stat ');
+  }
+
+  static Set<String> _targetDirectories(Set<String> normalizedTargets) {
+    final directories = <String>{};
+    for (final target in normalizedTargets) {
+      final separatorIndex = target.lastIndexOf('/');
+      if (separatorIndex <= 0) {
+        continue;
+      }
+      final directory = target.substring(0, separatorIndex).trim();
+      if (directory.isNotEmpty) {
+        directories.add(directory);
+      }
+    }
+    return directories;
+  }
+
+  static String _extractCommand(ToolResultInfo toolResult) {
+    final directCommand = _normalizeText(toolResult.arguments['command']);
+    if (directCommand != null) {
+      return directCommand;
+    }
+    final decoded = _tryDecodeMap(toolResult.result);
+    return _normalizeText(decoded?['command']) ?? '';
+  }
+
+  static int? _extractExitCode(ToolResultInfo toolResult) {
+    final decoded = _tryDecodeMap(toolResult.result);
+    final exitCode = decoded == null ? null : decoded['exit_code'];
+    final parsedExitCode = switch (exitCode) {
+      int value => value,
+      num value => value.toInt(),
+      String value => int.tryParse(value.trim()),
+      _ => null,
+    };
+    return resolveToolOutcomeExitCode(
+      outcome: toolResult.outcome,
+      parsedExitCode: parsedExitCode,
+    ).exitCode;
+  }
+
+  static bool _looksLikeFailureResult(ToolResultInfo toolResult) {
+    final rawResult = toolResult.result;
+    final normalized = rawResult.trim().toLowerCase();
+    if (normalized.isEmpty && toolResult.outcome?.exitCode == null) {
+      return false;
+    }
+    final exitCode = _extractExitCode(toolResult);
+    if (exitCode != null && exitCode != 0) {
+      return true;
+    }
+    final decoded = _tryDecodeMap(rawResult);
+    final successValue = decoded == null ? null : decoded['success'];
+    if (successValue == false) {
+      return true;
+    }
+    final isSuccessValue = decoded == null ? null : decoded['isSuccess'];
+    if (isSuccessValue == false) {
+      return true;
+    }
+    if (decoded != null &&
+        CodingCommandOutputGuardrailService.commandResultReportsOutputIssue(
+          rawResult,
+        )) {
+      return true;
+    }
+    if (decoded != null) {
+      final error = _normalizeText(decoded['error'] ?? decoded['errorMessage']);
+      final status = _normalizeText(decoded['status'])?.toLowerCase();
+      return error != null || status == 'failed' || status == 'error';
+    }
+    return normalized.startsWith('error:') ||
+        normalized.contains('failed to') ||
+        normalized.contains('no matching tool available') ||
+        normalized.contains('traceback') ||
+        normalized.contains('exception');
+  }
+
+  static bool _isRecoverableMalformedFailure(ToolResultInfo toolResult) {
+    final normalizedResult = toolResult.result.trim().toLowerCase();
+    if (normalizedResult.isEmpty) {
+      return false;
+    }
+    if (toolResult.name != 'write_file' &&
+        toolResult.name != 'edit_file' &&
+        toolResult.name != 'delete_file') {
+      return false;
+    }
+    final decoded = _tryDecodeMap(toolResult.result);
+    final failureCode = _normalizeText(decoded?['code'])?.toLowerCase();
+    if (failureCode == 'invalid_arguments') {
+      return true;
+    }
+    return normalizedResult.contains('path is required') ||
+        normalizedResult.contains('content is required') ||
+        normalizedResult.contains('old_text is required') ||
+        normalizedResult.contains('old_text must not be empty') ||
+        normalizedResult.contains('new_text is required') ||
+        normalizedResult.contains('new_text must not be empty') ||
+        normalizedResult.contains('content must not be empty') ||
+        normalizedResult.contains('invalid arguments');
+  }
+
+  static bool _isUnexecutedFileSaveFailure(ToolResultInfo toolResult) {
+    final decoded = _tryDecodeMap(toolResult.result);
+    return _normalizeText(decoded?['code'])?.toLowerCase() ==
+        'unexecuted_file_save';
+  }
+
+  static bool _isScaffoldLikeTask(ConversationWorkflowTask task) {
+    final normalized = '${task.title.trim()} ${task.notes.trim()}'
+        .toLowerCase();
+    const keywords = <String>[
+      'scaffold',
+      'initial',
+      'initialize',
+      'bootstrap',
+      'project structure',
+      'requirements',
+      'dependency',
+      'dependencies',
+      'pyproject',
+      'package layout',
+      'file creation',
+    ];
+    return keywords.any(normalized.contains);
+  }
+
+  static bool _isScaffoldSupportPath(String path) {
+    final normalized = path.toLowerCase();
+    final basename = normalized.split('/').last;
+    const rootSupportFiles = <String>{
+      'requirements.txt',
+      'requirements-dev.txt',
+      'requirements-test.txt',
+      'pyproject.toml',
+      'poetry.lock',
+      'setup.py',
+      'setup.cfg',
+      'readme.md',
+      'readme.txt',
+      '.gitignore',
+      'main.py',
+    };
+    if (rootSupportFiles.contains(basename)) {
+      return true;
+    }
+    return normalized.endsWith('/__init__.py') ||
+        normalized == '__init__.py' ||
+        normalized == 'src/main.py';
+  }
+
+  static Map<String, dynamic>? _tryDecodeMap(String rawResult) {
+    try {
+      final decoded = jsonDecode(rawResult);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  static String? _normalizeText(Object? value) {
+    final trimmed = value?.toString().trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static Set<String> _effectiveTargetPaths(ConversationWorkflowTask task) {
+    final explicitTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    if (explicitTargets.isNotEmpty) {
+      return explicitTargets;
+    }
+    final descriptiveText = '${task.title.trim()} ${task.notes.trim()}';
+    final sufficientTargets = _inferSufficientTargetPathsFromText(
+      descriptiveText,
+    );
+    if (sufficientTargets.isNotEmpty) {
+      return sufficientTargets;
+    }
+    final inferredTargets = {
+      ..._inferTargetPathsFromText(descriptiveText),
+      ..._inferTargetPathsFromText(task.validationCommand),
+    };
+    return inferredTargets;
+  }
+
+  static Set<String> _inferSufficientTargetPathsFromText(String text) {
+    if (text.trim().isEmpty) {
+      return const <String>{};
+    }
+    final normalizedText = text
+        .toLowerCase()
+        .replaceAll(_markdownEmphasisPattern, '')
+        .replaceAll(_whitespaceRunPattern, ' ')
+        .trim();
+    if (normalizedText.isEmpty) {
+      return const <String>{};
+    }
+    final candidates = _inferTargetPathsFromText(text);
+    return candidates.where((target) {
+      final normalizedTarget = target.toLowerCase();
+      return normalizedText.contains('$normalizedTarget is enough') ||
+          normalizedText.contains('$normalizedTarget is sufficient') ||
+          normalizedText.contains('$normalizedTarget alone is enough') ||
+          normalizedText.contains('only $normalizedTarget') ||
+          normalizedText.contains('just $normalizedTarget');
+    }).toSet();
+  }
+
+  static Set<String> _inferTargetPathsFromFileMutations(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final inferredTargets = <String>{};
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'write_file' &&
+          toolResult.name != 'edit_file' &&
+          toolResult.name != 'delete_file') {
+        continue;
+      }
+      final path = _normalizePath(toolResult.arguments['path']?.toString());
+      if (path.isEmpty || !_looksLikeInferredTargetPath(path)) {
+        continue;
+      }
+      inferredTargets.add(path);
+    }
+    return inferredTargets;
+  }
+
+  static bool _looksLikeDirectTargetExecutionCommand({
+    required String command,
+    required Set<String> targets,
+  }) {
+    final normalizedCommand = command.trim().toLowerCase();
+    if (normalizedCommand.isEmpty || targets.isEmpty) {
+      return false;
+    }
+    final launchesExecutableTarget =
+        normalizedCommand.startsWith('python ') ||
+        normalizedCommand.startsWith('python3 ') ||
+        normalizedCommand.startsWith('./') ||
+        normalizedCommand.startsWith('bash ') ||
+        normalizedCommand.startsWith('sh ');
+    if (!launchesExecutableTarget) {
+      return false;
+    }
+    return targets.any(
+      (target) =>
+          normalizedCommand.contains(target.toLowerCase()) ||
+          normalizedCommand.contains('/${target.toLowerCase()}'),
+    );
+  }
+
+  static Set<String> _inferTargetPathsFromText(String text) {
+    if (text.trim().isEmpty) {
+      return const <String>{};
+    }
+
+    final matches = _inferredTargetPathPattern.allMatches(text);
+    final inferredTargets = <String>{};
+    for (final match in matches) {
+      final candidate = _normalizePath(match.group(1));
+      if (candidate.isEmpty || !_looksLikeInferredTargetPath(candidate)) {
+        continue;
+      }
+      inferredTargets.add(candidate);
+    }
+    return inferredTargets;
+  }
+
+  static bool _looksLikeInferredTargetPath(String path) {
+    final normalized = path.toLowerCase();
+    if (normalized == '.gitignore') {
+      return true;
+    }
+    final basename = normalized.split('/').last;
+    if (basename == '__init__.py') {
+      return true;
+    }
+    final extensionIndex = basename.lastIndexOf('.');
+    if (extensionIndex <= 0 || extensionIndex == basename.length - 1) {
+      return false;
+    }
+    final extension = basename.substring(extensionIndex + 1);
+    const knownExtensions = <String>{
+      'py',
+      'dart',
+      'md',
+      'txt',
+      'toml',
+      'yaml',
+      'yml',
+      'json',
+      'ini',
+      'cfg',
+      'sh',
+    };
+    return knownExtensions.contains(extension);
+  }
+}

@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_workflow.dart';
-import '../../domain/services/conversation_plan_diff_service.dart';
-import '../../domain/services/task_lifecycle_state.dart';
+import '../../domain/services/plan/conversation_plan_diff_service.dart';
+import '../../domain/services/plan/task_lifecycle_state.dart';
 
 abstract final class WorkflowStatusPresentation {
   static String workflowProjectionStatusLabelKey(

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../../../core/utils/logger.dart';
 import '../entities/tool_call_info.dart';
-import 'proposal_parsing_text_utils.dart';
+import 'plan/proposal_parsing_text_utils.dart';
 
 /// Formats decoded feedback summaries without reading ambient turn state.
 abstract final class CodingFeedbackTelemetry {

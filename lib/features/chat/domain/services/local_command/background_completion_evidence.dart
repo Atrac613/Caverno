@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../entities/subagent_task.dart';
 import '../../entities/tool_call_info.dart';
 import '../final_answer_claim_detector.dart';
-import '../proposal_parsing_text_utils.dart';
+import '../plan/proposal_parsing_text_utils.dart';
 import '../tool_call_execution_policy.dart';
 import 'local_command_tool_contract.dart';
 

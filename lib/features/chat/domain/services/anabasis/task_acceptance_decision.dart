@@ -3,7 +3,7 @@ import '../../entities/conversation_workflow.dart';
 import '../../entities/mcp_tool_entity.dart';
 import '../../entities/subagent_task.dart';
 import '../../entities/worktree_agent_task.dart';
-import '../conversation_task_precondition_refs.dart';
+import '../plan/conversation_task_precondition_refs.dart';
 import 'delegated_premise_audit.dart';
 import 'task_acceptance_audit.dart';
 import 'task_acceptance_payloads.dart';

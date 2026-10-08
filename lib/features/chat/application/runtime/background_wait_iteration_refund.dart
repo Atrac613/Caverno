@@ -3,7 +3,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../../../../core/utils/logger.dart';
 
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/proposal_parsing_text_utils.dart';
+import '../../domain/services/plan/proposal_parsing_text_utils.dart';
 
 /// Hands a tool-loop iteration back when the batch only waited on a job that
 /// is still running.

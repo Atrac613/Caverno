@@ -234,10 +234,10 @@ These files carried most of the stabilization work:
 - `lib/features/chat/presentation/pages/chat_page.dart`
   Saved-task execution flow, recovery routing, completion locking,
   same-turn handoff handling.
-- `lib/features/chat/domain/services/conversation_plan_execution_guardrails.dart`
+- `lib/features/chat/domain/services/plan/conversation_plan_execution_guardrails.dart`
   Classification of drift, missing targets, validation outcomes, completion
   promotion, and bounded recovery entry conditions.
-- `lib/features/chat/domain/services/conversation_plan_execution_coordinator.dart`
+- `lib/features/chat/domain/services/plan/conversation_plan_execution_coordinator.dart`
   Hidden recovery prompts and task-specific nudges.
 - `lib/features/chat/domain/services/conversation_execution_progress_inference.dart`
   Extraction of completion evidence from assistant/tool stream content.
@@ -322,8 +322,8 @@ flutter test test/integration/plan_mode_scenario_spec_test.dart
 flutter test test/integration_support/plan_mode_report_summary_test.dart
 flutter test test/integration_support/plan_mode_suite_report_test.dart
 flutter test test/features/chat/presentation/providers/chat_notifier_workflow_proposal_test.dart
-flutter test test/features/chat/domain/services/conversation_plan_execution_guardrails_test.dart
-flutter test test/features/chat/domain/services/conversation_plan_execution_coordinator_test.dart
+flutter test test/features/chat/domain/services/plan/conversation_plan_execution_guardrails_test.dart
+flutter test test/features/chat/domain/services/plan/conversation_plan_execution_coordinator_test.dart
 flutter analyze
 ```
 

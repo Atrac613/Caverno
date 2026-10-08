@@ -2,7 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/entities/conversation_plan_artifact.dart';
-import '../../../domain/services/conversation_plan_projection_service.dart';
+import '../../../domain/services/plan/conversation_plan_projection_service.dart';
 import 'plan_markdown_preview.dart';
 
 enum PlanReviewSheetAction { approve, edit, cancel }

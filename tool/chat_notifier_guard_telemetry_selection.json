@@ -111,7 +111,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/material_contract_assumption_guard.dart::MaterialContractAssumptionGuard",
+      "id": "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart::MaterialContractAssumptionGuard",
       "disposition": "defer",
       "question": "Was MaterialContractAssumptionGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -139,7 +139,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/planning_tool_policy.dart::PlanningToolPolicy",
+      "id": "lib/features/chat/domain/services/plan/planning_tool_policy.dart::PlanningToolPolicy",
       "disposition": "defer",
       "question": "Was PlanningToolPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -272,14 +272,14 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart::WorkflowTaskRunLifecyclePolicy",
+      "id": "lib/features/chat/domain/services/plan/workflow_task_run_lifecycle_policy.dart::WorkflowTaskRunLifecyclePolicy",
       "disposition": "defer",
       "question": "Was WorkflowTaskRunLifecyclePolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/workflow_task_turn_route_policy.dart::WorkflowTaskTurnRoutePolicy",
+      "id": "lib/features/chat/domain/services/plan/workflow_task_turn_route_policy.dart::WorkflowTaskTurnRoutePolicy",
       "disposition": "defer",
       "question": "Was WorkflowTaskTurnRoutePolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

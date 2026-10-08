@@ -1,5 +1,5 @@
 import '../../../domain/entities/conversation_workflow.dart';
-import '../../../domain/services/conversation_contract_provenance_service.dart';
+import '../../../domain/services/plan/conversation_contract_provenance_service.dart';
 
 const _provenance = ConversationContractProvenanceService();
 

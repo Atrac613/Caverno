@@ -192,23 +192,23 @@
         },
         {
           "id": "material-assumption-ask-memory",
-          "path": "lib/features/chat/domain/services/material_assumption_ask_memory.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/material_assumption_ask_memory.dart"
+          "path": "lib/features/chat/domain/services/plan/material_assumption_ask_memory.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/plan/material_assumption_ask_memory.dart"
         },
         {
           "id": "material-assumption-confirmation-gate",
-          "path": "lib/features/chat/domain/services/material_assumption_confirmation_gate.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/material_assumption_confirmation_gate.dart"
+          "path": "lib/features/chat/domain/services/plan/material_assumption_confirmation_gate.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/plan/material_assumption_confirmation_gate.dart"
         },
         {
           "id": "material-contract-assumption-arming",
-          "path": "lib/features/chat/domain/services/material_contract_assumption_arming.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/material_contract_assumption_arming.dart"
+          "path": "lib/features/chat/domain/services/plan/material_contract_assumption_arming.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/plan/material_contract_assumption_arming.dart"
         },
         {
           "id": "material-contract-assumption-guard",
-          "path": "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/material_contract_assumption_guard.dart"
+          "path": "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart"
         },
         {
           "id": "saved-validation-command-guard",
@@ -883,8 +883,8 @@
       "collaborators": [
         {
           "id": "proposal-option-extraction",
-          "path": "lib/features/chat/domain/services/proposal_option_extraction.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/proposal_option_extraction.dart"
+          "path": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/plan/proposal_option_extraction.dart"
         }
       ]
     },
@@ -926,8 +926,8 @@
       "collaborators": [
         {
           "id": "proposal-parsing-text-utils",
-          "path": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/proposal_parsing_text_utils.dart"
+          "path": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/plan/proposal_parsing_text_utils.dart"
         }
       ]
     },

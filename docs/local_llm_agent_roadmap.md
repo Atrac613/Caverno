@@ -523,7 +523,7 @@ Acceptance criteria:
 
 Evidence:
 - `lib/features/chat/domain/services/chat_tool_dispatcher.dart`
-- `lib/features/chat/domain/services/planning_tool_policy.dart`
+- `lib/features/chat/domain/services/plan/planning_tool_policy.dart`
 - `lib/features/chat/domain/services/tool_call_batch_executor.dart`
 - `lib/features/chat/domain/services/tool_call_execution_policy.dart`
 - `lib/features/chat/domain/services/tool_loop_recovery_policy.dart`
@@ -531,7 +531,7 @@ Evidence:
 - `lib/features/routines/data/routine_tool_runner.dart`
 - `lib/features/chat/domain/services/anabasis/subagent_execution_service.dart`
 - `test/features/chat/domain/services/chat_tool_dispatcher_test.dart`
-- `test/features/chat/domain/services/planning_tool_policy_test.dart`
+- `test/features/chat/domain/services/plan/planning_tool_policy_test.dart`
 - `test/features/chat/domain/services/tool_call_batch_executor_test.dart`
 - `test/features/chat/domain/services/tool_call_execution_policy_test.dart`
 - `test/features/chat/domain/services/tool_loop_recovery_policy_test.dart`

@@ -86,8 +86,8 @@ totals. Later outcome sections record lower current boundaries.
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1,725 |
 | `lib/features/settings/domain/services/live_llm_diagnostic_service.dart` | 1,711 |
 | `lib/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart` | 1,634 |
-| `lib/features/chat/domain/services/workflow_task_proposal_quality_service.dart` | 1,634 |
-| `lib/features/chat/domain/services/conversation_plan_execution_guardrails.dart` | 1,617 |
+| `lib/features/chat/domain/services/plan/workflow_task_proposal_quality_service.dart` | 1,634 |
+| `lib/features/chat/domain/services/plan/conversation_plan_execution_guardrails.dart` | 1,617 |
 | `lib/features/chat/domain/services/tool_result_prompt_builder.dart` | 1,607 |
 | `lib/features/chat/data/datasources/local_shell_tools.dart` | 1,568 |
 | `lib/features/chat/data/datasources/filesystem_tools.dart` | 1,476 |
@@ -106,7 +106,7 @@ totals. Later outcome sections record lower current boundaries.
 | `lib/features/chat/domain/services/final_answer_claim_detector.dart` | 1,125 |
 | `lib/features/settings/domain/entities/app_settings.dart` | 1,123 |
 | `lib/features/chat/presentation/widgets/message_bubble.dart` | 1,114 |
-| `lib/features/chat/domain/services/conversation_plan_execution_coordinator.dart` | 1,074 |
+| `lib/features/chat/domain/services/plan/conversation_plan_execution_coordinator.dart` | 1,074 |
 | `lib/features/chat/domain/services/system_prompt_builder.dart` | 1,043 |
 | `lib/core/services/lan_scan_service.dart` | 1,038 |
 
@@ -121,7 +121,7 @@ totals. Later outcome sections record lower current boundaries.
 | `test/features/chat/presentation/pages/chat_page_slash_commands_test.dart` | 1,997 |
 | `test/features/routines/data/routine_execution_service_test.dart` | 1,893 |
 | `test/features/chat/presentation/providers/conversations_notifier_test.dart` | 1,887 |
-| `test/features/chat/domain/services/conversation_plan_execution_guardrails_test.dart` | 1,877 |
+| `test/features/chat/domain/services/plan/conversation_plan_execution_guardrails_test.dart` | 1,877 |
 
 The ChatNotifier test root remains the largest test concern, but its 33,189-line
 aggregate must still be reduced with its production concern and aggregate

@@ -40,7 +40,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/composer_assistant_mode_resolver.dart';
-import '../../domain/services/conversation_plan_projection_service.dart';
+import '../../domain/services/plan/conversation_plan_projection_service.dart';
 import '../coordinators/chat_dropped_attachments.dart';
 import '../coordinators/chat_dropped_attachments_take.dart';
 import '../coordinators/chat_page_composer_runtime_coordinator.dart';

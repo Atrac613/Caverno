@@ -207,7 +207,7 @@ python3 tool/analyze_chat_notifier_inventory.py \
   --check-tool-manifest tool/chat_notifier_tool_catalog_inventory.json
 rg -n "_tryRepairAndDecodeMap|_repairJsonCandidate" lib test docs
 fvm flutter test \
-  test/features/chat/domain/services/conversation_legacy_workflow_compatibility_service_test.dart
+  test/features/chat/domain/services/plan/conversation_legacy_workflow_compatibility_service_test.dart
 fvm flutter test test/tool/audit_legacy_workflow_compatibility_test.dart
 fvm dart run tool/audit_legacy_workflow_compatibility.dart \
   --database <path>

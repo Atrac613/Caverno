@@ -7,7 +7,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/task_acceptance_decision.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _decisions = TaskAcceptanceDecisionService();

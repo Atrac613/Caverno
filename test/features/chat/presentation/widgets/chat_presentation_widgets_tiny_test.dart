@@ -5,14 +5,15 @@
 
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/html_preview_session_controller.dart';
 import 'package:caverno/features/chat/domain/services/html_preview_static_server.dart';
 import 'package:caverno/features/chat/domain/services/html_project_detector.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/pro_reasoning_models.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/flutter_run_provider.dart';

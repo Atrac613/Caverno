@@ -1,6 +1,6 @@
 import '../../entities/conversation.dart';
 import '../../entities/conversation_workflow.dart';
-import '../conversation_task_readiness.dart';
+import '../plan/conversation_task_readiness.dart';
 
 /// Where a delegated task should run.
 ///

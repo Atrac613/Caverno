@@ -2,7 +2,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/delegated_premise_audit.dart';
-import 'package:caverno/features/chat/domain/services/conversation_contract_provenance_service.dart';
+import 'package:caverno/features/chat/domain/services/plan/conversation_contract_provenance_service.dart';
 import 'package:test/test.dart';
 
 const _audit = DelegatedPremiseAudit();

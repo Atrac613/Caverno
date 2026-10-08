@@ -3,7 +3,7 @@ import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import '../../entities/chat_turn_owner.dart';
 import '../../entities/conversation_participant.dart';
 import '../../entities/message.dart';
-import '../proposal_parsing_text_utils.dart';
+import '../plan/proposal_parsing_text_utils.dart';
 import '../truncation_notice.dart';
 import 'participant_turn_coordinator.dart';
 

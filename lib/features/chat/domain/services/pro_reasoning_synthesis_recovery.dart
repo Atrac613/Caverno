@@ -1,5 +1,5 @@
 import '../entities/message.dart';
-import 'proposal_parsing_text_utils.dart';
+import 'plan/proposal_parsing_text_utils.dart';
 import 'truncation_notice.dart';
 
 /// Recovers a Pro Reasoning synthesis that reached the model token limit.

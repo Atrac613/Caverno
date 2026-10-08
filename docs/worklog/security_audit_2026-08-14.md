@@ -126,7 +126,7 @@ Evidence:
 - the read-only shortcut is consumed by
   `lib/features/chat/domain/services/local_command/local_command_tool_handler.dart:75-90`,
   `lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:103-116`,
-  and `lib/features/chat/domain/services/planning_tool_policy.dart:79-88`.
+  and `lib/features/chat/domain/services/plan/planning_tool_policy.dart:79-88`.
 
 A harmless probe confirmed that `awk` can call `system()` and that `sed -n`
 with `w` can create a file while both calls satisfy the current read-only
