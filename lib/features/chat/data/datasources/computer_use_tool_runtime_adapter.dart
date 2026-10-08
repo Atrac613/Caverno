@@ -3,9 +3,9 @@ import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/computer_use_action_policy.dart';
-import '../../domain/services/computer_use_runtime_coordinator.dart';
-import '../../domain/services/computer_use_tool_handler.dart';
+import '../../domain/services/devices/computer_use_action_policy.dart';
+import '../../domain/services/devices/computer_use_runtime_coordinator.dart';
+import '../../domain/services/devices/computer_use_tool_handler.dart';
 
 typedef ComputerUseRuntimeStateCallback =
     ComputerUseRuntimeState Function(

@@ -99,9 +99,9 @@ Preconditions:
 
 Evidence:
 
-- `lib/features/chat/domain/services/html_preview_static_server.dart:63-91`
+- `lib/features/chat/domain/services/devices/html_preview_static_server.dart:63-91`
   serves files below the project root while
-  `lib/features/chat/domain/services/html_preview_static_server.dart:113-153`
+  `lib/features/chat/domain/services/devices/html_preview_static_server.dart:113-153`
   excludes only selected path and key patterns, not all non-preview files;
 - `lib/features/chat/presentation/pages/chat_page_browser_builders.dart:405-430`
   enables JavaScript and installs a navigation callback; and
@@ -682,7 +682,7 @@ The follow-up review ran:
 ```bash
 fvm flutter test --no-pub \
   test/features/chat/data/datasources/local_command_mutation_guard_test.dart \
-  test/features/chat/domain/services/html_preview_static_server_test.dart \
+  test/features/chat/domain/services/devices/html_preview_static_server_test.dart \
   test/core/services/browser_session_service_test.dart \
   test/features/chat/data/datasources/mcp_client_test.dart \
   test/features/remote_coding/presentation/remote_coding_server_notifier_test.dart

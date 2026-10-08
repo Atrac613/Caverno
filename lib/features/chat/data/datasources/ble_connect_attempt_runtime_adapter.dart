@@ -1,6 +1,6 @@
 import '../../../../core/services/ble_connection_effect_port.dart';
-import '../../domain/services/ble_connect_attempt_coordinator.dart';
-import '../../domain/services/ble_connection_runtime_contract.dart';
+import '../../domain/services/devices/ble_connect_attempt_coordinator.dart';
+import '../../domain/services/devices/ble_connection_runtime_contract.dart';
 import 'ble_serialized_connect_runtime_adapter.dart';
 
 /// Adapts the serialized BLE coordinator to the typed connection boundary.

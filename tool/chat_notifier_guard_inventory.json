@@ -362,24 +362,24 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/computer_use_action_policy.dart::ComputerUseActionPolicy",
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "id": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart::ComputerUseActionPolicy",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "symbol": "ComputerUseActionPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
         "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:55",
         "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:97",
-        "lexical reference at lib/features/chat/domain/services/computer_use_action_policy.dart:98",
-        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:20",
-        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:40"
+        "lexical reference at lib/features/chat/domain/services/devices/computer_use_action_policy.dart:98",
+        "lexical reference at lib/features/chat/domain/services/devices/computer_use_tool_handler.dart:20",
+        "lexical reference at lib/features/chat/domain/services/devices/computer_use_tool_handler.dart:40"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:55 -> ComputerUseActionPolicy",
         "lexical reference at lib/features/chat/data/datasources/computer_use_tool_runtime_adapter.dart:97 -> ComputerUseActionPolicy",
-        "lexical reference at lib/features/chat/domain/services/computer_use_action_policy.dart:98 -> ComputerUseActionPolicy",
-        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:20 -> ComputerUseActionPolicy",
-        "lexical reference at lib/features/chat/domain/services/computer_use_tool_handler.dart:40 -> ComputerUseActionPolicy"
+        "lexical reference at lib/features/chat/domain/services/devices/computer_use_action_policy.dart:98 -> ComputerUseActionPolicy",
+        "lexical reference at lib/features/chat/domain/services/devices/computer_use_tool_handler.dart:20 -> ComputerUseActionPolicy",
+        "lexical reference at lib/features/chat/domain/services/devices/computer_use_tool_handler.dart:40 -> ComputerUseActionPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,

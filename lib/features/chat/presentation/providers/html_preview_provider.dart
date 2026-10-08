@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/browser_session_service.dart';
 import '../../domain/entities/html_preview_session.dart';
-import '../../domain/services/html_preview_session_controller.dart';
-import '../../domain/services/html_project_detector.dart';
+import '../../domain/services/devices/html_preview_session_controller.dart';
+import '../../domain/services/devices/html_project_detector.dart';
 import 'coding_environment_snapshot_provider.dart';
 import 'flutter_run_provider.dart';
 

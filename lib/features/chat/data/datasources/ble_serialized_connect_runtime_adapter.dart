@@ -1,4 +1,4 @@
-import '../../domain/services/ble_connection_runtime_contract.dart';
+import '../../domain/services/devices/ble_connection_runtime_contract.dart';
 
 /// Verifies lifecycle and rollback acknowledgements around a serialized run.
 final class BleSerializedConnectRuntimeAdapter

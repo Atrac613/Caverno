@@ -6,8 +6,8 @@ import 'package:caverno/features/chat/data/datasources/computer_use_tool_runtime
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/computer_use_runtime_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/computer_use_tool_contract.dart';
+import 'package:caverno/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/devices/computer_use_tool_contract.dart';
 import 'package:test/test.dart';
 
 final _owner = ChatTurnOwner(

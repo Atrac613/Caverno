@@ -175,14 +175,14 @@ const Map<String, int> _lineBudgets = {
   // completion still belong to the turn, has the approval expired, may a
   // side effect already have happened -- is now BackgroundProcessResultLedger.
   'lib/features/chat/domain/services/local_command/background_process_tool_handler.dart': 409,
-  'lib/features/chat/domain/services/ble_connection_tool_handler.dart': 252,
-  'lib/features/chat/domain/services/browser_session_ownership_coordinator.dart':
+  'lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart': 252,
+  'lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart':
       461,
-  'lib/features/chat/domain/services/browser_tool_handler.dart': 415,
-  'lib/features/chat/domain/services/computer_use_action_policy.dart': 474,
-  'lib/features/chat/domain/services/computer_use_runtime_coordinator.dart':
+  'lib/features/chat/domain/services/devices/browser_tool_handler.dart': 415,
+  'lib/features/chat/domain/services/devices/computer_use_action_policy.dart': 474,
+  'lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart':
       469,
-  'lib/features/chat/domain/services/computer_use_tool_handler.dart': 473,
+  'lib/features/chat/domain/services/devices/computer_use_tool_handler.dart': 473,
   'lib/features/chat/domain/services/git/git_process_execution_coordinator.dart':
       480,
   // +7: a trailing `| head -N` / `| tail -N` must not be refused here, since
@@ -251,15 +251,15 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/files/project_scoped_read_tool_handler.dart':
       102,
   'lib/features/chat/domain/services/run_tests_tool_handler.dart': 465,
-  'lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart':
+  'lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart':
       463,
-  'lib/features/chat/domain/services/serial_connection_tool_handler.dart': 462,
-  'lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart':
+  'lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart': 462,
+  'lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart':
       493,
   // -37: the failure-result vocabulary moved to the ssh_tool_failures part.
   // The flow file now carries the flow; the words the model plans against sit
   // together where they can be compared.
-  'lib/features/chat/domain/services/ssh_tool_handler.dart': 311,
+  'lib/features/chat/domain/services/devices/ssh_tool_handler.dart': 311,
   'lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart': 419,
   'lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart':
       69,
@@ -450,7 +450,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/create_routine_tool_handler.dart': 490,
   'lib/features/chat/domain/services/save_skill_tool_handler.dart': 217,
   'lib/features/chat/domain/services/immutable_json_snapshot.dart': 53,
-  'lib/features/chat/domain/services/ble_connect_attempt_coordinator.dart': 506,
+  'lib/features/chat/domain/services/devices/ble_connect_attempt_coordinator.dart': 506,
   // +5 for a read-only isEmpty and its comment. The turn destructor runs 21
   // manual steps and nothing asserted that any of them happened; this is the
   // one store of nine that exposed no way to check. Observability for an
@@ -635,7 +635,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/plan/material_assumption_ask_memory.dart': 49,
   'lib/features/chat/domain/services/plan/material_assumption_confirmation_gate.dart':
       99,
-  'lib/features/chat/domain/services/computer_use_action_presentation.dart':
+  'lib/features/chat/domain/services/devices/computer_use_action_presentation.dart':
       113,
   'lib/features/chat/presentation/widgets/approval/assumption_confirmation_sheet.dart':
       199,

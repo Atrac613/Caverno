@@ -17,19 +17,19 @@
     "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
     "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
     "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
-    "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+    "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
     "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
-    "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
-    "lib/features/chat/domain/services/browser_tool_handler.dart",
+    "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
+    "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
     "lib/features/chat/domain/services/chat_tool_handler_catalog.dart",
     "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
     "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
     "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
     "lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart",
     "lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart",
-    "lib/features/chat/domain/services/computer_use_action_policy.dart",
-    "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
-    "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+    "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
+    "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
+    "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
     "lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart",
     "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
     "lib/features/chat/domain/services/files/context_surgery_observation_accumulator.dart",
@@ -77,10 +77,10 @@
     "lib/features/chat/domain/services/project_task/saved_task_target_scope_guard.dart",
     "lib/features/chat/domain/services/verification/saved_validation_command_guard.dart",
     "lib/features/chat/domain/services/model_routing/secondary_completion_router.dart",
-    "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
-    "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
-    "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
-    "lib/features/chat/domain/services/ssh_tool_handler.dart",
+    "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
+    "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
+    "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
+    "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
     "lib/features/chat/domain/services/anabasis/subagent_tool_handler.dart",
     "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
     "lib/features/chat/domain/services/tool_loop/tool_loop_exhaustion_policy.dart",
@@ -2341,7 +2341,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionLookupResult.belongsTo",
       "signature": "bool belongsTo(ChatTurnOwner expectedOwner, BleConnectionRequest request)",
       "turnIdentityParameters": [
@@ -2354,7 +2354,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionPort.connect",
       "signature": "Future<BleConnectionResult> connect(\n    ChatTurnOwner owner,\n    BleConnectionRequest request,\n  )",
       "turnIdentityParameters": [
@@ -2367,7 +2367,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionPort.lookupDisplayName",
       "signature": "Future<BleConnectionLookupResult> lookupDisplayName(\n    ChatTurnOwner owner,\n    BleConnectionRequest request,\n  )",
       "turnIdentityParameters": [
@@ -2380,7 +2380,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionResult.belongsTo",
       "signature": "bool belongsTo(ChatTurnOwner expectedOwner, BleConnectionRequest request)",
       "turnIdentityParameters": [
@@ -2393,7 +2393,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionToolHandler._effectsUncertain",
       "signature": "McpToolResult _effectsUncertain(String toolName)",
       "turnIdentityParameters": [],
@@ -2406,7 +2406,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionToolHandler._expired",
       "signature": "McpToolResult _expired(String toolName)",
       "turnIdentityParameters": [],
@@ -2419,7 +2419,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -2432,7 +2432,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
       "declaration": "BleConnectionToolHandler.handle",
       "signature": "Future<McpToolResult> handle(BleConnectionToolRequest request)",
       "turnIdentityParameters": [],
@@ -2590,7 +2590,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionEffectPermit.receipt",
       "signature": "BrowserSessionEffectReceipt? get receipt",
       "turnIdentityParameters": [],
@@ -2601,7 +2601,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionEffectPermit.runEffect",
       "signature": "/// Invokes [effect] only after atomically consuming this exact permit.\n  Future<T> runEffect<T>(Future<T> Function() effect)",
       "turnIdentityParameters": [],
@@ -2616,7 +2616,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOperationIdentity.==",
       "signature": "@override\n  bool operator ==(Object other)",
       "turnIdentityParameters": [],
@@ -2629,7 +2629,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOperationIdentity._requiredValue",
       "signature": "static String _requiredValue(String value, String name)",
       "turnIdentityParameters": [],
@@ -2643,7 +2643,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOperationIdentity.hashCode",
       "signature": "@override\n  int get hashCode",
       "turnIdentityParameters": [],
@@ -2656,7 +2656,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator._beginEffect",
       "signature": "BrowserSessionEffectReceipt _beginEffect(BrowserSessionEffectPermit permit)",
       "turnIdentityParameters": [],
@@ -2672,7 +2672,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator._markEffectInvocationSettled",
       "signature": "void _markEffectInvocationSettled(BrowserSessionEffectReceipt receipt)",
       "turnIdentityParameters": [],
@@ -2685,7 +2685,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator._matchesActiveEffect",
       "signature": "bool _matchesActiveEffect(BrowserSessionEffectReceipt receipt)",
       "turnIdentityParameters": [],
@@ -2698,7 +2698,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.acceptEffect",
       "signature": "/// Accepts only the exact, settled transport completion for [lease].\n  bool acceptEffect(\n    BrowserSessionLease lease,\n    BrowserSessionEffectPermit permit,\n  )",
       "turnIdentityParameters": [],
@@ -2713,7 +2713,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.acquire",
       "signature": "/// Acquires the session, or reports why no lease can be issued.\n  BrowserSessionLeaseAcquisition acquire(\n    BrowserSessionOperationIdentity operation,\n    BrowserSessionEpochSnapshot sessionEpoch,\n  )",
       "turnIdentityParameters": [],
@@ -2730,7 +2730,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.advancePageRevision",
       "signature": "/// Invalidates prior page snapshots and returns the successor snapshot.\n  ///\n  /// A stale completion cannot change the successor's revision because both the\n  /// exact operation and the non-forgeable token must still own the lease.\n  BrowserPageRevisionSnapshot? advancePageRevision(\n    BrowserSessionOperationIdentity operation,\n    BrowserSessionEpochSnapshot sessionEpoch,\n    BrowserSessionLeaseToken token,\n  )",
       "turnIdentityParameters": [],
@@ -2744,7 +2744,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.authorizeEffect",
       "signature": "/// Mints a one-use permit for the exact active browser lease.\n  BrowserSessionEffectPermit? authorizeEffect(BrowserSessionLease lease)",
       "turnIdentityParameters": [],
@@ -2760,7 +2760,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.capturePageRevision",
       "signature": "/// Captures the current page revision when the exact lease is still active.\n  BrowserPageRevisionSnapshot? capturePageRevision(\n    BrowserSessionOperationIdentity operation,\n    BrowserSessionEpochSnapshot sessionEpoch,\n    BrowserSessionLeaseToken token,\n  )",
       "turnIdentityParameters": [],
@@ -2774,7 +2774,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.captureSessionEpoch",
       "signature": "/// Captures the opaque lifetime required for a later lease acquisition.\n  BrowserSessionEpochSnapshot captureSessionEpoch()",
       "turnIdentityParameters": [],
@@ -2785,7 +2785,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.clearAll",
       "signature": "/// Terminalizes every owner observed so far and invalidates the session.\n  ///\n  /// A previously unseen owner, including a later interaction generation, may\n  /// still acquire the reset session using a newly captured session epoch.\n  BrowserSessionInvalidationResult clearAll()",
       "turnIdentityParameters": [],
@@ -2798,7 +2798,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.clearEffectRecovery",
       "signature": "/// Releases a settled uncertain effect after exact external reconciliation.\n  bool clearEffectRecovery(BrowserSessionEffectReceipt receipt)",
       "turnIdentityParameters": [],
@@ -2812,7 +2812,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.clearOwner",
       "signature": "/// Marks [owner] terminal and revokes any lease held by that owner.\n  ///\n  /// A terminal owner cannot acquire another lease from this coordinator.\n  BrowserSessionOwnerClearResult clearOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -2828,7 +2828,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.invalidatePageRevisionGlobally",
       "signature": "/// Invalidates snapshots after a page change from the exact browser session.\n  bool invalidatePageRevisionGlobally(\n    BrowserSessionEpochSnapshot sessionEpoch,\n  )",
       "turnIdentityParameters": [],
@@ -2841,7 +2841,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.invalidateSession",
       "signature": "/// Advances the session epoch and revokes every lease from the prior session.\n  BrowserSessionInvalidationResult invalidateSession()",
       "turnIdentityParameters": [],
@@ -2857,7 +2857,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.isLeaseCurrent",
       "signature": "/// Whether [operation] still owns the session through the exact [token].\n  bool isLeaseCurrent(\n    BrowserSessionOperationIdentity operation,\n    BrowserSessionEpochSnapshot sessionEpoch,\n    BrowserSessionLeaseToken token,\n  )",
       "turnIdentityParameters": [],
@@ -2871,7 +2871,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.isPageRevisionCurrent",
       "signature": "/// Validates that a snapshot belongs to the exact active lease and page.\n  bool isPageRevisionCurrent(\n    BrowserSessionOperationIdentity operation,\n    BrowserSessionEpochSnapshot sessionEpoch,\n    BrowserSessionLeaseToken token,\n    BrowserPageRevisionSnapshot snapshot,\n  )",
       "turnIdentityParameters": [],
@@ -2885,7 +2885,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.pendingEffectRecovery",
       "signature": "/// Returns the exact effect that must be reconciled before a successor runs.\n  BrowserSessionEffectReceipt? get pendingEffectRecovery",
       "turnIdentityParameters": [],
@@ -2896,7 +2896,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.release",
       "signature": "/// Releases only the lease identified by [operation] and exact [token].\n  bool release(\n    BrowserSessionOperationIdentity operation,\n    BrowserSessionEpochSnapshot sessionEpoch,\n    BrowserSessionLeaseToken token,\n  )",
       "turnIdentityParameters": [],
@@ -2909,7 +2909,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
       "declaration": "BrowserSessionOwnershipCoordinator.settleInvalidatedLease",
       "signature": "/// Settles one exact lease only after retirement invalidated its authority.\n  bool settleInvalidatedLease(BrowserSessionLease lease)",
       "turnIdentityParameters": [],
@@ -2923,7 +2923,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._approvalStop",
       "signature": "McpToolResult? _approvalStop(\n    BrowserToolRequest request,\n    BrowserSessionLease lease,\n  )",
       "turnIdentityParameters": [],
@@ -2940,7 +2940,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._execute",
       "signature": "Future<McpToolResult> _execute(\n    BrowserToolRequest request,\n    BrowserSessionLease lease,\n  )",
       "turnIdentityParameters": [],
@@ -2959,7 +2959,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._expiredResult",
       "signature": "McpToolResult _expiredResult(String toolName)",
       "turnIdentityParameters": [],
@@ -2972,7 +2972,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String code, String message)",
       "turnIdentityParameters": [],
@@ -2986,7 +2986,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._handleSensitiveAction",
       "signature": "Future<McpToolResult> _handleSensitiveAction(\n    BrowserToolRequest request,\n    BrowserSessionLease lease,\n  )",
       "turnIdentityParameters": [],
@@ -3015,7 +3015,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._leaseCurrent",
       "signature": "bool _leaseCurrent(BrowserSessionLease lease)",
       "turnIdentityParameters": [],
@@ -3028,7 +3028,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._manualApprovalDeniedResult",
       "signature": "McpToolResult _manualApprovalDeniedResult(String toolName)",
       "turnIdentityParameters": [],
@@ -3042,7 +3042,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._requireCurrent",
       "signature": "void _requireCurrent(BrowserSessionLease lease)",
       "turnIdentityParameters": [],
@@ -3057,7 +3057,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._requireOperation",
       "signature": "void _requireOperation(\n    BrowserSessionOperationIdentity actual,\n    BrowserSessionOperationIdentity expected,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -3070,7 +3070,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._requireToolResult",
       "signature": "McpToolResult _requireToolResult(\n    BrowserToolRequest request,\n    McpToolResult result,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -3083,7 +3083,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler._runInSession",
       "signature": "Future<McpToolResult> _runInSession(\n    BrowserToolRequest request,\n    Future<McpToolResult> Function(BrowserSessionLease lease) action,\n  )",
       "turnIdentityParameters": [],
@@ -3104,7 +3104,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.actionDetails",
       "signature": "Future<List<String>> actionDetails(\n    BrowserToolRequest request, [\n    BrowserSessionLease? lease,\n  ])",
       "turnIdentityParameters": [],
@@ -3124,7 +3124,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.actionTargetSummary",
       "signature": "String? actionTargetSummary(BrowserToolRequest request)",
       "turnIdentityParameters": [],
@@ -3137,7 +3137,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.autoReviewDeniedResult",
       "signature": "McpToolResult autoReviewDeniedResult(String toolName, String rationale)",
       "turnIdentityParameters": [],
@@ -3151,7 +3151,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.describeAction",
       "signature": "String describeAction(BrowserToolRequest request)",
       "turnIdentityParameters": [],
@@ -3165,7 +3165,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.handle",
       "signature": "Future<McpToolResult> handle(BrowserToolRequest request)",
       "turnIdentityParameters": [],
@@ -3181,7 +3181,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.handleWithoutApproval",
       "signature": "Future<McpToolResult> handleWithoutApproval(BrowserToolRequest request)",
       "turnIdentityParameters": [],
@@ -3195,7 +3195,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.looksLikeSecret",
       "signature": "bool looksLikeSecret(Map<String, dynamic> arguments)",
       "turnIdentityParameters": [],
@@ -3209,7 +3209,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.reviewArguments",
       "signature": "Map<String, dynamic> reviewArguments(\n    BrowserToolRequest request,\n    String? currentUrl,\n  )",
       "turnIdentityParameters": [],
@@ -3224,7 +3224,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.sensitiveValuePreview",
       "signature": "String? sensitiveValuePreview(BrowserToolRequest request)",
       "turnIdentityParameters": [],
@@ -3239,7 +3239,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
       "declaration": "BrowserToolHandler.targetLabel",
       "signature": "String targetLabel(Map<String, dynamic> arguments)",
       "turnIdentityParameters": [],
@@ -4027,7 +4027,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.actionDetails",
       "signature": "List<String> actionDetails(ComputerUseActionInput action)",
       "turnIdentityParameters": [],
@@ -4045,7 +4045,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.actionTarget",
       "signature": "Map<String, dynamic>? actionTarget(ComputerUseActionInput action)",
       "turnIdentityParameters": [],
@@ -4063,7 +4063,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.approvalPresentation",
       "signature": "ComputerUseActionPresentation approvalPresentation(\n    ComputerUseActionInput action,\n  )",
       "turnIdentityParameters": [],
@@ -4078,7 +4078,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.blockedErrorMessage",
       "signature": "String blockedErrorMessage(String code)",
       "turnIdentityParameters": [],
@@ -4089,7 +4089,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.blockedOutcome",
       "signature": "ComputerUseBlockedOutcome blockedOutcome(ComputerUseBlockedInput input)",
       "turnIdentityParameters": [],
@@ -4104,7 +4104,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.blockedResult",
       "signature": "String blockedResult(ComputerUseBlockedInput input)",
       "turnIdentityParameters": [],
@@ -4119,7 +4119,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.describeAction",
       "signature": "String describeAction(ComputerUseActionInput action)",
       "turnIdentityParameters": [],
@@ -4135,7 +4135,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.exactText",
       "signature": "String? exactText(ComputerUseActionInput action)",
       "turnIdentityParameters": [],
@@ -4146,7 +4146,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.formatKey",
       "signature": "String formatKey(Object? key, Object? modifiers)",
       "turnIdentityParameters": [],
@@ -4163,7 +4163,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.formatSpaceDirection",
       "signature": "String formatSpaceDirection(Object? direction)",
       "turnIdentityParameters": [],
@@ -4177,7 +4177,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.metadataString",
       "signature": "String? metadataString(\n    Map<String, dynamic>? target,\n    Map<String, dynamic> arguments,\n    List<String> keys,\n  )",
       "turnIdentityParameters": [],
@@ -4190,7 +4190,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.postActionVisionArguments",
       "signature": "Map<String, dynamic> postActionVisionArguments(\n    ComputerUseActionInput action,\n  )",
       "turnIdentityParameters": [],
@@ -4203,7 +4203,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.redactActionResult",
       "signature": "Map<String, dynamic> redactActionResult(Map<String, dynamic> actionResult)",
       "turnIdentityParameters": [],
@@ -4216,7 +4216,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.resultWithPostActionObservation",
       "signature": "McpToolResult resultWithPostActionObservation(\n    ComputerUseResultCompositionInput input,\n  )",
       "turnIdentityParameters": [],
@@ -4234,7 +4234,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.summarizeText",
       "signature": "String summarizeText(Object? value, {int maxLength = 80})",
       "turnIdentityParameters": [],
@@ -4251,7 +4251,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "ComputerUseActionPolicy.visionObservationContext",
       "signature": "ComputerUseContext visionObservationContext(ComputerUseActionInput action)",
       "turnIdentityParameters": [],
@@ -4264,7 +4264,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "_isNotEmpty",
       "signature": "bool _isNotEmpty(String? value)",
       "turnIdentityParameters": [],
@@ -4275,7 +4275,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "_tryDecodeMap",
       "signature": "Map<String, dynamic>? _tryDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -4288,7 +4288,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
       "declaration": "freezeComputerUseArguments",
       "signature": "Map<String, dynamic> freezeComputerUseArguments(Map<String, dynamic> value)",
       "turnIdentityParameters": [],
@@ -4301,7 +4301,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator._invalidateRuntime",
       "signature": "ComputerUseRuntimeInvalidationResult _invalidateRuntime(\n    ComputerUseRuntimeInvalidationCause cause,\n  )",
       "turnIdentityParameters": [],
@@ -4315,7 +4315,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator._invalidatedActiveLease",
       "signature": "ComputerUseRuntimeLease? _invalidatedActiveLease({ChatTurnOwner? owner})",
       "turnIdentityParameters": [
@@ -4328,7 +4328,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator._isAuthorized",
       "signature": "bool _isAuthorized(ComputerUseRuntimeLease lease)",
       "turnIdentityParameters": [],
@@ -4341,7 +4341,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.acquireLease",
       "signature": "ComputerUseLeaseAcquisitionResult acquireLease({\n    required ComputerUseRuntimePermit? permit,\n    required ComputerUseOperationIdentity identity,\n    required int currentRuntimeRevision,\n    required DateTime now,\n  })",
       "turnIdentityParameters": [],
@@ -4358,7 +4358,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.activeLease",
       "signature": "ComputerUseRuntimeLease? get activeLease",
       "turnIdentityParameters": [],
@@ -4369,7 +4369,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.arm",
       "signature": "ComputerUseArmingResult arm({\n    required ComputerUseOperationIdentity identity,\n    required int runtimeRevision,\n    required bool armed,\n    required DateTime now,\n    required DateTime expiresAt,\n  })",
       "turnIdentityParameters": [],
@@ -4387,7 +4387,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.clearAll",
       "signature": "ComputerUseTerminalClearResult clearAll()",
       "turnIdentityParameters": [],
@@ -4401,7 +4401,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.clearOwner",
       "signature": "ComputerUseTerminalClearResult clearOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -4418,7 +4418,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.consumeGrant",
       "signature": "ComputerUseGrantConsumeResult consumeGrant({\n    required ComputerUseArmingGrant? grant,\n    required ComputerUseOperationIdentity identity,\n    required int runtimeRevision,\n    required DateTime now,\n  })",
       "turnIdentityParameters": [],
@@ -4435,7 +4435,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.discardPermit",
       "signature": "bool discardPermit(ComputerUseRuntimePermit permit)",
       "turnIdentityParameters": [],
@@ -4448,7 +4448,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.emergencyStop",
       "signature": "ComputerUseRuntimeInvalidationResult emergencyStop()",
       "turnIdentityParameters": [],
@@ -4461,7 +4461,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.helperRestarted",
       "signature": "ComputerUseRuntimeInvalidationResult helperRestarted()",
       "turnIdentityParameters": [],
@@ -4474,7 +4474,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.isLeaseCurrent",
       "signature": "bool isLeaseCurrent(\n    ComputerUseOperationIdentity identity,\n    int runtimeRevision,\n    ComputerUseRuntimeLeaseToken token,\n  )",
       "turnIdentityParameters": [],
@@ -4487,7 +4487,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.releaseLease",
       "signature": "ComputerUseLeaseReleaseDisposition releaseLease(\n    ComputerUseRuntimeLeaseToken token,\n  )",
       "turnIdentityParameters": [],
@@ -4502,7 +4502,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.runtimeEpoch",
       "signature": "int get runtimeEpoch",
       "turnIdentityParameters": [],
@@ -4513,7 +4513,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeCoordinator.settleInvalidatedLease",
       "signature": "bool settleInvalidatedLease(ComputerUseRuntimeLease lease)",
       "turnIdentityParameters": [],
@@ -4528,7 +4528,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeLeaseToken.==",
       "signature": "@override\n  bool operator ==(Object other)",
       "turnIdentityParameters": [],
@@ -4541,7 +4541,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeLeaseToken.hashCode",
       "signature": "@override\n  int get hashCode",
       "turnIdentityParameters": [],
@@ -4555,7 +4555,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "ComputerUseRuntimeLeaseToken.toString",
       "signature": "@override\n  String toString()",
       "turnIdentityParameters": [],
@@ -4566,7 +4566,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "_acquisition",
       "signature": "ComputerUseLeaseAcquisitionResult _acquisition(\n  ComputerUseLeaseAcquisitionDisposition disposition, [\n  ComputerUseRuntimeLease? lease,\n])",
       "turnIdentityParameters": [],
@@ -4579,7 +4579,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "_arming",
       "signature": "ComputerUseArmingResult _arming(\n  ComputerUseArmingDisposition disposition, [\n  ComputerUseArmingGrant? grant,\n])",
       "turnIdentityParameters": [],
@@ -4592,7 +4592,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
       "declaration": "_consumption",
       "signature": "ComputerUseGrantConsumeResult _consumption(\n  ComputerUseGrantConsumeDisposition disposition, [\n  ComputerUseRuntimePermit? permit,\n])",
       "turnIdentityParameters": [],
@@ -4605,7 +4605,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._acquireLease",
       "signature": "({ComputerUseRuntimeLease? lease, McpToolResult? failure}) _acquireLease(\n    ComputerUseToolRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -4627,7 +4627,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._approvalDetails",
       "signature": "List<String> _approvalDetails(\n    MacosComputerUseToolPolicyDecision? policy,\n    MacosComputerUseActionProposalPolicyDecision? proposal,\n    List<String> actionDetails,\n  )",
       "turnIdentityParameters": [],
@@ -4641,7 +4641,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._blocked",
       "signature": "McpToolResult _blocked(\n    ComputerUseToolRequest request,\n    MacosComputerUseToolPolicyDecision? policy,\n    String code, {\n    required String auditApprovalResult,\n    List<String> blockerCodes = const [],\n    String? proposalNextAction,\n  })",
       "turnIdentityParameters": [],
@@ -4662,7 +4662,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._captureRuntime",
       "signature": "ComputerUseRuntimeState? _captureRuntime()",
       "turnIdentityParameters": [],
@@ -4675,7 +4675,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._expired",
       "signature": "McpToolResult _expired(String toolName)",
       "turnIdentityParameters": [],
@@ -4688,7 +4688,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -4701,7 +4701,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._leaseCurrent",
       "signature": "bool _leaseCurrent(\n    ComputerUseToolRequest request,\n    ComputerUseRuntimeLease lease,\n  )",
       "turnIdentityParameters": [],
@@ -4716,7 +4716,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._preEffectCurrent",
       "signature": "bool _preEffectCurrent(ComputerUseToolRequest request)",
       "turnIdentityParameters": [],
@@ -4732,7 +4732,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._recordAudit",
       "signature": "bool _recordAudit(\n    ComputerUseToolRequest request,\n    ComputerUseAuditRecord record,\n  )",
       "turnIdentityParameters": [],
@@ -4746,7 +4746,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._recordUncertainAudit",
       "signature": "void _recordUncertainAudit(\n    ComputerUseToolRequest request,\n    MacosComputerUseToolPolicyDecision? policy,\n    String approvalResult, [\n    McpToolResult? result,\n  ])",
       "turnIdentityParameters": [],
@@ -4760,7 +4760,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._runAuthorized",
       "signature": "Future<McpToolResult> _runAuthorized(\n    ComputerUseToolRequest request,\n    MacosComputerUseToolPolicyDecision? policy, {\n    required String approvalResult,\n    required bool observeAfterSuccess,\n  })",
       "turnIdentityParameters": [],
@@ -4786,7 +4786,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._runtimeCurrent",
       "signature": "bool _runtimeCurrent(ComputerUseToolRequest request)",
       "turnIdentityParameters": [],
@@ -4800,7 +4800,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler._uncertain",
       "signature": "McpToolResult _uncertain(String toolName)",
       "turnIdentityParameters": [],
@@ -4813,7 +4813,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler.handle",
       "signature": "Future<McpToolResult> handle(ComputerUseToolRequest request)",
       "turnIdentityParameters": [],
@@ -4840,7 +4840,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler.handleWithoutApproval",
       "signature": "Future<McpToolResult> handleWithoutApproval(\n    ComputerUseToolRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -4854,7 +4854,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
       "declaration": "ComputerUseToolHandler.runPostActionObservation",
       "signature": "Future<ComputerUseObservationRun> runPostActionObservation(\n    ComputerUseToolRequest request,\n    MacosComputerUseToolPolicyDecision? policy,\n    McpToolResult actionResult,\n    ComputerUseRuntimeLease lease,\n  )",
       "turnIdentityParameters": [],
@@ -11580,7 +11580,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator._remove",
       "signature": "void _remove(_SerialConnectionAttemptState state)",
       "turnIdentityParameters": [],
@@ -11594,7 +11594,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator._requiredFingerprint",
       "signature": "String _requiredFingerprint(String value)",
       "turnIdentityParameters": [],
@@ -11608,7 +11608,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator._retireAttempts",
       "signature": "SerialConnectionRetirementResult _retireAttempts(\n    bool Function(_SerialConnectionAttemptState state) selects,\n  )",
       "turnIdentityParameters": [],
@@ -11625,7 +11625,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator._stateFor",
       "signature": "_SerialConnectionAttemptState? _stateFor(\n    SerialConnectionAttemptIdentity identity,\n    SerialConnectionAttemptToken token,\n  )",
       "turnIdentityParameters": [],
@@ -11638,7 +11638,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator._stateForReceipt",
       "signature": "_SerialConnectionAttemptState? _stateForReceipt(\n    SerialConnectionOpenedReceipt receipt,\n  )",
       "turnIdentityParameters": [],
@@ -11652,7 +11652,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.acquire",
       "signature": "/// Acquires an exclusive lease for [identity]'s exact port.\n  SerialConnectionAttemptAcquisition acquire(\n    SerialConnectionAttemptIdentity identity,\n  )",
       "turnIdentityParameters": [],
@@ -11670,7 +11670,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.beginOpen",
       "signature": "/// Converts a reservation into permission to launch the transport open.\n  SerialConnectionBeginOpenKind beginOpen(\n    SerialConnectionAttemptIdentity identity,\n    SerialConnectionAttemptToken token,\n  )",
       "turnIdentityParameters": [],
@@ -11685,7 +11685,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.beginRollback",
       "signature": "/// Begins rollback only for the exact retired attempt and observed session.\n  SerialConnectionRollbackBeginResult beginRollback(\n    SerialConnectionOpenedReceipt receipt, {\n    required String observedSessionFingerprint,\n  })",
       "turnIdentityParameters": [],
@@ -11702,7 +11702,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.clearAll",
       "signature": "/// Retires every observed owner, removing only unlaunched reservations.\n  SerialConnectionRetirementResult clearAll()",
       "turnIdentityParameters": [],
@@ -11716,7 +11716,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.clearOwner",
       "signature": "/// Retires [owner], removing reservations and retaining launched work.\n  SerialConnectionRetirementResult clearOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -11732,7 +11732,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.finishCurrent",
       "signature": "/// Commits a current owner's successful open and releases its lease.\n  SerialConnectionCommitKind finishCurrent(\n    SerialConnectionOpenedReceipt receipt,\n  )",
       "turnIdentityParameters": [],
@@ -11747,7 +11747,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.finishRollback",
       "signature": "/// Completes one exact rollback, retaining the lease when it must be retried.\n  SerialConnectionRollbackFinishKind finishRollback(\n    SerialConnectionRollbackPermit permit, {\n    required bool succeeded,\n  })",
       "turnIdentityParameters": [],
@@ -11762,7 +11762,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.markOpened",
       "signature": "/// Records that the leased open created the observed serial session.\n  SerialConnectionMarkOpenedResult markOpened(\n    SerialConnectionAttemptIdentity identity,\n    SerialConnectionAttemptToken token, {\n    required String sessionFingerprint,\n  })",
       "turnIdentityParameters": [],
@@ -11780,7 +11780,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.pendingCleanupReceipts",
       "signature": "/// Exact opened attempts that still require conditional cleanup.\n  List<SerialConnectionOpenedReceipt> get pendingCleanupReceipts",
       "turnIdentityParameters": [],
@@ -11794,7 +11794,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.pendingEffectLeases",
       "signature": "/// Retired launches whose effect must be reconciled before the port is free.\n  List<SerialConnectionAttemptLease> get pendingEffectLeases",
       "turnIdentityParameters": [],
@@ -11809,7 +11809,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.releaseNoEffect",
       "signature": "/// Releases an opening lease after the adapter proves no session was created.\n  bool releaseNoEffect(\n    SerialConnectionAttemptIdentity identity,\n    SerialConnectionAttemptToken token,\n  )",
       "turnIdentityParameters": [],
@@ -11823,7 +11823,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptCoordinator.requireRollback",
       "signature": "/// Marks only [receipt]'s exact opened session for compensating rollback.\n  bool requireRollback(SerialConnectionOpenedReceipt receipt)",
       "turnIdentityParameters": [],
@@ -11836,7 +11836,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptIdentity.==",
       "signature": "@override\n  bool operator ==(Object other)",
       "turnIdentityParameters": [],
@@ -11849,7 +11849,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptIdentity._requiredValue",
       "signature": "static String _requiredValue(String value, String name)",
       "turnIdentityParameters": [],
@@ -11863,7 +11863,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionAttemptIdentity.hashCode",
       "signature": "@override\n  int get hashCode",
       "turnIdentityParameters": [],
@@ -11876,7 +11876,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "SerialConnectionRetirementResult.isEmpty",
       "signature": "bool get isEmpty",
       "turnIdentityParameters": [],
@@ -11887,7 +11887,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "_SerialConnectionAttemptState.identity",
       "signature": "SerialConnectionAttemptIdentity get identity",
       "turnIdentityParameters": [],
@@ -11898,7 +11898,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
       "declaration": "_SerialConnectionAttemptState.token",
       "signature": "SerialConnectionAttemptToken get token",
       "turnIdentityParameters": [],
@@ -11909,7 +11909,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionApprovalMemoryIdentity.matches",
       "signature": "bool matches(SerialConnectionApprovalMemoryIdentity expected)",
       "turnIdentityParameters": [],
@@ -11922,7 +11922,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler._effectsUncertain",
       "signature": "McpToolResult _effectsUncertain(\n    String toolName, {\n    bool cleanupPending = false,\n  })",
       "turnIdentityParameters": [],
@@ -11935,7 +11935,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -11948,7 +11948,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler._parseRequest",
       "signature": "SerialConnectionRequest _parseRequest(\n    String toolCallId,\n    Map<String, dynamic> arguments,\n  )",
       "turnIdentityParameters": [],
@@ -11964,7 +11964,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler._rollbackAfterFinalSettlementFailure",
       "signature": "Future<McpToolResult> _rollbackAfterFinalSettlementFailure(\n    SerialConnectionOpenedReceipt receipt,\n    SerialConnectionRequest request, {\n    required bool ownerExpired,\n  })",
       "turnIdentityParameters": [],
@@ -11980,7 +11980,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler._rollbackExpiredReceipt",
       "signature": "Future<bool> _rollbackExpiredReceipt(\n    SerialConnectionOpenedReceipt receipt,\n    SerialConnectionRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -11996,7 +11996,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler._serialResultIsError",
       "signature": "bool _serialResultIsError(String resultJson)",
       "turnIdentityParameters": [],
@@ -12009,7 +12009,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.handle",
       "signature": "Future<McpToolResult> handle(SerialConnectionToolRequest request)",
       "turnIdentityParameters": [],
@@ -12046,7 +12046,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.pendingCleanupReceipts",
       "signature": "List<SerialConnectionOpenedReceipt> get pendingCleanupReceipts",
       "turnIdentityParameters": [],
@@ -12057,7 +12057,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.pendingEffectLeases",
       "signature": "List<SerialConnectionAttemptLease> get pendingEffectLeases",
       "turnIdentityParameters": [],
@@ -12068,7 +12068,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.retireAll",
       "signature": "SerialConnectionRetirementResult retireAll()",
       "turnIdentityParameters": [],
@@ -12081,7 +12081,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.retireOwner",
       "signature": "SerialConnectionRetirementResult retireOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -12096,7 +12096,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.retryPendingCleanup",
       "signature": "Future<bool> retryPendingCleanup(SerialConnectionOpenedReceipt receipt)",
       "turnIdentityParameters": [],
@@ -12110,7 +12110,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.rollbackPendingOpen",
       "signature": "Future<bool> rollbackPendingOpen(\n    SerialConnectionAttemptLease lease, {\n    required String sessionFingerprint,\n  })",
       "turnIdentityParameters": [],
@@ -12124,7 +12124,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
       "declaration": "SerialConnectionToolHandler.settlePendingOpenNoEffect",
       "signature": "bool settlePendingOpenNoEffect(SerialConnectionAttemptLease lease)",
       "turnIdentityParameters": [],
@@ -12137,7 +12137,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator._completionRejection",
       "signature": "SshOwnershipStatus? _completionRejection(\n    _ConnectRecord record,\n    SshConnectToken token,\n  )",
       "turnIdentityParameters": [],
@@ -12151,7 +12151,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator._newReceipt",
       "signature": "SshDisconnectReceipt _newReceipt(\n    SshConnectionOperationIdentity identity,\n    SshConnectToken? connectToken,\n    SshActivatedSessionToken? sessionToken,\n    SshExternalSessionFingerprint fingerprint,\n  )",
       "turnIdentityParameters": [],
@@ -12165,7 +12165,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator._retireRecord",
       "signature": "SshDisconnectReceipt _retireRecord(_SessionRecord record)",
       "turnIdentityParameters": [],
@@ -12178,7 +12178,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.acquireCommandLease",
       "signature": "SshCommandLeaseAcquireResult acquireCommandLease({\n    required SshCommandOperationIdentity operation,\n    required SshActivatedSessionToken sessionToken,\n  })",
       "turnIdentityParameters": [],
@@ -12197,7 +12197,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.activeSession",
       "signature": "SshActivatedSession? activeSession(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -12210,7 +12210,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.authorizeDisconnect",
       "signature": "SshDisconnectAuthorizationResult authorizeDisconnect({\n    required SshDisconnectReceipt receipt,\n    required SshExternalSessionFingerprint observedFingerprint,\n  })",
       "turnIdentityParameters": [],
@@ -12224,7 +12224,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.beginConnect",
       "signature": "SshConnectBeginResult beginConnect(SshConnectionOperationIdentity identity)",
       "turnIdentityParameters": [],
@@ -12240,7 +12240,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.clearAll",
       "signature": "SshSessionClearResult clearAll()",
       "turnIdentityParameters": [],
@@ -12257,7 +12257,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.clearOwner",
       "signature": "SshSessionClearResult clearOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -12275,7 +12275,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.completeConnect",
       "signature": "SshConnectCompletionResult completeConnect({\n    required SshConnectionOperationIdentity identity,\n    required SshConnectToken token,\n    required SshExternalSessionFingerprint externalFingerprint,\n  })",
       "turnIdentityParameters": [],
@@ -12296,7 +12296,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.finishConnect",
       "signature": "SshOwnershipStatus finishConnect(\n    SshConnectionOperationIdentity identity,\n    SshConnectToken token,\n  )",
       "turnIdentityParameters": [],
@@ -12310,7 +12310,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.finishDisconnect",
       "signature": "SshOwnershipStatus finishDisconnect(\n    SshConditionalDisconnectPermit permit, {\n    required bool succeeded,\n  })",
       "turnIdentityParameters": [],
@@ -12323,7 +12323,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.isCommandLeaseCurrent",
       "signature": "bool isCommandLeaseCurrent(\n    SshCommandOperationIdentity operation,\n    SshActivatedSessionToken sessionToken,\n    SshCommandLeaseToken leaseToken,\n  )",
       "turnIdentityParameters": [],
@@ -12336,7 +12336,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.releaseCommandLease",
       "signature": "SshOwnershipStatus releaseCommandLease({\n    required SshCommandOperationIdentity operation,\n    required SshActivatedSessionToken sessionToken,\n    required SshCommandLeaseToken leaseToken,\n  })",
       "turnIdentityParameters": [],
@@ -12351,7 +12351,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "SshSessionOwnershipCoordinator.retireSession",
       "signature": "SshSessionRetireResult retireSession(\n    ChatTurnOwner owner,\n    SshActivatedSessionToken token,\n  )",
       "turnIdentityParameters": [
@@ -12369,7 +12369,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "_authorization",
       "signature": "SshDisconnectAuthorizationResult _authorization(\n  SshOwnershipStatus status, [\n  SshConditionalDisconnectPermit? permit,\n])",
       "turnIdentityParameters": [],
@@ -12380,7 +12380,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "_commandAcquisition",
       "signature": "SshCommandLeaseAcquireResult _commandAcquisition(\n  SshOwnershipStatus status, [\n  SshCommandLease? lease,\n])",
       "turnIdentityParameters": [],
@@ -12391,7 +12391,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "_completion",
       "signature": "SshConnectCompletionResult _completion(\n  SshOwnershipStatus status, {\n  SshActivatedSession? session,\n  SshDisconnectReceipt? cleanupReceipt,\n})",
       "turnIdentityParameters": [],
@@ -12402,7 +12402,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "_normalizedSshIdentityValue",
       "signature": "String _normalizedSshIdentityValue(String value, String name)",
       "turnIdentityParameters": [],
@@ -12416,7 +12416,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
       "declaration": "_retirement",
       "signature": "SshSessionRetireResult _retirement(\n  SshOwnershipStatus status, [\n  SshDisconnectReceipt? cleanupReceipt,\n])",
       "turnIdentityParameters": [],
@@ -12427,7 +12427,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._autoReviewDeniedResult",
       "signature": "McpToolResult _autoReviewDeniedResult(String toolName, String rationale)",
       "turnIdentityParameters": [],
@@ -12440,7 +12440,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._connect",
       "signature": "Future<McpToolResult> _connect(SshToolRequest request)",
       "turnIdentityParameters": [],
@@ -12477,7 +12477,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._connectedPersistenceFailure",
       "signature": "McpToolResult _connectedPersistenceFailure(String toolName, String detail)",
       "turnIdentityParameters": [],
@@ -12490,7 +12490,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._disconnect",
       "signature": "Future<McpToolResult> _disconnect(SshToolRequest request)",
       "turnIdentityParameters": [],
@@ -12509,7 +12509,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._effectsFailure",
       "signature": "McpToolResult _effectsFailure(String toolName)",
       "turnIdentityParameters": [],
@@ -12522,7 +12522,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._executeCommand",
       "signature": "Future<McpToolResult> _executeCommand(SshToolRequest request)",
       "turnIdentityParameters": [],
@@ -12551,7 +12551,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._expiration",
       "signature": "McpToolResult? _expiration(SshOperationIdentity operation)",
       "turnIdentityParameters": [],
@@ -12566,7 +12566,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -12579,7 +12579,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._identityFailure",
       "signature": "McpToolResult _identityFailure(String toolName)",
       "turnIdentityParameters": [],
@@ -12592,7 +12592,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._lookupConnection",
       "signature": "SshOwnedConnection? _lookupConnection(SshToolRequest request)",
       "turnIdentityParameters": [],
@@ -12606,7 +12606,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._noActiveSession",
       "signature": "McpToolResult _noActiveSession(String toolName)",
       "turnIdentityParameters": [],
@@ -12619,7 +12619,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._operationForConnection",
       "signature": "SshOperationIdentity _operationForConnection(\n    SshToolRequest request,\n    SshOwnedConnection connection,\n  )",
       "turnIdentityParameters": [],
@@ -12632,7 +12632,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._rememberDenial",
       "signature": "McpToolResult _rememberDenial(\n    SshApprovalRequest request,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [],
@@ -12647,7 +12647,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._rememberResult",
       "signature": "McpToolResult _rememberResult(\n    SshApprovalRequest request,\n    McpToolResult result, {\n    bool effectsPossible = false,\n  })",
       "turnIdentityParameters": [],
@@ -12663,7 +12663,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler._rollbackExpiredConnect",
       "signature": "Future<void> _rollbackExpiredConnect(SshOperationIdentity operation)",
       "turnIdentityParameters": [],
@@ -12677,7 +12677,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
       "declaration": "SshToolHandler.handle",
       "signature": "Future<McpToolResult> handle(SshToolRequest request)",
       "turnIdentityParameters": [],

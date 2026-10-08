@@ -40,7 +40,7 @@ const Set<String> _reviewedEdges = <String>{
   'lib/features/chat/domain/services/git/git_tool_handler.dart -> lib/features/chat/data/datasources/git_tools.dart',
   'lib/features/chat/domain/services/git/git_tool_handler.dart -> lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart',
   'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart -> lib/features/chat/data/datasources/git_tools.dart',
-  'lib/features/chat/domain/services/html_preview_session_controller.dart -> package:flutter/foundation.dart',
+  'lib/features/chat/domain/services/devices/html_preview_session_controller.dart -> package:flutter/foundation.dart',
   'lib/features/chat/domain/services/local_command/local_command_execution_plan.dart -> lib/features/chat/data/datasources/local_command_workspace_containment.dart',
   'lib/features/chat/domain/services/local_command/local_command_execution_plan.dart -> lib/features/chat/data/datasources/local_shell_tools.dart',
   'lib/features/chat/domain/services/local_command/local_command_request_preparation.dart -> lib/features/chat/data/datasources/local_shell_tools.dart',

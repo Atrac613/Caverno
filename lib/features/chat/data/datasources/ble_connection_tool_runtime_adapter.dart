@@ -1,11 +1,11 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/approval/turn_tool_approval_coordinator.dart';
-import '../../domain/services/ble_connection_runtime_contract.dart';
-import '../../domain/services/ble_connection_tool_handler.dart';
+import '../../domain/services/devices/ble_connection_runtime_contract.dart';
+import '../../domain/services/devices/ble_connection_tool_handler.dart';
 
-export '../../domain/services/ble_connection_runtime_contract.dart';
-export '../../domain/services/ble_connection_tool_handler.dart'
+export '../../domain/services/devices/ble_connection_runtime_contract.dart';
+export '../../domain/services/devices/ble_connection_tool_handler.dart'
     show BleConnectionToolRequest;
 
 /// Production-facing composition of BLE approval and owner-aware execution.

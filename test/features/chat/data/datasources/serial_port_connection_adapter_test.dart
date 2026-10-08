@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/data/datasources/serial_port_connection_adapter.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/serial_connection_attempt_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/serial_connection_tool_contract.dart';
+import 'package:caverno/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/devices/serial_connection_tool_contract.dart';
 import 'package:test/test.dart';
 
 final ownerA = ChatTurnOwner(

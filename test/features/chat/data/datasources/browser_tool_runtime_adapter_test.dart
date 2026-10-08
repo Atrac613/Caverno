@@ -4,8 +4,8 @@ import 'package:caverno/features/chat/data/datasources/browser_tool_runtime_adap
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/browser_session_ownership_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/browser_tool_contract.dart';
+import 'package:caverno/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/devices/browser_tool_contract.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 

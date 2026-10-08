@@ -48,7 +48,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/computer_use_action_policy.dart::ComputerUseActionPolicy",
+      "id": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart::ComputerUseActionPolicy",
       "disposition": "defer",
       "question": "Was ComputerUseActionPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

@@ -1,8 +1,8 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/browser_session_ownership_coordinator.dart';
-import '../../domain/services/browser_tool_handler.dart';
+import '../../domain/services/devices/browser_session_ownership_coordinator.dart';
+import '../../domain/services/devices/browser_tool_handler.dart';
 
 typedef BrowserExecutionCallback =
     Future<BrowserExecutionResult> Function(

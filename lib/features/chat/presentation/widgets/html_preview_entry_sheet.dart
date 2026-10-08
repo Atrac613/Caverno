@@ -1,7 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
-import '../../domain/services/html_project_detector.dart';
+import '../../domain/services/devices/html_project_detector.dart';
 
 /// Picker for HTML preview when the project has several entry files.
 class HtmlPreviewEntrySheet extends StatelessWidget {

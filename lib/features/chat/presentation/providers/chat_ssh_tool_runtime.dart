@@ -4,10 +4,10 @@ import 'package:crypto/crypto.dart';
 
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/ssh_session_ownership_coordinator.dart';
-import '../../domain/services/ssh_tool_handler.dart';
+import '../../domain/services/devices/ssh_session_ownership_coordinator.dart';
+import '../../domain/services/devices/ssh_tool_handler.dart';
 
-export '../../domain/services/ssh_tool_handler.dart';
+export '../../domain/services/devices/ssh_tool_handler.dart';
 
 typedef ChatSshSession = ({
   String host,

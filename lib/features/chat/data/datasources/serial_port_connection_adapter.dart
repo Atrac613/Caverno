@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/serial_connection_attempt_coordinator.dart';
-import '../../domain/services/serial_connection_port.dart';
-import '../../domain/services/serial_connection_tool_contract.dart';
+import '../../domain/services/devices/serial_connection_attempt_coordinator.dart';
+import '../../domain/services/devices/serial_connection_port.dart';
+import '../../domain/services/devices/serial_connection_tool_contract.dart';
 
 enum SerialSessionCloseKind { closed, alreadyAbsent, sessionMismatch }
 

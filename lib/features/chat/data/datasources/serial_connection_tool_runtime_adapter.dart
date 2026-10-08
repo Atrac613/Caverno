@@ -8,12 +8,12 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/approval/turn_tool_approval_coordinator.dart';
+import '../../domain/services/devices/serial_connection_attempt_coordinator.dart';
+import '../../domain/services/devices/serial_connection_tool_handler.dart';
 import '../../domain/services/immutable_json_snapshot.dart';
-import '../../domain/services/serial_connection_attempt_coordinator.dart';
-import '../../domain/services/serial_connection_tool_handler.dart';
 import 'serial_port_connection_adapter.dart';
 
-export '../../domain/services/serial_connection_attempt_coordinator.dart'
+export '../../domain/services/devices/serial_connection_attempt_coordinator.dart'
     show
         SerialConnectionAttemptLease,
         SerialConnectionOpenedReceipt,

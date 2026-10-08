@@ -84,8 +84,8 @@
       "collaborators": [
         {
           "id": "ble-connection-tool-handler",
-          "path": "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/ble_connection_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/ble_connection_tool_handler.dart"
         }
       ]
     },
@@ -110,13 +110,13 @@
       "collaborators": [
         {
           "id": "browser-session-ownership-coordinator",
-          "path": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart"
+          "path": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/browser_session_ownership_coordinator.dart"
         },
         {
           "id": "browser-tool-handler",
-          "path": "lib/features/chat/domain/services/browser_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/browser_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/devices/browser_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/browser_tool_handler.dart"
         }
       ]
     },
@@ -327,18 +327,18 @@
       "collaborators": [
         {
           "id": "computer-use-action-policy",
-          "path": "lib/features/chat/domain/services/computer_use_action_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/computer_use_action_policy.dart"
+          "path": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/computer_use_action_policy.dart"
         },
         {
           "id": "computer-use-runtime-coordinator",
-          "path": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart"
+          "path": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/computer_use_runtime_coordinator.dart"
         },
         {
           "id": "computer-use-tool-handler",
-          "path": "lib/features/chat/domain/services/computer_use_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/computer_use_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/computer_use_tool_handler.dart"
         }
       ]
     },
@@ -615,13 +615,13 @@
       "collaborators": [
         {
           "id": "serial-connection-attempt-coordinator",
-          "path": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/serial_connection_attempt_coordinator.dart"
+          "path": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart"
         },
         {
           "id": "serial-connection-tool-handler",
-          "path": "lib/features/chat/domain/services/serial_connection_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/serial_connection_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/serial_connection_tool_handler.dart"
         }
       ]
     },
@@ -679,13 +679,13 @@
       "collaborators": [
         {
           "id": "ssh-session-ownership-coordinator",
-          "path": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart"
+          "path": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/ssh_session_ownership_coordinator.dart"
         },
         {
           "id": "ssh-tool-handler",
-          "path": "lib/features/chat/domain/services/ssh_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/ssh_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/devices/ssh_tool_handler.dart"
         }
       ]
     },

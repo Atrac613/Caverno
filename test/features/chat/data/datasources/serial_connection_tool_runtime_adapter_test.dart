@@ -8,8 +8,8 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/approval/tool_approval_auto_review_service.dart';
 import 'package:caverno/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/serial_connection_attempt_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/serial_connection_tool_contract.dart';
+import 'package:caverno/features/chat/domain/services/devices/serial_connection_attempt_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/devices/serial_connection_tool_contract.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 

@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/data/datasources/ble_serialized_connect_runtime_adapter.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/ble_connection_runtime_contract.dart';
+import 'package:caverno/features/chat/domain/services/devices/ble_connection_runtime_contract.dart';
 import 'package:test/test.dart';
 
 void main() {
