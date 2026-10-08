@@ -63,10 +63,24 @@ void main() {
 
     test('does not misclassify local search tools as remote web', () {
       expect(sourceOf('search_files'), DataSourceClass.projectSource);
-      expect(
-        sourceOf('search_past_conversations'),
-        DataSourceClass.projectSource,
-      );
+    });
+
+    test('treats past conversation transcripts as untrusted', () {
+      for (final tool in ['search_past_conversations', 'read_coding_thread']) {
+        expect(sourceOf(tool), DataSourceClass.untrustedDocument, reason: tool);
+        expect(
+          classifier.trustLevelOf(sourceOf(tool)),
+          TrustLevel.untrusted,
+          reason: tool,
+        );
+      }
+      for (final tool in [
+        'list_coding_projects',
+        'list_coding_threads',
+        'get_project_state',
+      ]) {
+        expect(sourceOf(tool), DataSourceClass.projectSource, reason: tool);
+      }
     });
 
     test('falls back to other for unknown tools', () {

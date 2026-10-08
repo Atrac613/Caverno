@@ -29,6 +29,21 @@ void main() {
       expect(state.hasUntrustedInfluence(owner: owner), isFalse);
     });
 
+    test('reading another thread taints the reading turn', () {
+      state.recordToolResult(owner: owner, toolName: 'read_coding_thread');
+
+      expect(state.hasUntrustedInfluence(owner: owner), isTrue);
+    });
+
+    test('listing projects and threads does not taint the turn', () {
+      state
+        ..recordToolResult(owner: owner, toolName: 'list_coding_projects')
+        ..recordToolResult(owner: owner, toolName: 'list_coding_threads')
+        ..recordToolResult(owner: owner, toolName: 'get_project_state');
+
+      expect(state.hasUntrustedInfluence(owner: owner), isFalse);
+    });
+
     test('preserves insertion order and aggregates trust severity', () {
       state
         ..recordTrust(owner: owner, trust: TrustLevel.userTrusted)

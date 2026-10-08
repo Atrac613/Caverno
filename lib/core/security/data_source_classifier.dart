@@ -29,7 +29,9 @@ enum DataSourceClass {
   /// A resource or tool result served by an MCP server (third-party provenance).
   mcpResource,
 
-  /// A document explicitly marked untrusted by the caller.
+  /// A document explicitly marked untrusted by the caller, or a past
+  /// conversation transcript, which can repeat web or MCP content an earlier
+  /// turn took in.
   untrustedDocument,
 
   /// Local host/network diagnostics (ping, DNS, interface info): local facts,
@@ -72,6 +74,9 @@ class DataSourceClassifier {
       return DataSourceClass.mcpResource;
     }
     final name = toolName.trim().toLowerCase();
+    if (_conversationTranscriptTools.contains(name)) {
+      return DataSourceClass.untrustedDocument;
+    }
     if (_projectSourceTools.contains(name)) {
       return DataSourceClass.projectSource;
     }
@@ -147,16 +152,20 @@ class DataSourceClassifier {
     'inspect_file',
     'find_files',
     'search_files',
-    'search_past_conversations',
     'list_coding_projects',
     'list_coding_threads',
     'get_project_state',
+  };
+
+  /// Tools that return earlier conversation text. A transcript is not a
+  /// project file: it can quote what a past turn fetched from the web or an
+  /// MCP server, so reading it must taint the turn the same way.
+  static const Set<String> _conversationTranscriptTools = {
+    'search_past_conversations',
     'read_coding_thread',
   };
 
-  static const Set<String> _generatedSummaryTools = {
-    'recall_memory',
-  };
+  static const Set<String> _generatedSummaryTools = {'recall_memory'};
 
   static const Set<String> _remoteWebTools = {
     'http_get',
