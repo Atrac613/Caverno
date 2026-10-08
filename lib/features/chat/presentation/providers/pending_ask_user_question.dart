@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import '../../domain/services/ask_user_question_policy.dart';
+import '../../domain/services/ask_user_question/ask_user_question_policy.dart';
 import 'pending_tool_approvals.dart';
 
 /// A model-initiated question waiting for the user to answer it.

@@ -11,7 +11,7 @@ import 'pending_tool_approvals.dart';
 import 'queued_chat_message.dart';
 
 export '../../domain/entities/workflow_proposal_draft.dart';
-export '../../domain/services/ask_user_question_policy.dart'
+export '../../domain/services/ask_user_question/ask_user_question_policy.dart'
     show AskUserQuestionAnswer, AskUserQuestionOption, AskUserQuestionSelection;
 // The model-initiated question holder moved out when this file reached its
 // ratchet ceiling; re-exported so every existing importer still sees it.

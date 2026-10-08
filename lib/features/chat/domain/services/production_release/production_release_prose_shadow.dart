@@ -1,7 +1,7 @@
 import '../../entities/chat_turn_owner.dart';
 import '../../entities/conversation.dart';
 import '../../entities/message.dart';
-import '../ask_user_question_turn_cache.dart';
+import '../ask_user_question/ask_user_question_turn_cache.dart';
 import 'production_release_approval_wording_predicates.dart';
 
 /// Records what the retired wording predicates would have decided.

@@ -162,15 +162,15 @@ const Map<String, int> _lineBudgets = {
       64,
   'lib/features/chat/domain/services/running_tool_tracker.dart': 31,
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
-  'lib/features/chat/domain/services/ask_user_question_option_parser.dart': 99,
-  'lib/features/chat/domain/services/ask_user_question_policy.dart': 383,
-  'lib/features/chat/domain/services/ask_user_question_result_entry.dart': 27,
+  'lib/features/chat/domain/services/ask_user_question/ask_user_question_option_parser.dart': 99,
+  'lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart': 383,
+  'lib/features/chat/domain/services/ask_user_question/ask_user_question_result_entry.dart': 27,
   // Extracted so the reuse decision, and the rationale for refusing an answer
   // whose option is gone, live beside each other rather than inside the store.
-  'lib/features/chat/domain/services/ask_user_question_reuse_policy.dart': 73,
-  'lib/features/chat/domain/services/ask_user_question_text_normalization.dart':
+  'lib/features/chat/domain/services/ask_user_question/ask_user_question_reuse_policy.dart': 73,
+  'lib/features/chat/domain/services/ask_user_question/ask_user_question_text_normalization.dart':
       18,
-  'lib/features/chat/domain/services/ask_user_question_turn_cache.dart': 79,
+  'lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart': 79,
   // -41: the completion bookkeeping every path ended with -- does this
   // completion still belong to the turn, has the approval expired, may a
   // side effect already have happened -- is now BackgroundProcessResultLedger.

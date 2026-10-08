@@ -13,9 +13,9 @@
     "lib/features/chat/application/runtime/turn_runtime_owner_lease_registry.dart",
     "lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart",
     "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
-    "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
-    "lib/features/chat/domain/services/ask_user_question_policy.dart",
-    "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+    "lib/features/chat/domain/services/ask_user_question/ask_user_question_option_parser.dart",
+    "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
+    "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
     "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
     "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
     "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
@@ -1708,7 +1708,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_option_parser.dart",
       "declaration": "AskUserQuestionOptionParser.clip",
       "signature": "String clip(String value, int maxLength)",
       "turnIdentityParameters": [],
@@ -1722,7 +1722,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_option_parser.dart",
       "declaration": "AskUserQuestionOptionParser.optionId",
       "signature": "/// A slug derived from [label], falling back to the 1-based position when\n  /// the label carries nothing sluggable.\n  String optionId(String label, int index)",
       "turnIdentityParameters": [],
@@ -1738,7 +1738,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_option_parser.dart",
       "declaration": "AskUserQuestionOptionParser.parse",
       "signature": "List<AskUserQuestionOption> parse(dynamic rawOptions)",
       "turnIdentityParameters": [],
@@ -1755,7 +1755,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionAnswer.hasAnswer",
       "signature": "bool get hasAnswer",
       "turnIdentityParameters": [],
@@ -1768,7 +1768,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionAnswer.toJson",
       "signature": "Map<String, dynamic> toJson()",
       "turnIdentityParameters": [],
@@ -1785,7 +1785,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionOperationIdentity.==",
       "signature": "@override\n  bool operator ==(Object other)",
       "turnIdentityParameters": [],
@@ -1796,7 +1796,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionOperationIdentity.hashCode",
       "signature": "@override\n  int get hashCode",
       "turnIdentityParameters": [],
@@ -1809,7 +1809,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionPolicy._clipText",
       "signature": "String _clipText(String value, int maxLength)",
       "turnIdentityParameters": [],
@@ -1823,7 +1823,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionPolicy._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -1836,7 +1836,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionPolicy._optionId",
       "signature": "String _optionId(String label, int index)",
       "turnIdentityParameters": [],
@@ -1852,7 +1852,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionPolicy.buildRepeatedResult",
       "signature": "McpToolResult buildRepeatedResult(McpToolResult previous)",
       "turnIdentityParameters": [],
@@ -1867,7 +1867,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionPolicy.handle",
       "signature": "Future<McpToolResult> handle(AskUserQuestionToolInput input)",
       "turnIdentityParameters": [],
@@ -1894,7 +1894,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionPolicy.parseOptions",
       "signature": "List<AskUserQuestionOption> parseOptions(Object? rawOptions)",
       "turnIdentityParameters": [],
@@ -1911,7 +1911,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionPort.ask",
       "signature": "Future<AskUserQuestionPortResult> ask(\n    AskUserQuestionOperationIdentity identity,\n    AskUserQuestionRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -1922,7 +1922,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionSelection.toJson",
       "signature": "Map<String, dynamic> toJson()",
       "turnIdentityParameters": [],
@@ -1935,7 +1935,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionToolInput.owner",
       "signature": "ChatTurnOwner get owner",
       "turnIdentityParameters": [],
@@ -1946,7 +1946,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionToolInput.toolCallId",
       "signature": "String get toolCallId",
       "turnIdentityParameters": [],
@@ -1957,7 +1957,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "AskUserQuestionToolInput.toolName",
       "signature": "String get toolName",
       "turnIdentityParameters": [],
@@ -1968,7 +1968,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "_decodeJsonObject",
       "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
       "turnIdentityParameters": [],
@@ -1981,7 +1981,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "declaration": "_trimStringArgument",
       "signature": "String _trimStringArgument(Map<String, dynamic> arguments, String key)",
       "turnIdentityParameters": [],
@@ -1994,7 +1994,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache._normalizeText",
       "signature": "static String _normalizeText(String value)",
       "turnIdentityParameters": [],
@@ -2010,7 +2010,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache._normalizedOptionLabels",
       "signature": "static Set<String> _normalizedOptionLabels(Iterable<String> labels)",
       "turnIdentityParameters": [],
@@ -2024,7 +2024,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache.anyResult",
       "signature": "bool anyResult(\n    ChatTurnOwner owner,\n    bool Function(McpToolResult result) predicate,\n  )",
       "turnIdentityParameters": [
@@ -2040,7 +2040,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache.clear",
       "signature": "void clear()",
       "turnIdentityParameters": [],
@@ -2053,7 +2053,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache.clearConversation",
       "signature": "void clearConversation(String conversationId)",
       "turnIdentityParameters": [],
@@ -2066,7 +2066,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache.findReusable",
       "signature": "McpToolResult? findReusable({\n    required ChatTurnOwner owner,\n    required String question,\n    required Iterable<String> optionLabels,\n  })",
       "turnIdentityParameters": [
@@ -2083,7 +2083,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache.removeOwner",
       "signature": "bool removeOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -2098,7 +2098,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
       "declaration": "AskUserQuestionTurnCache.store",
       "signature": "void store({\n    required ChatTurnOwner owner,\n    required String question,\n    required Iterable<String> optionLabels,\n    required McpToolResult result,\n  })",
       "turnIdentityParameters": [

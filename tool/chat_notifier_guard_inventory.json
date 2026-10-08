@@ -167,8 +167,8 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/ask_user_question_policy.dart::AskUserQuestionPolicy",
-      "path": "lib/features/chat/domain/services/ask_user_question_policy.dart",
+      "id": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart::AskUserQuestionPolicy",
+      "path": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
       "symbol": "AskUserQuestionPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
@@ -176,13 +176,13 @@
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:27",
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:38",
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:45",
-        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:179"
+        "lexical reference at lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart:179"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:27 -> AskUserQuestionPolicy",
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:38 -> AskUserQuestionPolicy",
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:45 -> AskUserQuestionPolicy",
-        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:179 -> AskUserQuestionPolicy"
+        "lexical reference at lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart:179 -> AskUserQuestionPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,
@@ -1145,16 +1145,16 @@
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:14",
-        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:182",
-        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:196",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart:182",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart:196",
         "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:12",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:10",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:9"
       ],
       "staticEdges": [
         "lexical reference at lib/features/chat/data/datasources/ask_user_question_runtime_adapter.dart:14 -> ToolTerminalResponsePolicy",
-        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:182 -> ToolTerminalResponsePolicy",
-        "lexical reference at lib/features/chat/domain/services/ask_user_question_policy.dart:196 -> ToolTerminalResponsePolicy",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart:182 -> ToolTerminalResponsePolicy",
+        "lexical reference at lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart:196 -> ToolTerminalResponsePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_terminal_response_policy.dart:12 -> ToolTerminalResponsePolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:10 -> ToolTerminalResponsePolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_terminal_tool_response_policy.dart:9 -> ToolTerminalResponsePolicy"

@@ -1,5 +1,5 @@
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'ask_user_question_result_entry.dart';
 import 'ask_user_question_reuse_policy.dart';
 

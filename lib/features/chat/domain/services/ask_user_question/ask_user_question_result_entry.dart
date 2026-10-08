@@ -1,4 +1,4 @@
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'ask_user_question_text_normalization.dart';
 
 /// One recorded answer together with the options it was offered alongside.

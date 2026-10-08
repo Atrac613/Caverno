@@ -1,4 +1,4 @@
-import '../entities/chat_turn_owner.dart';
+import '../../entities/chat_turn_owner.dart';
 import 'ask_user_question_policy.dart';
 
 typedef AskUserQuestionOwnerCurrentCallback =

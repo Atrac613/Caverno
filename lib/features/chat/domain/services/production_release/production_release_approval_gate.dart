@@ -1,6 +1,6 @@
 import '../../entities/mcp_tool_entity.dart';
 import '../../entities/tool_call_info.dart';
-import '../ask_user_question_text_normalization.dart';
+import '../ask_user_question/ask_user_question_text_normalization.dart';
 import '../local_command/local_command_tool_contract.dart';
 import '../tool_call_execution_policy.dart';
 import 'blocked_production_release_retry_contract.dart';

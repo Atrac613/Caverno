@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/data/datasources/ask_user_question_runtime
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cache.dart';
+import 'package:caverno/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart';
 import 'package:caverno/features/chat/domain/services/tool_terminal_response_policy.dart';
 import 'package:test/test.dart';
 

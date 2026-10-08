@@ -13,7 +13,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/ask_user_question_policy.dart::AskUserQuestionPolicy",
+      "id": "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart::AskUserQuestionPolicy",
       "disposition": "defer",
       "question": "Was AskUserQuestionPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

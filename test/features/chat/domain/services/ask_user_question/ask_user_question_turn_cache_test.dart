@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
-import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cache.dart';
+import 'package:caverno/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart';
 import 'package:test/test.dart';
 
 void main() {
