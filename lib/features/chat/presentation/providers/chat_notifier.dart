@@ -4762,15 +4762,19 @@ class ChatNotifier extends Notifier<ChatState> {
     final toolCatalogCache = TurnToolCatalogCache();
     final toolCatalogSource = TurnToolCatalogSource();
 
-    void deliverRecoveredAnswer(String answer) {
-      currentToolCalls = [];
-      _recordHiddenEvidence(turnOwner, answer);
+    void acceptAnswer(String answer) {
       _appendRecoveredAssistantResponse(
         answer,
         interactionGeneration: interactionGeneration,
       );
       currentAssistantContent = answer;
       hasTextResponse = true;
+    }
+
+    void deliverRecoveredAnswer(String answer) {
+      currentToolCalls = [];
+      _recordHiddenEvidence(turnOwner, answer);
+      acceptAnswer(answer);
     }
 
     List<Map<String, dynamic>> selectedDefinitionsFor(
@@ -4939,12 +4943,7 @@ class ChatNotifier extends Notifier<ChatState> {
             _recordHiddenEvidence(turnOwner, fallbackResponse);
             if (_terminalToolResponsePolicy
                 .shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
-              _appendRecoveredAssistantResponse(
-                fallbackResponse,
-                interactionGeneration: interactionGeneration,
-              );
-              currentAssistantContent = fallbackResponse;
-              hasTextResponse = true;
+              acceptAnswer(fallbackResponse);
               break;
             }
             if (duplicateCommandAnswer != null) {
@@ -5099,12 +5098,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   suppressedCalls: true,
                 );
             _recordHiddenEvidence(turnOwner, completionResponse);
-            _appendRecoveredAssistantResponse(
-              completionResponse,
-              interactionGeneration: interactionGeneration,
-            );
-            currentAssistantContent = completionResponse;
-            hasTextResponse = true;
+            acceptAnswer(completionResponse);
             break;
           }
         }
@@ -5120,12 +5114,7 @@ class ChatNotifier extends Notifier<ChatState> {
               ? fallbackResponse
               : _buildGitLifecycleCompletionResponse(executedToolResults);
           _recordHiddenEvidence(turnOwner, completionResponse);
-          _appendRecoveredAssistantResponse(
-            completionResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = completionResponse;
-          hasTextResponse = true;
+          acceptAnswer(completionResponse);
           break;
         }
         if (_containsOnlyReadOnlyInspectionToolCalls(nextToolCalls) &&
@@ -5151,12 +5140,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 batchToolResults,
               );
           _recordHiddenEvidence(turnOwner, normalizedSkillResponse);
-          _appendRecoveredAssistantResponse(
-            normalizedSkillResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = normalizedSkillResponse;
-          hasTextResponse = true;
+          acceptAnswer(normalizedSkillResponse);
           break;
         }
         appLog('[Tool] LLM requested additional tool calls');
@@ -5292,12 +5276,7 @@ class ChatNotifier extends Notifier<ChatState> {
             _recordHiddenEvidence(turnOwner, fallbackResponse);
             if (_terminalToolResponsePolicy
                 .shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
-              _appendRecoveredAssistantResponse(
-                fallbackResponse,
-                interactionGeneration: interactionGeneration,
-              );
-              currentAssistantContent = fallbackResponse;
-              hasTextResponse = true;
+              acceptAnswer(fallbackResponse);
               break;
             }
           }
@@ -5490,12 +5469,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
           currentToolCalls = [];
           if (monitorResponse.isNotEmpty) {
-            _appendRecoveredAssistantResponse(
-              monitorResponse,
-              interactionGeneration: interactionGeneration,
-            );
-            currentAssistantContent = monitorResponse;
-            hasTextResponse = true;
+            acceptAnswer(monitorResponse);
             break;
           }
           break;
@@ -5559,12 +5533,7 @@ class ChatNotifier extends Notifier<ChatState> {
           currentToolCalls = [];
           _recordHiddenEvidence(turnOwner, verificationResponse);
           if (verificationResponse.isNotEmpty) {
-            _appendRecoveredAssistantResponse(
-              verificationResponse,
-              interactionGeneration: interactionGeneration,
-            );
-            currentAssistantContent = verificationResponse;
-            hasTextResponse = true;
+            acceptAnswer(verificationResponse);
             break;
           }
           break;
@@ -5624,12 +5593,7 @@ class ChatNotifier extends Notifier<ChatState> {
           }
         }
         if (savedValidationSucceededInLoop && fallbackResponse.isNotEmpty) {
-          _appendRecoveredAssistantResponse(
-            fallbackResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = fallbackResponse;
-          hasTextResponse = true;
+          acceptAnswer(fallbackResponse);
           break;
         }
         if (_shouldAcceptTerminalToolRoleFinalTextResponse(
@@ -5639,12 +5603,7 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog(
             '[Tool] Accepting terminal tool-role final text response without final answer fallback',
           );
-          _appendRecoveredAssistantResponse(
-            fallbackResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = fallbackResponse;
-          hasTextResponse = true;
+          acceptAnswer(fallbackResponse);
           break;
         }
         if (_shouldAcceptTerminalBrowserSaveDataResponse(
@@ -5656,12 +5615,7 @@ class ChatNotifier extends Notifier<ChatState> {
           );
           final normalizedBrowserSaveResponse = _terminalToolResponsePolicy
               .normalizeTerminalBrowserSaveDataResponse(fallbackResponse);
-          _appendRecoveredAssistantResponse(
-            normalizedBrowserSaveResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = normalizedBrowserSaveResponse;
-          hasTextResponse = true;
+          acceptAnswer(normalizedBrowserSaveResponse);
           break;
         }
         if (_shouldAcceptTerminalFileMutationFinalTextResponse(
@@ -5671,12 +5625,7 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog(
             '[Tool] Accepting terminal file-mutation final text response without final answer fallback',
           );
-          _appendRecoveredAssistantResponse(
-            fallbackResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = fallbackResponse;
-          hasTextResponse = true;
+          acceptAnswer(fallbackResponse);
           break;
         }
         final skillTerminalToolResults =
@@ -5697,24 +5646,14 @@ class ChatNotifier extends Notifier<ChatState> {
                 fallbackResponse,
                 skillTerminalToolResults,
               );
-          _appendRecoveredAssistantResponse(
-            normalizedSkillResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = normalizedSkillResponse;
-          hasTextResponse = true;
+          acceptAnswer(normalizedSkillResponse);
           break;
         }
         if (_shouldAcceptTerminalToolRoleBlockerResponse(fallbackResponse)) {
           appLog(
             '[Tool] Accepting terminal tool-role blocker response without final answer fallback',
           );
-          _appendRecoveredAssistantResponse(
-            fallbackResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = fallbackResponse;
-          hasTextResponse = true;
+          acceptAnswer(fallbackResponse);
           break;
         }
       }
@@ -5990,12 +5929,7 @@ class ChatNotifier extends Notifier<ChatState> {
           }
 
           if (monitorResponse.isNotEmpty) {
-            _appendRecoveredAssistantResponse(
-              monitorResponse,
-              interactionGeneration: interactionGeneration,
-            );
-            currentAssistantContent = monitorResponse;
-            hasTextResponse = true;
+            acceptAnswer(monitorResponse);
           }
         }
         final verificationRepairResult =

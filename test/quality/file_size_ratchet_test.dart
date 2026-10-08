@@ -74,7 +74,9 @@ const Map<String, int> _lineBudgets = {
   // -57, to 7,880: the duplicate inspection and duplicate follow-up recoveries
   // were the same hundred lines twice; one request helper serves both, and
   // their wording lives in DuplicateRecoveryKind.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7880,
+  // -66, to 7,814: fifteen copies of append-answer, set content, mark text
+  // response in the tool loop became one local acceptAnswer.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7814,
   'lib/features/chat/domain/services/anabasis/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
