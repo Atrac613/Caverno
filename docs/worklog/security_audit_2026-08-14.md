@@ -443,7 +443,7 @@ execution.
 `lib/features/chat/domain/services/files/file_mutation_tool_handler.dart:209-249`
 does not authorize write/edit targets against the canonical project root, while
 delete relies on lexical prefix checks in
-`lib/features/chat/domain/services/dart_project_tooling.dart:239-265`.
+`lib/features/chat/domain/services/code_intelligence/dart_project_tooling.dart:239-265`.
 Canonicalize the target or nearest existing parent immediately before every
 effect and defend against intermediate symlinks and path races.
 

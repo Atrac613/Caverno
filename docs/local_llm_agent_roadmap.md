@@ -852,7 +852,7 @@ Implementation evidence:
   ratchet.
 
 Verification:
-- `test/features/chat/domain/services/repo_map_service_test.dart`
+- `test/features/chat/domain/services/code_intelligence/repo_map_service_test.dart`
 - `test/features/chat/domain/services/system_prompt_builder_test.dart`
 - `test/quality/file_size_ratchet_test.dart`
 - `tool/codex_verify.sh`
@@ -2508,8 +2508,8 @@ tool/codex_verify.sh --no-codegen \
   --test test/features/chat/data/datasources/lsp_json_rpc_process_transport_test.dart \
   --test test/features/chat/domain/services/lsp_diagnostic_feedback_provider_test.dart \
   --test test/features/chat/domain/services/coding/coding_diagnostic_feedback_service_test.dart \
-  --test test/features/chat/domain/services/repo_map_service_test.dart \
-  --test test/features/chat/domain/services/repo_map_precompute_cache_test.dart \
+  --test test/features/chat/domain/services/code_intelligence/repo_map_service_test.dart \
+  --test test/features/chat/domain/services/code_intelligence/repo_map_precompute_cache_test.dart \
   --test test/features/chat/domain/services/repo_map_lsp_symbol_cache_test.dart \
   --test test/features/chat/data/datasources/mcp_tool_service_test.dart \
   --test test/tool/ll11_lsp_language_server_smoke_test.dart
@@ -3404,7 +3404,7 @@ Implementation evidence:
   genuinely cold and models the volatile temporal context.
 
 Verification:
-- `test/features/chat/domain/services/repo_map_precompute_cache_test.dart`
+- `test/features/chat/domain/services/code_intelligence/repo_map_precompute_cache_test.dart`
 - `test/features/chat/domain/services/kv_cache_warmup_service_test.dart`
 - `test/features/maintenance/presentation/providers/maintenance_stages_test.dart`
   (stage order now ends `precompute -> warm_cache`; new skip-path tests)

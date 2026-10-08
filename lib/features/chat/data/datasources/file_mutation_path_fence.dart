@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
 
 /// Serializes filesystem effects by their resolved target while preserving the
 /// caller's original path for user-visible results.

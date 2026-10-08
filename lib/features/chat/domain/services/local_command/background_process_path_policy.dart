@@ -1,4 +1,4 @@
-import '../dart_project_tooling.dart';
+import '../code_intelligence/dart_project_tooling.dart';
 import 'background_process_tool_contract.dart';
 
 final class BackgroundProcessPathPolicy {

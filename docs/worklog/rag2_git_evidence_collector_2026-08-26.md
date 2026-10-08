@@ -81,7 +81,7 @@ metadata-only discovery reports remain unchanged.
 - Files inspected:
   `lib/features/chat/data/datasources/git_changed_paths_service.dart`,
   `lib/core/utils/bounded_process.dart`,
-  `lib/features/chat/domain/services/repo_map_service.dart`, and the RAG2
+  `lib/features/chat/domain/services/code_intelligence/repo_map_service.dart`, and the RAG2
   provenance/discovery tools.
 - Follow-up found: the general changed-paths service still intentionally fails
   open for Best-of-N verification and must not be reused as RAG2 attestation.

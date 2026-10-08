@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../../domain/services/dart_diagnostic_line_parser.dart';
+import '../../domain/services/code_intelligence/dart_diagnostic_line_parser.dart';
 import '../../domain/services/python/pytest_verification_identity.dart';
 import 'bounded_command_output.dart';
 import 'first_party_tool_execution_result.dart';

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../dart_project_tooling.dart';
+import '../code_intelligence/dart_project_tooling.dart';
 
 /// Serves one project's files on loopback HTTP for the built-in browser.
 ///

@@ -252,8 +252,8 @@
         },
         {
           "id": "analysis-options-lint-edit-guard",
-          "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart"
+          "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart"
         },
         {
           "id": "command-diagnostic-verifier-replay-guard",
@@ -515,8 +515,8 @@
         },
         {
           "id": "lsp-go-to-definition-tool-handler",
-          "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart"
         },
         {
           "id": "local-command-tool-handler",

@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/dart_diagnostic_line_parser.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/dart_diagnostic_line_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _parser = DartDiagnosticLineParser();

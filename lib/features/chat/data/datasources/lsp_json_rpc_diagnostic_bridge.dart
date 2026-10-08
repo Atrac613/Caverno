@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../../domain/services/dart_project_tooling.dart';
-import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/lsp_diagnostic_feedback_provider.dart';
 
 class LspJsonRpcMessageCodec {
   const LspJsonRpcMessageCodec._();

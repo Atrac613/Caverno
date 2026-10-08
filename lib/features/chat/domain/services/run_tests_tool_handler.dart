@@ -5,7 +5,7 @@ import 'dart:convert';
 import '../../data/datasources/filesystem_tools.dart';
 import '../entities/chat_turn_owner.dart';
 import '../entities/mcp_tool_entity.dart';
-import 'dart_project_tooling.dart';
+import 'code_intelligence/dart_project_tooling.dart';
 import 'local_command/local_command_tool_handler.dart';
 import 'tool_loop/tool_call_execution_policy.dart';
 

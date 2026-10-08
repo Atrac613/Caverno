@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
-import 'package:caverno/features/chat/domain/services/dart_project_tooling.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/dart_project_tooling.dart';
 import 'package:crypto/crypto.dart';
 
 import 'rag2_batch_git_inventory_replay.dart';

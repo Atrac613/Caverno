@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'coding/coding_diagnostic_feedback_service.dart';
+import '../coding/coding_diagnostic_feedback_service.dart';
 import 'dart_project_tooling.dart';
 import 'language_diagnostics_bridge.dart';
 

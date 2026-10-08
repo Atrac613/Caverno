@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/assistant_mode.dart';
 import '../../data/datasources/environment_grounding_context_builder.dart';
-import '../../domain/services/repo_map_lsp_symbol_cache.dart';
-import '../../domain/services/repo_map_precompute_cache.dart';
+import '../../domain/services/code_intelligence/repo_map_lsp_symbol_cache.dart';
+import '../../domain/services/code_intelligence/repo_map_precompute_cache.dart';
 import 'repo_map_precompute_cache_provider.dart';
 
 /// The project-scoped system-prompt blocks: the LL22 repo map and the KC2

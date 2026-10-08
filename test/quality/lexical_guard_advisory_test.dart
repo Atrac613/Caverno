@@ -24,7 +24,7 @@ import 'package:path/path.dart' as p;
 /// paths. Structured goal/task producers are outside this list because they do
 /// not inspect prose.
 const _advisoryOnlyGuards = <String>[
-  'lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart',
+  'lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart',
   'lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart',
   'lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart',
   'lib/features/chat/domain/services/conversation_execution_progress_inference.dart',

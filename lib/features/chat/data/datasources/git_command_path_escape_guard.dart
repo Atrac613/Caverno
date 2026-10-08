@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
 import 'project_mutation_path_fence.dart';
 
 /// Blocks git repository relocation and out-of-root pathspecs.

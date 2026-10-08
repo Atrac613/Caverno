@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-import '../entities/chat_turn_owner.dart';
-import 'immutable_json_snapshot.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../immutable_json_snapshot.dart';
 
 const String canonicalLspGoToDefinitionToolName = 'lsp_go_to_definition';
 

@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
-import 'package:caverno/features/chat/domain/services/repo_map_service.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/lsp_diagnostic_feedback_provider.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/repo_map_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

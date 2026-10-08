@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/services/repo_map_lsp_symbol_cache.dart';
-import '../../domain/services/repo_map_precompute_cache.dart';
+import '../../domain/services/code_intelligence/repo_map_lsp_symbol_cache.dart';
+import '../../domain/services/code_intelligence/repo_map_precompute_cache.dart';
 
 /// Process-wide LL22 repo-map precompute cache. Kept alive for the whole app
 /// session so an idle-time precompute warms the first interactive turn instead

@@ -6,7 +6,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../entities/conversation_workflow.dart';
 import '../../entities/tool_call_info.dart';
-import '../dart_project_tooling.dart';
+import '../code_intelligence/dart_project_tooling.dart';
 import '../verification/verification_target_authority.dart';
 import 'coding_diagnostic_feedback_service.dart';
 import 'coding_verification_evidence_contract.dart';

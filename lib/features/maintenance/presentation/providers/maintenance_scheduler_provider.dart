@@ -11,9 +11,9 @@ import '../../../chat/data/repositories/retry_until_green_report_repository.dart
 import '../../../chat/data/repositories/worktree_agent_task_repository.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/entities/model_usage_role.dart';
+import '../../../chat/domain/services/code_intelligence/repo_map_precompute_cache.dart';
+import '../../../chat/domain/services/code_intelligence/repo_map_service.dart';
 import '../../../chat/domain/services/model_routing/kv_cache_warmup_service.dart';
-import '../../../chat/domain/services/repo_map_precompute_cache.dart';
-import '../../../chat/domain/services/repo_map_service.dart';
 import '../../../chat/domain/services/skills/skill_prompt_index_builder.dart';
 import '../../../chat/domain/services/system_prompt_builder.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';

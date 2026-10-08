@@ -264,9 +264,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart':
       69,
   'lib/features/chat/domain/services/approval/turn_tool_approval_coordinator.dart': 489,
-  'lib/features/chat/domain/services/lsp_go_to_definition_tool_contract.dart':
+  'lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_contract.dart':
       252,
-  'lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart':
+  'lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart':
       259,
   'lib/features/chat/domain/services/local_command/local_command_execution_authority.dart':
       258,
@@ -322,7 +322,7 @@ const Map<String, int> _lineBudgets = {
   // delegatableTasks is the next one. A further offset would have to come
   // from the copy itself, and there is nothing left in it but the fields.
   'lib/features/chat/domain/services/execution_snapshot_observer.dart': 180,
-  'lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart':
+  'lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart':
       380,
   'lib/features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart':
       142,
@@ -538,7 +538,7 @@ const Map<String, int> _lineBudgets = {
   // reviewer misreads an action, not when the permission boundary moves.
   'lib/features/chat/domain/services/approval/tool_approval_auto_review_service.dart':
       304,
-  'lib/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart':
+  'lib/features/chat/domain/services/code_intelligence/lsp_diagnostic_feedback_provider.dart':
       290,
   'lib/features/chat/presentation/providers/turn_tool_result_ledger.dart': 151,
   'lib/features/chat/presentation/providers/turn_tool_result_state.dart': 25,

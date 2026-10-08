@@ -1,4 +1,4 @@
-import 'dart_project_tooling.dart';
+import 'code_intelligence/dart_project_tooling.dart';
 
 /// How a `run_tests` invocation is spelled: which runner, which path, and how
 /// both are quoted for a shell.

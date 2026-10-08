@@ -1,7 +1,7 @@
-import '../../domain/services/lsp_go_to_definition_tool_contract.dart';
+import '../../domain/services/code_intelligence/lsp_go_to_definition_tool_contract.dart';
 import 'lsp_json_rpc_session_registry.dart';
 
-export '../../domain/services/lsp_go_to_definition_tool_handler.dart';
+export '../../domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart';
 export 'lsp_json_rpc_session_registry.dart';
 
 enum LspDefinitionSessionAcquisitionKind { unavailable, ready }

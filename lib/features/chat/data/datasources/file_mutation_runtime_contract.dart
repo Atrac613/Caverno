@@ -8,7 +8,7 @@ import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
 import '../../domain/services/files/file_mutation_tool_handler.dart';
 import '../../domain/services/immutable_json_snapshot.dart';
 

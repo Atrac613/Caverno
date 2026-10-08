@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/analysis_options_lint_edit_guard.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart';
 import 'package:test/test.dart';
 
 void main() {

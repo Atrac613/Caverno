@@ -144,17 +144,17 @@
   ],
   "entries": [
     {
-      "id": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart::AnalysisOptionsLintEditGuard",
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "id": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart::AnalysisOptionsLintEditGuard",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "symbol": "AnalysisOptionsLintEditGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart:47",
+        "lexical reference at lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart:47",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:212"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart:47 -> AnalysisOptionsLintEditGuard",
+        "lexical reference at lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart:47 -> AnalysisOptionsLintEditGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:212 -> AnalysisOptionsLintEditGuard"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",

@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../../domain/services/dart_project_tooling.dart';
-import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/lsp_diagnostic_feedback_provider.dart';
 import 'lsp_json_rpc_diagnostic_bridge.dart';
 import 'lsp_json_rpc_process_transport.dart';
 import 'lsp_server_command_resolver.dart';

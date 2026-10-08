@@ -1,6 +1,6 @@
 import 'package:path/path.dart' as p;
 
-import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
 import '../../domain/services/local_command/out_of_root_command_paths.dart';
 import 'project_mutation_path_fence.dart';
 import 'turn_project_root.dart';

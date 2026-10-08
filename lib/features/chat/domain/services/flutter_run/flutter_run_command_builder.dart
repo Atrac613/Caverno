@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../../entities/flutter_run_device.dart';
-import '../dart_project_tooling.dart';
+import '../code_intelligence/dart_project_tooling.dart';
 
 /// A command to spawn, kept as executable plus arguments so nothing is ever
 /// handed to a shell for re-parsing.

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../../data/datasources/project_scoped_tool_argument_resolver.dart';
-import '../entities/mcp_tool_entity.dart';
+import '../../../data/datasources/project_scoped_tool_argument_resolver.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'dart_project_tooling.dart';
 import 'lsp_go_to_definition_tool_contract.dart';
 

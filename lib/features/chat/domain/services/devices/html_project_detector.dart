@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../dart_project_tooling.dart';
+import '../code_intelligence/dart_project_tooling.dart';
 
 /// An HTML file the companion "Run the app" section can preview.
 class HtmlProjectEntry {

@@ -6,7 +6,7 @@
   "firstSliceLimit": 1,
   "entries": [
     {
-      "id": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart::AnalysisOptionsLintEditGuard",
+      "id": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart::AnalysisOptionsLintEditGuard",
       "disposition": "defer",
       "question": "Was AnalysisOptionsLintEditGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

@@ -4,8 +4,8 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/lsp_json_rpc_session_registry.dart';
 import 'package:caverno/features/chat/data/datasources/lsp_server_command_resolver.dart';
-import 'package:caverno/features/chat/domain/services/dart_project_tooling.dart';
-import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/dart_project_tooling.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/lsp_diagnostic_feedback_provider.dart';
 
 const ll11LspLanguageServerSmokeSchemaName =
     'll11_lsp_language_server_smoke_summary';

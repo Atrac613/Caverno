@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
 
 enum ProjectReadPathDenial {
   projectRootRequired('project_read_root_required'),

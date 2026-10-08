@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import '../../../../core/services/login_shell_environment.dart';
-import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
 
 class LspServerCommand {
   const LspServerCommand({

@@ -12,7 +12,7 @@
     "lib/features/chat/application/runtime/turn_runtime_goal_tracker_adapter.dart",
     "lib/features/chat/application/runtime/turn_runtime_owner_lease_registry.dart",
     "lib/features/chat/data/datasources/turn_runtime_goal_continuation_log_adapter.dart",
-    "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+    "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
     "lib/features/chat/domain/services/ask_user_question/ask_user_question_option_parser.dart",
     "lib/features/chat/domain/services/ask_user_question/ask_user_question_policy.dart",
     "lib/features/chat/domain/services/ask_user_question/ask_user_question_turn_cache.dart",
@@ -53,7 +53,7 @@
     "lib/features/chat/domain/services/goal/goal_update_tool_handler.dart",
     "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart",
     "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
-    "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+    "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
     "lib/features/chat/domain/services/plan/material_contract_assumption_guard.dart",
     "lib/features/chat/domain/services/model_routing/model_edit_apply_telemetry_recorder.dart",
     "lib/features/chat/domain/services/model_routing/model_switch_handoff_registry.dart",
@@ -1366,7 +1366,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._collectAnalyzerOutputCodes",
       "signature": "void _collectAnalyzerOutputCodes(String output, Set<String> codes)",
       "turnIdentityParameters": [],
@@ -1385,7 +1385,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._collectStructuredCodes",
       "signature": "void _collectStructuredCodes(\n    Map<String, dynamic>? payload,\n    Set<String> codes,\n  )",
       "turnIdentityParameters": [],
@@ -1402,7 +1402,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._configuredDiagnosticSettings",
       "signature": "Map<String, String> _configuredDiagnosticSettings(String yaml)",
       "turnIdentityParameters": [],
@@ -1435,7 +1435,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._inlineRuleSettings",
       "signature": "Map<String, String> _inlineRuleSettings(String value)",
       "turnIdentityParameters": [],
@@ -1454,7 +1454,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._isAnalysisOptionsPath",
       "signature": "bool _isAnalysisOptionsPath(String path)",
       "turnIdentityParameters": [],
@@ -1469,7 +1469,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._isConfiguredRulePath",
       "signature": "bool _isConfiguredRulePath(List<String> path, String value)",
       "turnIdentityParameters": [],
@@ -1483,7 +1483,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._isDartAnalyzeCommandResult",
       "signature": "bool _isDartAnalyzeCommandResult(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -1499,7 +1499,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._isLinterRulesPath",
       "signature": "bool _isLinterRulesPath(List<_YamlSection> stack)",
       "turnIdentityParameters": [],
@@ -1510,7 +1510,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._isRulesContainerPath",
       "signature": "bool _isRulesContainerPath(List<String> path)",
       "turnIdentityParameters": [],
@@ -1521,7 +1521,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._looksLikeDiagnosticCode",
       "signature": "bool _looksLikeDiagnosticCode(String value)",
       "turnIdentityParameters": [],
@@ -1536,7 +1536,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._looksLikeStandaloneRuleEdit",
       "signature": "bool _looksLikeStandaloneRuleEdit(String key, String value)",
       "turnIdentityParameters": [],
@@ -1550,7 +1550,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._normalizeCode",
       "signature": "String _normalizeCode(String value)",
       "turnIdentityParameters": [],
@@ -1564,7 +1564,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._normalizeSettingValue",
       "signature": "String _normalizeSettingValue(String value)",
       "turnIdentityParameters": [],
@@ -1581,7 +1581,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._observedDiagnosticCodes",
       "signature": "Set<String> _observedDiagnosticCodes(\n    List<ToolResultInfo> executedToolResults,\n  )",
       "turnIdentityParameters": [],
@@ -1599,7 +1599,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._requiresDiagnosticEvidence",
       "signature": "bool _requiresDiagnosticEvidence({\n    required String? previousValue,\n    required String proposedValue,\n  })",
       "turnIdentityParameters": [],
@@ -1610,7 +1610,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._stripYamlComment",
       "signature": "String _stripYamlComment(String line)",
       "turnIdentityParameters": [],
@@ -1623,7 +1623,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard._tryDecodeMap",
       "signature": "Map<String, dynamic>? _tryDecodeMap(String raw)",
       "turnIdentityParameters": [],
@@ -1636,7 +1636,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard.buildResult",
       "signature": "McpToolResult? buildResult({\n    required ToolCallInfo toolCall,\n    required List<ToolResultInfo> executedToolResults,\n  })",
       "turnIdentityParameters": [],
@@ -1652,7 +1652,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditGuard.detectIssue",
       "signature": "AnalysisOptionsLintEditIssue? detectIssue({\n    required ToolCallInfo toolCall,\n    required List<ToolResultInfo> executedToolResults,\n  })",
       "turnIdentityParameters": [],
@@ -1675,7 +1675,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditIssue.instruction",
       "signature": "String get instruction",
       "turnIdentityParameters": [],
@@ -1686,7 +1686,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditIssue.summary",
       "signature": "String get summary",
       "turnIdentityParameters": [],
@@ -1697,7 +1697,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart",
       "declaration": "AnalysisOptionsLintEditIssue.toJson",
       "signature": "Map<String, dynamic> toJson()",
       "turnIdentityParameters": [],
@@ -7922,7 +7922,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._acknowledgeOwner",
       "signature": "LspDefinitionOwnerAcknowledgement? _acknowledgeOwner(\n    LspDefinitionOperationIdentity identity,\n  )",
       "turnIdentityParameters": [],
@@ -7935,7 +7935,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._effectUncertain",
       "signature": "McpToolResult _effectUncertain(String toolName, String path)",
       "turnIdentityParameters": [],
@@ -7949,7 +7949,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._lookupFailed",
       "signature": "McpToolResult _lookupFailed(String toolName, String path, String error)",
       "turnIdentityParameters": [],
@@ -7963,7 +7963,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._lspDefinitionToJson",
       "signature": "Map<String, dynamic> _lspDefinitionToJson(\n    LspDefinitionLocation definition, {\n    required String projectRoot,\n  })",
       "turnIdentityParameters": [],
@@ -7979,7 +7979,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._mayHaveStartedPersistentSession",
       "signature": "bool _mayHaveStartedPersistentSession(LspDefinitionSessionEffect effect)",
       "turnIdentityParameters": [],
@@ -7990,7 +7990,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._oneBasedPositionValue",
       "signature": "int? _oneBasedPositionValue(Object? value)",
       "turnIdentityParameters": [],
@@ -8005,7 +8005,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._ownerExpired",
       "signature": "McpToolResult _ownerExpired(String toolName, String path)",
       "turnIdentityParameters": [],
@@ -8019,7 +8019,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler._pathFromLspUri",
       "signature": "String? _pathFromLspUri(String uri)",
       "turnIdentityParameters": [],
@@ -8033,7 +8033,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart",
       "declaration": "LspGoToDefinitionToolHandler.handle",
       "signature": "Future<McpToolResult> handle(LspGoToDefinitionToolInput input)",
       "turnIdentityParameters": [],

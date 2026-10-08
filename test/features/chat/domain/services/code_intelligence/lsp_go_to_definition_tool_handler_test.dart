@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/lsp_go_to_definition_tool_handler.dart';
 import 'package:test/test.dart';
 
 final class _RecordingLspDefinitionPort implements LspDefinitionPort {

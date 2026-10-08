@@ -5,7 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:path/path.dart' as p;
 
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
 
 enum ProjectMutationPathDenial {
   projectRootRequired('project_mutation_root_required'),

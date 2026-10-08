@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
+import 'package:caverno/features/chat/domain/services/code_intelligence/lsp_diagnostic_feedback_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/ll11_lsp_language_server_smoke.dart';

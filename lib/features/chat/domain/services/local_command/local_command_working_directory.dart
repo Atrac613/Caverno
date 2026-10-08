@@ -1,4 +1,4 @@
-import '../dart_project_tooling.dart';
+import '../code_intelligence/dart_project_tooling.dart';
 import 'local_command_tool_contract.dart';
 
 /// Resolves and fences the directory a local command runs in.

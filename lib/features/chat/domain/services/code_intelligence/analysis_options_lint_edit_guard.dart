@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
 
 // ChatNotifier decomposition collaborator: analysis-options-lint-edit-guard
 

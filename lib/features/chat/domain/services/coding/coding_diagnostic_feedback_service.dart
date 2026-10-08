@@ -5,9 +5,9 @@ import 'dart:io';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../entities/tool_call_info.dart';
-import '../dart_diagnostic_line_parser.dart';
-import '../dart_project_tooling.dart';
-import '../language_diagnostics_bridge.dart';
+import '../code_intelligence/dart_diagnostic_line_parser.dart';
+import '../code_intelligence/dart_project_tooling.dart';
+import '../code_intelligence/language_diagnostics_bridge.dart';
 
 typedef CodingDiagnosticCommandRunner =
     Future<CodingDiagnosticCommandOutput> Function(

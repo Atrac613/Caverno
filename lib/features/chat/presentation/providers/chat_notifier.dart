@@ -119,6 +119,8 @@ import '../../domain/services/claims/unexecuted_command_action_retry_policy.dart
 import '../../domain/services/claims/unexecuted_file_mutation_before_command_guard.dart';
 import '../../domain/services/claims/unexecuted_final_answer_tool_request_policy.dart';
 import '../../domain/services/claims/uninspected_commit_guard.dart';
+import '../../domain/services/code_intelligence/dart_project_tooling.dart';
+import '../../domain/services/code_intelligence/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/code_unit_text_scan.dart';
 import '../../domain/services/coding/coding_continuation_recovery_policy.dart';
 import '../../domain/services/coding/coding_diagnostic_collection.dart';
@@ -130,7 +132,6 @@ import '../../domain/services/coding/coding_verification_mutation_signature.dart
 import '../../domain/services/commit_phase_history.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/create_routine_tool_handler.dart';
-import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/devices/ble_connect_attempt_coordinator.dart';
 import '../../domain/services/devices/computer_use_action_presentation.dart';
 import '../../domain/services/devices/skipped_browser_action_repair_prompt.dart';
@@ -158,7 +159,6 @@ import '../../domain/services/local_command/local_command_approval_prompt.dart';
 import '../../domain/services/local_command/local_command_request_preparation.dart';
 import '../../domain/services/local_command/process_start_result_policy.dart';
 import '../../domain/services/local_command/timed_out_command_retry_guard.dart';
-import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/memory_extraction_coordinator.dart';
 import '../../domain/services/memory_update_tool_use.dart';
 import '../../domain/services/model_routing/model_switch_handoff_registry.dart';

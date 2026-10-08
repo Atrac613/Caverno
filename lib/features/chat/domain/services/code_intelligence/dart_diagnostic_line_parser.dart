@@ -1,4 +1,4 @@
-import 'coding/coding_diagnostic_feedback_service.dart' show CodeDiagnostic;
+import '../coding/coding_diagnostic_feedback_service.dart' show CodeDiagnostic;
 import 'dart_project_tooling.dart';
 
 /// Turns one line of Dart or Flutter tool output into a [CodeDiagnostic].
