@@ -90,14 +90,14 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart::GitTagFormatInspectionGuard",
+      "id": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart::GitTagFormatInspectionGuard",
       "disposition": "defer",
       "question": "Was GitTagFormatInspectionGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/git_write_confirmation_policy.dart::GitWriteConfirmationPolicy",
+      "id": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart::GitWriteConfirmationPolicy",
       "disposition": "defer",
       "question": "Was GitWriteConfirmationPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

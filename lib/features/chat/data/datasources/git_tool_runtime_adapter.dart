@@ -6,14 +6,14 @@ import 'package:crypto/crypto.dart';
 
 import '../../../../core/services/login_shell_environment.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/git_process_execution_contract.dart';
-import '../../domain/services/git_tool_handler.dart';
+import '../../domain/services/git/git_process_execution_contract.dart';
+import '../../domain/services/git/git_tool_handler.dart';
 import 'first_party_tool_execution_result.dart';
 import 'git_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
 
-export '../../domain/services/git_process_execution_coordinator.dart';
-export '../../domain/services/git_tool_handler.dart';
+export '../../domain/services/git/git_process_execution_coordinator.dart';
+export '../../domain/services/git/git_tool_handler.dart';
 
 typedef GitRuntimeCommandRunner =
     Future<String> Function({

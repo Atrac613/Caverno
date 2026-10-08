@@ -1,4 +1,4 @@
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'git_process_execution_coordinator.dart';
 import 'git_tool_contract.dart';
 

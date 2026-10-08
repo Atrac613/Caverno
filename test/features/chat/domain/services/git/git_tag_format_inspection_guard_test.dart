@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/git_tag_format_inspection_guard.dart';
+import 'package:caverno/features/chat/domain/services/git/git_tag_format_inspection_guard.dart';
 import 'package:test/test.dart';
 
 const _guard = GitTagFormatInspectionGuard();

@@ -508,7 +508,7 @@
         "lexical reference at lib/features/chat/domain/services/coding_verification_mutation_signature.dart:34",
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15",
-        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:32",
+        "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32",
         "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35",
         "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:13",
         "lexical reference at lib/features/chat/domain/services/tool_result_prompt_builder.dart:228",
@@ -522,7 +522,7 @@
         "lexical reference at lib/features/chat/domain/services/coding_verification_mutation_signature.dart:34 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15 -> FileMutationEvidencePolicy",
-        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:32 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/saved_task_target_scope_guard.dart:35 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_call_execution_policy.dart:13 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/tool_result_prompt_builder.dart:228 -> FileMutationEvidencePolicy",
@@ -570,17 +570,17 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart::GitTagFormatInspectionGuard",
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "id": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart::GitTagFormatInspectionGuard",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "symbol": "GitTagFormatInspectionGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/git_tag_format_inspection_guard.dart:29",
+        "lexical reference at lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart:29",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:219"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/git_tag_format_inspection_guard.dart:29 -> GitTagFormatInspectionGuard",
+        "lexical reference at lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart:29 -> GitTagFormatInspectionGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:219 -> GitTagFormatInspectionGuard"
       ],
       "reachabilityImpact": "silent non-fire can leave a guarded or corrective path unreachable",
@@ -593,18 +593,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/git_write_confirmation_policy.dart::GitWriteConfirmationPolicy",
-      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "id": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart::GitWriteConfirmationPolicy",
+      "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
       "symbol": "GitWriteConfirmationPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:26",
+        "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:26",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5286",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5797"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:26 -> GitWriteConfirmationPolicy",
+        "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:26 -> GitWriteConfirmationPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5286 -> GitWriteConfirmationPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:5797 -> GitWriteConfirmationPolicy"
       ],
@@ -1025,9 +1025,9 @@
         "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13",
-        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:31",
-        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:28",
-        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:29",
+        "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:31",
+        "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:28",
+        "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:29",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44",
         "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:68",
@@ -1056,9 +1056,9 @@
         "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/git_tool_handler.dart:31 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:28 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/git_write_confirmation_policy.dart:29 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:31 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:28 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:29 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:68 -> ToolCallExecutionPolicy",

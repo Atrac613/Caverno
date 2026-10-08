@@ -1,4 +1,4 @@
-import '../entities/chat_turn_owner.dart';
+import '../../entities/chat_turn_owner.dart';
 
 String _validatedGitProcessValue(String value, String name) {
   final normalized = value.trim();

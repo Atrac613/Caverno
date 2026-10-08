@@ -183,13 +183,13 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/computer_use_runtime_coordinator.dart':
       469,
   'lib/features/chat/domain/services/computer_use_tool_handler.dart': 473,
-  'lib/features/chat/domain/services/git_process_execution_coordinator.dart':
+  'lib/features/chat/domain/services/git/git_process_execution_coordinator.dart':
       480,
   // +7: a trailing `| head -N` / `| tail -N` must not be refused here, since
   // GitTools applies it to its own output. The parse lives in GitTools; what
   // is left here is the call and a message that points a real pipeline at
   // local_execute_command instead of back at this tool.
-  'lib/features/chat/domain/services/git_tool_handler.dart': 322,
+  'lib/features/chat/domain/services/git/git_tool_handler.dart': 322,
   'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart':
       449,
   'lib/features/chat/domain/services/goal_auto_continue_decision_types.dart':
@@ -333,7 +333,7 @@ const Map<String, int> _lineBudgets = {
   // operator" would let it past this gate ungated.
   // +6: the block declares itself a refusal (`ok: false`, `result_origin`),
   // so the turn digest stops listing a blocked `tag -a` as run.
-  'lib/features/chat/domain/services/git_tag_format_inspection_guard.dart': 162,
+  'lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart': 162,
   'lib/features/chat/domain/services/goal_validation_probe_guard.dart': 53,
   'lib/features/chat/domain/services/material_contract_assumption_arming.dart':
       31,
@@ -355,7 +355,7 @@ const Map<String, int> _lineBudgets = {
   // filed as an executed commit, so the identical commit re-issued after
   // `diff --cached` was deduplicated and the refusal replayed (dd50d110).
   'lib/features/chat/domain/services/uninspected_commit_guard.dart': 153,
-  'lib/features/chat/domain/services/git_write_confirmation_policy.dart': 93,
+  'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart': 93,
   'lib/features/chat/domain/services/context_surgery_observation_accumulator.dart':
       130,
   'lib/features/chat/domain/services/context_surgery_protected_path_policy.dart':
@@ -379,7 +379,7 @@ const Map<String, int> _lineBudgets = {
   // their own collaborators.
   'lib/features/chat/domain/services/unexecuted_file_mutation_before_command_guard.dart':
       104,
-  'lib/features/chat/domain/services/git_working_tree_change_evidence.dart': 87,
+  'lib/features/chat/domain/services/git/git_working_tree_change_evidence.dart': 87,
   'lib/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart':
       38,
   'lib/features/chat/domain/services/turn_tool_catalog_source.dart': 31,

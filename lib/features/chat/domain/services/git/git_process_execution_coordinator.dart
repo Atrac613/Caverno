@@ -1,6 +1,6 @@
-import '../entities/chat_turn_owner.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../immutable_json_snapshot.dart';
 import 'git_process_execution_contract.dart';
-import 'immutable_json_snapshot.dart';
 
 export 'git_process_execution_contract.dart';
 

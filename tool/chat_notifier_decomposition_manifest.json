@@ -232,8 +232,8 @@
         },
         {
           "id": "git-working-tree-change-evidence",
-          "path": "lib/features/chat/domain/services/git_working_tree_change_evidence.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/git_working_tree_change_evidence.dart"
+          "path": "lib/features/chat/domain/services/git/git_working_tree_change_evidence.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git/git_working_tree_change_evidence.dart"
         },
         {
           "id": "unexecuted-file-mutation-block-payload",
@@ -247,8 +247,8 @@
         },
         {
           "id": "git-write-confirmation-policy",
-          "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/git_write_confirmation_policy.dart"
+          "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart"
         },
         {
           "id": "analysis-options-lint-edit-guard",
@@ -267,8 +267,8 @@
         },
         {
           "id": "git-tag-format-inspection-guard",
-          "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart"
+          "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart"
         },
         {
           "id": "timed-out-command-retry-guard",
@@ -460,13 +460,13 @@
       "collaborators": [
         {
           "id": "git-process-execution-coordinator",
-          "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/git_process_execution_coordinator.dart"
+          "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart"
         },
         {
           "id": "git-tool-handler",
-          "path": "lib/features/chat/domain/services/git_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/git_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/git/git_tool_handler.dart"
         }
       ]
     },

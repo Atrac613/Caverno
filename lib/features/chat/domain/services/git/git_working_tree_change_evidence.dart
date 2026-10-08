@@ -1,7 +1,7 @@
 // ChatNotifier decomposition collaborator: git-working-tree-change-evidence
 
-import '../entities/tool_call_info.dart';
-import 'tool_call_execution_policy.dart';
+import '../../entities/tool_call_info.dart';
+import '../tool_call_execution_policy.dart';
 
 /// Whether Git itself has already reported the paths a command targets as
 /// changed in the working tree.

@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/git_process_execution_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/git/git_process_execution_coordinator.dart';
 import 'package:test/test.dart';
 
 void main() {

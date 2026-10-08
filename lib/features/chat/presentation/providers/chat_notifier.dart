@@ -144,7 +144,7 @@ import '../../domain/services/final_answer_claim_notice_applicator.dart';
 import '../../domain/services/final_answer_message_notice_service.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
 import '../../domain/services/follow_up_assistant_content.dart';
-import '../../domain/services/git_write_confirmation_policy.dart';
+import '../../domain/services/git/git_write_confirmation_policy.dart';
 import '../../domain/services/goal_auto_continue_prompt_builder.dart';
 import '../../domain/services/goal_auto_continue_tracker_registry.dart';
 import '../../domain/services/goal_blocker_boundary_response.dart';

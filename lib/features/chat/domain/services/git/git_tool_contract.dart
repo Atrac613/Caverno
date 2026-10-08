@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:crypto/crypto.dart';
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
 import 'git_process_execution_coordinator.dart';
-import 'immutable_json_snapshot.dart';
 
 String _requiredGitValue(String value, String name) {
   final normalized = value.trim();

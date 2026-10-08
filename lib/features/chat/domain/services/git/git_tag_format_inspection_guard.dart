@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../../data/datasources/git_tools.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
-import 'immutable_json_snapshot.dart';
+import '../../../data/datasources/git_tools.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
 
 // ChatNotifier decomposition collaborator: git-tag-format-inspection-guard
 

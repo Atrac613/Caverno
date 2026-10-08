@@ -296,7 +296,7 @@ void main() {
           'lib/features/chat/domain/services/file_rollback_tool_handler.dart',
           'lib/features/chat/domain/services/file_turn_rollback_service.dart',
           'lib/features/chat/domain/services/local_command_tool_handler.dart',
-          'lib/features/chat/domain/services/git_write_confirmation_policy.dart',
+          'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart',
           'lib/features/chat/domain/services/'
               'final_answer_claim_notice_applicator.dart',
           'lib/features/chat/domain/services/'

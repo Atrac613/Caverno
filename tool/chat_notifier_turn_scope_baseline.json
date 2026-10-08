@@ -42,10 +42,10 @@
     "lib/features/chat/domain/services/file_rollback_tool_handler.dart",
     "lib/features/chat/domain/services/file_turn_rollback_service.dart",
     "lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart",
-    "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
-    "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
-    "lib/features/chat/domain/services/git_tool_handler.dart",
-    "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+    "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
+    "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
+    "lib/features/chat/domain/services/git/git_tool_handler.dart",
+    "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
     "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
     "lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart",
     "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
@@ -6459,7 +6459,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessAttemptToken.toString",
       "signature": "@override\n  String toString()",
       "turnIdentityParameters": [],
@@ -6470,7 +6470,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator._releaseResource",
       "signature": "void _releaseResource(_ProcessRecord record)",
       "turnIdentityParameters": [],
@@ -6484,7 +6484,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator._resource",
       "signature": "_GitProcessResource _resource(GitProcessExecutionIdentity identity)",
       "turnIdentityParameters": [],
@@ -6495,7 +6495,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator._retire",
       "signature": "GitProcessRetirementWork _retire(\n    bool Function(_ProcessRecord record) matches,\n  )",
       "turnIdentityParameters": [],
@@ -6512,7 +6512,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.abandonBeforeStart",
       "signature": "GitProcessAbandonDisposition abandonBeforeStart(\n    GitProcessExecutionIdentity identity,\n    GitProcessAttemptToken token,\n  )",
       "turnIdentityParameters": [],
@@ -6525,7 +6525,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.clearAll",
       "signature": "GitProcessRetirementWork clearAll()",
       "turnIdentityParameters": [],
@@ -6540,7 +6540,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.clearOwner",
       "signature": "GitProcessRetirementWork clearOwner(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -6556,7 +6556,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.complete",
       "signature": "GitProcessCompletionResult complete({\n    required GitProcessExecutionIdentity identity,\n    required GitProcessAttemptToken token,\n    required GitProcessEffectKind effectKind,\n    Map<String, dynamic> effectDetails = const {},\n  })",
       "turnIdentityParameters": [],
@@ -6571,7 +6571,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.recordReconciliation",
       "signature": "GitProcessReconciliationResult recordReconciliation({\n    required GitProcessExecutionIdentity identity,\n    required GitProcessAttemptToken token,\n    required GitProcessEffectReceipt effectReceipt,\n  })",
       "turnIdentityParameters": [],
@@ -6585,7 +6585,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.release",
       "signature": "GitProcessReleaseResult release({\n    required GitProcessExecutionIdentity identity,\n    required GitProcessAttemptToken token,\n    GitProcessReconciliationReceipt? reconciliationReceipt,\n  })",
       "turnIdentityParameters": [],
@@ -6601,7 +6601,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.requestCancellation",
       "signature": "GitProcessCancellationResult requestCancellation({\n    required GitProcessExecutionIdentity identity,\n    required GitProcessAttemptToken token,\n    required GitProcessCancellationCause cause,\n  })",
       "turnIdentityParameters": [],
@@ -6614,7 +6614,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.requireReconciliation",
       "signature": "GitProcessRequireReconciliationDisposition requireReconciliation({\n    required GitProcessExecutionIdentity identity,\n    required GitProcessAttemptToken token,\n    required GitProcessEffectReceipt effectReceipt,\n  })",
       "turnIdentityParameters": [],
@@ -6627,7 +6627,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.reserve",
       "signature": "GitProcessReserveResult reserve(GitProcessExecutionIdentity identity)",
       "turnIdentityParameters": [],
@@ -6644,7 +6644,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_process_execution_coordinator.dart",
+      "path": "lib/features/chat/domain/services/git/git_process_execution_coordinator.dart",
       "declaration": "GitProcessExecutionCoordinator.start",
       "signature": "GitProcessStartDisposition start(\n    GitProcessExecutionIdentity identity,\n    GitProcessAttemptToken token,\n  )",
       "turnIdentityParameters": [],
@@ -6658,7 +6658,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "declaration": "GitTagFormatInspectionGuard.evaluate",
       "signature": "McpToolResult? evaluate(GitTagFormatInspectionInput input)",
       "turnIdentityParameters": [],
@@ -6679,7 +6679,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "declaration": "GitTagFormatInspectionGuard.isSuccessfulTagFormatInspection",
       "signature": "bool isSuccessfulTagFormatInspection(\n    ToolResultInfo toolResult, {\n    required String workingDirectory,\n  })",
       "turnIdentityParameters": [],
@@ -6695,7 +6695,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "declaration": "GitTagFormatInspectionGuard.isTagCreationCommand",
       "signature": "bool isTagCreationCommand(String command)",
       "turnIdentityParameters": [],
@@ -6710,7 +6710,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "declaration": "GitTagFormatInspectionGuard.isTagFormatInspectionCommand",
       "signature": "bool isTagFormatInspectionCommand(String command)",
       "turnIdentityParameters": [],
@@ -6727,7 +6727,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "declaration": "_decodeJsonObject",
       "signature": "Map<String, dynamic>? _decodeJsonObject(String source)",
       "turnIdentityParameters": [],
@@ -6740,7 +6740,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "declaration": "_freezeToolCall",
       "signature": "ToolCallInfo _freezeToolCall(ToolCallInfo source)",
       "turnIdentityParameters": [],
@@ -6754,7 +6754,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tag_format_inspection_guard.dart",
+      "path": "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
       "declaration": "_freezeToolResult",
       "signature": "ToolResultInfo _freezeToolResult(ToolResultInfo source)",
       "turnIdentityParameters": [],
@@ -6768,7 +6768,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._boolArgument",
       "signature": "bool _boolArgument(Object? value, {required bool defaultValue})",
       "turnIdentityParameters": [],
@@ -6782,7 +6782,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._commandIdentity",
       "signature": "GitProcessExecutionIdentity _commandIdentity(\n    GitCommandExecutionRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -6796,7 +6796,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -6809,7 +6809,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._firstCodingGoalMarker",
       "signature": "String? _firstCodingGoalMarker(List<ToolResultInfo> results)",
       "turnIdentityParameters": [],
@@ -6825,7 +6825,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._gitStatusResultIsClean",
       "signature": "bool _gitStatusResultIsClean(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -6842,7 +6842,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._normalizedGitSubcommand",
       "signature": "String? _normalizedGitSubcommand(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -6860,7 +6860,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._resolveArguments",
       "signature": "Map<String, dynamic> _resolveArguments(GitToolCallInput input)",
       "turnIdentityParameters": [],
@@ -6873,7 +6873,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler._worktreeIdentity",
       "signature": "GitProcessExecutionIdentity _worktreeIdentity(\n    GitWorktreeSessionRequest request,\n  )",
       "turnIdentityParameters": [],
@@ -6887,7 +6887,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler.buildGitLifecycleCompletionResponse",
       "signature": "String buildGitLifecycleCompletionResponse(GitLifecycleInput input)",
       "turnIdentityParameters": [],
@@ -6900,7 +6900,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler.handleExecuteCommand",
       "signature": "Future<McpToolResult> handleExecuteCommand(GitToolCallInput input)",
       "turnIdentityParameters": [],
@@ -6923,7 +6923,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler.handleFinishWorktreeSession",
       "signature": "Future<McpToolResult> handleFinishWorktreeSession(\n    GitToolCallInput input,\n  )",
       "turnIdentityParameters": [],
@@ -6944,7 +6944,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/git/git_tool_handler.dart",
       "declaration": "GitToolHandler.satisfiesCurrentGoalGitLifecycle",
       "signature": "bool satisfiesCurrentGoalGitLifecycle(GitLifecycleInput input)",
       "turnIdentityParameters": [],
@@ -6964,7 +6964,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
       "declaration": "GitWriteConfirmationPolicy._containsAny",
       "signature": "bool _containsAny(String value, List<String> needles)",
       "turnIdentityParameters": [],
@@ -6977,7 +6977,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
       "declaration": "GitWriteConfirmationPolicy._containsAnyCodeUnitSequence",
       "signature": "bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences)",
       "turnIdentityParameters": [],
@@ -6992,7 +6992,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
       "declaration": "GitWriteConfirmationPolicy.isWriteGitCommandToolCall",
       "signature": "bool isWriteGitCommandToolCall(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -7008,7 +7008,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
       "declaration": "GitWriteConfirmationPolicy.looksLikeGitWriteConfirmationQuestion",
       "signature": "bool looksLikeGitWriteConfirmationQuestion(String content)",
       "turnIdentityParameters": [],
@@ -7027,7 +7027,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
       "declaration": "GitWriteConfirmationPolicy.shouldBlock",
       "signature": "bool shouldBlock(GitWriteConfirmationInput input)",
       "turnIdentityParameters": [],
@@ -7042,7 +7042,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/git_write_confirmation_policy.dart",
+      "path": "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
       "declaration": "_freezeToolCall",
       "signature": "ToolCallInfo _freezeToolCall(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],

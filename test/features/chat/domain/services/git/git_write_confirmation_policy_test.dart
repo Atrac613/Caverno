@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/git_write_confirmation_policy.dart';
+import 'package:caverno/features/chat/domain/services/git/git_write_confirmation_policy.dart';
 import 'package:test/test.dart';
 
 void main() {

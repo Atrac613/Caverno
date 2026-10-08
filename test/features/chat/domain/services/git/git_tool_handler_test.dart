@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/git_process_execution_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/git_tool_handler.dart';
+import 'package:caverno/features/chat/domain/services/git/git_process_execution_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/git/git_tool_handler.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 
