@@ -162,6 +162,49 @@ void main() {
     );
     expect(status.completionAccepted, isTrue);
   });
+  // Session 1df8a06d: the bare import probe failed on a host without
+  // pytest and stayed the check the subtask had to make pass, although the
+  // project venv then ran the tests (86 passed).
+  const importProbe =
+      'cd /repo && ls -a | head -20 && which pytest; '
+      'python3 -c "import pytest" 2>&1';
+  test('a bare pytest import probe is no check', () {
+    final results = [
+      run('probe', importProbe, 1),
+      run(
+        'venv',
+        '.venv/bin/python -m pytest test_state.py -q 2>&1 | tail -5',
+        0,
+        stdout: '86 passed in 9.18s\n',
+      ),
+    ];
+    expect(VerificationMetadataQueryPolicy.applies(importProbe), isTrue);
+    expect(failure.latest(results), isNull);
+    final status = const ProjectTaskStepCompletionPolicy().status(
+      response: 'Verified.\nPROJECT_TASK_SUBTASK_DONE',
+      results: results,
+      goal: ConversationGoal(
+        id: 'g',
+        objective: 'Implement',
+        projectTaskAutoReview: true,
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      ),
+    );
+    expect(status.completionAccepted, isTrue);
+  });
+  for (final command in [
+    'python3 -c "import watcher"',
+    'python3 -c "import pytest, watcher"',
+    'python3 -c "import pytest; pytest.main()"',
+  ]) {
+    test(
+      'importing project code or running pytest stays a check: $command',
+      () {
+        expect(VerificationMetadataQueryPolicy.applies(command), isFalse);
+      },
+    );
+  }
   for (final command in [
     'cat requirements.txt; grep -n webhook watcher.py',
     'cat requirements.txt; python3 -m pytest -q',
