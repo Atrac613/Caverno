@@ -21,18 +21,25 @@ import '../security/sensitive_file_permissions.dart';
 /// Never throws: a sink that cannot write disables itself for the process
 /// rather than turning logging into a second failure.
 class AppLogFile {
-  AppLogFile._({Directory? directoryOverride})
-    : _directoryOverride = directoryOverride;
+  AppLogFile._({Directory? directoryOverride, DateTime Function()? clock})
+    : _directoryOverride = directoryOverride,
+      _clock = clock ?? DateTime.now;
 
   static final AppLogFile instance = AppLogFile._();
 
   /// A sink bound to [directory] instead of the environment, so tests exercise
   /// the real write/rotate path without touching the developer's home.
   @visibleForTesting
-  factory AppLogFile.forDirectory(Directory directory) =>
-      AppLogFile._(directoryOverride: directory);
+  factory AppLogFile.forDirectory(
+    Directory directory, {
+    DateTime Function()? clock,
+  }) => AppLogFile._(directoryOverride: directory, clock: clock);
 
   final Directory? _directoryOverride;
+  final DateTime Function() _clock;
+
+  /// How long a failed write pauses the sink before it tries again.
+  static const Duration writeFailurePause = Duration(seconds: 30);
 
   /// Where the sink writes on a platform whose `HOME` is not a writable
   /// developer home. Set once at startup by [bindDirectory].
@@ -42,6 +49,9 @@ class AppLogFile {
 
   bool _disabled = false;
   bool _fileLoggingEnabled = kDebugMode;
+  DateTime? _pausedUntil;
+  int _droppedLines = 0;
+  String? _lastWriteError;
   File? _file;
   DateTime? _fileDate;
 
@@ -80,21 +90,40 @@ class AppLogFile {
   /// person cannot get off the device is only marginally better than none.
   Directory? get currentDirectory => _directory();
 
+  /// A failed write pauses the sink for [writeFailurePause] rather than
+  /// ending it. Session 7171235a lost every line after 10:54:09: one write
+  /// failed at the same moment a SQLite save could not open its journal, the
+  /// sink latched off for the rest of the run, and the evidence that would
+  /// have named the cause was never written. On resuming, the sink records how
+  /// many lines it dropped and the OS error that stopped it.
   void write(String message) {
     if (_disabled || !_fileLoggingEnabled) return;
+    final now = _clock();
+    final pausedUntil = _pausedUntil;
+    if (pausedUntil != null && now.isBefore(pausedUntil)) {
+      _droppedLines++;
+      return;
+    }
     try {
       final redactedMessage = SensitiveDataRedactor.redactText(message);
-      final now = DateTime.now();
       final file = _fileFor(now);
       if (file == null) return;
+      final resumed = _pausedUntil == null
+          ? ''
+          : '${_timestamp(now)} [AppLog] resumed after dropping '
+                '$_droppedLines line(s); write failed with: $_lastWriteError\n';
       file.writeAsStringSync(
-        '${_timestamp(now)} $redactedMessage\n',
+        '$resumed${_timestamp(now)} $redactedMessage\n',
         mode: FileMode.append,
         flush: true,
       );
-    } on Object {
-      // A read-only or missing home directory is not worth retrying per line.
-      _disabled = true;
+      _pausedUntil = null;
+      _droppedLines = 0;
+      _lastWriteError = null;
+    } on Object catch (error) {
+      _droppedLines++;
+      _lastWriteError ??= error.toString();
+      _pausedUntil = now.add(writeFailurePause);
     }
   }
 

@@ -27,7 +27,7 @@ extension ChatNotifierErrorHandling on ChatNotifier {
     required ChatTurnOwner owner,
   }) async {
     appLog('[ChatNotifier] _handleError called');
-    appLog('[ChatNotifier]   raw error: $error');
+    appLog('[ChatNotifier]   raw error: ${ChatErrorText.head(error)}');
     final displayError = ChatErrorMessageBuilder.build(
       error.toString(),
       baseUrl: _settings.baseUrl,

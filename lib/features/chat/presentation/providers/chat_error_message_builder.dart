@@ -1,13 +1,22 @@
 import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../domain/entities/message.dart';
+import 'chat_error_text.dart';
+
+export 'chat_error_text.dart' show ChatErrorText;
 
 /// Converts provider and transport failures into concise user-facing text.
 final class ChatErrorMessageBuilder {
   const ChatErrorMessageBuilder._();
 
   static String build(String rawError, {required String baseUrl}) {
-    final cleanedError = _clean(rawError);
-    final lower = cleanedError.toLowerCase();
+    final cleanedError = ChatErrorText.details(ChatErrorText.clean(rawError));
+    // Classify on the error's own head; match status codes as whole numbers.
+    final lower = ChatErrorText.classified(cleanedError);
+    bool status(int code) => RegExp('\\b$code\\b').hasMatch(lower);
+
+    if (lower.contains('sqliteexception')) {
+      return 'Could not save the conversation to local storage. Check free disk space and file access, then try again.\nDetails: $cleanedError';
+    }
 
     if (cleanedError.contains("Only 'text' content type is supported")) {
       return 'This LLM server does not support image input. Please send text only.\nDetails: $cleanedError';
@@ -22,16 +31,16 @@ final class ChatErrorMessageBuilder {
     if (lower.contains('timed out') || lower.contains('timeout')) {
       return 'LLM request timed out. Please wait and try again.\nDetails: $cleanedError';
     }
-    if (lower.contains('401') || lower.contains('unauthorized')) {
+    if (status(401) || lower.contains('unauthorized')) {
       return 'Authentication failed. Please check your API key.\nDetails: $cleanedError';
     }
-    if (lower.contains('403') || lower.contains('forbidden')) {
+    if (status(403) || lower.contains('forbidden')) {
       return 'Access denied. Please check your API key permissions or server settings.\nDetails: $cleanedError';
     }
-    if (lower.contains('404') || lower.contains('not found')) {
+    if (status(404) || lower.contains('not found')) {
       return 'Endpoint or model not found. Please check your settings.\nDetails: $cleanedError';
     }
-    if (lower.contains('429') || lower.contains('rate limit')) {
+    if (status(429) || lower.contains('rate limit')) {
       return 'Too many requests. Please wait a moment and try again.\nDetails: $cleanedError';
     }
     if (AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
@@ -44,10 +53,10 @@ final class ChatErrorMessageBuilder {
     )) {
       return 'Apple Foundation Models is not ready on this device. Check Apple Intelligence, model readiness, device eligibility, and OS support, or switch to an OpenAI-compatible provider.\nDetails: $cleanedError';
     }
-    if (lower.contains('500') ||
-        lower.contains('502') ||
-        lower.contains('503') ||
-        lower.contains('504') ||
+    if (status(500) ||
+        status(502) ||
+        status(503) ||
+        status(504) ||
         lower.contains('server error') ||
         lower.contains('internal server error')) {
       return 'An error occurred on the LLM server. Please check the server logs.\nDetails: $cleanedError';
@@ -59,22 +68,6 @@ final class ChatErrorMessageBuilder {
       return 'Could not parse the response from the LLM server.\nDetails: $cleanedError';
     }
     return cleanedError;
-  }
-
-  static String _clean(String rawError) {
-    var cleaned = rawError.trim();
-    const prefixes = [
-      'Exception: ',
-      'Bad state: ',
-      'ClientException: ',
-      'Invalid argument(s): ',
-    ];
-    for (final prefix in prefixes) {
-      if (cleaned.startsWith(prefix)) {
-        cleaned = cleaned.substring(prefix.length);
-      }
-    }
-    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }
 

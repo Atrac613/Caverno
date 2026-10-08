@@ -18,6 +18,36 @@ void main() {
   List<File> logFiles(Directory directory) =>
       directory.listSync().whereType<File>().toList();
 
+  test('a failed write pauses the sink, then resumes and says why', () {
+    // Session 7171235a: one failed write latched the sink off for the rest
+    // of the run, so the cause of a concurrent SQLite failure was never
+    // recorded.
+    var now = DateTime(2026, 10, 8, 10, 54, 9);
+    final logDir = Directory('${tempDir.path}/logs')..createSync();
+    final sink = AppLogFile.forDirectory(logDir, clock: () => now)
+      ..write('before');
+    logDir.deleteSync(recursive: true);
+
+    sink.write('fails');
+    now = now.add(const Duration(seconds: 5));
+    sink.write('dropped while paused');
+    logDir.createSync();
+    sink.write('still paused');
+    now = now.add(AppLogFile.writeFailurePause);
+    sink.write('after');
+
+    final lines = logFiles(logDir).single.readAsLinesSync();
+    expect(lines, hasLength(2));
+    expect(
+      lines.first,
+      allOf(
+        contains('[AppLog] resumed after dropping 3 line(s)'),
+        contains('PathNotFoundException'),
+      ),
+    );
+    expect(lines.last, endsWith(' after'));
+  });
+
   test('writes one timestamped line per message', () {
     final sink = AppLogFile.forDirectory(tempDir)
       ..write('[ChatNotifier] Waiting for pending tool executions: 2')
@@ -148,10 +178,7 @@ private-key-material
       ..write('resumed');
 
     expect(logFiles(tempDir), hasLength(1));
-    expect(
-      logFiles(tempDir).single.readAsStringSync(),
-      contains('resumed'),
-    );
+    expect(logFiles(tempDir).single.readAsStringSync(), contains('resumed'));
   });
 
   test('a bound directory is where the sink writes', () {
