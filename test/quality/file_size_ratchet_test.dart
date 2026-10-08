@@ -71,7 +71,10 @@ const Map<String, int> _lineBudgets = {
   // Request preparation moved to the existing prompt context part.
   // -534, to 7,937: the ceiling had drifted 534 lines above the file, so
   // extractions stopped lowering it. Pinned to the measured size 2026-10-08.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7937,
+  // -57, to 7,880: the duplicate inspection and duplicate follow-up recoveries
+  // were the same hundred lines twice; one request helper serves both, and
+  // their wording lives in DuplicateRecoveryKind.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7880,
   'lib/features/chat/domain/services/anabasis/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the

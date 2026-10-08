@@ -40,6 +40,7 @@ import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/runtime/background_wait_iteration_refund.dart';
 import '../../application/runtime/duplicate_command_answer_policy.dart';
+import '../../application/runtime/duplicate_recovery_kind.dart';
 import '../../application/runtime/goal_completion_boundary_coordinator.dart';
 import '../../application/runtime/productive_turn_budget_extension.dart';
 import '../../application/runtime/read_only_command_repeat_budget.dart';
@@ -4621,6 +4622,86 @@ class ChatNotifier extends Notifier<ChatState> {
   );
 
   /// Executes bounded tool calls and resends results for model compatibility.
+
+  /// Asks the model once to recover from a batch whose every call repeated an
+  /// earlier one, offering only the tools that batch named.
+  ///
+  /// Returns null when the turn ended or moved on while waiting, in which case
+  /// the caller must stop. Without a tool service the turn finishes tool-free.
+  Future<ChatCompletionResult?> _requestDuplicateRecovery(
+    DuplicateRecoveryKind kind, {
+    required ChatTurnOwner turnOwner,
+    required int interactionGeneration,
+    required List<ToolCallInfo> toolCalls,
+    required List<ToolResultInfo> recoveredToolResults,
+    required List<ToolResultInfo> executedToolResults,
+    required String? assistantContent,
+    required List<Map<String, dynamic>> Function(McpToolService)
+    selectedDefinitionsFor,
+  }) async {
+    appLog('[Tool] ${kind.detectedLog}, requesting bounded recovery');
+    _appendToLastMessageForGeneration(interactionGeneration, '<think>');
+    final mcpToolService = _mcpToolService;
+    if (mcpToolService == null) {
+      _turnToolResults.setCompleted(turnOwner, executedToolResults);
+      await _sendWithoutTools(interactionGeneration: interactionGeneration);
+      return null;
+    }
+    final tools = const DuplicateRecoveryPromptBuilder().buildToolDefinitions(
+      selectedDefinitionsFor(mcpToolService),
+      toolCalls: toolCalls,
+    );
+    List<Message> buildRecoveryMessages(bool forceCompaction) {
+      final messages = _prepareMessagesForLLM(
+        forceCompaction: forceCompaction,
+        toolDefinitionsOverride: tools,
+        interactionGeneration: interactionGeneration,
+      );
+      final hasSavedTask = _hasSavedTaskForGeneration(interactionGeneration);
+      final readOnlyReview = _isCodeReview(interactionGeneration);
+      messages.add(
+        Message(
+          id: '${kind.messageIdPrefix}_${DateTime.now().millisecondsSinceEpoch}',
+          isSynthesizedPrompt: true,
+          role: MessageRole.user,
+          content: switch (kind) {
+            DuplicateRecoveryKind.inspection =>
+              _buildDuplicateInspectionRecoveryPrompt(
+                toolCalls,
+                previousToolResults: recoveredToolResults,
+                hasSavedTask: hasSavedTask,
+                readOnlyReview: readOnlyReview,
+              ),
+            DuplicateRecoveryKind.followUp =>
+              _buildDuplicateFollowUpRecoveryPrompt(
+                toolCalls,
+                previousToolResults: recoveredToolResults,
+                hasSavedTask: hasSavedTask,
+                readOnlyReview: readOnlyReview,
+              ),
+          },
+          timestamp: DateTime.now(),
+        ),
+      );
+      return messages;
+    }
+
+    final recoveryResult = await _createToolResultCompletionWithContextRetry(
+      logLabel: kind.logLabel,
+      interactionGeneration: interactionGeneration,
+      buildMessages: buildRecoveryMessages,
+      toolResults: _readResultCarryFor(interactionGeneration).resolve(
+        batchToolResults: recoveredToolResults,
+        executedToolResults: executedToolResults,
+      ),
+      assistantContent: assistantContent,
+      tools: tools,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return null;
+    if (!ref.mounted) return null;
+    _removeTrailingThinkTagForGeneration(interactionGeneration);
+    return recoveryResult;
+  }
   Future<void> _executeToolCalls(
     List<ToolCallInfo> toolCalls, {
     String? assistantContent,
@@ -4814,172 +4895,34 @@ class ChatNotifier extends Notifier<ChatState> {
             deliverRecoveredAnswer(duplicateCommandAnswer);
             break;
           }
+          final DuplicateRecoveryKind? recoveryKind;
           if (!attemptedDuplicateInspectionRecovery &&
               _containsOnlyReadOnlyInspectionToolCalls(currentToolCalls) &&
               recovered.isNotEmpty) {
             attemptedDuplicateInspectionRecovery = true;
-            appLog(
-              '[Tool] Duplicate read-only follow-up tool calls detected, requesting bounded recovery',
-            );
-            _appendToLastMessageForGeneration(interactionGeneration, '<think>');
-            final mcpToolService = _mcpToolService;
-            if (mcpToolService == null) {
-              _turnToolResults.setCompleted(turnOwner, executedToolResults);
-              await _sendWithoutTools(
-                interactionGeneration: interactionGeneration,
-              );
-              return;
-            }
-            final tools = const DuplicateRecoveryPromptBuilder()
-                .buildToolDefinitions(
-                  selectedDefinitionsFor(mcpToolService),
-                  toolCalls: currentToolCalls,
-                );
-            List<Message> buildRecoveryMessages(bool forceCompaction) {
-              final messages = _prepareMessagesForLLM(
-                forceCompaction: forceCompaction,
-                toolDefinitionsOverride: tools,
-                interactionGeneration: interactionGeneration,
-              );
-              messages.add(
-                Message(
-                  id: 'tool_recovery_${DateTime.now().millisecondsSinceEpoch}',
-                  isSynthesizedPrompt: true,
-                  role: MessageRole.user,
-                  content: _buildDuplicateInspectionRecoveryPrompt(
-                    currentToolCalls,
-                    previousToolResults: recovered,
-                    hasSavedTask: _hasSavedTaskForGeneration(
-                      interactionGeneration,
-                    ),
-                    readOnlyReview: _isCodeReview(interactionGeneration),
-                  ),
-                  timestamp: DateTime.now(),
-                ),
-              );
-              return messages;
-            }
-
-            final recoveryResult =
-                await _createToolResultCompletionWithContextRetry(
-                  logLabel: 'duplicate inspection recovery',
-                  interactionGeneration: interactionGeneration,
-                  buildMessages: buildRecoveryMessages,
-                  toolResults: _readResultCarryFor(interactionGeneration)
-                      .resolve(
-                        batchToolResults: recovered,
-                        executedToolResults: executedToolResults,
-                      ),
-                  assistantContent: currentAssistantContent,
-                  tools: tools,
-                );
-            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-              return;
-            }
-            if (!ref.mounted) return;
-            _removeTrailingThinkTagForGeneration(interactionGeneration);
-            if (recoveryResult.hasToolCalls) {
-              appLog(
-                '[Tool] Duplicate inspection recovery requested additional tool calls',
-              );
-              currentToolCalls = recoveryResult.toolCalls!;
-              _recordHiddenEvidence(turnOwner, recoveryResult.content);
-              if (recoveryResult.content.isNotEmpty) {
-                currentAssistantContent = recoveryResult.content;
-              }
-              continue;
-            }
-            appLog(
-              '[Tool] Duplicate inspection recovery returned final text response',
-            );
-            currentToolCalls = [];
-            final fallbackResponse = recoveryResult.content.trim();
-            _recordHiddenEvidence(turnOwner, fallbackResponse);
-            if (_terminalToolResponsePolicy
-                .shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
-              _appendRecoveredAssistantResponse(
-                fallbackResponse,
-                interactionGeneration: interactionGeneration,
-              );
-              currentAssistantContent = fallbackResponse;
-              hasTextResponse = true;
-              break;
-            }
-            if (duplicateCommandAnswer != null) {
-              deliverRecoveredAnswer(
-                const DuplicateCommandAnswerPolicy().afterRecovery(
-                  recoveryText: fallbackResponse,
-                  previousAnswer: duplicateCommandAnswer,
-                ),
-              );
-            }
-            break;
-          }
-          if (!attemptedDuplicateFollowUpRecovery && recovered.isNotEmpty) {
+            recoveryKind = DuplicateRecoveryKind.inspection;
+          } else if (!attemptedDuplicateFollowUpRecovery &&
+              recovered.isNotEmpty) {
             attemptedDuplicateFollowUpRecovery = true;
-            appLog(
-              '[Tool] Duplicate follow-up tool calls detected, requesting bounded recovery',
+            recoveryKind = DuplicateRecoveryKind.followUp;
+          } else {
+            recoveryKind = null;
+          }
+          if (recoveryKind != null) {
+            final recoveryResult = await _requestDuplicateRecovery(
+              recoveryKind,
+              turnOwner: turnOwner,
+              interactionGeneration: interactionGeneration,
+              toolCalls: currentToolCalls,
+              recoveredToolResults: recovered,
+              executedToolResults: executedToolResults,
+              assistantContent: currentAssistantContent,
+              selectedDefinitionsFor: selectedDefinitionsFor,
             );
-            _appendToLastMessageForGeneration(interactionGeneration, '<think>');
-            final mcpToolService = _mcpToolService;
-            if (mcpToolService == null) {
-              _turnToolResults.setCompleted(turnOwner, executedToolResults);
-              await _sendWithoutTools(
-                interactionGeneration: interactionGeneration,
-              );
-              return;
-            }
-            final tools = const DuplicateRecoveryPromptBuilder()
-                .buildToolDefinitions(
-                  selectedDefinitionsFor(mcpToolService),
-                  toolCalls: currentToolCalls,
-                );
-            List<Message> buildRecoveryMessages(bool forceCompaction) {
-              final messages = _prepareMessagesForLLM(
-                forceCompaction: forceCompaction,
-                toolDefinitionsOverride: tools,
-                interactionGeneration: interactionGeneration,
-              );
-              messages.add(
-                Message(
-                  id: 'tool_followup_recovery_${DateTime.now().millisecondsSinceEpoch}',
-                  isSynthesizedPrompt: true,
-                  role: MessageRole.user,
-                  content: _buildDuplicateFollowUpRecoveryPrompt(
-                    currentToolCalls,
-                    previousToolResults: recovered,
-                    hasSavedTask: _hasSavedTaskForGeneration(
-                      interactionGeneration,
-                    ),
-                    readOnlyReview: _isCodeReview(interactionGeneration),
-                  ),
-                  timestamp: DateTime.now(),
-                ),
-              );
-              return messages;
-            }
-
-            final recoveryResult =
-                await _createToolResultCompletionWithContextRetry(
-                  logLabel: 'duplicate follow-up recovery',
-                  interactionGeneration: interactionGeneration,
-                  buildMessages: buildRecoveryMessages,
-                  toolResults: _readResultCarryFor(interactionGeneration)
-                      .resolve(
-                        batchToolResults: recovered,
-                        executedToolResults: executedToolResults,
-                      ),
-                  assistantContent: currentAssistantContent,
-                  tools: tools,
-                );
-            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-              return;
-            }
-            if (!ref.mounted) return;
-            _removeTrailingThinkTagForGeneration(interactionGeneration);
+            if (recoveryResult == null) return;
             if (recoveryResult.hasToolCalls) {
               appLog(
-                '[Tool] Duplicate follow-up recovery requested additional tool calls',
+                '[Tool] ${recoveryKind.label} recovery requested additional tool calls',
               );
               currentToolCalls = recoveryResult.toolCalls!;
               _recordHiddenEvidence(turnOwner, recoveryResult.content);
@@ -4989,7 +4932,7 @@ class ChatNotifier extends Notifier<ChatState> {
               continue;
             }
             appLog(
-              '[Tool] Duplicate follow-up recovery returned final text response',
+              '[Tool] ${recoveryKind.label} recovery returned final text response',
             );
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
