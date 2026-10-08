@@ -551,6 +551,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _turnRuntimeComposition = _buildTurnRuntimeComposition(
       ref.read(conversationsNotifierProvider.notifier),
     );
+    _promptTokenBudget.attach(ref);
     ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
       _updateConnectionSettings(next);
     });
@@ -3695,9 +3696,7 @@ class ChatNotifier extends Notifier<ChatState> {
         protectedPaths: protectedPaths,
         interactionGeneration: interactionGeneration,
       );
-      if (!ConversationCompactionService.isContextLengthError(
-            error.toString(),
-          ) ||
+      if (!_promptTokenBudget.recordLengthFailure(retryOwner, error) ||
           (!hasCompactableHistory && !hasToolResultBudget)) {
         rethrow;
       }

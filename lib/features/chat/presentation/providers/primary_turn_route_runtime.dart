@@ -1,6 +1,7 @@
 import '../../../../core/types/assistant_mode.dart';
 import '../../../project_farm/application/project_task_commit_turn_evidence.dart';
 import '../../../project_farm/domain/entities/project_task_commit_scope.dart';
+import '../../../settings/data/published_model_context_windows.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/domain/services/mesh_endpoint_router.dart';
@@ -9,6 +10,7 @@ import '../../../settings/presentation/providers/local_model_lifecycle_provider.
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/primary_route_chat_datasource.dart';
+import '../../domain/entities/context_window_observation.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/primary_model_router.dart';
 import '../../domain/services/project_task_review_verdict.dart';
@@ -156,6 +158,31 @@ final class PrimaryTurnRouteRuntime {
           baseUrl: baseUrl(generation, settings),
           model: model(generation, settings),
         );
+
+  /// The routed model's usable context window: its probed profile, then its
+  /// published window, or null when neither is known.
+  int? window(int generation, AppSettings settings) => usableWindow(
+    capabilityProfile(generation, settings),
+    model(generation, settings),
+  );
+
+  /// The routed endpoint-and-model key with its usable window, the unit the
+  /// prompt budget learns a context window for.
+  ({String key, int? window}) contextRoute(
+    int generation,
+    AppSettings settings,
+  ) => (
+    key: ContextWindowObservation.keyFor(
+      baseUrl: baseUrl(generation, settings),
+      model: model(generation, settings),
+    ),
+    window: window(generation, settings),
+  );
+
+  static int? usableWindow(ModelCapabilityProfile? profile, String model) {
+    final probed = profile?.usableContextTokens ?? 0;
+    return probed > 0 ? probed : PublishedModelContextWindows.lookup(model);
+  }
 
   ModelHarnessConfig? harnessConfig(int? generation, AppSettings settings) =>
       generation == null

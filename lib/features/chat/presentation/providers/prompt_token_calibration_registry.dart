@@ -31,6 +31,10 @@ final class PromptTokenCalibrationRegistry {
     _pendingEstimates[owner] = estimatedPromptTokens;
   }
 
+  /// The estimate still waiting for [owner]'s measurement: the size of a
+  /// prompt the endpoint has not answered, as when it rejected it for length.
+  int? pendingEstimate(ChatTurnOwner owner) => _pendingEstimates[owner];
+
   /// Completes the pair with the prompt size the endpoint reported.
   ///
   /// The largest measured shortfall for the conversation wins. A turn ends on
@@ -50,7 +54,8 @@ final class PromptTokenCalibrationRegistry {
       estimatedPromptTokens: estimated,
     );
     final current = _byConversation[owner.conversationId];
-    if (current != null && current.uncountedTokens >= candidate.uncountedTokens) {
+    if (current != null &&
+        current.uncountedTokens >= candidate.uncountedTokens) {
       return;
     }
     _byConversation[owner.conversationId] = candidate;

@@ -1,11 +1,14 @@
 import 'package:caverno/core/constants/api_constants.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/data/repositories/context_window_observation_store.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_compaction_service.dart';
+import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
 import 'package:caverno/features/chat/presentation/providers/prompt_token_budget_coordinator.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   AppSettings settingsWithWindow(int usableContextTokens) {
@@ -87,40 +90,43 @@ void main() {
     expect(budget.calibration.uncountedTokens, greaterThan(8000));
   });
 
-  test('a measured thread compacts on the projection, not the message count',
-      () {
-    final settings = settingsWithWindow(32768);
+  test(
+    'a measured thread compacts on the projection, not the message count',
+    () {
+      final settings = settingsWithWindow(32768);
 
-    expect(
-      coordinator
-          .budgetFor(settings, 'thread-a')
-          .resolveArtifact(conversation: null, messages: buildMessages(16)),
-      isNotNull,
-      reason: 'without a measurement the message-count rule still decides',
-    );
+      expect(
+        coordinator
+            .budgetFor(settings, 'thread-a')
+            .resolveArtifact(conversation: null, messages: buildMessages(16)),
+        isNotNull,
+        reason: 'without a measurement the message-count rule still decides',
+      );
 
-    coordinator.recordEstimate(turn, buildMessages(4));
-    coordinator.recordMeasurement(
-      turn,
-      ChatCompletionResult(
-        content: '',
-        finishReason: 'stop',
-        usage: const TokenUsage(
-          promptTokens: 900,
-          completionTokens: 10,
-          totalTokens: 910,
+      coordinator.recordEstimate(turn, buildMessages(4));
+      coordinator.recordMeasurement(
+        turn,
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'stop',
+          usage: const TokenUsage(
+            promptTokens: 900,
+            completionTokens: 10,
+            totalTokens: 910,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(
-      coordinator
-          .budgetFor(settings, 'thread-a')
-          .resolveArtifact(conversation: null, messages: buildMessages(16)),
-      isNull,
-      reason: 'a measured prompt this far inside the window keeps its history',
-    );
-  });
+      expect(
+        coordinator
+            .budgetFor(settings, 'thread-a')
+            .resolveArtifact(conversation: null, messages: buildMessages(16)),
+        isNull,
+        reason:
+            'a measured prompt this far inside the window keeps its history',
+      );
+    },
+  );
 
   test('clearConversation drops the thread measurement', () {
     coordinator.recordEstimate(turn, buildMessages(4));
@@ -146,5 +152,140 @@ void main() {
           .hasMeasurement,
       isFalse,
     );
+  });
+
+  group('a routed turn', () {
+    // Session 0372d7fb: the review route ran on another endpoint, but its
+    // prompt was budgeted against the primary model's 65,536-token window.
+    ModelCapabilityProfile routeProfile(int usableContextTokens) =>
+        ModelCapabilityProfile(
+          id: 'review',
+          provider: AppSettings.defaults().llmProvider,
+          baseUrl: 'https://api.example.com/v1',
+          model: 'review-model',
+          usableContextTokens: usableContextTokens,
+        );
+
+    test('resolves the probed window, then the published one', () {
+      expect(
+        PrimaryTurnRouteRuntime.usableWindow(routeProfile(400000), 'x'),
+        400000,
+      );
+      expect(
+        PrimaryTurnRouteRuntime.usableWindow(routeProfile(0), 'gpt-5.6-luna'),
+        1050000,
+      );
+      expect(PrimaryTurnRouteRuntime.usableWindow(null, 'unlisted'), isNull);
+    });
+
+    test('budgets by the route window, else the primary window', () {
+      final primary = coordinator
+          .budgetFor(settingsWithWindow(65536), 'thread-a')
+          .budgetTokens;
+      expect(
+        coordinator
+            .budgetFor(
+              settingsWithWindow(65536),
+              'thread-a',
+              route: (key: 'review', window: 400000),
+            )
+            .budgetTokens,
+        greaterThan(primary),
+      );
+      for (final unknown in [null, 0]) {
+        expect(
+          coordinator
+              .budgetFor(
+                settingsWithWindow(65536),
+                'thread-a',
+                route: (key: 'review', window: unknown),
+              )
+              .budgetTokens,
+          primary,
+        );
+      }
+    });
+  });
+
+  group('context window observations', () {
+    late ContextWindowObservationStore store;
+    const route = (
+      key: 'https://api.example.com/v1|review-model',
+      window: null,
+    );
+    ChatCompletionResult completed(int promptTokens) => ChatCompletionResult(
+      content: '',
+      finishReason: 'stop',
+      usage: TokenUsage(
+        promptTokens: promptTokens,
+        completionTokens: 1,
+        totalTokens: promptTokens + 1,
+      ),
+    );
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      store = ContextWindowObservationStore(
+        await SharedPreferences.getInstance(),
+      );
+      coordinator.observeWith(store);
+    });
+
+    test('an accepted prompt proves the route window floor', () async {
+      coordinator.budgetFor(
+        settingsWithWindow(65536),
+        'thread-a',
+        route: route,
+      );
+      coordinator.recordEstimate(turn, buildMessages(4));
+      coordinator.recordMeasurement(turn, completed(27575));
+      expect(store.read(route.key)!.provenPromptTokens, 27575);
+
+      // Persisted, and readable by a fresh store.
+      final reloaded = ContextWindowObservationStore(
+        await SharedPreferences.getInstance(),
+      );
+      expect(reloaded.read(route.key)!.provenPromptTokens, 27575);
+    });
+
+    test('a length rejection records the rejected size and named limit', () {
+      coordinator.budgetFor(
+        settingsWithWindow(65536),
+        'thread-a',
+        route: route,
+      );
+      coordinator.recordEstimate(turn, buildMessages(4));
+      final rejected = coordinator.recordLengthFailure(
+        turn,
+        Exception(
+          "This model's maximum context length is 128000 tokens. However, "
+          'your messages resulted in 130512 tokens.',
+        ),
+      );
+      expect(rejected, isTrue);
+      final observed = store.read(route.key)!;
+      expect(observed.reportedLimitTokens, 128000);
+      expect(observed.failedPromptTokens, greaterThan(0));
+    });
+
+    test('other errors are not length failures and record nothing', () {
+      coordinator.budgetFor(
+        settingsWithWindow(65536),
+        'thread-a',
+        route: route,
+      );
+      expect(
+        coordinator.recordLengthFailure(turn, Exception('connection reset')),
+        isFalse,
+      );
+      expect(store.read(route.key), isNull);
+    });
+
+    test('a turn without a route records nothing', () {
+      coordinator.budgetFor(settingsWithWindow(65536), 'thread-a');
+      coordinator.recordEstimate(turn, buildMessages(4));
+      coordinator.recordMeasurement(turn, completed(27575));
+      expect(store.read(route.key), isNull);
+    });
   });
 }

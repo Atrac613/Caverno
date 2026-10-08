@@ -79,6 +79,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
     final promptBudget = _promptTokenBudget.budgetFor(
       _settings,
       ownerSnapshot.owner.conversationId,
+      route: _primaryRoutes.contextRoute(interactionGeneration, _settings),
     );
     final compactionArtifact = promptBudget.resolveArtifact(
       conversation: _hasCommitScope(interactionGeneration)
