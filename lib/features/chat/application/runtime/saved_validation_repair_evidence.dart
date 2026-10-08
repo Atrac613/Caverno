@@ -1,7 +1,7 @@
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/coding_command_output_guardrail_service.dart';
+import '../../domain/services/coding/coding_command_output_guardrail_service.dart';
 import '../../domain/services/plan/proposal_parsing_text_utils.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 

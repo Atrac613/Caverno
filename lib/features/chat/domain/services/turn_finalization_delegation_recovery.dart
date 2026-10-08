@@ -1,5 +1,5 @@
 import '../entities/tool_call_info.dart';
-import 'coding_continuation_recovery_policy.dart';
+import 'coding/coding_continuation_recovery_policy.dart';
 import 'tool_definition_search_service.dart';
 
 /// Selects the parent's delegation recovery without widening other turns.

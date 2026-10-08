@@ -141,14 +141,14 @@ const Map<String, int> _lineBudgets = {
   // -21, to 402: the input class moved to coding_continuation_recovery_input
   // .dart, and the per-code wording became one table, which paid for the
   // reasoning-only stop decision moving in from the notifier library.
-  'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
+  'lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart':
       402,
-  'lib/features/chat/domain/services/coding_continuation_recovery_prompt_builder.dart':
+  'lib/features/chat/domain/services/coding/coding_continuation_recovery_prompt_builder.dart':
       78,
-  'lib/features/chat/domain/services/incomplete_coding_work_detector.dart': 30,
-  'lib/features/chat/domain/services/coding_future_action_detector.dart': 100,
+  'lib/features/chat/domain/services/coding/incomplete_coding_work_detector.dart': 30,
+  'lib/features/chat/domain/services/coding/coding_future_action_detector.dart': 100,
   'lib/features/chat/domain/services/project_task_completion_evidence.dart': 45,
-  'lib/features/chat/domain/services/structured_coding_task_recovery_policy.dart':
+  'lib/features/chat/domain/services/coding/structured_coding_task_recovery_policy.dart':
       29,
   'lib/features/chat/domain/services/tool_outcome_snapshot.dart': 23,
   // -4, to 87: the status request's tools, prompt and call acceptance moved
@@ -283,7 +283,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/local_command/local_command_tool_handler.dart': 378,
   'lib/features/chat/domain/services/turn_finalization_recovery_policy.dart':
       268,
-  'lib/features/chat/domain/services/coding_verification_mutation_signature.dart':
+  'lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart':
       64,
   'lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart':
       283,
@@ -462,7 +462,7 @@ const Map<String, int> _lineBudgets = {
       211,
   'lib/features/chat/domain/services/file_mutation_evidence_policy.dart': 65,
   'lib/features/chat/domain/services/python/python_attachment_repair_policy.dart': 145,
-  'lib/features/chat/domain/services/coding_verification_feedback_presentation.dart':
+  'lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart':
       206,
   // Reuse-payload construction extracted: matching a duplicate and deciding
   // what to echo back for it are separate jobs.
@@ -781,11 +781,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/plan/workflow_task_turn_route_policy.dart': 43,
   'lib/features/chat/domain/services/plan/workflow_tool_result_failure_detector.dart':
       54,
-  'lib/features/chat/domain/services/coding_command_output_guardrail_service.dart':
+  'lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart':
       161,
-  'lib/features/chat/domain/services/coding_command_output_issue_detector.dart':
+  'lib/features/chat/domain/services/coding/coding_command_output_issue_detector.dart':
       298,
-  'lib/features/chat/domain/services/coding_command_preflight_issue_detector.dart':
+  'lib/features/chat/domain/services/coding/coding_command_preflight_issue_detector.dart':
       356,
   'lib/features/chat/presentation/widgets/slash_command_help_sheet.dart': 42,
   'lib/features/chat/presentation/widgets/chat_page_scaffold.dart': 87,

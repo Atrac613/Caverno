@@ -25,12 +25,12 @@ import 'package:path/path.dart' as p;
 /// not inspect prose.
 const _advisoryOnlyGuards = <String>[
   'lib/features/chat/domain/services/analysis_options_lint_edit_guard.dart',
-  'lib/features/chat/domain/services/coding_command_output_guardrail_service.dart',
-  'lib/features/chat/domain/services/coding_verification_claim_guard.dart',
+  'lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart',
+  'lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart',
   'lib/features/chat/domain/services/conversation_execution_progress_inference.dart',
   'lib/features/chat/domain/services/final_answer_claim_detector.dart',
   'lib/features/chat/domain/services/narrated_transcript_claim_guard.dart',
-  'lib/features/chat/domain/services/structured_coding_execution_deferral_detector.dart',
+  'lib/features/chat/domain/services/coding/structured_coding_execution_deferral_detector.dart',
   'lib/features/chat/domain/services/unwritten_file_claim_guard.dart',
   'lib/features/chat/domain/services/plan/workflow_tool_result_failure_detector.dart',
 ];

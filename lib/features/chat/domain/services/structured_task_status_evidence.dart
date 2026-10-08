@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
-import 'coding_command_output_issue_detector.dart';
+import 'coding/coding_command_output_issue_detector.dart';
 import 'file_mutation_evidence_policy.dart';
 import 'local_command/shell_exit_status_report.dart';
 import 'python/compound_python_runtime_repair.dart';

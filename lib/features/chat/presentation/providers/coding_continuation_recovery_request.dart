@@ -1,9 +1,9 @@
 import '../../data/datasources/chat_datasource.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/coding_continuation_recovery_policy.dart';
-import '../../domain/services/coding_recovery_message.dart';
-import '../../domain/services/coding_recovery_protocol.dart';
+import '../../domain/services/coding/coding_continuation_recovery_policy.dart';
+import '../../domain/services/coding/coding_recovery_message.dart';
+import '../../domain/services/coding/coding_recovery_protocol.dart';
 import '../../domain/services/project_verification_repair_policy.dart';
 import '../../domain/services/reasoning_only_stop.dart';
 import '../../domain/services/structured_task_status_evidence.dart';

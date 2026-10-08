@@ -254,13 +254,13 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart::CodingContinuationRecoveryPolicy",
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "id": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart::CodingContinuationRecoveryPolicy",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "symbol": "CodingContinuationRecoveryPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:38",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart:38",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:115",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:120",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:125",
@@ -270,7 +270,7 @@
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:85"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:38 -> CodingContinuationRecoveryPolicy",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart:38 -> CodingContinuationRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:115 -> CodingContinuationRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:120 -> CodingContinuationRecoveryPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_coding_continuation_recovery.dart:125 -> CodingContinuationRecoveryPolicy",
@@ -288,19 +288,19 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/coding_verification_claim_guard.dart::CodingVerificationClaimGuard",
-      "path": "lib/features/chat/domain/services/coding_verification_claim_guard.dart",
+      "id": "lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart::CodingVerificationClaimGuard",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart",
       "symbol": "CodingVerificationClaimGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/coding_verification_claim_guard.dart:53",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart:53",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:55",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:56",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:70"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/coding_verification_claim_guard.dart:53 -> CodingVerificationClaimGuard",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_verification_claim_guard.dart:53 -> CodingVerificationClaimGuard",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:55 -> CodingVerificationClaimGuard",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:56 -> CodingVerificationClaimGuard",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_notice_applicator.dart:70 -> CodingVerificationClaimGuard"
@@ -505,7 +505,7 @@
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/coding_verification_mutation_signature.dart:34",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart:34",
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32",
@@ -519,7 +519,7 @@
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:343"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/coding_verification_mutation_signature.dart:34 -> FileMutationEvidencePolicy",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart:34 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/file_mutation_evidence_policy.dart:7 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:15 -> FileMutationEvidencePolicy",
         "lexical reference at lib/features/chat/domain/services/git/git_tool_handler.dart:32 -> FileMutationEvidencePolicy",
@@ -1021,7 +1021,7 @@
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:40",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart:40",
         "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13",
@@ -1052,7 +1052,7 @@
         "lexical reference at lib/features/chat/presentation/providers/tool_dedupe_keys.dart:9"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/coding_continuation_recovery_policy.dart:40 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart:40 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/duplicate_tool_result_recovery.dart:73 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:10 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/final_answer_claim_detector.dart:13 -> ToolCallExecutionPolicy",

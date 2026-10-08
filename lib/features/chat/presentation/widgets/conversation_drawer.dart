@@ -21,7 +21,7 @@ import '../../data/repositories/conversation_repository_api.dart';
 import '../../data/repositories/semantic_search_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
-import '../../domain/services/coding_project_ordering.dart';
+import '../../domain/services/coding/coding_project_ordering.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';

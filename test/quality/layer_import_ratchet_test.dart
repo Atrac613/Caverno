@@ -27,7 +27,7 @@ const Set<String> _reviewedEdges = <String>{
   'lib/features/chat/data/repositories/worktree_agent_task_repository.dart -> lib/features/settings/presentation/providers/settings_notifier.dart',
   'lib/features/chat/domain/services/local_command/background_process_tool_handler.dart -> lib/features/chat/data/datasources/local_shell_tools.dart',
   'lib/features/chat/domain/services/changed_file_evidence.dart -> lib/features/chat/data/datasources/filesystem_tools.dart',
-  'lib/features/chat/domain/services/coding_verification_mutation_signature.dart -> lib/features/chat/data/datasources/filesystem_path_resolver.dart',
+  'lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart -> lib/features/chat/data/datasources/filesystem_path_resolver.dart',
   'lib/features/chat/domain/services/duplicate_tool_result_recovery.dart -> lib/features/chat/data/datasources/filesystem_path_resolver.dart',
   'lib/features/chat/domain/services/feedback_submission_service.dart -> lib/features/chat/data/datasources/llm_session_log_store.dart',
   'lib/features/chat/domain/services/file_mutation_tool_handler.dart -> lib/features/chat/data/datasources/project_mutation_path_fence.dart',

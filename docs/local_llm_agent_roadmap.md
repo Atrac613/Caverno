@@ -2507,7 +2507,7 @@ tool/codex_verify.sh --no-codegen \
   --test test/features/chat/data/datasources/lsp_json_rpc_diagnostic_bridge_test.dart \
   --test test/features/chat/data/datasources/lsp_json_rpc_process_transport_test.dart \
   --test test/features/chat/domain/services/lsp_diagnostic_feedback_provider_test.dart \
-  --test test/features/chat/domain/services/coding_diagnostic_feedback_service_test.dart \
+  --test test/features/chat/domain/services/coding/coding_diagnostic_feedback_service_test.dart \
   --test test/features/chat/domain/services/repo_map_service_test.dart \
   --test test/features/chat/domain/services/repo_map_precompute_cache_test.dart \
   --test test/features/chat/domain/services/repo_map_lsp_symbol_cache_test.dart \

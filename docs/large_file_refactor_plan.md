@@ -27,12 +27,12 @@ completed.
 | `lib/features/chat/domain/services/hidden_assistant_evidence_scorer.dart` | 21 | Pure hidden-assistant lexical evidence scoring |
 | `lib/features/chat/domain/services/duplicate_tool_result_recovery.dart` | 209 | Owner-root-aware duplicate result reuse, fallback filtering, and deduplication |
 | `lib/features/chat/domain/services/tool_terminal_response_policy.dart` | 725 | Terminal response decisions delegated to focused evidence and recovery policies |
-| `lib/features/chat/domain/services/coding_verification_feedback_presentation.dart` | 206 | Stateless verification summaries, signatures, blockers, and telemetry |
-| `lib/features/chat/domain/services/coding_verification_mutation_signature.dart` | 64 | Owner-rooted ordered mutation signatures from immutable tool evidence |
+| `lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart` | 206 | Stateless verification summaries, signatures, blockers, and telemetry |
+| `lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart` | 64 | Owner-rooted ordered mutation signatures from immutable tool evidence |
 | `lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart` | 281 | Immutable embedded-tool diagnostics and final-answer notice decisions |
-| `lib/features/chat/domain/services/coding_command_output_guardrail_service.dart` | 133 | Compatibility facade for command-output and preflight guardrails |
-| `lib/features/chat/domain/services/coding_command_output_issue_detector.dart` | 298 | Command-output issue decoding, ordering, feedback, and signatures |
-| `lib/features/chat/domain/services/coding_command_preflight_issue_detector.dart` | 356 | Masked exit-status and Dart command preflight detection |
+| `lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart` | 133 | Compatibility facade for command-output and preflight guardrails |
+| `lib/features/chat/domain/services/coding/coding_command_output_issue_detector.dart` | 298 | Command-output issue decoding, ordering, feedback, and signatures |
+| `lib/features/chat/domain/services/coding/coding_command_preflight_issue_detector.dart` | 356 | Masked exit-status and Dart command preflight detection |
 | `lib/features/chat/presentation/providers/turn_tool_result_ledger.dart` | 151 | Owner-keyed completed, content, and command evidence |
 | `lib/features/chat/presentation/providers/turn_finalization_state_registry.dart` | 117 | Owner-keyed exit hints, transforms, goal claims, and shadow outcomes |
 | `lib/features/chat/presentation/providers/turn_goal_completion_evidence_registry.dart` | 211 | Owner-keyed goal evidence reconciliation, finalization, and explicit successor seeds |

@@ -40,7 +40,7 @@ import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/entities/worktree_agent_task.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/participant_turn_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart';
 import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_service.dart';

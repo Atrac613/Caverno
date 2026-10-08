@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/coding_continuation_recovery_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_continuation_recovery_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
 import 'package:caverno/features/chat/domain/services/project_task_review_verdict.dart';
 import 'package:caverno/features/chat/domain/services/recent_read_result_carry.dart';

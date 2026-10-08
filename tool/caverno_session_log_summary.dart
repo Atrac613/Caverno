@@ -2,8 +2,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:caverno/features/chat/domain/services/coding_future_action_detector.dart';
-import 'package:caverno/features/chat/domain/services/incomplete_coding_work_detector.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_future_action_detector.dart';
+import 'package:caverno/features/chat/domain/services/coding/incomplete_coding_work_detector.dart';
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 Future<void> main(List<String> args) async {

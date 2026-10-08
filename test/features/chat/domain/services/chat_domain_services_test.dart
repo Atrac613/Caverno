@@ -21,7 +21,7 @@ import 'package:caverno/features/chat/domain/services/anabasis/anabasis_address.
 import 'package:caverno/features/chat/domain/services/anabasis/participant_tool_policy.dart';
 import 'package:caverno/features/chat/domain/services/anabasis/task_delegation_brief_builder.dart';
 import 'package:caverno/features/chat/domain/services/chat_request_prefix_stability_service.dart';
-import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_checkpoint_recorder.dart';
 import 'package:caverno/features/chat/domain/services/conversation_execution_recovery_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_execution_summary_service.dart';

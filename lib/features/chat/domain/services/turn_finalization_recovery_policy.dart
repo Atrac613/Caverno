@@ -1,7 +1,7 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import '../entities/tool_call_info.dart';
-import 'coding_future_action_detector.dart';
+import 'coding/coding_future_action_detector.dart';
 import 'immutable_json_snapshot.dart';
 import 'tool_terminal_success_policy.dart';
 

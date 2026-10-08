@@ -220,7 +220,7 @@ Current state:
 
 ```bash
 dart run build_runner build --delete-conflicting-outputs   # after entity changes
-flutter test test/features/chat/domain/services/coding_verification_feedback_service_test.dart
+flutter test test/features/chat/domain/services/coding/coding_verification_feedback_service_test.dart
 flutter analyze
 git diff --check
 ```

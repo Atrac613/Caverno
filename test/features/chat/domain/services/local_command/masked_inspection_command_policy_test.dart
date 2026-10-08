@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/coding_command_output_issue_detector.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_command_output_issue_detector.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -22,10 +22,10 @@
     "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
     "lib/features/chat/domain/services/browser_tool_handler.dart",
     "lib/features/chat/domain/services/chat_tool_handler_catalog.dart",
-    "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
-    "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
-    "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
-    "lib/features/chat/domain/services/coding_verification_mutation_signature.dart",
+    "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
+    "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
+    "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
+    "lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart",
     "lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart",
     "lib/features/chat/domain/services/computer_use_action_policy.dart",
     "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
@@ -3407,7 +3407,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.buildFeedbackToolResult",
       "signature": "ToolResultInfo? buildFeedbackToolResult({\n    required List<ToolResultInfo> toolResults,\n    DateTime? now,\n  })",
       "turnIdentityParameters": [],
@@ -3430,7 +3430,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.buildPreflightResult",
       "signature": "static McpToolResult? buildPreflightResult({\n    required String toolName,\n    required String command,\n    required String workingDirectory,\n  })",
       "turnIdentityParameters": [],
@@ -3446,7 +3446,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.commandResultReportsOutputIssue",
       "signature": "static bool commandResultReportsOutputIssue(String rawResult)",
       "turnIdentityParameters": [],
@@ -3459,7 +3459,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.detectIssue",
       "signature": "static CodingCommandOutputIssue? detectIssue(ToolResultInfo toolResult)",
       "turnIdentityParameters": [],
@@ -3472,7 +3472,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.detectIssueFromDecodedCommandResult",
       "signature": "static CodingCommandOutputIssue? detectIssueFromDecodedCommandResult({\n    required String toolName,\n    required Map<String, dynamic> decoded,\n    String? fallbackCommand,\n    String? fallbackWorkingDirectory,\n  })",
       "turnIdentityParameters": [],
@@ -3485,7 +3485,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.detectMaskedExitStatusIssue",
       "signature": "static CodingCommandPreflightIssue? detectMaskedExitStatusIssue({\n    required String command,\n    String workingDirectory = '',\n  })",
       "turnIdentityParameters": [],
@@ -3498,7 +3498,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.detectPreflightIssue",
       "signature": "static CodingCommandPreflightIssue? detectPreflightIssue({\n    required String toolName,\n    required String command,\n    required String workingDirectory,\n  })",
       "turnIdentityParameters": [],
@@ -3511,7 +3511,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
       "declaration": "CodingCommandOutputGuardrailService.feedbackSignature",
       "signature": "static String? feedbackSignature(ToolResultInfo feedback)",
       "turnIdentityParameters": [],
@@ -3524,7 +3524,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy._clipForDiagnostic",
       "signature": "String _clipForDiagnostic(String value, {int maxLength = 240})",
       "turnIdentityParameters": [],
@@ -3540,7 +3540,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy._containsAny",
       "signature": "bool _containsAny(String value, List<String> needles)",
       "turnIdentityParameters": [],
@@ -3553,7 +3553,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy._containsAnyCodeUnitSequence",
       "signature": "bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences)",
       "turnIdentityParameters": [],
@@ -3567,7 +3567,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy._containsCodeUnitSequence",
       "signature": "bool _containsCodeUnitSequence(String text, List<int> sequence)",
       "turnIdentityParameters": [],
@@ -3580,7 +3580,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy._toolResultsContainFailedCommandValidation",
       "signature": "bool _toolResultsContainFailedCommandValidation(\n    List<ToolResultInfo> toolResults,\n  )",
       "turnIdentityParameters": [],
@@ -3595,7 +3595,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.buildCodingContinuationRecoveryPrompt",
       "signature": "String buildCodingContinuationRecoveryPrompt(\n    String candidateResponse, {\n    required String recoveryCode,\n    List<ToolResultInfo> executedToolResults = const [],\n  })",
       "turnIdentityParameters": [],
@@ -3611,7 +3611,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.buildCodingContinuationRecoveryToolResult",
       "signature": "ToolResultInfo buildCodingContinuationRecoveryToolResult({\n    required String id,\n    required String candidateResponse,\n    required String recoveryCode,\n  })",
       "turnIdentityParameters": [],
@@ -3629,7 +3629,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.hasCodingContinuationRecoveryTools",
       "signature": "bool hasCodingContinuationRecoveryTools(\n    List<Map<String, dynamic>> toolDefinitions,\n  )",
       "turnIdentityParameters": [],
@@ -3647,7 +3647,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.isCodingContinuationRecoveryToolName",
       "signature": "bool isCodingContinuationRecoveryToolName(String toolName)",
       "turnIdentityParameters": [],
@@ -3662,7 +3662,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.looksLikeContinuationOnlyUserRequest",
       "signature": "bool looksLikeContinuationOnlyUserRequest(String text)",
       "turnIdentityParameters": [],
@@ -3681,7 +3681,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.looksLikeProseOnlyCodingContinuation",
       "signature": "bool looksLikeProseOnlyCodingContinuation(String text)",
       "turnIdentityParameters": [],
@@ -3698,7 +3698,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.recoveryCode",
       "signature": "String? recoveryCode(CodingContinuationRecoveryInput input)",
       "turnIdentityParameters": [],
@@ -3716,7 +3716,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.recoveryError",
       "signature": "String recoveryError(String recoveryCode)",
       "turnIdentityParameters": [],
@@ -3727,7 +3727,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.recoveryLogLabel",
       "signature": "String recoveryLogLabel(String recoveryCode)",
       "turnIdentityParameters": [],
@@ -3738,7 +3738,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.recoveryPartialProgressNotice",
       "signature": "String? recoveryPartialProgressNotice(\n    List<ToolResultInfo> executedToolResults,\n  )",
       "turnIdentityParameters": [],
@@ -3753,7 +3753,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.recoveryPromptLead",
       "signature": "String recoveryPromptLead(String recoveryCode)",
       "turnIdentityParameters": [],
@@ -3764,7 +3764,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.recoveryReason",
       "signature": "String recoveryReason(String recoveryCode)",
       "turnIdentityParameters": [],
@@ -3775,7 +3775,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
       "declaration": "CodingContinuationRecoveryPolicy.recoveryRequiredAction",
       "signature": "String recoveryRequiredAction(String recoveryCode)",
       "turnIdentityParameters": [],
@@ -3786,7 +3786,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation._tryDecodeMap",
       "signature": "static Map<String, dynamic>? _tryDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -3799,7 +3799,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.commandSummary",
       "signature": "static String commandSummary(CodingVerificationSnapshot snapshot)",
       "turnIdentityParameters": [],
@@ -3814,7 +3814,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.convergenceBlocker",
       "signature": "static String convergenceBlocker(\n    ToolResultInfo feedback, {\n    required int maxRepairAttempts,\n  })",
       "turnIdentityParameters": [],
@@ -3834,7 +3834,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.countsSummary",
       "signature": "static String countsSummary(CodingVerificationSnapshot snapshot)",
       "turnIdentityParameters": [],
@@ -3847,7 +3847,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.failureSignature",
       "signature": "static String? failureSignature(ToolResultInfo feedback)",
       "turnIdentityParameters": [],
@@ -3862,7 +3862,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.progressSummary",
       "signature": "static String progressSummary(CodingVerificationSnapshot snapshot)",
       "turnIdentityParameters": [],
@@ -3875,7 +3875,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.shouldVerifyCompletionClaim",
       "signature": "static bool shouldVerifyCompletionClaim(String response)",
       "turnIdentityParameters": [],
@@ -3891,7 +3891,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.telemetrySummary",
       "signature": "static Map<String, Object?>? telemetrySummary(ToolResultInfo feedback)",
       "turnIdentityParameters": [],
@@ -3904,7 +3904,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
       "declaration": "CodingVerificationFeedbackPresentation.validationSummary",
       "signature": "static String validationSummary(CodingVerificationSnapshot snapshot)",
       "turnIdentityParameters": [],
@@ -3922,7 +3922,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_mutation_signature.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart",
       "declaration": "CodingVerificationMutationSignature.compute",
       "signature": "String? compute(CodingVerificationMutationSignatureInput input)",
       "turnIdentityParameters": [],
@@ -3942,7 +3942,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/coding_verification_mutation_signature.dart",
+      "path": "lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart",
       "declaration": "CodingVerificationMutationSignatureInput._freezeToolResult",
       "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],

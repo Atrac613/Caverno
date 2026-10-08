@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/coding/structured_coding_task_recovery_policy.dart';
 import 'package:caverno/features/chat/domain/services/project_task_completion_evidence.dart';
 import 'package:caverno/features/chat/domain/services/status_recovery_verification.dart';
-import 'package:caverno/features/chat/domain/services/structured_coding_task_recovery_policy.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';

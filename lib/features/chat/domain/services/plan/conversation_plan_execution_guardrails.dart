@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../entities/conversation_workflow.dart';
 import '../../entities/tool_call_info.dart';
-import '../coding_command_output_guardrail_service.dart';
+import '../coding/coding_command_output_guardrail_service.dart';
 import '../tool_outcome_shadow_comparison.dart';
 
 class ConversationPlanExecutionDriftAssessment {

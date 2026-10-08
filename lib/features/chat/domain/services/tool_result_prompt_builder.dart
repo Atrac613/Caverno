@@ -5,7 +5,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
-import 'coding_command_output_issue_detector.dart';
+import 'coding/coding_command_output_issue_detector.dart';
 import 'command_verification_reconciliation.dart';
 import 'context_surgery_observation_service.dart';
 import 'file_mutation_evidence_policy.dart';

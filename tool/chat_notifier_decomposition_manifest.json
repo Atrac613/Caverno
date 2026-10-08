@@ -156,8 +156,8 @@
       "collaborators": [
         {
           "id": "coding-continuation-recovery-policy",
-          "path": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/coding_continuation_recovery_policy.dart"
+          "path": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart"
         }
       ]
     },
@@ -262,8 +262,8 @@
         },
         {
           "id": "coding-command-output-guardrail-service",
-          "path": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/coding_command_output_guardrail_service.dart"
+          "path": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart"
         },
         {
           "id": "git-tag-format-inspection-guard",
@@ -817,13 +817,13 @@
       "collaborators": [
         {
           "id": "coding-verification-feedback-presentation",
-          "path": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/coding_verification_feedback_presentation.dart"
+          "path": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding/coding_verification_feedback_presentation.dart"
         },
         {
           "id": "coding-verification-mutation-signature",
-          "path": "lib/features/chat/domain/services/coding_verification_mutation_signature.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/coding_verification_mutation_signature.dart"
+          "path": "lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/coding/coding_verification_mutation_signature.dart"
         }
       ]
     },

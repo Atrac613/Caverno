@@ -1,9 +1,9 @@
 import '../entities/conversation_goal.dart';
 import '../entities/tool_call_info.dart';
+import 'coding/structured_coding_task_recovery_policy.dart';
 import 'goal/goal_update_ack.dart';
 import 'project_task_step_completion_policy.dart';
 import 'project_task_terminal_status.dart';
-import 'structured_coding_task_recovery_policy.dart';
 import 'turn_finalization_delegation_recovery.dart';
 import 'turn_finalization_recovery_policy.dart';
 

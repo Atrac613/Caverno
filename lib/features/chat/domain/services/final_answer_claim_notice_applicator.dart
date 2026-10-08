@@ -1,7 +1,7 @@
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 
 import 'blocked_mutation_notice.dart';
-import 'coding_verification_claim_guard.dart';
+import 'coding/coding_verification_claim_guard.dart';
 import 'final_answer_claim_notice_input.dart';
 import 'narrated_transcript_claim_guard.dart';
 import 'unwritten_file_claim_guard.dart';

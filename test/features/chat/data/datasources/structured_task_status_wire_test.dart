@@ -7,7 +7,7 @@ import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dar
 import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/coding_continuation_recovery_policy.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_continuation_recovery_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

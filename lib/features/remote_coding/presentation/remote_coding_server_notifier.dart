@@ -17,7 +17,7 @@ import '../../../core/utils/logger.dart';
 import '../../chat/domain/entities/coding_project.dart';
 import '../../chat/domain/entities/conversation.dart';
 import '../../chat/domain/entities/message.dart';
-import '../../chat/domain/services/coding_project_ordering.dart';
+import '../../chat/domain/services/coding/coding_project_ordering.dart';
 import '../../chat/domain/services/pending_approval_summary.dart';
 import '../../chat/domain/services/plan/conversation_plan_projection_service.dart';
 import '../../chat/presentation/coordinators/plan_review_action_coordinator.dart';

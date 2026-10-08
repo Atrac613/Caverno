@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/coding_verification_evidence_contract.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_verification_evidence_contract.dart';
 import 'package:caverno/features/chat/domain/services/final_answer_claim_notice_applicator.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
