@@ -1,4 +1,4 @@
-part of 'chat_domain_services_test.dart';
+part of '../chat_domain_services_test.dart';
 
 void _runBackgroundProcessFollowUpPolicy() {
   test('prefers typed running state when scheduling a follow-up', () {

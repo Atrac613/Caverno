@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/shell_exit_status_report.dart';
+import 'package:caverno/features/chat/domain/services/local_command/shell_exit_status_report.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

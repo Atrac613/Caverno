@@ -1,6 +1,6 @@
-import '../../../settings/domain/services/local_command_permission_service.dart';
-import '../../data/datasources/local_command_workspace_containment.dart';
-import '../../data/datasources/local_shell_tools.dart';
+import '../../../../settings/domain/services/local_command_permission_service.dart';
+import '../../../data/datasources/local_command_workspace_containment.dart';
+import '../../../data/datasources/local_shell_tools.dart';
 import 'local_command_tool_contract.dart';
 import 'out_of_root_command_paths.dart';
 

@@ -20,14 +20,14 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/background_process_follow_up_policy.dart::BackgroundProcessFollowUpPolicy",
+      "id": "lib/features/chat/domain/services/local_command/background_process_follow_up_policy.dart::BackgroundProcessFollowUpPolicy",
       "disposition": "defer",
       "question": "Was BackgroundProcessFollowUpPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/background_process_path_policy.dart::BackgroundProcessPathPolicy",
+      "id": "lib/features/chat/domain/services/local_command/background_process_path_policy.dart::BackgroundProcessPathPolicy",
       "disposition": "defer",
       "question": "Was BackgroundProcessPathPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -146,7 +146,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/process_start_result_policy.dart::ProcessStartResultPolicy",
+      "id": "lib/features/chat/domain/services/local_command/process_start_result_policy.dart::ProcessStartResultPolicy",
       "disposition": "defer",
       "question": "Was ProcessStartResultPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -188,7 +188,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart::TimedOutCommandRetryGuard",
+      "id": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart::TimedOutCommandRetryGuard",
       "disposition": "defer",
       "question": "Was TimedOutCommandRetryGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/shell_command_effect_notes.dart';
+import 'package:caverno/features/chat/domain/services/local_command/shell_command_effect_notes.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Commands are taken from, or shaped like, the approval audit's

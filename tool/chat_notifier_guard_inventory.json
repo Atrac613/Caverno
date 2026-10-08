@@ -194,13 +194,13 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/background_process_follow_up_policy.dart::BackgroundProcessFollowUpPolicy",
-      "path": "lib/features/chat/domain/services/background_process_follow_up_policy.dart",
+      "id": "lib/features/chat/domain/services/local_command/background_process_follow_up_policy.dart::BackgroundProcessFollowUpPolicy",
+      "path": "lib/features/chat/domain/services/local_command/background_process_follow_up_policy.dart",
       "symbol": "BackgroundProcessFollowUpPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/background_process_follow_up_policy.dart:9",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_follow_up_policy.dart:9",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6032",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6034",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6068",
@@ -209,7 +209,7 @@
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6520"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/background_process_follow_up_policy.dart:9 -> BackgroundProcessFollowUpPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_follow_up_policy.dart:9 -> BackgroundProcessFollowUpPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6032 -> BackgroundProcessFollowUpPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6034 -> BackgroundProcessFollowUpPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier.dart:6068 -> BackgroundProcessFollowUpPolicy",
@@ -227,22 +227,22 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/background_process_path_policy.dart::BackgroundProcessPathPolicy",
-      "path": "lib/features/chat/domain/services/background_process_path_policy.dart",
+      "id": "lib/features/chat/domain/services/local_command/background_process_path_policy.dart::BackgroundProcessPathPolicy",
+      "path": "lib/features/chat/domain/services/local_command/background_process_path_policy.dart",
       "symbol": "BackgroundProcessPathPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/background_process_path_policy.dart:5",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:26",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:27",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:53"
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_path_policy.dart:5",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:26",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:27",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:53"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/background_process_path_policy.dart:5 -> BackgroundProcessPathPolicy",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:26 -> BackgroundProcessPathPolicy",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:27 -> BackgroundProcessPathPolicy",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:53 -> BackgroundProcessPathPolicy"
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_path_policy.dart:5 -> BackgroundProcessPathPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:26 -> BackgroundProcessPathPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:27 -> BackgroundProcessPathPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:53 -> BackgroundProcessPathPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,
@@ -826,23 +826,23 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/process_start_result_policy.dart::ProcessStartResultPolicy",
-      "path": "lib/features/chat/domain/services/process_start_result_policy.dart",
+      "id": "lib/features/chat/domain/services/local_command/process_start_result_policy.dart::ProcessStartResultPolicy",
+      "path": "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
       "symbol": "ProcessStartResultPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:24",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:25",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:52",
-        "lexical reference at lib/features/chat/domain/services/process_start_result_policy.dart:10",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:24",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:25",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:52",
+        "lexical reference at lib/features/chat/domain/services/local_command/process_start_result_policy.dart:10",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:358"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:24 -> ProcessStartResultPolicy",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:25 -> ProcessStartResultPolicy",
-        "lexical reference at lib/features/chat/domain/services/background_process_tool_handler.dart:52 -> ProcessStartResultPolicy",
-        "lexical reference at lib/features/chat/domain/services/process_start_result_policy.dart:10 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:24 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:25 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/background_process_tool_handler.dart:52 -> ProcessStartResultPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/process_start_result_policy.dart:10 -> ProcessStartResultPolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:358 -> ProcessStartResultPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
@@ -990,18 +990,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart::TimedOutCommandRetryGuard",
-      "path": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
+      "id": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart::TimedOutCommandRetryGuard",
+      "path": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
       "symbol": "TimedOutCommandRetryGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:26",
+        "lexical reference at lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart:26",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:124",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:232"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:26 -> TimedOutCommandRetryGuard",
+        "lexical reference at lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart:26 -> TimedOutCommandRetryGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:124 -> TimedOutCommandRetryGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:232 -> TimedOutCommandRetryGuard"
       ],
@@ -1037,7 +1037,7 @@
         "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:6",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:9",
-        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:29",
+        "lexical reference at lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart:29",
         "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:21",
         "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:22",
         "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:27",
@@ -1068,7 +1068,7 @@
         "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:6 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/successful_read_result_replay_cache.dart:9 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/timed_out_command_retry_guard.dart:29 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart:29 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:21 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:22 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/tool_call_batch_executor.dart:27 -> ToolCallExecutionPolicy",

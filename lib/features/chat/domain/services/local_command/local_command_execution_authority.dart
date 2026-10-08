@@ -1,4 +1,4 @@
-import '../entities/chat_turn_owner.dart';
+import '../../entities/chat_turn_owner.dart';
 import 'local_command_tool_contract.dart';
 
 /// Opaque proof that one exact local-command effect was admitted.

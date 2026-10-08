@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/data/datasources/local_command_workspace_c
 import 'package:caverno/features/chat/data/datasources/turn_project_root.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
-import 'package:caverno/features/chat/domain/services/local_command_tool_handler.dart';
+import 'package:caverno/features/chat/domain/services/local_command/local_command_tool_handler.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:test/test.dart';
 

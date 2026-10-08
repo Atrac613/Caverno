@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/literal_environment_inspection_policy.dart';
+import 'package:caverno/features/chat/domain/services/local_command/literal_environment_inspection_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

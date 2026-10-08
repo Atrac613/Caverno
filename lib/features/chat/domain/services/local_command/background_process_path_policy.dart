@@ -1,5 +1,5 @@
+import '../dart_project_tooling.dart';
 import 'background_process_tool_contract.dart';
-import 'dart_project_tooling.dart';
 
 final class BackgroundProcessPathPolicy {
   const BackgroundProcessPathPolicy();

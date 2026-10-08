@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/background_process_tool_handler.dart';
-import '../../domain/services/local_command_tool_handler.dart';
+import '../../domain/services/local_command/background_process_tool_handler.dart';
+import '../../domain/services/local_command/local_command_tool_handler.dart';
 import 'background_process_tools.dart';
 import 'mcp_tool_result_normalizer.dart';
 

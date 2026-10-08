@@ -1,5 +1,5 @@
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'local_command_tool_handler.dart';
 
 typedef BackgroundProcessIdentity = ({

@@ -1,4 +1,4 @@
-import '../entities/chat_turn_owner.dart';
+import '../../entities/chat_turn_owner.dart';
 
 /// Exact owner, call, tool, and immutable argument identity for one execution.
 final class LocalCommandOperationIdentity {

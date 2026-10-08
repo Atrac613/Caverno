@@ -1,5 +1,5 @@
-import '../entities/tool_call_info.dart';
-import 'proposal_parsing_text_utils.dart';
+import '../../entities/tool_call_info.dart';
+import '../proposal_parsing_text_utils.dart';
 
 /// Decides whether the tool loop should wait on a background job it started.
 ///

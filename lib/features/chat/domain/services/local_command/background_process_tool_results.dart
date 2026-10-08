@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 
 final class BackgroundProcessToolResults {
   const BackgroundProcessToolResults();

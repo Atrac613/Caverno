@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/out_of_root_command_paths.dart';
+import 'package:caverno/features/chat/domain/services/local_command/out_of_root_command_paths.dart';
 import 'package:test/test.dart';
 
 void main() {

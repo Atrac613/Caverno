@@ -6,6 +6,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:caverno/core/security/conversation_taint_state.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
@@ -17,7 +18,6 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_address.dart';
-import 'package:caverno/features/chat/domain/services/background_process_follow_up_policy.dart';
 import 'package:caverno/features/chat/domain/services/chat_request_prefix_stability_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_checkpoint_recorder.dart';
@@ -37,6 +37,7 @@ import 'package:caverno/features/chat/domain/services/goal_auto_continue_prompt_
 import 'package:caverno/features/chat/domain/services/goal_completion_elicitation_prompt.dart';
 import 'package:caverno/features/chat/domain/services/immutable_json_snapshot.dart';
 import 'package:caverno/features/chat/domain/services/kv_cache_warmup_service.dart';
+import 'package:caverno/features/chat/domain/services/local_command/background_process_follow_up_policy.dart';
 import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_json_parser.dart';
 import 'package:caverno/features/chat/domain/services/memory_update_tool_use.dart';
@@ -63,7 +64,6 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 part 'anabasis_address_cases.dart';
-part 'background_process_follow_up_policy_cases.dart';
 part 'chat_request_prefix_stability_service_cases.dart';
 part 'command_diagnostic_streak_from_command_result_cases.dart';
 part 'conversation_checkpoint_recorder_cases.dart';
@@ -79,6 +79,7 @@ part 'goal_auto_continue_prompt_builder_cases.dart';
 part 'goal_completion_elicitation_prompt_cases.dart';
 part 'immutable_json_snapshot_cases.dart';
 part 'kv_cache_warmup_service_cases.dart';
+part 'local_command/background_process_follow_up_policy_cases.dart';
 part 'lsp_diagnostic_feedback_provider_cases.dart';
 part 'memory_extraction_json_parser_cases.dart';
 part 'memory_update_and_skill_lookup_cases.dart';

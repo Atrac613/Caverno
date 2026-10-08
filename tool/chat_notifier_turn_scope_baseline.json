@@ -16,7 +16,7 @@
     "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
     "lib/features/chat/domain/services/ask_user_question_policy.dart",
     "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
-    "lib/features/chat/domain/services/background_process_tool_handler.dart",
+    "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
     "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
     "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
     "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
@@ -52,7 +52,7 @@
     "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart",
     "lib/features/chat/domain/services/goal_update_tool_handler.dart",
     "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
-    "lib/features/chat/domain/services/local_command_tool_handler.dart",
+    "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
     "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
     "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
     "lib/features/chat/domain/services/model_edit_apply_telemetry_recorder.dart",
@@ -62,7 +62,7 @@
     "lib/features/chat/domain/services/participant_message_finalizer.dart",
     "lib/features/chat/domain/services/participant_tool_executor.dart",
     "lib/features/chat/domain/services/participant_turn_planner.dart",
-    "lib/features/chat/domain/services/process_start_result_policy.dart",
+    "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
     "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
     "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
     "lib/features/chat/domain/services/proposal_option_extraction.dart",
@@ -82,7 +82,7 @@
     "lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart",
     "lib/features/chat/domain/services/ssh_tool_handler.dart",
     "lib/features/chat/domain/services/subagent_tool_handler.dart",
-    "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
+    "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
     "lib/features/chat/domain/services/tool_loop_exhaustion_policy.dart",
     "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
     "lib/features/chat/domain/services/turn_finalization_recovery_policy.dart",
@@ -2117,7 +2117,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._belongsToRequest",
       "signature": "bool _belongsToRequest<T>(\n    LocalCommandCompletion<T> completion,\n    _Request request,\n  )",
       "turnIdentityParameters": [],
@@ -2130,7 +2130,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._cacheResult",
       "signature": "McpToolResult _cacheResult(\n    _Request request,\n    _Approval? approval,\n    McpToolResult result, {\n    bool sideEffectMayHaveOccurred = false,\n  })",
       "turnIdentityParameters": [],
@@ -2148,7 +2148,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._completionExpired",
       "signature": "bool _completionExpired<T>(\n    LocalCommandCompletion<T> completion,\n    _Request request,\n  )",
       "turnIdentityParameters": [],
@@ -2161,7 +2161,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._executeCancel",
       "signature": "Future<McpToolResult> _executeCancel(\n    _Request request,\n    String processId,\n    _Approval? cacheRequest,\n  )",
       "turnIdentityParameters": [],
@@ -2183,7 +2183,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._executeStart",
       "signature": "Future<McpToolResult> _executeStart(\n    _Request request,\n    LocalCommandExecutionRequest execution,\n    DateTime dispatchedAt, {\n    _Approval? cacheRequest,\n  })",
       "turnIdentityParameters": [],
@@ -2204,7 +2204,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._handleCancel",
       "signature": "Future<McpToolResult> _handleCancel(_Request request)",
       "turnIdentityParameters": [],
@@ -2224,7 +2224,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._handleStart",
       "signature": "Future<McpToolResult> _handleStart(_Request request)",
       "turnIdentityParameters": [],
@@ -2254,7 +2254,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._isExpired",
       "signature": "bool _isExpired(_Request request)",
       "turnIdentityParameters": [],
@@ -2267,7 +2267,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._rememberDenial",
       "signature": "McpToolResult _rememberDenial(\n    _Request request,\n    _Approval approval,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [],
@@ -2284,7 +2284,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._rollbackStart",
       "signature": "Future<McpToolResult> _rollbackStart(\n    _Request request,\n    BackgroundProcessStartAssessment assessment,\n  )",
       "turnIdentityParameters": [],
@@ -2300,7 +2300,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler._withApproval",
       "signature": "Future<McpToolResult> _withApproval(\n    _Request request,\n    _Approval approval, {\n    required String denialMessage,\n    required Future<McpToolResult> Function(_Approval? cacheRequest) run,\n    CommandPermissionRuleRequest? ruleRequest,\n    bool canRememberRule = false,\n  })",
       "turnIdentityParameters": [],
@@ -2326,7 +2326,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
       "declaration": "BackgroundProcessToolHandler.handle",
       "signature": "Future<McpToolResult> handle(BackgroundProcessToolRequest request)",
       "turnIdentityParameters": [],
@@ -7695,7 +7695,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._autoReviewDeniedResult",
       "signature": "McpToolResult _autoReviewDeniedResult(String toolName, String rationale)",
       "turnIdentityParameters": [],
@@ -7708,7 +7708,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._completionExpired",
       "signature": "bool _completionExpired<T>(\n    LocalCommandCompletion<T> completion,\n    LocalCommandToolRequest request,\n    String source,\n  )",
       "turnIdentityParameters": [],
@@ -7721,7 +7721,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._effectUncertainFailure",
       "signature": "McpToolResult _effectUncertainFailure(String toolName)",
       "turnIdentityParameters": [],
@@ -7734,7 +7734,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._execute",
       "signature": "Future<McpToolResult> _execute(\n    LocalCommandToolRequest request,\n    LocalCommandExecutionRequest execution, {\n    LocalCommandApprovalRequest? cacheRequest,\n  })",
       "turnIdentityParameters": [],
@@ -7753,7 +7753,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._expiredFailure",
       "signature": "McpToolResult _expiredFailure(String toolName)",
       "turnIdentityParameters": [],
@@ -7766,7 +7766,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._failure",
       "signature": "McpToolResult _failure(String toolName, String message)",
       "turnIdentityParameters": [],
@@ -7779,7 +7779,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._isAllowedWorkingDirectory",
       "signature": "bool _isAllowedWorkingDirectory(String workingDirectory, String rawRoot)",
       "turnIdentityParameters": [],
@@ -7794,7 +7794,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._normalizeAbsolutePath",
       "signature": "String? _normalizeAbsolutePath(String rawPath)",
       "turnIdentityParameters": [],
@@ -7811,7 +7811,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._outsideProjectFailure",
       "signature": "McpToolResult _outsideProjectFailure(String toolName)",
       "turnIdentityParameters": [],
@@ -7825,7 +7825,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._rememberDenial",
       "signature": "McpToolResult _rememberDenial(\n    LocalCommandToolRequest request,\n    LocalCommandApprovalRequest approval,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [],
@@ -7842,7 +7842,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._resolveWorkingDirectory",
       "signature": "String? _resolveWorkingDirectory(LocalCommandToolRequest request)",
       "turnIdentityParameters": [],
@@ -7857,7 +7857,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._settleExecutionEffect",
       "signature": "McpToolResult _settleExecutionEffect(\n    LocalCommandToolRequest request,\n    LocalCommandEffectDisposition disposition,\n    LocalCommandEffectSettlement? settlement,\n    McpToolResult result,\n  )",
       "turnIdentityParameters": [],
@@ -7871,7 +7871,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler._validResult",
       "signature": "McpToolResult _validResult(McpToolResult result, String toolName)",
       "turnIdentityParameters": [],
@@ -7884,7 +7884,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
       "declaration": "LocalCommandToolHandler.handle",
       "signature": "Future<McpToolResult> handle(LocalCommandToolRequest request)",
       "turnIdentityParameters": [],
@@ -9033,7 +9033,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/process_start_result_policy.dart",
+      "path": "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
       "declaration": "ProcessStartResultPolicy._tryDecodeMap",
       "signature": "Map<String, dynamic>? _tryDecodeMap(String value)",
       "turnIdentityParameters": [],
@@ -9046,7 +9046,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/process_start_result_policy.dart",
+      "path": "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
       "declaration": "ProcessStartResultPolicy.buildStaleGuardResult",
       "signature": "McpToolResult? buildStaleGuardResult(\n    ToolCallInfo toolCall,\n    McpToolResult result, {\n    required DateTime dispatchedAt,\n  })",
       "turnIdentityParameters": [],
@@ -12974,7 +12974,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
+      "path": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
       "declaration": "TimedOutCommandRetryGuard.evaluate",
       "signature": "McpToolResult? evaluate(TimedOutCommandRetryInput input)",
       "turnIdentityParameters": [],
@@ -12995,7 +12995,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
+      "path": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
       "declaration": "_freezeToolCall",
       "signature": "ToolCallInfo _freezeToolCall(ToolCallInfo source)",
       "turnIdentityParameters": [],
@@ -13009,7 +13009,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
+      "path": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
       "declaration": "_freezeToolResult",
       "signature": "ToolResultInfo _freezeToolResult(ToolResultInfo source)",
       "turnIdentityParameters": [],

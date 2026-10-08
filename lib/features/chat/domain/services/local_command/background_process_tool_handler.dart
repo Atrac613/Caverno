@@ -1,7 +1,7 @@
-import '../../../settings/domain/services/local_command_permission_service.dart';
-import '../../data/datasources/local_shell_tools.dart';
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
+import '../../../../settings/domain/services/local_command_permission_service.dart';
+import '../../../data/datasources/local_shell_tools.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
 import 'background_process_path_policy.dart';
 import 'background_process_result_ledger.dart';
 import 'background_process_start_contract.dart';

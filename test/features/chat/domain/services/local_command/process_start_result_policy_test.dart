@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/process_start_result_policy.dart';
+import 'package:caverno/features/chat/domain/services/local_command/process_start_result_policy.dart';
 import 'package:test/test.dart';
 
 void main() {

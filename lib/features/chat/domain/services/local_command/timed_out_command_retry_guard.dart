@@ -1,9 +1,9 @@
 import 'dart:convert';
 
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
-import 'immutable_json_snapshot.dart';
-import 'tool_call_execution_policy.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
+import '../immutable_json_snapshot.dart';
+import '../tool_call_execution_policy.dart';
 
 // ChatNotifier decomposition collaborator: timed-out-command-retry-guard
 

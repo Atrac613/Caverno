@@ -1,7 +1,7 @@
 import 'package:path/path.dart' as path;
 
-import '../literal_shell_words.dart';
-import '../shell_output_wrapper.dart';
+import '../local_command/literal_shell_words.dart';
+import '../local_command/shell_output_wrapper.dart';
 
 /// Resolves a literal directory change, stderr merge, and output-only tail.
 abstract final class PytestShellInvocation {

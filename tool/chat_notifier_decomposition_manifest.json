@@ -272,8 +272,8 @@
         },
         {
           "id": "timed-out-command-retry-guard",
-          "path": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/timed_out_command_retry_guard.dart"
+          "path": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart"
         },
         {
           "id": "uninspected-commit-guard",
@@ -520,13 +520,13 @@
         },
         {
           "id": "local-command-tool-handler",
-          "path": "lib/features/chat/domain/services/local_command_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/local_command_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart"
         },
         {
           "id": "background-process-tool-handler",
-          "path": "lib/features/chat/domain/services/background_process_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/background_process_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/local_command/background_process_tool_handler.dart"
         },
         {
           "id": "project-scoped-read-tool-handler",
@@ -1267,8 +1267,8 @@
       "collaborators": [
         {
           "id": "process-start-result-policy",
-          "path": "lib/features/chat/domain/services/process_start_result_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/process_start_result_policy.dart"
+          "path": "lib/features/chat/domain/services/local_command/process_start_result_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/local_command/process_start_result_policy.dart"
         },
         {
           "id": "truncated-tool-call-arguments-guard",

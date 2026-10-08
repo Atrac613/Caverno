@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/tool_call_info.dart';
-import 'literal_environment_inspection_policy.dart';
-import 'masked_inspection_command_policy.dart';
+import 'local_command/literal_environment_inspection_policy.dart';
+import 'local_command/masked_inspection_command_policy.dart';
+import 'local_command/shell_exit_status_report.dart';
 import 'python/literal_python_stdin_verification.dart';
 import 'python/pytest_verification_identity.dart';
-import 'shell_exit_status_report.dart';
 import 'verification_command_sequence.dart';
 import 'verification_metadata_query_policy.dart';
 

@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/local_shell_launch_plan.dart';
 import '../../data/datasources/local_shell_process_runner.dart';
-import '../../domain/services/literal_shell_words.dart';
+import '../../domain/services/local_command/literal_shell_words.dart';
 
 typedef WorktreeAgentVerificationCommandRunner =
     Future<WorktreeAgentVerificationCommandOutput> Function(

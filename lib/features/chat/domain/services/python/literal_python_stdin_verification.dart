@@ -1,7 +1,7 @@
 import 'package:path/path.dart' as path;
 
-import '../environment_query_words_policy.dart';
-import '../literal_shell_words.dart';
+import '../local_command/environment_query_words_policy.dart';
+import '../local_command/literal_shell_words.dart';
 import 'pytest_verification_identity.dart';
 
 /// Recognizes an executed literal Python stdin script for completion evidence.

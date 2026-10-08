@@ -1,6 +1,6 @@
-import '../../data/datasources/local_shell_tools.dart';
-import '../entities/chat_turn_owner.dart';
-import '../entities/mcp_tool_entity.dart';
+import '../../../data/datasources/local_shell_tools.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'local_command_execution_plan.dart';
 import 'local_command_tool_contract.dart';
 import 'local_command_working_directory.dart';

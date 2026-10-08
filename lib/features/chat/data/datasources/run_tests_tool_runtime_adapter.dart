@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/local_command_tool_handler.dart';
+import '../../domain/services/local_command/local_command_tool_handler.dart';
 import '../../domain/services/run_tests_tool_handler.dart';
 
 /// Exact owner, call, project, and argument identity for one run_tests request.

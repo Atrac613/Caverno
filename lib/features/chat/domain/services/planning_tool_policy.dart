@@ -5,7 +5,7 @@ import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
-import 'local_command_tool_contract.dart';
+import 'local_command/local_command_tool_contract.dart';
 import 'tool_definition_search_service.dart';
 
 typedef PlanningToolArgumentResolver =

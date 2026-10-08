@@ -7,11 +7,11 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/local_command_execution_authority.dart';
-import '../../domain/services/local_command_tool_handler.dart';
+import '../../domain/services/local_command/local_command_execution_authority.dart';
+import '../../domain/services/local_command/local_command_tool_handler.dart';
 
-export '../../domain/services/local_command_execution_authority.dart';
-export '../../domain/services/local_command_tool_handler.dart';
+export '../../domain/services/local_command/local_command_execution_authority.dart';
+export '../../domain/services/local_command/local_command_tool_handler.dart';
 
 typedef LocalCommandOwnerAcknowledgementCallback =
     LocalCommandRuntimeOwnerAcknowledgement Function(

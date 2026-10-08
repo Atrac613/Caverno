@@ -174,7 +174,7 @@ const Map<String, int> _lineBudgets = {
   // -41: the completion bookkeeping every path ended with -- does this
   // completion still belong to the turn, has the approval expired, may a
   // side effect already have happened -- is now BackgroundProcessResultLedger.
-  'lib/features/chat/domain/services/background_process_tool_handler.dart': 409,
+  'lib/features/chat/domain/services/local_command/background_process_tool_handler.dart': 409,
   'lib/features/chat/domain/services/ble_connection_tool_handler.dart': 252,
   'lib/features/chat/domain/services/browser_session_ownership_coordinator.dart':
       461,
@@ -268,9 +268,9 @@ const Map<String, int> _lineBudgets = {
       252,
   'lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart':
       259,
-  'lib/features/chat/domain/services/local_command_execution_authority.dart':
+  'lib/features/chat/domain/services/local_command/local_command_execution_authority.dart':
       258,
-  'lib/features/chat/domain/services/local_command_tool_contract.dart': 320,
+  'lib/features/chat/domain/services/local_command/local_command_tool_contract.dart': 320,
   // +6 so a shell command naming a path outside the project root cannot be
   // auto-approved. The scan and the resulting decision were extracted to
   // LocalCommandApprovalScope and one local was inlined to pay for part of it;
@@ -280,7 +280,7 @@ const Map<String, int> _lineBudgets = {
   // -45: where a command runs and whether that place is inside the project
   // is a different question from whether it may run, and now lives in
   // LocalCommandWorkingDirectory.
-  'lib/features/chat/domain/services/local_command_tool_handler.dart': 378,
+  'lib/features/chat/domain/services/local_command/local_command_tool_handler.dart': 378,
   'lib/features/chat/domain/services/turn_finalization_recovery_policy.dart':
       268,
   'lib/features/chat/domain/services/coding_verification_mutation_signature.dart':
@@ -310,7 +310,7 @@ const Map<String, int> _lineBudgets = {
   // results a follow-up must carry again is a decision over results, not a
   // step of the loop.
   'lib/features/chat/domain/services/sticky_tool_result_policy.dart': 54,
-  'lib/features/chat/domain/services/process_start_result_policy.dart': 73,
+  'lib/features/chat/domain/services/local_command/process_start_result_policy.dart': 73,
   'lib/features/chat/domain/services/referenced_specification_loader.dart': 75,
   // Route value types moved to secondary_completion_route_snapshot.dart when
   // the usage role joined them.
@@ -350,7 +350,7 @@ const Map<String, int> _lineBudgets = {
   // request wrapper whose placeholder title carries none of the request.
   'lib/features/chat/domain/services/saved_task_authored_request_text.dart': 63,
   'lib/features/chat/domain/services/saved_task_target_scope_guard.dart': 113,
-  'lib/features/chat/domain/services/timed_out_command_retry_guard.dart': 96,
+  'lib/features/chat/domain/services/local_command/timed_out_command_retry_guard.dart': 96,
   // +9: the block declares itself a refusal. Reported as a success it was
   // filed as an executed commit, so the identical commit re-issued after
   // `diff --cached` was deduplicated and the refusal replayed (dd50d110).
@@ -1107,25 +1107,25 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/command_verification_reconciliation.dart':
       139,
   'lib/features/chat/domain/services/python/pytest_verification_identity.dart': 61,
-  'lib/features/chat/domain/services/literal_shell_words.dart': 40,
+  'lib/features/chat/domain/services/local_command/literal_shell_words.dart': 40,
   'lib/features/chat/domain/services/python/pytest_shell_invocation.dart': 31,
   'lib/features/chat/domain/services/python/pytest_test_outcome_parser.dart': 24,
   'lib/features/chat/domain/services/executed_verifier_replay_policy.dart': 63,
   'lib/features/chat/domain/services/python/verified_pytest_replay_policy.dart': 174,
   'lib/features/chat/domain/services/python/pytest_replay_state_policy.dart': 43,
-  'lib/features/chat/domain/services/literal_shell_segments.dart': 30,
+  'lib/features/chat/domain/services/local_command/literal_shell_segments.dart': 30,
   'lib/features/chat/domain/services/python/pytest_metadata_inspection_policy.dart':
       11,
-  'lib/features/chat/domain/services/literal_environment_inspection_policy.dart':
+  'lib/features/chat/domain/services/local_command/literal_environment_inspection_policy.dart':
       32,
-  'lib/features/chat/domain/services/environment_query_words_policy.dart': 58,
+  'lib/features/chat/domain/services/local_command/environment_query_words_policy.dart': 58,
   'lib/features/chat/domain/services/unexecuted_command_claim_reconciliation.dart':
       46,
   // -8: the status protocol violation moved to StatusRecoveryVerification,
   // beside the acceptance rule it reports on.
   'lib/features/chat/presentation/providers/coding_continuation_recovery_request.dart':
       98,
-  'lib/features/chat/domain/services/masked_inspection_command_policy.dart': 11,
+  'lib/features/chat/domain/services/local_command/masked_inspection_command_policy.dart': 11,
   'lib/features/chat/domain/services/turn_finalization_recovery_budget.dart':
       59,
   'lib/features/chat/domain/services/turn_finalization_recovery_input_builder.dart':

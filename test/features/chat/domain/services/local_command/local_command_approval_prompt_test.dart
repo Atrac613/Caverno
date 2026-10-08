@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/local_command_approval_prompt.dart';
+import 'package:caverno/features/chat/domain/services/local_command/local_command_approval_prompt.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

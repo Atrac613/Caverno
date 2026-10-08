@@ -1,6 +1,6 @@
 import '../../entities/tool_call_info.dart';
-import '../literal_environment_inspection_policy.dart';
-import '../literal_shell_words.dart';
+import '../local_command/literal_environment_inspection_policy.dart';
+import '../local_command/literal_shell_words.dart';
 import 'pytest_verification_identity.dart';
 
 /// Conservatively tracks state changes between captured verification runs.

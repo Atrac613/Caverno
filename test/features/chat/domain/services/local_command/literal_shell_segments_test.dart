@@ -1,4 +1,4 @@
-import 'package:caverno/features/chat/domain/services/literal_shell_segments.dart';
+import 'package:caverno/features/chat/domain/services/local_command/literal_shell_segments.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

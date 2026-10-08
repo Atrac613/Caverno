@@ -7,7 +7,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/command_verification_reconciliation.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_tool_handler.dart';
-import 'package:caverno/features/chat/domain/services/literal_shell_words.dart';
+import 'package:caverno/features/chat/domain/services/local_command/literal_shell_words.dart';
 import 'package:caverno/features/chat/domain/services/python/inline_python_verification_contract.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';

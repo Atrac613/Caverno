@@ -2,7 +2,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/local_command_tool_contract.dart';
+import '../../domain/services/local_command/local_command_tool_contract.dart';
 import 'background_process_monitor_service.dart';
 import 'background_process_tool_executor.dart';
 import 'background_process_tools.dart';

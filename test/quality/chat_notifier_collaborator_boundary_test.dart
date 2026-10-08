@@ -295,7 +295,7 @@ void main() {
           'lib/features/chat/domain/services/file_mutation_tool_handler.dart',
           'lib/features/chat/domain/services/file_rollback_tool_handler.dart',
           'lib/features/chat/domain/services/file_turn_rollback_service.dart',
-          'lib/features/chat/domain/services/local_command_tool_handler.dart',
+          'lib/features/chat/domain/services/local_command/local_command_tool_handler.dart',
           'lib/features/chat/domain/services/git/git_write_confirmation_policy.dart',
           'lib/features/chat/domain/services/'
               'final_answer_claim_notice_applicator.dart',
@@ -306,7 +306,7 @@ void main() {
           'lib/features/chat/domain/services/'
               'model_switch_handoff_registry.dart',
           'lib/features/chat/domain/services/model_switch_settings_policy.dart',
-          'lib/features/chat/domain/services/process_start_result_policy.dart',
+          'lib/features/chat/domain/services/local_command/process_start_result_policy.dart',
           'lib/features/chat/domain/services/'
               'python_attachment_repair_policy.dart',
           'lib/features/chat/domain/services/'

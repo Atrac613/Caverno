@@ -1,4 +1,4 @@
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'background_process_tool_contract.dart';
 import 'background_process_tool_results.dart';
 import 'local_command_tool_handler.dart';
