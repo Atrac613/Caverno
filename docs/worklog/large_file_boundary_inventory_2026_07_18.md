@@ -88,7 +88,7 @@ totals. Later outcome sections record lower current boundaries.
 | `lib/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart` | 1,634 |
 | `lib/features/chat/domain/services/plan/workflow_task_proposal_quality_service.dart` | 1,634 |
 | `lib/features/chat/domain/services/plan/conversation_plan_execution_guardrails.dart` | 1,617 |
-| `lib/features/chat/domain/services/tool_result_prompt_builder.dart` | 1,607 |
+| `lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart` | 1,607 |
 | `lib/features/chat/data/datasources/local_shell_tools.dart` | 1,568 |
 | `lib/features/chat/data/datasources/filesystem_tools.dart` | 1,476 |
 | `lib/features/routines/presentation/pages/routine_detail_view.dart` | 1,407 |

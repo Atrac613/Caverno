@@ -1,4 +1,4 @@
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 import '../verification/verification_cadence_policy.dart';
 
 /// Builds the redacted `goal_auto_continue` evidence marker written to the

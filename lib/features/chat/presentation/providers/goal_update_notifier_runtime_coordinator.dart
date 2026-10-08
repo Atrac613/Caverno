@@ -6,7 +6,7 @@ import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/goal/goal_update_tool_contract.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'turn_finalization_state_registry.dart';
 
 /// Bridges one exact notifier-owned turn into the owner-safe goal tool adapter.

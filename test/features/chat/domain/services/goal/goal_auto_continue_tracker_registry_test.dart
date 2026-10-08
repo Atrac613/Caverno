@@ -4,7 +4,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:test/test.dart';
 
 ChatTurnOwner _owner(String conversationId, {int generation = 1}) =>

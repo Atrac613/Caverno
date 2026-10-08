@@ -8,7 +8,7 @@ import 'memory_extraction_json_parser.dart';
 import 'project_task_review_verdict.dart';
 import 'project_task_terminal_status.dart';
 import 'session_memory_service.dart';
-import 'tool_result_prompt_builder.dart';
+import 'tool_results/tool_result_prompt_builder.dart';
 
 class MemoryExtractionDraftService {
   MemoryExtractionDraftService._();

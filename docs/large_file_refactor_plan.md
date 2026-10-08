@@ -176,7 +176,7 @@ budgets the file:
 | `lib/features/remote_coding/presentation/remote_coding_server_notifier.dart` | 3,246 | 21 | no |
 | `lib/features/remote_coding/presentation/remote_coding_page.dart` | 2,644 | 22 | no |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2,375 | 0 | yes |
-| `lib/features/chat/domain/services/tool_result_prompt_builder.dart` | 2,064 | 5 | now |
+| `lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart` | 2,064 | 5 | now |
 | `lib/features/chat/data/datasources/git_tools.dart` | 2,047 | 4 | now |
 | `lib/features/chat/presentation/widgets/message_input.dart` | 2,001 | 8 | yes |
 | `lib/features/chat/data/datasources/local_shell_tools.dart` | 1,932 | 3 | now |

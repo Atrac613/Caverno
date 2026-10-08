@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:caverno/features/chat/domain/services/content_tool_failure_formatter.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart';
 import 'package:test/test.dart';
 
 const _formatter = ContentToolFailureFormatter();

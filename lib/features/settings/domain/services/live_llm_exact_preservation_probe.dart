@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/entities/tool_call_info.dart';
-import '../../../chat/domain/services/tool_result_prompt_builder.dart';
+import '../../../chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_response_scoring.dart';

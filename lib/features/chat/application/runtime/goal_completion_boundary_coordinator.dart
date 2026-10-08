@@ -3,7 +3,7 @@ import '../../domain/entities/conversation_goal.dart';
 import '../../domain/services/goal/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/goal/goal_auto_continue_decision_coordinator.dart';
 import '../../domain/services/goal/goal_update_ack.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'turn_runtime.dart';
 
 export '../../domain/services/goal/goal_update_tool_handler.dart';

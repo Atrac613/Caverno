@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
-import '../../../chat/domain/services/tool_result_prompt_builder.dart';
+import '../../../chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 
 class RoutineToolPolicy {
   RoutineToolPolicy._();

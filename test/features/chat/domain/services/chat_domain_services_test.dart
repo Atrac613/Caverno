@@ -55,8 +55,8 @@ import 'package:caverno/features/chat/domain/services/tool_loop/fenced_tool_name
 import 'package:caverno/features/chat/domain/services/tool_loop/truncation_notice.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/turn_tool_catalog_cache.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/turn_tool_catalog_source.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_taint_recorder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_taint_recorder.dart';
 import 'package:caverno/features/chat/domain/services/verification/stalled_diagnostic_repair_contract.dart';
 import 'package:caverno/features/chat/domain/services/verification/verification_cadence_policy.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -92,7 +92,7 @@ part 'repo_map_lsp_symbol_cache_cases.dart';
 part 'tool_loop/execution_budget_policy_cases.dart';
 part 'tool_loop/fenced_tool_name_blocks_cases.dart';
 part 'tool_loop/turn_tool_catalog_source_cases.dart';
-part 'tool_result_taint_recorder_cases.dart';
+part 'tool_results/tool_result_taint_recorder_cases.dart';
 part 'verification/verification_cadence_policy_cases.dart';
 
 void main() {

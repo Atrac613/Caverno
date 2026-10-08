@@ -156,9 +156,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_plan.dart': 87,
   'lib/features/project_farm/application/project_task_review_turn_runner.dart':
       49,
-  'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
-  'lib/features/chat/domain/services/content_tool_formatters.dart': 2,
-  'lib/features/chat/domain/services/content_tool_failure_result_formatter.dart':
+  'lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart': 32,
+  'lib/features/chat/domain/services/tool_results/content_tool_formatters.dart': 2,
+  'lib/features/chat/domain/services/tool_results/content_tool_failure_result_formatter.dart':
       64,
   'lib/features/chat/domain/services/tool_loop/running_tool_tracker.dart': 31,
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
@@ -565,7 +565,7 @@ const Map<String, int> _lineBudgets = {
   // whole of the growth. Nothing was extractable -- the class got stricter.
   'lib/features/chat/presentation/providers/runtime_turn_event_publisher.dart':
       120,
-  'lib/features/chat/domain/services/content_tool_continuation_prompt_builder.dart':
+  'lib/features/chat/domain/services/tool_results/content_tool_continuation_prompt_builder.dart':
       61,
   'lib/features/chat/presentation/providers/tool_dedupe_keys.dart': 62,
   'lib/features/chat/domain/services/tool_loop/fenced_tool_name_blocks.dart': 19,
@@ -774,7 +774,7 @@ const Map<String, int> _lineBudgets = {
   // validation inference instead of letting it re-derive one from the payload.
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2382,
-  'lib/features/chat/domain/services/content_tool_result_formatter.dart': 132,
+  'lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart': 132,
   'lib/features/chat/domain/services/verification/verifier_replay_candidate_policy.dart': 56,
   'lib/features/chat/domain/services/plan/workflow_task_run_lifecycle_policy.dart':
       56,
@@ -1131,7 +1131,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_input_builder.dart':
       39,
   'lib/features/chat/data/datasources/local_shell_process_runner.dart': 234,
-  'lib/features/chat/domain/services/tool_result_prompt_builder.dart': 2064,
+  'lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart': 2064,
   'lib/features/chat/data/datasources/git_tools.dart': 2047,
   'lib/features/chat/data/datasources/local_shell_tools.dart': 1932,
 };

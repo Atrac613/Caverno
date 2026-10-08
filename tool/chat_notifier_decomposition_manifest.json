@@ -790,8 +790,8 @@
       "collaborators": [
         {
           "id": "content-tool-result-formatter",
-          "path": "lib/features/chat/domain/services/content_tool_result_formatter.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/content_tool_result_formatter.dart"
+          "path": "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart"
         }
       ]
     },
@@ -1007,13 +1007,13 @@
         },
         {
           "id": "content-tool-failure-formatter",
-          "path": "lib/features/chat/domain/services/content_tool_failure_formatter.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/content_tool_failure_formatter.dart"
+          "path": "lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart"
         },
         {
           "id": "content-tool-failure-result-formatter",
-          "path": "lib/features/chat/domain/services/content_tool_failure_result_formatter.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/content_tool_failure_result_formatter.dart"
+          "path": "lib/features/chat/domain/services/tool_results/content_tool_failure_result_formatter.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/tool_results/content_tool_failure_result_formatter.dart"
         }
       ]
     },

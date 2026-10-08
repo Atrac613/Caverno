@@ -7,7 +7,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/conversation_compaction_service.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
 import 'package:caverno/features/chat/presentation/providers/prompt_token_budget_coordinator.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';

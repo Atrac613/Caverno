@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../../settings/domain/entities/built_in_tool_info.dart';
 import '../entities/tool_call_info.dart';
-import 'tool_result_prompt_builder.dart';
+import 'tool_results/tool_result_prompt_builder.dart';
 
 class ToolDefinitionSearchSelection {
   const ToolDefinitionSearchSelection({

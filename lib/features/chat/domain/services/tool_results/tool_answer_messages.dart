@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import '../entities/message.dart';
-import '../entities/tool_call_info.dart';
-import 'plan/proposal_parsing_text_utils.dart';
+import '../../entities/message.dart';
+import '../../entities/tool_call_info.dart';
+import '../plan/proposal_parsing_text_utils.dart';
 import 'tool_result_prompt_builder.dart';
 
 /// Builds textual and visual messages from already-budgeted tool results.

@@ -51,7 +51,7 @@ import 'package:caverno/features/chat/domain/services/saved_task_target_scope_gu
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/truncation_notice.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_data_source_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';

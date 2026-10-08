@@ -5,7 +5,7 @@ import '../../entities/conversation_goal.dart';
 import '../../entities/conversation_workflow.dart';
 import '../execution_snapshot_projector.dart';
 import '../short_prompt_contract_builder.dart';
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 import '../verification/stalled_diagnostic_repair_contract.dart';
 import 'conversation_goal_auto_continue_policy.dart';
 import 'goal_auto_continue_decision_types.dart';

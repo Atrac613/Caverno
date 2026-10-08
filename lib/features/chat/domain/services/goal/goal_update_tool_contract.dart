@@ -9,7 +9,7 @@ import '../../entities/mcp_tool_entity.dart';
 import '../../entities/tool_call_info.dart';
 import '../immutable_json_snapshot.dart';
 import '../tool_loop/tool_outcome_snapshot.dart';
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 import 'goal_update_ack.dart';
 
 export 'goal_update_ack.dart';

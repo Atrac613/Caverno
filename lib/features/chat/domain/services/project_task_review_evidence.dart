@@ -1,7 +1,7 @@
 import '../entities/tool_call_info.dart';
 import 'claims/final_answer_claim_detector.dart';
 import 'project_task_review_verdict.dart';
-import 'tool_result_prompt_builder.dart';
+import 'tool_results/tool_result_prompt_builder.dart';
 
 /// Judges a review against current inspection and verification evidence.
 abstract final class ProjectTaskReviewEvidence {

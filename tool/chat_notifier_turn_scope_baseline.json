@@ -30,8 +30,8 @@
     "lib/features/chat/domain/services/computer_use_action_policy.dart",
     "lib/features/chat/domain/services/computer_use_runtime_coordinator.dart",
     "lib/features/chat/domain/services/computer_use_tool_handler.dart",
-    "lib/features/chat/domain/services/content_tool_failure_formatter.dart",
-    "lib/features/chat/domain/services/content_tool_result_formatter.dart",
+    "lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart",
+    "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
     "lib/features/chat/domain/services/context_surgery_observation_accumulator.dart",
     "lib/features/chat/domain/services/context_surgery_protected_path_policy.dart",
     "lib/features/chat/domain/services/create_routine_tool_handler.dart",
@@ -4874,7 +4874,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/content_tool_failure_formatter.dart",
+      "path": "lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart",
       "declaration": "ContentToolFailureFormatter._failureCode",
       "signature": "String _failureCode(String errorMessage)",
       "turnIdentityParameters": [],
@@ -4888,7 +4888,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/content_tool_failure_formatter.dart",
+      "path": "lib/features/chat/domain/services/tool_results/content_tool_failure_formatter.dart",
       "declaration": "ContentToolFailureFormatter.format",
       "signature": "String format(String toolName, String? errorMessage)",
       "turnIdentityParameters": [],
@@ -4903,7 +4903,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/content_tool_result_formatter.dart",
+      "path": "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
       "declaration": "ContentToolResultFormatter._buildPayload",
       "signature": "static Map<String, dynamic> _buildPayload(String toolName, String result)",
       "turnIdentityParameters": [],
@@ -4927,7 +4927,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/content_tool_result_formatter.dart",
+      "path": "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
       "declaration": "ContentToolResultFormatter._compactValue",
       "signature": "static String _compactValue(dynamic value)",
       "turnIdentityParameters": [],
@@ -4940,7 +4940,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/content_tool_result_formatter.dart",
+      "path": "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
       "declaration": "ContentToolResultFormatter._summarizeMap",
       "signature": "static String _summarizeMap(Map<String, dynamic> data, List<String> details)",
       "turnIdentityParameters": [],
@@ -4965,7 +4965,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/content_tool_result_formatter.dart",
+      "path": "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
       "declaration": "ContentToolResultFormatter._truncateText",
       "signature": "static String _truncateText(String value, {int maxLength = 88})",
       "turnIdentityParameters": [],
@@ -4981,7 +4981,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/content_tool_result_formatter.dart",
+      "path": "lib/features/chat/domain/services/tool_results/content_tool_result_formatter.dart",
       "declaration": "ContentToolResultFormatter.format",
       "signature": "static String format(String toolName, String result)",
       "turnIdentityParameters": [],

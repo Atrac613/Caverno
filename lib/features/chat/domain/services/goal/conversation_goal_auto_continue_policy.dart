@@ -1,5 +1,5 @@
 import '../../entities/conversation_goal.dart';
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 import '../verification/verification_cadence_policy.dart';
 
 const int kGoalAutoContinueDefaultTurnBudget = 10;

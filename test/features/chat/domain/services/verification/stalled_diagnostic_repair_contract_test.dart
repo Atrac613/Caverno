@@ -1,6 +1,6 @@
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/verification/stalled_diagnostic_repair_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 

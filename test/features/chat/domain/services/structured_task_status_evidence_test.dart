@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/structured_task_status_evidence.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 

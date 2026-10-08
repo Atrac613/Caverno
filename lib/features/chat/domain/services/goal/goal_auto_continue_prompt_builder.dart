@@ -1,6 +1,6 @@
 import '../../entities/conversation_goal.dart';
 import '../execution_snapshot_projector.dart';
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 import 'conversation_goal_auto_continue_policy.dart';
 import 'goal_continuation_next_step_selector.dart';
 

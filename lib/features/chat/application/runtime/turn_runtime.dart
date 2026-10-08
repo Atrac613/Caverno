@@ -6,7 +6,7 @@ import '../../domain/services/goal/goal_auto_continue_decision_coordinator.dart'
 import '../../domain/services/goal/goal_auto_continue_tracker_registry.dart';
 import '../../domain/services/goal/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/goal/goal_continuation_log_record_builder.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 
 // ChatNotifier decomposition collaborator: turn-runtime
 // Every port below is bound to one owner when the composition root creates it,

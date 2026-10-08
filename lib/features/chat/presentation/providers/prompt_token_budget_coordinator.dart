@@ -12,7 +12,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/reported_context_limit.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'prompt_token_calibration_registry.dart';
 
 /// Decides how much conversation history a prompt may carry.

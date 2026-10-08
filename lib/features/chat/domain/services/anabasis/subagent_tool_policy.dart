@@ -1,5 +1,5 @@
 import '../tool_definition_search_service.dart';
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 
 /// Tool-access policy for delegated subagents.
 ///

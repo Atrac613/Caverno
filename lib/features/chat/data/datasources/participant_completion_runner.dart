@@ -5,7 +5,7 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/conversation_participant.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'chat_datasource.dart';
 import 'chat_remote_datasource.dart';
 import 'mesh_secondary_completion_runner.dart';

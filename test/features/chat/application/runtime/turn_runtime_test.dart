@@ -9,7 +9,7 @@ import 'package:caverno/features/chat/domain/services/goal/conversation_goal_aut
 import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:test/test.dart';
 
 void main() {

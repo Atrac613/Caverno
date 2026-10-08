@@ -6,7 +6,7 @@ import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/claims/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/domain/services/claims/unexecuted_command_claim_reconciliation.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 

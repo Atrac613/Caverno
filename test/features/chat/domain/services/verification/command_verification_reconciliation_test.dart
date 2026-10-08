@@ -5,7 +5,7 @@ import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/project_task_step_completion_policy.dart';
 import 'package:caverno/features/chat/domain/services/python/pytest_verification_identity.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/verification/command_verification_reconciliation.dart';
 import 'package:caverno/features/chat/domain/services/verification/unresolved_verification_failure.dart';
 import 'package:caverno/features/chat/domain/services/verification/verification_metadata_query_policy.dart';

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:openai_dart/openai_dart.dart';
 
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 
 final class ChatToolResultMessageFormatter {
   const ChatToolResultMessageFormatter();

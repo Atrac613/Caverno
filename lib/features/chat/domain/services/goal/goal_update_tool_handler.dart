@@ -1,7 +1,7 @@
 import '../../entities/chat_turn_owner.dart';
 import '../../entities/conversation_goal.dart';
 import '../../entities/tool_call_info.dart';
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 import 'goal_update_tool_contract.dart';
 
 export 'goal_update_tool_contract.dart';

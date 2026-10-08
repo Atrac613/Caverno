@@ -1,4 +1,4 @@
-part of 'chat_domain_services_test.dart';
+part of '../chat_domain_services_test.dart';
 
 void _runToolResultTaintRecorder() {
   group('ToolResultTaintRecorder', () {

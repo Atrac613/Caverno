@@ -7,7 +7,7 @@ import 'package:caverno/features/chat/domain/services/goal/conversation_goal_aut
 import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart';
 import 'package:caverno/features/chat/domain/services/short_prompt_contract_builder.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/domain/services/verification/verification_cadence_policy.dart';
 import 'package:test/test.dart';
 

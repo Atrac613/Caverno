@@ -6,7 +6,7 @@ import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/services/tool_loop/tool_call_batch_executor.dart';
 import '../../chat/domain/services/tool_loop/tool_call_execution_policy.dart';
-import '../../chat/domain/services/tool_result_prompt_builder.dart';
+import '../../chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 
 class RoutineToolExecutionResult {
   const RoutineToolExecutionResult({

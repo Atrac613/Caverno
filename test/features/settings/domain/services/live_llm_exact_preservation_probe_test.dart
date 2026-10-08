@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/domain/services/live_llm_exact_preservation_probe.dart';
 import 'package:flutter_test/flutter_test.dart';

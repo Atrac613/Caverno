@@ -30,7 +30,7 @@ import 'package:caverno/features/chat/domain/services/claims/final_answer_messag
 import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/truncation_notice.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';

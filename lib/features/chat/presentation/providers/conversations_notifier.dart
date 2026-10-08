@@ -29,7 +29,7 @@ import '../../domain/services/goal/conversation_goal_status_transition.dart';
 import '../../domain/services/plan/conversation_plan_document_builder.dart';
 import '../../domain/services/plan/conversation_plan_projection_service.dart';
 import '../../domain/services/reusable_empty_conversation.dart';
-import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 import '../../domain/services/turn_diff_retention.dart';
 import 'conversation_semantic_index_sync.dart';
 import 'conversations_state.dart';

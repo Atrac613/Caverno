@@ -3,7 +3,7 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository.
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
-import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier_goal_runtime_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

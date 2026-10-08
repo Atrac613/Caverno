@@ -1,4 +1,4 @@
-import '../tool_result_prompt_builder.dart';
+import '../tool_results/tool_result_prompt_builder.dart';
 
 /// Routes a length-truncated response back to executable coding work when the
 /// task is demonstrably unfinished.

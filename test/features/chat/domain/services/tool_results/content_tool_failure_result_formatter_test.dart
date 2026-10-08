@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:caverno/features/chat/domain/services/content_tool_failure_result_formatter.dart';
+import 'package:caverno/features/chat/domain/services/tool_results/content_tool_failure_result_formatter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> _payload(String block) =>
