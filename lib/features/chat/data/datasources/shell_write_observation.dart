@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:path/path.dart' as p;
+
 /// SEC4.4i-a: observe where native-shell commands write outside the project,
 /// without changing what they may do.
 ///
@@ -97,16 +99,41 @@ abstract final class ShellWriteObservation {
       return null;
     }
     final tag = newTag();
+    final canary = canaryPath(tag);
+    // Without a canary outside the root, silence could not be told apart from
+    // reporting that never arrives, so such a command is not observed.
+    if (canary == null || p.isWithin(canonicalRoot, canary)) return null;
     return (
       executable: _sandboxExec,
       args: [
         '-p',
         profile(root: canonicalRoot, tag: tag),
+        // Touch the canary, then become the real shell: exec keeps the
+        // command's process, exit code and stdio exactly as unwrapped. The
+        // subshell keeps a failed canary write from stopping the command.
+        '/bin/sh',
+        '-c',
+        r'( : > "$0" ) 2>/dev/null; exec "$@"',
+        canary,
         shellExecutable,
         ...shellArgs,
       ],
       tag: tag,
     );
+  }
+
+  /// A file outside any project that every observed command writes once, so
+  /// [collect] can tell "reports arrived and named no other path" from
+  /// "reports never arrived". Derived from [tag], so the collector needs no
+  /// state beyond it. Null when the temp directory cannot be resolved.
+  static String? canaryPath(String tag) {
+    if (!_tagPattern.hasMatch(tag)) return null;
+    try {
+      final temp = Directory.systemTemp.resolveSymbolicLinksSync();
+      return p.join(temp, 'caverno-write-observation-$tag');
+    } on FileSystemException {
+      return null;
+    }
   }
 
   /// The tag a tool-result payload carries, or null.
@@ -156,9 +183,15 @@ abstract final class ShellWriteObservation {
   }
 
   /// Reads the kernel reports for [tag] back from the unified log.
-  static Future<({List<String> paths, bool truncated})?> collect(
-    String tag,
-  ) async {
+  ///
+  /// `reportingConfirmed` is false when the canary write was not reported:
+  /// the command's own writes cannot have been either, so an empty `paths`
+  /// then means "unknown", not "wrote nothing outside the project". macOS
+  /// 26.7.1 delivered no reports at all, which is how this was found.
+  static Future<
+    ({List<String> paths, bool truncated, bool reportingConfirmed})?
+  >
+  collect(String tag) async {
     if (!_tagPattern.hasMatch(tag) || !File(_logBinary).existsSync()) {
       return null;
     }
@@ -180,7 +213,23 @@ abstract final class ShellWriteObservation {
         'sender == "Sandbox" AND eventMessage CONTAINS "$tag"',
       ]).timeout(const Duration(seconds: 30));
       if (result.exitCode != 0) return null;
-      return parseReports(result.stdout as String, tag);
+      final parsed = parseReports(result.stdout as String, tag);
+      final canary = canaryPath(tag);
+      if (canary != null) {
+        try {
+          File(canary).deleteSync();
+        } on FileSystemException {
+          // Already gone, or never written.
+        }
+      }
+      return (
+        paths: [
+          for (final path in parsed.paths)
+            if (path != canary) path,
+        ],
+        truncated: parsed.truncated,
+        reportingConfirmed: canary != null && parsed.paths.contains(canary),
+      );
     } on Object {
       return null;
     }

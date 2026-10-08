@@ -665,6 +665,7 @@ class LlmSessionLogStore {
     required String tag,
     required List<String> paths,
     required bool truncated,
+    bool reportingConfirmed = true,
     String? toolCallId,
   }) async {
     try {
@@ -683,6 +684,8 @@ class LlmSessionLogStore {
           'tag': tag,
           'outsideProjectWrites': paths,
           if (truncated) 'truncated': true,
+          // The canary write was not reported, so an empty list is unknown.
+          if (!reportingConfirmed) 'reportingUnavailable': true,
         },
       };
       final line = '${jsonEncode(_redactValue(entry))}\n';

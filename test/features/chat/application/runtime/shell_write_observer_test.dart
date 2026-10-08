@@ -31,20 +31,29 @@ void main() {
         .toList();
   }
 
-  Future<void> observe(String payload, {bool enabled = true}) =>
-      observeShellWrites(
-        store: store,
-        settingsEnabled: enabled,
-        context: context,
-        toolName: 'local_execute_command',
-        renderedPayload: payload,
-        toolCallId: 'call-1',
-        settle: Duration.zero,
-        collect: (value) async {
-          expect(value, tag);
-          return (paths: const ['/Users/me/.pub-cache/x'], truncated: false);
-        },
+  Future<void> observe(
+    String payload, {
+    bool enabled = true,
+    bool reportingConfirmed = true,
+  }) => observeShellWrites(
+    store: store,
+    settingsEnabled: enabled,
+    context: context,
+    toolName: 'local_execute_command',
+    renderedPayload: payload,
+    toolCallId: 'call-1',
+    settle: Duration.zero,
+    collect: (value) async {
+      expect(value, tag);
+      return (
+        paths: reportingConfirmed
+            ? const ['/Users/me/.pub-cache/x']
+            : const <String>[],
+        truncated: false,
+        reportingConfirmed: reportingConfirmed,
       );
+    },
+  );
 
   test('records the outside-project writes of an observed command', () async {
     await observe(
@@ -60,6 +69,24 @@ void main() {
       'outsideProjectWrites': ['/Users/me/.pub-cache/x'],
     });
   });
+
+  test(
+    'marks an empty observation as unknown when reports never arrived',
+    () async {
+      await observe(
+        jsonEncode({ShellWriteObservation.payloadKey: tag}),
+        reportingConfirmed: false,
+      );
+      final written = await entries();
+      expect(written.single['shellWriteObservation'], {
+        'toolName': 'local_execute_command',
+        'toolCallId': 'call-1',
+        'tag': tag,
+        'outsideProjectWrites': <String>[],
+        'reportingUnavailable': true,
+      });
+    },
+  );
 
   test('writes nothing for an unobserved command', () async {
     await observe('{"exit_code":0}');

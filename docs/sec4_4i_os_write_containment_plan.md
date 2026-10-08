@@ -147,6 +147,11 @@ service-escape and release-gate work before other command families are relaxed.
    and foreground `local_execute_command` only. Observations go to the session
    log as `shell_write_observation` entries, so no fourth sensitive sink is
    added. `process_start` and `background: true` are not observed yet.
+   **2026-10-09:** on macOS 26.7.1 no seatbelt report reaches
+   `log show`, for allowed and denied writes alike, so 4i-a observed
+   nothing. Each observed command now writes a canary, and an observation
+   without its canary is logged as `reportingUnavailable`. Until reports are
+   restored on current macOS, 4i-b has no evidence to measure.
 2. **4i-b Measure.** From the logs of real sessions, find how often contained
    commands fail on a denial, and for which directories. That decides the
    cache allowlist from evidence instead of guesses. Verify with

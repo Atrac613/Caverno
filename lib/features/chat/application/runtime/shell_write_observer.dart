@@ -2,7 +2,8 @@ import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/shell_write_observation.dart';
 
 typedef ShellWriteCollector =
-    Future<({List<String> paths, bool truncated})?> Function(String tag);
+    Future<({List<String> paths, bool truncated, bool reportingConfirmed})?>
+    Function(String tag);
 
 /// Records where an observed shell command wrote outside the project.
 ///
@@ -33,6 +34,7 @@ Future<void> observeShellWrites({
     tag: tag,
     paths: observed.paths,
     truncated: observed.truncated,
+    reportingConfirmed: observed.reportingConfirmed,
     toolCallId: toolCallId,
   );
 }

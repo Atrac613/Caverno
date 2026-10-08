@@ -213,7 +213,10 @@ Each line is one JSON object with schema name
   read back from seatbelt reports after the tool result, so it lands later in
   the file than the call it names (`toolCallId`, `tag`). The kernel can drop
   reports, so the list is a lower bound. It stores paths only, never the
-  command or its output.
+  command or its output. Every observed command also writes one canary file
+  in the temp directory; `reportingUnavailable: true` means even that write
+  went unreported, so an empty list is unknown rather than "no writes". On
+  macOS 26.7.1 every entry carries it.
   `goal_completion_shadow` records one explicit-tool-versus-lexical comparison
   for every turn that started with an active goal. Its `agreement` is `agree`
   or `disagree`; disagreement records also carry a stable `label`. Optional

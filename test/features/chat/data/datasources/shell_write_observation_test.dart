@@ -77,7 +77,17 @@ void main() {
       )!;
       expect(wrapped.executable, '/usr/bin/sandbox-exec');
       expect(wrapped.args.first, '-p');
-      expect(wrapped.args.sublist(2), ['sh', '-c', 'echo hi']);
+      final canary = ShellWriteObservation.canaryPath(wrapped.tag)!;
+      expect(wrapped.args.sublist(2), [
+        '/bin/sh',
+        '-c',
+        r'( : > "$0" ) 2>/dev/null; exec "$@"',
+        canary,
+        'sh',
+        '-c',
+        'echo hi',
+      ]);
+      expect(canary, isNot(startsWith(root.resolveSymbolicLinksSync())));
       final profile = wrapped.args[1];
       expect(profile, contains('(allow default)'));
       expect(profile, contains(root.resolveSymbolicLinksSync()));
@@ -133,6 +143,32 @@ void main() {
   });
 
   test(
+    'the canary prelude keeps the command\'s exit code and output',
+    () async {
+      final root = Directory.systemTemp.createTempSync('observe_exit_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final wrapped = ShellWriteObservation.wrap(
+        command: 'x',
+        shellExecutable: '/bin/sh',
+        shellArgs: ['-c', 'echo "\$0 \$1"; exit 7', 'name', 'arg'],
+        root: root.path,
+        environment: on,
+      )!;
+      final run = await Process.run(
+        wrapped.executable,
+        wrapped.args,
+        workingDirectory: root.path,
+      );
+      expect(run.exitCode, 7, reason: '${run.stderr}');
+      expect(run.stdout, 'name arg\n');
+      final canary = File(ShellWriteObservation.canaryPath(wrapped.tag)!);
+      expect(canary.existsSync(), isTrue);
+      canary.deleteSync();
+    },
+    skip: Platform.isMacOS ? false : 'seatbelt is macOS only',
+  );
+
+  test(
     'observes a real write outside the root and nothing inside it',
     () async {
       final sandbox = Directory.systemTemp.createTempSync('observe_e2e_');
@@ -155,13 +191,27 @@ void main() {
       // Writes are allowed, not merely reported.
       expect(File(outside).readAsStringSync(), 'b\n');
 
-      ({List<String> paths, bool truncated})? observed;
+      ({List<String> paths, bool truncated, bool reportingConfirmed})? observed;
       for (var attempt = 0; attempt < 5; attempt++) {
         await Future<void>.delayed(const Duration(seconds: 1));
         observed = await ShellWriteObservation.collect(wrapped.tag);
-        if (observed != null && observed.paths.isNotEmpty) break;
+        if (observed != null && observed.reportingConfirmed) break;
       }
-      expect(observed?.paths, [outside]);
+      expect(observed, isNotNull);
+      if (observed!.reportingConfirmed) {
+        // The canary is consumed, never reported as the command's write.
+        expect(observed.paths, [outside]);
+      } else {
+        // No report arrived, not even the canary's (macOS 26.7.1 delivers
+        // none): the observation must say so instead of claiming no writes.
+        expect(observed.paths, isEmpty);
+        // ignore: avoid_print
+        print('seatbelt reports unavailable here; observation marked unknown');
+      }
+      expect(
+        File(ShellWriteObservation.canaryPath(wrapped.tag)!).existsSync(),
+        isFalse,
+      );
     },
     skip: Platform.isMacOS ? false : 'seatbelt is macOS only',
     timeout: const Timeout(Duration(minutes: 2)),
