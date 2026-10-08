@@ -851,4 +851,545 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       '(${snapshot.status})',
     );
   }
+
+  /// Finishes a tool loop once it stops issuing calls: runs a batch declared
+  /// at the iteration limit, gathers the final evidence, streams the answer,
+  /// tries the post-answer recoveries, then replays a verifier or closes the
+  /// turn. Moved out of `_executeToolCalls` unchanged; the parameters are the
+  /// loop state it reads, and the four it reassigns are only read here.
+  Future<void> _finalizeToolLoop({
+    required ChatTurnOwner turnOwner,
+    required TurnOwnerSnapshot? turnSnapshot,
+    required int interactionGeneration,
+    required List<ToolCallInfo> currentToolCalls,
+    required String? currentAssistantContent,
+    required bool hasTextResponse,
+    required bool truncatedBeforeAnswer,
+    required int iteration,
+    required ToolLoopExecutionBudget budget,
+    required List<ToolResultInfo> executedToolResults,
+    required Set<String> executedToolCallKeys,
+    required Map<String, int> toolFailureCounts,
+    required int commandRetryGeneration,
+    required int stateChangeGeneration,
+    required bool savedValidationSucceededInLoop,
+    required Set<String> attemptedCompletionVerificationMutationSignatures,
+    required Map<String, int> verificationFailureCounts,
+    required Set<String> transcriptRepairSignatures,
+    required Set<String> activeToolNames,
+    required bool toolSearchEnabled,
+    required List<Map<String, dynamic>>? stableToolDefinitions,
+    required bool replayVerifierImmediatelyAfterMutation,
+    required bool verifierOnlyContinuation,
+    required List<Map<String, dynamic>> Function(McpToolService) selectedDefinitionsFor,
+  }) async {
+    void acceptAnswer(String answer) {
+      _appendRecoveredAssistantResponse(
+        answer,
+        interactionGeneration: interactionGeneration,
+      );
+      currentAssistantContent = answer;
+      hasTextResponse = true;
+    }
+
+    if (!hasTextResponse &&
+        currentToolCalls.isNotEmpty &&
+        iteration >= budget.limit) {
+      appLog(
+        '[Tool] Tool loop reached limit with a declared pending batch; '
+        'executing it before finalization',
+      );
+      final finalBatchResult = await _executeToolLoopBatch(
+        currentToolCalls: currentToolCalls,
+        currentAssistantContent: currentAssistantContent,
+        executedToolResults: executedToolResults,
+        executedToolCallKeys: executedToolCallKeys,
+        toolFailureCounts: toolFailureCounts,
+        commandRetryGeneration: commandRetryGeneration,
+        stateChangeGeneration: stateChangeGeneration,
+        iteration: iteration + 1,
+        interactionGeneration: interactionGeneration,
+        verifierOnlyContinuation: verifierOnlyContinuation,
+      );
+      if (finalBatchResult.didCancel) return;
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (!ref.mounted) return;
+      commandRetryGeneration = finalBatchResult.commandRetryGeneration;
+      final completedToolCallIds = finalBatchResult.batchToolResults
+          .map((result) => result.id)
+          .toSet();
+      currentToolCalls = finalBatchResult.pendingBatchCalls
+          .where((toolCall) => !completedToolCallIds.contains(toolCall.id))
+          .toList(growable: false);
+      if (finalBatchResult.batchToolResults.isNotEmpty &&
+          currentToolCalls.isEmpty) {
+        _turnEnd.setHintIfAbsent(
+          turnOwner,
+          ToolLoopExitReason.pendingBatchExecuted,
+        );
+      }
+    }
+
+    final unexecutedPendingToolResults = _buildUnexecutedPendingToolResults(
+      toolCalls: currentToolCalls,
+      executedToolCallKeys: executedToolCallKeys,
+      commandRetryGeneration: commandRetryGeneration,
+      projectRoot: _projectRootForGeneration(interactionGeneration),
+    );
+    final unexecutedFileSideEffect = _claims
+        .buildUnexecutedFileSideEffectToolResult(
+          candidateResponse: currentAssistantContent ?? '',
+          toolResults: [
+            ...executedToolResults,
+            ...unexecutedPendingToolResults,
+          ],
+          latestUserContent: const SavedTaskAuthoredRequestText().resolve(
+            latestUserContent: turnSnapshot!.latestUserContent,
+            savedTask: turnSnapshot.savedTask,
+          ),
+          fileChangesAlreadyCaptured: projectTaskHasCapturedChanges(
+            _conversationForGeneration(interactionGeneration),
+          ),
+        );
+    // Re-run analysis so final diagnostics reflect the post-edit state.
+    final finalDiagnosticFeedback = hasTextResponse
+        ? null
+        : await _buildFinalCodingDiagnosticFeedbackToolResult(
+            executedToolResults,
+            interactionGeneration: interactionGeneration,
+          );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+    if (finalDiagnosticFeedback != null) {
+      CodingFeedbackTelemetry.logDiagnostics(finalDiagnosticFeedback);
+    }
+    final finalToolResults = <ToolResultInfo>[
+      ...executedToolResults,
+      ...unexecutedPendingToolResults,
+      ?unexecutedFileSideEffect,
+      ?finalDiagnosticFeedback,
+    ];
+    var finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
+      finalToolResults,
+    );
+    finalCompletionEvidence = _goalCompletionEvidence
+        .settleSuccessfulSavedValidation(
+          finalCompletionEvidence,
+          conversation: _conversationForGeneration(interactionGeneration),
+          succeeded: savedValidationSucceededInLoop,
+        );
+    var finalCompletionEvidenceIsCurrent = true;
+    if (!hasTextResponse && finalToolResults.isNotEmpty) {
+      appLog('[Tool] Resending tool results as user message');
+      if (!ref.mounted) return;
+      final preFinalAnswerContent =
+          _lastMessageContentForGeneration(interactionGeneration) ?? '';
+      final toolResultCountBeforeFinalAnswer = finalToolResults.length;
+      final mcpToolService = _mcpToolService;
+      final recoveryTools = mcpToolService == null
+          ? const <Map<String, dynamic>>[]
+          : selectedDefinitionsFor(mcpToolService);
+      final canPreparePendingActionRecovery = _pendingActions
+          .canPrepareActionOnlyRecovery(
+            cutOffBeforeAnswer: truncatedBeforeAnswer,
+            isCodingWorkspace: _isCodingWorkspaceOrMode(interactionGeneration),
+            hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
+              recoveryTools,
+            ),
+            retryAlreadyUsed: _pendingActionLengthRecoveryGenerations.contains(
+              interactionGeneration,
+            ),
+            completionEvidence: finalCompletionEvidence,
+          );
+      var streamedFinalAnswer = await _streamToolResultAnswerWithContextRetry(
+        toolResults: finalToolResults,
+        interactionGeneration: interactionGeneration,
+        completionEvidence: finalCompletionEvidence,
+        deferIncompleteLengthRecovery: canPreparePendingActionRecovery,
+      );
+      if (finalToolResults.length != toolResultCountBeforeFinalAnswer) {
+        finalCompletionEvidenceIsCurrent = false;
+      }
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (!ref.mounted) return;
+
+      final shouldRequestPendingActionRecovery = _pendingActions
+          .shouldRequestActionOnlyRecovery(
+            cutOffBeforeAnswer: truncatedBeforeAnswer,
+            finishReason: _responseMetadata.finishReasonFor(turnOwner),
+            isCodingWorkspace: _isCodingWorkspaceOrMode(interactionGeneration),
+            hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
+              recoveryTools,
+            ),
+            retryAlreadyUsed: _pendingActionLengthRecoveryGenerations.contains(
+              interactionGeneration,
+            ),
+            completionEvidence: finalCompletionEvidence,
+          );
+      if (shouldRequestPendingActionRecovery) {
+        _pendingActionLengthRecoveryGenerations.add(interactionGeneration);
+        _turnEnd.addTransform(turnOwner, 'pending_action_length_recovery');
+        appLog(
+          '[PendingActionLengthRecovery] Requesting one bounded tool-aware '
+          'retry; evidence=${finalCompletionEvidence.summary}',
+        );
+        final recoveryResult = await _requestCodingContinuationRecovery(
+          candidateResponse: streamedFinalAnswer,
+          tools: recoveryTools,
+          interactionGeneration: interactionGeneration,
+          requireContinuationRequest: false,
+          executedToolResults: finalToolResults,
+          forcedRecoveryCode: 'length_truncated_pending_action',
+          forcedRecoveryPrompt: _pendingActions.buildRetryPrompt(
+            finalCompletionEvidence,
+          ),
+        );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        if (!ref.mounted) return;
+        if (recoveryResult?.hasToolCalls == true) {
+          appLog(
+            '[PendingActionLengthRecovery] Tool-aware retry requested one or '
+            'more tool calls',
+          );
+          _recordHiddenEvidence(turnOwner, streamedFinalAnswer);
+          _removeStreamedAnswerSuffixForGeneration(
+            interactionGeneration,
+            preAnswerContent: preFinalAnswerContent,
+          );
+          final recoveredToolCalls = recoveryResult!.toolCalls!;
+          await _executeToolCalls(
+            recoveredToolCalls,
+            assistantContent: recoveryResult.content.isNotEmpty
+                ? recoveryResult.content
+                : streamedFinalAnswer,
+            toolSearchEnabled: toolSearchEnabled,
+            selectedToolNames: {
+              ...activeToolNames,
+              ...recoveredToolCalls.map((toolCall) => toolCall.name),
+            },
+            stableToolDefinitions: stableToolDefinitions,
+            completionVerificationFailureCounts: verificationFailureCounts,
+            narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+            replayVerifierImmediatelyAfterMutation:
+                replayVerifierImmediatelyAfterMutation,
+            verifierOnlyContinuation: verifierOnlyContinuation,
+            interactionGeneration: interactionGeneration,
+          );
+          return;
+        }
+        final recoveryContent = recoveryResult?.content.trim() ?? '';
+        if (recoveryContent.isNotEmpty) {
+          _recordHiddenEvidence(turnOwner, streamedFinalAnswer);
+          _removeStreamedAnswerSuffixForGeneration(
+            interactionGeneration,
+            preAnswerContent: preFinalAnswerContent,
+          );
+          _appendRecoveredAssistantResponse(
+            recoveryContent,
+            interactionGeneration: interactionGeneration,
+          );
+          streamedFinalAnswer = recoveryContent;
+        }
+      }
+
+      if (mcpToolService != null) {
+        final streamVerificationBatchToolResults = <ToolResultInfo>[];
+        final tools = recoveryTools;
+        final backgroundProcessRepairResult =
+            await _requestBackgroundProcessMonitorRepairForCompletionClaim(
+              candidateResponse: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              tools: tools,
+              interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
+            );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        if (!ref.mounted) return;
+        if (backgroundProcessRepairResult != null) {
+          if (backgroundProcessRepairResult.hasToolCalls) {
+            appLog(
+              '[BackgroundProcess] Streamed final answer monitor follow-up '
+              'requested tool calls',
+            );
+            await _executeToolCalls(
+              backgroundProcessRepairResult.toolCalls!,
+              assistantContent: backgroundProcessRepairResult.content.isNotEmpty
+                  ? backgroundProcessRepairResult.content
+                  : streamedFinalAnswer,
+              toolSearchEnabled: toolSearchEnabled,
+              selectedToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              completionVerificationFailureCounts: verificationFailureCounts,
+              narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+              verifierOnlyContinuation: verifierOnlyContinuation,
+              interactionGeneration: interactionGeneration,
+            );
+            return;
+          }
+
+          final monitorResponse = backgroundProcessRepairResult.content.trim();
+          _recordHiddenEvidence(turnOwner, monitorResponse);
+          final monitorFollowUp =
+              BackgroundProcessFollowUpPolicy.followUpToolCall(
+                executedToolResults,
+                waitMs: BackgroundProcessFollowUpPolicy.waitMsForIteration(
+                  budget.limit,
+                ),
+              );
+          if (monitorFollowUp != null) {
+            appLog(
+              '[BackgroundProcess] Streamed final answer monitor prose '
+              'response forced follow-up process check',
+            );
+            await _executeToolCalls(
+              [monitorFollowUp],
+              assistantContent: monitorResponse.isNotEmpty
+                  ? monitorResponse
+                  : streamedFinalAnswer,
+              toolSearchEnabled: toolSearchEnabled,
+              selectedToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              completionVerificationFailureCounts: verificationFailureCounts,
+              narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+              verifierOnlyContinuation: verifierOnlyContinuation,
+              interactionGeneration: interactionGeneration,
+            );
+            return;
+          }
+
+          if (monitorResponse.isNotEmpty) {
+            acceptAnswer(monitorResponse);
+          }
+        }
+        final verificationRepairResult =
+            await _requestCodingVerificationRepairForCompletionClaim(
+              candidateResponse: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              retainedEvidenceToolResults: finalToolResults,
+              attemptedMutationSignatures:
+                  attemptedCompletionVerificationMutationSignatures,
+              verificationFailureCounts: verificationFailureCounts,
+              tools: tools,
+              interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
+            );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        if (!ref.mounted) return;
+        if (verificationRepairResult != null) {
+          if (verificationRepairResult.hasToolCalls) {
+            appLog(
+              '[CodingVerification] Streamed final answer repair requested '
+              'tool calls',
+            );
+            await _executeToolCalls(
+              verificationRepairResult.toolCalls!,
+              assistantContent: verificationRepairResult.content.isNotEmpty
+                  ? verificationRepairResult.content
+                  : streamedFinalAnswer,
+              toolSearchEnabled: toolSearchEnabled,
+              selectedToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              completionVerificationFailureCounts: verificationFailureCounts,
+              narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+              verifierOnlyContinuation: verifierOnlyContinuation,
+              interactionGeneration: interactionGeneration,
+            );
+            return;
+          }
+
+          final verificationResponse = verificationRepairResult.content.trim();
+          if (verificationResponse.isNotEmpty) {
+            _appendRecoveredAssistantResponse(
+              verificationResponse,
+              interactionGeneration: interactionGeneration,
+            );
+          }
+        }
+        final handledByReleaseRetry =
+            await _applyBlockedProductionReleaseRetryToStreamedFinalAnswer(
+              streamedFinalAnswer: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              tools: tools,
+              toolSearchEnabled: toolSearchEnabled,
+              activeToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              verificationFailureCounts: verificationFailureCounts,
+              transcriptRepairSignatures: transcriptRepairSignatures,
+              interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
+            );
+        if (handledByReleaseRetry) return;
+        final handledByTranscriptRepair =
+            await _applyNarratedTranscriptRepairToStreamedFinalAnswer(
+              streamedFinalAnswer: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              attemptedSignatures: transcriptRepairSignatures,
+              tools: tools,
+              toolSearchEnabled: toolSearchEnabled,
+              activeToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              verificationFailureCounts: verificationFailureCounts,
+              interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
+            );
+        if (handledByTranscriptRepair) return;
+        if (const FencedToolArgumentsDetector().detect(streamedFinalAnswer) !=
+            null) {
+          final handledByFencedRetry =
+              await _applyUnexecutedCommandActionRetryToStreamedFinalAnswer(
+                streamedFinalAnswer: streamedFinalAnswer,
+                executedToolResults: finalToolResults,
+                batchToolResults: streamVerificationBatchToolResults,
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: tools,
+                toolSearchEnabled: toolSearchEnabled,
+                activeToolNames: activeToolNames,
+                stableToolDefinitions: stableToolDefinitions,
+                verificationFailureCounts: verificationFailureCounts,
+                transcriptRepairSignatures: transcriptRepairSignatures,
+                interactionGeneration: interactionGeneration,
+                onBlockingFeedbackPrepared: () =>
+                    _removeStreamedAnswerSuffixForGeneration(
+                      interactionGeneration,
+                      preAnswerContent: preFinalAnswerContent,
+                    ),
+              );
+          if (handledByFencedRetry) return;
+        }
+        final unexecutedCommandAction =
+            _toolCallExecutionPolicy.offersCommandExecution(
+              turnSnapshot.allowedToolNames,
+            )
+            ? _claims.buildUnexecutedCommandActionToolResult(
+                candidateResponse: streamedFinalAnswer,
+                toolResults: finalToolResults,
+                isProjectSubtask: _primaryRoutes.isProjectTaskStep(
+                  interactionGeneration,
+                ),
+              )
+            : null;
+        if (unexecutedCommandAction != null) {
+          finalToolResults.add(unexecutedCommandAction);
+          finalCompletionEvidenceIsCurrent = false;
+          final handledByCommandRetry =
+              await _applyUnexecutedCommandActionRetryToStreamedFinalAnswer(
+                streamedFinalAnswer: streamedFinalAnswer,
+                executedToolResults: finalToolResults,
+                batchToolResults: streamVerificationBatchToolResults,
+                allowedToolNames: turnSnapshot.allowedToolNames,
+                tools: tools,
+                toolSearchEnabled: toolSearchEnabled,
+                activeToolNames: activeToolNames,
+                stableToolDefinitions: stableToolDefinitions,
+                verificationFailureCounts: verificationFailureCounts,
+                transcriptRepairSignatures: transcriptRepairSignatures,
+                interactionGeneration: interactionGeneration,
+                onBlockingFeedbackPrepared: () =>
+                    _removeStreamedAnswerSuffixForGeneration(
+                      interactionGeneration,
+                      preAnswerContent: preFinalAnswerContent,
+                    ),
+              );
+          if (handledByCommandRetry) return;
+          _appendUnexecutedCommandActionNoticeIfNeeded(
+            toolResults: finalToolResults,
+            owner: turnOwner,
+          );
+        } else {
+          final unverifiedInspectionClaim = _guardReviewInspection(
+            candidateResponse: streamedFinalAnswer,
+            toolResults: finalToolResults,
+            generation: interactionGeneration,
+          );
+          if (unverifiedInspectionClaim != null) {
+            finalToolResults.add(unverifiedInspectionClaim);
+            finalCompletionEvidenceIsCurrent = false;
+            _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded(
+              toolResults: finalToolResults,
+              owner: turnOwner,
+            );
+          }
+        }
+        // A review ending at the loop limit answers here (session ca60617b).
+        _captureProjectTaskReviewResponse(
+          owner: turnOwner,
+          response: streamedFinalAnswer,
+          finishReason: _responseMetadata.finishReasonFor(turnOwner) ?? '',
+          results: finalToolResults,
+        );
+      }
+    } else if (!hasTextResponse) {
+      appLog('[Tool] Tool loop reached maximum iterations (no text response)');
+      // The helper already skips a turn with no message of its own; the
+      // removed `state.messages` guard read whichever thread was on screen.
+      _appendToLastMessageForGeneration(
+        interactionGeneration,
+        '\nSorry, there was a problem executing the tools. Please try again later.',
+      );
+    }
+
+    if (!finalCompletionEvidenceIsCurrent) {
+      finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
+        finalToolResults,
+      );
+      finalCompletionEvidence = _goalCompletionEvidence
+          .settleSuccessfulSavedValidation(
+            finalCompletionEvidence,
+            conversation: _conversationForGeneration(interactionGeneration),
+            succeeded: savedValidationSucceededInLoop,
+          );
+    }
+    finalCompletionEvidence = _goalCompletionEvidence
+        .replaceWithCombinedEvidence(turnOwner, finalCompletionEvidence);
+    final postMutationVerifierReplay = _takePostMutationVerifierReplay(
+      evidence: finalCompletionEvidence,
+      interactionGeneration: interactionGeneration,
+    );
+    if (postMutationVerifierReplay != null) {
+      appLog(
+        '[CodingVerification] Replaying the last executed verifier after '
+        'a later mutation',
+      );
+      await _executeToolCalls(
+        [postMutationVerifierReplay],
+        assistantContent:
+            'The implementation changed after its last verification. '
+            'Re-running the same verifier now.',
+        toolSearchEnabled: toolSearchEnabled,
+        selectedToolNames: activeToolNames,
+        stableToolDefinitions: stableToolDefinitions,
+        completionVerificationFailureCounts: verificationFailureCounts,
+        narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+        verifierOnlyContinuation: verifierOnlyContinuation,
+        interactionGeneration: interactionGeneration,
+      );
+      return;
+    }
+    await _recordSuccessfulVerificationGenerationIfNeeded(
+      finalCompletionEvidence,
+      owner: turnOwner,
+    );
+    if (!_activeResponseRegistry.containsOwner(turnOwner)) return;
+    _turnToolResults.setCompleted(turnOwner, finalToolResults);
+    await _finishStreaming(interactionGeneration: interactionGeneration);
+  }
 }

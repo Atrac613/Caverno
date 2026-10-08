@@ -76,7 +76,13 @@ const Map<String, int> _lineBudgets = {
   // their wording lives in DuplicateRecoveryKind.
   // -66, to 7,814: fifteen copies of append-answer, set content, mark text
   // response in the tool loop became one local acceptAnswer.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7814,
+  // -473, to 7,341: the tool loop's post-loop finalization moved unchanged
+  // into _finalizeToolLoop in the tool-loop batch part, which is pinned below.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7341,
+  // The tool loop's finalization (moved from chat_notifier.dart 2026-10-09)
+  // beside the batch execution it follows.
+  'lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart':
+      1395,
   'lib/features/chat/domain/services/anabasis/anabasis_address.dart': 44,
   'lib/features/chat/domain/services/anabasis/anabasis_turn_roles.dart': 56,
   // +1, to 41: the parent is told to record its judgement, which is the
