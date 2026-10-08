@@ -1,5 +1,5 @@
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/services/goal_update_tool_handler.dart';
+import '../../domain/services/goal/goal_update_tool_handler.dart';
 
 typedef GoalUpdateOwnerCurrentCallback =
     bool Function(GoalUpdateOperationIdentity identity);

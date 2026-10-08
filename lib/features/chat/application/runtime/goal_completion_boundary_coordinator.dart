@@ -1,12 +1,12 @@
 import '../../../../core/types/goal_completion_policy.dart';
 import '../../domain/entities/conversation_goal.dart';
-import '../../domain/services/conversation_goal_auto_continue_policy.dart';
-import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
-import '../../domain/services/goal_update_ack.dart';
+import '../../domain/services/goal/conversation_goal_auto_continue_policy.dart';
+import '../../domain/services/goal/goal_auto_continue_decision_coordinator.dart';
+import '../../domain/services/goal/goal_update_ack.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import 'turn_runtime.dart';
 
-export '../../domain/services/goal_update_tool_handler.dart';
+export '../../domain/services/goal/goal_update_tool_handler.dart';
 
 enum GoalCompletionBoundaryDisposition {
   none,

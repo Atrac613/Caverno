@@ -182,8 +182,8 @@
       "collaborators": [
         {
           "id": "goal-validation-probe-guard",
-          "path": "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/goal_validation_probe_guard.dart"
+          "path": "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart"
         },
         {
           "id": "loaded-skill-memory",
@@ -1139,28 +1139,28 @@
       "collaborators": [
         {
           "id": "goal-auto-continue-decision-coordinator",
-          "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart"
+          "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart"
         },
         {
           "id": "goal-auto-continue-safe-boundary-builder",
-          "path": "lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart"
+          "path": "lib/features/chat/domain/services/goal/goal_auto_continue_safe_boundary_builder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal/goal_auto_continue_safe_boundary_builder.dart"
         },
         {
           "id": "goal-auto-continue-tracker-registry",
-          "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart"
+          "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart"
         },
         {
           "id": "goal-continuation-log-record-builder",
-          "path": "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart"
+          "path": "lib/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart"
         },
         {
           "id": "goal-update-tool-handler",
-          "path": "lib/features/chat/domain/services/goal_update_tool_handler.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/goal_update_tool_handler.dart"
+          "path": "lib/features/chat/domain/services/goal/goal_update_tool_handler.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/goal/goal_update_tool_handler.dart"
         },
         {
           "id": "turn-runtime",

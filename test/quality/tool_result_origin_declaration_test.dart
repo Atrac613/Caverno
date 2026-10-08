@@ -11,7 +11,7 @@ import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart';
-import 'package:caverno/features/chat/domain/services/goal_validation_probe_guard.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_validation_probe_guard.dart';
 import 'package:caverno/features/chat/domain/services/production_release/production_release_blocked_result.dart';
 import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop_recovery_policy.dart';
@@ -58,7 +58,7 @@ const _producers = <String, ToolResultOrigin>{
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/command_diagnostic_verifier_replay_guard.dart':
       ToolResultOrigin.harness,
-  'lib/features/chat/domain/services/goal_validation_probe_guard.dart':
+  'lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart':
       ToolResultOrigin.harness,
   'lib/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart':
       ToolResultOrigin.harness,

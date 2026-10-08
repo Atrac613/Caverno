@@ -3,7 +3,7 @@ import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../entities/conversation_goal.dart';
 import '../entities/tool_call_info.dart';
-import 'goal_update_ack.dart';
+import 'goal/goal_update_ack.dart';
 import 'project_task_terminal_status.dart';
 import 'tool_definition_search_service.dart';
 import 'tool_result_prompt_builder.dart';

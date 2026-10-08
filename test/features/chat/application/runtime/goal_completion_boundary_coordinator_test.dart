@@ -2,8 +2,8 @@ import 'package:caverno/core/types/goal_completion_policy.dart';
 import 'package:caverno/features/chat/application/runtime/goal_completion_boundary_coordinator.dart';
 import 'package:caverno/features/chat/application/runtime/turn_runtime.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
-import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
-import 'package:caverno/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 

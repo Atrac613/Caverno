@@ -10,7 +10,7 @@ import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/video_attachment_draft.dart';
-import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
+import 'package:caverno/features/chat/domain/services/goal/conversation_goal_suggestion_service.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../../../chat/data/datasources/chat_datasource.dart';
-import '../../../chat/domain/services/goal_update_ack.dart';
+import '../../../chat/domain/services/goal/goal_update_ack.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_response_scoring.dart';

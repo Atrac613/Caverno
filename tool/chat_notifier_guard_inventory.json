@@ -416,19 +416,19 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart::ConversationGoalAutoContinuePolicy",
-      "path": "lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart",
+      "id": "lib/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart::ConversationGoalAutoContinuePolicy",
+      "path": "lib/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart",
       "symbol": "ConversationGoalAutoContinuePolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart:213",
-        "lexical reference at lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart:102",
+        "lexical reference at lib/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart:213",
+        "lexical reference at lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart:102",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart:7"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart:213 -> ConversationGoalAutoContinuePolicy",
-        "lexical reference at lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart:102 -> ConversationGoalAutoContinuePolicy",
+        "lexical reference at lib/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart:213 -> ConversationGoalAutoContinuePolicy",
+        "lexical reference at lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart:102 -> ConversationGoalAutoContinuePolicy",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_goal_auto_continue.dart:7 -> ConversationGoalAutoContinuePolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
@@ -618,18 +618,18 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/goal_validation_probe_guard.dart::GoalValidationProbeGuard",
-      "path": "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
+      "id": "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart::GoalValidationProbeGuard",
+      "path": "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart",
       "symbol": "GoalValidationProbeGuard",
       "kind": "guard_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/goal_validation_probe_guard.dart:12",
+        "lexical reference at lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart:12",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:189",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:483"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/goal_validation_probe_guard.dart:12 -> GoalValidationProbeGuard",
+        "lexical reference at lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart:12 -> GoalValidationProbeGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:189 -> GoalValidationProbeGuard",
         "lexical reference at lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart:483 -> GoalValidationProbeGuard"
       ],

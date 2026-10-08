@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
-import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/structured_coding_task_recovery_policy.dart';
 import 'package:test/test.dart';
 

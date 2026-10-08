@@ -1,7 +1,7 @@
 import '../entities/conversation_goal.dart';
 import '../entities/tool_call_info.dart';
 import 'finalization_recovery_request.dart';
-import 'goal_update_ack.dart';
+import 'goal/goal_update_ack.dart';
 import 'turn_finalization_delegation_recovery.dart';
 import 'turn_finalization_recovery_decision.dart';
 import 'turn_finalization_recovery_plan.dart';

@@ -2,7 +2,7 @@ import 'package:easy_localization/easy_localization.dart' show NumberFormat;
 
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
-import '../../domain/services/conversation_goal_auto_continue_policy.dart';
+import '../../domain/services/goal/conversation_goal_auto_continue_policy.dart';
 import '../providers/conversations_notifier.dart';
 import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_catalog.dart';

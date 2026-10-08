@@ -20,7 +20,7 @@ import '../../../settings/presentation/providers/model_capability_auto_probe_not
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/video_attachment_draft.dart';
-import '../../domain/services/conversation_goal_auto_continue_policy.dart';
+import '../../domain/services/goal/conversation_goal_auto_continue_policy.dart';
 import '../mentions/mention_target.dart';
 import '../slash_commands/slash_command.dart';
 import 'composer_attachment_button.dart';

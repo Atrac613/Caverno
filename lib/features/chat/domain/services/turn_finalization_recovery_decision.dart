@@ -1,6 +1,6 @@
 import '../entities/conversation_goal.dart';
 import '../entities/tool_call_info.dart';
-import 'goal_update_ack.dart';
+import 'goal/goal_update_ack.dart';
 import 'project_task_step_completion_policy.dart';
 import 'project_task_terminal_status.dart';
 import 'structured_coding_task_recovery_policy.dart';

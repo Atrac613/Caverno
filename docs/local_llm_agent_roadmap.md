@@ -4989,7 +4989,7 @@ Status: `done`
 
 Historical problem:
 - `ConversationGoalProgressInference.infer`
-  (`lib/features/chat/domain/services/conversation_goal_progress_inference.dart:225-256`)
+  (`lib/features/chat/domain/services/goal/conversation_goal_progress_inference.dart:225-256`)
   moves a goal to `completed` or `blocked` from string lists: `_looksComplete`
   contains `'passed'`, `'complete'`, `'修正しました'`; `_blockedSignals`
   contains `'permission denied'`, `'waiting for user'`. Any assistant sentence

@@ -1,5 +1,5 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/goal_update_tool_contract.dart';
+import '../../domain/services/goal/goal_update_tool_contract.dart';
 import 'turn_finalization_state_registry.dart';
 
 /// Keeps goal-specific turn-finalization state out of the generic registry.

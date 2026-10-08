@@ -1,6 +1,6 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
-import '../../domain/services/goal_auto_continue_tracker_registry.dart';
+import '../../domain/services/goal/goal_auto_continue_decision_coordinator.dart';
+import '../../domain/services/goal/goal_auto_continue_tracker_registry.dart';
 import 'turn_runtime.dart';
 
 // ChatNotifier decomposition collaborator: turn-runtime-goal-tracker-adapter

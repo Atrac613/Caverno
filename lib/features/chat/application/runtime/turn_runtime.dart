@@ -1,11 +1,11 @@
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
-import '../../domain/services/conversation_goal_auto_continue_policy.dart';
-import '../../domain/services/goal_auto_continue_decision_coordinator.dart';
-import '../../domain/services/goal_auto_continue_tracker_registry.dart';
-import '../../domain/services/goal_completion_elicitation_prompt.dart';
-import '../../domain/services/goal_continuation_log_record_builder.dart';
+import '../../domain/services/goal/conversation_goal_auto_continue_policy.dart';
+import '../../domain/services/goal/goal_auto_continue_decision_coordinator.dart';
+import '../../domain/services/goal/goal_auto_continue_tracker_registry.dart';
+import '../../domain/services/goal/goal_completion_elicitation_prompt.dart';
+import '../../domain/services/goal/goal_continuation_log_record_builder.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 
 // ChatNotifier decomposition collaborator: turn-runtime

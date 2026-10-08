@@ -1,7 +1,7 @@
 import '../../application/runtime/turn_runtime_conversation_goal_adapter.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
-import '../../domain/services/conversation_goal_status_transition.dart';
+import '../../domain/services/goal/conversation_goal_status_transition.dart';
 import 'conversations_notifier.dart';
 
 /// Exposes only owner-addressable goal operations from conversation storage.

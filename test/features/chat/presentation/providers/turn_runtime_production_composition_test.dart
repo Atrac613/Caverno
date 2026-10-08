@@ -8,9 +8,9 @@ import 'package:caverno/features/chat/application/runtime/turn_runtime_goal_trac
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
-import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
-import 'package:caverno/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart';
-import 'package:caverno/features/chat/domain/services/goal_auto_continue_tracker_registry.dart';
+import 'package:caverno/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_runtime_production_composition.dart';
 import 'package:test/test.dart';
 

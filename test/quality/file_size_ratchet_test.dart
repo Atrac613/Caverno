@@ -190,9 +190,9 @@ const Map<String, int> _lineBudgets = {
   // is left here is the call and a message that points a real pipeline at
   // local_execute_command instead of back at this tool.
   'lib/features/chat/domain/services/git/git_tool_handler.dart': 322,
-  'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart':
+  'lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart':
       449,
-  'lib/features/chat/domain/services/goal_auto_continue_decision_types.dart':
+  'lib/features/chat/domain/services/goal/goal_auto_continue_decision_types.dart':
       67,
   // +4 for the assumption-confirmation blocker: one constructor parameter,
   // one field, and the two lines mapping it through. ANA0's kind reached
@@ -200,13 +200,13 @@ const Map<String, int> _lineBudgets = {
   // auto-continue on would start another turn while the user was being
   // asked to confirm an assumption. A blocker is a field here; there is
   // nothing to extract.
-  'lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart':
+  'lib/features/chat/domain/services/goal/goal_auto_continue_safe_boundary_builder.dart':
       76,
-  'lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart':
+  'lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart':
       457,
-  'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart':
+  'lib/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart':
       137,
-  'lib/features/chat/domain/services/goal_update_tool_handler.dart': 64,
+  'lib/features/chat/domain/services/goal/goal_update_tool_handler.dart': 64,
   'lib/features/chat/domain/services/participant_message_finalizer.dart': 364,
   'lib/features/chat/domain/services/participant_tool_executor.dart': 349,
   'lib/features/chat/data/datasources/participant_tool_production_ports.dart':
@@ -334,7 +334,7 @@ const Map<String, int> _lineBudgets = {
   // +6: the block declares itself a refusal (`ok: false`, `result_origin`),
   // so the turn digest stops listing a blocked `tag -a` as run.
   'lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart': 162,
-  'lib/features/chat/domain/services/goal_validation_probe_guard.dart': 53,
+  'lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart': 53,
   'lib/features/chat/domain/services/material_contract_assumption_arming.dart':
       31,
   'lib/features/chat/domain/services/material_contract_assumption_guard.dart':

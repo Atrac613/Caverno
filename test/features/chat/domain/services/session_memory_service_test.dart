@@ -1,7 +1,7 @@
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
-import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
 import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';

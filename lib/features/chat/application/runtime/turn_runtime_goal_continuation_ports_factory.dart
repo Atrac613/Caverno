@@ -1,5 +1,5 @@
 import '../../domain/entities/chat_turn_owner.dart';
-import '../../domain/services/goal_auto_continue_tracker_registry.dart';
+import '../../domain/services/goal/goal_auto_continue_tracker_registry.dart';
 import 'turn_runtime.dart';
 import 'turn_runtime_conversation_goal_adapter.dart';
 import 'turn_runtime_goal_tracker_adapter.dart';

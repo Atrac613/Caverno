@@ -1,5 +1,5 @@
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
-import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop_exit_reason.dart';
 import 'package:caverno/features/chat/presentation/providers/turn_finalization_state_registry.dart';
 import 'package:flutter_test/flutter_test.dart';

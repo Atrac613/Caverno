@@ -62,7 +62,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/conversation_goal_auto_continue_policy.dart::ConversationGoalAutoContinuePolicy",
+      "id": "lib/features/chat/domain/services/goal/conversation_goal_auto_continue_policy.dart::ConversationGoalAutoContinuePolicy",
       "disposition": "defer",
       "question": "Was ConversationGoalAutoContinuePolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",
@@ -104,7 +104,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/goal_validation_probe_guard.dart::GoalValidationProbeGuard",
+      "id": "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart::GoalValidationProbeGuard",
       "disposition": "defer",
       "question": "Was GoalValidationProbeGuard evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

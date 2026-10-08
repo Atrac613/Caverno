@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
-import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
+import 'package:caverno/features/chat/domain/services/goal/conversation_goal_suggestion_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _japaneseMarkdownWeatherRequest =

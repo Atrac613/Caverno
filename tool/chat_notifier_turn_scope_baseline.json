@@ -46,12 +46,12 @@
     "lib/features/chat/domain/services/git/git_tag_format_inspection_guard.dart",
     "lib/features/chat/domain/services/git/git_tool_handler.dart",
     "lib/features/chat/domain/services/git/git_write_confirmation_policy.dart",
-    "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
-    "lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart",
-    "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
-    "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart",
-    "lib/features/chat/domain/services/goal_update_tool_handler.dart",
-    "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
+    "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
+    "lib/features/chat/domain/services/goal/goal_auto_continue_safe_boundary_builder.dart",
+    "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
+    "lib/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart",
+    "lib/features/chat/domain/services/goal/goal_update_tool_handler.dart",
+    "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart",
     "lib/features/chat/domain/services/local_command/local_command_tool_handler.dart",
     "lib/features/chat/domain/services/lsp_go_to_definition_tool_handler.dart",
     "lib/features/chat/domain/services/material_contract_assumption_guard.dart",
@@ -7056,7 +7056,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "GoalAutoContinueDecisionCoordinator._veto",
       "signature": "GoalAutoContinueDecisionPlan _veto(\n    GoalAutoContinueCoordinationReasonCode code,\n    String detail,\n  )",
       "turnIdentityParameters": [],
@@ -7070,7 +7070,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "GoalAutoContinueDecisionCoordinator.coordinate",
       "signature": "GoalAutoContinueDecisionPlan coordinate(GoalAutoContinueDecisionInput input)",
       "turnIdentityParameters": [],
@@ -7099,7 +7099,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_candidateProgressStreak",
       "signature": "int _candidateProgressStreak(\n  GoalAutoContinueTrackerSnapshot tracker,\n  ToolResultCompletionEvidence evidence,\n)",
       "turnIdentityParameters": [],
@@ -7112,7 +7112,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_continuationLimits",
       "signature": "GoalAutoContinueContinuationLimits _continuationLimits(\n  GoalAutoContinueDecision decision,\n  GoalAutoContinueCapabilityProfile capabilityProfile, {\n  required bool hasRepairContract,\n})",
       "turnIdentityParameters": [],
@@ -7123,7 +7123,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_effectiveTurnBudget",
       "signature": "int? _effectiveTurnBudget(Conversation conversation)",
       "turnIdentityParameters": [
@@ -7136,7 +7136,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_elicitation",
       "signature": "({\n  GoalCompletionElicitationEligibility eligibility,\n  int? mutationGeneration,\n  bool markAwaitingConfirmation,\n})\n_elicitation(\n  GoalAutoContinueDecisionInput input,\n  GoalAutoContinueDecision decision,\n)",
       "turnIdentityParameters": [],
@@ -7147,7 +7147,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_emptyTrackerDelta",
       "signature": "GoalAutoContinueTrackerDelta _emptyTrackerDelta()",
       "turnIdentityParameters": [],
@@ -7158,7 +7158,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_endsWithQuestionMark",
       "signature": "bool _endsWithQuestionMark(String content)",
       "turnIdentityParameters": [],
@@ -7172,7 +7172,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_savedWorkflowOwnsContinuation",
       "signature": "bool _savedWorkflowOwnsContinuation(Conversation conversation)",
       "turnIdentityParameters": [
@@ -7188,7 +7188,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_stopNotice",
       "signature": "String? _stopNotice(\n  GoalAutoContinueDecision decision,\n  GoalAutoContinueTrackerSnapshot tracker,\n)",
       "turnIdentityParameters": [],
@@ -7201,7 +7201,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_decision_coordinator.dart",
       "declaration": "_trackerDelta",
       "signature": "GoalAutoContinueTrackerDelta _trackerDelta({\n  required GoalAutoContinueDecisionInput input,\n  required GoalAutoContinuePolicyInput policyInput,\n  required GoalAutoContinueDecision decision,\n  required int candidateNoProgressStreak,\n  required int candidateDiagnosticSignatureStreak,\n  required bool failedVerificationObserved,\n  required int consecutiveValidationMisses,\n  required String? repairContract,\n  required int? completionElicitationMutationGeneration,\n  required bool markBudgetNoticePresented,\n})",
       "turnIdentityParameters": [],
@@ -7212,7 +7212,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_safe_boundary_builder.dart",
       "declaration": "GoalAutoContinueSafeBoundaryBuilder.build",
       "signature": "GoalAutoContinueSafeBoundary build(GoalAutoContinuePendingState state)",
       "turnIdentityParameters": [],
@@ -7226,7 +7226,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry._candidateEvent",
       "signature": "GoalVerifierReplayCandidateEvent _candidateEvent(\n    ChatTurnOwner owner,\n    GoalVerifierReplayCandidateDisposition disposition, {\n    bool taskChanged = false,\n    _GoalTrackerState? state,\n  })",
       "turnIdentityParameters": [
@@ -7241,7 +7241,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry._snapshot",
       "signature": "GoalAutoContinueTrackerSnapshot _snapshot(\n    ChatTurnOwner owner,\n    _GoalTrackerState state,\n  )",
       "turnIdentityParameters": [
@@ -7259,7 +7259,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.clearCommandDiagnosticRepairFocus",
       "signature": "bool clearCommandDiagnosticRepairFocus(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -7272,7 +7272,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.commandDiagnosticRepairFocusFor",
       "signature": "CommandDiagnosticRepairFocus? commandDiagnosticRepairFocusFor(\n    GoalAutoContinueConversationTaskSnapshot context,\n  )",
       "turnIdentityParameters": [],
@@ -7286,7 +7286,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.create",
       "signature": "GoalAutoContinueTrackerSnapshot create(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -7302,7 +7302,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.hasVerifierReplayCandidate",
       "signature": "bool hasVerifierReplayCandidate(\n    GoalAutoContinueConversationTaskSnapshot context,\n  )",
       "turnIdentityParameters": [],
@@ -7315,7 +7315,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.isReplayEligibleVerifierToolCall",
       "signature": "bool isReplayEligibleVerifierToolCall(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -7331,7 +7331,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.markBudgetNoticePresented",
       "signature": "bool markBudgetNoticePresented(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -7346,7 +7346,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.read",
       "signature": "GoalAutoContinueTrackerSnapshot? read(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -7361,7 +7361,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.recordCommandDiagnostic",
       "signature": "GoalCommandDiagnosticEvent? recordCommandDiagnostic({\n    required GoalAutoContinueConversationTaskSnapshot context,\n    required String commandKey,\n    required ToolResultInfo toolResult,\n  })",
       "turnIdentityParameters": [],
@@ -7377,7 +7377,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.recordExecutedVerifierReplayCandidate",
       "signature": "GoalVerifierReplayCandidateEvent recordExecutedVerifierReplayCandidate({\n    required GoalAutoContinueConversationTaskSnapshot context,\n    required ToolCallInfo toolCall,\n  })",
       "turnIdentityParameters": [],
@@ -7397,7 +7397,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.removeTracker",
       "signature": "void removeTracker(ChatTurnOwner owner)",
       "turnIdentityParameters": [
@@ -7413,7 +7413,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.resetCommandDiagnostic",
       "signature": "bool resetCommandDiagnostic(ChatTurnOwner owner, String commandKey)",
       "turnIdentityParameters": [
@@ -7428,7 +7428,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.resetConversation",
       "signature": "void resetConversation(String? conversationId)",
       "turnIdentityParameters": [],
@@ -7443,7 +7443,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.takePostMutationVerifierReplay",
       "signature": "GoalVerifierReplaySelection? takePostMutationVerifierReplay({\n    required GoalAutoContinueConversationTaskSnapshot context,\n    required ToolResultCompletionEvidence evidence,\n  })",
       "turnIdentityParameters": [],
@@ -7462,7 +7462,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.update",
       "signature": "GoalAutoContinueTrackerSnapshot update(\n    ChatTurnOwner owner, {\n    int consecutiveAutoContinuationsDelta = 0,\n    int diagnosticRepairContinuationsDelta = 0,\n    bool? diagnosticRepairExtensionUsed,\n    int? noProgressStreak,\n    int? consecutiveValidationMisses,\n    bool? failedVerificationObserved,\n    ToolResultCompletionEvidence? previousEvidence,\n    bool clearPreviousEvidence = false,\n    String? previousDiagnosticSignature,\n    int? identicalDiagnosticSignatureStreak,\n    bool? pendingPostRepairReplayOutcome,\n    bool? pendingRepairContractOutcome,\n    bool? repairNoMutationRetryUsed,\n    int? completionElicitationMutationGeneration,\n    bool clearCompletionElicitationMutationGeneration = false,\n  })",
       "turnIdentityParameters": [
@@ -7480,7 +7480,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "GoalAutoContinueTrackerRegistry.verifierReplayPriority",
       "signature": "int verifierReplayPriority(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -7496,7 +7496,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_activeTaskId",
       "signature": "String? _activeTaskId(GoalAutoContinueConversationTaskSnapshot context)",
       "turnIdentityParameters": [],
@@ -7509,7 +7509,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_candidateSnapshot",
       "signature": "GoalVerifierReplayCandidateSnapshot _candidateSnapshot(\n  _GoalTrackerState state,\n)",
       "turnIdentityParameters": [],
@@ -7522,7 +7522,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_copyEvidence",
       "signature": "ToolResultCompletionEvidence _copyEvidence(\n  ToolResultCompletionEvidence evidence,\n)",
       "turnIdentityParameters": [],
@@ -7535,7 +7535,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_copyFocus",
       "signature": "CommandDiagnosticRepairFocus _copyFocus(CommandDiagnosticRepairFocus focus)",
       "turnIdentityParameters": [],
@@ -7548,7 +7548,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_copyToolCall",
       "signature": "ToolCallInfo _copyToolCall(ToolCallInfo call)",
       "turnIdentityParameters": [],
@@ -7562,7 +7562,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_freezeMap",
       "signature": "Map<String, dynamic> _freezeMap(Map<String, dynamic> value)",
       "turnIdentityParameters": [],
@@ -7575,7 +7575,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_isCoding",
       "signature": "bool _isCoding(GoalAutoContinueConversationTaskSnapshot context)",
       "turnIdentityParameters": [],
@@ -7586,7 +7586,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_auto_continue_tracker_registry.dart",
       "declaration": "_newState",
       "signature": "_GoalTrackerState _newState()",
       "turnIdentityParameters": [],
@@ -7599,7 +7599,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart",
       "declaration": "GoalAutoContinueLogRecord.payload",
       "signature": "Map<String, dynamic> get payload",
       "turnIdentityParameters": [],
@@ -7610,7 +7610,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_continuation_log_record_builder.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_continuation_log_record_builder.dart",
       "declaration": "GoalContinuationLogRecordBuilder.buildAutoContinue",
       "signature": "GoalAutoContinueLogRecord buildAutoContinue({\n    required ChatTurnOwner owner,\n    required String decision,\n    required String reason,\n    required ConversationGoal? goal,\n    required int? nextTurnNumber,\n    required int? effectiveTurnBudget,\n    required GoalAutoContinueTrackerSnapshot? tracker,\n    required ToolResultCompletionEvidence evidence,\n    required VerificationCadence verificationCadence,\n    required int? mutationGeneration,\n    required int? verificationGeneration,\n    required GoalAutoContinueSafeBoundary safeBoundary,\n  })",
       "turnIdentityParameters": [
@@ -7628,7 +7628,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_update_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_update_tool_handler.dart",
       "declaration": "GoalUpdateToolHandler.handle",
       "signature": "GoalUpdateToolHandlerOutcome handle({\n    required GoalUpdateToolRequest request,\n    required GoalUpdateOwnerSnapshot ownerSnapshot,\n  })",
       "turnIdentityParameters": [],
@@ -7650,7 +7650,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_update_tool_handler.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_update_tool_handler.dart",
       "declaration": "GoalUpdateToolHandler.handleCall",
       "signature": "GoalUpdateToolHandlerOutcome handleCall({\n    required ChatTurnOwner owner,\n    required ToolCallInfo toolCall,\n    required ConversationGoal? goal,\n    required List<ToolResultInfo> toolResults,\n    required ToolResultCompletionEvidence completionEvidence,\n  })",
       "turnIdentityParameters": [
@@ -7667,7 +7667,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart",
       "declaration": "GoalValidationProbeGuard.evaluate",
       "signature": "McpToolResult? evaluate(\n    ToolCallInfo toolCall, {\n    required bool verifierOnlyContinuation,\n  })",
       "turnIdentityParameters": [],
@@ -7682,7 +7682,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/goal_validation_probe_guard.dart",
+      "path": "lib/features/chat/domain/services/goal/goal_validation_probe_guard.dart",
       "declaration": "GoalValidationProbeGuard.matches",
       "signature": "bool matches(McpToolResult result)",
       "turnIdentityParameters": [],

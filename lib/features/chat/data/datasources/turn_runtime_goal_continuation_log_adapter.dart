@@ -1,5 +1,5 @@
 import '../../application/runtime/turn_runtime.dart';
-import '../../domain/services/goal_continuation_log_record_builder.dart';
+import '../../domain/services/goal/goal_continuation_log_record_builder.dart';
 import 'llm_session_log_store.dart';
 
 // ChatNotifier decomposition collaborator: turn-runtime-goal-continuation-log-adapter

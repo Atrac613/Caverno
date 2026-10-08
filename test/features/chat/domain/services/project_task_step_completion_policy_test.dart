@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
+import 'package:caverno/features/chat/domain/services/goal/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/project_task_step_completion_policy.dart';
 import 'package:caverno/features/chat/domain/services/project_task_terminal_status.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
