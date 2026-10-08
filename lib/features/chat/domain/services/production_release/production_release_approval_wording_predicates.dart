@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 
 /// Retired wording-based release verdict, kept only for shadow comparison.
 ///

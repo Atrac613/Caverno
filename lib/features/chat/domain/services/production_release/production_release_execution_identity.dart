@@ -1,6 +1,6 @@
-import '../entities/tool_call_info.dart';
+import '../../entities/tool_call_info.dart';
+import '../tool_call_execution_policy.dart';
 import 'production_release_canonical_arguments.dart';
-import 'tool_call_execution_policy.dart';
 
 typedef ProductionReleaseArgumentResolver =
     Map<String, dynamic> Function(ToolCallInfo toolCall);

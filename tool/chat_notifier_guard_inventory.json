@@ -855,16 +855,16 @@
       "staticProof": null
     },
     {
-      "id": "lib/features/chat/domain/services/production_release_approval_policy.dart::ProductionReleaseApprovalPolicy",
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "id": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart::ProductionReleaseApprovalPolicy",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "symbol": "ProductionReleaseApprovalPolicy",
       "kind": "policy_type",
       "discoveryRule": "domain-guard-policy-recovery-types",
       "selectionRoots": [
-        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:66"
+        "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:66"
       ],
       "staticEdges": [
-        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:66 -> ProductionReleaseApprovalPolicy"
+        "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:66 -> ProductionReleaseApprovalPolicy"
       ],
       "reachabilityImpact": "selection may enable, block, or redirect turn behavior",
       "telemetryEvent": null,
@@ -1030,8 +1030,8 @@
         "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:29",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44",
-        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:68",
-        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:69",
+        "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:68",
+        "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:69",
         "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153",
         "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:32",
         "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33",
@@ -1061,8 +1061,8 @@
         "lexical reference at lib/features/chat/domain/services/git/git_write_confirmation_policy.dart:29 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:41 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/narrated_transcript_claim_guard.dart:44 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:68 -> ToolCallExecutionPolicy",
-        "lexical reference at lib/features/chat/domain/services/production_release_approval_policy.dart:69 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:68 -> ToolCallExecutionPolicy",
+        "lexical reference at lib/features/chat/domain/services/production_release/production_release_approval_policy.dart:69 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/run_tests_tool_handler.dart:153 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:32 -> ToolCallExecutionPolicy",
         "lexical reference at lib/features/chat/domain/services/saved_validation_command_guard.dart:33 -> ToolCallExecutionPolicy",

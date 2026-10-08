@@ -216,38 +216,38 @@ const Map<String, int> _lineBudgets = {
   // wording predicates it shadows, and the pieces both blocked-release paths
   // share, so the vocabulary can be deleted as a file rather than edited out
   // of live approval code.
-  'lib/features/chat/domain/services/production_release_approval_policy.dart':
+  'lib/features/chat/domain/services/production_release/production_release_approval_policy.dart':
       388,
-  'lib/features/chat/domain/services/production_release_approval_coordinator.dart':
+  'lib/features/chat/domain/services/production_release/production_release_approval_coordinator.dart':
       170,
-  'lib/features/chat/domain/services/production_release_approval_gate.dart':
+  'lib/features/chat/domain/services/production_release/production_release_approval_gate.dart':
       216,
   // -31, to 55: the approval-conflict refusal left for
   // production_release_approval_conflict_result.dart, taking the pending
   // release it describes instead of its fields one by one.
-  'lib/features/chat/domain/services/production_release_approval_presentation.dart':
+  'lib/features/chat/domain/services/production_release/production_release_approval_presentation.dart':
       55,
-  'lib/features/chat/domain/services/production_release_approval_evidence_snapshot.dart':
+  'lib/features/chat/domain/services/production_release/production_release_approval_evidence_snapshot.dart':
       27,
-  'lib/features/chat/domain/services/production_release_approval_token_registry.dart':
+  'lib/features/chat/domain/services/production_release/production_release_approval_token_registry.dart':
       44,
-  'lib/features/chat/domain/services/production_release_approval_wording_predicates.dart':
+  'lib/features/chat/domain/services/production_release/production_release_approval_wording_predicates.dart':
       203,
-  'lib/features/chat/domain/services/production_release_blocked_result.dart':
+  'lib/features/chat/domain/services/production_release/production_release_blocked_result.dart':
       59,
   // Extracted from the coordinator and the blocked result so a release the
   // turn already ran is one concern: the typed read that proves it ran, and
   // the refusal that says so instead of demanding an approval no answer could
   // satisfy.
-  'lib/features/chat/domain/services/production_release_dispatch_evidence.dart':
+  'lib/features/chat/domain/services/production_release/production_release_dispatch_evidence.dart':
       98,
-  'lib/features/chat/domain/services/production_release_dispatch_result.dart':
+  'lib/features/chat/domain/services/production_release/production_release_dispatch_result.dart':
       30,
   // -18, to 43: argument canonicalization left for
   // production_release_canonical_arguments.dart after 8d7c19ba9 overran this.
-  'lib/features/chat/domain/services/production_release_execution_identity.dart':
+  'lib/features/chat/domain/services/production_release/production_release_execution_identity.dart':
       43,
-  'lib/features/chat/domain/services/production_release_prose_shadow.dart': 77,
+  'lib/features/chat/domain/services/production_release/production_release_prose_shadow.dart': 77,
   'lib/features/chat/domain/services/project_scoped_read_tool_handler.dart':
       102,
   'lib/features/chat/domain/services/run_tests_tool_handler.dart': 465,
@@ -287,9 +287,9 @@ const Map<String, int> _lineBudgets = {
       64,
   'lib/features/chat/domain/services/unexecuted_final_answer_tool_request_policy.dart':
       283,
-  'lib/features/chat/domain/services/blocked_production_release_retry_policy.dart':
+  'lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart':
       261,
-  'lib/features/chat/domain/services/blocked_production_release_retry_contract.dart':
+  'lib/features/chat/domain/services/production_release/blocked_production_release_retry_contract.dart':
       100,
   'lib/features/chat/domain/services/fenced_tool_arguments_detector.dart': 74,
   'lib/features/chat/domain/services/unexecuted_command_action_retry_policy.dart':

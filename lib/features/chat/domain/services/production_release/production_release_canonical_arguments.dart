@@ -1,6 +1,6 @@
-import '../../data/datasources/local_shell_tools.dart';
-import '../entities/tool_call_info.dart';
-import 'local_command_tool_contract.dart';
+import '../../../data/datasources/local_shell_tools.dart';
+import '../../entities/tool_call_info.dart';
+import '../local_command_tool_contract.dart';
 
 /// The arguments of a release call reduced to what decides what runs, so two
 /// spellings of one execution share an approval and a dispatch record.

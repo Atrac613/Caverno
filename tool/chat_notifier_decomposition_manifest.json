@@ -282,18 +282,18 @@
         },
         {
           "id": "production-release-approval-policy",
-          "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_policy.dart"
+          "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart"
         },
         {
           "id": "production-release-approval-coordinator",
-          "path": "lib/features/chat/domain/services/production_release_approval_coordinator.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/production_release_approval_coordinator.dart"
+          "path": "lib/features/chat/domain/services/production_release/production_release_approval_coordinator.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release/production_release_approval_coordinator.dart"
         },
         {
           "id": "production-release-dispatch-evidence",
-          "path": "lib/features/chat/domain/services/production_release_dispatch_evidence.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/production_release_dispatch_evidence.dart"
+          "path": "lib/features/chat/domain/services/production_release/production_release_dispatch_evidence.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release/production_release_dispatch_evidence.dart"
         }
       ]
     },
@@ -761,8 +761,8 @@
         },
         {
           "id": "blocked-production-release-retry-policy",
-          "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
-          "sizeBudgetKey": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart"
+          "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart"
         },
         {
           "id": "fenced-tool-arguments-detector",

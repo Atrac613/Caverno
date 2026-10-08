@@ -153,7 +153,7 @@
       "prerequisite": "Capture a clean matching-build corpus with full catalogue snapshots, then re-rank."
     },
     {
-      "id": "lib/features/chat/domain/services/production_release_approval_policy.dart::ProductionReleaseApprovalPolicy",
+      "id": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart::ProductionReleaseApprovalPolicy",
       "disposition": "defer",
       "question": "Was ProductionReleaseApprovalPolicy evaluated, and which branch did it select?",
       "reason": "Keep the first Phase 0B production change to one decision event.",

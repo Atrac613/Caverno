@@ -4,7 +4,7 @@ import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cache.dart';
-import 'package:caverno/features/chat/domain/services/production_release_approval_policy.dart';
+import 'package:caverno/features/chat/domain/services/production_release/production_release_approval_policy.dart';
 import 'package:test/test.dart';
 
 const _token = 'rel-0123456789abcdef';

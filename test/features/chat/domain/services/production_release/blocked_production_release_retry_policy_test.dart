@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/domain/services/blocked_production_release_retry_policy.dart';
+import 'package:caverno/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

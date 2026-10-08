@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
-import '../entities/mcp_tool_entity.dart';
+import '../../entities/mcp_tool_entity.dart';
 import 'production_release_approval_presentation.dart';
 
 export 'production_release_approval_presentation.dart';

@@ -1,8 +1,9 @@
-import '../entities/mcp_tool_entity.dart';
-import '../entities/tool_call_info.dart';
-import 'ask_user_question_text_normalization.dart';
+import '../../entities/mcp_tool_entity.dart';
+import '../../entities/tool_call_info.dart';
+import '../ask_user_question_text_normalization.dart';
+import '../local_command_tool_contract.dart';
+import '../tool_call_execution_policy.dart';
 import 'blocked_production_release_retry_contract.dart';
-import 'local_command_tool_contract.dart';
 import 'production_release_approval_conflict_result.dart';
 import 'production_release_approval_evidence_snapshot.dart';
 import 'production_release_approval_token_registry.dart';
@@ -10,7 +11,6 @@ import 'production_release_blocked_result.dart';
 import 'production_release_dispatch_evidence.dart';
 import 'production_release_dispatch_result.dart';
 import 'production_release_execution_identity.dart';
-import 'tool_call_execution_policy.dart';
 
 /// Stateful exact-execution gate behind the approval evidence coordinator.
 final class ProductionReleaseApprovalGate {

@@ -12,7 +12,7 @@ import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/anabasis_parent_authority_guard.dart';
 import 'package:caverno/features/chat/domain/services/duplicate_tool_result_reuse_payload.dart';
 import 'package:caverno/features/chat/domain/services/goal_validation_probe_guard.dart';
-import 'package:caverno/features/chat/domain/services/production_release_blocked_result.dart';
+import 'package:caverno/features/chat/domain/services/production_release/production_release_blocked_result.dart';
 import 'package:caverno/features/chat/domain/services/saved_task_target_scope_guard.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop_recovery_policy.dart';
 import 'package:caverno/features/chat/domain/services/unexecuted_file_mutation_block_payload.dart';
@@ -64,7 +64,7 @@ const _producers = <String, ToolResultOrigin>{
       ToolResultOrigin.harness,
   // Refusals: a permission, scope or safety rule stopped a call that was
   // otherwise ready to run. This is the population a "was stopped" rate means.
-  'lib/features/chat/domain/services/production_release_blocked_result.dart':
+  'lib/features/chat/domain/services/production_release/production_release_blocked_result.dart':
       ToolResultOrigin.refusal,
   'lib/features/chat/data/datasources/local_shell_tools.dart':
       ToolResultOrigin.refusal,

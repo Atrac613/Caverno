@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../entities/chat_turn_owner.dart';
-import '../entities/tool_call_info.dart';
+import '../../entities/chat_turn_owner.dart';
+import '../../entities/tool_call_info.dart';
 import 'blocked_production_release_retry_contract.dart';
 import 'production_release_execution_identity.dart';
 

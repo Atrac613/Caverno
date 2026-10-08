@@ -18,7 +18,7 @@
     "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
     "lib/features/chat/domain/services/background_process_tool_handler.dart",
     "lib/features/chat/domain/services/ble_connection_tool_handler.dart",
-    "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+    "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
     "lib/features/chat/domain/services/browser_session_ownership_coordinator.dart",
     "lib/features/chat/domain/services/browser_tool_handler.dart",
     "lib/features/chat/domain/services/chat_tool_handler_catalog.dart",
@@ -63,7 +63,7 @@
     "lib/features/chat/domain/services/participant_tool_executor.dart",
     "lib/features/chat/domain/services/participant_turn_planner.dart",
     "lib/features/chat/domain/services/process_start_result_policy.dart",
-    "lib/features/chat/domain/services/production_release_approval_policy.dart",
+    "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
     "lib/features/chat/domain/services/project_scoped_read_tool_handler.dart",
     "lib/features/chat/domain/services/proposal_option_extraction.dart",
     "lib/features/chat/domain/services/proposal_parsing_text_utils.dart",
@@ -2458,7 +2458,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryInput._freezeToolResult",
       "signature": "static ToolResultInfo _freezeToolResult(ToolResultInfo result)",
       "turnIdentityParameters": [],
@@ -2472,7 +2472,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy._buildFeedback",
       "signature": "ToolResultInfo _buildFeedback({\n    required String feedbackId,\n    required String toolName,\n    required String command,\n  })",
       "turnIdentityParameters": [],
@@ -2486,7 +2486,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy._decodeJsonObject",
       "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
       "turnIdentityParameters": [],
@@ -2499,7 +2499,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy._hasExecuted",
       "signature": "bool _hasExecuted(List<String> executedCommands, String command)",
       "turnIdentityParameters": [],
@@ -2513,7 +2513,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy._latestBlockedRelease",
       "signature": "PendingBlockedRelease? _latestBlockedRelease(\n    List<ToolResultInfo> toolResults,\n  )",
       "turnIdentityParameters": [],
@@ -2528,7 +2528,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy.blockedReleaseFromToolResults",
       "signature": "/// Reads a block out of a guard payload, for the case where the assistant\n  /// was blocked and approval was already on record in the same turn.\n  PendingBlockedRelease? blockedReleaseFromToolResults(\n    List<ToolResultInfo> toolResults,\n  )",
       "turnIdentityParameters": [],
@@ -2541,7 +2541,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy.evaluate",
       "signature": "BlockedProductionReleaseRetryDisposition evaluate(\n    BlockedProductionReleaseRetryInput input,\n  )",
       "turnIdentityParameters": [],
@@ -2560,7 +2560,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy.normalizeCommand",
       "signature": "/// Commands are compared on collapsed whitespace only. Anything smarter\n  /// (argument reordering, shell parsing) would start guessing whether two\n  /// spellings mean the same release, and a wrong guess here either skips a\n  /// real retry or re-runs a publish.\n  String normalizeCommand(String command)",
       "turnIdentityParameters": [],
@@ -2575,7 +2575,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/blocked_production_release_retry_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart",
       "declaration": "BlockedProductionReleaseRetryPolicy.retrySignature",
       "signature": "/// One retry per owner and command. Re-prompting the same blocked release\n  /// twice would turn a dropped call into a loop.\n  String retrySignature({\n    required ChatTurnOwner owner,\n    required String toolName,\n    required String command,\n  })",
       "turnIdentityParameters": [
@@ -9068,7 +9068,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalEvidence.approved",
       "signature": "bool get approved",
       "turnIdentityParameters": [],
@@ -9079,7 +9079,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy._clipForDiagnostic",
       "signature": "String _clipForDiagnostic(String value, {int maxLength = 240})",
       "turnIdentityParameters": [],
@@ -9095,7 +9095,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy._containsAny",
       "signature": "bool _containsAny(String value, List<String> needles)",
       "turnIdentityParameters": [],
@@ -9108,7 +9108,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy._containsAnyCodeUnitSequence",
       "signature": "bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences)",
       "turnIdentityParameters": [],
@@ -9123,7 +9123,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy._decodeJsonObject",
       "signature": "Map<String, dynamic>? _decodeJsonObject(String value)",
       "turnIdentityParameters": [],
@@ -9136,7 +9136,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.answerApproves",
       "signature": "bool answerApproves(McpToolResult answerResult)",
       "turnIdentityParameters": [],
@@ -9154,7 +9154,7 @@
       "turnReachable": false
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.buildGuardResult",
       "signature": "McpToolResult? buildGuardResult(\n    ToolCallInfo toolCall, {\n    required ChatTurnOwner owner,\n    required String? currentAssistantContent,\n    required ProductionReleaseApprovalEvidence approvalEvidence,\n  })",
       "turnIdentityParameters": [
@@ -9174,7 +9174,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.captureProof",
       "signature": "ProductionReleaseApprovalProof captureProof({\n    required ChatTurnOwner owner,\n    required String submittedUserContent,\n    required ProductionReleasePrecedingMessage? precedingOwnerMessage,\n  })",
       "turnIdentityParameters": [
@@ -9193,7 +9193,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.evaluate",
       "signature": "ProductionReleaseApprovalDecision evaluate({\n    required ChatTurnOwner owner,\n    required ToolCallInfo toolCall,\n    required ProductionReleaseApprovalProof? capturedProof,\n    required AskUserQuestionTurnCache questionResults,\n    String? currentAssistantContent,\n  })",
       "turnIdentityParameters": [
@@ -9210,7 +9210,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.evidenceFor",
       "signature": "ProductionReleaseApprovalEvidence evidenceFor({\n    required ChatTurnOwner owner,\n    required ProductionReleaseApprovalProof? capturedProof,\n    required AskUserQuestionTurnCache questionResults,\n  })",
       "turnIdentityParameters": [
@@ -9226,7 +9226,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.isProductionReleaseCommandToolCall",
       "signature": "bool isProductionReleaseCommandToolCall(ToolCallInfo toolCall)",
       "turnIdentityParameters": [],
@@ -9243,7 +9243,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.looksLikeAffirmativeReleaseApprovalAnswer",
       "signature": "bool looksLikeAffirmativeReleaseApprovalAnswer(String content)",
       "turnIdentityParameters": [],
@@ -9258,7 +9258,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.looksLikeExplicitProductionReleaseApproval",
       "signature": "bool looksLikeExplicitProductionReleaseApproval(String content)",
       "turnIdentityParameters": [],
@@ -9276,7 +9276,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.looksLikeProductionReleaseApprovalPrompt",
       "signature": "bool looksLikeProductionReleaseApprovalPrompt(String content)",
       "turnIdentityParameters": [],
@@ -9294,7 +9294,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.looksLikeProductionReleaseCommand",
       "signature": "bool looksLikeProductionReleaseCommand(String command)",
       "turnIdentityParameters": [],
@@ -9313,7 +9313,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalPolicy.mentionsProductionRelease",
       "signature": "bool mentionsProductionRelease(String content)",
       "turnIdentityParameters": [],
@@ -9328,7 +9328,7 @@
       "turnReachable": true
     },
     {
-      "path": "lib/features/chat/domain/services/production_release_approval_policy.dart",
+      "path": "lib/features/chat/domain/services/production_release/production_release_approval_policy.dart",
       "declaration": "ProductionReleaseApprovalProof.approved",
       "signature": "bool get approved",
       "turnIdentityParameters": [],

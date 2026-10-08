@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/services/ask_user_question_turn_cache.dart';
-import 'package:caverno/features/chat/domain/services/production_release_approval_policy.dart';
+import 'package:caverno/features/chat/domain/services/production_release/production_release_approval_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The release gate must reach the same verdict whatever language the user
