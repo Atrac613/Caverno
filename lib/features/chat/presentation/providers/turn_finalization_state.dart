@@ -14,6 +14,8 @@ enum CompletedToolResultFinalAnswerRecoveryDecision {
 final class TurnFinalizationState {
   ToolLoopExitReason? exitReasonHint;
   final Set<String> transforms = <String>{};
+  int reasoningOnlyRecoveries = 0;
+  int toolResultsAtReasoningOnlyRecovery = 0;
   GoalUpdateAckOutcome? shadowGoalCompletionOutcome;
   bool toolGoalCompletionClaimed = false;
   GoalUpdateCompletionAcknowledgement? goalUpdateAcknowledgement;

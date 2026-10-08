@@ -29,7 +29,11 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       return null;
     }
 
-    _turnEnd.addTransform(owner, 'coding_continuation_recovery_$recoveryCode');
+    _turnEnd.recordRecovery(
+      owner,
+      recoveryCode,
+      _turnToolResults.completed(owner).length,
+    );
     appLog('[Tool] Requesting coding continuation recovery: $recoveryCode');
     return CodingContinuationRecoveryRequest.run(
       candidateResponse: candidateResponse,
@@ -87,9 +91,10 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
         ),
         reasoningOnlyRecoveryUsed:
             owner == null ||
-            _turnEnd
-                .transforms(owner)
-                .contains('coding_continuation_recovery_reasoning_only_stop'),
+            !_turnEnd.mayRecoverReasoningOnly(
+              owner,
+              _turnToolResults.completed(owner).length,
+            ),
       ),
     );
   }

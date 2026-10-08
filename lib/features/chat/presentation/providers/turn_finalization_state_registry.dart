@@ -3,6 +3,7 @@ import '../../domain/services/tool_loop_exit_reason.dart';
 import 'turn_finalization_state.dart';
 
 export 'turn_finalization_goal_state_access.dart';
+export 'turn_finalization_recovery_access.dart';
 
 /// Owns explicitly registered turn-finalization state without late resurrection.
 final class TurnFinalizationStateRegistry {
