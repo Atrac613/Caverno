@@ -10,6 +10,12 @@ import '../application/project_task_workflow_session.dart';
 /// Lives outside `ChatPage` so the page only forwards the selection; the page
 /// library has no size budget left for the wiring. The workflow itself is the
 /// frontend-neutral [ProjectTaskWorkflowSession].
+/// The launcher the companion sidebar resumes stopped tasks through, shared so
+/// one thread is never driven by two resumed runs at once.
+final projectTaskResumeLauncherProvider = Provider<ProjectTaskReviewLauncher>(
+  (ref) => ProjectTaskReviewLauncher(),
+);
+
 final class ProjectTaskReviewLauncher {
   ProjectTaskReviewLauncher({ProjectTaskWorkflowSession? session})
     : _session = session ?? ProjectTaskWorkflowSession();
@@ -22,12 +28,14 @@ final class ProjectTaskReviewLauncher {
     required String languageCode,
     required bool Function() isMounted,
     required void Function(String message) showMessage,
+    bool resume = false,
   }) async {
     final outcome = await _session.run(
       read: ref.read,
       conversationId: conversationId,
       languageCode: languageCode,
       isActive: isMounted,
+      resume: resume,
     );
     switch (outcome) {
       case ProjectTaskWorkflowSkipped():

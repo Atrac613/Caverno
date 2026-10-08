@@ -133,14 +133,75 @@ final class ProjectTaskReviewWorkflow {
 
     final decomposed = await decompose?.call(objective) ?? const [];
     if (!_canContinue(readConversation())) return _stop(_notContinuable);
+    // Earlier subtask turns may hold the task's only file changes, so the
+    // first round's change check counts from before the first subtask.
+    return _execute(
+      objective,
+      decomposed,
+      diffBaseline: readConversation()!.turnDiffs.length,
+    );
+  }
+
+  /// Continues a stopped task from where its saved state shows it stopped:
+  /// the first unfinished subtask, else review of the current task changes,
+  /// so manual fixes made after the stop are reviewed and committed too.
+  /// A task whose files carry no uncommitted change is already committed.
+  Future<ProjectTaskReviewResult> resume() async {
+    stopReason = null;
+    final task = readConversation();
+    if (task == null || !isSelected() || task.messages.isEmpty) {
+      return _stop('the task thread has no earlier run to resume');
+    }
+    final objective = task.goal?.normalizedObjective;
+    if (objective == null) return _stop('the task has no goal objective');
+    final subtasks = task.workflowSpec?.tasks ?? const [];
+    final done = {
+      for (final progress in task.executionProgress)
+        if (progress.status == ConversationWorkflowTaskStatus.completed)
+          progress.taskId,
+    };
+    final next = subtasks.indexWhere((subtask) => !done.contains(subtask.id));
+    final implemented = subtasks.isEmpty
+        ? task.goal?.status == ConversationGoalStatus.completed
+        : next < 0;
+    if (!implemented) {
+      return _execute(
+        objective,
+        subtasks,
+        diffBaseline: 0,
+        firstSubtask: next < 0 ? 0 : next,
+      );
+    }
+    final paths = _taskPaths(task);
+    final state = await readGitState(paths);
+    if (paths.isNotEmpty && state != null && state.dirtyPaths.isEmpty) {
+      _report(
+        const ProjectTaskProgress(
+          phase: ProjectTaskPhase.commit,
+          outcome: ProjectTaskOutcome.committed,
+        ),
+      );
+      return ProjectTaskReviewResult.committed;
+    }
+    return _execute(objective, subtasks, diffBaseline: 0, reviewFirst: true);
+  }
+
+  Future<ProjectTaskReviewResult> _execute(
+    String objective,
+    List<ConversationWorkflowTask> decomposed, {
+    required int diffBaseline,
+    int firstSubtask = 0,
+    bool reviewFirst = false,
+  }) async {
     final subtasks = sendStep == null
         ? const <ConversationWorkflowTask>[]
         : decomposed;
     final subtaskCount = decomposed.isEmpty ? 1 : decomposed.length;
-    // Earlier subtask turns may hold the task's only file changes, so the
-    // first round's change check counts from before the first subtask.
-    final diffBaseline = readConversation()!.turnDiffs.length;
-    for (var index = 0; index < subtasks.length - 1; index++) {
+    for (
+      var index = reviewFirst ? subtasks.length : firstSubtask;
+      index < subtasks.length - 1;
+      index++
+    ) {
       _report(
         ProjectTaskProgress(
           phase: ProjectTaskPhase.implement,
@@ -176,8 +237,15 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
           ),
         );
       }
-      Conversation? after;
-      for (var retry = 0; retry <= maxMissingDiffRetries; retry++) {
+      // A resumed review reads the changes already made; it sends no turn.
+      final reviewOnly = repairRound == 0 && reviewFirst;
+      Conversation? after = reviewOnly ? readConversation() : null;
+      if (reviewOnly && !_canContinue(after)) return _stop(_notContinuable);
+      for (
+        var retry = 0;
+        !reviewOnly && retry <= maxMissingDiffRetries;
+        retry++
+      ) {
         final before = readConversation();
         if (!_canContinue(before)) return _stop(_notContinuable);
         final previousMessageCount = before!.messages.length;

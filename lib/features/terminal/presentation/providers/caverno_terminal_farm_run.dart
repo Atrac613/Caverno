@@ -76,6 +76,7 @@ final class CavernoTerminalFarmRun {
   Future<void> run({
     required String projectId,
     required String? roadmapItemId,
+    String? resumeConversationId,
   }) async {
     final project = container
         .read(codingProjectsNotifierProvider)
@@ -86,6 +87,9 @@ final class CavernoTerminalFarmRun {
         message: 'The coding project is unavailable: $projectId',
         exitCode: CavernoCliExitCode.input,
       );
+    }
+    if (resumeConversationId != null) {
+      return _resume(project.id, resumeConversationId);
     }
     // The dashboard asks before starting over uncommitted work; a terminal
     // run has nobody to ask, so it refuses instead of mixing changes.
@@ -128,9 +132,42 @@ final class CavernoTerminalFarmRun {
       autoReview: true,
     );
     conversations.selectConversation(conversationId);
+    await _drive(conversationId, projectTaskHeading(item), resume: false);
+  }
 
+  /// Continues a stopped task thread of [projectId] from where it stopped.
+  /// Its uncommitted changes are the task's own, so no clean tree is required.
+  Future<void> _resume(String projectId, String conversationId) async {
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final task = container
+        .read(conversationsNotifierProvider)
+        .conversationForId(conversationId);
+    if (task == null ||
+        task.normalizedProjectId != projectId ||
+        task.goal?.projectTaskAutoReview != true) {
+      throw CavernoCliFailure(
+        code: 'task_not_found',
+        message: 'No roadmap task thread $conversationId in this project.',
+        exitCode: CavernoCliExitCode.input,
+      );
+    }
+    _conversationId = conversationId;
+    conversations.selectConversation(conversationId);
+    // An unopened thread is a listing stub until it is hydrated.
+    await conversations.refreshConversationForExecution(conversationId);
+    await _drive(conversationId, task.title, resume: true);
+  }
+
+  Future<void> _drive(
+    String conversationId,
+    String heading, {
+    required bool resume,
+  }) async {
     Map<String, Object?>? lastDecision;
     final outcome = await _session.run(
+      resume: resume,
       read: container.read,
       conversationId: conversationId,
       languageCode: 'en',
@@ -148,7 +185,6 @@ final class CavernoTerminalFarmRun {
         );
       },
     );
-    final heading = projectTaskHeading(item);
     switch (outcome) {
       case ProjectTaskWorkflowFinished(
         result: ProjectTaskReviewResult.committed,

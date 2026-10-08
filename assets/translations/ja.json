@@ -1938,7 +1938,8 @@
     "review": "レビュー",
     "commit": "コミット",
     "subtasks_done": "{}/{} 完了",
-    "repair_round": "修正 {}/{}"
+    "repair_round": "修正 {}/{}",
+    "resume": "再開"
   },
   "project_dashboard": {
     "project_missing": "このプロジェクトはもう存在しません。",

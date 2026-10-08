@@ -2,8 +2,10 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../application/project_task_review_workflow.dart';
 import '../../domain/project_task_progress.dart';
+import '../project_task_review_launcher.dart';
 import '../providers/project_task_progress_provider.dart';
 
 enum _StepState { done, active, pending, failed }
@@ -24,8 +26,62 @@ class ProjectTaskProgressSection extends ConsumerWidget {
     final progress = ref.watch(
       projectTaskProgressProvider.select((all) => all[conversationId]),
     );
-    if (progress == null) return const SizedBox.shrink();
+    // A run's progress lives in memory, so after a restart a stopped task
+    // shows none; its saved thread still says it can be resumed.
+    final startedTask = ref.watch(
+      conversationsNotifierProvider.select((state) {
+        final task = state.conversationForId(conversationId);
+        return task?.goal?.projectTaskAutoReview == true &&
+            task!.messages.isNotEmpty;
+      }),
+    );
+    final resumable = progress == null
+        ? startedTask
+        : progress.outcome == ProjectTaskOutcome.findingsRemain ||
+              progress.outcome == ProjectTaskOutcome.stopped;
+    if (progress == null && !resumable) return const SizedBox.shrink();
     final theme = Theme.of(context);
+    final resumeButton = resumable
+        ? Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: OutlinedButton.icon(
+              key: const ValueKey('project-task-resume'),
+              icon: const Icon(Icons.play_arrow, size: 18),
+              label: Text('project_task_progress.resume'.tr()),
+              onPressed: () => ref
+                  .read(projectTaskResumeLauncherProvider)
+                  .start(
+                    ref: ref,
+                    conversationId: conversationId,
+                    languageCode: context.locale.languageCode,
+                    isMounted: () => context.mounted,
+                    showMessage: (message) => ScaffoldMessenger.maybeOf(
+                      context,
+                    )?.showSnackBar(SnackBar(content: Text(message))),
+                    resume: true,
+                  ),
+            ),
+          )
+        : null;
+    if (progress == null) {
+      return Padding(
+        key: const ValueKey('project-task-progress'),
+        padding: const EdgeInsets.only(bottom: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'project_task_progress.title'.tr(),
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            resumeButton!,
+          ],
+        ),
+      );
+    }
     final (outcomeKey, outcomeColor) = switch (progress.outcome) {
       ProjectTaskOutcome.running => (
         'project_task_progress.running',
@@ -88,6 +144,7 @@ class ProjectTaskProgressSection extends ConsumerWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+          ?resumeButton,
         ],
       ),
     );

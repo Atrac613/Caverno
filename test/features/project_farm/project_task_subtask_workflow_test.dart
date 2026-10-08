@@ -88,6 +88,8 @@ void main() {
     ProjectTaskTerminalStatus? subtaskStatus,
     bool statusRequired = false,
     void Function(Map<String, Object?>)? onDecision,
+    List<String> dirtyPaths = const [],
+    List<bool>? reviewRoutes,
   }) => ProjectTaskReviewWorkflow(
     projectRoot: '/repo',
     prepareCommit: (_, _) async => true,
@@ -111,6 +113,7 @@ void main() {
     onProgress: reports.add,
     send: (prompt, {required codeReview}) async {
       sendPrompts.add(prompt);
+      reviewRoutes?.add(codeReview);
       if (codeReview) {
         reply('No findings.\nPROJECT_TASK_REVIEW_CLEAN');
       } else {
@@ -125,9 +128,99 @@ void main() {
       commits++;
       return true;
     },
-    readGitState: (_) async =>
-        ProjectTaskGitState(head: 'head-$commits', dirtyPaths: const []),
+    readGitState: (_) async => ProjectTaskGitState(
+      head: 'head-$commits',
+      dirtyPaths: commits == 0 ? dirtyPaths : const [],
+    ),
   );
+
+  group('resume', () {
+    // The sidebar kept "findings remain" after manual fixes, and no run could
+    // pick the task up again: the workflow only started on an empty thread.
+    void stoppedAfter(Set<String> completed, {bool goalCompleted = false}) {
+      reply('Earlier run.');
+      conversation = conversation.copyWith(
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Implement task',
+          tasks: subtasks,
+        ),
+        executionProgress: [
+          for (final id in completed)
+            ConversationExecutionTaskProgress(
+              taskId: id,
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+        ],
+        goal: conversation.goal!.copyWith(
+          status: goalCompleted
+              ? ConversationGoalStatus.completed
+              : ConversationGoalStatus.active,
+        ),
+      );
+    }
+
+    test('continues from the first unfinished subtask', () async {
+      stoppedAfter({'project-subtask-1'});
+      expect(await workflow().resume(), ProjectTaskReviewResult.committed);
+      expect(stepPrompts, hasLength(1));
+      expect(stepPrompts.single, contains('Wire it in'));
+      expect(marked, ['project-subtask-2', 'project-subtask-3']);
+    });
+
+    test('reviews the current changes once every subtask is done', () async {
+      stoppedAfter(subtasks.map((task) => task.id).toSet());
+      conversation = conversation.copyWith(
+        turnDiffs: [
+          TurnDiff(
+            id: 'manual',
+            assistantMessageId: 'assistant-1',
+            userPromptPreview: 'fix',
+            timestamp: now,
+            files: const [
+              TurnDiffFile(
+                filePath: 'lib/parser.dart',
+                unifiedPatch: '@@ -1 +1 @@\n-old\n+new',
+              ),
+            ],
+          ),
+        ],
+      );
+      final routes = <bool>[];
+      expect(
+        await workflow(
+          dirtyPaths: const ['lib/parser.dart'],
+          reviewRoutes: routes,
+        ).resume(),
+        ProjectTaskReviewResult.committed,
+      );
+      expect(stepPrompts, isEmpty);
+      expect(routes.first, isTrue, reason: 'no implementation turn first');
+      expect(commits, 1);
+    });
+
+    test('a task with nothing uncommitted is already committed', () async {
+      stoppedAfter(subtasks.map((task) => task.id).toSet());
+      conversation = conversation.copyWith(
+        turnDiffs: [
+          TurnDiff(
+            id: 'done',
+            assistantMessageId: 'assistant-1',
+            userPromptPreview: 'task',
+            timestamp: now,
+            files: const [TurnDiffFile(filePath: 'lib/parser.dart')],
+          ),
+        ],
+      );
+      expect(await workflow().resume(), ProjectTaskReviewResult.committed);
+      expect(sendPrompts, isEmpty);
+      expect(reports.last.outcome, ProjectTaskOutcome.committed);
+    });
+
+    test('an unstarted thread is not resumed', () async {
+      expect(await workflow().resume(), ProjectTaskReviewResult.stopped);
+      expect(sendPrompts, isEmpty);
+    });
+  });
 
   test(
     'a saved memory update after the subtask marker permits progression',

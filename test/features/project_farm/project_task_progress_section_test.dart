@@ -1,16 +1,58 @@
+import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_repository_api.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/project_farm/domain/project_task_progress.dart';
 import 'package:caverno/features/project_farm/presentation/providers/project_task_progress_provider.dart';
 import 'package:caverno/features/project_farm/presentation/widgets/project_task_progress_section.dart';
+import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   Future<ProviderContainer> pump(
     WidgetTester tester,
-    ProjectTaskProgress? progress,
-  ) async {
-    final container = ProviderContainer();
+    ProjectTaskProgress? progress, {
+    bool startedTask = false,
+  }) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final repository = _InMemoryConversationRepository();
+    final now = DateTime(2026);
+    if (startedTask) {
+      await repository.save(
+        Conversation(
+          id: 'task',
+          title: 'Task',
+          messages: [
+            Message(
+              id: 'm',
+              content: 'Earlier run.',
+              role: MessageRole.assistant,
+              timestamp: now,
+            ),
+          ],
+          createdAt: now,
+          updatedAt: now,
+          goal: ConversationGoal(
+            id: 'g',
+            objective: 'Implement',
+            projectTaskAutoReview: true,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        ),
+      );
+    }
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        conversationRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
     addTearDown(container.dispose);
     if (progress != null) {
       container
@@ -130,4 +172,63 @@ void main() {
       0,
     );
   });
+
+  group('resume', () {
+    // The sidebar kept "findings remain" after manual fixes with no way to
+    // continue the workflow.
+    final resume = find.byKey(const ValueKey('project-task-resume'));
+    for (final outcome in ProjectTaskOutcome.values) {
+      testWidgets('offers resume only after a stop: ${outcome.name}', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          ProjectTaskProgress(phase: ProjectTaskPhase.review, outcome: outcome),
+        );
+        expect(
+          resume,
+          outcome == ProjectTaskOutcome.findingsRemain ||
+                  outcome == ProjectTaskOutcome.stopped
+              ? findsOneWidget
+              : findsNothing,
+        );
+      });
+    }
+
+    testWidgets('a started task offers resume after a restart', (tester) async {
+      await pump(tester, null, startedTask: true);
+      expect(resume, findsOneWidget);
+    });
+  });
+}
+
+class _InMemoryConversationRepository implements ConversationRepositoryApi {
+  final Map<String, Conversation> _conversations = {};
+
+  @override
+  List<Conversation> getAll() => _conversations.values.toList(growable: false);
+
+  @override
+  Conversation? getById(String id) => _conversations[id];
+
+  @override
+  Future<Conversation?> refresh(String id) async => _conversations[id];
+
+  @override
+  Future<void> save(Conversation conversation) async {
+    _conversations[conversation.id] = conversation;
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _conversations.remove(id);
+  }
+
+  @override
+  Future<void> deleteAll() async {
+    _conversations.clear();
+  }
+
+  @override
+  Future<List<Conversation>> search(String query) async => getAll();
 }

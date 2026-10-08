@@ -55,6 +55,18 @@ void main() {
     expect(outcome, isA<ProjectTaskWorkflowSkipped>());
   });
 
+  test('resume skips a thread with no earlier run', () async {
+    final c = await container();
+    final outcome = await ProjectTaskWorkflowSession().run(
+      read: c.read,
+      conversationId: start(c, autoReview: true),
+      languageCode: 'en',
+      isActive: () => true,
+      resume: true,
+    );
+    expect(outcome, isA<ProjectTaskWorkflowSkipped>());
+  });
+
   test('reports a missing review route instead of showing a message, and '
       'releases the thread for a later run', () async {
     final c = await container();

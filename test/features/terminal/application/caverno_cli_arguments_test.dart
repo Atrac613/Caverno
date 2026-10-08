@@ -420,5 +420,35 @@ void main() {
         ),
       );
     });
+
+    test('farm --resume names the stopped thread to continue', () {
+      final invocation = CavernoCliInvocation.parse(const [
+        'farm',
+        '--project',
+        '/tmp/project',
+        '--resume',
+        'thread-1',
+      ]);
+      expect(invocation.resumeConversationId, 'thread-1');
+      expect(invocation.roadmapItemId, isNull);
+      expect(
+        () => CavernoCliInvocation.parse(const [
+          'farm',
+          '--project',
+          '/tmp/project',
+          '--item',
+          'CLI5',
+          '--resume',
+          'thread-1',
+        ]),
+        throwsA(
+          isA<CavernoCliFailure>().having(
+            (failure) => failure.code,
+            'code',
+            'conflicting_farm_target',
+          ),
+        ),
+      );
+    });
   });
 }

@@ -18,6 +18,7 @@ final class CavernoCliInvocation {
     this.dataDirectory,
     this.outputPath,
     this.roadmapItemId,
+    this.resumeConversationId,
   });
 
   final CavernoCliInvocationAction action;
@@ -38,6 +39,9 @@ final class CavernoCliInvocation {
 
   /// The roadmap item a `farm` run works on; null selects the recommended one.
   final String? roadmapItemId;
+
+  /// The stopped task thread a `farm --resume` run continues.
+  final String? resumeConversationId;
 
   bool get isJson => outputMode == CavernoCliOutputMode.json;
 
@@ -119,6 +123,7 @@ final class CavernoCliInvocation {
     String? apiKey;
     String? dataDirectory;
     String? roadmapItemId;
+    String? resumeConversationId;
     var help = false;
     var optionsEnded = false;
     final positional = <String>[];
@@ -164,6 +169,8 @@ final class CavernoCliInvocation {
           dataDirectory = _optionValue(arguments, parsed, index: index);
         case '--item' when command == CavernoCliCommand.farm:
           roadmapItemId = _optionValue(arguments, parsed, index: index);
+        case '--resume' when command == CavernoCliCommand.farm:
+          resumeConversationId = _optionValue(arguments, parsed, index: index);
         default:
           throw CavernoCliFailure(
             code: 'unknown_flag',
@@ -217,6 +224,13 @@ final class CavernoCliInvocation {
         exitCode: CavernoCliExitCode.usage,
       );
     }
+    if (roadmapItemId != null && resumeConversationId != null) {
+      throw const CavernoCliFailure(
+        code: 'conflicting_farm_target',
+        message: 'Use either --item or --resume, not both.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
     if (command == CavernoCliCommand.chat && projectPath != null) {
       throw const CavernoCliFailure(
         code: 'project_not_supported',
@@ -245,6 +259,7 @@ final class CavernoCliInvocation {
       apiKey: apiKey,
       dataDirectory: dataDirectory,
       roadmapItemId: roadmapItemId?.trim(),
+      resumeConversationId: resumeConversationId?.trim(),
     );
   }
 

@@ -386,6 +386,7 @@ Runs one roadmap task through decompose, implement, review and commit.
 
 Options:
   --item <id>           Work on this roadmap item (default: the recommended one)
+  --resume <thread-id>  Continue a stopped task thread from where it stopped
   --json                Emit caverno_cli_event JSON Lines
 
 Configuration options:
@@ -405,7 +406,7 @@ Configuration options:
   caverno chat [input options] [prompt]
   caverno coding --project <path> [input options] [prompt]
   caverno plan --project <path> [input options] [prompt]
-  caverno farm --project <path> [--item <id>] [--json]
+  caverno farm --project <path> [--item <id> | --resume <thread-id>] [--json]
   caverno conversations list [--limit <count>] [--json]
   caverno conversations show <conversation-id> [--json]
   caverno conversations resume <conversation-id> [input options] [prompt]

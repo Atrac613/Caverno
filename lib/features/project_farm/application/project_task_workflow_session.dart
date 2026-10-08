@@ -82,18 +82,21 @@ final class ProjectTaskWorkflowSession {
   /// frontend that started the run is still present; the workflow pauses its
   /// turns while the thread is not selected in an active frontend.
   /// [onDecision] receives each workflow decision as it is logged.
+  /// With [resume], a thread whose earlier run stopped continues from where
+  /// its saved state shows it stopped instead of starting fresh.
   Future<ProjectTaskWorkflowOutcome> run({
     required ProjectTaskProviderRead read,
     required String conversationId,
     required String languageCode,
     required bool Function() isActive,
     void Function(Map<String, Object?> decision)? onDecision,
+    bool resume = false,
   }) async {
     final conversation = read(
       conversationsNotifierProvider,
     ).conversationForId(conversationId);
     if (conversation?.goal?.projectTaskAutoReview != true ||
-        conversation!.messages.isNotEmpty ||
+        conversation!.messages.isEmpty == resume ||
         !_running.add(conversationId)) {
       return const ProjectTaskWorkflowSkipped();
     }
@@ -358,7 +361,7 @@ final class ProjectTaskWorkflowSession {
             ? null
             : _gitReader.readTaskPatch(projectRoot, paths),
       );
-      final result = await workflow.run();
+      final result = resume ? await workflow.resume() : await workflow.run();
       return ProjectTaskWorkflowFinished(result, stillSelected: selected());
     } catch (error) {
       final settings = read(settingsNotifierProvider);

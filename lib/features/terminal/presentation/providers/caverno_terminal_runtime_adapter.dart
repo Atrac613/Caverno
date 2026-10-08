@@ -274,6 +274,7 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
       return run.run(
         projectId: farmProjectId,
         roadmapItemId: invocation.roadmapItemId,
+        resumeConversationId: invocation.resumeConversationId,
       );
     }
     return _chatNotifier.sendMessage(prompt, languageCode: 'en');
