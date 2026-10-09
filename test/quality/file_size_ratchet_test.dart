@@ -1150,7 +1150,9 @@ const Map<String, int> _lineBudgets = {
   // +10, to 2,074: the final-answer dedupe drops a read whose line range
   // another read of the same unchanged file covers (session 67094a85). It
   // stays here because domain/services is at the RAG2 file ceiling.
-  'lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart': 2074,
+  // +11, to 2,085: the whole-list pass fills the budget smallest first
+  // instead of splitting it equally (session 67094a85).
+  'lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart': 2085,
   'lib/features/chat/data/datasources/git_tools.dart': 2047,
   'lib/features/chat/data/datasources/local_shell_tools.dart': 1932,
 };

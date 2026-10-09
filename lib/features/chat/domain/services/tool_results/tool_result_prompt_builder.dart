@@ -553,10 +553,21 @@ class ToolResultPromptBuilder {
     final reservedChars = freshRangeIndex == null
         ? 0
         : budgeted[freshRangeIndex].result.length;
-    final historyTarget =
-        ((budget.maxTotalResultChars - reservedChars) /
-                (budgeted.length - (freshRangeIndex == null ? 0 : 1)))
-            .floor();
+    // Fill the budget smallest first: a result under the fair share keeps
+    // all of it and leaves the rest to the larger ones. An equal split cut a
+    // 15K diff to 7.8K while a 3K one wasted its share (session 67094a85).
+    final historyLengths = [
+      for (var index = 0; index < budgeted.length; index++)
+        if (index != freshRangeIndex) budgeted[index].result.length,
+    ]..sort();
+    var remainingChars = budget.maxTotalResultChars - reservedChars;
+    var historyTarget = remainingChars;
+    for (var index = 0; index < historyLengths.length; index++) {
+      historyTarget = (remainingChars / (historyLengths.length - index))
+          .floor();
+      if (historyLengths[index] > historyTarget) break;
+      remainingChars -= historyLengths[index];
+    }
     final perResultTarget = freshRangeIndex == null
         ? math.max(1200, historyTarget)
         : historyTarget;

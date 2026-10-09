@@ -117,6 +117,34 @@ void main() {
       ]);
     });
 
+    test('small results keep their share for the large ones', () {
+      // Session 67094a85: an equal split cut a 15K diff to 7.8K while a 3K
+      // diff left most of its share unused.
+      ToolResultInfo result(String id, int length) => ToolResultInfo(
+        id: id,
+        name: 'search_files',
+        arguments: const {'query': 'x'},
+        result: 'r' * length,
+      );
+
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        for (var i = 0; i < 3; i++) result('small-$i', 2000),
+        for (var i = 0; i < 3; i++) result('large-$i', 18000),
+      ]);
+
+      for (final small in budgeted.take(3)) {
+        expect(small.result, 'r' * 2000);
+      }
+      for (final large in budgeted.skip(3)) {
+        expect(large.result.length, greaterThan(13000));
+        expect(large.result, contains('Omitted'));
+      }
+      expect(
+        budgeted.fold<int>(0, (sum, result) => sum + result.result.length),
+        lessThanOrEqualTo(48000),
+      );
+    });
+
     test('repeated single-file diffs do not hide a repaired line', () {
       ToolResultInfo diff(
         String path,
