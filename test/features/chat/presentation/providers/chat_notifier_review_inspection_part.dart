@@ -314,6 +314,114 @@ void registerChatNotifierReviewLoopLimitTests() {
       expect(shown, endsWith('PROJECT_TASK_REVIEW_FINDINGS'));
     },
   );
+
+  test(
+    'a review repeating a git diff answers with a verdict, not the diff',
+    () async {
+      // Session 64aaa8d9: the review kept re-running one `git diff`, both
+      // duplicate recoveries asked for it again, and the raw diff stdout was
+      // delivered as the review, so the workflow stopped with no verdict.
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_review_duplicate_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final project = CodingProject(
+        id: 'review-project',
+        name: 'Review',
+        rootPath: root.path,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final findings = jsonEncode({
+        'status': 'findings',
+        'findings': ['watcher.py:344: an unsent change is lost.'],
+        'verificationLimits': <String>[],
+        'summary': 'Read every changed file and its diff.',
+      });
+      final source = _QueuedToolLoopChatDataSource(
+        initialToolCalls: const [],
+        toolLoopResponses: List.generate(
+          8,
+          (index) => ChatCompletionResult(
+            toolCalls: [
+              ToolCallInfo(
+                id: 'diff-$index',
+                name: 'git_execute_command',
+                arguments: {
+                  'command': 'diff HEAD -- watcher.py',
+                  'working_directory': root.path,
+                },
+              ),
+            ],
+            content: '',
+            finishReason: 'tool_calls',
+          ),
+        ),
+        finalAnswerChunks: [findings],
+      );
+      final service = _FakeMcpToolService(
+        results: {
+          'read_file': '{"content":"current code"}',
+          'git_execute_command': jsonEncode({
+            'command': 'diff HEAD -- watcher.py',
+            'working_directory': root.path,
+            'exit_code': 0,
+            'stdout': 'diff --git a/watcher.py b/watcher.py\n+changed\n',
+            'stderr': '',
+          }),
+        },
+      );
+      final lifecycle = _MockAppLifecycleService();
+      when(() => lifecycle.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _FarmReviewInspectionSettings.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(source),
+          primaryRouteEndpointDataSourceFactoryProvider.overrideWithValue(
+            ({required baseUrl, required apiKey, required endpointId}) =>
+                source,
+          ),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TrackingSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(service),
+          appLifecycleServiceProvider.overrideWithValue(lifecycle),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      _activatePendingBatchProject(container, project);
+      _activateStructuredProjectTask(
+        container,
+        project,
+        inheritedPaths: ['fixture.py'],
+      );
+      final notifier = container.read(chatNotifierProvider.notifier);
+      final owner = await notifier.sendMessage(
+        'Review task changes',
+        bypassPlanMode: true,
+        purpose: PrimaryTurnPurpose.codeReview,
+      );
+      await notifier.waitForTurnCompletion(owner!);
+
+      expect(source.finalAnswerMessages, isNotEmpty);
+      final verdict = notifier.takeProjectTaskReviewVerdict(owner);
+      expect(verdict?.disposition.name, 'findings');
+      final shown = notifier.state.messages.last.content;
+      expect(shown, isNot(contains('diff --git')));
+      expect(shown, endsWith('PROJECT_TASK_REVIEW_FINDINGS'));
+    },
+  );
 }
 
 class _FarmReviewInspectionSettings

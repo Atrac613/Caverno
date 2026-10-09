@@ -4884,13 +4884,16 @@ class ChatNotifier extends Notifier<ChatState> {
             deliverRecoveredAnswer(fallbackResponse);
             break;
           }
-          final duplicateCommandAnswer = const DuplicateCommandAnswerPolicy()
-              .answerForDuplicateCommands(
-                toolCalls: currentToolCalls,
-                executedToolResults: executedToolResults,
-                recoveredToolResults: recovered,
-                visibleAnswer: currentAssistantContent?.trim() ?? '',
-              );
+          // A review never asked for the repeated output as its answer
+          // (session 64aaa8d9): it falls through to the no-tool final answer.
+          final duplicateCommandAnswer = _isCodeReview(interactionGeneration)
+              ? null
+              : const DuplicateCommandAnswerPolicy().answerForDuplicateCommands(
+                  toolCalls: currentToolCalls,
+                  executedToolResults: executedToolResults,
+                  recoveredToolResults: recovered,
+                  visibleAnswer: currentAssistantContent?.trim() ?? '',
+                );
           if (duplicateCommandAnswer != null &&
               (recovered.isEmpty || attemptedDuplicateFollowUpRecovery)) {
             appLog(

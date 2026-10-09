@@ -78,7 +78,10 @@ const Map<String, int> _lineBudgets = {
   // response in the tool loop became one local acceptAnswer.
   // -473, to 7,341: the tool loop's post-loop finalization moved unchanged
   // into _finalizeToolLoop in the tool-loop batch part, which is pinned below.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7341,
+  // +3, to 7,344: a review turn no longer accepts a repeated command's raw
+  // output as its answer (session 64aaa8d9); it falls through to the no-tool
+  // final answer, where the verdict is captured.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7344,
   // The tool loop's finalization (moved from chat_notifier.dart 2026-10-09)
   // beside the batch execution it follows.
   'lib/features/chat/presentation/providers/chat_notifier_tool_loop_batch.dart':
@@ -1302,7 +1305,9 @@ const Map<String, int> _libraryLineBudgets = {
   // the answer. The scope, its carry and its prompts live outside the
   // library; what is left is the per-turn lookup, the tool-list default, the
   // policy-chain hook and one argument at each recovery prompt site.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19879,
+  // +3 matching the primary file: a review skips the raw-output answer
+  // (session 64aaa8d9).
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19882,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
