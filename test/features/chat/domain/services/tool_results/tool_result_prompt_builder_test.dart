@@ -75,6 +75,48 @@ void main() {
       expect(budgeted[1].result, contains('assert \\"FAIL1\\" not in st'));
     });
 
+    test('a read covered by another read of the same file is dropped', () {
+      // Session 67094a85: the reviewer read each file whole, then again in
+      // ranges, and the 21 results crowded the diffs out of the answer.
+      ToolResultInfo read(
+        String id,
+        int start,
+        int count, {
+        String hash = 'h1',
+        String path = '/repo/state.py',
+      }) => ToolResultInfo(
+        id: id,
+        name: 'read_file',
+        arguments: {'path': path, 'offset': start},
+        result: jsonEncode({
+          'path': path,
+          'content': 'x' * count,
+          'content_hash': hash,
+          'start_line': start,
+          'line_count': count,
+          'total_lines': 468,
+        }),
+      );
+
+      final deduped =
+          ToolResultPromptBuilder.dedupeRepeatedInspectionsForAnswer([
+            read('whole', 1, 468),
+            read('head', 1, 380),
+            read('same-whole', 1, 468),
+            read('tail', 381, 88),
+            read('changed', 1, 380, hash: 'h2'),
+            read('other-file', 1, 10, path: '/repo/watcher.py'),
+            read('beyond', 400, 100),
+          ]);
+
+      expect(deduped.map((result) => result.id), [
+        'same-whole',
+        'changed',
+        'other-file',
+        'beyond',
+      ]);
+    });
+
     test('repeated single-file diffs do not hide a repaired line', () {
       ToolResultInfo diff(
         String path,

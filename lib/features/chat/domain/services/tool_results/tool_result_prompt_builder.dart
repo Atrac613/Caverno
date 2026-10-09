@@ -389,20 +389,63 @@ class ToolResultPromptBuilder {
   /// results, a dozen of them verbatim repeats of `git diff HEAD -- <path>`.
   /// The shared budget cut every copy of state.py to about 5 KB, each losing
   /// the repaired lines, and the reviewer re-raised the fixed finding.
+  ///
+  /// A read is also redundant when another read of the same unchanged file
+  /// (same `content_hash`) covers its line range. Session 67094a85 packed 21
+  /// results, the same files read two or three times with different ranges,
+  /// and the equal split cut the diffs the reviewer then could not verify.
   static List<ToolResultInfo> dedupeRepeatedInspectionsForAnswer(
     List<ToolResultInfo> toolResults,
   ) {
+    final spans = [for (final result in toolResults) _readSpan(result)];
+    bool covered(int index) {
+      final span = spans[index];
+      if (span == null) return false;
+      for (var other = 0; other < spans.length; other++) {
+        final cover = spans[other];
+        if (other == index || cover == null || cover.key != span.key) continue;
+        if (cover.first > span.first || cover.last < span.last) continue;
+        final equal = cover.first == span.first && cover.last == span.last;
+        if (!equal || other > index) return true;
+      }
+      return false;
+    }
+
     final seen = <(String, String, String)>{};
     final retained = <ToolResultInfo>[];
-    for (final toolResult in toolResults.reversed) {
+    for (var index = toolResults.length - 1; index >= 0; index--) {
+      final toolResult = toolResults[index];
       final path = _repeatableInspectionPath(toolResult);
       if (path != null &&
           !seen.add((toolResult.name, path, toolResult.result))) {
         continue;
       }
+      if (covered(index)) continue;
       retained.add(toolResult);
     }
     return retained.reversed.toList(growable: false);
+  }
+
+  /// The file and line range a successful read_file returned, keyed by the
+  /// file's content hash so a read of changed content never covers another.
+  static ({(String, String) key, int first, int last})? _readSpan(
+    ToolResultInfo toolResult,
+  ) {
+    if (toolResult.name != 'read_file') return null;
+    final payload = _tryDecodeJsonMap(toolResult.result);
+    final path = payload?['path'];
+    final hash = payload?['content_hash'];
+    final start = payload?['start_line'];
+    final count = payload?['line_count'];
+    if (path is! String ||
+        hash is! String ||
+        hash.isEmpty ||
+        payload?['content'] is! String ||
+        start is! int ||
+        count is! int) {
+      return null;
+    }
+    return (key: (path, hash), first: start, last: start + count - 1);
   }
 
   /// The file a successful, side-effect-free inspection observed, when an

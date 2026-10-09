@@ -1147,7 +1147,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/tool_loop/turn_finalization_recovery_input_builder.dart':
       39,
   'lib/features/chat/data/datasources/local_shell_process_runner.dart': 234,
-  'lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart': 2064,
+  // +10, to 2,074: the final-answer dedupe drops a read whose line range
+  // another read of the same unchanged file covers (session 67094a85). It
+  // stays here because domain/services is at the RAG2 file ceiling.
+  'lib/features/chat/domain/services/tool_results/tool_result_prompt_builder.dart': 2074,
   'lib/features/chat/data/datasources/git_tools.dart': 2047,
   'lib/features/chat/data/datasources/local_shell_tools.dart': 1932,
 };
