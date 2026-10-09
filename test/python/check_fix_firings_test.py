@@ -765,5 +765,43 @@ class LoopLimitQuestionToUserSignatureTest(unittest.TestCase):
         )
 
 
+class ReviewVerdictAfterDiscardedDuplicatesSignatureTest(unittest.TestCase):
+    """The row fires on a review turn exit, never on another discarded turn."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["review_verdict_after_discarded_duplicates"][
+                "match"
+            ]
+        )
+
+    @staticmethod
+    def _blob(turn_exit):
+        return json.dumps([{"turnExit": turn_exit}])
+
+    def test_a_review_verdict_after_discarded_calls_fires(self):
+        blob = self._blob(
+            {
+                "reason": "all_calls_discarded",
+                "transforms": ["project_task_review_findings"],
+            }
+        )
+        self.assertTrue(self.match(blob))
+
+    def test_a_discarded_turn_without_a_verdict_does_not_fire(self):
+        blob = self._blob({"reason": "all_calls_discarded", "transforms": []})
+        self.assertFalse(self.match(blob))
+
+    def test_a_verdict_on_another_exit_does_not_fire(self):
+        blob = self._blob(
+            {
+                "reason": "text_response",
+                "transforms": ["project_task_review_clean"],
+            }
+        )
+        self.assertFalse(self.match(blob))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

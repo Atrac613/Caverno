@@ -305,6 +305,26 @@ def _review_hint_keeps_host_scope(blob):
     return False
 
 
+def _review_verdict_after_discarded_duplicates(blob):
+    """Whether a review turn ended on discarded duplicates with a verdict.
+
+    Read from the structured turn exit: before f6e8e7464 a repeated command
+    in a review could end the turn on its raw output, with no verdict.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    for entry in entries:
+        turn_exit = entry.get("turnExit") or {}
+        if turn_exit.get("reason") == "all_calls_discarded" and any(
+            str(transform).startswith("project_task_review_")
+            for transform in turn_exit.get("transforms") or []
+        ):
+            return True
+    return False
+
+
 def _review_patch_listed(blob):
     """Whether a project task review got an oversized patch as a file list.
 
@@ -913,6 +933,11 @@ SIGNATURES = {
         "commit": "c89f0dd75",
         "what": "an oversized task patch is listed for review, not a stop",
         "match": _review_patch_listed,
+    },
+    "review_verdict_after_discarded_duplicates": {
+        "commit": "f6e8e7464",
+        "what": "a review repeating a command answers with a verdict",
+        "match": _review_verdict_after_discarded_duplicates,
     },
 }
 
