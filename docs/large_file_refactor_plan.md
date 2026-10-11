@@ -2395,6 +2395,29 @@ ChatNotifier falls to 7,261 root/19,744 aggregate lines; the plan has 48 lines.
 Root, plan and same-library budgets are lowered. Task breakdown and verification:
 [the extraction worklog](worklog/f5_incomplete_content_tool_recovery_extraction_2026-10-11.md).
 
-Next: inspect repeated content-call recovery and successful-result reuse
-contracts before another move. Owner state, request retries and execution
+Repeat suppression and evidence reuse were inspected and the bounded selection
+is completed in the following dated section. Owner state, retries and execution
 retain their owners. F5 remains `current`; RC1 stays on hold.
+
+## Repeated content-tool recovery extraction (2026-10-11)
+
+First reusable repeated-call selection and its log/fallback text moved into a
+34-line domain plan through an owner-bound result lookup. Empty/current-generation
+and advanced-provider guards remain unchanged in ChatNotifier. Rooted matching,
+content-only lookup, failure classification, newest-success selection and
+retention stay with the existing ledger and key builder. The first reusable
+repeat wins and no evidence is consumed or execution queued by the plan.
+
+The original Foundation Models integration passed before and after extraction.
+Isolated tests freeze lookup order, early stopping, absent evidence, feedback
+and exception propagation. Real-ledger contracts verify newest matching success,
+rooted relative/absolute path equivalence, failure/other-path exclusion,
+owner/generation isolation, completed-only exclusion and expiry/disposal refusal.
+
+ChatNotifier falls to 7,250 root/19,733 aggregate lines; the plan has 34 lines.
+Root/module/same-library budgets are lowered. Task breakdown and verification:
+[the extraction worklog](worklog/f5_repeated_content_tool_recovery_extraction_2026-10-11.md).
+
+Next: inspect fresh/repeated content-call partition and execution queue
+boundaries before another move. Owner state, retries and execution retain their
+owners. F5 remains `current`; RC1 stays on hold.

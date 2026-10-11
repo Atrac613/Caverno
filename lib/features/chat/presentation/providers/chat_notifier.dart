@@ -217,6 +217,7 @@ import '../../domain/services/tool_loop/incomplete_content_tool_recovery_plan.da
 import '../../domain/services/tool_loop/pending_action_length_recovery_policy.dart';
 import '../../domain/services/tool_loop/printed_tool_call_recovery.dart';
 import '../../domain/services/tool_loop/recent_read_result_carry.dart';
+import '../../domain/services/tool_loop/repeated_content_tool_recovery_plan.dart';
 import '../../domain/services/tool_loop/request_tool_observation_collector.dart';
 import '../../domain/services/tool_loop/successful_read_result_replay_cache.dart';
 import '../../domain/services/tool_loop/tool_call_execution_policy.dart';
@@ -5872,25 +5873,17 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    for (final toolCall in repeatedToolCalls) {
-      final previousResult = _lastSuccessfulContentResult(
-        toolCall,
-        interactionGeneration,
-      );
-      if (previousResult == null) {
-        continue;
-      }
-
-      appLog(
-        '[ContentTool] Repeated successful tool call suppressed for '
-        '${toolCall.name}: ${toolCall.arguments}',
-      );
-      _replaceLastMessageContentForGeneration(
-        interactionGeneration,
-        _buildRepeatedContentToolCallFallback(previousResult),
-      );
-      return;
-    }
+    final plan = RepeatedContentToolRecoveryPlan.assess(
+      repeatedToolCalls,
+      previousSuccessfulResult: (call) =>
+          _lastSuccessfulContentResult(call, interactionGeneration),
+    );
+    if (plan == null) return;
+    appLog(plan.logMessage);
+    _replaceLastMessageContentForGeneration(
+      interactionGeneration,
+      plan.replacementContent,
+    );
   }
 
   ToolResultInfo? _lastSuccessfulContentResult(
@@ -5905,10 +5898,6 @@ class ChatNotifier extends Notifier<ChatState> {
       (result) => _toolResultDedupKey(result, owner: owner) == toolCallKey,
     );
   }
-
-  String _buildRepeatedContentToolCallFallback(ToolResultInfo previousResult) =>
-      'The ${previousResult.name} tool already ran with the same arguments. '
-      'I will use the previous tool result instead of repeating the call.';
 
   void _queueContentToolCalls(
     List<ToolCallData> freshToolCalls, {
