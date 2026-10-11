@@ -21,6 +21,79 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  for (final provider in [
+    LlmProvider.openAiCompatible,
+    LlmProvider.appleFoundationModels,
+  ]) {
+    for (final mode in ['ready', 'failure', 'disabled', 'unavailable']) {
+      test(
+        'catalog preserves acquisition and provider-independent snapshot: $provider $mode',
+        () async {
+          final definitions = <Map<String, dynamic>>[
+            {
+              'type': 'function',
+              'function': {'name': 'z_remote'},
+              McpToolEntity.openAiExternalToolKey: true,
+            },
+            {
+              'type': 'function',
+              'function': {'name': 'get_current_datetime'},
+            },
+            {
+              'type': 'function',
+              'function': {'name': 'z_remote'},
+            },
+            {'type': 'function'},
+          ];
+          final tools = _CatalogFixtureService(
+            definitions,
+            fail: mode == 'failure',
+          );
+          final source = _RemoteExposureNoCompletionDataSource();
+          final snapshots = <LiveLlmDiagnosticToolCatalog>[];
+          final report =
+              await LiveLlmDiagnosticService(
+                settings: _settings(
+                  mcpEnabled: mode != 'disabled',
+                  llmProvider: provider,
+                ),
+                chatDataSource: source,
+                mcpToolService: mode == 'unavailable' ? null : tools,
+              ).run(
+                probeIds: const {},
+                onReport: (report) => snapshots.add(report.toolCatalog),
+              );
+          final empty = mode == 'disabled' || mode == 'unavailable';
+          expect(tools.connects, empty ? 0 : 1);
+          expect(tools.acquisitions, empty ? 0 : 1);
+          expect(source.requests, 0);
+          expect(report.toolCatalog.totalToolCount, empty ? 0 : 4);
+          expect(report.toolCatalog.initialToolCount, empty ? 0 : 2);
+          expect(
+            report.toolCatalog.toolNames,
+            empty ? [] : ['z_remote', 'get_current_datetime', 'z_remote'],
+          );
+          expect(
+            report.toolCatalog.initialToolNames,
+            empty ? [] : ['z_remote', 'get_current_datetime'],
+          );
+          expect(report.toolCatalog.remoteToolNames, empty ? [] : ['z_remote']);
+          expect(report.toolCatalog.remoteToolCount, empty ? 0 : 1);
+          expect(report.toolCatalog.toolSearchEnabled, false);
+          expect(snapshots.first.totalToolCount, 0);
+          expect(snapshots[1], same(report.toolCatalog));
+          expect(report.toolCatalog.mcpConnectionSummary, switch (mode) {
+            'disabled' => 'MCP tools are disabled in settings.',
+            'unavailable' => 'MCP tool service is unavailable.',
+            'failure' =>
+              'Remote MCP connection attempt failed: Bad state: fixture connection failure\nNo trusted remote MCP servers are enabled.',
+            _ => 'No trusted remote MCP servers are enabled.',
+          });
+        },
+      );
+    }
+  }
+
   for (final mode in [
     'accepted',
     'missing',
@@ -4859,5 +4932,19 @@ class _LanguageMatrixRecordingDataSource extends _FakeDiagnosticDataSource {
           : '  prefix $marker suffix  ',
       finishReason: 'stop',
     );
+  }
+}
+
+class _CatalogFixtureService extends _RemoteExposureFixtureService {
+  _CatalogFixtureService(this.snapshot, {required bool fail})
+    : super(exposeTool: false, failConnect: fail);
+  final List<Map<String, dynamic>> snapshot;
+  int acquisitions = 0;
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    expect(connects, 1);
+    acquisitions++;
+    return snapshot;
   }
 }

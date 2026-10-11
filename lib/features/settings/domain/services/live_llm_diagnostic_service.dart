@@ -14,11 +14,11 @@ import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/data/datasources/openai_modalities_probe.dart';
 import '../../../chat/data/datasources/openai_parameter_support_probe.dart';
 import '../../../chat/data/datasources/strict_tool_choice_policy.dart';
-import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
+import 'live_llm_diagnostic_catalog_context.dart';
 import 'live_llm_diagnostic_evidence.dart';
 import 'live_llm_diagnostic_request_shape.dart';
 import 'live_llm_diagnostic_response_scoring.dart';
@@ -909,29 +909,17 @@ class LiveLlmDiagnosticService {
     return updated;
   }
 
-  Future<_ToolCatalogContext> _loadToolCatalog() async {
+  Future<LiveLlmDiagnosticCatalogContext> _loadToolCatalog() async {
     final service = mcpToolService;
     var connectionSummary = '';
     if (!settings.mcpEnabled) {
-      return const _ToolCatalogContext(
-        definitions: <Map<String, dynamic>>[],
-        initialDefinitions: <Map<String, dynamic>>[],
-        selectedToolNames: <String>{},
-        toolSearchEnabled: false,
-        catalog: LiveLlmDiagnosticToolCatalog(
-          mcpConnectionSummary: 'MCP tools are disabled in settings.',
-        ),
+      return LiveLlmDiagnosticCatalogContext.empty(
+        'MCP tools are disabled in settings.',
       );
     }
     if (service == null) {
-      return const _ToolCatalogContext(
-        definitions: <Map<String, dynamic>>[],
-        initialDefinitions: <Map<String, dynamic>>[],
-        selectedToolNames: <String>{},
-        toolSearchEnabled: false,
-        catalog: LiveLlmDiagnosticToolCatalog(
-          mcpConnectionSummary: 'MCP tool service is unavailable.',
-        ),
+      return LiveLlmDiagnosticCatalogContext.empty(
+        'MCP tool service is unavailable.',
       );
     }
 
@@ -942,40 +930,16 @@ class LiveLlmDiagnosticService {
     }
 
     final definitions = service.getOpenAiToolDefinitions();
-    final initialSelection = ToolDefinitionSearchService.buildInitialSelection(
-      definitions,
-    );
-    final toolNames = _toolNamesFromDefinitions(definitions);
-    final initialToolNames = _toolNamesFromDefinitions(
-      initialSelection.toolDefinitions,
-    );
-    final remoteToolNames = definitions
-        .where(_isRemoteMcpTool)
-        .map(ToolDefinitionSearchService.toolNameFromDefinition)
-        .whereType<String>()
-        .toList(growable: false);
     final stateSummary = _mcpStateSummary(service);
     connectionSummary = [
       if (connectionSummary.isNotEmpty) connectionSummary,
       if (stateSummary.isNotEmpty) stateSummary,
     ].join('\n');
 
-    return _ToolCatalogContext(
-      definitions: definitions,
-      initialDefinitions: initialSelection.toolDefinitions,
-      selectedToolNames: initialSelection.selectedToolNames,
-      toolSearchEnabled: initialSelection.toolSearchEnabled,
-      catalog: LiveLlmDiagnosticToolCatalog(
-        totalToolCount: definitions.length,
-        initialToolCount: initialSelection.toolDefinitions.length,
-        remoteToolCount: remoteToolNames.length,
-        remoteServerCount: settings.enabledMcpServers.length,
-        toolSearchEnabled: initialSelection.toolSearchEnabled,
-        toolNames: toolNames,
-        initialToolNames: initialToolNames,
-        remoteToolNames: remoteToolNames,
-        mcpConnectionSummary: connectionSummary,
-      ),
+    return LiveLlmDiagnosticCatalogContext.fromDefinitions(
+      definitions,
+      remoteServerCount: settings.enabledMcpServers.length,
+      connectionSummary: connectionSummary,
     );
   }
 
@@ -1668,7 +1632,7 @@ class LiveLlmDiagnosticService {
       LiveLlmResponseScoring.matchedChartAnswers(content);
 
   Future<LiveLlmDiagnosticProbeResult> _runNarrowToolCallProbe(
-    _ToolCatalogContext catalog,
+    LiveLlmDiagnosticCatalogContext catalog,
   ) async {
     final dateTool = _singleTool(catalog.definitions, 'get_current_datetime');
     if (dateTool == null) {
@@ -1739,7 +1703,7 @@ class LiveLlmDiagnosticService {
 
   Future<LiveLlmDiagnosticReport> _appendToolLoopSamplerCalibrationTrials({
     required LiveLlmDiagnosticReport report,
-    required _ToolCatalogContext catalog,
+    required LiveLlmDiagnosticCatalogContext catalog,
     required LlmProviderCapabilities capabilities,
     required Set<String>? selectedProbeIds,
     required LiveLlmDiagnosticReportCallback? onReport,
@@ -1853,7 +1817,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runToolResultProbe(
-    _ToolCatalogContext catalog,
+    LiveLlmDiagnosticCatalogContext catalog,
   ) async {
     final service = mcpToolService;
     final dateTool = _singleTool(catalog.definitions, 'get_current_datetime');
@@ -1869,7 +1833,7 @@ class LiveLlmDiagnosticService {
 
   Future<LiveLlmDiagnosticReport> _runMultiRoundToolLoopProbe({
     required LiveLlmDiagnosticReport report,
-    required _ToolCatalogContext catalog,
+    required LiveLlmDiagnosticCatalogContext catalog,
     required Set<String>? selectedProbeIds,
     required LiveLlmDiagnosticReportCallback? onReport,
   }) async {
@@ -1925,7 +1889,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runInitialHarnessProbe(
-    _ToolCatalogContext catalog,
+    LiveLlmDiagnosticCatalogContext catalog,
   ) async {
     if (!catalog.catalog.hasTools) {
       return _toolProbeUnavailable(_initialHarnessProbeId);
@@ -1954,7 +1918,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runToolSearchProbe(
-    _ToolCatalogContext catalog,
+    LiveLlmDiagnosticCatalogContext catalog,
   ) async {
     final service = mcpToolService;
     if (!catalog.toolSearchEnabled ||
@@ -2027,7 +1991,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runSubagentProbe(
-    _ToolCatalogContext catalog,
+    LiveLlmDiagnosticCatalogContext catalog,
   ) async {
     final subagentTools = _toolsNamed(catalog.definitions, {
       'spawn_subagent',
@@ -2055,7 +2019,7 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runRemoteMcpProbe(
-    _ToolCatalogContext catalog,
+    LiveLlmDiagnosticCatalogContext catalog,
   ) async {
     return LiveLlmRemoteMcpExposureProbe.score(catalog.catalog);
   }
@@ -2132,19 +2096,6 @@ class LiveLlmDiagnosticService {
     return _singleTool(definitions, name) != null;
   }
 
-  List<String> _toolNamesFromDefinitions(
-    Iterable<Map<String, dynamic>> definitions,
-  ) {
-    return definitions
-        .map(ToolDefinitionSearchService.toolNameFromDefinition)
-        .whereType<String>()
-        .toList(growable: false);
-  }
-
-  bool _isRemoteMcpTool(Map<String, dynamic> definition) {
-    return definition[McpToolEntity.openAiExternalToolKey] == true;
-  }
-
   String _mcpStateSummary(McpToolService service) {
     if (service.serverStates.isEmpty) {
       if (settings.enabledMcpServers.isEmpty) {
@@ -2160,22 +2111,6 @@ class LiveLlmDiagnosticService {
         })
         .join('\n');
   }
-}
-
-class _ToolCatalogContext {
-  const _ToolCatalogContext({
-    required this.definitions,
-    required this.initialDefinitions,
-    required this.selectedToolNames,
-    required this.toolSearchEnabled,
-    required this.catalog,
-  });
-
-  final List<Map<String, dynamic>> definitions;
-  final List<Map<String, dynamic>> initialDefinitions;
-  final Set<String> selectedToolNames;
-  final bool toolSearchEnabled;
-  final LiveLlmDiagnosticToolCatalog catalog;
 }
 
 /// One embeddings call plus the reason it produced nothing, when it did.

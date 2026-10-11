@@ -1101,11 +1101,14 @@ const Map<String, int> _lineBudgets = {
   // remote-MCP exposure scoring moved out, and from 2311 when narrow
   // datetime-tool selection scoring moved out, and from 2294 when
   // instruction-echo JSON scoring moved out, and from 2270 when
-  // Foundation Models language matrix aggregation moved out.
+  // Foundation Models language matrix aggregation moved out, and from
+  // 2187 when diagnostic catalog projection moved out.
   // The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      2187,
+      2122,
+  'lib/features/settings/domain/services/live_llm_diagnostic_catalog_context.dart':
+      77,
   'lib/features/settings/domain/services/live_llm_foundation_models_language_matrix_probe.dart':
       110,
   'lib/features/settings/domain/services/live_llm_instruction_echo_probe.dart': 54,

@@ -2301,7 +2301,29 @@ The service falls from 2,270 to 2,187 lines; the module has 110 lines. Both
 ratchet budgets are updated. Selection, task breakdown and verification:
 [the extraction worklog](worklog/f5_foundation_models_language_matrix_extraction_2026-10-11.md).
 
-Next: inspect catalog construction and freeze its definition ordering, initial
-selection and capability filtering before extracting it. Keep HTTP client
-lifecycle, tool-search execution and sampler orchestration with their owners.
-F5 remains `current`; RC1 stays on hold.
+The catalog contract inspection and extraction are completed in the following
+dated section. HTTP lifecycle, tool-search execution and sampler orchestration
+retain their owners. F5 remains `current`; RC1 stays on hold.
+
+## Diagnostic catalog extraction (2026-10-11)
+
+Acquired-definition projection and its context moved to a pure domain boundary
+that reuses `ToolDefinitionSearchService`. Raw order/count/duplicates, initial
+selection and selected names, boolean remote markers, configured server count
+and connection evidence retain their semantics. Missing names are omitted from
+name lists while raw counts still include them. Initial selection deduplicates
+independently. No provider filtering is added: acquisition and capability-based
+probe skips remain with their existing owners.
+
+The service falls from 2,187 to 2,122 lines; the context has 77 lines. Both
+ratchet budgets are updated. Pre-extraction service contracts cover both
+providers, disabled/unavailable tools and connection failure with continued
+acquisition. Isolated tests cover order/identity, duplicates, missing names,
+remote markers, the strict 24-tool threshold and search/browser selection.
+Task breakdown and verification:
+[the extraction worklog](worklog/f5_diagnostic_catalog_extraction_2026-10-11.md).
+
+Next: refresh cross-file size/churn/coverage ranking and identify a bounded
+high-churn ChatNotifier concern with an explicit contract. Remaining diagnostic
+request/report orchestration, video HTTP lifecycle, tool-search execution and
+samplers retain their owners. F5 remains `current`; RC1 stays on hold.
