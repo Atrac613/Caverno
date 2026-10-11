@@ -21,6 +21,74 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  for (final mode in [
+    'accepted',
+    'missing',
+    'unsupported',
+    'unavailable',
+    'exception',
+  ]) {
+    test(
+      'language matrix preserves provider request and failure continuation: $mode',
+      () async {
+        final source = _LanguageMatrixRecordingDataSource(mode);
+        final statuses = <LiveLlmDiagnosticStatus>[];
+        final report =
+            await LiveLlmDiagnosticService(
+              settings: _settings(
+                mcpEnabled: true,
+                llmProvider: LlmProvider.appleFoundationModels,
+              ),
+              chatDataSource: source,
+              mcpToolService: McpToolService(),
+            ).run(
+              probeIds: const {'foundation_models_language_matrix'},
+              onReport: (report) {
+                final status = _result(
+                  report,
+                  'foundation_models_language_matrix',
+                ).status;
+                if (statuses.isEmpty || statuses.last != status) {
+                  statuses.add(status);
+                }
+              },
+            );
+        final result = _result(report, 'foundation_models_language_matrix');
+        expect(source.requests, 3);
+        expect(
+          result.status,
+          mode == 'accepted'
+              ? LiveLlmDiagnosticStatus.passed
+              : LiveLlmDiagnosticStatus.warning,
+        );
+        expect(result.passedChecks, mode == 'accepted' ? 3 : 2);
+        expect(result.totalChecks, 3);
+        expect(
+          result.details,
+          contains('english_tool_bridge: passed (accepted)'),
+        );
+        final classification = switch (mode) {
+          'missing' => 'missing_marker',
+          'unsupported' => 'unsupported_language_or_locale',
+          'unavailable' => 'provider_unavailable',
+          'exception' => 'exception',
+          _ => 'accepted',
+        };
+        expect(
+          result.details,
+          contains(
+            'japanese_text: ${mode == 'accepted' ? 'passed' : 'failed'} ($classification)',
+          ),
+        );
+        expect(statuses, [
+          LiveLlmDiagnosticStatus.pending,
+          LiveLlmDiagnosticStatus.running,
+          result.status,
+        ]);
+      },
+    );
+  }
+
   for (final mode in ['plain', 'reasoning', 'failure']) {
     test(
       'instruction echo preserves request, report and samplers: $mode',
@@ -4724,6 +4792,72 @@ class _InstructionEchoRecordingDataSource extends _FakeDiagnosticDataSource {
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+    );
+  }
+}
+
+class _LanguageMatrixRecordingDataSource extends _FakeDiagnosticDataSource {
+  _LanguageMatrixRecordingDataSource(this.mode);
+  final String mode;
+  int requests = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requests++;
+    expect(model, AppSettings.appleFoundationModelsModelId);
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    final marker = [
+      'CAVERNO_FM_LANG_EN',
+      'CAVERNO_FM_LANG_JA',
+      'CAVERNO_FM_LANG_TOOL',
+    ][requests - 1];
+    expect(messages.last.content, contains(marker));
+    if (requests < 3) {
+      expect(tools, isNull);
+    } else {
+      expect(tools, [
+        {
+          'type': 'function',
+          'function': {
+            'name': 'language_matrix_echo',
+            'description':
+                'Echoes a diagnostic marker when explicitly requested.',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'marker': {
+                  'type': 'string',
+                  'description': 'Diagnostic marker to echo.',
+                },
+              },
+              'required': ['marker'],
+            },
+          },
+        },
+      ]);
+    }
+    if (requests == 2) {
+      switch (mode) {
+        case 'unsupported':
+          throw StateError('unsupportedLanguageOrLocale');
+        case 'unavailable':
+          throw StateError('modelNotReady');
+        case 'exception':
+          throw StateError('diagnostic transport');
+      }
+    }
+    return ChatCompletionResult(
+      content: requests == 2 && mode == 'missing'
+          ? 'no marker'
+          : '  prefix $marker suffix  ',
+      finishReason: 'stop',
     );
   }
 }

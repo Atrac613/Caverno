@@ -2283,9 +2283,25 @@ The service falls from 2,294 to 2,270 lines; the module has 54 lines. Both
 ratchet budgets are updated. Task breakdown and verification evidence:
 [the extraction worklog](worklog/f5_instruction_echo_probe_extraction_2026-10-11.md).
 
-Next: refresh file size/churn, focused coverage and remaining diagnostic seams
-before selecting another extraction. Compare provider-language matrix,
-video-modality and catalog boundaries. Keep request/report orchestration,
-sampler orchestration and tool-search execution with their existing owners
-unless a new bounded contract and evidence justify a move.
+The ranking refresh and provider-language matrix are completed in the following
+dated section. Video modality and tool search retain their IO/execution owners.
+F5 remains `current`; RC1 stays on hold.
+
+## Foundation Models language matrix extraction (2026-10-11)
+
+The size/churn refresh selected the bounded language-matrix contract over
+HTTP video lifecycle or tool-search execution. Sequential English, Japanese
+and English tool-bridge cases and aggregation moved behind a typed domain
+completion port. English-baseline status precedence, markers, details and
+240-character evidence previews are preserved. The service retains request
+settings, transport, exception classification, schema construction, timing and
+publication. A classified case failure still allows the next request.
+
+The service falls from 2,270 to 2,187 lines; the module has 110 lines. Both
+ratchet budgets are updated. Selection, task breakdown and verification:
+[the extraction worklog](worklog/f5_foundation_models_language_matrix_extraction_2026-10-11.md).
+
+Next: inspect catalog construction and freeze its definition ordering, initial
+selection and capability filtering before extracting it. Keep HTTP client
+lifecycle, tool-search execution and sampler orchestration with their owners.
 F5 remains `current`; RC1 stays on hold.

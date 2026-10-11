@@ -122,22 +122,21 @@ support-packet review, and multi-device household evidence remain required for
 product promotion; the hold does not satisfy or waive those gates. See
 [the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
-**F5 instruction-echo JSON slice completed (2026-10-11).**
-Narrow datetime-tool selection was committed as `ec5bdafed`. Instruction-echo
-prompt and scoring now live in a 54-line domain module. The service falls
-from 2,294 to 2,270 lines and retains request settings, reply usage adaptation,
-thinking observation, errors, elapsed time and publication. Existing JSON
-acceptance and raw-marker warning semantics are unchanged, as are the 24
-following routine/coding/plan sampler trials.
+**F5 Foundation Models language matrix slice completed (2026-10-11).**
+The size/churn refresh selected the bounded three-case matrix after
+instruction-echo JSON (`95e4c8816`). Sequential completion and aggregation now
+live in a 110-line domain module; the service falls from 2,270 to 2,187 lines.
+Prompts, English-baseline status precedence, classified-failure continuation and
+240-character previews are unchanged. Transport, exception classification,
+tool schema, request settings and report publication retain their owner.
 
-Verification and the task breakdown are recorded in
-[the extraction worklog](worklog/f5_instruction_echo_probe_extraction_2026-10-11.md).
-F5 remains `current`. Next: refresh remaining file sizes, churn, focused coverage
-and diagnostic boundaries before choosing another extraction. Compare the
-provider-language matrix, video-modality and catalog seams; do not move
-request/report orchestration merely to reduce lines. Keep sampler orchestration
-and `tool_search` execution separate. RC1 device gates remain on hold. See
-[the boundary plan](large_file_refactor_plan.md#instruction-echo-json-extraction-2026-10-11).
+Evidence and task breakdown are in
+[the extraction worklog](worklog/f5_foundation_models_language_matrix_extraction_2026-10-11.md).
+F5 remains `current`. Next: inspect the remaining catalog construction boundary
+and freeze its definition ordering, initial selection and capability filtering
+contract before another extraction. Video HTTP lifecycle, tool-search execution
+and sampler orchestration remain separate. RC1 device gates remain on hold. See
+[the boundary plan](large_file_refactor_plan.md#foundation-models-language-matrix-extraction-2026-10-11).
 
 LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
 firings to their stored messages, so Level 3 event sourcing stays deferred. With
@@ -154,7 +153,7 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Instruction-echo JSON extracted 2026-10-11: service 2,270 lines, domain module 54 lines; request/report ownership and 24 sampler trials preserved. Narrow datetime-tool selection was committed as `ec5bdafed`. Next: refresh size/churn/coverage and remaining diagnostic boundaries before selecting another extraction. See [evidence](worklog/f5_instruction_echo_probe_extraction_2026-10-11.md) and [boundary plan](large_file_refactor_plan.md#instruction-echo-json-extraction-2026-10-11). |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Foundation Models language matrix extracted 2026-10-11: service 2,187 lines, domain module 110 lines; sequential cases, failure continuation and request/report ownership preserved. Next: inspect catalog construction and freeze ordering/selection/capability filtering before another extraction. See [evidence](worklog/f5_foundation_models_language_matrix_extraction_2026-10-11.md) and [boundary plan](large_file_refactor_plan.md#foundation-models-language-matrix-extraction-2026-10-11). |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |

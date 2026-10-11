@@ -27,6 +27,7 @@ import 'live_llm_edit_format_probe.dart';
 import 'live_llm_effective_context_probe.dart';
 import 'live_llm_embedding_probe.dart';
 import 'live_llm_exact_preservation_probe.dart';
+import 'live_llm_foundation_models_language_matrix_probe.dart';
 import 'live_llm_goal_update_fidelity_probe.dart';
 import 'live_llm_initial_harness_probe.dart';
 import 'live_llm_instruction_echo_probe.dart';
@@ -358,7 +359,7 @@ class LiveLlmDiagnosticService {
   static const _embeddingsProbeId = LiveLlmEmbeddingProbe.probeId;
   static const _effectiveContextProbeId = LiveLlmEffectiveContextProbe.probeId;
   static const _foundationModelsLanguageMatrixProbeId =
-      'foundation_models_language_matrix';
+      LiveLlmFoundationModelsLanguageMatrixProbe.probeId;
   static const _visionAttachmentProbeId = LiveLlmVisionProbes.attachmentProbeId;
   static const _chartReadingProbeId = LiveLlmVisionProbes.chartReadingProbeId;
   static const _videoInputModalityProbeId = 'video_input_modality';
@@ -436,9 +437,6 @@ class LiveLlmDiagnosticService {
 
   static const structuredOutputSupportMetadataKey =
       LiveLlmStructuredOutputProbe.supportMetadataKey;
-  static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
-  static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
-  static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
   static const editFormatPreferenceMetadataKey =
       LiveLlmEditFormatProbe.preferenceMetadataKey;
 
@@ -1417,76 +1415,27 @@ class LiveLlmDiagnosticService {
 
   Future<LiveLlmDiagnosticProbeResult>
   _runFoundationModelsLanguageMatrixProbe() async {
-    final cases = [
-      const _FoundationModelsLanguageProbeCase(
-        label: 'english_text',
-        marker: _foundationModelsEnglishMarker,
-        userPrompt:
-            'Reply with exactly $_foundationModelsEnglishMarker and no extra text.',
-      ),
-      const _FoundationModelsLanguageProbeCase(
-        label: 'japanese_text',
-        marker: _foundationModelsJapaneseMarker,
-        userPrompt:
-            '\u6b21\u306e\u6587\u5b57\u5217\u3060\u3051\u3092\u8fd4\u3057\u3066\u304f\u3060\u3055\u3044: $_foundationModelsJapaneseMarker',
-      ),
-      _FoundationModelsLanguageProbeCase(
-        label: 'english_tool_bridge',
-        marker: _foundationModelsToolBridgeMarker,
-        userPrompt:
-            'A diagnostic tool is listed, but do not call it. Reply with '
-            'exactly $_foundationModelsToolBridgeMarker and no extra text.',
-        tools: [_foundationModelsLanguageMatrixToolDefinition()],
-      ),
-    ];
-    final outcomes = <_FoundationModelsLanguageProbeOutcome>[];
-    for (final testCase in cases) {
-      outcomes.add(await _runFoundationModelsLanguageProbeCase(testCase));
-    }
-
-    final failed = outcomes.where((outcome) => !outcome.passed).toList();
-    final englishBaseline = outcomes.first;
-    final status = failed.isEmpty
-        ? LiveLlmDiagnosticStatus.passed
-        : englishBaseline.passed
-        ? LiveLlmDiagnosticStatus.warning
-        : LiveLlmDiagnosticStatus.failed;
-    final summary = failed.isEmpty
-        ? 'Foundation Models accepted English, Japanese, and tool-bridge prompts.'
-        : englishBaseline.passed
-        ? 'English baseline passed, but at least one language matrix case was rejected.'
-        : 'Foundation Models rejected the English baseline prompt.';
-
-    return LiveLlmDiagnosticProbeResult(
-      id: _foundationModelsLanguageMatrixProbeId,
-      status: status,
-      summary: summary,
-      details: outcomes.map((outcome) => outcome.toDetailLine()).join('\n'),
-      modelContent: outcomes
-          .map(
-            (outcome) =>
-                '${outcome.label}: ${LiveLlmDiagnosticEvidence.preview(outcome.preview, maxChars: 240)}',
-          )
-          .join('\n'),
-      passedChecks: outcomes.length - failed.length,
-      totalChecks: outcomes.length,
-    );
+    return LiveLlmFoundationModelsLanguageMatrixProbe(
+      complete: _runFoundationModelsLanguageProbeCase,
+    ).run();
   }
 
-  Future<_FoundationModelsLanguageProbeOutcome>
+  Future<FoundationModelsLanguageProbeOutcome>
   _runFoundationModelsLanguageProbeCase(
-    _FoundationModelsLanguageProbeCase testCase,
+    FoundationModelsLanguageProbeCase testCase,
   ) async {
     try {
       final result = await _chat.createChatCompletion(
         messages: _messages(user: testCase.userPrompt),
-        tools: testCase.tools,
+        tools: testCase.withToolBridge
+            ? [_foundationModelsLanguageMatrixToolDefinition()]
+            : null,
         model: _diagnosticModel,
         temperature: _diagnosticTemperature,
         maxTokens: _diagnosticMaxTokens,
       );
       final content = result.content.trim();
-      return _FoundationModelsLanguageProbeOutcome(
+      return FoundationModelsLanguageProbeOutcome(
         label: testCase.label,
         passed: content.contains(testCase.marker),
         classification: content.contains(testCase.marker)
@@ -1504,7 +1453,7 @@ class LiveLlmDiagnosticService {
           : AppleFoundationModelsException.isProviderUnavailableText(rawError)
           ? 'provider_unavailable'
           : 'exception';
-      return _FoundationModelsLanguageProbeOutcome(
+      return FoundationModelsLanguageProbeOutcome(
         label: testCase.label,
         passed: false,
         classification: classification,
@@ -2229,42 +2178,10 @@ class _ToolCatalogContext {
   final LiveLlmDiagnosticToolCatalog catalog;
 }
 
-class _FoundationModelsLanguageProbeCase {
-  const _FoundationModelsLanguageProbeCase({
-    required this.label,
-    required this.marker,
-    required this.userPrompt,
-    this.tools,
-  });
-
-  final String label;
-  final String marker;
-  final String userPrompt;
-  final List<Map<String, dynamic>>? tools;
-}
-
 /// One embeddings call plus the reason it produced nothing, when it did.
 class _EmbeddingAttempt {
   const _EmbeddingAttempt({required this.result, this.failure});
 
   final EmbeddingsResult? result;
   final EmbeddingsFailure? failure;
-}
-
-class _FoundationModelsLanguageProbeOutcome {
-  const _FoundationModelsLanguageProbeOutcome({
-    required this.label,
-    required this.passed,
-    required this.classification,
-    required this.preview,
-  });
-
-  final String label;
-  final bool passed;
-  final String classification;
-  final String preview;
-
-  String toDetailLine() {
-    return '$label: ${passed ? 'passed' : 'failed'} ($classification)';
-  }
 }
