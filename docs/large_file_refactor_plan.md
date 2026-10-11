@@ -2169,9 +2169,30 @@ preview limits, metadata order and both port failures. The focused gate passed 1
   analysis, internal-package tests and notification relay checks.
 Module: 23/23 executable lines covered (100%). Service: 628/730 (86.03%)
   in this focused run; this is not whole-suite coverage. Fourteen affected size checks passed.
-See [task and evidence](f5_goal_update_fidelity_probe_extraction_codex_task.md).
-
-This slice remains uncommitted. Next: review/commit it, then refresh file sizes,
-coverage and remaining diagnostic boundaries. F5 remains `current`; RC1 stays
-on hold. No main integration, push, full Flutter-suite, live-model or signed-device
+This slice was locally committed as `9aa3e3b3a`. The completed task document
+was removed during the 2026-10-11 roadmap reconciliation; Git history retains
+the detailed evidence. F5 remains `current`; RC1 stays on hold. No main integration, push, full Flutter-suite, live-model or signed-device
 result is claimed.
+
+
+## Subagent-recognition extraction (2026-10-11)
+
+The goal-update fidelity slice was already committed as `9aa3e3b3a`, despite
+its stale review/commit next action. The remaining subagent-recognition boundary
+was selected because it only inspects a returned tool call and can be exercised
+without a live model or device.
+
+`LiveLlmSubagentProbe` owns the unchanged natural delegation prompt, first-spawn
+selection, required-field scoring, tool names, preview and diagnostic usage.
+Its completion port returns a domain record, so it adds no domain-to-data
+import. The service retains transport reply parsing/usage adaptation, request
+settings, tool selection and availability, thinking observation, error handling,
+elapsed time and report publication. It never executes a returned call.
+
+The service falls from 2,397 to 2,355 lines; the module has 69 lines. Both
+ratchet budgets are updated. The task breakdown and verification evidence are
+in [the worklog](worklog/f5_subagent_probe_extraction_2026-10-11.md).
+
+Next: scope initial-harness selection scoring, refresh its coverage, and retain
+catalog/request ownership in the service. Keep tool-search execution as a
+separate concern. F5 remains `current`; RC1 stays on hold.

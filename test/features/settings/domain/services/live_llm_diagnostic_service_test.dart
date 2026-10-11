@@ -20,6 +20,77 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  test(
+    'subagent binding preserves request, observation and publication',
+    () async {
+      final source = _SubagentRecordingDataSource();
+      final statuses = <LiveLlmDiagnosticStatus>[];
+      final report =
+          await LiveLlmDiagnosticService(
+            settings: _settings(mcpEnabled: true, model: 'subagent-model'),
+            chatDataSource: source,
+            mcpToolService: McpToolService(),
+          ).run(
+            probeIds: const {'subagent_recognition'},
+            onReport: (report) {
+              final status = _result(report, 'subagent_recognition').status;
+              if (statuses.isEmpty || statuses.last != status) {
+                statuses.add(status);
+              }
+            },
+          );
+      expect(source.requests, 1);
+      expect(statuses, [
+        LiveLlmDiagnosticStatus.pending,
+        LiveLlmDiagnosticStatus.running,
+        LiveLlmDiagnosticStatus.passed,
+      ]);
+      expect(_result(report, 'subagent_recognition').elapsed, isNotNull);
+      expect(report.thinkingMetrics?.responseCount, 1);
+    },
+  );
+
+  test('subagent adapter preserves embedded tool-call parsing', () async {
+    final source = _SubagentRecordingDataSource(embedded: true);
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true, model: 'subagent-model'),
+      chatDataSource: source,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: const {'subagent_recognition'});
+    expect(source.requests, 1);
+    final result = _result(report, 'subagent_recognition');
+    expect(result.status, LiveLlmDiagnosticStatus.passed);
+    expect(result.toolCalls, ['spawn_subagent']);
+  });
+
+  test('subagent unavailable catalog skips without requests', () async {
+    final source = _SubagentRecordingDataSource();
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false, model: 'subagent-model'),
+      chatDataSource: source,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: const {'subagent_recognition'});
+    expect(source.requests, 0);
+    expect(
+      _result(report, 'subagent_recognition').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+  });
+
+  test('subagent completion errors reach the failed report boundary', () async {
+    final source = _SubagentRecordingDataSource(fail: true);
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true, model: 'subagent-model'),
+      chatDataSource: source,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: const {'subagent_recognition'});
+    expect(source.requests, 1);
+    final result = _result(report, 'subagent_recognition');
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.details, contains('subagent transport'));
+    expect(result.elapsed, isNotNull);
+  });
+
   test('tool-result binding preserves requests and publication', () async {
     final source = _ToolResultRecordingDataSource();
     final statuses = <LiveLlmDiagnosticStatus>[];
@@ -4083,6 +4154,54 @@ class _GoalFidelityRecordingDataSource extends _FakeDiagnosticDataSource {
     ]);
     if (fail) {
       throw StateError('goal fidelity request failed');
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _SubagentRecordingDataSource extends _FakeDiagnosticDataSource {
+  _SubagentRecordingDataSource({this.fail = false, this.embedded = false});
+  final bool embedded;
+  final bool fail;
+  int requests = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requests++;
+    expect(
+      messages.last.content,
+      'Delegate a sub-task to a subagent and run it in the background so '
+      'you get a task id immediately: it should summarize the marker '
+      '"CAVERNO_SUBAGENT_DIAGNOSTIC". Do not answer in text.',
+    );
+    expect(tools?.map((tool) => tool['function']['name']), [
+      'spawn_subagent',
+      'get_subagent_result',
+    ]);
+    expect(model, 'subagent-model');
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    if (fail) throw StateError('subagent transport');
+    if (embedded) {
+      return ChatCompletionResult(
+        content:
+            '<tool_call>{"name":"spawn_subagent","arguments":'
+            '{"description":"summary","prompt":"CAVERNO_SUBAGENT_DIAGNOSTIC",'
+            '"background":true}}</tool_call>',
+        finishReason: 'stop',
+      );
     }
     return super.createChatCompletion(
       messages: messages,

@@ -32,6 +32,7 @@ import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
 import 'live_llm_structured_output_probe.dart';
+import 'live_llm_subagent_probe.dart';
 import 'live_llm_thinking_control_probe.dart';
 import 'live_llm_tool_depth_probe.dart';
 import 'live_llm_tool_recovery_probe.dart';
@@ -366,7 +367,7 @@ class LiveLlmDiagnosticService {
   static const _multiRoundToolLoopProbeId = LiveLlmMultiRoundProbe.probeId;
   static const _initialHarnessProbeId = 'initial_harness_selection';
   static const _toolSearchProbeId = 'tool_search_catalog';
-  static const _subagentProbeId = 'subagent_recognition';
+  static const _subagentProbeId = LiveLlmSubagentProbe.probeId;
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
   static const _toolDepthProbeId = LiveLlmToolDepthProbe.probeId;
   static const _toolRecoveryProbeId = LiveLlmToolRecoveryProbe.probeId;
@@ -435,7 +436,6 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
   static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
-  static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
   static const editFormatPreferenceMetadataKey =
       LiveLlmEditFormatProbe.preferenceMetadataKey;
 
@@ -2147,64 +2147,22 @@ class LiveLlmDiagnosticService {
     if (subagentTools.isEmpty) {
       return _toolProbeUnavailable(_subagentProbeId);
     }
-    // Phrased as the delegation task production would ask for, not as a request
-    // to "emit a tool call". Measured 2026-08-11 on qwen3.6-35b-a3b-vision: the
-    // old meta-framing ("For diagnostics only, emit a spawn_subagent tool
-    // call") made the model print the argument object as message content in 5
-    // of 5 runs, while the same tools with this phrasing produce a native call
-    // and the same meta-framing with `get_current_datetime` also produces one.
-    // The probe was measuring its own wording. Nothing is executed either way —
-    // the result is only inspected — so the natural phrasing costs no safety.
-    final result = await _chat.createChatCompletion(
-      messages: _messages(
-        user:
-            'Delegate a sub-task to a subagent and run it in the background so '
-            'you get a task id immediately: it should summarize the marker '
-            '"$_subagentMarker". Do not answer in text.',
-      ),
-      tools: subagentTools,
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    final calls = LiveLlmResponseScoring.toolCallsFrom(result);
-    final names = calls.map((call) => call.name).toList(growable: false);
-    final spawnCall = calls
-        .where((call) => call.name == 'spawn_subagent')
-        .firstOrNull;
-    if (spawnCall == null) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _subagentProbeId,
-        status: LiveLlmDiagnosticStatus.failed,
-        summary: 'The model did not emit spawn_subagent.',
-        toolCalls: names,
-        modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
-        usage: LiveLlmDiagnosticEvidence.usage(result),
-      );
-    }
-    final hasPrompt =
-        (spawnCall.arguments['prompt'] as String?)?.contains(_subagentMarker) ??
-        false;
-    final hasDescription =
-        (spawnCall.arguments['description'] as String?)?.trim().isNotEmpty ??
-        false;
-    final background = spawnCall.arguments['background'] == true;
-    final passed = hasPrompt && hasDescription && background;
-    return LiveLlmDiagnosticProbeResult(
-      id: _subagentProbeId,
-      status: passed
-          ? LiveLlmDiagnosticStatus.passed
-          : LiveLlmDiagnosticStatus.warning,
-      summary: passed
-          ? 'The model recognized the subagent contract and required fields.'
-          : 'The model emitted spawn_subagent, but the arguments were incomplete.',
-      details:
-          'description=$hasDescription, promptMarker=$hasPrompt, '
-          'background=$background',
-      toolCalls: names,
-      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
-      usage: LiveLlmDiagnosticEvidence.usage(result),
-    );
+    return LiveLlmSubagentProbe(
+      complete: () async {
+        final result = await _chat.createChatCompletion(
+          messages: _messages(user: LiveLlmSubagentProbe.prompt),
+          tools: subagentTools,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+        return (
+          calls: LiveLlmResponseScoring.toolCallsFrom(result),
+          content: result.content,
+          usage: LiveLlmDiagnosticEvidence.usage(result),
+        );
+      },
+    ).run();
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runRemoteMcpProbe(

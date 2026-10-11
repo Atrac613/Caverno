@@ -89,7 +89,9 @@ owning roadmap documents; the recommendation below and the LL33 row were
 refreshed 2026-09-20 against local main `0fd1276ab`, and the Project Farm rows
 and recommendation on 2026-09-26 against local main `af45d9084`. Next-slice
 selection was refreshed 2026-10-02 against local main `55c739761`, with RC1
-signed-device evidence put on hold by the user. This aligns status
+signed-device evidence put on hold by the user. F5 selection was refreshed
+2026-10-11 against local main `208203c26`, after confirming goal-update
+fidelity was committed as `9aa3e3b3a`. This aligns status
 placement and current summaries; it does not rerun historical release, device,
 or live-model gates.
 `current` means unfinished track scope, not simultaneous implementation.
@@ -120,20 +122,21 @@ support-packet review, and multi-device household evidence remain required for
 product promotion; the hold does not satisfy or waive those gates. See
 [the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
-**F5 goal-update fidelity slice completed in this worktree (2026-10-08).**
-Thinking-control is locally committed as `c780e2f24`. The next slice moved exact
-goal-completion scoring into a 68-line module with completion and request-metadata
-ports. The service fell from 2,437 to 2,397 lines. Request settings, tool/schema
-construction, transport-derived metadata, thinking observation, policy, errors,
-elapsed time and publication remain with the service. No returned tool executes.
-The exact single-call/boolean contract, validation details, preview and usage
-are unchanged. The module has 100% executable-line coverage (23/23); the focused gate
-passed 170 tests, root/package analysis, internal-package tests and relay checks. See
-[implementation evidence](f5_goal_update_fidelity_probe_extraction_codex_task.md#implementation-evidence).
-F5 remains `current`. Next: review/commit this slice, then refresh sizes, coverage
-and remaining diagnostic boundaries before selecting another extraction. RC1
-device gates remain on hold. See
-[the boundary plan](large_file_refactor_plan.md#goal-update-fidelity-extraction-2026-10-08).
+**F5 subagent-recognition slice completed (2026-10-11).**
+Goal-update fidelity was already committed as `9aa3e3b3a`; the earlier
+review/commit recommendation was stale. Subagent prompt and contract scoring
+now live in a 69-line domain module. The service adapts transport replies to
+calls, content and diagnostic usage without adding a domain-to-data import;
+it falls from 2,397 to 2,355 lines. Catalog availability, tool selection,
+request settings, thinking observation, errors, elapsed time and publication
+remain with the service. No returned tool executes.
+
+Verification and the task breakdown are recorded in
+[the extraction worklog](worklog/f5_subagent_probe_extraction_2026-10-11.md).
+F5 remains `current`. Next: scope initial-harness selection scoring as one
+independent extraction, refreshing coverage before implementation. Keep
+`tool_search` execution separate. RC1 device gates remain on hold. See
+[the boundary plan](large_file_refactor_plan.md#subagent-recognition-extraction-2026-10-11).
 
 LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
 firings to their stored messages, so Level 3 event sourcing stays deferred. With
@@ -150,7 +153,7 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Thinking-control locally committed as `c780e2f24`; goal-update fidelity completed in this worktree 2026-10-08: service 2,397 lines, module 68 lines. Module 23/23 executable lines covered; focused gate passed 170 tests. Next: review/commit it, then refresh remaining diagnostic boundaries. See [implementation evidence](f5_goal_update_fidelity_probe_extraction_codex_task.md#implementation-evidence) and [boundary plan](large_file_refactor_plan.md#goal-update-fidelity-extraction-2026-10-08). |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Subagent recognition extracted 2026-10-11: service 2,355 lines, domain module 69 lines, with transport reply adaptation retained by the service. Goal-update fidelity was already committed as `9aa3e3b3a`. Next: scope initial-harness selection scoring and refresh coverage before implementation; keep tool-search execution separate. See [evidence](worklog/f5_subagent_probe_extraction_2026-10-11.md) and [boundary plan](large_file_refactor_plan.md#subagent-recognition-extraction-2026-10-11). |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |

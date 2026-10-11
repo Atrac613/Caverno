@@ -1095,11 +1095,13 @@ const Map<String, int> _lineBudgets = {
   // preservation measurement moved out, and from 2746 when edit-format
   // measurement moved out, and from 2583 when tool-result integration moved out,
   // and from 2503 when thinking-control classification moved out, and
-  // from 2437 when goal-update fidelity scoring moved out.
+  // from 2437 when goal-update fidelity scoring moved out, and from 2397
+  // when subagent-recognition scoring moved out.
   // The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      2397,
+      2355,
+  'lib/features/settings/domain/services/live_llm_subagent_probe.dart': 69,
   'lib/features/settings/domain/services/live_llm_goal_update_fidelity_probe.dart':
       68,
   'lib/features/settings/domain/services/live_llm_thinking_control_probe.dart':
