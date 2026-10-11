@@ -122,22 +122,21 @@ support-packet review, and multi-device household evidence remain required for
 product promotion; the hold does not satisfy or waive those gates. See
 [the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
-**F5 diagnostic catalog slice completed (2026-10-11).**
-Following the language matrix (`f04cfaeb6`), acquired-definition projection now
-lives in a 77-line domain context. The service falls from 2,187 to 2,122 lines.
-Raw order/count/duplicates, initial selection, boolean remote markers and
-connection evidence are preserved. Catalog projection does not add provider
-filtering: connection/acquisition and capability-based probe skips retain
-their existing owners.
+**F5 skipped browser recovery slice completed (2026-10-11).**
+The cross-file refresh selected ChatNotifier (7,344 lines/82 commits since
+2026-09-11). Snapshot recovery and post-snapshot repair eligibility now live in
+a 50-line domain policy. ChatNotifier falls to 7,327 root and 19,810 aggregate
+lines. Existing browser intent recognition, guard precedence, recovered result
+recognition, IDs and arguments retain their semantics. Owner lookup, request
+construction, context retry, approval and execution stay with their owners.
 
-Evidence and task breakdown are in
-[the extraction worklog](worklog/f5_diagnostic_catalog_extraction_2026-10-11.md).
-F5 remains `current`. Next: refresh the cross-file ranking and identify a
-bounded high-churn ChatNotifier concern with a contract before another move.
-The diagnostic service's remaining request/report orchestration, HTTP video
-lifecycle, tool-search execution and samplers retain their owners. RC1 device
-gates remain on hold. See
-[the boundary plan](large_file_refactor_plan.md#diagnostic-catalog-extraction-2026-10-11).
+Task breakdown and verification are in
+[the extraction worklog](worklog/f5_skipped_browser_recovery_extraction_2026-10-11.md).
+F5 remains `current`. Next: inspect remaining ChatNotifier recovery branches and
+freeze a bounded owner-aware contract before another move. Diagnostic
+request/report orchestration, video HTTP lifecycle, tool-search execution and
+samplers retain their owners. RC1 device gates remain on hold. See
+[the boundary plan](large_file_refactor_plan.md#skipped-browser-recovery-extraction-2026-10-11).
 
 LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
 firings to their stored messages, so Level 3 event sourcing stays deferred. With
@@ -154,7 +153,7 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Diagnostic catalog projection extracted 2026-10-11: service 2,122 lines, domain context 77 lines; raw order/duplicates, initial selection and remote metadata preserved. Acquisition and capability skips retain their owners. Next: refresh cross-file ranking and identify a bounded high-churn ChatNotifier concern. See [evidence](worklog/f5_diagnostic_catalog_extraction_2026-10-11.md) and [boundary plan](large_file_refactor_plan.md#diagnostic-catalog-extraction-2026-10-11). |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Skipped browser recovery eligibility extracted 2026-10-11 after the cross-file ranking refresh: ChatNotifier 7,327 root/19,810 aggregate lines, policy 50 lines. Browser recovery guards and repair eligibility preserved; owner lookup, request retry, approval and execution retain their owners. Next: inspect remaining ChatNotifier recovery branches and freeze a bounded owner-aware contract before another move. See [evidence](worklog/f5_skipped_browser_recovery_extraction_2026-10-11.md) and [boundary plan](large_file_refactor_plan.md#skipped-browser-recovery-extraction-2026-10-11). |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |

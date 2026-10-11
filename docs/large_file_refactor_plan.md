@@ -2323,7 +2323,31 @@ remote markers, the strict 24-tool threshold and search/browser selection.
 Task breakdown and verification:
 [the extraction worklog](worklog/f5_diagnostic_catalog_extraction_2026-10-11.md).
 
-Next: refresh cross-file size/churn/coverage ranking and identify a bounded
-high-churn ChatNotifier concern with an explicit contract. Remaining diagnostic
-request/report orchestration, video HTTP lifecycle, tool-search execution and
-samplers retain their owners. F5 remains `current`; RC1 stays on hold.
+The cross-file refresh and bounded ChatNotifier browser recovery extraction are
+completed in the following dated section. Diagnostic request/report,
+HTTP lifecycle, tool-search execution and samplers retain their owners.
+F5 remains `current`; RC1 stays on hold.
+
+## Skipped browser recovery extraction (2026-10-11)
+
+The cross-file refresh measured ChatNotifier at 7,344 root/19,827 aggregate
+lines with 82 commits since 2026-09-11, diagnostic service at 2,122/40, remote
+coding server at 3,261/15 and remote coding page at 2,671/12. Recent diagnostic
+focused coverage is not comparable ChatNotifier evidence. Existing browser
+integration cases provide the pre-extraction contract for this bounded move.
+
+Snapshot recovery and post-snapshot repair eligibility moved to a 50-line
+policy that reuses browser claim detection. Guard precedence, intent recognition,
+recovered-result matching, IDs and arguments are unchanged. The clock is read
+only when recovering. Owner text lookup remains with the notifier; request
+construction, context retries, tool approval/execution and repair prompts stay
+with their owners. No notifier or data-layer dependency enters the policy.
+
+ChatNotifier falls to 7,327 root/19,810 aggregate lines; the policy has 50 lines.
+Root, module and same-library budgets are pinned. The aggregate ceiling uses
+the measured baseline, retiring 55 lines of pre-existing slack. Evidence:
+[the extraction worklog](worklog/f5_skipped_browser_recovery_extraction_2026-10-11.md).
+
+Next: inspect remaining ChatNotifier recovery branches and freeze a bounded
+owner-aware contract before another move. F5 remains `current`; RC1 stays on
+hold. Diagnostic orchestration and tool execution retain their owners.

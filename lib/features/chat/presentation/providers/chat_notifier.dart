@@ -116,6 +116,7 @@ import '../../domain/services/claims/final_answer_claim_notice_applicator.dart';
 import '../../domain/services/claims/final_answer_message_notice_service.dart';
 import '../../domain/services/claims/final_answer_recovery_policy.dart';
 import '../../domain/services/claims/narrated_transcript_repair_planner.dart';
+import '../../domain/services/claims/skipped_browser_action_recovery.dart';
 import '../../domain/services/claims/unexecuted_command_action_retry_policy.dart';
 import '../../domain/services/claims/unexecuted_file_mutation_before_command_guard.dart';
 import '../../domain/services/claims/unexecuted_final_answer_tool_request_policy.dart';
@@ -958,28 +959,12 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<Map<String, dynamic>> allTools,
     required int interactionGeneration,
   }) {
-    if (result.hasToolCalls ||
-        _settings.disabledBuiltInToolsSet.contains('browser_snapshot')) {
-      return null;
-    }
-
-    final availableToolNames =
-        ToolDefinitionSearchService.toolNamesFromDefinitions(allTools).toSet();
-    if (!availableToolNames.contains('browser_snapshot')) {
-      return null;
-    }
-
-    final latestUserContent = _latestUserContentForGeneration(
-      interactionGeneration,
-    );
-    if (!_claims.looksLikeBrowserActionRequest(latestUserContent)) {
-      return null;
-    }
-
-    return ToolCallInfo(
-      id: 'recovered_browser_snapshot_${DateTime.now().microsecondsSinceEpoch}',
-      name: 'browser_snapshot',
-      arguments: const {'max_elements': 80},
+    return const SkippedBrowserActionRecovery().resolve(
+      hasToolCalls: result.hasToolCalls,
+      disabledToolNames: _settings.disabledBuiltInToolsSet,
+      availableTools: allTools,
+      latestUserContent: _latestUserContentForGeneration(interactionGeneration),
+      now: DateTime.now,
     );
   }
 
@@ -1033,16 +1018,11 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolResultInfo> batchToolResults,
     required int interactionGeneration,
   }) {
-    if (candidateResponse.trim().isEmpty) {
-      return false;
-    }
-    if (!_claims.hasRecoveredBrowserSnapshot(batchToolResults)) {
-      return false;
-    }
-    final latestUserContent = _latestUserContentForGeneration(
-      interactionGeneration,
+    return const SkippedBrowserActionRecovery().shouldRepairAfterSnapshot(
+      candidateResponse: candidateResponse,
+      batchToolResults: batchToolResults,
+      latestUserContent: _latestUserContentForGeneration(interactionGeneration),
     );
-    return _claims.looksLikeBrowserActionRequest(latestUserContent);
   }
 
   String _buildSkippedBrowserActionRepairPrompt(int interactionGeneration) {
@@ -4702,6 +4682,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _removeTrailingThinkTagForGeneration(interactionGeneration);
     return recoveryResult;
   }
+
   Future<void> _executeToolCalls(
     List<ToolCallInfo> toolCalls, {
     String? assistantContent,
@@ -5678,13 +5659,15 @@ class ChatNotifier extends Notifier<ChatState> {
       commandRetryGeneration: commandRetryGeneration,
       stateChangeGeneration: stateChangeGeneration,
       savedValidationSucceededInLoop: savedValidationSucceededInLoop,
-      attemptedCompletionVerificationMutationSignatures: attemptedCompletionVerificationMutationSignatures,
+      attemptedCompletionVerificationMutationSignatures:
+          attemptedCompletionVerificationMutationSignatures,
       verificationFailureCounts: verificationFailureCounts,
       transcriptRepairSignatures: transcriptRepairSignatures,
       activeToolNames: activeToolNames,
       toolSearchEnabled: toolSearchEnabled,
       stableToolDefinitions: stableToolDefinitions,
-      replayVerifierImmediatelyAfterMutation: replayVerifierImmediatelyAfterMutation,
+      replayVerifierImmediatelyAfterMutation:
+          replayVerifierImmediatelyAfterMutation,
       verifierOnlyContinuation: verifierOnlyContinuation,
       selectedDefinitionsFor: selectedDefinitionsFor,
     );
