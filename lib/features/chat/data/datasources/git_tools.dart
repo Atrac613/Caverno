@@ -301,6 +301,38 @@ class GitTools {
     );
   }
 
+  /// How to read what the character cap cut off: the lines shown and the
+  /// `| tail -N` call that returns the rest. A diff has no offset to page
+  /// through: session 515d76d8's review stopped twice on two test diffs over
+  /// the cap, never told it could ask for the remaining lines.
+  ///
+  /// [stdout] is the output after any [lineLimit]; only a `tail` limit can
+  /// be paged further, since `tail` of the whole output is its end.
+  static Map<String, Object>? remainingOutputPage(
+    String stdout,
+    GitOutputLineLimit? lineLimit,
+    String command,
+  ) {
+    if (stdout.length <= _kMaxOutputChars) return null;
+    if (lineLimit != null && !lineLimit.fromEnd) return null;
+    final shownLines = '\n'
+        .allMatches(stdout.substring(0, _kMaxOutputChars))
+        .length;
+    final totalLines =
+        '\n'.allMatches(stdout).length + (stdout.endsWith('\n') ? 0 : 1);
+    final remaining = totalLines - shownLines;
+    if (shownLines == 0 || remaining < 1 || remaining > 10000) return null;
+    return {
+      'stdout_total_lines': totalLines,
+      'stdout_shown_lines': shownLines,
+      'stdout_read_more':
+          'Output was cut at $_kMaxOutputChars characters after $shownLines '
+          'of $totalLines lines. Call git_execute_command with '
+          '`$command | tail -$remaining` to read the remaining $remaining '
+          'lines.',
+    };
+  }
+
   static final RegExp _trailingLineLimitPattern = RegExp(
     r'^(head|tail)\s+-(?:n\s*)?(\d+)$',
     caseSensitive: false,
@@ -626,6 +658,8 @@ class GitTools {
         if (stdoutTruncated) 'stdout_truncated': true,
         if (stderrTruncated) 'stderr_truncated': true,
         if (lineLimit != null) 'output_limit': lineLimit.describe,
+        if (stdoutTruncated)
+          ...?remainingOutputPage(stdout, lineLimit, normalizedCommand),
       };
       final detail = stderr.trim().isNotEmpty
           ? stderr.trim()

@@ -431,6 +431,69 @@ void main() {
       ]);
     });
 
+    test('a diff over the output cap names the call for its rest', () async {
+      // Session 515d76d8: two test diffs over the cap were cut with no way to
+      // read the rest, and the review ended incomplete twice.
+      final tempDir = await Directory.systemTemp.createTemp('git_tools_page_');
+      addTearDown(() async {
+        if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+      });
+      Future<void> git(List<String> args) async {
+        final r = await Process.run(
+          'git',
+          args,
+          workingDirectory: tempDir.path,
+        );
+        expect(r.exitCode, 0, reason: '${args.join(' ')}: ${r.stderr}');
+      }
+
+      await git(['init', '-q']);
+      await git(['config', 'user.email', 'test@example.com']);
+      await git(['config', 'user.name', 'Test']);
+      final file = File('${tempDir.path}/test_big.py');
+      await file.writeAsString('# start\n');
+      await git(['add', '.']);
+      await git(['commit', '-qm', 'first']);
+      await file.writeAsString(
+        '# start\n${[for (var i = 0; i < 900; i++) 'def test_$i(): assert $i == $i'].join('\n')}\n',
+      );
+
+      Future<Map<String, dynamic>> run(String command) async =>
+          jsonDecode(
+                await GitTools.execute(
+                  command: command,
+                  workingDirectory: tempDir.path,
+                  projectRoot: tempDir.path,
+                ),
+              )
+              as Map<String, dynamic>;
+
+      final first = await run('diff HEAD -- test_big.py');
+      expect(first['stdout_truncated'], isTrue);
+      final shown = first['stdout_shown_lines'] as int;
+      final total = first['stdout_total_lines'] as int;
+      final hint = first['stdout_read_more'] as String;
+      final call = RegExp(r'`([^`]+)`').firstMatch(hint)![1]!;
+      expect(call, 'diff HEAD -- test_big.py | tail -${total - shown}');
+
+      final rest = await run(call);
+      expect(rest['stdout_truncated'], isNull);
+      final full = await Process.run('git', [
+        'diff',
+        'HEAD',
+        '--',
+        'test_big.py',
+      ], workingDirectory: tempDir.path);
+      final fullLines = (full.stdout as String).split('\n');
+      final restLines = (rest['stdout'] as String).split('\n');
+      expect(
+        restLines.first,
+        fullLines[shown],
+        reason: 'the rest starts at the first line the cap cut',
+      );
+      expect(rest['stdout'], endsWith('def test_899(): assert 899 == 899\n'));
+    });
+
     test('rejects commit when unstaged changes would be omitted', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'git_tools_stale_index_test_',
