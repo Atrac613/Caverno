@@ -213,6 +213,7 @@ import '../../domain/services/tool_loop/duplicate_recovery_prompt_builder.dart';
 import '../../domain/services/tool_loop/duplicate_tool_result_recovery.dart';
 import '../../domain/services/tool_loop/execution_budget_policy.dart';
 import '../../domain/services/tool_loop/fenced_tool_arguments_detector.dart';
+import '../../domain/services/tool_loop/incomplete_content_tool_recovery_plan.dart';
 import '../../domain/services/tool_loop/pending_action_length_recovery_policy.dart';
 import '../../domain/services/tool_loop/printed_tool_call_recovery.dart';
 import '../../domain/services/tool_loop/recent_read_result_carry.dart';
@@ -6315,51 +6316,24 @@ class ChatNotifier extends Notifier<ChatState> {
     final owner = _turnOwnerForGeneration(interactionGeneration);
     if (owner == null) return;
 
-    final lastMessage = _lastMessageForGeneration(interactionGeneration);
-    if (lastMessage == null) {
-      return;
-    }
-    if (lastMessage.role != MessageRole.assistant ||
-        !ContentParser.hasIncompleteToolCall(lastMessage.content)) {
-      return;
-    }
-
-    final recoveredToolCalls =
-        ContentParser.extractRecoverableIncompleteToolCalls(
-          lastMessage.content,
-        ).where((tc) {
-          return _contentToolTurns.markSeenCall(
-            owner,
-            _contentToolCallHash(tc, owner),
-          );
-        }).toList();
-
-    if (recoveredToolCalls.isEmpty) {
-      appLog(
-        '[ContentTool] Incomplete tool call could not be parsed; requesting continuation recovery',
-      );
-      _stripToolArtifactsFromLastAssistantMessage(
-        interactionGeneration: interactionGeneration,
-      );
-      _contentToolTurns.addPendingResult(
+    final plan = IncompleteContentToolRecoveryPlan.assess(
+      _lastMessageForGeneration(interactionGeneration),
+      acceptCall: (call) => _contentToolTurns.markSeenCall(
         owner,
-        '[Incomplete assistant tool call]\n'
-        'The assistant emitted an unfinished tool call tag. Reissue the needed '
-        'tool call as one complete <tool_use>...</tool_use> tag, or finish with '
-        'a concise text answer if no more tools are needed. Do not write '
-        '<tool_result> tags yourself.',
-      );
-      return;
-    }
-
-    appLog(
-      '[ContentTool] Recovering incomplete tool_call(s): ${recoveredToolCalls.length}',
+        _contentToolCallHash(call, owner),
+      ),
     );
+    if (plan == null) return;
+    appLog(plan.logMessage);
     _stripToolArtifactsFromLastAssistantMessage(
       interactionGeneration: interactionGeneration,
     );
+    if (plan.recoveredToolCalls.isEmpty) {
+      _contentToolTurns.addPendingResult(owner, plan.pendingResult!);
+      return;
+    }
     _queueContentToolCalls(
-      recoveredToolCalls,
+      plan.recoveredToolCalls,
       interactionGeneration: interactionGeneration,
     );
   }

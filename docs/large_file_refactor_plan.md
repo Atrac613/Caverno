@@ -2372,6 +2372,29 @@ ChatNotifier falls to 7,287 root/19,770 aggregate lines; the plan has 62 lines.
 Task breakdown and verification:
 [the extraction worklog](worklog/f5_assistant_tool_artifact_recovery_extraction_2026-10-11.md).
 
-Next: inspect incomplete-call recovery and freeze parsing versus owner-scoped
-deduplication before another move. Request retries, mutation and execution
+Incomplete-call parsing and owner-scoped acceptance were inspected and the
+bounded extraction is completed in the following dated section. State updates
+and execution retain their owners. F5 remains `current`; RC1 stays on hold.
+
+## Incomplete content-tool recovery extraction (2026-10-11)
+
+Incomplete-call role/eligibility gates, parsing, ordered candidate acceptance
+and feedback moved to a 48-line plan. An owner-bound acceptance callback keeps
+hashing and seen-call registration in ChatNotifier. Current-generation and owner
+guards, message stripping, pending-result registration and queueing remain in
+place. The all-rejected path still requests continuation, including duplicate
+candidates and parser-exempt/think-only input. No owner registry, transport or
+execution is introduced into the plan; callback failures still propagate.
+
+Three integration cases passed before and after extraction. Isolated policy
+tests and a real-registry acceptance contract freeze same-owner duplicate
+rejection, cross-owner isolation, disposed-owner refusal and fresh-generation
+acceptance. Recovery precedence and exact feedback remain unchanged.
+
+ChatNotifier falls to 7,261 root/19,744 aggregate lines; the plan has 48 lines.
+Root, plan and same-library budgets are lowered. Task breakdown and verification:
+[the extraction worklog](worklog/f5_incomplete_content_tool_recovery_extraction_2026-10-11.md).
+
+Next: inspect repeated content-call recovery and successful-result reuse
+contracts before another move. Owner state, request retries and execution
 retain their owners. F5 remains `current`; RC1 stays on hold.
