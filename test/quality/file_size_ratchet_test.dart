@@ -82,7 +82,10 @@ const Map<String, int> _lineBudgets = {
   // output as its answer (session 64aaa8d9); it falls through to the no-tool
   // final answer, where the verdict is captured.
   // -17: skipped browser snapshot and repair eligibility moved to a policy.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7327,
+  // -40: assistant-authored artifact assessment moved to a recovery plan.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7287,
+  'lib/features/chat/domain/services/tool_loop/assistant_tool_artifact_recovery_plan.dart':
+      62,
   'lib/features/chat/domain/services/claims/skipped_browser_action_recovery.dart':
       50,
   // The tool loop's finalization (moved from chat_notifier.dart 2026-10-09)
@@ -1332,8 +1335,8 @@ const Map<String, int> _libraryLineBudgets = {
   // policy-chain hook and one argument at each recovery prompt site.
   // +3 matching the primary file: a review skips the raw-output answer
   // (session 64aaa8d9).
-  // Pin the measured 19827 baseline minus 17 extracted eligibility lines.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19810,
+  // Pin the measured baseline after browser eligibility and artifact assessment.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19770,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

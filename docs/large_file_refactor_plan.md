@@ -2348,6 +2348,30 @@ Root, module and same-library budgets are pinned. The aggregate ceiling uses
 the measured baseline, retiring 55 lines of pre-existing slack. Evidence:
 [the extraction worklog](worklog/f5_skipped_browser_recovery_extraction_2026-10-11.md).
 
-Next: inspect remaining ChatNotifier recovery branches and freeze a bounded
-owner-aware contract before another move. F5 remains `current`; RC1 stays on
-hold. Diagnostic orchestration and tool execution retain their owners.
+The remaining artifact branches were inspected and their immutable assessment
+is completed in the following dated section. Owner state and execution retain
+their owners. F5 remains `current`; RC1 stays on hold.
+
+## Assistant tool artifact recovery extraction (2026-10-11)
+
+Assistant-authored result-marker and fenced-name assessment moved into an
+immutable recovery plan. It retains assistant-role gates, marker/name order
+and duplicates, parser exemptions, exact log/notice wording and fenced-block
+stripping. No state, acquisition or execution port is introduced. Owner
+lookup/guards, stripping or replacing the owner message, pending-result
+registration and incomplete/result/name recovery precedence remain unchanged
+in ChatNotifier.
+
+Four integration cases passed before and after extraction, including incomplete
+call continuation, ignored assistant results, safe empty fallback and no-tool
+finalization recovery. Isolated tests freeze null/non-assistant gates, parser
+exemptions, malformed/incomplete markers, thinking preservation and independent
+mixed-artifact assessment. Main-file and same-library budgets are lowered.
+
+ChatNotifier falls to 7,287 root/19,770 aggregate lines; the plan has 62 lines.
+Task breakdown and verification:
+[the extraction worklog](worklog/f5_assistant_tool_artifact_recovery_extraction_2026-10-11.md).
+
+Next: inspect incomplete-call recovery and freeze parsing versus owner-scoped
+deduplication before another move. Request retries, mutation and execution
+retain their owners. F5 remains `current`; RC1 stays on hold.
