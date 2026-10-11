@@ -45,6 +45,39 @@ void main() {
     expect(failure.describe([_run('a', suite, 0)]), isNull);
   });
 
+  test('an unfiltered run of the same tests settles a grep-filtered one', () {
+    // Session 1fd1d58b: the filtered command kept failing because grep found
+    // nothing to print in a passing run, and the gap demanded that exact
+    // command pass.
+    ToolResultInfo pytest(String id, String command, int exit, String out) =>
+        ToolResultInfo(
+          id: id,
+          name: 'local_execute_command',
+          arguments: {'command': command, 'working_directory': '/w'},
+          result: jsonEncode({
+            'command': command,
+            'working_directory': '/w',
+            'exit_code': exit,
+            'stdout': out,
+          }),
+          outcome: ToolOutcome(exitCode: exit),
+        );
+    const test = '.venv/bin/python -m pytest test_watcher.py::test_retry -v';
+    const filtered = '$test 2>&1 | grep -A 30 "FAILED\\|assert"';
+    final failed = pytest('a', filtered, 1, '');
+
+    final gap = failure.describe([failed]);
+    expect(gap, contains('A passing run of the same tests'));
+    expect(gap, contains('`$test`'));
+    expect(
+      failure.describe([
+        failed,
+        pytest('b', test, 0, '==== 1 passed in 6.07s ===='),
+      ]),
+      isNull,
+    );
+  });
+
   test(
     'an inline fixture failure names a repair path instead of exact replay',
     () {

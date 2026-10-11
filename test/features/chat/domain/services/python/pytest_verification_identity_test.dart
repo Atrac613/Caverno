@@ -22,6 +22,37 @@ void main() {
     );
     expect(actual.counts('====== 6 passed in 3.05s ======')?.passedCount, 6);
   });
+  test('a trailing grep filter keeps the pytest run behind it', () {
+    // Session 1fd1d58b: grep exits 1 when a passing run prints no failure
+    // lines, and the filtered command could never be settled.
+    const nodeid = 'test_watcher.py::test_retry';
+    final expected = PytestVerificationIdentity.parse(
+      '.venv/bin/python -m pytest $nodeid -v --tb=long',
+      '/workspace',
+    )!;
+    final filtered = PytestVerificationIdentity.parse(
+      'cd /workspace && .venv/bin/python -m pytest $nodeid -v --tb=long '
+          '2>&1 | grep -A 30 "FAILED\\|AssertionError\\|assert"',
+      '/tmp',
+    );
+    expect(filtered?.key, expected.key);
+    expect(
+      filtered?.replayCommand,
+      '.venv/bin/python -m pytest $nodeid -v --tb=long',
+    );
+    for (final command in [
+      'python3 -m pytest -q | grep x && echo done',
+      'python3 -m pytest -q || grep x log.txt',
+      'python3 -m pytest -q | grep x > out.txt',
+      'python3 -m pytest -q | sort',
+    ]) {
+      expect(
+        PytestVerificationIdentity.parse(command, '/workspace'),
+        isNull,
+        reason: command,
+      );
+    }
+  });
   test('accepts the tail -n output wrapper', () {
     // Session 26d7db3e: `| tail -n 15` was not stripped, so a passing run was
     // never counted as verification and update_goal rejected completion.

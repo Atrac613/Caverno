@@ -13,7 +13,9 @@ abstract final class PytestShellInvocation {
     String directory,
   ) {
     if (!path.isAbsolute(directory)) return null;
-    var invocation = withoutOutputWrapper(command);
+    var invocation = withoutOutputWrapper(
+      ShellOutputWrapper.withoutGrepFilter(withoutOutputWrapper(command)),
+    );
     final cd = RegExp(r'^cd\s+(.+?)\s*&&\s*(.+)$').firstMatch(invocation);
     if (cd != null) {
       final target = LiteralShellWords.parse(cd[1]!)?.singleOrNull;
