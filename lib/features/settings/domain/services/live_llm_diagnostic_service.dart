@@ -30,6 +30,7 @@ import 'live_llm_exact_preservation_probe.dart';
 import 'live_llm_goal_update_fidelity_probe.dart';
 import 'live_llm_initial_harness_probe.dart';
 import 'live_llm_multi_round_probe.dart';
+import 'live_llm_narrow_tool_call_probe.dart';
 import 'live_llm_remote_mcp_exposure_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
@@ -362,7 +363,7 @@ class LiveLlmDiagnosticService {
   static const _videoInputModalityProbeId = 'video_input_modality';
   static const _visionToolObservationProbeId =
       LiveLlmVisionProbes.toolObservationProbeId;
-  static const _narrowToolCallProbeId = 'narrow_tool_call';
+  static const _narrowToolCallProbeId = LiveLlmNarrowToolCallProbe.probeId;
   static const _goalUpdateFidelityProbeId =
       LiveLlmGoalUpdateFidelityProbe.probeId;
   static const _toolResultProbeId = LiveLlmToolResultProbe.probeId;
@@ -1749,40 +1750,22 @@ class LiveLlmDiagnosticService {
       return _toolProbeUnavailable(_narrowToolCallProbeId);
     }
 
-    final result = await _chat.createChatCompletion(
-      messages: _messages(
-        user:
-            'Call the get_current_datetime tool now. Do not answer in text '
-            'before using the tool.',
-      ),
-      tools: [dateTool],
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    final toolCalls = LiveLlmResponseScoring.toolCallsFrom(result);
-    final names = toolCalls.map((call) => call.name).toList(growable: false);
-    if (toolCalls.any((call) => call.name == 'get_current_datetime')) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _narrowToolCallProbeId,
-        status: LiveLlmDiagnosticStatus.passed,
-        summary: 'The model emitted the expected built-in tool call.',
-        toolCalls: names,
-        modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
-        usage: LiveLlmDiagnosticEvidence.usage(result),
-      );
-    }
-    return LiveLlmDiagnosticProbeResult(
-      id: _narrowToolCallProbeId,
-      status: LiveLlmDiagnosticStatus.failed,
-      summary: 'The model did not emit get_current_datetime.',
-      details: names.isEmpty
-          ? 'No tool calls were returned.'
-          : names.join(', '),
-      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
-      toolCalls: names,
-      usage: LiveLlmDiagnosticEvidence.usage(result),
-    );
+    return LiveLlmNarrowToolCallProbe(
+      complete: () async {
+        final result = await _chat.createChatCompletion(
+          messages: _messages(user: LiveLlmNarrowToolCallProbe.prompt),
+          tools: [dateTool],
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+        return (
+          calls: LiveLlmResponseScoring.toolCallsFrom(result),
+          content: result.content,
+          usage: LiveLlmDiagnosticEvidence.usage(result),
+        );
+      },
+    ).run();
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runGoalUpdateFidelityProbe() =>

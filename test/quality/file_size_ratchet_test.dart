@@ -1098,11 +1098,13 @@ const Map<String, int> _lineBudgets = {
   // from 2437 when goal-update fidelity scoring moved out, and from 2397
   // when subagent-recognition scoring moved out, and from 2355 when
   // initial-harness selection scoring moved out, and from 2335 when
-  // remote-MCP exposure scoring moved out.
+  // remote-MCP exposure scoring moved out, and from 2311 when narrow
+  // datetime-tool selection scoring moved out.
   // The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      2311,
+      2294,
+  'lib/features/settings/domain/services/live_llm_narrow_tool_call_probe.dart': 49,
   'lib/features/settings/domain/services/live_llm_remote_mcp_exposure_probe.dart':
       37,
   'lib/features/settings/domain/services/live_llm_initial_harness_probe.dart': 59,

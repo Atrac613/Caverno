@@ -21,6 +21,97 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  for (final embedded in [false, true]) {
+    test(
+      'narrow datetime binding preserves request and report: embedded=$embedded',
+      () async {
+        final source = _NarrowDatetimeRecordingDataSource(embedded: embedded);
+        final statuses = <LiveLlmDiagnosticStatus>[];
+        final report =
+            await LiveLlmDiagnosticService(
+              settings: _settings(
+                mcpEnabled: true,
+                model: 'narrow-datetime-model',
+              ),
+              chatDataSource: source,
+              mcpToolService: McpToolService(),
+            ).run(
+              probeIds: const {'narrow_tool_call'},
+              onReport: (report) {
+                final status = _result(report, 'narrow_tool_call').status;
+                if (statuses.isEmpty || statuses.last != status) {
+                  statuses.add(status);
+                }
+              },
+            );
+        expect(source.requests, 9);
+        expect(statuses, [
+          LiveLlmDiagnosticStatus.pending,
+          LiveLlmDiagnosticStatus.running,
+          LiveLlmDiagnosticStatus.passed,
+        ]);
+        final result = _result(report, 'narrow_tool_call');
+        expect(result.toolCalls, ['get_current_datetime']);
+        expect(result.elapsed, isNotNull);
+        expect(report.thinkingMetrics?.responseCount, 9);
+        expect(report.samplerCalibrationTrials, hasLength(8));
+        expect(
+          report.samplerCalibrationTrials.every((trial) => trial.passed),
+          isTrue,
+        );
+      },
+    );
+  }
+
+  for (final enabled in [false, true]) {
+    test(
+      'narrow datetime unavailable tools skip requests: enabled=$enabled',
+      () async {
+        final source = _NarrowDatetimeRecordingDataSource();
+        final tools = _RemoteExposureFixtureService(
+          exposeTool: true,
+          failConnect: false,
+        );
+        final report = await LiveLlmDiagnosticService(
+          settings: _settings(
+            mcpEnabled: enabled,
+            model: 'narrow-datetime-model',
+          ),
+          chatDataSource: source,
+          mcpToolService: tools,
+        ).run(probeIds: const {'narrow_tool_call'});
+        expect(source.requests, 0);
+        expect(tools.executions, 0);
+        expect(
+          _result(report, 'narrow_tool_call').status,
+          enabled
+              ? LiveLlmDiagnosticStatus.warning
+              : LiveLlmDiagnosticStatus.skipped,
+        );
+      },
+    );
+  }
+
+  test('narrow datetime request failure stays in report handling', () async {
+    final source = _NarrowDatetimeRecordingDataSource(fail: true);
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: true, model: 'narrow-datetime-model'),
+      chatDataSource: source,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: const {'narrow_tool_call'});
+    expect(source.requests, 9);
+    final result = _result(report, 'narrow_tool_call');
+    expect(result.status, LiveLlmDiagnosticStatus.failed);
+    expect(result.details, contains('narrow datetime transport'));
+    expect(result.elapsed, isNotNull);
+    expect(report.samplerCalibrationTrials, hasLength(8));
+    expect(
+      report.samplerCalibrationTrials.every((trial) => trial.passed),
+      isTrue,
+    );
+    expect(report.thinkingMetrics?.responseCount, 8);
+  });
+
   for (final mode in [
     'disabled',
     'no-server',
@@ -4468,5 +4559,56 @@ class _RemoteExposureNoCompletionDataSource extends _FakeDiagnosticDataSource {
   }) async {
     requests++;
     throw StateError('snapshot probe must not call the model');
+  }
+}
+
+class _NarrowDatetimeRecordingDataSource extends _FakeDiagnosticDataSource {
+  _NarrowDatetimeRecordingDataSource({
+    this.fail = false,
+    this.embedded = false,
+  });
+  final bool fail;
+  final bool embedded;
+  int requests = 0;
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requests++;
+    expect(
+      messages.last.content,
+      'Call the get_current_datetime tool now. Do not answer in text '
+      'before using the tool.',
+    );
+    expect(tools?.map((tool) => tool['function']['name']), [
+      'get_current_datetime',
+    ]);
+    expect(model, 'narrow-datetime-model');
+    if (requests == 1) {
+      expect(temperature, 0.0);
+    } else {
+      expect(temperature, [0.0, 0.2, 0.4, 0.7][(requests - 2) % 4]);
+    }
+    expect(maxTokens, 512);
+    if (fail && requests == 1) throw StateError('narrow datetime transport');
+    if (embedded) {
+      return ChatCompletionResult(
+        content:
+            '<tool_call>{"name":"get_current_datetime","arguments":{}}</tool_call>',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
   }
 }
