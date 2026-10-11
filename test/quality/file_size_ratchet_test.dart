@@ -1097,11 +1097,14 @@ const Map<String, int> _lineBudgets = {
   // and from 2503 when thinking-control classification moved out, and
   // from 2437 when goal-update fidelity scoring moved out, and from 2397
   // when subagent-recognition scoring moved out, and from 2355 when
-  // initial-harness selection scoring moved out.
+  // initial-harness selection scoring moved out, and from 2335 when
+  // remote-MCP exposure scoring moved out.
   // The page was lowered from 1742
   // when its header moved out.
   'lib/features/settings/domain/services/live_llm_diagnostic_service.dart':
-      2335,
+      2311,
+  'lib/features/settings/domain/services/live_llm_remote_mcp_exposure_probe.dart':
+      37,
   'lib/features/settings/domain/services/live_llm_initial_harness_probe.dart': 59,
   'lib/features/settings/domain/services/live_llm_subagent_probe.dart': 69,
   'lib/features/settings/domain/services/live_llm_goal_update_fidelity_probe.dart':

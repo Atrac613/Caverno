@@ -30,6 +30,7 @@ import 'live_llm_exact_preservation_probe.dart';
 import 'live_llm_goal_update_fidelity_probe.dart';
 import 'live_llm_initial_harness_probe.dart';
 import 'live_llm_multi_round_probe.dart';
+import 'live_llm_remote_mcp_exposure_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
 import 'live_llm_structured_output_probe.dart';
@@ -369,7 +370,7 @@ class LiveLlmDiagnosticService {
   static const _initialHarnessProbeId = LiveLlmInitialHarnessProbe.probeId;
   static const _toolSearchProbeId = 'tool_search_catalog';
   static const _subagentProbeId = LiveLlmSubagentProbe.probeId;
-  static const _remoteMcpProbeId = 'remote_mcp_exposure';
+  static const _remoteMcpProbeId = LiveLlmRemoteMcpExposureProbe.probeId;
   static const _toolDepthProbeId = LiveLlmToolDepthProbe.probeId;
   static const _toolRecoveryProbeId = LiveLlmToolRecoveryProbe.probeId;
 
@@ -2148,32 +2149,7 @@ class LiveLlmDiagnosticService {
   Future<LiveLlmDiagnosticProbeResult> _runRemoteMcpProbe(
     _ToolCatalogContext catalog,
   ) async {
-    if (catalog.catalog.remoteServerCount == 0) {
-      return const LiveLlmDiagnosticProbeResult(
-        id: _remoteMcpProbeId,
-        status: LiveLlmDiagnosticStatus.skipped,
-        summary: 'No trusted remote MCP servers are enabled.',
-      );
-    }
-    if (catalog.catalog.remoteToolCount == 0) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _remoteMcpProbeId,
-        status: LiveLlmDiagnosticStatus.warning,
-        summary: 'Remote MCP servers are enabled, but no remote tools loaded.',
-        details: catalog.catalog.mcpConnectionSummary,
-      );
-    }
-    return LiveLlmDiagnosticProbeResult(
-      id: _remoteMcpProbeId,
-      status: LiveLlmDiagnosticStatus.passed,
-      summary:
-          'Remote MCP tools are visible to the Caverno harness '
-          '(${catalog.catalog.remoteToolCount}).',
-      details: [
-        catalog.catalog.mcpConnectionSummary,
-        'Remote tools: ${catalog.catalog.remoteToolNames.take(12).join(", ")}',
-      ].where((line) => line.trim().isNotEmpty).join('\n'),
-    );
+    return LiveLlmRemoteMcpExposureProbe.score(catalog.catalog);
   }
 
   LiveLlmDiagnosticProbeResult _toolProbeUnavailable(String probeId) {

@@ -6,6 +6,7 @@ import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/embeddings_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
@@ -20,6 +21,74 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  for (final mode in [
+    'disabled',
+    'no-server',
+    'no-tools',
+    'ready',
+    'connection-error',
+  ]) {
+    test('remote MCP exposure preserves the service boundary: $mode', () async {
+      final hasServer = mode != 'disabled' && mode != 'no-server';
+      final tools = _RemoteExposureFixtureService(
+        exposeTool: mode == 'ready',
+        failConnect: mode == 'connection-error',
+      );
+      final source = _RemoteExposureNoCompletionDataSource();
+      final statuses = <LiveLlmDiagnosticStatus>[];
+      final report =
+          await LiveLlmDiagnosticService(
+            settings: _settings(mcpEnabled: mode != 'disabled').copyWith(
+              mcpServers: hasServer
+                  ? const [
+                      McpServerConfig(url: 'https://fixture.example.test/mcp'),
+                    ]
+                  : const [],
+            ),
+            chatDataSource: source,
+            mcpToolService: tools,
+          ).run(
+            probeIds: const {'remote_mcp_exposure'},
+            onReport: (report) {
+              final status = _result(report, 'remote_mcp_exposure').status;
+              if (statuses.isEmpty || statuses.last != status) {
+                statuses.add(status);
+              }
+            },
+          );
+      final expected = !hasServer
+          ? LiveLlmDiagnosticStatus.skipped
+          : mode == 'ready'
+          ? LiveLlmDiagnosticStatus.passed
+          : LiveLlmDiagnosticStatus.warning;
+      expect(statuses, [
+        LiveLlmDiagnosticStatus.pending,
+        LiveLlmDiagnosticStatus.running,
+        expected,
+      ]);
+      final result = _result(report, 'remote_mcp_exposure');
+      expect(result.status, expected);
+      expect(result.elapsed, isNotNull);
+      expect(source.requests, 0);
+      expect(tools.connects, mode == 'disabled' ? 0 : 1);
+      expect(tools.executions, 0);
+      expect(report.thinkingMetrics, isNull);
+      if (hasServer) {
+        expect(
+          result.details,
+          startsWith(report.toolCatalog.mcpConnectionSummary),
+        );
+      }
+      if (mode == 'ready') {
+        expect(result.details, endsWith('Remote tools: fixture_remote_read'));
+        expect(report.toolCatalog.remoteToolCount, 1);
+      }
+      if (mode == 'connection-error') {
+        expect(result.details, contains('fixture connection failure'));
+      }
+    });
+  }
+
   for (final embedded in [false, true]) {
     test(
       'initial harness preserves request and publication: embedded=$embedded',
@@ -4336,5 +4405,68 @@ class _InitialHarnessRecordingDataSource extends _FakeDiagnosticDataSource {
       temperature: temperature,
       maxTokens: maxTokens,
     );
+  }
+}
+
+class _RemoteExposureFixtureService extends McpToolService {
+  _RemoteExposureFixtureService({
+    required this.exposeTool,
+    required this.failConnect,
+  });
+  final bool exposeTool;
+  final bool failConnect;
+  int connects = 0;
+  int executions = 0;
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {
+    connects++;
+    if (failConnect) throw StateError('fixture connection failure');
+  }
+
+  @override
+  List<McpServerConnectionInfo> get serverStates => const [];
+
+  @override
+  String? get lastError => 'fixture connection summary';
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() => exposeTool
+      ? [
+          const McpToolEntity(
+            name: 'fixture_remote_read',
+            description: 'fixture',
+            inputSchema: {'type': 'object'},
+            sourceUrl: 'https://fixture.example.test/mcp',
+          ).toOpenAiTool(),
+        ]
+      : [];
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executions++;
+    throw StateError('snapshot probe must not execute a tool');
+  }
+}
+
+class _RemoteExposureNoCompletionDataSource extends _FakeDiagnosticDataSource {
+  int requests = 0;
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requests++;
+    throw StateError('snapshot probe must not call the model');
   }
 }

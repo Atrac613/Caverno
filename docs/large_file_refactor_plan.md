@@ -2214,6 +2214,28 @@ observation, exceptions, elapsed time and publication. It falls from 2,355 to
 
 Task breakdown and verification evidence:
 [the extraction worklog](worklog/f5_initial_harness_probe_extraction_2026-10-11.md).
-Next: scope snapshot-only remote-MCP exposure scoring with catalog/connection
-loading retained in the service. Keep tool-search execution separate.
+Initial-harness selection was committed as `a69adaf69`. Its next selected
+boundary, remote-MCP exposure, is completed in the following dated section.
 F5 remains `current`; RC1 stays on hold.
+
+
+## Remote-MCP exposure extraction (2026-10-11)
+
+Following initial-harness selection (`a69adaf69`), the snapshot-only remote-MCP
+exposure diagnostic moved to `LiveLlmRemoteMcpExposureProbe`. Five service
+contracts passed before extraction with fixture-only catalog acquisition and
+explicit checks for zero model requests and zero tool executions.
+
+The module scores the existing domain catalog without transport imports or
+execution ports. Server-count precedence, skipped/warning/passed statuses,
+summaries, untrimmed connection detail, empty-line filtering and first-twelve
+name preview remain unchanged. Connection/catalog acquisition, settings and
+provider selection, elapsed time and publication stay with the service.
+
+The service falls from 2,335 to 2,311 lines; the module has 37 lines. Both
+ratchet budgets are updated. Task breakdown and verification evidence:
+[the extraction worklog](worklog/f5_remote_mcp_exposure_probe_extraction_2026-10-11.md).
+
+Next: scope narrow datetime-tool selection scoring, retaining availability,
+tool definitions, request settings and report ownership in the service. Keep
+tool-search execution separate. F5 remains `current`; RC1 stays on hold.
