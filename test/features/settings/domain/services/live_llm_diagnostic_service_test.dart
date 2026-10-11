@@ -20,6 +20,83 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  for (final embedded in [false, true]) {
+    test(
+      'initial harness preserves request and publication: embedded=$embedded',
+      () async {
+        final source = _InitialHarnessRecordingDataSource(embedded: embedded);
+        final statuses = <LiveLlmDiagnosticStatus>[];
+        final report =
+            await LiveLlmDiagnosticService(
+              settings: _settings(
+                mcpEnabled: true,
+                model: 'initial-harness-model',
+              ),
+              chatDataSource: source,
+              mcpToolService: McpToolService(),
+            ).run(
+              probeIds: const {'initial_harness_selection'},
+              onReport: (report) {
+                final status = _result(
+                  report,
+                  'initial_harness_selection',
+                ).status;
+                if (statuses.isEmpty || statuses.last != status) {
+                  statuses.add(status);
+                }
+              },
+            );
+        expect(source.requests, 1);
+        expect(source.toolNames, report.toolCatalog.initialToolNames);
+        expect(statuses, [
+          LiveLlmDiagnosticStatus.pending,
+          LiveLlmDiagnosticStatus.running,
+          LiveLlmDiagnosticStatus.passed,
+        ]);
+        final result = _result(report, 'initial_harness_selection');
+        expect(result.toolCalls, ['get_current_datetime']);
+        expect(
+          result.details,
+          'Initial tool count: ${report.toolCatalog.initialToolCount}. '
+          'Tool search enabled: ${report.toolCatalog.toolSearchEnabled}.',
+        );
+        expect(result.elapsed, isNotNull);
+        expect(report.thinkingMetrics?.responseCount, 1);
+      },
+    );
+  }
+
+  test('initial harness disabled catalog skips without requests', () async {
+    final source = _InitialHarnessRecordingDataSource();
+    final report = await LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false, model: 'initial-harness-model'),
+      chatDataSource: source,
+      mcpToolService: McpToolService(),
+    ).run(probeIds: const {'initial_harness_selection'});
+    expect(source.requests, 0);
+    expect(
+      _result(report, 'initial_harness_selection').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+  });
+
+  test(
+    'initial harness request failure stays in the report boundary',
+    () async {
+      final source = _InitialHarnessRecordingDataSource(fail: true);
+      final report = await LiveLlmDiagnosticService(
+        settings: _settings(mcpEnabled: true, model: 'initial-harness-model'),
+        chatDataSource: source,
+        mcpToolService: McpToolService(),
+      ).run(probeIds: const {'initial_harness_selection'});
+      expect(source.requests, 1);
+      final result = _result(report, 'initial_harness_selection');
+      expect(result.status, LiveLlmDiagnosticStatus.failed);
+      expect(result.details, contains('initial harness transport'));
+      expect(result.elapsed, isNotNull);
+    },
+  );
+
   test(
     'subagent binding preserves request, observation and publication',
     () async {
@@ -4200,6 +4277,55 @@ class _SubagentRecordingDataSource extends _FakeDiagnosticDataSource {
             '<tool_call>{"name":"spawn_subagent","arguments":'
             '{"description":"summary","prompt":"CAVERNO_SUBAGENT_DIAGNOSTIC",'
             '"background":true}}</tool_call>',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _InitialHarnessRecordingDataSource extends _FakeDiagnosticDataSource {
+  _InitialHarnessRecordingDataSource({
+    this.fail = false,
+    this.embedded = false,
+  });
+  final bool fail;
+  final bool embedded;
+  int requests = 0;
+  List<String> toolNames = [];
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requests++;
+    expect(
+      messages.last.content,
+      'Using the currently exposed Caverno initial tool set, call '
+      'get_current_datetime exactly once. Do not call tool_search.',
+    );
+    toolNames = tools!
+        .map((tool) => tool['function']['name'] as String)
+        .toList();
+    expect(model, 'initial-harness-model');
+    expect(temperature, 0.0);
+    expect(maxTokens, 512);
+    if (fail) throw StateError('initial harness transport');
+    if (embedded) {
+      return ChatCompletionResult(
+        content:
+            '<tool_call>{"name":"get_current_datetime",'
+            '"arguments":{}}</tool_call>',
         finishReason: 'stop',
       );
     }

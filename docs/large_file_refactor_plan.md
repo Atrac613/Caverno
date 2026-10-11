@@ -2193,6 +2193,27 @@ The service falls from 2,397 to 2,355 lines; the module has 69 lines. Both
 ratchet budgets are updated. The task breakdown and verification evidence are
 in [the worklog](worklog/f5_subagent_probe_extraction_2026-10-11.md).
 
-Next: scope initial-harness selection scoring, refresh its coverage, and retain
-catalog/request ownership in the service. Keep tool-search execution as a
-separate concern. F5 remains `current`; RC1 stays on hold.
+Subagent recognition was committed as `6374a895c`. The next selected boundary,
+initial-harness selection, is completed in the following dated section.
+F5 remains `current`; RC1 stays on hold.
+
+
+## Initial-harness selection extraction (2026-10-11)
+
+Following subagent recognition (`6374a895c`), initial tool-selection scoring
+was extracted into `LiveLlmInitialHarnessProbe`. Four service contracts passed
+before extraction. The prompt, statuses, summaries, catalog details and scoring
+precedence remain unchanged, including datetime selection alongside other calls.
+The module receives only domain values: tool names, content and diagnostic usage.
+It executes no tool and adds no domain-to-data import.
+
+The service retains catalog availability and initial-definition selection,
+request settings, transport reply parsing, usage adaptation, thinking
+observation, exceptions, elapsed time and publication. It falls from 2,355 to
+2,335 lines; the module has 59 lines. Both ratchet budgets are updated.
+
+Task breakdown and verification evidence:
+[the extraction worklog](worklog/f5_initial_harness_probe_extraction_2026-10-11.md).
+Next: scope snapshot-only remote-MCP exposure scoring with catalog/connection
+loading retained in the service. Keep tool-search execution separate.
+F5 remains `current`; RC1 stays on hold.

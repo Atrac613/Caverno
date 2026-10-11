@@ -28,6 +28,7 @@ import 'live_llm_effective_context_probe.dart';
 import 'live_llm_embedding_probe.dart';
 import 'live_llm_exact_preservation_probe.dart';
 import 'live_llm_goal_update_fidelity_probe.dart';
+import 'live_llm_initial_harness_probe.dart';
 import 'live_llm_multi_round_probe.dart';
 import 'live_llm_sampler_calibration_trials.dart';
 import 'live_llm_streaming_probe.dart';
@@ -365,7 +366,7 @@ class LiveLlmDiagnosticService {
       LiveLlmGoalUpdateFidelityProbe.probeId;
   static const _toolResultProbeId = LiveLlmToolResultProbe.probeId;
   static const _multiRoundToolLoopProbeId = LiveLlmMultiRoundProbe.probeId;
-  static const _initialHarnessProbeId = 'initial_harness_selection';
+  static const _initialHarnessProbeId = LiveLlmInitialHarnessProbe.probeId;
   static const _toolSearchProbeId = 'tool_search_catalog';
   static const _subagentProbeId = LiveLlmSubagentProbe.probeId;
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
@@ -2020,47 +2021,26 @@ class LiveLlmDiagnosticService {
     if (!catalog.catalog.hasTools) {
       return _toolProbeUnavailable(_initialHarnessProbeId);
     }
-    final result = await _chat.createChatCompletion(
-      messages: _messages(
-        user:
-            'Using the currently exposed Caverno initial tool set, call '
-            'get_current_datetime exactly once. Do not call tool_search.',
-      ),
-      tools: catalog.initialDefinitions,
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    final names = LiveLlmResponseScoring.toolCallsFrom(
-      result,
-    ).map((call) => call.name).toList(growable: false);
-    if (names.contains('get_current_datetime')) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _initialHarnessProbeId,
-        status: LiveLlmDiagnosticStatus.passed,
-        summary: 'The model selected the datetime tool from the harness set.',
-        details:
-            'Initial tool count: ${catalog.catalog.initialToolCount}. '
-            'Tool search enabled: ${catalog.toolSearchEnabled}.',
-        toolCalls: names,
-        modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
-        usage: LiveLlmDiagnosticEvidence.usage(result),
-      );
-    }
-    return LiveLlmDiagnosticProbeResult(
-      id: _initialHarnessProbeId,
-      status: names.contains(ToolDefinitionSearchService.toolName)
-          ? LiveLlmDiagnosticStatus.warning
-          : LiveLlmDiagnosticStatus.failed,
-      summary: names.contains(ToolDefinitionSearchService.toolName)
-          ? 'The model used tool_search instead of the directly exposed tool.'
-          : 'The model did not select the expected harness tool.',
-      details:
-          'Initial tool count: ${catalog.catalog.initialToolCount}. '
-          'Returned calls: ${names.isEmpty ? "(none)" : names.join(", ")}',
-      toolCalls: names,
-      modelContent: LiveLlmDiagnosticEvidence.preview(result.content),
-      usage: LiveLlmDiagnosticEvidence.usage(result),
+    return LiveLlmInitialHarnessProbe(
+      complete: () async {
+        final result = await _chat.createChatCompletion(
+          messages: _messages(user: LiveLlmInitialHarnessProbe.prompt),
+          tools: catalog.initialDefinitions,
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+        return (
+          toolNames: LiveLlmResponseScoring.toolCallsFrom(
+            result,
+          ).map((call) => call.name).toList(growable: false),
+          content: result.content,
+          usage: LiveLlmDiagnosticEvidence.usage(result),
+        );
+      },
+    ).run(
+      initialToolCount: catalog.catalog.initialToolCount,
+      toolSearchEnabled: catalog.toolSearchEnabled,
     );
   }
 
