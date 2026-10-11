@@ -21,6 +21,71 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../../support/live_llm_tool_recovery_fake.dart';
 
 void main() {
+  for (final mode in ['plain', 'reasoning', 'failure']) {
+    test(
+      'instruction echo preserves request, report and samplers: $mode',
+      () async {
+        final source = _InstructionEchoRecordingDataSource(mode: mode);
+        final statuses = <LiveLlmDiagnosticStatus>[];
+        final report =
+            await LiveLlmDiagnosticService(
+              settings: _settings(
+                mcpEnabled: false,
+                model: 'instruction-echo-model',
+              ),
+              chatDataSource: source,
+              mcpToolService: McpToolService(),
+            ).run(
+              probeIds: const {'instruction_echo'},
+              onReport: (report) {
+                final status = _result(report, 'instruction_echo').status;
+                if (statuses.isEmpty || statuses.last != status) {
+                  statuses.add(status);
+                }
+              },
+            );
+        expect(source.requests, 1);
+        expect(source.samplerTemperatures, [
+          for (var repeat = 0; repeat < 2; repeat++) ...[0.0, 0.2, 0.4, 0.7],
+          for (var repeat = 0; repeat < 2; repeat++)
+            for (final temperature in [0.0, 0.2, 0.4, 0.7]) ...[
+              temperature,
+              temperature,
+            ],
+        ]);
+        final expected = mode == 'failure'
+            ? LiveLlmDiagnosticStatus.failed
+            : LiveLlmDiagnosticStatus.passed;
+        expect(statuses, [
+          LiveLlmDiagnosticStatus.pending,
+          LiveLlmDiagnosticStatus.running,
+          expected,
+        ]);
+        final result = _result(report, 'instruction_echo');
+        expect(result.elapsed, isNotNull);
+        expect(report.samplerCalibrationTrials, hasLength(24));
+        expect(
+          report.samplerCalibrationTrials.every((trial) => trial.passed),
+          isTrue,
+        );
+        expect(
+          report.thinkingMetrics?.responseCount,
+          mode == 'failure' ? 24 : 25,
+        );
+        expect(
+          report.thinkingMetrics?.reasoningResponseCount,
+          mode == 'reasoning' ? 1 : 0,
+        );
+        if (mode == 'failure') {
+          expect(result.details, contains('instruction echo transport'));
+        } else {
+          expect(result.usage.totalTokens, 14);
+          expect(result.toolCalls, isEmpty);
+        }
+      },
+    );
+  }
+
   for (final embedded in [false, true]) {
     test(
       'narrow datetime binding preserves request and report: embedded=$embedded',
@@ -4603,6 +4668,56 @@ class _NarrowDatetimeRecordingDataSource extends _FakeDiagnosticDataSource {
         finishReason: 'stop',
       );
     }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+}
+
+class _InstructionEchoRecordingDataSource extends _FakeDiagnosticDataSource {
+  _InstructionEchoRecordingDataSource({required this.mode});
+  final String mode;
+  int requests = 0;
+  final samplerTemperatures = <double?>[];
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    expect(model, 'instruction-echo-model');
+    expect(maxTokens, 512);
+    expect(tools, isNull);
+    const prompt =
+        'Return exactly this JSON object and no markdown:\n'
+        '{"probe":"instruction_echo","status":"ok","marker":"CAVERNO_LIVE_DIAGNOSTIC"}';
+    if (messages.last.content == prompt) {
+      requests++;
+      expect(temperature, 0.0);
+      if (mode == 'failure') throw StateError('instruction echo transport');
+      const answer =
+          '{"probe":"instruction_echo","status":"ok",'
+          '"marker":"CAVERNO_LIVE_DIAGNOSTIC"}';
+      return ChatCompletionResult(
+        content: mode == 'reasoning'
+            ? '<think>{analysis}</think>$answer'
+            : answer,
+        finishReason: 'stop',
+        usage: const TokenUsage(
+          promptTokens: 11,
+          completionTokens: 3,
+          totalTokens: 14,
+        ),
+      );
+    }
+    samplerTemperatures.add(temperature);
     return super.createChatCompletion(
       messages: messages,
       tools: tools,

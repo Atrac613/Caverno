@@ -2260,6 +2260,32 @@ The service falls from 2,311 to 2,294 lines; the module has 49 lines. Both
 ratchet budgets are updated. Task breakdown and verification evidence:
 [the extraction worklog](worklog/f5_narrow_tool_call_probe_extraction_2026-10-11.md).
 
-Next: scope instruction-echo JSON scoring, retaining request/report ownership
-in the service. Keep sampler orchestration and tool-search execution separate.
+Narrow datetime-tool selection was committed as `ec5bdafed`. Its next selected
+boundary, instruction-echo JSON scoring, is completed in the following dated
+section. F5 remains `current`; RC1 stays on hold.
+
+
+## Instruction-echo JSON extraction (2026-10-11)
+
+Following narrow datetime-tool selection (`ec5bdafed`), instruction-echo prompt
+and JSON scoring moved to `LiveLlmInstructionEchoProbe` behind a domain reply
+port. JSON parsing, acceptance of extra fields/wrapped JSON, raw-marker warning
+semantics and bounded evidence are unchanged. Request settings, reply usage
+adaptation, thinking observation, errors, elapsed time and publication remain
+in the service. There is no execution port or new domain-to-data import.
+
+Three service contracts passed before extraction. They include plain and
+reasoning-wrapped answers and a failed completion. The 24 routine/coding/plan
+sampler trials retain their temperature order and continue after a failed main
+probe. Sampler orchestration remains outside this extraction.
+
+The service falls from 2,294 to 2,270 lines; the module has 54 lines. Both
+ratchet budgets are updated. Task breakdown and verification evidence:
+[the extraction worklog](worklog/f5_instruction_echo_probe_extraction_2026-10-11.md).
+
+Next: refresh file size/churn, focused coverage and remaining diagnostic seams
+before selecting another extraction. Compare provider-language matrix,
+video-modality and catalog boundaries. Keep request/report orchestration,
+sampler orchestration and tool-search execution with their existing owners
+unless a new bounded contract and evidence justify a move.
 F5 remains `current`; RC1 stays on hold.

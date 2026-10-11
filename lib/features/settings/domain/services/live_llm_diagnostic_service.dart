@@ -29,6 +29,7 @@ import 'live_llm_embedding_probe.dart';
 import 'live_llm_exact_preservation_probe.dart';
 import 'live_llm_goal_update_fidelity_probe.dart';
 import 'live_llm_initial_harness_probe.dart';
+import 'live_llm_instruction_echo_probe.dart';
 import 'live_llm_multi_round_probe.dart';
 import 'live_llm_narrow_tool_call_probe.dart';
 import 'live_llm_remote_mcp_exposure_probe.dart';
@@ -347,7 +348,7 @@ class LiveLlmDiagnosticService {
     ),
   ];
 
-  static const _instructionProbeId = 'instruction_echo';
+  static const _instructionProbeId = LiveLlmInstructionEchoProbe.probeId;
   static const _structuredOutputProbeId = LiveLlmStructuredOutputProbe.probeId;
   static const _streamingProbeId = LiveLlmStreamingProbe.probeId;
   static const _thinkingControlProbeId = LiveLlmThinkingControlProbe.probeId;
@@ -433,7 +434,6 @@ class LiveLlmDiagnosticService {
   /// reasoning is the remaining lever, not enlarging it.
   static const _reasoningProbeMaxTokens = 2048;
 
-  static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
   static const structuredOutputSupportMetadataKey =
       LiveLlmStructuredOutputProbe.supportMetadataKey;
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
@@ -982,44 +982,20 @@ class LiveLlmDiagnosticService {
   }
 
   Future<LiveLlmDiagnosticProbeResult> _runInstructionProbe() async {
-    final result = await _chat.createChatCompletion(
-      messages: _messages(
-        user:
-            'Return exactly this JSON object and no markdown:\n'
-            '{"probe":"instruction_echo","status":"ok","marker":"$_marker"}',
-      ),
-      model: _diagnosticModel,
-      temperature: _diagnosticTemperature,
-      maxTokens: _diagnosticMaxTokens,
-    );
-    final content = result.content.trim();
-    final decoded = LiveLlmResponseScoring.tryDecodeJsonObject(content);
-    final jsonPassed =
-        decoded?['probe'] == 'instruction_echo' &&
-        decoded?['status'] == 'ok' &&
-        decoded?['marker'] == _marker;
-    final markerPresent = content.contains(_marker);
-    if (jsonPassed) {
-      return LiveLlmDiagnosticProbeResult(
-        id: _instructionProbeId,
-        status: LiveLlmDiagnosticStatus.passed,
-        summary: 'The model followed the exact JSON instruction.',
-        modelContent: LiveLlmDiagnosticEvidence.preview(content),
-        usage: LiveLlmDiagnosticEvidence.usage(result),
-      );
-    }
-    return LiveLlmDiagnosticProbeResult(
-      id: _instructionProbeId,
-      status: markerPresent
-          ? LiveLlmDiagnosticStatus.warning
-          : LiveLlmDiagnosticStatus.failed,
-      summary: markerPresent
-          ? 'The marker was present, but the JSON contract was not exact.'
-          : 'The expected diagnostic marker was missing.',
-      details: 'Expected marker: $_marker',
-      modelContent: LiveLlmDiagnosticEvidence.preview(content),
-      usage: LiveLlmDiagnosticEvidence.usage(result),
-    );
+    return LiveLlmInstructionEchoProbe(
+      complete: () async {
+        final result = await _chat.createChatCompletion(
+          messages: _messages(user: LiveLlmInstructionEchoProbe.prompt),
+          model: _diagnosticModel,
+          temperature: _diagnosticTemperature,
+          maxTokens: _diagnosticMaxTokens,
+        );
+        return (
+          content: result.content,
+          usage: LiveLlmDiagnosticEvidence.usage(result),
+        );
+      },
+    ).run();
   }
 
   Future<LiveLlmDiagnosticReport> _runStructuredOutputProbe({
