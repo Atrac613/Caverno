@@ -122,21 +122,21 @@ support-packet review, and multi-device household evidence remain required for
 product promotion; the hold does not satisfy or waive those gates. See
 [the P1 gate](remote_coding_p1_release_gate.md#verification-hold).
 
-**F5 repeated content-call recovery slice completed (2026-10-11).**
-Following incomplete-call planning (`814271249`), first reusable repeat
-selection and feedback now live in a 34-line domain plan. ChatNotifier falls to
-7,250 root/19,733 aggregate lines. Provider/current-generation guards,
-owner-rooted lookup, content-only success/failure/retention policy and message
-mutation retain their owners. The first repeat with reusable evidence wins;
-the ledger chooses the newest matching successful result without consuming it.
+**F5 content-call partition slice completed (2026-10-11).**
+Following repeated-call selection (`a517a47d1`), extraction and ordered
+fresh/repeated partition now live in a 35-line domain boundary. ChatNotifier
+falls to 7,240 root/19,723 aggregate lines. Tagged precedence and advertised
+printed-name gating are preserved. Owner/advertisement lookup, rooted seen
+keys, repeat-before-fresh dispatch, queue guards, display-only exclusions,
+executed keys, approvals and owner-lifetime execution remain with their owners.
 
 Task breakdown and verification are in
-[the extraction worklog](worklog/f5_repeated_content_tool_recovery_extraction_2026-10-11.md).
-F5 remains `current`. Next: inspect fresh/repeated content-call partition and
-execution queue boundaries before another move. Owner state, request retries,
-approval/execution and diagnostic orchestration retain their owners. RC1 device
-gates remain on hold. See
-[the boundary plan](large_file_refactor_plan.md#repeated-content-tool-recovery-extraction-2026-10-11).
+[the extraction worklog](worklog/f5_content_tool_call_partition_extraction_2026-10-11.md).
+F5 remains `current`. Next: inspect owner-scoped content-tool message mutation
+and freeze attached/detached behavior before another move. Queue lifecycle,
+request retries and execution retain their owners. RC1 device gates remain on
+hold. See
+[the boundary plan](large_file_refactor_plan.md#content-tool-call-partition-extraction-2026-10-11).
 
 LL33 closed on 2026-09-23: live triage joined all twelve file-save transform
 firings to their stored messages, so Level 3 event sourcing stays deferred. With
@@ -153,7 +153,7 @@ implementation slice active.
 
 | Track | Milestone | Status | Goal | Next action |
 |-------|-----------|--------|------|-------------|
-| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Repeated content-call recovery selection extracted 2026-10-11: ChatNotifier 7,250 root/19,733 aggregate lines, plan 34 lines. First reusable repeat selection and feedback preserved; provider/generation guards, owner-rooted lookup, ledger failure/retention and mutation retain their owners. Next: inspect fresh/repeated content-call partition and execution queue boundaries before another move. See [evidence](worklog/f5_repeated_content_tool_recovery_extraction_2026-10-11.md) and [boundary plan](large_file_refactor_plan.md#repeated-content-tool-recovery-extraction-2026-10-11). |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Content-call extraction/partition extracted 2026-10-11: ChatNotifier 7,240 root/19,723 aggregate lines, partition 35 lines. Tagged/advertised recovery and ordered fresh/repeated classification preserved; owner lookup, seen keys, repeat-first dispatch, execution keys and queue lifecycle retain their owners. Next: inspect owner-scoped content-tool message mutation and freeze attached/detached behavior before another move. See [evidence](worklog/f5_content_tool_call_partition_extraction_2026-10-11.md) and [boundary plan](large_file_refactor_plan.md#content-tool-call-partition-extraction-2026-10-11). |
 | Security | SEC1 | current | Reopen the Local Agent Data Perimeter where the audit found incomplete capability and trust classification. | Classify every HTTP/browser action and result, and distinguish host-wide reads from project reads. Routine external MCP is now deny-by-default (SEC4.4c); reviewed grants remain a later slice. |
 | Security | SEC4 | current | Close the runtime trust, egress, transport, and local-data findings recorded in the 2026-08-14 audit and 2026-08-24 follow-up. | Every finding in the 2026-08-14 audit and the 2026-08-24 follow-up now carries a remediation record, measured 2026-09-06: SA-16 closed by SEC4.7c, and SA-02 — the only High with no status at all — recorded against the shipped quarantine. SA-18 was already closed by SEC4.6j on 2026-08-23, five days before the text that called it partial. What is left is SA-09's reviewed routine MCP grants, which the audit calls a later slice: external MCP tools are denied in routines today, and granting them needs server identity, tool name, schema digest, and reviewed read-only intent bound together. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | The SEC4.2 fail-closed import and exact-review boundary is complete. Defer tool-event parity to HOOK2 while SEC1/OBS1 establish trust and trace contracts. |

@@ -2418,6 +2418,31 @@ ChatNotifier falls to 7,250 root/19,733 aggregate lines; the plan has 34 lines.
 Root/module/same-library budgets are lowered. Task breakdown and verification:
 [the extraction worklog](worklog/f5_repeated_content_tool_recovery_extraction_2026-10-11.md).
 
-Next: inspect fresh/repeated content-call partition and execution queue
-boundaries before another move. Owner state, retries and execution retain their
-owners. F5 remains `current`; RC1 stays on hold.
+The partition and queue boundaries were inspected and ordered classification is
+completed in the following dated section. The stateful queue retains its owner.
+F5 remains `current`; RC1 stays on hold.
+
+## Content tool call partition extraction (2026-10-11)
+
+Completed/advertised printed-call extraction and ordered fresh/repeated
+classification moved to a 35-line domain boundary. The existing printed-call
+policy still owns tagged precedence and all-or-nothing advertised-name gating.
+Each candidate is accepted once through the caller's owner-rooted seen-key
+callback; order within both outputs is retained. Seen keys remain distinct from
+executed keys. Owner/advertisement lookup, repeat-before-fresh dispatch and the
+entire queue/lifetime guard remain byte-identical apart from partition outputs.
+
+Five existing integration cases passed before and after extraction: sequential
+approval, repeat suppression, display-only print and offered/unoffered printed
+calls. Policy/owner contracts freeze same-batch duplicates, rooted key
+normalization, owner/generation isolation, disposed-owner rejection and no
+implicit execution or pending registration. Existing registry queue tests
+remain part of the gate.
+
+ChatNotifier falls to 7,240 root/19,723 aggregate lines; partition has 35 lines.
+Root/module/same-library budgets are lowered. Task breakdown and verification:
+[the extraction worklog](worklog/f5_content_tool_call_partition_extraction_2026-10-11.md).
+
+Next: inspect owner-scoped content-tool message mutation and freeze
+attached/detached behavior before another move. Queue lifecycle, retries and
+execution retain their owners. F5 remains `current`; RC1 stays on hold.

@@ -209,13 +209,13 @@ import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_loop/assistant_tool_artifact_recovery_plan.dart';
+import '../../domain/services/tool_loop/content_tool_call_partition.dart';
 import '../../domain/services/tool_loop/duplicate_recovery_prompt_builder.dart';
 import '../../domain/services/tool_loop/duplicate_tool_result_recovery.dart';
 import '../../domain/services/tool_loop/execution_budget_policy.dart';
 import '../../domain/services/tool_loop/fenced_tool_arguments_detector.dart';
 import '../../domain/services/tool_loop/incomplete_content_tool_recovery_plan.dart';
 import '../../domain/services/tool_loop/pending_action_length_recovery_policy.dart';
-import '../../domain/services/tool_loop/printed_tool_call_recovery.dart';
 import '../../domain/services/tool_loop/recent_read_result_carry.dart';
 import '../../domain/services/tool_loop/repeated_content_tool_recovery_plan.dart';
 import '../../domain/services/tool_loop/request_tool_observation_collector.dart';
@@ -5836,31 +5836,21 @@ class ChatNotifier extends Notifier<ChatState> {
     final generation = interactionGeneration ?? _interactionGeneration;
     final owner = _turnOwnerForGeneration(generation);
     if (owner == null) return;
-    final toolCalls = const PrintedToolCallRecovery().extract(
+    final calls = ContentToolCallPartition.fromContent(
       content: content,
       advertisedToolNames: _activeResponseRegistry
           .snapshotForOwner(owner)
           ?.allowedToolNames,
-    );
-    final freshToolCalls = <ToolCallData>[];
-    final repeatedToolCalls = <ToolCallData>[];
-    for (final toolCall in toolCalls) {
-      if (_contentToolTurns.markSeenCall(
+      acceptCall: (call) => _contentToolTurns.markSeenCall(
         owner,
-        _contentToolCallHash(toolCall, owner),
-      )) {
-        freshToolCalls.add(toolCall);
-      } else {
-        repeatedToolCalls.add(toolCall);
-      }
-    }
-
+        _contentToolCallHash(call, owner),
+      ),
+    );
     _handleRepeatedContentToolCalls(
-      repeatedToolCalls,
+      calls.repeated,
       interactionGeneration: generation,
     );
-
-    _queueContentToolCalls(freshToolCalls, interactionGeneration: generation);
+    _queueContentToolCalls(calls.fresh, interactionGeneration: generation);
   }
 
   void _handleRepeatedContentToolCalls(
