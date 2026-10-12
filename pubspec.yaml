@@ -47,7 +47,7 @@ dependencies:
   # Shared approval and capability contracts for tool execution
   caverno_tool_contracts: ^0.1.0
 
-  cupertino_icons: ^1.0.9
+  cupertino_icons: ^2.0.0
 
   # Internationalization
   easy_localization: ^3.0.7
