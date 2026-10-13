@@ -38,6 +38,7 @@ final class ProjectTaskReviewWorkflow {
     this.sendStep,
     this.readSubtaskStatus,
     this.readReviewVerdict,
+    this.readStoppedAtLoopLimit,
     this.readVerificationContext,
     this.markSubtaskDone,
     this.onProgress,
@@ -81,6 +82,11 @@ final class ProjectTaskReviewWorkflow {
   final Future<bool> Function(String prompt)? sendStep;
   final ProjectTaskTerminalStatus? Function()? readSubtaskStatus;
   final ProjectTaskReviewVerdict? Function()? readReviewVerdict;
+
+  /// Whether the last implementation turn ended at the tool-loop limit. A
+  /// turn the user stopped also leaves its goal active with files changed,
+  /// and must not be continued.
+  final bool Function()? readStoppedAtLoopLimit;
   final String Function()? readVerificationContext;
 
   /// Records a subtask as completed in the thread's execution progress.
@@ -267,7 +273,11 @@ Read the cited roadmap and relevant code, make the smallest complete change, and
             : before.turnDiffs.length;
         final priorPaths = _taskPaths(before);
         if (priorPaths.isNotEmpty) await recordPriorChanges?.call(priorPaths);
-        if (!await send(implementation, codeReview: false)) {
+        var sent = await send(implementation, codeReview: false);
+        if (!sent && _stoppedMidWork(before.turnDiffs.length)) {
+          sent = await _continueUnfinished(implementation);
+        }
+        if (!sent) {
           return _stop(
             'the implementation turn ended without a recorded goal '
             'completion (goal: ${readConversation()?.goal?.status.name})',
@@ -394,6 +404,39 @@ ${_taskPaths(after).map((path) => '- $path').join('\n')}''';
 ${ContentParser.stripModelHistoryArtifacts(reviewReport)}''';
     }
     return _stop('the repair rounds ended without a review result');
+  }
+
+  /// Whether the turn just sent hit the tool-loop limit with its goal still
+  /// active after changing files: work in progress, not a blocker, a claimed
+  /// finish, or a turn the user stopped.
+  ///
+  /// A slow model can spend a turn's whole tool budget on one repair. In
+  /// sessions 3df7724f and 87ac88f3 the repair edited files, named its next
+  /// edit, and hit the tool-loop limit; the workflow stopped with the fix
+  /// half done although nothing blocked it.
+  bool _stoppedMidWork(int diffsBeforeTurn) {
+    if (readStoppedAtLoopLimit?.call() != true) return false;
+    final after = readConversation();
+    return after?.goal?.status == ConversationGoalStatus.active &&
+        after!.turnDiffs.length > diffsBeforeTurn;
+  }
+
+  /// Sends one continuation of [implementation]. It continues the same
+  /// implementation or repair; it is not another repair round.
+  Future<bool> _continueUnfinished(String implementation) async {
+    final before = readConversation();
+    if (!_canContinue(before)) return false;
+    onDecision?.call({'phase': 'implement', 'decision': 'continued'});
+    final paths = _taskPaths(before!);
+    if (paths.isNotEmpty) await recordPriorChanges?.call(paths);
+    return send(
+      'The previous turn ran out of its tool budget before this work was '
+      'finished. Continue it from where it stopped: inspect only what you '
+      'need, keep the edits already made unless they are wrong, finish the '
+      'remaining changes, and rerun the relevant verification. The original '
+      'request follows.\n\n$implementation',
+      codeReview: false,
+    );
   }
 
   /// Marks the roadmap item done and commits the reviewed task files.

@@ -58,6 +58,100 @@ void main() {
     ],
   );
 
+  for (final mode in [
+    'mid-work',
+    'blocked',
+    'no change',
+    'still short',
+    'by the user',
+  ]) {
+    test('an implementation turn stopped $mode is continued once', () async {
+      // Sessions 3df7724f and 87ac88f3: the repair edited files, hit the
+      // tool-loop limit with its goal active, and the workflow stopped.
+      var conversation = initial();
+      final implementationPrompts = <String>[];
+      final recorded = <List<String>>[];
+      final decisions = <Map<String, Object?>>[];
+      final workflow = ProjectTaskReviewWorkflow(
+        conversationId: 'task',
+        commit: (prompt, scope) => commitTurn(prompt),
+        projectRoot: '/repo',
+        prepareCommit: (_, _) async => true,
+        readCommitSnapshot: (scope) async =>
+            fakeTaskCommitSnapshot(scope, (await gitState([]))!.head),
+        readGitState: gitState,
+        readConversation: () => conversation,
+        isSelected: () => true,
+        isWaitingForUser: () => false,
+        onDecision: decisions.add,
+        recordPriorChanges: (paths) async => recorded.add(paths),
+        // A user's stop leaves the same goal and diffs, but no loop limit.
+        readStoppedAtLoopLimit: () => mode != 'by the user',
+        send: (prompt, {required codeReview}) async {
+          final index = conversation.messages.length + 1;
+          if (codeReview) {
+            conversation = conversation.copyWith(
+              messages: [
+                ...conversation.messages,
+                assistant('No findings.\nPROJECT_TASK_REVIEW_CLEAN', index),
+              ],
+            );
+            return true;
+          }
+          implementationPrompts.add(prompt);
+          final first = implementationPrompts.length == 1;
+          final finishes = !first && mode == 'mid-work';
+          conversation = conversation.copyWith(
+            turnDiffs: [
+              ...conversation.turnDiffs,
+              if (!(first && mode == 'no change')) diff(index),
+            ],
+            messages: [
+              ...conversation.messages,
+              assistant(
+                finishes
+                    ? 'Verified.\nPROJECT_TASK_READY_FOR_REVIEW'
+                    : 'Still fixing watcher.py.',
+                index,
+              ),
+            ],
+            goal: conversation.goal!.copyWith(
+              status: first && mode == 'blocked'
+                  ? ConversationGoalStatus.blocked
+                  : finishes
+                  ? ConversationGoalStatus.completed
+                  : ConversationGoalStatus.active,
+            ),
+          );
+          return finishes;
+        },
+      );
+
+      final result = await workflow.run();
+
+      final continued = mode == 'mid-work' || mode == 'still short';
+      expect(implementationPrompts, hasLength(continued ? 2 : 1));
+      expect(
+        decisions.where((decision) => decision['decision'] == 'continued'),
+        hasLength(continued ? 1 : 0),
+      );
+      if (continued) {
+        expect(implementationPrompts.last, contains('ran out of its tool'));
+        expect(
+          implementationPrompts.last,
+          contains(implementationPrompts.first),
+        );
+        expect(recorded.last, ['lib/task.dart']);
+      }
+      expect(
+        result,
+        mode == 'mid-work'
+            ? ProjectTaskReviewResult.committed
+            : ProjectTaskReviewResult.stopped,
+      );
+    });
+  }
+
   for (final native in ['findings', 'missing', 'incomplete']) {
     test(
       'native review $native cannot be replaced by a clean saved summary',

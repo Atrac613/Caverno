@@ -121,6 +121,7 @@ final class ProjectTaskWorkflowSession {
           read(chatNotifierProvider).pendingAskUserQuestion?.conversationId ==
               conversationId;
       ProjectTaskReviewVerdict? reviewVerdict;
+      var stoppedAtLoopLimit = false;
       final runner = ProjectTaskReviewTurnRunner(
         readConversation: readTask,
         isSelected: selected,
@@ -130,6 +131,7 @@ final class ProjectTaskWorkflowSession {
         ).markCurrentGoalStatus(status: ConversationGoalStatus.active),
         sendTurn: (prompt, {required codeReview}) {
           if (codeReview) reviewVerdict = null;
+          stoppedAtLoopLimit = false;
           return notifier.sendMessage(
             prompt,
             languageCode: languageCode,
@@ -142,6 +144,7 @@ final class ProjectTaskWorkflowSession {
         waitForCompletion: (owner) async {
           await notifier.waitForTurnCompletion(owner);
           reviewVerdict = notifier.takeProjectTaskReviewVerdict(owner);
+          stoppedAtLoopLimit = notifier.takeProjectTaskLoopLimit(owner);
         },
       );
       ProjectTaskCommitTurnEvidence? commitTurnEvidence;
@@ -225,6 +228,7 @@ final class ProjectTaskWorkflowSession {
         isWaitingForUser: waiting,
         send: runner.send,
         readReviewVerdict: () => reviewVerdict,
+        readStoppedAtLoopLimit: () => stoppedAtLoopLimit,
         readVerificationContext: () =>
             notifier.projectTaskVerificationContext(conversationId),
         projectRoot: projectRoot,

@@ -1345,7 +1345,11 @@ const Map<String, int> _libraryLineBudgets = {
   // +3 matching the primary file: a review skips the raw-output answer
   // (session 64aaa8d9).
   // Pin the measured baseline after browser eligibility and artifact assessment.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19723,
+  // +4: the turn exit notes an implementation turn that hit the tool-loop
+  // limit, and one getter hands it to the farm workflow, which continues such
+  // a turn once (sessions 3df7724f, 87ac88f3). The decision lives in
+  // PrimaryTurnRouteRuntime and the workflow, outside this library.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19727,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

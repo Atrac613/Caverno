@@ -458,6 +458,9 @@ extension ChatNotifierCommitScope on ChatNotifier {
     );
   }
 
+  bool takeProjectTaskLoopLimit(ChatTurnOwner owner) =>
+      _primaryRoutes.takeLoopLimit(owner);
+
   bool _hasCommitScope(int generation) =>
       _primaryRoutes.isProjectTaskCommit(generation) ||
       _primaryRoutes.isProjectTaskCommitPreparation(generation);

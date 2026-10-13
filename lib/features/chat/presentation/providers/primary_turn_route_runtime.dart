@@ -10,6 +10,7 @@ import '../../../settings/presentation/providers/local_model_lifecycle_provider.
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/primary_route_chat_datasource.dart';
+import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/context_window_observation.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/model_routing/primary_model_router.dart';
@@ -17,6 +18,7 @@ import '../../domain/services/project_task/project_task_review_evidence.dart';
 import '../../domain/services/project_task/project_task_review_verdict.dart';
 import '../../domain/services/project_task/project_task_terminal_status.dart';
 import '../../domain/services/project_task/project_task_verification_context.dart';
+import '../../domain/services/tool_loop/tool_loop_exit_reason.dart';
 import 'primary_turn_purpose.dart';
 
 export 'primary_turn_purpose.dart';
@@ -41,6 +43,7 @@ final class PrimaryTurnRouteRuntime {
   final Map<int, (String, ProjectTaskCommitTurnEvidence)> _commitTerminals = {};
   final Map<int, (String, ProjectTaskTerminalStatus)> _subtaskTerminals = {};
   final Map<int, (String, ProjectTaskReviewVerdict)> _reviewTerminals = {};
+  final Map<int, String> _implementationLoopLimits = {};
   final Map<String, ProjectTaskVerificationContext> _verificationContexts = {};
 
   Future<void> capture({
@@ -59,6 +62,7 @@ final class PrimaryTurnRouteRuntime {
     _commitTerminals.remove(generation);
     _subtaskTerminals.remove(generation);
     _reviewTerminals.remove(generation);
+    _implementationLoopLimits.remove(generation);
     _commitPromptStarts.remove(generation);
     if ((purpose == PrimaryTurnPurpose.projectTaskCommitPreparation ||
             purpose == PrimaryTurnPurpose.projectTaskCommit) &&
@@ -265,6 +269,31 @@ final class PrimaryTurnRouteRuntime {
     _commitTerminals.remove(generation);
     return entry!.$2;
   }
+
+  /// Notes a project-task implementation turn that ended at the tool-loop
+  /// limit: it ran out of moves, rather than being stopped or reporting a
+  /// finish. The workflow continues such a turn once.
+  void recordLoopLimit(
+    int generation,
+    String conversationId,
+    ToolLoopExitReason reason,
+  ) {
+    if (!isProjectTaskImplementation(generation) ||
+        (reason != ToolLoopExitReason.maxIterations &&
+            reason != ToolLoopExitReason.pendingBatchExecuted)) {
+      return;
+    }
+    _implementationLoopLimits[generation] = conversationId;
+    if (_implementationLoopLimits.length > 16) {
+      _implementationLoopLimits.remove(_implementationLoopLimits.keys.first);
+    }
+  }
+
+  /// Whether [owner]'s implementation turn ended at the loop limit; read once.
+  bool takeLoopLimit(ChatTurnOwner owner) =>
+      _implementationLoopLimits[owner.interactionGeneration] ==
+          owner.conversationId &&
+      _implementationLoopLimits.remove(owner.interactionGeneration) != null;
 
   void recordSubtaskTerminal(
     int generation,

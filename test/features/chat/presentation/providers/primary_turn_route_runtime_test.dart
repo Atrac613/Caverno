@@ -1,7 +1,9 @@
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/chat_turn_owner.dart';
 import 'package:caverno/features/chat/domain/services/project_task/project_task_review_verdict.dart';
 import 'package:caverno/features/chat/domain/services/project_task/project_task_terminal_status.dart';
+import 'package:caverno/features/chat/domain/services/tool_loop/tool_loop_exit_reason.dart';
 import 'package:caverno/features/chat/presentation/providers/primary_turn_route_runtime.dart';
 import 'package:caverno/features/project_farm/domain/entities/project_task_commit_scope.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -186,6 +188,31 @@ void main() {
       expect(runtime.isProjectTaskImplementation(1), isFalse);
     },
   );
+
+  test('an implementation loop limit is read once and owner scoped', () async {
+    final runtime = PrimaryTurnRouteRuntime();
+    const limit = ToolLoopExitReason.pendingBatchExecuted;
+    ChatTurnOwner owner(int generation, String conversationId) => ChatTurnOwner(
+      conversationId: conversationId,
+      interactionGeneration: generation,
+    );
+    await capture(runtime, 5, codeReview: false, implementation: true);
+    runtime.recordLoopLimit(5, 'task', limit);
+    runtime.release(5);
+    expect(runtime.takeLoopLimit(owner(5, 'other')), isFalse);
+    expect(runtime.takeLoopLimit(owner(5, 'task')), isTrue);
+    expect(runtime.takeLoopLimit(owner(5, 'task')), isFalse);
+    await capture(runtime, 6, codeReview: false, implementation: true);
+    runtime.recordLoopLimit(6, 'task', ToolLoopExitReason.textResponse);
+    expect(runtime.takeLoopLimit(owner(6, 'task')), isFalse);
+    await capture(runtime, 7, codeReview: true);
+    runtime.recordLoopLimit(7, 'task', limit);
+    expect(
+      runtime.takeLoopLimit(owner(7, 'task')),
+      isFalse,
+      reason: 'only an implementation turn is continued',
+    );
+  });
 
   test('subtask verdict survives teardown and is owner scoped', () async {
     final runtime = PrimaryTurnRouteRuntime();

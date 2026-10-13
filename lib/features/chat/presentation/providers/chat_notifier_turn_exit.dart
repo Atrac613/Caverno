@@ -43,6 +43,7 @@ extension ChatNotifierTurnExit on ChatNotifier {
       generation,
       reason == ToolLoopExitReason.textResponse,
     );
+    _primaryRoutes.recordLoopLimit(generation, owner.conversationId, reason);
     final token = _toolLoopExitClassifier.logToken(reason);
     if (shouldDropLastAssistant) {
       // Mid-work / empty terminal: the "agent appears to just stop" case the
