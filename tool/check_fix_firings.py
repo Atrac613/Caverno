@@ -949,6 +949,11 @@ SIGNATURES = {
         "what": "an oversized task patch is listed for review, not a stop",
         "match": _review_patch_listed,
     },
+    "tool_role_answer_shadow_accept": {
+        "commit": "c59081df2",
+        "what": "the shadow policy would keep the tool loop's own final answer",
+        "transform": "tool_role_answer_shadow_accept",
+    },
     "farm_turn_continued_after_loop_limit": {
         "commit": "f0a15104a",
         "what": "an implementation turn out of tool moves is continued once",
