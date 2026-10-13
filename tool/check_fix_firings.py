@@ -325,6 +325,21 @@ def _review_verdict_after_discarded_duplicates(blob):
     return False
 
 
+def _farm_turn_continued(blob):
+    """Whether the farm workflow continued an implementation turn once.
+
+    Read from the structured workflow decision, never from prose.
+    """
+    try:
+        entries = json.loads(blob)
+    except ValueError:
+        return False
+    return any(
+        (entry.get("projectTaskDecision") or {}).get("decision") == "continued"
+        for entry in entries
+    )
+
+
 def _review_patch_listed(blob):
     """Whether a project task review got an oversized patch as a file list.
 
@@ -933,6 +948,11 @@ SIGNATURES = {
         "commit": "c89f0dd75",
         "what": "an oversized task patch is listed for review, not a stop",
         "match": _review_patch_listed,
+    },
+    "farm_turn_continued_after_loop_limit": {
+        "commit": "f0a15104a",
+        "what": "an implementation turn out of tool moves is continued once",
+        "match": _farm_turn_continued,
     },
     "review_verdict_after_discarded_duplicates": {
         "commit": "f6e8e7464",

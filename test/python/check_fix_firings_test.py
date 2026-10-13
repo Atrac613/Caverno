@@ -803,5 +803,35 @@ class ReviewVerdictAfterDiscardedDuplicatesSignatureTest(unittest.TestCase):
         self.assertFalse(self.match(blob))
 
 
+class FarmTurnContinuedSignatureTest(unittest.TestCase):
+    """The row fires on the structured decision, never on quoted text."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.match = staticmethod(
+            _load_tool().SIGNATURES["farm_turn_continued_after_loop_limit"][
+                "match"
+            ]
+        )
+
+    def test_the_continued_decision_fires(self):
+        blob = json.dumps(
+            [{"projectTaskDecision": {"phase": "implement", "decision": "continued"}}]
+        )
+        self.assertTrue(self.match(blob))
+
+    def test_another_decision_does_not_fire(self):
+        blob = json.dumps(
+            [{"projectTaskDecision": {"phase": "workflow", "decision": "stopped"}}]
+        )
+        self.assertFalse(self.match(blob))
+
+    def test_the_word_in_a_message_does_not_fire(self):
+        blob = json.dumps(
+            [{"request": {"messages": [{"role": "user", "content": "continued"}]}}]
+        )
+        self.assertFalse(self.match(blob))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
