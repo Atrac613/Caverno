@@ -1,73 +1,59 @@
-import '../../data/datasources/apple_foundation_models_datasource.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+
+import '../../data/datasources/llm_request_failure.dart';
 import '../../domain/entities/message.dart';
 import 'chat_error_text.dart';
+import 'llm_failure_headline.dart';
 
+export '../../data/datasources/llm_request_failure.dart'
+    show LlmRequestFailure, LlmRequestFailureCode;
 export 'chat_error_text.dart' show ChatErrorText;
 
+typedef ChatFailureProjection = ({
+  String displayError,
+  CavernoRuntimeFailureClassification runtimeFailure,
+});
+
 /// Converts provider and transport failures into concise user-facing text.
+///
+/// The headline is chosen from [LlmRequestFailure.code], never from the error
+/// text, so a status-like digit run inside an embedded payload cannot change
+/// it. The text is only bounded and shown as details.
 final class ChatErrorMessageBuilder {
   const ChatErrorMessageBuilder._();
 
-  static String build(String rawError, {required String baseUrl}) {
-    final cleanedError = ChatErrorText.details(ChatErrorText.clean(rawError));
-    // Classify on the error's own head; match status codes as whole numbers.
-    final lower = ChatErrorText.classified(cleanedError);
-    bool status(int code) => RegExp('\\b$code\\b').hasMatch(lower);
+  static String build(Object error, {required String baseUrl}) =>
+      buildFor(LlmRequestFailure.from(error), error, baseUrl: baseUrl);
 
-    if (lower.contains('sqliteexception')) {
-      return 'Could not save the conversation to local storage. Check free disk space and file access, then try again.\nDetails: $cleanedError';
-    }
+  /// The display text and runtime terminal classification for a failed turn.
+  ///
+  /// [fallback] decides the runtime code only when the failure code does not.
+  static ChatFailureProjection project(
+    Object error, {
+    required String baseUrl,
+    required CavernoRuntimeFailureClassifier fallback,
+  }) {
+    final failure = LlmRequestFailure.from(error);
+    return (
+      displayError: buildFor(failure, error, baseUrl: baseUrl),
+      runtimeFailure:
+          failure.runtimeClassification ?? fallback.classify(error.toString()),
+    );
+  }
 
-    if (cleanedError.contains("Only 'text' content type is supported")) {
-      return 'This LLM server does not support image input. Please send text only.\nDetails: $cleanedError';
-    }
-    if (lower.contains('failed host lookup') ||
-        lower.contains('socketexception')) {
-      return 'Could not connect to LLM server. Check your network connection and endpoint URL. ($baseUrl)\nDetails: $cleanedError';
-    }
-    if (lower.contains('connection refused')) {
-      return 'Could not connect to LLM server. Make sure the server is running. ($baseUrl)\nDetails: $cleanedError';
-    }
-    if (lower.contains('timed out') || lower.contains('timeout')) {
-      return 'LLM request timed out. Please wait and try again.\nDetails: $cleanedError';
-    }
-    if (status(401) || lower.contains('unauthorized')) {
-      return 'Authentication failed. Please check your API key.\nDetails: $cleanedError';
-    }
-    if (status(403) || lower.contains('forbidden')) {
-      return 'Access denied. Please check your API key permissions or server settings.\nDetails: $cleanedError';
-    }
-    if (status(404) || lower.contains('not found')) {
-      return 'Endpoint or model not found. Please check your settings.\nDetails: $cleanedError';
-    }
-    if (status(429) || lower.contains('rate limit')) {
-      return 'Too many requests. Please wait a moment and try again.\nDetails: $cleanedError';
-    }
-    if (AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
-      cleanedError,
-    )) {
-      return 'The selected local model rejected this language or locale. Try an English prompt, reduce system/tool context, or switch to an OpenAI-compatible provider for this task.\nDetails: $cleanedError';
-    }
-    if (AppleFoundationModelsException.isProviderUnavailableText(
-      cleanedError,
-    )) {
-      return 'Apple Foundation Models is not ready on this device. Check Apple Intelligence, model readiness, device eligibility, and OS support, or switch to an OpenAI-compatible provider.\nDetails: $cleanedError';
-    }
-    if (status(500) ||
-        status(502) ||
-        status(503) ||
-        status(504) ||
-        lower.contains('server error') ||
-        lower.contains('internal server error')) {
-      return 'An error occurred on the LLM server. Please check the server logs.\nDetails: $cleanedError';
-    }
-    if (lower.contains('json') ||
-        lower.contains('decode') ||
-        lower.contains('parse') ||
-        lower.contains('unexpected')) {
-      return 'Could not parse the response from the LLM server.\nDetails: $cleanedError';
-    }
-    return cleanedError;
+  static String buildFor(
+    LlmRequestFailure failure,
+    Object error, {
+    required String baseUrl,
+  }) {
+    final details = ChatErrorText.details(
+      ChatErrorText.clean(error.toString()),
+    );
+    final headline = LlmFailureHeadline.of(failure, baseUrl: baseUrl);
+    if (headline == null) return details;
+    final requestId = failure.requestId;
+    final suffix = requestId == null ? '' : ' (request id: $requestId)';
+    return '$headline\nDetails: $details$suffix';
   }
 }
 

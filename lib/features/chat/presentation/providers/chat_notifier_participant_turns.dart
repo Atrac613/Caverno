@@ -713,9 +713,10 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
 
   Future<void> _failParticipantTurn(_ParticipantTurn turn, Object error) async {
     if (!_ownsParticipantTurn(turn)) return;
-    final displayError = ChatErrorMessageBuilder.build(
-      error.toString(),
+    final (:displayError, :runtimeFailure) = ChatErrorMessageBuilder.project(
+      error,
       baseUrl: _settings.baseUrl,
+      fallback: _runtimeFailureClassifier,
     );
     final sourceMessages =
         _activeResponseMessagesForGeneration(turn.generation) ??
@@ -765,7 +766,6 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       ),
     );
     _participantTurnControls.dispose(_participantTurnOwner(turn));
-    final runtimeFailure = _runtimeFailureClassifier.classify(error.toString());
     _failRuntimeTurn(
       turn.generation,
       code: runtimeFailure.code,

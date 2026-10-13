@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../data/datasources/chat_datasource.dart';
+import '../../data/datasources/llm_request_failure.dart';
 import '../../data/repositories/context_window_observation_store.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/conversation.dart';
@@ -151,8 +152,7 @@ final class PromptTokenBudgetCoordinator {
   /// rejected prompt size and any limit the endpoint named as the route's
   /// upper bound.
   bool recordLengthFailure(ChatTurnOwner? owner, Object error) {
-    final message = error.toString();
-    if (!ConversationCompactionService.isContextLengthError(message)) {
+    if (!LlmRequestFailure.from(error).isContextOverflow) {
       return false;
     }
     final key = owner == null ? null : _routeKeys[owner.conversationId];
@@ -168,7 +168,7 @@ final class PromptTokenBudgetCoordinator {
                   _calibrations
                       .forConversation(owner!.conversationId)
                       .uncountedTokens,
-        reportedLimit: reportedContextLimit(message),
+        reportedLimit: reportedContextLimit(error.toString()),
       );
     }
     return true;

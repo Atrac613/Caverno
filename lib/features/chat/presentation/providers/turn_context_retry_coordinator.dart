@@ -1,4 +1,5 @@
 import '../../../../core/utils/logger.dart';
+import '../../data/datasources/llm_request_failure.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/message.dart';
@@ -16,9 +17,7 @@ final class TurnContextRetryCoordinator {
     required void Function(List<Message> messages) applyReset,
     required Future<void> Function() sendAgain,
   }) async {
-    if (!ConversationCompactionService.isContextLengthError(error.toString())) {
-      return false;
-    }
+    if (!LlmRequestFailure.from(error).isContextOverflow) return false;
     final artifact = _artifact(ownerMessages, ownerConversation);
     if (artifact == null || !artifact.hasContent) {
       appLog(

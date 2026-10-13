@@ -309,9 +309,7 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
         protectedPaths: protectedPaths,
         interactionGeneration: interactionGeneration,
       );
-      if (!ConversationCompactionService.isContextLengthError(
-            error.toString(),
-          ) ||
+      if (!LlmRequestFailure.from(error).isContextOverflow ||
           (!hasCompactableHistory && !hasToolResultBudget)) {
         rethrow;
       }

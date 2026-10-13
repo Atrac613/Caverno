@@ -28,14 +28,12 @@ extension ChatNotifierErrorHandling on ChatNotifier {
   }) async {
     appLog('[ChatNotifier] _handleError called');
     appLog('[ChatNotifier]   raw error: ${ChatErrorText.head(error)}');
-    final displayError = ChatErrorMessageBuilder.build(
-      error.toString(),
+    final (:displayError, :runtimeFailure) = ChatErrorMessageBuilder.project(
+      error,
       baseUrl: _settings.baseUrl,
+      fallback: _runtimeFailureClassifier,
     );
     if (!_activeResponseRegistry.containsOwner(owner)) {
-      final runtimeFailure = _runtimeFailureClassifier.classify(
-        error.toString(),
-      );
       _failRuntimeTurn(
         owner.interactionGeneration,
         code: runtimeFailure.code,
@@ -70,7 +68,6 @@ extension ChatNotifierErrorHandling on ChatNotifier {
         error: displayError,
       );
     }
-    final runtimeFailure = _runtimeFailureClassifier.classify(error.toString());
     _failRuntimeTurn(
       owner.interactionGeneration,
       code: runtimeFailure.code,

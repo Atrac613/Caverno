@@ -193,7 +193,7 @@ structurally unmotivated to build:
 | Local LLM | LL42 | later | S-M | F6, LL6 | Measure tool-definition cost across request paths and trim oversized initial catalogs where task-scoped selection preserves tool reachability and safety. Start with representative chat, coding, Plan Mode, Remote Coding, and routine turns; promote one measured path at a time. |
 | Local LLM | LL43 | next | S | LL6, LL33 | Request envelope fingerprint and cache-break detection: log a digest of each request's stable envelope (model, call config, system prompt, tool catalog) plus the provider's cache-read count on every request, including zero, so a prefix break is a field comparison in triage instead of a hand diff. Instrument only; no request-construction change. From the DeepSeek Harness comparison (`docs/deepseek_harness_comparison_2026-10-08.md`). |
 | Local LLM | LL44 | later | S-M | LL34, HEU3 | Non-execution as a typed fact: one typed field states whether the tool body ran and why not (refused by policy, approval denied, cancelled before dispatch, timed out, failed to spawn), so the failure classifier, the executed-call ledger, and the turn digest stop parsing `ok` / `executed` markers out of the result JSON. Evidence-gated: the motivating commit-guard defect was fixed per producer in `6ab0621de`; promote on the next non-execution misclassification. |
-| Local LLM | LL45 | next | S-M | F3, LL8 | Structured LLM request failure: capture a provider-neutral failure value at the transport boundary (code, HTTP status, retry-after, provider request id) and derive both retry policy and user-facing text from it, replacing substring classification in `ChatErrorMessageBuilder`. Non-provider errors (storage, local I/O) never reach the provider classifier. |
+| Local LLM | LL45 | done | S-M | F3, LL8 | Structured LLM request failure: capture a provider-neutral failure value at the transport boundary (code, HTTP status, retry-after, provider request id) and derive both retry policy and user-facing text from it, replacing substring classification in `ChatErrorMessageBuilder`. Non-provider errors (storage, local I/O) never reach the provider classifier. |
 | Local LLM | LL46 | later | S | LL33, LL36 | Model-visible injection inventory: one entry per harness producer that injects text into model input, keyed on its LL33 transform id, recording the text, its settle condition, its token cost, and whether it appends or rewrites the cached prefix. A test fails when a producer has no entry. |
 | Local LLM | LL47 | later | S-M | LL14, LL30, SEC1 | Oversized tool-output spill files: when a result is truncated to head and tail, write the complete output to a private owner-only file and name its path in the result so the model can read the omitted part. The spill location must be readable through the model's own read fence, decided with SEC1. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
@@ -6072,7 +6072,7 @@ reference case.
 
 ### LL45: Structured LLM Request Failure
 
-Status: `next`
+Status: `done` (2026-10-13)
 
 Context:
 - `ChatErrorMessageBuilder` classifies by substring (`contains('401')`,
@@ -6099,8 +6099,34 @@ Acceptance criteria:
 - No `contains(` on error text remains in the provider failure path.
 - Context-length retry keeps its current behavior, now keyed on the code.
 
-Next action: map every exception the transport layer can raise today to a
-code, then switch `ChatErrorMessageBuilder` to the value.
+Outcome (2026-10-13):
+- `LlmRequestFailure.from` (`lib/features/chat/data/datasources/llm_request_failure.dart`)
+  classifies by exception type and structured fields: the `openai_dart`
+  hierarchy (status, `code`, `requestId`, `RateLimitException.retryAfter`),
+  `SlotChatTransportException`, `AppleFoundationModelsException`, dart:io and
+  `package:http` transport errors, timeouts, parse errors and cancellation.
+  `SqliteException`, `DriftWrappedException`, `HiveError` and
+  `FileSystemException` are `localStorage` and are checked first.
+- `ChatErrorMessageBuilder` picks the headline from the code
+  (`LlmFailureHeadline`); the error text is only bounded and shown as details.
+  An untyped error gets no guessed headline. A request id and a server-asked
+  delay are shown when present.
+- The five context-length retry sites key on `isContextOverflow`, so a storage
+  error whose payload happens to read "maximum context" no longer triggers a
+  compaction retry.
+- The runtime terminal code derives from the failure for storage
+  (`persistence_failed`, previously `turn_failed` for a SQLite error) and for
+  transport, timeout and server failures; other codes keep the text fallback
+  in `CavernoRuntimeFailureClassifier`.
+
+Remaining text matching, by necessity: OpenAI-compatible servers expose no
+structured signal for context overflow (beyond OpenAI's
+`context_length_exceeded`) or for text-only input, so those two match the
+provider-supplied message only, never a local exception's text. An untyped
+error still reaches the context-overflow pattern so the compaction retry keeps
+its reach. Out of scope and still text-based: `CavernoRuntimeFailureClassifier`
+for untyped errors, and the Settings live diagnostic's Apple Foundation Models
+text helpers.
 
 ### LL46: Model-Visible Injection Inventory
 

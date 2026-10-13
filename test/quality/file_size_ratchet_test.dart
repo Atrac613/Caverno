@@ -585,9 +585,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/thread_scoped_message_queue.dart':
       138,
   'lib/features/chat/presentation/providers/chat_error_message_builder.dart':
-      102,
+      81,
   'lib/features/chat/presentation/providers/turn_context_retry_coordinator.dart':
-      76,
+      75,
   'lib/features/chat/presentation/providers/runtime_turn_evidence_publisher.dart':
       16,
   // +10 to take a read-only view of the notifier's turn-handle map instead of
@@ -1349,7 +1349,9 @@ const Map<String, int> _libraryLineBudgets = {
   // limit, and one getter hands it to the farm workflow, which continues such
   // a turn once (sessions 3df7724f, 87ac88f3). The decision lives in
   // PrimaryTurnRouteRuntime and the workflow, outside this library.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19727,
+  // -5: LL45 moved turn-failure display and runtime classification behind
+  // ChatErrorMessageBuilder.project.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19722,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

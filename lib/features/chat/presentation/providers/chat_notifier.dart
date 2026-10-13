@@ -4185,7 +4185,7 @@ class ChatNotifier extends Notifier<ChatState> {
     Object error,
   ) =>
       _settings.llmProvider == LlmProvider.appleFoundationModels &&
-      ConversationCompactionService.isContextLengthError(error.toString());
+      LlmRequestFailure.from(error).isContextOverflow;
 
   bool get _supportsToolAwareRequests => true;
 
