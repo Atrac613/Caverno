@@ -1354,7 +1354,9 @@ const Map<String, int> _libraryLineBudgets = {
   // ChatErrorMessageBuilder.project.
   // -13: LL45 dropped the runtime text-classifier fallback and the tool-mode
   // fallback's text match.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19709,
+  // +5: the tool-result final answer and its concise retry carry request
+  // labels; LL43 caught the unlabeled re-send breaking the loop's cache.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19714,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

@@ -51,14 +51,17 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
         'reason=${reason.logToken}, maxTokens=$retryMaxTokens',
       );
       try {
-        return await _primaryDataSourceForGeneration(
+        return await _runWithLlmSessionLogContextForGeneration(
           interactionGeneration,
-        ).createChatCompletion(
-          messages: retryMessages,
-          tools: const <Map<String, dynamic>>[],
-          model: _primaryModelForGeneration(interactionGeneration),
-          temperature: FinalAnswerRecoveryPolicy.retryTemperature,
-          maxTokens: retryMaxTokens,
+          requestLabel: 'final answer concise retry',
+          () => _primaryDataSourceForGeneration(interactionGeneration)
+              .createChatCompletion(
+                messages: retryMessages,
+                tools: const <Map<String, dynamic>>[],
+                model: _primaryModelForGeneration(interactionGeneration),
+                temperature: FinalAnswerRecoveryPolicy.retryTemperature,
+                maxTokens: retryMaxTokens,
+              ),
         );
       } catch (error) {
         appLog(
@@ -75,6 +78,8 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
     }) async {
       return _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
+        // LL43 found this re-send unlabeled while it broke the loop's cache.
+        requestLabel: 'tool-result final answer',
         () async {
           final streamedAnswer = StringBuffer();
           final messagesForLLM = _prepareMessagesForLLM(
