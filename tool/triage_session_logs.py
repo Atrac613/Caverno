@@ -353,7 +353,8 @@ def _search_needles(response: dict):
                 continue
         if not isinstance(args, dict):
             continue
-        raw = (args.get("query") or args.get("pattern") or "").strip()
+        # A model can send a number as the pattern; it is still a search.
+        raw = str(args.get("query") or args.get("pattern") or "").strip()
         tokens = [
             t for t in re.findall(r"[A-Za-z0-9_]+", raw)
             if not (len(t) <= 2 and t.isdigit())

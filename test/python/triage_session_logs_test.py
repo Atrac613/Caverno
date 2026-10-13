@@ -610,5 +610,24 @@ class TriageCacheBreakTest(unittest.TestCase):
         self.assertEqual(row["cache_breaks"], {})
 
 
+
+class TriageSearchArgumentTest(unittest.TestCase):
+    def test_a_numeric_search_pattern_does_not_crash_the_run(self):
+        row = _analyze(
+            [
+                _completion(
+                    response={
+                        "finishReason": "tool_calls",
+                        "content": "",
+                        "toolCalls": [
+                            {"name": "search_files", "arguments": {"pattern": 1791}}
+                        ],
+                    }
+                )
+            ]
+        )
+        self.assertIsNotNone(row)
+
+
 if __name__ == "__main__":
     unittest.main()
