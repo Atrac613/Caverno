@@ -67,6 +67,16 @@ final class TurnFinalizationStateRegistry {
   List<String> transforms(ChatTurnOwner owner) =>
       List<String>.unmodifiable(_states[owner]?.transforms ?? const <String>{});
 
+  void holdToolRoleAnswer(ChatTurnOwner owner, String answer) =>
+      _states[owner]?.toolRoleAnswerCandidate = answer;
+
+  String? takeToolRoleAnswer(ChatTurnOwner owner) {
+    final state = _states[owner];
+    final answer = state?.toolRoleAnswerCandidate;
+    state?.toolRoleAnswerCandidate = null;
+    return answer;
+  }
+
   bool recordFinalAnswerRecoveryDecision(
     ChatTurnOwner owner, {
     required bool shouldSkip,

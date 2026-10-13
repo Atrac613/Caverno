@@ -87,7 +87,8 @@ const Map<String, int> _lineBudgets = {
   // -11: first reusable repeated-call selection moved to a recovery plan.
   // -10: extraction and fresh/repeated partition moved behind seen acceptance.
   // -11: LL45 replaced the tool-mode fallback's text match with a failure code.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7229,
+  // -5: hidden-evidence recording moved to the terminal response part.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7224,
   'lib/features/chat/domain/services/tool_loop/content_tool_call_partition.dart':
       35,
   'lib/features/chat/domain/services/tool_loop/repeated_content_tool_recovery_plan.dart':
@@ -1356,7 +1357,10 @@ const Map<String, int> _libraryLineBudgets = {
   // fallback's text match.
   // +5: the tool-result final answer and its concise retry carry request
   // labels; LL43 caught the unlabeled re-send breaking the loop's cache.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19714,
+  // +10: the tool loop holds its own final answer and the re-send records a
+  // shadow decision on keeping it; the policy and the shadow live outside
+  // the library (ToolRoleAnswerAcceptance, ToolRoleAnswerShadow).
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19724,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

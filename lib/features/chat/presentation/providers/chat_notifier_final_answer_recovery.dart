@@ -12,6 +12,14 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
   }) async {
     final turnOwner = _turnOwnerForGeneration(interactionGeneration);
     if (turnOwner == null) return '';
+    ToolRoleAnswerShadow.record(
+      turnEnd: _turnEnd,
+      responseMetadata: _responseMetadata,
+      routes: _primaryRoutes,
+      owner: turnOwner,
+      toolResults: toolResults,
+      completionEvidence: completionEvidence,
+    );
     final protectedPaths = const ContextSurgeryProtectedPathPolicy()
         .protectedPathsFor(_conversationForGeneration(interactionGeneration));
     Future<ChatCompletionResult?> requestConciseRecovery({

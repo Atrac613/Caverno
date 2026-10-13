@@ -252,4 +252,15 @@ void main() {
     registry.clear();
     expect(registry.isEmpty, isTrue);
   });
+
+  test('holds the tool-role answer for one take', () {
+    final registry = TurnFinalizationStateRegistry();
+    registry.holdToolRoleAnswer(owner, 'ignored without state');
+    expect(registry.takeToolRoleAnswer(owner), isNull);
+
+    registry.begin(owner);
+    registry.holdToolRoleAnswer(owner, 'It is 07:54 JST.');
+    expect(registry.takeToolRoleAnswer(owner), 'It is 07:54 JST.');
+    expect(registry.takeToolRoleAnswer(owner), isNull);
+  });
 }

@@ -19,6 +19,10 @@ final class TurnFinalizationState {
   GoalUpdateAckOutcome? shadowGoalCompletionOutcome;
   bool toolGoalCompletionClaimed = false;
   GoalUpdateCompletionAcknowledgement? goalUpdateAcknowledgement;
+
+  /// The loop's own complete answer, held while finalization decides whether
+  /// it stands or is regenerated from a user-role re-send.
+  String? toolRoleAnswerCandidate;
   CompletedToolResultFinalAnswerRecoveryDecision
   completedToolResultFinalAnswerRecoveryDecision =
       CompletedToolResultFinalAnswerRecoveryDecision.notEvaluated;

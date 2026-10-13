@@ -25,6 +25,13 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
             CjkResponseMarkers.containsMissingEvidence,
       );
 
+  void _recordHiddenEvidence(ChatTurnOwner owner, String? response) =>
+      _hiddenAssistantEvidence.record(
+        owner,
+        response,
+        evidenceScore: _terminalToolResponsePolicy.hiddenAssistantEvidenceScore,
+      );
+
   bool _shouldAcceptTerminalToolRoleFinalTextResponse(
     String response, [
     List<ToolResultInfo> toolResults = const [],

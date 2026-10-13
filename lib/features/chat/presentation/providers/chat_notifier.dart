@@ -298,6 +298,7 @@ import 'tool_argument_json.dart';
 import 'tool_dedupe_keys.dart';
 import 'tool_lifecycle_reporter.dart';
 import 'tool_loop_batch_execution_result.dart';
+import 'tool_role_answer_shadow.dart';
 import 'turn_coding_project_resolver.dart';
 import 'turn_command_execution_recorder.dart';
 import 'turn_context_retry_coordinator.dart';
@@ -2877,13 +2878,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String? takeLatestHiddenAssistantResponse(ChatTurnOwner? owner) =>
       owner == null ? null : _hiddenAssistantEvidence.take(owner);
-
-  void _recordHiddenEvidence(ChatTurnOwner owner, String? response) =>
-      _hiddenAssistantEvidence.record(
-        owner,
-        response,
-        evidenceScore: _terminalToolResponsePolicy.hiddenAssistantEvidenceScore,
-      );
 
   void _appendRecoveredAssistantResponse(
     String response, {
@@ -5631,6 +5625,7 @@ class ChatNotifier extends Notifier<ChatState> {
           acceptAnswer(fallbackResponse);
           break;
         }
+        _turnEnd.holdToolRoleAnswer(turnOwner, fallbackResponse);
       }
     }
 
