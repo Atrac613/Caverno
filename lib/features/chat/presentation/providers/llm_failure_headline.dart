@@ -38,6 +38,8 @@ abstract final class LlmFailureHeadline {
       'The conversation no longer fits in the model\'s context window. Start a new conversation or shorten the request.',
     LlmRequestFailureCode.invalidRequest =>
       'The LLM server rejected the request${_status(failure)}.',
+    LlmRequestFailureCode.toolFormatRejected =>
+      'The LLM server could not parse the model\'s tool call. Please try again.',
     LlmRequestFailureCode.invalidResponse =>
       'Could not parse the response from the LLM server.',
     LlmRequestFailureCode.cancelled || LlmRequestFailureCode.unknown => null,

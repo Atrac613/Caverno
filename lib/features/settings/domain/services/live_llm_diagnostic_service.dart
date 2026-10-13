@@ -829,12 +829,13 @@ class LiveLlmDiagnosticService {
       );
     } catch (error) {
       final rawError = error.toString();
+      // Typed only: an untyped error is not read for provider wording (LL45).
+      final providerError = error is AppleFoundationModelsException
+          ? error
+          : null;
       final unsupportedLanguage =
-          AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
-            rawError,
-          );
-      final providerUnavailable =
-          AppleFoundationModelsException.isProviderUnavailableText(rawError);
+          providerError?.isUnsupportedLanguageOrLocale ?? false;
+      final providerUnavailable = providerError?.isProviderUnavailable ?? false;
       updated = updated.withProbeResult(
         LiveLlmDiagnosticProbeResult(
           id: probeId,
@@ -1409,14 +1410,13 @@ class LiveLlmDiagnosticService {
       );
     } catch (error) {
       final rawError = error.toString();
-      final classification =
-          AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
-            rawError,
-          )
-          ? 'unsupported_language_or_locale'
-          : AppleFoundationModelsException.isProviderUnavailableText(rawError)
-          ? 'provider_unavailable'
-          : 'exception';
+      final classification = switch (error) {
+        AppleFoundationModelsException(isUnsupportedLanguageOrLocale: true) =>
+          'unsupported_language_or_locale',
+        AppleFoundationModelsException(isProviderUnavailable: true) =>
+          'provider_unavailable',
+        _ => 'exception',
+      };
       return FoundationModelsLanguageProbeOutcome(
         label: testCase.label,
         passed: false,

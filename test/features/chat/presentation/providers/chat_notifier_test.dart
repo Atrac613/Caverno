@@ -79,6 +79,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:openai_dart/openai_dart.dart' show StreamException;
 
 import '../../../../support/app_log_capture_test_support.dart';
 import '../../../../support/chat_notifier_turn_teardown_test_support.dart';

@@ -226,7 +226,8 @@ class AppleFoundationModelsException implements Exception {
   final String? details;
 
   bool get isUnsupportedLanguageOrLocale {
-    return isUnsupportedLanguageOrLocaleText(_searchableText);
+    return code == 'foundation_models_unsupported_locale' ||
+        isUnsupportedLanguageOrLocaleText(_searchableText);
   }
 
   bool get isProviderUnavailable {

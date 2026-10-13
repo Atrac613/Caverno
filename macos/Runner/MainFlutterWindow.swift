@@ -210,7 +210,7 @@ final class MacosAppleFoundationModelsChannel {
         } catch {
           await MainActor.run {
             result(FlutterError(
-              code: "foundation_models_error",
+              code: Self.generationErrorCode(error),
               message: error.localizedDescription,
               details: String(describing: error)
             ))
@@ -243,6 +243,28 @@ final class MacosAppleFoundationModelsChannel {
         "status": "unavailable",
         "reason": String(describing: reason),
       ]
+    }
+  }
+
+  /// A stable code for a generation failure, so Dart classifies it by case
+  /// rather than by the localized message (LL45).
+  @available(macOS 26.0, *)
+  private static func generationErrorCode(_ error: Error) -> String {
+    guard let generationError = error as? LanguageModelSession.GenerationError
+    else {
+      return "foundation_models_error"
+    }
+    switch generationError {
+    case .exceededContextWindowSize:
+      return "foundation_models_context_overflow"
+    case .unsupportedLanguageOrLocale:
+      return "foundation_models_unsupported_locale"
+    case .assetsUnavailable:
+      return "foundation_models_unavailable"
+    case .rateLimited:
+      return "foundation_models_rate_limited"
+    default:
+      return "foundation_models_error"
     }
   }
 

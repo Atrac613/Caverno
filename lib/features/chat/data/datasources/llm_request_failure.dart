@@ -25,6 +25,10 @@ enum LlmRequestFailureCode {
   timeout,
   transport,
   contextOverflow,
+
+  /// The server could not parse the model's native tool-call output; the
+  /// turn can retry with embedded tool-call tags.
+  toolFormatRejected,
   invalidRequest,
   invalidResponse,
   unsupportedInput,
@@ -64,25 +68,15 @@ final class LlmRequestFailure {
     return switch (error) {
       ApiException() => _fromApi(error),
       SlotChatTransportException(:final statusCode, :final body) =>
-        _isContextOverflowText(body)
-            ? LlmRequestFailure(
-                code: LlmRequestFailureCode.contextOverflow,
-                statusCode: statusCode,
-              )
-            : LlmRequestFailure(
-                code: _codeForStatus(statusCode),
-                statusCode: statusCode,
-              ),
+        LlmRequestFailure(
+          code: _providerMessageCode(body) ?? _codeForStatus(statusCode),
+          statusCode: statusCode,
+        ),
       AppleFoundationModelsException() => _fromAppleFoundationModels(error),
-      StreamException(:final message, :final cause) =>
-        _isContextOverflowText(message)
-            ? const LlmRequestFailure(
-                code: LlmRequestFailureCode.contextOverflow,
-              )
-            : LlmRequestFailure(
-                code: LlmRequestFailureCode.transport,
-                endpointUnreachable: cause != null && _isUnreachable(cause),
-              ),
+      StreamException(:final message, :final cause) => LlmRequestFailure(
+        code: _providerMessageCode(message) ?? LlmRequestFailureCode.transport,
+        endpointUnreachable: cause != null && _isUnreachable(cause),
+      ),
       RequestTimeoutException() || TimeoutException() =>
         const LlmRequestFailure(code: LlmRequestFailureCode.timeout),
       _ when _isUnreachable(error) => const LlmRequestFailure(
@@ -124,6 +118,9 @@ final class LlmRequestFailure {
 
   bool get isContextOverflow => code == LlmRequestFailureCode.contextOverflow;
 
+  bool get isToolFormatRejected =>
+      code == LlmRequestFailureCode.toolFormatRejected;
+
   /// Whether the failure is one an endpoint that cannot handle tool requests
   /// produces: a rejected request, an unparseable response, or a server
   /// error. The tool loop then retries the turn without tools.
@@ -163,9 +160,10 @@ final class LlmRequestFailure {
     // keyed on it cannot be diverted by wording.
     if (statusCode == 429) {
       code = LlmRequestFailureCode.rateLimit;
-    } else if (providerCode == 'context_length_exceeded' ||
-        _isContextOverflowText(error.message)) {
+    } else if (providerCode == 'context_length_exceeded') {
       code = LlmRequestFailureCode.contextOverflow;
+    } else if (_providerMessageCode(error.message) case final fromMessage?) {
+      code = fromMessage;
     } else if (statusCode == 400 && _isTextOnlyInputText(error.message)) {
       code = LlmRequestFailureCode.unsupportedInput;
     } else {
@@ -204,9 +202,21 @@ final class LlmRequestFailure {
     caseSensitive: false,
   );
 
+  /// The native bridge names the `GenerationError` case in a stable code.
+  /// Builds that predate those codes send `foundation_models_error` for every
+  /// case, so the provider's own text helpers remain the fallback.
   static LlmRequestFailure _fromAppleFoundationModels(
     AppleFoundationModelsException error,
   ) {
+    final byCode = switch (error.code) {
+      'foundation_models_context_overflow' =>
+        LlmRequestFailureCode.contextOverflow,
+      'foundation_models_unsupported_locale' =>
+        LlmRequestFailureCode.unsupportedLocale,
+      'foundation_models_rate_limited' => LlmRequestFailureCode.rateLimit,
+      _ => null,
+    };
+    if (byCode != null) return LlmRequestFailure(code: byCode);
     if (error.isUnsupportedLanguageOrLocale) {
       return const LlmRequestFailure(
         code: LlmRequestFailureCode.unsupportedLocale,
@@ -217,11 +227,7 @@ final class LlmRequestFailure {
         code: LlmRequestFailureCode.providerUnavailable,
       );
     }
-    final text = [
-      error.code,
-      error.message,
-      error.details,
-    ].whereType<String>().join(' ');
+    final text = [error.message, error.details].whereType<String>().join(' ');
     return LlmRequestFailure(
       code: _isContextOverflowText(text)
           ? LlmRequestFailureCode.contextOverflow
@@ -256,6 +262,24 @@ final class LlmRequestFailure {
     FileSystemException() => true,
     _ => false,
   };
+
+  /// The code a provider-supplied message states when no structured field
+  /// does. Never applied to a local exception's text.
+  static LlmRequestFailureCode? _providerMessageCode(String message) {
+    if (_isContextOverflowText(message)) {
+      return LlmRequestFailureCode.contextOverflow;
+    }
+    if (_nativeToolFormatPattern.hasMatch(message)) {
+      return LlmRequestFailureCode.toolFormatRejected;
+    }
+    return null;
+  }
+
+  /// llama.cpp's PEG parser rejecting the model's native tool-call output.
+  static final RegExp _nativeToolFormatPattern = RegExp(
+    r'peg-native|native tool.*format',
+    caseSensitive: false,
+  );
 
   static bool _isContextOverflowText(String text) =>
       ConversationCompactionService.isContextLengthError(text);

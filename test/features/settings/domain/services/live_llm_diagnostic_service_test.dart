@@ -4312,8 +4312,11 @@ class _UnsupportedLanguageDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    throw Exception(
-      'unsupportedLanguageOrLocale(GenerationError.Context(debugDescription: "Unsupported language."))',
+    throw const AppleFoundationModelsException(
+      'Unsupported language.',
+      code: 'foundation_models_unsupported_locale',
+      details:
+          'unsupportedLanguageOrLocale(GenerationError.Context(debugDescription: "Unsupported language."))',
     );
   }
 
@@ -4919,9 +4922,11 @@ class _LanguageMatrixRecordingDataSource extends _FakeDiagnosticDataSource {
     if (requests == 2) {
       switch (mode) {
         case 'unsupported':
-          throw StateError('unsupportedLanguageOrLocale');
+          throw const AppleFoundationModelsException(
+            'unsupportedLanguageOrLocale',
+          );
         case 'unavailable':
-          throw StateError('modelNotReady');
+          throw const AppleFoundationModelsException('modelNotReady');
         case 'exception':
           throw StateError('diagnostic transport');
       }

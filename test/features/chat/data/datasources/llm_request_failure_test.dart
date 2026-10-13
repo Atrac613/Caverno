@@ -188,6 +188,32 @@ void main() {
       );
     });
 
+    test('native tool-call format rejection, from the provider only', () {
+      expect(
+        codeOf(
+          const StreamException(
+            message:
+                'The model produced output that does not match the expected '
+                'peg-native format',
+          ),
+        ),
+        LlmRequestFailureCode.toolFormatRejected,
+      );
+      expect(
+        codeOf(
+          createApiException(
+            statusCode: 500,
+            message: 'Failed to parse native tool call format',
+          ),
+        ),
+        LlmRequestFailureCode.toolFormatRejected,
+      );
+      expect(
+        codeOf(Exception('peg-native format')),
+        LlmRequestFailureCode.unknown,
+      );
+    });
+
     test('text-only input rejection', () {
       expect(
         codeOf(
@@ -203,6 +229,36 @@ void main() {
       expect(
         codeOf(const ChatCompletionStreamCancelledException()),
         LlmRequestFailureCode.cancelled,
+      );
+    });
+
+    test('Apple Foundation Models native codes come first', () {
+      expect(
+        codeOf(
+          const AppleFoundationModelsException(
+            'The prompt is too large.',
+            code: 'foundation_models_context_overflow',
+          ),
+        ),
+        LlmRequestFailureCode.contextOverflow,
+      );
+      expect(
+        codeOf(
+          const AppleFoundationModelsException(
+            'Try later',
+            code: 'foundation_models_rate_limited',
+          ),
+        ),
+        LlmRequestFailureCode.rateLimit,
+      );
+      expect(
+        codeOf(
+          const AppleFoundationModelsException(
+            'Language not supported',
+            code: 'foundation_models_unsupported_locale',
+          ),
+        ),
+        LlmRequestFailureCode.unsupportedLocale,
       );
     });
 

@@ -4142,7 +4142,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       if (nativeToolFallbackDefinitions.isNotEmpty &&
-          ChatRemoteDataSource.isNativeToolStreamFormatError(e)) {
+          LlmRequestFailure.from(e).isToolFormatRejected) {
         appLog(
           '[Tool] Native tool stream format failed; retrying with embedded '
           'tool-call tags',

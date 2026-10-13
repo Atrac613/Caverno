@@ -6135,14 +6135,37 @@ Outcome (2026-10-13):
   transport, timeout and server failures; other codes keep the text fallback
   in `CavernoRuntimeFailureClassifier`.
 
-Remaining text matching, by necessity: OpenAI-compatible servers expose no
+Follow-up slices (2026-10-13/14) moved every remaining LLM failure decision
+onto the value:
+- The tool loop's fallback to no-tools mode reads `mayRejectToolRequests`
+  (invalid request, unparseable response, server error) instead of words such
+  as `invalid`, `empty` or `500`; a storage error no longer downgrades a turn.
+- Endpoint health (primary route and mesh secondary) reads a typed
+  `endpointUnreachable` flag instead of two copies of socket-phrase matching.
+  A connection attempt that only timed out stays ambiguous.
+- The runtime terminal code is total on the failure code; the text classifier
+  fallback is gone from the chat path.
+- The rate-limit retry takes the server's delay from `retryAfter`, which now
+  also reads the "try again in Xs" body hint, so the retry and the message
+  agree. A 429 stays a rate limit whatever its message says.
+- llama.cpp's native tool-call format rejection is a code
+  (`toolFormatRejected`) read from the provider message only;
+  `ChatRemoteDataSource.isNativeToolStreamFormatError` is removed.
+- The macOS and iOS Foundation Models bridges send a stable code per
+  `LanguageModelSession.GenerationError` case (context overflow, unsupported
+  locale, assets unavailable, rate limited) instead of one generic code, and
+  Dart classifies by that code first. The Settings live diagnostic classifies
+  the typed exception only.
+
+Text matching that remains, by necessity: OpenAI-compatible servers expose no
 structured signal for context overflow (beyond OpenAI's
-`context_length_exceeded`) or for text-only input, so those two match the
-provider-supplied message only, never a local exception's text. An untyped
-error still reaches the context-overflow pattern so the compaction retry keeps
-its reach. Out of scope and still text-based: `CavernoRuntimeFailureClassifier`
-for untyped errors, and the Settings live diagnostic's Apple Foundation Models
-text helpers.
+`context_length_exceeded`), text-only input, or native tool-format rejection,
+so those match the provider-supplied message only, never a local exception's
+text. An untyped error still reaches the context-overflow pattern so the
+compaction retry keeps its reach. Foundation Models builds that predate the
+native codes fall back to the provider's own text helpers.
+`CavernoRuntimeFailureClassifier` (package `caverno_execution_runtime`) is no
+longer used by the app.
 
 ### LL46: Model-Visible Injection Inventory
 

@@ -1608,8 +1608,9 @@ class _NativeToolFormatFallbackDataSource implements ChatDataSource {
     toolAwareToolBatches.add(List<Map<String, dynamic>>.from(tools));
     return StreamWithToolsResult(
       stream: Stream<String>.error(
-        Exception(
-          'StreamException: The model produced output that does not match the expected peg-native format',
+        const StreamException(
+          message:
+              'The model produced output that does not match the expected peg-native format',
         ),
       ),
       completion: Completer<ChatCompletionResult>().future,
@@ -2163,9 +2164,7 @@ class _FinalAnswerRecoveryChatDataSource
     double? temperature,
     int? maxTokens,
   }) {
-    initialToolBatches.add(
-      tools.map(Map<String, dynamic>.from).toList(),
-    );
+    initialToolBatches.add(tools.map(Map<String, dynamic>.from).toList());
     _lastFinishReason = 'tool_calls';
     return StreamWithToolsResult(
       stream: const Stream.empty(),
@@ -2312,9 +2311,7 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     initialRequestMessages.add(List<Message>.from(messages));
-    initialToolDefinitions.add(
-      tools.map(Map<String, dynamic>.from).toList(),
-    );
+    initialToolDefinitions.add(tools.map(Map<String, dynamic>.from).toList());
     final requestNumber = initialRequestMessages.length;
     final toolCalls = _toolCallBatches.isEmpty
         ? const <ToolCallInfo>[]

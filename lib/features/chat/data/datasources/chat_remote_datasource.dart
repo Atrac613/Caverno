@@ -118,12 +118,6 @@ class ChatRemoteDataSource
   static const _toolResultFormatter = ChatToolResultMessageFormatter();
   static const _payloadFormatter = ChatMessagePayloadFormatter();
 
-  static bool isNativeToolStreamFormatError(Object error) {
-    final message = error.toString().toLowerCase();
-    return message.contains('peg-native') ||
-        (message.contains('native tool') && message.contains('format'));
-  }
-
   @override
   bool get endpointIgnoresRequestedTemperature =>
       _requestFallback.temperatureIsOmitted;
