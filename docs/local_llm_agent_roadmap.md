@@ -191,7 +191,7 @@ structurally unmotivated to build:
 | Local LLM | LL40 | done | M | LL8, LL20, LL1, LL7 | Pro Reasoning mode for the chat workspace: implemented and live-canary verified on 2026-08-13. An opt-in composer toggle (plus `/pro`) spends minutes instead of seconds on one question via a budgeted five-stage run — frame, read-only investigate, N candidates fanned across LL8 mesh hosts, rubric critique, streamed synthesis through the targeted `sendHiddenPrompt` lifecycle. Multi-host, single-host degradation, mid-exploration cancellation, conversation persistence, Pro usage attribution, enabled session logs, and forced-disabled session logs all passed on the production provider lifecycle. The first production consumer of LL20, and LL26's (A0) shape aimed at chat, where there is no verifier ground truth: selection is an explicit rubric judge, not a verifier, and its most useful output is contradictions between independent candidates — sharper when they come from different hosts running different models. Placement rule: **fan out across hosts, never across slots on one GPU**, since `--parallel N` on a single GPU halves every request's context and re-prefills the shared evidence per slot. Sizing comes from live endpoint health, not config. Also lands the `chat_template_kwargs.enable_thinking` request extension, without which `reasoning_effort` is inert on the `--reasoning off` LAN endpoint. Design: `docs/pro_reasoning_chat_mode_design.md`. |
 | Local LLM | LL41 | later | M | LL34, LL35, LL37 | Deterministic goal verification contract: a `ConversationGoal` may carry a user-declared verification command and acceptance criteria whose exit code is ground truth for the goal auto-continue stop decision. Adds no judge and no inline panel — LL37's no-inline-stage decision stands; this is ground truth, not a verdict. Evidence-gated on an LL31 turn-exit triage of `awaitingConfirmation` and `noProgress` terminations. |
 | Local LLM | LL42 | later | S-M | F6, LL6 | Measure tool-definition cost across request paths and trim oversized initial catalogs where task-scoped selection preserves tool reachability and safety. Start with representative chat, coding, Plan Mode, Remote Coding, and routine turns; promote one measured path at a time. |
-| Local LLM | LL43 | next | S | LL6, LL33 | Request envelope fingerprint and cache-break detection: log a digest of each request's stable envelope (model, call config, system prompt, tool catalog) plus the provider's cache-read count on every request, including zero, so a prefix break is a field comparison in triage instead of a hand diff. Instrument only; no request-construction change. From the DeepSeek Harness comparison (`docs/deepseek_harness_comparison_2026-10-08.md`). |
+| Local LLM | LL43 | current | S | LL6, LL33 | Request envelope fingerprint and cache-break detection: log a digest of each request's stable envelope (model, call config, system prompt, tool catalog) plus the provider's cache-read count on every request, including zero, so a prefix break is a field comparison in triage instead of a hand diff. Instrument only; no request-construction change. From the DeepSeek Harness comparison (`docs/deepseek_harness_comparison_2026-10-08.md`). |
 | Local LLM | LL44 | later | S-M | LL34, HEU3 | Non-execution as a typed fact: one typed field states whether the tool body ran and why not (refused by policy, approval denied, cancelled before dispatch, timed out, failed to spawn), so the failure classifier, the executed-call ledger, and the turn digest stop parsing `ok` / `executed` markers out of the result JSON. Evidence-gated: the motivating commit-guard defect was fixed per producer in `6ab0621de`; promote on the next non-execution misclassification. |
 | Local LLM | LL45 | done | S-M | F3, LL8 | Structured LLM request failure: capture a provider-neutral failure value at the transport boundary (code, HTTP status, retry-after, provider request id) and derive both retry policy and user-facing text from it, replacing substring classification in `ChatErrorMessageBuilder`. Non-provider errors (storage, local I/O) never reach the provider classifier. |
 | Local LLM | LL46 | later | S | LL33, LL36 | Model-visible injection inventory: one entry per harness producer that injects text into model input, keyed on its LL33 transform id, recording the text, its settle condition, its token cost, and whether it appends or rewrites the cached prefix. A test fails when a producer has no entry. |
@@ -6000,7 +6000,7 @@ producer. LL46 and LL47 stay `later` until LL43 and LL45 ship.
 
 ### LL43: Request Envelope Fingerprint And Cache-Break Detection
 
-Status: `next`
+Status: `current` (implemented 2026-10-13; real-session evidence pending)
 
 Context:
 - LL6 built a prefix-stable request mode and measured it once. Nothing records
@@ -6030,8 +6030,24 @@ Acceptance criteria:
   changed system-prompt digest.
 - A real session log shows the new fields, including an explicit zero.
 
-Next action: add the digests and the explicit zero to the session-log entry,
-then the triage rule.
+Implemented 2026-10-13:
+- Schema v6 writes `request.envelope` (`config`, `systemPrompt`, `tools`
+  digests from `LlmRequestEnvelopeDigest`); the model id stays in the clear.
+- `TokenUsage.cachedPromptTokensReported` records whether the provider sent
+  `prompt_tokens_details.cached_tokens`. A reported `0` is written; a provider
+  that never reports a cache count still leaves the field absent, because a
+  written `0` there would read as a cache break on every request.
+- `tool/triage_session_logs.py` compares each request with the previous one
+  for the same model and usage role, and reports a fall in the cache-read count
+  against each changed digest, or as `unexplained`. Reported, not scored.
+- Focused tests cover digest stability across one tool loop, the prompt-clock
+  regression changing only the system-prompt digest, tool-catalog and config
+  changes, the explicit zero, and the triage attribution.
+
+Next action: confirm in a real session log built with `tool/safe-flutter`
+that `request.envelope` and a reported `cachedPromptTokens: 0` appear, then
+mark `done`. Whether llama.cpp and LM Studio report `cached_tokens` decides how
+much of the corpus the triage rule can see.
 
 ### LL44: Non-Execution As A Typed Fact
 

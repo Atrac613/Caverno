@@ -554,5 +554,61 @@ class SearchChurnTest(unittest.TestCase):
         self.assertEqual(row["search_churn_needle"], "")
 
 
+
+def _enveloped(cached, *, system="s1", tools="t1", config="c1", role="chat"):
+    entry = _completion(
+        response={
+            "finishReason": "stop",
+            "content": "ok",
+            "usage": {"promptTokens": 1000, "cachedPromptTokens": cached},
+        }
+    )
+    entry["request"].update(
+        {
+            "model": "m",
+            "usageRole": role,
+            "envelope": {"config": config, "systemPrompt": system, "tools": tools},
+        }
+    )
+    return entry
+
+
+class TriageCacheBreakTest(unittest.TestCase):
+    def test_names_the_digest_that_changed(self):
+        # The prompt-clock regression: the system prompt changes each minute,
+        # so the cache-read count falls back to the shared preamble.
+        row = _analyze(
+            [
+                _enveloped(0),
+                _enveloped(900),
+                _enveloped(120, system="s2"),
+                _enveloped(80, system="s2", tools="t2"),
+            ]
+        )
+        self.assertEqual(row["cache_breaks"], {"systemPrompt": 1, "tools": 1})
+        self.assertEqual(row["score"], 0)
+
+    def test_unchanged_digests_make_an_unexplained_break(self):
+        row = _analyze([_enveloped(900), _enveloped(100)])
+        self.assertEqual(row["cache_breaks"], {"unexplained": 1})
+
+    def test_compares_within_one_usage_role(self):
+        row = _analyze(
+            [
+                _enveloped(900),
+                _enveloped(0, system="memory", role="memoryExtraction"),
+                _enveloped(950),
+            ]
+        )
+        self.assertEqual(row["cache_breaks"], {})
+
+    def test_unreported_cache_counts_are_skipped(self):
+        first = _enveloped(900)
+        second = _enveloped(0, system="s2")
+        del second["response"]["usage"]["cachedPromptTokens"]
+        row = _analyze([first, second])
+        self.assertEqual(row["cache_breaks"], {})
+
+
 if __name__ == "__main__":
     unittest.main()

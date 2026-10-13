@@ -138,6 +138,7 @@ final class ChatResponseTelemetry {
           completionDetails?.acceptedPredictionTokens ?? 0,
       rejectedPredictionTokens:
           completionDetails?.rejectedPredictionTokens ?? 0,
+      cachedPromptTokensReported: promptDetails?.cachedTokens != null,
     );
   }
 }

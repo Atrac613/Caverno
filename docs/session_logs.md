@@ -191,6 +191,16 @@ Each line is one JSON object with schema name
   written once the response lands, and a streaming body is listened to outside
   the caller's zone, so the writer's view of the ambient role is not the
   caller's.
+- `request.envelope` (schema v6): 16-hex SHA-256 prefixes of the request's
+  `config` (temperature, max tokens, tool choice, thinking and template
+  controls), `systemPrompt` (every system-role message, in order) and `tools`
+  (the catalog as canonical JSON). The model id is logged in the clear beside
+  it. From v6, `response.usage.cachedPromptTokens` is written whenever the
+  provider reported it, including a reported `0` (a cache miss); it stays
+  absent when the provider never reports a cache count, so absence still means
+  "not reported". `tool/triage_session_logs.py` reports each fall in the
+  cache-read count against the digest that changed, per model and usage role
+  (LL43).
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`,
   `primary_model_route`, `goal_completion_shadow`, `execution_shadow`,

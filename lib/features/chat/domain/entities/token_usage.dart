@@ -15,6 +15,7 @@ final class TokenUsage {
     this.audioCompletionTokens = 0,
     this.acceptedPredictionTokens = 0,
     this.rejectedPredictionTokens = 0,
+    this.cachedPromptTokensReported = false,
   });
 
   final int promptTokens;
@@ -23,6 +24,10 @@ final class TokenUsage {
 
   /// Prompt tokens served from the provider's prompt cache.
   final int cachedPromptTokens;
+
+  /// Whether the provider reported [cachedPromptTokens] at all, so a reported
+  /// zero (a cache miss) can be told apart from a provider that never says.
+  final bool cachedPromptTokensReported;
 
   /// Audio tokens in the prompt.
   final int audioPromptTokens;

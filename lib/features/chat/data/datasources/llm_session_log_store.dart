@@ -11,6 +11,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/video_delivery.dart';
 import 'chat_remote_datasource.dart';
+import 'llm_request_envelope_digest.dart';
 
 const Object _llmSessionLogContextZoneKey = Object();
 
@@ -323,7 +324,9 @@ class LlmSessionLogStore {
   // v3 adds `request.label`, naming the producer that issued the request.
   // v4 adds `request.usageRole` for exact producer attribution.
   // v5 adds strict tool choice and thinking controls to request evidence.
-  static const schemaVersion = 5;
+  // v6 adds `request.envelope` digests and writes a reported zero
+  // `usage.cachedPromptTokens` (LL43).
+  static const schemaVersion = 6;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
   static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
@@ -809,6 +812,15 @@ class LlmSessionLogStore {
       if (request.label != null && request.label!.trim().isNotEmpty)
         'label': request.label!.trim(),
       'usageRole': request.usageRole.name,
+      'envelope': LlmRequestEnvelopeDigest.compute(
+        messages: request.messages,
+        tools: request.tools,
+        temperature: request.temperature,
+        maxTokens: request.maxTokens,
+        toolChoice: request.toolChoice,
+        enableThinking: request.enableThinking,
+        chatTemplateKwargs: request.chatTemplateKwargs,
+      ).toJson(),
       'messages': request.messages
           .map(
             (message) => _messageToJson(message, request.videoDeliveryLookup),
@@ -850,12 +862,14 @@ class LlmSessionLogStore {
       // Detail fields are additive within `usage`; readers that only know the
       // original three keys keep parsing entries unchanged. Omitted when the
       // provider did not report a breakdown, so 0 is never mistaken for a
-      // measured zero.
+      // measured zero. The cache-read count is written as 0 when the provider
+      // reported a miss, because an absent field hid every cache break (LL43).
       'usage': {
         'promptTokens': response.usage.promptTokens,
         'completionTokens': response.usage.completionTokens,
         'totalTokens': response.usage.totalTokens,
-        if (response.usage.cachedPromptTokens > 0)
+        if (response.usage.cachedPromptTokensReported ||
+            response.usage.cachedPromptTokens > 0)
           'cachedPromptTokens': response.usage.cachedPromptTokens,
         if (response.usage.audioPromptTokens > 0)
           'audioPromptTokens': response.usage.audioPromptTokens,

@@ -28,6 +28,16 @@ Signals (per session):
   - oversized_turn   : assistant turns with very large content
   - tool_error       : tool results carrying an error payload (capped; noisy)
 
+Reported but not scored:
+  - cache_breaks     : LL43 (schema v6+). A request whose provider cache-read
+                       count fell below the previous request's for the same
+                       model and usage role. Each break is attributed to the
+                       envelope digest that changed (config, systemPrompt,
+                       tools); a break with every digest unchanged is
+                       `unexplained` -- the prefix diverged somewhere the
+                       digests do not cover, such as earlier history, or the
+                       server evicted the cache.
+
 Each signal is weighted into a score; sessions are printed worst-first.
 
 The ``build`` column shows the git commit the binary was built from (schema v2+;
@@ -393,6 +403,47 @@ def _count_error_markers(entry: dict) -> int:
     return count
 
 
+_ENVELOPE_PARTS = ("config", "systemPrompt", "tools")
+
+
+def _cache_read(entry: dict):
+    """The provider-reported cache-read count, or None when not reported."""
+    usage = (entry.get("response") or {}).get("usage") or {}
+    return _integer(usage.get("cachedPromptTokens"))
+
+
+def _cache_breaks(entries: list) -> Counter:
+    """LL43: attribute each fall in the cache-read count to a changed digest.
+
+    Requests are compared with the previous request for the same model and
+    usage role, because another producer's request legitimately evicts or
+    misses the prefix. Only requests carrying both an envelope and a reported
+    cache-read count take part.
+    """
+    breaks: Counter = Counter()
+    previous: dict = {}
+    for entry in entries:
+        if not _is_completion_entry(entry):
+            continue
+        request = entry.get("request") or {}
+        envelope = request.get("envelope")
+        cached = _cache_read(entry)
+        if not isinstance(envelope, dict) or cached is None:
+            continue
+        key = (request.get("model"), request.get("usageRole"))
+        prior = previous.get(key)
+        previous[key] = (envelope, cached)
+        if prior is None or cached >= prior[1]:
+            continue
+        changed = [
+            part for part in _ENVELOPE_PARTS
+            if envelope.get(part) != prior[0].get(part)
+        ]
+        for part in changed or ["unexplained"]:
+            breaks[part] += 1
+    return breaks
+
+
 def analyze(path: str) -> dict | None:
     try:
         with open(path) as handle:
@@ -570,6 +621,7 @@ def analyze(path: str) -> dict | None:
         "tool_outcome_shadow": dict(tool_outcome_shadow),
         "tool_outcome_verdict_source": dict(tool_outcome_verdict_source),
         "workflow_failure_evidence": dict(workflow_failure_evidence),
+        "cache_breaks": dict(_cache_breaks(entries)),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
         "commit": commit,
@@ -635,7 +687,12 @@ def main() -> int:
     tool_outcome_shadow_totals: Counter = Counter()
     tool_outcome_verdict_source_totals: Counter = Counter()
     workflow_failure_evidence_totals: Counter = Counter()
+    cache_break_totals: Counter = Counter()
+    cache_break_sessions = []
     for r in rows:
+        cache_break_totals.update(r.get("cache_breaks") or {})
+        if r.get("cache_breaks"):
+            cache_break_sessions.append(r)
         exit_totals.update(r.get("exit_reasons") or {})
         transform_totals.update(r.get("transforms") or {})
         goal_auto_continue_totals.update(r.get("goal_auto_continue") or {})
@@ -777,6 +834,22 @@ def main() -> int:
         )
         for source, count in tool_outcome_verdict_source_totals.most_common():
             print(f"  {count:>5} ({count / total:>5.1%})  {source}")
+    if cache_break_totals:
+        print(
+            f"\n== Prompt-cache breaks by changed envelope digest "
+            f"(LL43, {len(cache_break_sessions)} sessions) =="
+        )
+        for part, count in cache_break_totals.most_common():
+            print(f"  {count:>5}  {part}")
+        cache_break_sessions.sort(
+            key=lambda r: sum(r["cache_breaks"].values()), reverse=True
+        )
+        for r in cache_break_sessions[:5]:
+            ident = r["path"] if args.full else os.path.basename(r["path"])
+            parts = ", ".join(
+                f"{part} x{count}" for part, count in r["cache_breaks"].items()
+            )
+            print(f"         {parts}  {ident}")
     if workflow_failure_evidence_totals:
         total = sum(workflow_failure_evidence_totals.values())
         print(
