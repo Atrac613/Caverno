@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/primary_route_chat_datasource.dart';
@@ -33,7 +34,7 @@ void main() {
   test('non-streaming failure retries with the primary model', () async {
     final health = EndpointHealthTracker();
     final assigned = _ScriptedChatDataSource(
-      createError: StateError('connection refused'),
+      createError: const SocketException('Connection refused'),
     );
     final primary = _ScriptedChatDataSource(content: 'fallback');
     final dataSource = routed(

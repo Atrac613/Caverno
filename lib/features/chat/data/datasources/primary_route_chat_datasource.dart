@@ -4,6 +4,7 @@ import '../../../settings/domain/services/mesh_endpoint_router.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import 'chat_datasource.dart';
+import 'llm_request_failure.dart';
 
 /// Routes every request in one LL24 turn to an assigned endpoint and retries
 /// on the primary endpoint when the assigned attempt fails before emitting
@@ -419,23 +420,7 @@ final class PrimaryRouteChatDataSource
   void _recordFailure(Object error) {
     _health.recordFailure(
       assignedEndpointId,
-      hard: _isHardEndpointFailure(error),
+      hard: LlmRequestFailure.from(error).endpointUnreachable,
     );
-  }
-
-  bool _isHardEndpointFailure(Object error) {
-    final text = error.toString().toLowerCase();
-    return text.contains('socketexception') ||
-        text.contains('connection refused') ||
-        text.contains('connection failed') ||
-        text.contains('connection closed') ||
-        text.contains('connection reset') ||
-        text.contains('connection terminated') ||
-        text.contains('no route to host') ||
-        text.contains('network is unreachable') ||
-        text.contains('host is unreachable') ||
-        text.contains('failed host lookup') ||
-        text.contains('errno = 61') ||
-        text.contains('errno = 111');
   }
 }

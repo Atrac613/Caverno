@@ -86,7 +86,8 @@ const Map<String, int> _lineBudgets = {
   // -26: incomplete-call assessment moved behind owner-bound acceptance.
   // -11: first reusable repeated-call selection moved to a recovery plan.
   // -10: extraction and fresh/repeated partition moved behind seen acceptance.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7240,
+  // -11: LL45 replaced the tool-mode fallback's text match with a failure code.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7229,
   'lib/features/chat/domain/services/tool_loop/content_tool_call_partition.dart':
       35,
   'lib/features/chat/domain/services/tool_loop/repeated_content_tool_recovery_plan.dart':
@@ -1351,7 +1352,9 @@ const Map<String, int> _libraryLineBudgets = {
   // PrimaryTurnRouteRuntime and the workflow, outside this library.
   // -5: LL45 moved turn-failure display and runtime classification behind
   // ChatErrorMessageBuilder.project.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19722,
+  // -13: LL45 dropped the runtime text-classifier fallback and the tool-mode
+  // fallback's text match.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19709,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

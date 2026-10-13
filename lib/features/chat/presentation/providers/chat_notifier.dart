@@ -453,7 +453,6 @@ class ChatNotifier extends Notifier<ChatState> {
   final _turnReleases = <ChatTurnOwner, TurnReleaseScope>{};
   (List<String>, List<String>)? _lastTurnRelease;
   late final _runtimeEvents = RuntimeTurnEventPublisher(_runtimeTurns);
-  final _runtimeFailureClassifier = const CavernoRuntimeFailureClassifier();
   late final _pythonScriptRuntime = _buildPythonScriptRuntimeAdapter();
   late final _fileMutationRuntime = _buildFileMutationRuntimeAdapter();
   late final _askUserQuestionRuntime = _buildAskUserQuestionRuntime();
@@ -4111,7 +4110,6 @@ class ChatNotifier extends Notifier<ChatState> {
         await _finishStreaming(interactionGeneration: generation);
       }
     } catch (e) {
-      final errorStr = e.toString().toLowerCase();
       appLog('[Tool] Error occurred: $e');
 
       if (allowContextRetry &&
@@ -4157,16 +4155,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
 
-      if (errorStr.contains('formatexception') ||
-          errorStr.contains('expecting value') ||
-          errorStr.contains('empty') ||
-          errorStr.contains('json') ||
-          errorStr.contains('decode') ||
-          errorStr.contains('parse') ||
-          errorStr.contains('unexpected') ||
-          errorStr.contains('invalid') ||
-          errorStr.contains('500') ||
-          errorStr.contains('server error')) {
+      if (LlmRequestFailure.from(e).mayRejectToolRequests) {
         appLog('[Tool] LLM may not support tools, falling back to normal mode');
         await _sendWithoutTools(
           allowContextRetry: allowContextRetry,

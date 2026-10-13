@@ -716,7 +716,6 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     final (:displayError, :runtimeFailure) = ChatErrorMessageBuilder.project(
       error,
       baseUrl: _settings.baseUrl,
-      fallback: _runtimeFailureClassifier,
     );
     final sourceMessages =
         _activeResponseMessagesForGeneration(turn.generation) ??

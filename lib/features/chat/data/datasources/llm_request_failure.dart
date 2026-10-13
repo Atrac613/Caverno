@@ -47,6 +47,7 @@ final class LlmRequestFailure {
     this.statusCode,
     this.retryAfter,
     this.requestId,
+    this.endpointUnreachable = false,
   });
 
   /// Classifies [error] by its type and the structured fields it carries.
@@ -73,19 +74,22 @@ final class LlmRequestFailure {
                 statusCode: statusCode,
               ),
       AppleFoundationModelsException() => _fromAppleFoundationModels(error),
-      StreamException(:final message) =>
+      StreamException(:final message, :final cause) =>
         _isContextOverflowText(message)
             ? const LlmRequestFailure(
                 code: LlmRequestFailureCode.contextOverflow,
               )
-            : const LlmRequestFailure(code: LlmRequestFailureCode.transport),
+            : LlmRequestFailure(
+                code: LlmRequestFailureCode.transport,
+                endpointUnreachable: cause != null && _isUnreachable(cause),
+              ),
       RequestTimeoutException() || TimeoutException() =>
         const LlmRequestFailure(code: LlmRequestFailureCode.timeout),
-      ConnectionException() ||
-      SocketException() ||
-      HandshakeException() ||
-      HttpException() ||
-      http.ClientException() => const LlmRequestFailure(
+      _ when _isUnreachable(error) => const LlmRequestFailure(
+        code: LlmRequestFailureCode.transport,
+        endpointUnreachable: true,
+      ),
+      ConnectionException() || HttpException() => const LlmRequestFailure(
         code: LlmRequestFailureCode.transport,
       ),
       ParseException() || FormatException() => const LlmRequestFailure(
@@ -113,11 +117,25 @@ final class LlmRequestFailure {
   /// Provider request id, for correlating with server-side logs.
   final String? requestId;
 
+  /// Whether the endpoint could not be reached at all, as opposed to an
+  /// ambiguous failure (timeout, a stream cut mid-answer, a 5xx). Endpoint
+  /// health demotes an unreachable endpoint immediately.
+  final bool endpointUnreachable;
+
   bool get isContextOverflow => code == LlmRequestFailureCode.contextOverflow;
 
-  /// The runtime terminal classification for this failure, or `null` when the
-  /// code does not decide one and the caller keeps its own default.
-  CavernoRuntimeFailureClassification? get runtimeClassification =>
+  /// Whether the failure is one an endpoint that cannot handle tool requests
+  /// produces: a rejected request, an unparseable response, or a server
+  /// error. The tool loop then retries the turn without tools.
+  bool get mayRejectToolRequests => switch (code) {
+    LlmRequestFailureCode.invalidRequest ||
+    LlmRequestFailureCode.invalidResponse ||
+    LlmRequestFailureCode.server => true,
+    _ => false,
+  };
+
+  /// The runtime terminal classification for this failure.
+  CavernoRuntimeFailureClassification get runtimeClassification =>
       switch (code) {
         LlmRequestFailureCode.localStorage =>
           const CavernoRuntimeFailureClassification(
@@ -131,15 +149,21 @@ final class LlmRequestFailure {
             code: 'service_unavailable',
             exitCode: 69,
           ),
-        _ => null,
+        _ => const CavernoRuntimeFailureClassification(
+          code: 'turn_failed',
+          exitCode: 2,
+        ),
       };
 
   static LlmRequestFailure _fromApi(ApiException error) {
     final statusCode = error.statusCode;
-    final retryAfter = error is RateLimitException ? error.retryAfter : null;
     final providerCode = error.code;
     final LlmRequestFailureCode code;
-    if (providerCode == 'context_length_exceeded' ||
+    // A 429 is a rate limit whatever its message says, so the retry policy
+    // keyed on it cannot be diverted by wording.
+    if (statusCode == 429) {
+      code = LlmRequestFailureCode.rateLimit;
+    } else if (providerCode == 'context_length_exceeded' ||
         _isContextOverflowText(error.message)) {
       code = LlmRequestFailureCode.contextOverflow;
     } else if (statusCode == 400 && _isTextOnlyInputText(error.message)) {
@@ -150,10 +174,35 @@ final class LlmRequestFailure {
     return LlmRequestFailure(
       code: code,
       statusCode: statusCode,
-      retryAfter: retryAfter,
+      retryAfter: code == LlmRequestFailureCode.rateLimit
+          ? _serverRequestedDelay(error)
+          : null,
       requestId: error.requestId,
     );
   }
+
+  /// The endpoint's own retry hint: the `Retry-After` header when the client
+  /// parsed one, and otherwise the figure OpenAI-compatible servers put in the
+  /// message body ("Please try again in 3.336s").
+  static Duration? _serverRequestedDelay(ApiException error) {
+    if (error case RateLimitException(retryAfter: final retryAfter?)) {
+      return retryAfter;
+    }
+    final match = _retryHintPattern.firstMatch(error.message);
+    final value = double.tryParse(match?.group(1) ?? '');
+    if (match == null || value == null) return null;
+    final microseconds = switch (match.group(2)!.toLowerCase()) {
+      'ms' => value * Duration.microsecondsPerMillisecond,
+      'm' => value * Duration.microsecondsPerMinute,
+      _ => value * Duration.microsecondsPerSecond,
+    };
+    return Duration(microseconds: microseconds.ceil());
+  }
+
+  static final RegExp _retryHintPattern = RegExp(
+    r'try again in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)\b',
+    caseSensitive: false,
+  );
 
   static LlmRequestFailure _fromAppleFoundationModels(
     AppleFoundationModelsException error,
@@ -191,6 +240,14 @@ final class LlmRequestFailure {
         >= 400 && < 500 => LlmRequestFailureCode.invalidRequest,
         _ => LlmRequestFailureCode.unknown,
       };
+
+  /// Connectivity failures that mean the endpoint is down or unreachable. A
+  /// connection attempt that only timed out stays ambiguous.
+  static bool _isUnreachable(Object error) => switch (error) {
+    SocketException() || HandshakeException() || http.ClientException() => true,
+    ConnectionException(:final cause) => cause is! TimeoutException,
+    _ => false,
+  };
 
   static bool _isLocalStorage(Object error) => switch (error) {
     SqliteException() ||

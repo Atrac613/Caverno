@@ -1,5 +1,6 @@
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/mesh_endpoint_router.dart';
+import 'llm_request_failure.dart';
 
 /// A resolved data source target for a role: the [dataSource] to call, the
 /// [model] to request, and which endpoint it is (empty [endpointId] / [isPrimary]
@@ -95,22 +96,10 @@ class MeshSecondaryCompletionRunner<D> {
   }
 
   /// Whether [error] is an unambiguous "endpoint is down" signal, as opposed to
-  /// a transient/ambiguous failure (timeout, intermittent 5xx). Matches socket
-  /// connectivity failures surfaced by `dart:io` / `http` clients.
+  /// a transient/ambiguous failure (timeout, intermittent 5xx), read from the
+  /// exception type rather than its text (LL45).
   static bool isHardEndpointFailure(Object error) {
-    final text = error.toString().toLowerCase();
-    return text.contains('socketexception') ||
-        text.contains('connection refused') ||
-        text.contains('connection failed') ||
-        text.contains('connection closed') ||
-        text.contains('connection reset') ||
-        text.contains('connection terminated') ||
-        text.contains('no route to host') ||
-        text.contains('network is unreachable') ||
-        text.contains('host is unreachable') ||
-        text.contains('failed host lookup') ||
-        text.contains('errno = 61') ||
-        text.contains('errno = 111');
+    return LlmRequestFailure.from(error).endpointUnreachable;
   }
 
   /// Resolve [endpointId] to a concrete data source + model without calling it.

@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:caverno/features/chat/data/datasources/mesh_secondary_completion_runner.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:openai_dart/openai_dart.dart' show ConnectionException;
 
 /// Identifies which endpoint a call landed on, plus the model requested.
 class _Call {
@@ -133,8 +138,8 @@ void main() {
       fallbackModel: 'primary-model',
       call: (dataSource, model) async {
         if (!dataSource.tag.startsWith('primary')) {
-          throw Exception(
-            'ClientException with SocketException: Connection refused '
+          throw http.ClientException(
+            'SocketException: Connection refused '
             '(OS Error: Connection refused, errno = 61)',
           );
         }
@@ -162,15 +167,22 @@ void main() {
     test('classifies connectivity failures as hard', () {
       expect(
         MeshSecondaryCompletionRunner.isHardEndpointFailure(
-          Exception('SocketException: Connection refused (errno = 61)'),
+          const SocketException('Connection refused', osError: OSError('', 61)),
         ),
         isTrue,
       );
       expect(
         MeshSecondaryCompletionRunner.isHardEndpointFailure(
-          Exception('Failed host lookup: mesh.local'),
+          const ConnectionException(message: 'Failed host lookup: mesh.local'),
         ),
         isTrue,
+      );
+      // Text that merely mentions a socket error is not one (LL45).
+      expect(
+        MeshSecondaryCompletionRunner.isHardEndpointFailure(
+          Exception('SocketException: Connection refused (errno = 61)'),
+        ),
+        isFalse,
       );
     });
 
@@ -183,7 +195,7 @@ void main() {
       );
       expect(
         MeshSecondaryCompletionRunner.isHardEndpointFailure(
-          Exception('TimeoutException after 0:00:30'),
+          TimeoutException('no response', const Duration(seconds: 30)),
         ),
         isFalse,
       );

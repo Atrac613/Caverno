@@ -7,6 +7,7 @@ import '../../../../core/utils/logger.dart';
 import '../../application/runtime/turn_abort_signals.dart';
 import 'chat_completion_bounds.dart';
 import 'chat_completion_parameter_compat.dart';
+import 'llm_request_failure.dart';
 
 /// Adapts chat-completion requests after an endpoint rejects parameters.
 final class ChatCompletionRequestFallback {
@@ -188,9 +189,8 @@ final class ChatCompletionRequestFallback {
           send(includeReasoning),
           operation,
         );
-        await for (final event in abort == null
-            ? bounded
-            : endOnAbort(bounded, abort)) {
+        await for (final event
+            in abort == null ? bounded : endOnAbort(bounded, abort)) {
           emittedEvent = true;
           yield event;
         }
@@ -221,34 +221,17 @@ final class ChatCompletionRequestFallback {
   /// server's own figure and the local backoff, so a retry cannot arrive
   /// earlier than the endpoint said it would be accepted.
   Duration? _rateLimitBackoff(ApiException error, int attempt) {
-    if (error.statusCode != 429 || attempt >= _maxRateLimitRetries) return null;
+    final failure = LlmRequestFailure.from(error);
+    if (failure.code != LlmRequestFailureCode.rateLimit ||
+        attempt >= _maxRateLimitRetries) {
+      return null;
+    }
     final localBackoff = _initialRateLimitDelay * (1 << attempt);
-    final serverRequest = _serverRequestedDelay(error);
+    final serverRequest = failure.retryAfter;
     final backoff = serverRequest == null || serverRequest < localBackoff
         ? localBackoff
         : serverRequest;
     return backoff > _maxRateLimitDelay ? _maxRateLimitDelay : backoff;
-  }
-
-  /// The endpoint's own retry hint: the `Retry-After` header when the client
-  /// parsed one, and otherwise the figure OpenAI-compatible servers put in the
-  /// message body ("Please try again in 3.336s").
-  Duration? _serverRequestedDelay(ApiException error) {
-    if (error case RateLimitException(retryAfter: final retryAfter?)) {
-      return retryAfter;
-    }
-    final match = RegExp(
-      r'try again in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)\b',
-      caseSensitive: false,
-    ).firstMatch(error.message);
-    final value = double.tryParse(match?.group(1) ?? '');
-    if (match == null || value == null) return null;
-    final microseconds = switch (match.group(2)!.toLowerCase()) {
-      'ms' => value * Duration.microsecondsPerMillisecond,
-      'm' => value * Duration.microsecondsPerMinute,
-      _ => value * Duration.microsecondsPerSecond,
-    };
-    return Duration(microseconds: microseconds.ceil());
   }
 
   void _logRateLimitRetry(String operation, Duration backoff, int attempt) =>
@@ -271,7 +254,8 @@ final class ChatCompletionRequestFallback {
   }
 
   bool _shouldRetryWithoutReasoning(ApiException error) =>
-      _reasoningEffort != null && error.statusCode == 400;
+      _reasoningEffort != null &&
+      LlmRequestFailure.from(error).statusCode == 400;
 
   void _logReasoningFallback(String operation) => appLog(
     '[LLM] $operation rejected reasoning_effort with HTTP 400; '

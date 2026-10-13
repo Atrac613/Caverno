@@ -27,7 +27,7 @@ void main() {
       final failure = LlmRequestFailure.from(error);
       expect(failure.code, LlmRequestFailureCode.localStorage);
       expect(failure.isContextOverflow, isFalse);
-      expect(failure.runtimeClassification?.code, 'persistence_failed');
+      expect(failure.runtimeClassification.code, 'persistence_failed');
     });
 
     test('Hive and file system errors', () {
@@ -224,10 +224,88 @@ void main() {
       );
     });
 
+    test('only connectivity failures mark the endpoint unreachable', () {
+      bool unreachable(Object error) =>
+          LlmRequestFailure.from(error).endpointUnreachable;
+      expect(unreachable(const SocketException('refused')), isTrue);
+      expect(unreachable(http.ClientException('Connection closed')), isTrue);
+      expect(unreachable(const ConnectionException(message: 'dns')), isTrue);
+      expect(
+        unreachable(
+          ConnectionException(message: 'slow', cause: TimeoutException('x')),
+        ),
+        isFalse,
+      );
+      expect(
+        unreachable(
+          const StreamException(
+            message: 'interrupted',
+            cause: SocketException('reset'),
+          ),
+        ),
+        isTrue,
+      );
+      expect(unreachable(const StreamException(message: 'cut')), isFalse);
+      expect(unreachable(TimeoutException('idle')), isFalse);
+      expect(
+        unreachable(createApiException(statusCode: 503, message: 'down')),
+        isFalse,
+      );
+      expect(unreachable(Exception('SocketException: refused')), isFalse);
+    });
+
+    test('tool-request rejection codes', () {
+      bool rejects(Object error) =>
+          LlmRequestFailure.from(error).mayRejectToolRequests;
+      expect(rejects(const BadRequestException(message: 'tools')), isTrue);
+      expect(rejects(const FormatException('bad')), isTrue);
+      expect(
+        rejects(createApiException(statusCode: 500, message: 'boom')),
+        isTrue,
+      );
+      expect(rejects(const AuthenticationException(message: 'key')), isFalse);
+      expect(
+        rejects(
+          SqliteException(extendedResultCode: 1, message: 'invalid json'),
+        ),
+        isFalse,
+      );
+      expect(rejects('unexpected empty invalid json'), isFalse);
+    });
+
+    test('a 429 stays a rate limit and reads the body retry hint', () {
+      final failure = LlmRequestFailure.from(
+        const RateLimitException(
+          message: 'Rate limit on tokens. Please try again in 3.336s.',
+        ),
+      );
+      expect(failure.code, LlmRequestFailureCode.rateLimit);
+      expect(failure.retryAfter, const Duration(microseconds: 3336000));
+      expect(
+        LlmRequestFailure.from(
+          const RateLimitException(message: 'token limit exceeded'),
+        ).code,
+        LlmRequestFailureCode.rateLimit,
+      );
+    });
+
+    test('every code maps to a runtime terminal code', () {
+      expect(
+        LlmRequestFailure.from('odd').runtimeClassification.code,
+        'turn_failed',
+      );
+      expect(
+        LlmRequestFailure.from(
+          TimeoutException('x'),
+        ).runtimeClassification.code,
+        'service_unavailable',
+      );
+    });
+
     test('an untyped error stays unknown', () {
       final failure = LlmRequestFailure.from('HTTP 401 unauthorized');
       expect(failure.code, LlmRequestFailureCode.unknown);
-      expect(failure.runtimeClassification, isNull);
+      expect(failure.runtimeClassification.code, 'turn_failed');
     });
   });
 }

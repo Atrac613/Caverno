@@ -31,7 +31,6 @@ extension ChatNotifierErrorHandling on ChatNotifier {
     final (:displayError, :runtimeFailure) = ChatErrorMessageBuilder.project(
       error,
       baseUrl: _settings.baseUrl,
-      fallback: _runtimeFailureClassifier,
     );
     if (!_activeResponseRegistry.containsOwner(owner)) {
       _failRuntimeTurn(

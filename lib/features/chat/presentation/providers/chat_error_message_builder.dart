@@ -26,18 +26,14 @@ final class ChatErrorMessageBuilder {
       buildFor(LlmRequestFailure.from(error), error, baseUrl: baseUrl);
 
   /// The display text and runtime terminal classification for a failed turn.
-  ///
-  /// [fallback] decides the runtime code only when the failure code does not.
   static ChatFailureProjection project(
     Object error, {
     required String baseUrl,
-    required CavernoRuntimeFailureClassifier fallback,
   }) {
     final failure = LlmRequestFailure.from(error);
     return (
       displayError: buildFor(failure, error, baseUrl: baseUrl),
-      runtimeFailure:
-          failure.runtimeClassification ?? fallback.classify(error.toString()),
+      runtimeFailure: failure.runtimeClassification,
     );
   }
 
