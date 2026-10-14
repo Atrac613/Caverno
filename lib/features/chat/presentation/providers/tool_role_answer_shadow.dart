@@ -4,22 +4,25 @@ import '../../../../core/utils/logger.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/claims/final_answer_recovery_policy.dart';
+import '../../domain/services/plan/proposal_parsing_text_utils.dart';
 import '../../domain/services/tool_loop/tool_role_answer_acceptance.dart';
 import '../../domain/services/tool_results/tool_result_prompt_builder.dart';
 import 'primary_turn_route_runtime.dart';
 import 'response_metadata_registry.dart';
 import 'turn_finalization_state_registry.dart';
 
-/// Shadow of [ToolRoleAnswerAcceptance]: records, as a turn transform,
-/// whether the tool loop's own complete answer would have stood, while the
-/// regeneration still runs.
+/// Applies [ToolRoleAnswerAcceptance] where the re-send would be built, on the
+/// same tool results and completion evidence it uses.
 ///
-/// Keeping the answer for real needs every final-answer guard re-proven on
-/// it: 23 guard tests script a different answer for the re-send than for the
-/// tool loop. Until then this measures how often the policy would accept, on
-/// the same tool results and completion evidence the re-send uses.
+/// Every decision is recorded as a `tool_role_answer_shadow_<decision>` turn
+/// transform. The answer is only kept when [AppSettings.keepToolRoleFinalAnswer]
+/// is on, which stays opt-in while 23 final-answer guard tests still script a
+/// different answer for the re-send than for the tool loop.
 abstract final class ToolRoleAnswerShadow {
-  static void record({
+  /// Returns the tool loop's answer when [keep] is on and the policy accepts
+  /// it, else null.
+  static String? record({
+    required bool keep,
     required TurnFinalizationStateRegistry turnEnd,
     required ResponseMetadataRegistry responseMetadata,
     required PrimaryTurnRouteRuntime routes,
@@ -28,7 +31,7 @@ abstract final class ToolRoleAnswerShadow {
     ToolResultCompletionEvidence? completionEvidence,
   }) {
     final answer = turnEnd.takeToolRoleAnswer(owner);
-    if (answer == null) return;
+    if (answer == null) return null;
     final g = owner.interactionGeneration;
     final decision = ToolRoleAnswerAcceptance.decide(
       candidate: answer,
@@ -51,8 +54,20 @@ abstract final class ToolRoleAnswerShadow {
         toolResults,
         completionEvidence: completionEvidence,
       ),
+      hasImageResults: toolResults.any(_carriesImage),
     );
     appLog('[Tool] Tool-role final answer shadow decision: ${decision.name}');
     turnEnd.addTransform(owner, 'tool_role_answer_shadow_${decision.name}');
+    if (!keep || decision != ToolRoleAnswerDecision.accept) return null;
+    turnEnd.addTransform(owner, 'tool_role_answer_kept');
+    return answer;
+  }
+
+  /// Mirrors what `ToolAnswerMessages` attaches to the re-send as an image.
+  static bool _carriesImage(ToolResultInfo result) {
+    final image = ProposalParsingTextUtils.tryDecodeMap(
+      result.result,
+    )?['imageBase64'];
+    return image is String && image.isNotEmpty;
   }
 }

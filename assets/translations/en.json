@@ -965,6 +965,8 @@
     "enable_thinking_off": "Off",
     "prefix_stable_tool_loop": "Prefix-stable tool loop",
     "prefix_stable_tool_loop_desc": "Send a stable full tool list across tool-loop requests to improve local KV-cache reuse. Dynamic tool search remains the default when this is off.",
+    "keep_tool_role_final_answer": "Keep the tool loop's final answer",
+    "keep_tool_role_final_answer_desc": "Use the answer the tool loop already produced instead of generating it again, unless completion blockers, a missing completion marker, or images require a fresh answer. Saves about 40 seconds per affected turn.",
     "semantic_search_section": "Semantic Search",
     "semantic_search": "Local semantic search",
     "semantic_search_desc": "Index conversation history with embeddings so history search ranks by meaning. Falls back to full-text search when embeddings are unavailable. Requires an OpenAI-compatible endpoint and an embeddings model.",

@@ -7,12 +7,14 @@ ToolRoleAnswerDecision _decide(
   bool eligibleTurn = true,
   String? requiredMarker,
   List<String> completionBlockers = const [],
+  bool hasImageResults = false,
 }) => ToolRoleAnswerAcceptance.decide(
   candidate: candidate,
   truncated: truncated,
   eligibleTurn: eligibleTurn,
   requiredMarker: requiredMarker,
   completionBlockers: completionBlockers,
+  hasImageResults: hasImageResults,
 );
 
 void main() {
@@ -60,6 +62,10 @@ void main() {
     expect(
       _decide('Partial', truncated: true),
       ToolRoleAnswerDecision.truncated,
+    );
+    expect(
+      _decide('Saw the settings page.', hasImageResults: true),
+      ToolRoleAnswerDecision.imageResults,
     );
     expect(
       _decide('<think>only reasoning</think>'),

@@ -16,6 +16,10 @@ enum ToolRoleAnswerDecision {
 
   /// A turn whose answer has a contract this policy does not model.
   ineligibleTurn,
+
+  /// Only the re-send carries tool-result images to the model, so an answer
+  /// over a screenshot must come from it.
+  imageResults,
   noVisibleAnswer,
   truncated,
 }
@@ -49,8 +53,10 @@ abstract final class ToolRoleAnswerAcceptance {
     required bool eligibleTurn,
     required String? requiredMarker,
     required List<String> completionBlockers,
+    bool hasImageResults = false,
   }) {
     if (!eligibleTurn) return ToolRoleAnswerDecision.ineligibleTurn;
+    if (hasImageResults) return ToolRoleAnswerDecision.imageResults;
     if (truncated) return ToolRoleAnswerDecision.truncated;
     final visible = ContentParser.stripModelHistoryArtifacts(candidate).trim();
     if (visible.isEmpty) return ToolRoleAnswerDecision.noVisibleAnswer;

@@ -1006,6 +1006,10 @@ abstract class AppSettings with _$AppSettings {
     // completion after each turn. Off means no extra completion is made.
     @Default(true) bool composerShortcutsEnabled,
     @Default(false) bool enablePrefixStableToolLoop,
+    // Keep the tool loop's own complete final answer instead of regenerating
+    // it from a user-role re-send, where ToolRoleAnswerAcceptance allows it.
+    // Opt-in while the final-answer guard tests still script the re-send.
+    @Default(false) bool keepToolRoleFinalAnswer,
     // LL5: opt-in local semantic search. When enabled and an embeddings model
     // is configured, conversation history is embedded for semantic search;
     // otherwise search degrades to lexical FTS.

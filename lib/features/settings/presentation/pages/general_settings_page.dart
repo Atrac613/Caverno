@@ -1245,6 +1245,16 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     value: settings.enablePrefixStableToolLoop,
                     onChanged: notifier.updateEnablePrefixStableToolLoop,
                   ),
+                  SwitchListTile(
+                    key: const ValueKey('settings-keep-tool-role-final-answer'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('settings.keep_tool_role_final_answer'.tr()),
+                    subtitle: Text(
+                      'settings.keep_tool_role_final_answer_desc'.tr(),
+                    ),
+                    value: settings.keepToolRoleFinalAnswer,
+                    onChanged: notifier.updateKeepToolRoleFinalAnswer,
+                  ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _maxTokensController,
@@ -1515,8 +1525,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
     );
     _enabled = existing?.enabled ?? true;
     _videoInputEnabled = existing?.videoInputEnabled ?? false;
-    _chatTemplateKwargsEnabled =
-        existing?.chatTemplateKwargsEnabled ?? false;
+    _chatTemplateKwargsEnabled = existing?.chatTemplateKwargsEnabled ?? false;
   }
 
   @override
@@ -1656,8 +1665,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
               title: Text('settings.endpoint_video_input_field'.tr()),
               subtitle: Text('settings.endpoint_video_input_hint'.tr()),
               value: _videoInputEnabled,
-              onChanged: (value) =>
-                  setState(() => _videoInputEnabled = value),
+              onChanged: (value) => setState(() => _videoInputEnabled = value),
             ),
             SwitchListTile(
               key: const ValueKey(
@@ -1665,7 +1673,9 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
               ),
               contentPadding: EdgeInsets.zero,
               title: Text('settings.endpoint_chat_template_kwargs_field'.tr()),
-              subtitle: Text('settings.endpoint_chat_template_kwargs_hint'.tr()),
+              subtitle: Text(
+                'settings.endpoint_chat_template_kwargs_hint'.tr(),
+              ),
               value: _chatTemplateKwargsEnabled,
               onChanged: (value) =>
                   setState(() => _chatTemplateKwargsEnabled = value),

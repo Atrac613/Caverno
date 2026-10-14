@@ -965,6 +965,8 @@
     "enable_thinking_off": "オフ",
     "prefix_stable_tool_loop": "Prefix-stable tool loop",
     "prefix_stable_tool_loop_desc": "ローカル KV cache の再利用を高めるため、tool loop のリクエスト間で完全な tool list を固定して送ります。OFF の場合は従来どおり dynamic tool search を使います。",
+    "keep_tool_role_final_answer": "tool loop の最終回答をそのまま使う",
+    "keep_tool_role_final_answer_desc": "tool loop がすでに生成した回答を再生成せずに使います。完了を妨げる問題の指示・完了マーカーの欠落・画像を含む結果がある場合は従来どおり再生成します。該当ターンごとに約 40 秒短縮されます。",
     "semantic_search_section": "セマンティック検索",
     "semantic_search": "ローカルセマンティック検索",
     "semantic_search_desc": "会話履歴を埋め込みでインデックス化し、履歴検索を意味でランク付けします。埋め込みが利用できない場合は全文検索にフォールバックします。OpenAI 互換エンドポイントと埋め込みモデルが必要です。",

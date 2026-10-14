@@ -12,7 +12,8 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
   }) async {
     final turnOwner = _turnOwnerForGeneration(interactionGeneration);
     if (turnOwner == null) return '';
-    ToolRoleAnswerShadow.record(
+    final keptAnswer = ToolRoleAnswerShadow.record(
+      keep: _settings.keepToolRoleFinalAnswer,
       turnEnd: _turnEnd,
       responseMetadata: _responseMetadata,
       routes: _primaryRoutes,
@@ -20,6 +21,58 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
       toolResults: toolResults,
       completionEvidence: completionEvidence,
     );
+    // Guards every final answer passes, streamed or kept from the tool loop.
+    String finishAnswer(String rawAnswer, String preAnswerContent) {
+      _stripToolArtifactsFromStreamedAnswerSuffix(
+        interactionGeneration,
+        preAnswerContent: preAnswerContent,
+      );
+      _appendUnexecutedToolRequestNoticeForContentIfNeeded(
+        owner: turnOwner,
+        interactionGeneration: interactionGeneration,
+        content: rawAnswer,
+        toolResults: toolResults,
+      );
+      _replaceTimedOutCommandSuccessClaimIfNeeded(
+        toolResults: toolResults,
+        interactionGeneration: interactionGeneration,
+      );
+      _replaceFailedCommandSuccessClaimIfNeeded(
+        toolResults: toolResults,
+        interactionGeneration: interactionGeneration,
+      );
+      _appendUnexecutedFileSideEffectNoticeIfNeeded(
+        toolResults: toolResults,
+        interactionGeneration: interactionGeneration,
+      );
+      // Text only. stripToolArtifacts keeps thinking segments and drops
+      // just tool tags, leaving reasoning with nothing to mark it: session
+      // e40965bc handed that to the unexecuted-command guard, which read a
+      // product release out of the model's deliberation as a command run.
+      // Every consumer here asks what the assistant asserted.
+      final strippedAnswer = ContentParser.stripModelHistoryArtifacts(
+        rawAnswer,
+      ).trim();
+      if (strippedAnswer.isNotEmpty) {
+        _lastStreamedToolResultFinalAnswersByGeneration[interactionGeneration] =
+            strippedAnswer;
+      } else {
+        _lastStreamedToolResultFinalAnswersByGeneration.remove(
+          interactionGeneration,
+        );
+      }
+      return strippedAnswer;
+    }
+
+    if (keptAnswer != null) {
+      final preAnswerContent =
+          _lastMessageContentForGeneration(interactionGeneration) ?? '';
+      _appendRecoveredAssistantResponse(
+        keptAnswer,
+        interactionGeneration: interactionGeneration,
+      );
+      return finishAnswer(keptAnswer, preAnswerContent);
+    }
     final protectedPaths = const ContextSurgeryProtectedPathPolicy()
         .protectedPathsFor(_conversationForGeneration(interactionGeneration));
     Future<ChatCompletionResult?> requestConciseRecovery({
@@ -264,46 +317,7 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
               );
             }
           }
-          _stripToolArtifactsFromStreamedAnswerSuffix(
-            interactionGeneration,
-            preAnswerContent: preAnswerContent,
-          );
-          _appendUnexecutedToolRequestNoticeForContentIfNeeded(
-            owner: turnOwner,
-            interactionGeneration: interactionGeneration,
-            content: rawStreamedAnswer,
-            toolResults: toolResults,
-          );
-          _replaceTimedOutCommandSuccessClaimIfNeeded(
-            toolResults: toolResults,
-            interactionGeneration: interactionGeneration,
-          );
-          _replaceFailedCommandSuccessClaimIfNeeded(
-            toolResults: toolResults,
-            interactionGeneration: interactionGeneration,
-          );
-          _appendUnexecutedFileSideEffectNoticeIfNeeded(
-            toolResults: toolResults,
-            interactionGeneration: interactionGeneration,
-          );
-          // Text only. stripToolArtifacts keeps thinking segments and drops
-          // just tool tags, leaving reasoning with nothing to mark it: session
-          // e40965bc handed that to the unexecuted-command guard, which read a
-          // product release out of the model's deliberation as a command run.
-          // Every consumer here asks what the assistant asserted.
-          final strippedStreamedAnswer =
-              ContentParser.stripModelHistoryArtifacts(
-                rawStreamedAnswer,
-              ).trim();
-          if (strippedStreamedAnswer.isNotEmpty) {
-            _lastStreamedToolResultFinalAnswersByGeneration[interactionGeneration] =
-                strippedStreamedAnswer;
-          } else {
-            _lastStreamedToolResultFinalAnswersByGeneration.remove(
-              interactionGeneration,
-            );
-          }
-          return strippedStreamedAnswer;
+          return finishAnswer(rawStreamedAnswer, preAnswerContent);
         },
       );
     }

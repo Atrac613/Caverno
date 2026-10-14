@@ -232,7 +232,9 @@ void registerChatNotifierFinalAnswerRecoveryTests() {
         .map((line) => jsonDecode(line) as Map<String, dynamic>)
         .toList(growable: false);
     final turnExitPayload =
-        entries.lastWhere((entry) => entry['operation'] == 'turn_exit')['turnExit']
+        entries.lastWhere(
+              (entry) => entry['operation'] == 'turn_exit',
+            )['turnExit']
             as Map<String, dynamic>;
     expect(
       turnExitPayload['transforms'],
@@ -402,6 +404,137 @@ void registerChatNotifierFinalAnswerRecoveryTests() {
       expect(fixture.toolService.executedToolNames, ['read_file']);
       expect(fixture.dataSource.toolResultCompletionCount, greaterThan(1));
     },
+  );
+
+  group('keepToolRoleFinalAnswer', () {
+    ProviderContainer containerFor(
+      _QueuedToolLoopChatDataSource dataSource,
+      _FakeMcpToolService toolService,
+    ) {
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      return ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _KeepToolRoleAnswerSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+    }
+
+    test('keeps the tool loop answer without a re-send', () async {
+      const answer = 'The Dart script was ported and verified successfully.';
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'run-dart-script',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'dart run prime_numbers.dart',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: answer, finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['A re-send must not run.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': 'dart run prime_numbers.dart',
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout': '168 primes\n',
+            'stderr': '',
+          }),
+        },
+      );
+      final container = containerFor(dataSource, toolService);
+      addTearDown(container.dispose);
+      final appLogs = captureAppLog();
+
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage('Port the script to Dart and verify it');
+
+      expect(dataSource.finalAnswerMessages, isEmpty);
+      expect(notifier.state.messages.last.content, contains(answer));
+      expect(
+        notifier.state.messages.last.content,
+        isNot(contains('A re-send must not run.')),
+      );
+      expect(
+        appLogs,
+        contains('[Tool] Tool-role final answer shadow decision: accept'),
+      );
+    });
+
+    test('the final-answer guards still read a kept answer', () async {
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-read',
+            name: 'read_file',
+            arguments: const {'path': '/tmp/session-log.jsonl'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'I need to retry the analysis.\n\n'
+                '[Tool: run_python_script]\n'
+                'Arguments: {"code":"print(1)"}',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['A re-send must not run.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file':
+              '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
+        },
+      );
+      final container = containerFor(dataSource, toolService);
+      addTearDown(container.dispose);
+      final appLogs = captureAppLog();
+
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage('Find and read the interrupted log');
+
+      expect(dataSource.finalAnswerMessages, isEmpty);
+      expectUnexecutedToolRequestLogged(
+        appLogs,
+        notifier.state.messages.last.content,
+      );
+    });
+  });
+}
+
+class _KeepToolRoleAnswerSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() => _baseTestSettings().copyWith(
+    assistantMode: AssistantMode.general,
+    mcpEnabled: true,
+    demoMode: false,
+    codingApprovalMode: ToolApprovalMode.fullAccess,
+    confirmFileMutations: false,
+    confirmLocalCommands: false,
+    confirmGitWrites: false,
+    keepToolRoleFinalAnswer: true,
   );
 }
 

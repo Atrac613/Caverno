@@ -668,6 +668,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   composerShortcutsEnabled: json['composerShortcutsEnabled'] as bool? ?? true,
   enablePrefixStableToolLoop:
       json['enablePrefixStableToolLoop'] as bool? ?? false,
+  keepToolRoleFinalAnswer: json['keepToolRoleFinalAnswer'] as bool? ?? false,
   enableSemanticSearch: json['enableSemanticSearch'] as bool? ?? false,
   embeddingsModel: json['embeddingsModel'] as String? ?? '',
   embeddingsEndpointId: json['embeddingsEndpointId'] as String? ?? '',
@@ -802,6 +803,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'enableAgentsMd': instance.enableAgentsMd,
   'composerShortcutsEnabled': instance.composerShortcutsEnabled,
   'enablePrefixStableToolLoop': instance.enablePrefixStableToolLoop,
+  'keepToolRoleFinalAnswer': instance.keepToolRoleFinalAnswer,
   'enableSemanticSearch': instance.enableSemanticSearch,
   'embeddingsModel': instance.embeddingsModel,
   'embeddingsEndpointId': instance.embeddingsEndpointId,

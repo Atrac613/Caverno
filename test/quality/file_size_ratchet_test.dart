@@ -1360,7 +1360,9 @@ const Map<String, int> _libraryLineBudgets = {
   // +10: the tool loop holds its own final answer and the re-send records a
   // shadow decision on keeping it; the policy and the shadow live outside
   // the library (ToolRoleAnswerAcceptance, ToolRoleAnswerShadow).
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19724,
+  // +14: a kept tool-role answer is appended in place of the re-send and
+  // passes the same final-answer guards, now one shared local function.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19738,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

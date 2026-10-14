@@ -992,6 +992,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateKeepToolRoleFinalAnswer(bool value) async {
+    state = state.copyWith(keepToolRoleFinalAnswer: value);
+    await _repository.save(state);
+  }
+
   /// LL5: toggle local semantic search over conversation history.
   Future<void> updateEnableSemanticSearch(bool value) async {
     state = state.copyWith(enableSemanticSearch: value);
