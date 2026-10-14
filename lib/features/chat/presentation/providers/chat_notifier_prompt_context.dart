@@ -215,6 +215,7 @@ extension ChatNotifierPromptContext on ChatNotifier {
     );
     final projectContext = ref.read(projectPromptContextSourceProvider);
     final content = SystemPromptBuilder.build(
+      onSections: SystemPromptSectionRegistry.instance.record,
       now: now,
       assistantMode: resolvedAssistantMode,
       languageCode: resolvedLanguage,

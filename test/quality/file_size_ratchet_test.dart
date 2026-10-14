@@ -1362,7 +1362,9 @@ const Map<String, int> _libraryLineBudgets = {
   // the library (ToolRoleAnswerAcceptance, ToolRoleAnswerShadow).
   // +14: a kept tool-role answer is appended in place of the re-send and
   // passes the same final-answer guards, now one shared local function.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19738,
+  // +1: the system prompt build registers its named sections for the session
+  // log (LL46); the registry and the sections live outside the library.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19739,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

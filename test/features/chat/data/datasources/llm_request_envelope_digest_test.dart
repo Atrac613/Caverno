@@ -5,8 +5,10 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_response_telemetry.dart';
 import 'package:caverno/features/chat/data/datasources/llm_request_envelope_digest.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/data/datasources/system_prompt_section_registry.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/token_usage.dart';
+import 'package:caverno/features/chat/domain/services/system_prompt_sections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openai_dart/openai_dart.dart' show PromptTokensDetails, Usage;
 
@@ -129,13 +131,25 @@ void main() {
         ),
       );
       final decoded = await recordWith(usage);
-      expect(decoded['schemaVersion'], 6);
+      expect(decoded['schemaVersion'], 7);
       expect(decoded['request']['envelope'], {
         'config': isA<String>(),
         'systemPrompt': isA<String>(),
         'tools': isA<String>(),
       });
       expect(decoded['response']['usage']['cachedPromptTokens'], 0);
+    });
+
+    test('records the sections of a registered system prompt', () async {
+      SystemPromptSectionRegistry.instance.record('You are Caverno.', const [
+        SystemPromptSection('core_principles', 10),
+        SystemPromptSection('temporal_context', 6),
+      ]);
+      final decoded = await recordWith(TokenUsage.zero);
+      expect(decoded['request']['systemPromptSections'], [
+        {'id': 'core_principles', 'chars': 10},
+        {'id': 'temporal_context', 'chars': 6},
+      ]);
     });
 
     test(

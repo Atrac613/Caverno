@@ -201,6 +201,10 @@ Each line is one JSON object with schema name
   "not reported". `tool/triage_session_logs.py` reports each fall in the
   cache-read count against the digest that changed, per model and usage role
   (LL43).
+- `request.systemPromptSections` (schema v7): the named sections of the
+  request's system prompt and their sizes in characters, when the prompt was
+  built by `SystemPromptBuilder` in this process (LL46). The section ids are
+  listed in `docs/model_input_inventory.md`.
 - Response content, finish reason, tool calls, token usage, or error details
 - Turn-level markers such as `turn_exit`, `goal_auto_continue`,
   `primary_model_route`, `goal_completion_shadow`, `execution_shadow`,

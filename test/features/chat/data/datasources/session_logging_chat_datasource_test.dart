@@ -920,7 +920,7 @@ void main() {
       )).readAsLines()).single;
       final decoded = jsonDecode(line) as Map<String, dynamic>;
       expect(decoded['request']['label'], 'narrated transcript feedback');
-      expect(decoded['schemaVersion'], 6);
+      expect(decoded['schemaVersion'], 7);
     });
 
     test('records structured-output requests with their label', () async {

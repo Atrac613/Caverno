@@ -46,7 +46,8 @@ class SystemPromptBuilder {
     bool hasPythonInputAttachment = false,
     ModelCapabilityProfile? modelCapabilityProfile,
     ModelHarnessConfig? modelHarnessConfig,
-    void Function(List<SystemPromptSection> sections)? onSections,
+    void Function(String prompt, List<SystemPromptSection> sections)?
+    onSections,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -978,7 +979,7 @@ class SystemPromptBuilder {
     }
 
     final prompt = buffer.toString().trimRight();
-    onSections?.call(buffer.sectionsFor(prompt));
+    onSections?.call(prompt, buffer.sectionsFor(prompt));
     return prompt;
   }
 

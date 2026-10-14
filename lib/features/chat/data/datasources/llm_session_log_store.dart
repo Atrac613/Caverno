@@ -10,8 +10,10 @@ import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/model_usage_role.dart';
 import '../../domain/entities/video_delivery.dart';
+import '../../domain/services/system_prompt_sections.dart';
 import 'chat_remote_datasource.dart';
 import 'llm_request_envelope_digest.dart';
+import 'system_prompt_section_registry.dart';
 
 const Object _llmSessionLogContextZoneKey = Object();
 
@@ -326,7 +328,8 @@ class LlmSessionLogStore {
   // v5 adds strict tool choice and thinking controls to request evidence.
   // v6 adds `request.envelope` digests and writes a reported zero
   // `usage.cachedPromptTokens` (LL43).
-  static const schemaVersion = 6;
+  // v7 adds `request.systemPromptSections` (LL46).
+  static const schemaVersion = 7;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
   static const directoryEnvironmentKey = 'CAVERNO_SESSION_LOG_DIR';
   static const _fallbackSessionId = 'unscoped';
@@ -812,6 +815,10 @@ class LlmSessionLogStore {
       if (request.label != null && request.label!.trim().isNotEmpty)
         'label': request.label!.trim(),
       'usageRole': request.usageRole.name,
+      if (_systemPromptSections(request.messages) case final sections?)
+        'systemPromptSections': [
+          for (final section in sections) section.toJson(),
+        ],
       'envelope': LlmRequestEnvelopeDigest.compute(
         messages: request.messages,
         tools: request.tools,
@@ -843,6 +850,19 @@ class LlmSessionLogStore {
       if (request.assistantContent != null)
         'assistantContent': request.assistantContent,
     };
+  }
+
+  /// The named sections of the request's built system prompt, when the
+  /// builder registered them (LL46).
+  List<SystemPromptSection>? _systemPromptSections(List<Message> messages) {
+    for (final message in messages) {
+      if (message.role != MessageRole.system) continue;
+      final sections = SystemPromptSectionRegistry.instance.sectionsFor(
+        message.content,
+      );
+      if (sections != null) return sections;
+    }
+    return null;
   }
 
   Map<String, dynamic> _responseToJson(LlmSessionLogResponse response) {

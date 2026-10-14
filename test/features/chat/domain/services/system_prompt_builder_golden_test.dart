@@ -219,7 +219,7 @@ String _coding({
   ModelHarnessConfig? harness,
   bool fullContext = false,
 }) => SystemPromptBuilder.build(
-  onSections: (sections) => _sectionsSink?.call(sections),
+  onSections: (_, sections) => _sectionsSink?.call(sections),
   now: _now,
   assistantMode: AssistantMode.coding,
   toolNames: toolNames,
@@ -267,12 +267,12 @@ final _longPlan = ConversationPlanArtifact(
 
 Map<String, String Function()> _scenarios() => {
   'general_minimal': () => SystemPromptBuilder.build(
-    onSections: (sections) => _sectionsSink?.call(sections),
+    onSections: (_, sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.general,
   ),
   'general_all_tools_ja': () => SystemPromptBuilder.build(
-    onSections: (sections) => _sectionsSink?.call(sections),
+    onSections: (_, sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.general,
     languageCode: 'ja',
@@ -281,14 +281,14 @@ Map<String, String Function()> _scenarios() => {
     environmentGroundingContext: 'macOS 26',
   ),
   'general_voice': () => SystemPromptBuilder.build(
-    onSections: (sections) => _sectionsSink?.call(sections),
+    onSections: (_, sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.general,
     toolNames: _allTools,
     isVoiceMode: true,
   ),
   'plan_read_tools': () => SystemPromptBuilder.build(
-    onSections: (sections) => _sectionsSink?.call(sections),
+    onSections: (_, sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.plan,
     toolNames: const ['list_directory', 'read_file'],
@@ -324,7 +324,7 @@ Map<String, String Function()> _scenarios() => {
     ),
   ),
   'coding_idle_approved_plan': () => SystemPromptBuilder.build(
-    onSections: (sections) => _sectionsSink?.call(sections),
+    onSections: (_, sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.coding,
     toolNames: _allTools,
@@ -332,7 +332,7 @@ Map<String, String Function()> _scenarios() => {
     planArtifact: _plan,
   ),
   'plan_idle_long_draft': () => SystemPromptBuilder.build(
-    onSections: (sections) => _sectionsSink?.call(sections),
+    onSections: (_, sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.plan,
     toolNames: const ['list_directory', 'read_file'],

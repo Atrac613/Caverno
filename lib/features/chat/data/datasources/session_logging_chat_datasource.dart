@@ -13,6 +13,8 @@ import 'demo_datasource.dart';
 import 'llm_session_log_store.dart';
 import 'strict_tool_choice_policy.dart';
 
+export 'system_prompt_section_registry.dart' show SystemPromptSectionRegistry;
+
 final llmSessionLogStoreProvider = Provider<LlmSessionLogStore>((ref) {
   return LlmSessionLogStore();
 });
