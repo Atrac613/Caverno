@@ -2489,6 +2489,17 @@ void main() {
           .timeout(const Duration(seconds: 5));
       expect(ownerB?.conversationId, threadB);
 
+      // Every visible state while A finishes in the background, so a write
+      // that is later reconciled away is still caught.
+      final visibleWhileDetached = <String>[];
+      final subscription = container.listen(
+        chatNotifierProvider,
+        (_, next) => visibleWhileDetached.addAll(
+          next.messages.map((message) => message.content),
+        ),
+      );
+      addTearDown(subscription.close);
+
       releaseOwnerA.complete();
       final ownerA = await ownerAFuture.timeout(const Duration(seconds: 5));
       expect(ownerA?.conversationId, threadA);
@@ -2515,6 +2526,18 @@ void main() {
 
       expect(await transformsFor(threadA), contains(transform));
       expect(await transformsFor(threadB), isNot(contains(transform)));
+      // F5: the corrected answer is A's alone. Applying it must not replace
+      // the visible thread's messages while B is on screen.
+      expect(
+        container.read(conversationsNotifierProvider).currentConversationId,
+        threadB,
+      );
+      expect(
+        notifier.state.messages.map((message) => message.content),
+        everyElement(isNot(contains('Owner A'))),
+      );
+      expect(visibleWhileDetached, isNotEmpty);
+      expect(visibleWhileDetached, everyElement(isNot(contains('Owner A'))));
     },
   );
 

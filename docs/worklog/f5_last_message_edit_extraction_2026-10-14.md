@@ -68,3 +68,17 @@ characterization attempt did not reach any notice path (the bracketed answer
 in a no-tool-call coding turn did not trigger the unexecuted-tool-request
 notice), so it was discarded rather than kept as a test that pins nothing.
 Freeze that guard before moving `_applyFinalAnswerMessageMutation`.
+
+## Gap closed (2026-10-15)
+
+`generation-derived final-answer transform stays with its detached owner`
+now also records every visible chat state while owner A finishes in the
+background and requires none of them to hold A's text. Removing the detached
+early return in `_applyFinalAnswerMessageMutation` fails it: A's corrected
+answer briefly replaced the visible thread's messages before the turn end
+reconciled them, which a final-state check could not see.
+
+`_applyFinalAnswerMessageMutation` stays where it is: it commits to the cache
+before the state and can route to another thread's state, while the shared
+last-message rewrite commits state first, so folding them would change the
+order listeners observe.
