@@ -194,7 +194,7 @@ structurally unmotivated to build:
 | Local LLM | LL43 | done | S | LL6, LL33 | Request envelope fingerprint and cache-break detection: log a digest of each request's stable envelope (model, call config, system prompt, tool catalog) plus the provider's cache-read count on every request, including zero, so a prefix break is a field comparison in triage instead of a hand diff. Instrument only; no request-construction change. From the DeepSeek Harness comparison (`docs/deepseek_harness_comparison_2026-10-08.md`). |
 | Local LLM | LL44 | later | S-M | LL34, HEU3 | Non-execution as a typed fact: one typed field states whether the tool body ran and why not (refused by policy, approval denied, cancelled before dispatch, timed out, failed to spawn), so the failure classifier, the executed-call ledger, and the turn digest stop parsing `ok` / `executed` markers out of the result JSON. Evidence-gated: the motivating commit-guard defect was fixed per producer in `6ab0621de`; promote on the next non-execution misclassification. |
 | Local LLM | LL45 | done | S-M | F3, LL8 | Structured LLM request failure: capture a provider-neutral failure value at the transport boundary (code, HTTP status, retry-after, provider request id) and derive both retry policy and user-facing text from it, replacing substring classification in `ChatErrorMessageBuilder`. Non-provider errors (storage, local I/O) never reach the provider classifier. |
-| Local LLM | LL46 | later | S | LL33, LL36 | Model-visible injection inventory: one entry per harness producer that injects text into model input, keyed on its LL33 transform id, recording the text, its settle condition, its token cost, and whether it appends or rewrites the cached prefix. A test fails when a producer has no entry. |
+| Local LLM | LL46 | current | S | LL33, LL36 | Model-visible injection inventory: one entry per harness producer that injects text into model input, keyed on its LL33 transform id, recording the text, its settle condition, its token cost, and whether it appends or rewrites the cached prefix. A test fails when a producer has no entry. |
 | Local LLM | LL47 | later | S-M | LL14, LL30, SEC1 | Oversized tool-output spill files: when a result is truncated to head and tail, write the complete output to a private owner-only file and name its path in the result so the model can read the omitted part. The spill location must be readable through the model's own read fence, decided with SEC1. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
@@ -6180,7 +6180,7 @@ longer used by the app.
 
 ### LL46: Model-Visible Injection Inventory
 
-Status: `later`
+Status: `current` (first slice 2026-10-14: requests keyed by label)
 
 Scope: one entry per harness producer that injects text into model input,
 keyed on its LL33 transform id: the text or template, the settle condition,
@@ -6202,9 +6202,18 @@ guidance written into tool-result payloads. The first concrete entry is the
 tool-result final-answer re-send (`ToolResultPromptBuilder.buildAnswerPrompt`,
 label `tool-result final answer`), which rewrites the cached prefix.
 
-Next action: decide the inventory's key (request label, producer class, or a
-new injection id) and which of the three producer kinds the first slice
-covers, then generate the inventory for that kind.
+First slice (2026-10-14), keyed on the session-log request label by user
+decision: `docs/model_input_inventory.md` has one row per label with its
+producer, what it adds, its shape (appended to the loop or a separate
+request), measured frequency and size, and v6 prefix evidence.
+`test/docs/model_input_inventory_docs_test.dart` fails when a label in `lib/`
+has no row. Approval auto-review, memory extraction and planning requests,
+1,722 of 2,431 unlabeled requests in the corpus, were labelled first
+(`8d450db34`), and the label now replaces one inherited from a chat turn.
+
+Next action: the other two producer kinds (system-prompt sections and
+guidance written into tool-result payloads), and labels for producers outside
+the chat feature (routines, farm decomposition, diagnostics).
 
 ### LL47: Oversized Tool-Output Spill Files
 

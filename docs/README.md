@@ -37,6 +37,7 @@ current. A one-off investigation goes to `worklog/` with a date in its name.
 ## Logs, canaries and diagnostics
 
 - [session_logs.md](session_logs.md) — session log schema, redaction, retention, analysis
+- [model_input_inventory.md](model_input_inventory.md) — every labelled model request: producer, what it injects, prefix effect (LL46)
 - [live_llm_canary_agent_runbook.md](live_llm_canary_agent_runbook.md) — live canary preflight and triage
 - [live_llm_canary_coverage.md](live_llm_canary_coverage.md) — live canary surface coverage
 - [routine_live_llm_canary.md](routine_live_llm_canary.md) — routine canary
