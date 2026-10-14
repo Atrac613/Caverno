@@ -6217,8 +6217,15 @@ and their measured counts; routine requests labelled `routine run` and
 `routine plan draft`. Finding: subagent, project-state, eval and
 goal-suggestion requests never reach the session-log corpus at all.
 
-Next action: system-prompt sections; and decide whether the roles absent from
-the session log should be recorded there.
+Third slice (2026-10-14): farm structured-output requests (labelled by schema
+name) and worktree agent runs now reach the session log. System-prompt census
+(`docs/worklog/system_prompt_size_census_2026-10-14.md`): a coding system
+prompt is ~23.8k characters at the median, ~18.8k of it inline guidance in
+`SystemPromptBuilder.build` with no section ids.
+
+Next action: name the builder's sections behind a byte-identical golden test
+(a large-file refactor), then inventory them and record per-request section
+ids in the session log.
 
 ### LL47: Oversized Tool-Output Spill Files
 
