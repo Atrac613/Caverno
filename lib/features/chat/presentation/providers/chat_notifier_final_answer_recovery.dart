@@ -73,6 +73,7 @@ extension ChatNotifierFinalAnswerRecovery on ChatNotifier {
       );
       return finishAnswer(keptAnswer, preAnswerContent);
     }
+    appLog('[Tool] Resending tool results as user message');
     final protectedPaths = const ContextSurgeryProtectedPathPolicy()
         .protectedPathsFor(_conversationForGeneration(interactionGeneration));
     Future<ChatCompletionResult?> requestConciseRecovery({

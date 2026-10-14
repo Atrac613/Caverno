@@ -979,7 +979,6 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         );
     var finalCompletionEvidenceIsCurrent = true;
     if (!hasTextResponse && finalToolResults.isNotEmpty) {
-      appLog('[Tool] Resending tool results as user message');
       if (!ref.mounted) return;
       final preFinalAnswerContent =
           _lastMessageContentForGeneration(interactionGeneration) ?? '';
