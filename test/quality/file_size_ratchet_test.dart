@@ -88,7 +88,9 @@ const Map<String, int> _lineBudgets = {
   // -10: extraction and fresh/repeated partition moved behind seen acceptance.
   // -11: LL45 replaced the tool-mode fallback's text match with a failure code.
   // -5: hidden-evidence recording moved to the terminal response part.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7224,
+  // -52: append, replace and trailing-think helpers share one owner-scoped
+  // rewrite (LastMessageEdit) instead of duplicated attached/detached copies.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7172,
   'lib/features/chat/domain/services/tool_loop/content_tool_call_partition.dart':
       35,
   'lib/features/chat/domain/services/tool_loop/repeated_content_tool_recovery_plan.dart':
@@ -1364,7 +1366,8 @@ const Map<String, int> _libraryLineBudgets = {
   // passes the same final-answer guards, now one shared local function.
   // +1: the system prompt build registers its named sections for the session
   // log (LL46); the registry and the sections live outside the library.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19739,
+  // -52: the owner-scoped last-message helpers share one rewrite.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19687,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

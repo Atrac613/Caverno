@@ -273,6 +273,7 @@ import 'goal_update_notifier_runtime_coordinator.dart';
 import 'hidden_assistant_evidence_registry.dart';
 import 'hidden_prompt_launch_options.dart';
 import 'html_preview_provider.dart';
+import 'last_message_edit.dart';
 import 'macos_computer_use_approval_copy.dart';
 import 'mcp_tool_provider.dart';
 import 'model_edit_apply_telemetry_runtime_adapter.dart';
@@ -5664,39 +5665,11 @@ class ChatNotifier extends Notifier<ChatState> {
     String chunk, {
     bool scanForTools = true,
   }) {
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      final activeMessages = _activeResponseMessagesForGeneration(generation);
-      if (activeMessages == null || activeMessages.isEmpty) return;
-
-      final updatedMessages = [...activeMessages];
-      final lastIndex = updatedMessages.length - 1;
-      final lastMessage = updatedMessages[lastIndex];
-      final newContent = lastMessage.content + chunk;
-      _runtimeEvents.emitRuntimeAssistantContent(generation, newContent);
-      updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
-      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-      if (scanForTools) {
-        _checkForContentToolCalls(
-          newContent,
-          interactionGeneration: generation,
-        );
-      }
-      return;
-    }
-
-    if (!ref.mounted || state.messages.isEmpty) return;
-
-    final updatedMessages = [...state.messages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-
-    final newContent = lastMessage.content + chunk;
+    final content = _lastMessageContentForGeneration(generation);
+    if (content == null) return;
+    final newContent = content + chunk;
     _runtimeEvents.emitRuntimeAssistantContent(generation, newContent);
-    updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
-
-    state = state.copyWith(messages: updatedMessages);
-    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-
+    _replaceLastMessageContentForGeneration(generation, newContent);
     // Check whether the content contains completed tool-call tags.
     if (scanForTools) {
       _checkForContentToolCalls(newContent, interactionGeneration: generation);
@@ -5719,58 +5692,33 @@ class ChatNotifier extends Notifier<ChatState> {
   String? _lastMessageContentForGeneration(int generation) =>
       _lastMessageForGeneration(generation)?.content;
 
+  /// Rewrites the turn's own last message: its cached list when detached,
+  /// the visible state as well when attached.
   void _replaceLastMessageContentForGeneration(
     int generation,
     String newContent,
   ) {
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      final activeMessages = _activeResponseMessagesForGeneration(generation);
-      if (activeMessages == null || activeMessages.isEmpty) return;
-
-      final updatedMessages = [...activeMessages];
-      final lastIndex = updatedMessages.length - 1;
-      final lastMessage = updatedMessages[lastIndex];
-      updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
-      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-      return;
-    }
-
-    if (!ref.mounted || state.messages.isEmpty) return;
-
-    final updatedMessages = [...state.messages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-
-    updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
-    state = state.copyWith(messages: updatedMessages);
-    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    final detached = _isActiveResponseDetachedForGeneration(generation);
+    final updated = LastMessageEdit.withContent(
+      detached
+          ? _activeResponseMessagesForGeneration(generation)
+          : ref.mounted
+          ? state.messages
+          : null,
+      newContent,
+    );
+    if (updated == null) return;
+    if (!detached) state = state.copyWith(messages: updated);
+    _cacheActiveResponseMessagesForGeneration(generation, updated);
   }
 
   void _removeTrailingThinkTagForGeneration(int generation) {
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      final activeMessages = _activeResponseMessagesForGeneration(generation);
-      if (activeMessages == null || activeMessages.isEmpty) return;
-      final lastMessage = activeMessages.last;
-      final content = lastMessage.content;
-      if (content.endsWith('<think>')) {
-        _replaceLastMessageContentForGeneration(
-          generation,
-          content.substring(0, content.length - '<think>'.length),
-        );
-      }
-      return;
-    }
-
-    if (!ref.mounted || state.messages.isEmpty) return;
-
-    final lastMessage = state.messages.last;
-    final content = lastMessage.content;
-    if (content.endsWith('<think>')) {
-      _replaceLastMessageContentForGeneration(
-        generation,
-        content.substring(0, content.length - '<think>'.length),
-      );
-    }
+    final content = _lastMessageContentForGeneration(generation);
+    if (content == null || !content.endsWith('<think>')) return;
+    _replaceLastMessageContentForGeneration(
+      generation,
+      content.substring(0, content.length - '<think>'.length),
+    );
   }
 
   void _appendToolUseToLastMessage(

@@ -25106,28 +25106,6 @@
       "accessorBearing": true
     },
     {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_appendToLastMessageForGeneration::state.messages#1",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_appendToLastMessageForGeneration",
-      "kind": "state.messages",
-      "line": 7109,
-      "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_appendToLastMessageForGeneration::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_appendToLastMessageForGeneration",
-      "kind": "state.messages",
-      "line": 7111,
-      "column": 33,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_assistantRequestTemperature::currentConversation#1",
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_assistantRequestTemperature",
@@ -25282,45 +25260,12 @@
       "accessorBearing": true
     },
     {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_removeTrailingThinkTagForGeneration::state.messages#1",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_removeTrailingThinkTagForGeneration",
-      "kind": "state.messages",
-      "line": 7186,
-      "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_removeTrailingThinkTagForGeneration::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_removeTrailingThinkTagForGeneration",
-      "kind": "state.messages",
-      "line": 7188,
-      "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_replaceLastMessageContentForGeneration::state.messages#1",
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_replaceLastMessageContentForGeneration",
       "kind": "state.messages",
       "line": 7160,
       "column": 25,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_replaceLastMessageContentForGeneration::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_replaceLastMessageContentForGeneration",
-      "kind": "state.messages",
-      "line": 7162,
-      "column": 33,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
       "accessorBearing": true
