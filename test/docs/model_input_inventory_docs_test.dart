@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// LL46: every session-log request label a producer in `lib/` can emit must
-/// have a row in `docs/model_input_inventory.md`, so a new injection cannot
-/// ship without its producer, shape and prefix effect written down.
+/// LL46: every session-log request label a producer in `lib/` can emit, and
+/// every file that writes guidance into a tool result, must have a row in
+/// `docs/model_input_inventory.md`, so a new injection cannot ship without
+/// its producer and effect written down.
 void main() {
   test('every request label has an inventory row', () {
     final inventory = File('docs/model_input_inventory.md').readAsStringSync();
@@ -19,6 +20,31 @@ void main() {
       labels.difference(documented),
       isEmpty,
       reason: 'Add a row to docs/model_input_inventory.md for each label.',
+    );
+  });
+
+  test('every producer of tool-result guidance has an inventory row', () {
+    final inventory = File('docs/model_input_inventory.md').readAsStringSync();
+    final guidance = RegExp(
+      r"'(?:required_action|requiredAction|instruction|instructions)'\s*:",
+    );
+    final producers = <String>{
+      for (final file in Directory('lib').listSync(recursive: true))
+        if (file is File &&
+            file.path.endsWith('.dart') &&
+            guidance.hasMatch(file.readAsStringSync()))
+          file.path.substring('lib/'.length),
+    };
+    expect(producers, isNotEmpty);
+    final missing = producers.where(
+      (path) => !inventory.contains('| `$path` |'),
+    );
+    expect(
+      missing,
+      isEmpty,
+      reason:
+          'Add a row to the tool-result guidance table in '
+          'docs/model_input_inventory.md for each producer.',
     );
   });
 }

@@ -6,9 +6,9 @@ produces the request, what it adds to the model's input, and whether it keeps
 the tool loop's cached prefix. `test/docs/model_input_inventory_docs_test.dart`
 fails when a label in `lib/` has no row here.
 
-Scope of this first slice: requests, keyed by label. Two other kinds of
-model-visible text are not inventoried yet: system-prompt sections, and
-guidance written into tool-result payloads.
+Scope so far: requests, keyed by label, and guidance written into
+tool-result payloads, keyed by producer file. System-prompt sections are not
+inventoried yet.
 
 ## How to read the columns
 
@@ -75,6 +75,61 @@ left undone.
 | `pro_reasoning_critique` | `pro_reasoning_run_notifier.dart` | Critique prompt | separate | not measured | separate prefix by design |
 | `pro_reasoning_synthesis` | `pro_reasoning_run_notifier.dart` | Synthesis prompt | separate | not measured | separate prefix by design |
 | `pro_reasoning_summary` | `pro_reasoning_run_notifier.dart` | Summary of the run | separate | not measured | separate prefix by design |
+
+## Tool-result guidance
+
+Text written into a tool result for the model to act on: a `required_action`
+(or `requiredAction`) or an `instruction(s)` field, usually beside a refusal
+`code`. Every one is appended to the turn as a tool result, so none rewrites
+the cached prefix; each stays in history until compaction. Keyed by producer
+file (under `lib/`); `test/docs/model_input_inventory_docs_test.dart` fails
+when a file writing one of those fields has no row. Counts are distinct tool
+results carrying the code across grounded session logs on 2026-10-14,
+approximate.
+
+| Producer | Codes (count) | Tells the model to |
+|---|---|---|
+| `core/services/apple_foundation_models_platform_client.dart` | — | Carries the system prompt to Apple Foundation Models as `instructions`; not a tool result |
+| `features/chat/application/runtime/read_only_review_scope.dart` | read_only_review_refused (0) | Write the review from what was inspected; report a change as a finding |
+| `features/chat/data/datasources/background_process_completion_monitor.dart` | caller-supplied | Refresh background jobs and inspect the specific job before reporting |
+| `features/chat/data/datasources/git_tools.dart` | git_finish_worktree_base_dirty (0), git_worktree_force_remove_blocked (0), git_force_push_discards_remote_commits (0) | Clean the base worktree; finish worktrees through the session tool; integrate remote commits before pushing |
+| `features/chat/data/datasources/local_command_tool_runtime_adapter.dart` | caller-supplied | Next action for a refused or failed local command |
+| `features/chat/data/datasources/local_shell_tools.dart` | local_shell_git_write_blocked (4) | Use git_execute_command for git writes |
+| `features/chat/data/datasources/run_tests_tool_runtime_adapter.dart` | caller-supplied | Re-select the project and inspect state before retrying tests |
+| `features/chat/data/repositories/tool_result_artifact_store.dart` | — | Full result saved to a file; read it if the omitted part is needed |
+| `features/chat/domain/services/anabasis/anabasis_delegation_admission.dart` | anabasis_delegation_not_ready (13) | Pick an exact ready workflow task; resolve unmet preconditions |
+| `features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart` | anabasis_parent_authority_refused (4) | The parent delegates or verifies instead of running the tool |
+| `features/chat/domain/services/anabasis/subagent_result_payloads.dart` | subagent_task_unknown, worktree_child_already_running (0), worktree_delegation_unavailable (0) | Use a known task id; poll the running child instead of starting another |
+| `features/chat/domain/services/anabasis/task_acceptance_decision.dart` | caller-supplied refusal codes | Only Anabasis accepts; give a rationale; verify or delegate before accepting |
+| `features/chat/domain/services/anabasis/task_acceptance_payloads.dart` | acceptance_write_failed (0) | Retry the acceptance once |
+| `features/chat/domain/services/approval/tool_approval_review_packet.dart` | — | Output contract for the approval auto-review request (separate request, label `approval auto-review`) |
+| `features/chat/domain/services/claims/narrated_transcript_repair_planner.dart` | narrated_transcript_commands_not_executed (12) | Run the narrated commands or say plainly they were not run |
+| `features/chat/domain/services/claims/unexecuted_command_action_retry_policy.dart` | unexecuted_command_action_retry_required (52), fenced_tool_arguments_not_a_call (0) | Issue the described command as a real tool call, or give the concrete reason it cannot be |
+| `features/chat/domain/services/claims/unexecuted_file_mutation_block_payload.dart` | unexecuted_file_save (16) | Perform the claimed file change before the command, or say it was not made |
+| `features/chat/domain/services/claims/unexecuted_final_answer_tool_request_policy.dart` | tool_call_not_executed (0) | Retry the tool through the tool-aware continuation |
+| `features/chat/domain/services/claims/uninspected_commit_guard.dart` | commit_without_diff_inspection_blocked (24) | Read the staged diff, then commit |
+| `features/chat/domain/services/code_intelligence/analysis_options_lint_edit_guard.dart` | analysis_options_lint_evidence_required (0) | Evidence required before adding a lint suppression |
+| `features/chat/domain/services/coding/coding_command_output_guardrail_service.dart` | command_output_failure (0) | Treat the task as incomplete; repair and rerun before claiming completion |
+| `features/chat/domain/services/coding/coding_command_preflight_issue_detector.dart` | — | Per-issue instruction for a command preflight problem |
+| `features/chat/domain/services/coding/coding_continuation_recovery_policy.dart` | recovery codes (see the coding continuation table above) | Required action for each coding recovery; call only update_goal for a rejected batch |
+| `features/chat/domain/services/coding/coding_diagnostic_feedback_service.dart` | — | New analyzer diagnostics after edits; fix them before claiming completion |
+| `features/chat/domain/services/coding/coding_verification_feedback_service.dart` | — | Failing tests after edits; fix them before claiming completion |
+| `features/chat/domain/services/git/git_tag_format_inspection_guard.dart` | git_tag_format_inspection_required (26) | List existing tags first, then pick a matching name |
+| `features/chat/domain/services/goal/goal_validation_probe_guard.dart` | goal_validation_probe_requires_verifier (0) | Run one project verification command now |
+| `features/chat/domain/services/local_command/background_completion_evidence.dart` | background_process_partial_failure (2), caller-supplied | Report the partial failure; wait for pending subagents before claiming completion |
+| `features/chat/domain/services/local_command/process_start_result_policy.dart` | background_process_start_stale_result (0) | Monitor the existing job; do not report it as newly started |
+| `features/chat/domain/services/local_command/timed_out_command_retry_guard.dart` | command_retry_after_timeout_blocked (0) | Ask the user or inspect the previous process before retrying |
+| `features/chat/domain/services/plan/material_contract_assumption_guard.dart` | material_contract_assumption_unconfirmed (0) | Do not mutate state until the assumption is confirmed |
+| `features/chat/domain/services/production_release/blocked_production_release_retry_policy.dart` | blocked_production_release_retry_required (1) | Issue exactly one release call with the approved arguments |
+| `features/chat/domain/services/production_release/production_release_approval_conflict_result.dart` | production_release_approval_conflict (18) | Do not ask again; continue with the pending release only |
+| `features/chat/domain/services/production_release/production_release_blocked_result.dart` | production_release_explicit_approval_required (65) | Explicit approval required for the release |
+| `features/chat/domain/services/production_release/production_release_dispatch_result.dart` | production_release_already_executed (0) | Do not re-issue; report the release that already ran |
+| `features/chat/domain/services/project_task/saved_task_target_scope_guard.dart` | saved_task_target_scope_violation (9) | Modify only the active saved task's target files |
+| `features/chat/domain/services/python/verified_pytest_replay_policy.dart` | — | Reuse the earlier passing verification; the command was not re-executed |
+| `features/chat/domain/services/tool_loop/truncated_tool_call_arguments_guard.dart` | tool_call_arguments_truncated (0) | Re-issue the call, split into smaller calls |
+| `features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart` | unchanged_verifier_replay_before_repair_blocked (0) | Make one mutation for the diagnostic, then rerun the verifier |
+| `features/chat/domain/services/verification/project_verification_repair_policy.dart` | project_verification_repair_protocol_violation (0) | Diagnose or repair with a project tool; report a concrete blocker |
+| `features/chat/domain/services/verification/saved_validation_command_guard.dart` | saved_validation_command_modified (4) | Run the saved validation command exactly as saved |
 
 ## Known gaps
 
