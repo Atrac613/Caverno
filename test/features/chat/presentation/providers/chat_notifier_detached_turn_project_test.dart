@@ -3291,6 +3291,84 @@ void main() {
     },
   );
 
+  // F5: freezes where a turn's streamed text is written before the per-owner
+  // message mutation helpers move out of ChatNotifier. A detached owner writes
+  // only its cached messages; the visible thread's state never sees them.
+  test('detached streaming text never reaches the visible thread', () async {
+    final ownerAStream = StreamController<String>();
+    final model = AppSettings.defaults().model;
+    final dataSource = _ParticipantOwnershipDataSource()
+      ..queuePlain(model, ownerAStream.stream)
+      ..queuePlain(model, Stream<String>.value('Owner B answer.'));
+    final container = _buildContainer(
+      dataSource: dataSource,
+      toolService: _NoToolService(),
+      assistantMode: AssistantMode.general,
+    );
+    addTearDown(() async {
+      if (!ownerAStream.isClosed) await ownerAStream.close();
+      container.dispose();
+    });
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(workspaceMode: WorkspaceMode.chat);
+    final threadA = container
+        .read(conversationsNotifierProvider)
+        .currentConversationId!;
+    final notifier = container.read(chatNotifierProvider.notifier);
+    final ownerAFuture = notifier.sendMessage('Stream owner A.');
+    await _waitUntil(() => dataSource.plainRequests.length == 1);
+
+    conversations.createNewConversation(workspaceMode: WorkspaceMode.chat);
+    final threadB = container
+        .read(conversationsNotifierProvider)
+        .currentConversationId!;
+    final ownerBFuture = notifier.sendMessage('Stream owner B.');
+    await ownerBFuture;
+    await _waitUntil(
+      () => !notifier.state.busyConversationIds.contains(threadB),
+    );
+    expect(notifier.state.messages.last.content, contains('Owner B answer.'));
+
+    // Owner A is detached now: its chunks must stay off the visible state.
+    ownerAStream.add('Owner A first chunk.');
+    await Future<void>.delayed(Duration.zero);
+    ownerAStream.add(' Owner A second chunk.');
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      notifier.state.messages.map((message) => message.content),
+      everyElement(isNot(contains('Owner A'))),
+    );
+
+    await ownerAStream.close();
+    await ownerAFuture;
+    await _waitUntil(() => notifier.state.busyConversationIds.isEmpty);
+
+    final state = container.read(conversationsNotifierProvider);
+    final assistantA = state
+        .conversationForId(threadA)!
+        .messages
+        .where((message) => message.role == MessageRole.assistant)
+        .single;
+    final assistantB = state
+        .conversationForId(threadB)!
+        .messages
+        .where((message) => message.role == MessageRole.assistant)
+        .single;
+    expect(
+      assistantA.content,
+      contains('Owner A first chunk. Owner A second chunk.'),
+    );
+    expect(assistantA.content, isNot(contains('Owner B')));
+    expect(assistantB.content, contains('Owner B answer.'));
+    expect(assistantB.content, isNot(contains('Owner A')));
+    expect(
+      notifier.state.messages.map((message) => message.content),
+      everyElement(isNot(contains('Owner A'))),
+    );
+  });
+
   test('plain stream metrics stay isolated across detached owners', () async {
     final ownerAStream = StreamController<String>();
     final model = AppSettings.defaults().model;
@@ -4473,86 +4551,78 @@ void main() {
     },
   );
 
-  test(
-    'prose in either thread approves nothing, detached or not',
-    () async {
-      late final ProviderContainer container;
-      late String threadB;
-      final toolService = _ReleaseToolService();
-      final dataSource = ScriptedChatDataSource(
-        initialResponses: [
-          _productionReleaseToolCall('release-a-generation-1'),
-        ],
-        beforeInitialResponse: (requestIndex) async {
-          if (requestIndex != 0) return;
-          final conversations = container.read(
-            conversationsNotifierProvider.notifier,
-          );
-          conversations.createNewConversation(
-            workspaceMode: WorkspaceMode.coding,
-            projectId: 'project-b',
-          );
-          threadB = container
-              .read(conversationsNotifierProvider)
-              .currentConversationId!;
-          final now = DateTime(2026, 7, 28, 10);
-          await conversations.updateConversationMessages(threadB, [
-            Message(
-              id: 'thread-b-assistant-approval',
-              role: MessageRole.assistant,
-              content: 'Do you approve the production release command now?',
-              timestamp: now,
-            ),
-            Message(
-              id: 'thread-b-user-denial',
-              role: MessageRole.user,
-              content: 'Do not release anything.',
-              timestamp: now.add(const Duration(seconds: 1)),
-            ),
-          ]);
-          await Future<void>.delayed(Duration.zero);
-        },
-      );
-      container = _buildContainer(
-        dataSource: dataSource,
-        toolService: toolService,
-      );
-      addTearDown(container.dispose);
-
-      final conversations = container.read(
-        conversationsNotifierProvider.notifier,
-      );
-      conversations.createNewConversation(
-        workspaceMode: WorkspaceMode.coding,
-        projectId: 'project-a',
-      );
-      final threadA = container
-          .read(conversationsNotifierProvider)
-          .currentConversationId!;
-
-      await container
-          .read(chatNotifierProvider.notifier)
-          .sendMessage('Approve and run the production release now.');
-
-      expect(threadB, isNot(threadA));
-      // This used to assert that thread B's denial could not revoke thread A's
-      // *direct* approval. Direct approval no longer exists: a chat message
-      // cannot approve a release in any thread, so there is nothing for
-      // another thread to revoke. What remains worth pinning is that the
-      // release does not run, and that the block is the release guard's rather
-      // than a side effect of the other thread.
-      expect(toolService.executions, 0);
-      expect(
-        dataSource.decodedToolResults,
-        contains(
-          containsPair(
-            'code',
-            'production_release_explicit_approval_required',
+  test('prose in either thread approves nothing, detached or not', () async {
+    late final ProviderContainer container;
+    late String threadB;
+    final toolService = _ReleaseToolService();
+    final dataSource = ScriptedChatDataSource(
+      initialResponses: [_productionReleaseToolCall('release-a-generation-1')],
+      beforeInitialResponse: (requestIndex) async {
+        if (requestIndex != 0) return;
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-b',
+        );
+        threadB = container
+            .read(conversationsNotifierProvider)
+            .currentConversationId!;
+        final now = DateTime(2026, 7, 28, 10);
+        await conversations.updateConversationMessages(threadB, [
+          Message(
+            id: 'thread-b-assistant-approval',
+            role: MessageRole.assistant,
+            content: 'Do you approve the production release command now?',
+            timestamp: now,
           ),
-        ),
-      );
-    },
-  );
+          Message(
+            id: 'thread-b-user-denial',
+            role: MessageRole.user,
+            content: 'Do not release anything.',
+            timestamp: now.add(const Duration(seconds: 1)),
+          ),
+        ]);
+        await Future<void>.delayed(Duration.zero);
+      },
+    );
+    container = _buildContainer(
+      dataSource: dataSource,
+      toolService: toolService,
+    );
+    addTearDown(container.dispose);
+
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-a',
+    );
+    final threadA = container
+        .read(conversationsNotifierProvider)
+        .currentConversationId!;
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage('Approve and run the production release now.');
+
+    expect(threadB, isNot(threadA));
+    // This used to assert that thread B's denial could not revoke thread A's
+    // *direct* approval. Direct approval no longer exists: a chat message
+    // cannot approve a release in any thread, so there is nothing for
+    // another thread to revoke. What remains worth pinning is that the
+    // release does not run, and that the block is the release guard's rather
+    // than a side effect of the other thread.
+    expect(toolService.executions, 0);
+    expect(
+      dataSource.decodedToolResults,
+      contains(
+        containsPair('code', 'production_release_explicit_approval_required'),
+      ),
+    );
+  });
 
   test(
     'direct approval from generation N cannot authorize hidden generation N+1',
@@ -6915,11 +6985,10 @@ void main() {
     await firstB;
 
     conversations.selectConversation(threadA);
-    expect(
-      notifier.state.queuedMessages.map((message) => message.content),
-      ['a-queued-1', 'a-queued-2'],
-      reason: 'selecting idle A must first restore its exact FIFO projection',
-    );
+    expect(notifier.state.queuedMessages.map((message) => message.content), [
+      'a-queued-1',
+      'a-queued-2',
+    ], reason: 'selecting idle A must first restore its exact FIFO projection');
     await dataSource
         .waitForRequest('a-queued-1')
         .timeout(const Duration(seconds: 2));
@@ -7289,11 +7358,10 @@ void main() {
       runtimeRepository.releaseFlush.complete();
 
       conversations.selectConversation(threadA);
-      expect(
-        notifier.state.queuedMessages.map((message) => message.content),
-        ['runtime-a-queued-1', 'runtime-a-queued-2'],
-        reason: 'the dequeued item must be restored at the front',
-      );
+      expect(notifier.state.queuedMessages.map((message) => message.content), [
+        'runtime-a-queued-1',
+        'runtime-a-queued-2',
+      ], reason: 'the dequeued item must be restored at the front');
       await dataSource
           .waitForRequest('runtime-a-queued-1')
           .timeout(const Duration(seconds: 2));
