@@ -668,7 +668,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   composerShortcutsEnabled: json['composerShortcutsEnabled'] as bool? ?? true,
   enablePrefixStableToolLoop:
       json['enablePrefixStableToolLoop'] as bool? ?? false,
-  keepToolRoleFinalAnswer: json['keepToolRoleFinalAnswer'] as bool? ?? false,
+  keepToolRoleFinalAnswer: json['keepToolRoleFinalAnswer'] as bool? ?? true,
   enableSemanticSearch: json['enableSemanticSearch'] as bool? ?? false,
   embeddingsModel: json['embeddingsModel'] as String? ?? '',
   embeddingsEndpointId: json['embeddingsEndpointId'] as String? ?? '',

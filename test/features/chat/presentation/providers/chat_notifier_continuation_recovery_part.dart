@@ -95,9 +95,6 @@ void registerChatNotifierContinuationRecoveryTests() {
   test(
     'sendMessage skips continuation recovery for completed tool-role command response',
     () async {
-      const toolRoleCompletion =
-          'The Dart script completed successfully after running the local command. '
-          'It printed 168 prime numbers and the ported implementation is complete.';
       const streamedFinalAnswer =
           'The Dart script was ported and verified successfully.';
       final dataSource = _QueuedToolLoopChatDataSource(
@@ -113,7 +110,7 @@ void registerChatNotifierContinuationRecoveryTests() {
         ],
         toolLoopResponses: [
           ChatCompletionResult(
-            content: toolRoleCompletion,
+            content: streamedFinalAnswer,
             finishReason: 'stop',
           ),
           ChatCompletionResult(
@@ -201,6 +198,7 @@ void registerChatNotifierContinuationRecoveryTests() {
   test(
     'sendMessage recovers prose-only coding continuation after continue',
     () async {
+      _pinRegeneratedFinalAnswer();
       final continuationText = String.fromCharCodes(const [
         0x65e2,
         0x5b58,
@@ -542,6 +540,7 @@ todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30
   test(
     'sendMessage recovers prose-only coding continuation after tool results',
     () async {
+      _pinRegeneratedFinalAnswer();
       final continuationText = String.fromCharCodes(const [
         0x30d7,
         0x30ed,

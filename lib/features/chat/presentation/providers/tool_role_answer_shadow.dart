@@ -15,9 +15,9 @@ import 'turn_finalization_state_registry.dart';
 /// same tool results and completion evidence it uses.
 ///
 /// Every decision is recorded as a `tool_role_answer_shadow_<decision>` turn
-/// transform. The answer is only kept when [AppSettings.keepToolRoleFinalAnswer]
-/// is on, which stays opt-in while 23 final-answer guard tests still script a
-/// different answer for the re-send than for the tool loop.
+/// transform, and a kept answer also as `tool_role_answer_kept`. The answer
+/// is kept only when [AppSettings.keepToolRoleFinalAnswer] is on (the
+/// default); turning it off restores the unconditional re-send.
 abstract final class ToolRoleAnswerShadow {
   /// Returns the tool loop's answer when [keep] is on and the policy accepts
   /// it, else null.

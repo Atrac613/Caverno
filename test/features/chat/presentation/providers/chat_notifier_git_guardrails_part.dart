@@ -507,6 +507,7 @@ void registerChatNotifierGitGuardrailTests() {
   test(
     'sendMessage blocks duplicate side-effect command after timeout',
     () async {
+      _pinRegeneratedFinalAnswer();
       // A long-running side-effect command, deliberately not a release: this
       // test is about duplicate suppression, and a release command would drag
       // the production release approval gate into it.

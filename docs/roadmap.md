@@ -105,11 +105,11 @@ first finding was the tool-role final-answer regeneration: 391 occurrences,
 4.9 h, each re-send prefilled without the loop's cache. A random comparison
 found it never worse and better only where completion blockers applied or a
 required marker was missing, so `ToolRoleAnswerAcceptance` keeps the
-regeneration in exactly those cases (and for image results). It runs in shadow
-everywhere and keeps the answer only under the opt-in
-`keepToolRoleFinalAnswer` setting. Next: switch the default on after the 23
-final-answer guard tests that script a separate re-send answer are rewritten
-to the kept path, one guard family per slice. See
+regeneration in exactly those cases (and for image results). The
+`keepToolRoleFinalAnswer` setting is on by default since the final-answer
+guard tests were reworked: tests that only scripted a separate re-send answer
+now script one answer for both paths, and tests of the regeneration path
+itself are pinned to it with `_pinRegeneratedFinalAnswer()`. See
 [the regeneration worklog](worklog/tool_role_answer_regeneration_2026-10-14.md).
 LL46 needs a scoping decision first (below).
 

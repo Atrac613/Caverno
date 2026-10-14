@@ -29,8 +29,26 @@ List<String> _toolNames(List<Map<String, dynamic>> definitions) {
       .toList(growable: false);
 }
 
+/// Set by [_pinRegeneratedFinalAnswer] for the current test only.
+bool _regeneratedFinalAnswerPinned = false;
+
+/// Pins the current test to the user-role re-send of the final answer.
+///
+/// For tests of the regeneration path itself (an incomplete re-sent answer,
+/// a fabricated transcript in the re-send), which still runs whenever
+/// ToolRoleAnswerAcceptance declines to keep the tool loop's answer.
+void _pinRegeneratedFinalAnswer() {
+  _regeneratedFinalAnswerPinned = true;
+  addTearDown(() => _regeneratedFinalAnswerPinned = false);
+}
+
 AppSettings _baseTestSettings() {
-  return AppSettings.defaults().copyWith(enableLlmSessionLogs: false);
+  final defaults = AppSettings.defaults();
+  return defaults.copyWith(
+    enableLlmSessionLogs: false,
+    keepToolRoleFinalAnswer:
+        defaults.keepToolRoleFinalAnswer && !_regeneratedFinalAnswerPinned,
+  );
 }
 
 /// Conversation project ids that `_TestCodingProjectsNotifier` must resolve

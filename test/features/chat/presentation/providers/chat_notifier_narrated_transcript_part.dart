@@ -143,7 +143,7 @@ The MVP is complete.''';
     final dataSource = buildDataSource(
       workingDirectory: projectRoot.path,
       toolLoopResponses: [
-        ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
+        ChatCompletionResult(content: fabricatedAnswer, finishReason: 'stop'),
         // Narrated-transcript repair follow-up answers with prose instead
         // of executing the narrated command.
         ChatCompletionResult(content: repairProse, finishReason: 'stop'),
@@ -191,7 +191,7 @@ The MVP is complete.''';
     final dataSource = buildDataSource(
       workingDirectory: projectRoot.path,
       toolLoopResponses: [
-        ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
+        ChatCompletionResult(content: fabricatedAnswer, finishReason: 'stop'),
       ],
       finalAnswerChunkBatches: const [],
     );
@@ -230,7 +230,7 @@ The MVP is complete.''';
     final dataSource = buildDataSource(
       workingDirectory: projectRoot.path,
       toolLoopResponses: [
-        ChatCompletionResult(content: loopCompletion, finishReason: 'stop'),
+        ChatCompletionResult(content: fabricatedAnswer, finishReason: 'stop'),
         // Narrated-transcript repair follow-up executes the narrated
         // command instead of restating completion.
         ChatCompletionResult(
@@ -249,8 +249,8 @@ The MVP is complete.''';
         ),
         ChatCompletionResult(
           content:
-              'The command completed successfully after running the local '
-              'command. The implementation is complete.',
+              'done 4 executed with exit code 0; all acceptance checks pass '
+              'against real output.',
           finishReason: 'stop',
         ),
       ],

@@ -1889,6 +1889,7 @@ void main() {
   test(
     'sendMessage reports unexecuted browser action after failed recovery',
     () async {
+      _pinRegeneratedFinalAnswer();
       const skippedBrowserClaim = 'Wikipedia のリンク（ref 11）をクリックしました。';
       final dataSource = _ToolBatchChatDataSource(
         initialToolCalls: const [],
@@ -2383,6 +2384,7 @@ void main() {
   test(
     'sendMessage gates prose-only coding continuation before memory update',
     () async {
+      _pinRegeneratedFinalAnswer();
       const incompleteFinalAnswer =
           'Next I will inspect the Dart entrypoint before porting the script.';
       const recoveredFinalAnswer =
@@ -2776,6 +2778,7 @@ void main() {
   test(
     'sendMessage recovers bracketed coding tool request before memory update',
     () async {
+      _pinRegeneratedFinalAnswer();
       final projectRoot = await Directory.systemTemp.createTemp(
         'caverno_bracketed_edit_recovery_',
       );
@@ -3186,7 +3189,7 @@ void main() {
             },
           ),
         ],
-        toolRoleResponseContent: 'Clicked the link.',
+        toolRoleResponseContent: 'Opened the Wikipedia article.',
         finalAnswerChunks: const ['Opened the Wikipedia article.'],
       );
       final toolService = _FakeMcpToolService(
@@ -3252,7 +3255,7 @@ void main() {
             },
           ),
         ],
-        toolRoleResponseContent: 'Clicked the link.',
+        toolRoleResponseContent: 'Opened the Wikipedia article.',
         finalAnswerChunks: const ['Opened the Wikipedia article.'],
         autoReviewResponses: [
           ChatCompletionResult(
@@ -3496,6 +3499,7 @@ void main() {
   test(
     'sendMessage marks browser save claims unexecuted without save tool result',
     () async {
+      _pinRegeneratedFinalAnswer();
       const unsupportedSaveClaim = 'Saved as azusa_overview.md.';
       final dataSource = _ToolBatchChatDataSource(
         initialToolCalls: [
@@ -3718,6 +3722,7 @@ void main() {
   test(
     'sendMessage blocks command after unexecuted version file mutation claim',
     () async {
+      _pinRegeneratedFinalAnswer();
       final dataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -6172,6 +6177,7 @@ void main() {
   test(
     'sendMessage marks bracketed tool requests in final answers as unexecuted',
     () async {
+      _pinRegeneratedFinalAnswer();
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -13131,6 +13137,7 @@ with open(path, "rb") as file:
   test(
     'sendMessage finishes streaming when final background monitor repair has no follow-up',
     () async {
+      _pinRegeneratedFinalAnswer();
       const command = 'bash tool/run_long_task.sh';
       const jobId = 'proc_local_finalize_1';
       final toolDataSource = _QueuedToolLoopChatDataSource(
