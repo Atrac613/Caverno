@@ -6249,8 +6249,16 @@ has to be readable through the model's own tools without widening the
 perimeter. Decide it with SEC1 before any implementation. Retention follows
 the session-log retention rules.
 
-Next action: measure how often truncated results are followed by a re-run of
-the same command with a narrower filter, which is the cost this removes.
+Measured 2026-10-14 (`docs/worklog/ll47_truncated_output_rerun_census_2026-10-14.md`):
+194 truncated command results, only 14 followed by a narrower re-run, most
+on git output that already carries reading guidance. Not worth building as
+scoped. Separate finding: the existing >50k-character spill in
+`ToolResultArtifactStore` tells the model to `read_file` a path the project
+read fence refuses (2 firings, never followed).
+
+Next action: none for the spill itself; the existing spill's guidance needs a
+decision between rewording it and admitting its directory to the read fence
+(SEC1).
 
 ## Future Platform Vision Milestone Notes
 
