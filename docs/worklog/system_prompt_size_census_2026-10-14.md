@@ -47,3 +47,13 @@ byte-identical, which a golden test over a matrix of modes can pin before
 any block moves. Once sections are named, the session log can record which
 section ids a request carried, and their sizes, so trimming decisions rest on
 measured cost rather than on reading the builder.
+
+## Follow-up the same day
+
+The builder now writes 44 named sections, byte-identical under 24 golden
+scenarios, and session-log schema v7 records each request's sections and
+sizes. A full-catalog coding render puts `computer_use_tools` (3,446),
+`project_read_tools` (2,438) and `core_principles` (1,529) on top; in the
+first real chat session recorded (`dcbf9bb9`) the largest section was
+`session_memory` (3,254 of 10,192). Trimming decisions can now read these
+sizes from the session log instead of from the builder.

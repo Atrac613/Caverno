@@ -194,7 +194,7 @@ structurally unmotivated to build:
 | Local LLM | LL43 | done | S | LL6, LL33 | Request envelope fingerprint and cache-break detection: log a digest of each request's stable envelope (model, call config, system prompt, tool catalog) plus the provider's cache-read count on every request, including zero, so a prefix break is a field comparison in triage instead of a hand diff. Instrument only; no request-construction change. From the DeepSeek Harness comparison (`docs/deepseek_harness_comparison_2026-10-08.md`). |
 | Local LLM | LL44 | later | S-M | LL34, HEU3 | Non-execution as a typed fact: one typed field states whether the tool body ran and why not (refused by policy, approval denied, cancelled before dispatch, timed out, failed to spawn), so the failure classifier, the executed-call ledger, and the turn digest stop parsing `ok` / `executed` markers out of the result JSON. Evidence-gated: the motivating commit-guard defect was fixed per producer in `6ab0621de`; promote on the next non-execution misclassification. |
 | Local LLM | LL45 | done | S-M | F3, LL8 | Structured LLM request failure: capture a provider-neutral failure value at the transport boundary (code, HTTP status, retry-after, provider request id) and derive both retry policy and user-facing text from it, replacing substring classification in `ChatErrorMessageBuilder`. Non-provider errors (storage, local I/O) never reach the provider classifier. |
-| Local LLM | LL46 | current | S | LL33, LL36 | Model-visible injection inventory: one entry per harness producer that injects text into model input, keyed on its LL33 transform id, recording the text, its settle condition, its token cost, and whether it appends or rewrites the cached prefix. A test fails when a producer has no entry. |
+| Local LLM | LL46 | done | S | LL33, LL36 | Model-visible injection inventory: one entry per harness producer that injects text into model input, keyed on its LL33 transform id, recording the text, its settle condition, its token cost, and whether it appends or rewrites the cached prefix. A test fails when a producer has no entry. |
 | Local LLM | LL47 | later | S-M | LL14, LL30, SEC1 | Oversized tool-output spill files: when a result is truncated to head and tail, write the complete output to a private owner-only file and name its path in the result so the model can read the omitted part. The spill location must be readable through the model's own read fence, decided with SEC1. |
 | Retrieval | RAG1 | done | S-M | LL5, LL39 | Versioned retrieval/answer/resource evaluation contract completed on 2026-08-25. Clean lexical, vector/hybrid, and answer/citation runs prove the instrument. Its raw no-answer diagnostic remains frozen; RAG2 later replaced that promotion question with passage-role scoring rather than weakening the count. |
 | Retrieval | RAG2 | done | M | RAG1, F4, LL4, SEC1 | Provenance-bearing Knowledge Objects, complete caller-declared source roots, Git-backed acquisition, atomic generations, durable Drift/SQLite storage, and incremental AppDatabase-hosted FTS5 are Go. Identity-scoped MATCH and projection preserve the committed generation and provenance. The frozen v1 raw no-answer result remains No-Go. The unchanged lexical candidate passes the separately committed v2 passage-role holdout with 14/14 answer support, 4/4 Japanese support, 2/2 expected abstention, zero only-irrelevant unavailable cases, and 3,776/6,000 context tokens. Offline lexical retrieval is Go; runtime passage role stays unknown and production wiring remains owned by RAG3. |
@@ -6180,7 +6180,7 @@ longer used by the app.
 
 ### LL46: Model-Visible Injection Inventory
 
-Status: `current` (first slice 2026-10-14: requests keyed by label)
+Status: `done` (2026-10-14)
 
 Scope: one entry per harness producer that injects text into model input,
 keyed on its LL33 transform id: the text or template, the settle condition,
@@ -6223,9 +6223,16 @@ name) and worktree agent runs now reach the session log. System-prompt census
 prompt is ~23.8k characters at the median, ~18.8k of it inline guidance in
 `SystemPromptBuilder.build` with no section ids.
 
-Next action: name the builder's sections behind a byte-identical golden test
-(a large-file refactor), then inventory them and record per-request section
-ids in the session log.
+Fourth slice (2026-10-14): 24 golden scenarios pin `SystemPromptBuilder` byte
+for byte (366 of 368 lines covered); the builder now writes 44 named sections
+without changing a byte, the inventory lists them, and session-log schema v7
+records each request's `systemPromptSections` with sizes. Confirmed in real
+session `dcbf9bb9` (build `03a6a6550`): 13 sections, 10,192 characters, the
+largest `session_memory` at 3,254.
+
+Not done, deliberately: settle conditions for tool-result guidance (each is
+a one-shot tool result that stays in history until compaction), and token
+costs beyond character counts.
 
 ### LL47: Oversized Tool-Output Spill Files
 
