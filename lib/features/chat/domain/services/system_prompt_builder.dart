@@ -8,6 +8,7 @@ import '../entities/model_usage_role.dart';
 import 'anabasis/anabasis_parent_prompt_block.dart';
 import 'execution_snapshot_projector.dart';
 import 'model_routing/weak_model_edit_harness_service.dart';
+import 'system_prompt_sections.dart';
 
 class SystemPromptBuilder {
   SystemPromptBuilder._();
@@ -45,6 +46,7 @@ class SystemPromptBuilder {
     bool hasPythonInputAttachment = false,
     ModelCapabilityProfile? modelCapabilityProfile,
     ModelHarnessConfig? modelHarnessConfig,
+    void Function(List<SystemPromptSection> sections)? onSections,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -118,11 +120,12 @@ class SystemPromptBuilder {
     // Turn-specific temporal and memory context is appended near the tail so
     // LL6/LL22 can reuse this substantial leading prefix across idle warm-up
     // and the first interactive request.
-    final buffer = StringBuffer();
+    final buffer = SectionedPromptBuffer();
     // Ambient here on purpose, and only for prose: authority is decided by the
     // explicit role passed to AnabasisParentAuthorityGuard. A missed zone costs
     // the parent its instructions, which reads as a confused turn; it can never
     // cost it its restrictions.
+    buffer.section('anabasis_parent');
     if (ModelUsageRole.current == ModelUsageRole.anabasisParent) {
       buffer.writeln(AnabasisParentPromptBlock.instruction);
       // Only the parent gets the delegation queue. An ordinary turn would read
@@ -132,6 +135,7 @@ class SystemPromptBuilder {
         ..writeln(AnabasisParentPromptBlock.delegatableTasks(delegatable))
         ..writeln(AnabasisParentPromptBlock.delegatedResults(delegatedResults));
     }
+    buffer.section('core_principles');
     buffer
       ..writeln(SystemPromptConstants.researchHonestyInstruction)
       ..writeln(SystemPromptConstants.coreAssistantPrompt)
@@ -143,6 +147,7 @@ class SystemPromptBuilder {
       ..writeln(SystemPromptConstants.languageInstruction(languageCode));
 
     final normalizedParticipantRolePrompt = participantRolePrompt?.trim();
+    buffer.section('participant_role');
     if (normalizedParticipantRolePrompt != null &&
         normalizedParticipantRolePrompt.isNotEmpty) {
       buffer.writeln('Participant role instructions for this response:');
@@ -152,11 +157,13 @@ class SystemPromptBuilder {
     final modelCapabilityGuidance = _modelCapabilityGuidance(
       modelCapabilityProfile,
     );
+    buffer.section('model_capability_profile');
     if (modelCapabilityGuidance.isNotEmpty) {
       buffer.writeln(modelCapabilityGuidance);
     }
 
     final modelHarnessGuidance = _modelHarnessGuidance(modelHarnessConfig);
+    buffer.section('model_harness');
     if (modelHarnessGuidance.isNotEmpty) {
       buffer.writeln(modelHarnessGuidance);
     }
@@ -164,12 +171,14 @@ class SystemPromptBuilder {
     // In voice mode, follow-up questions are handled by the voice mode
     // instruction, and the voice mode instruction already bans all formatting,
     // so the formatting-minimization guidance is redundant there.
+    buffer.section('response_style');
     if (!isVoiceMode) {
       buffer.writeln(SystemPromptConstants.formattingMinimizationInstruction);
       buffer.writeln(SystemPromptConstants.optionalFollowUpQuestionInstruction);
       buffer.writeln(SystemPromptConstants.exactPreservationInstruction);
     }
 
+    buffer.section('mode_instruction');
     if (assistantMode == AssistantMode.general) {
       buffer.writeln(SystemPromptConstants.generalModeInstruction);
     } else {
@@ -182,6 +191,7 @@ class SystemPromptBuilder {
       final activeGoal = goal?.isActive ?? false ? goal : null;
       final normalizedProjectName = projectName?.trim();
       final normalizedProjectRootPath = projectRootPath?.trim();
+      buffer.section('coding_project_context');
       if ((normalizedProjectName?.isNotEmpty ?? false) ||
           (normalizedProjectRootPath?.isNotEmpty ?? false)) {
         buffer.writeln(
@@ -192,6 +202,7 @@ class SystemPromptBuilder {
         );
       }
       final normalizedRepoMapContext = repoMapContext?.trim();
+      buffer.section('repo_map');
       if (normalizedRepoMapContext != null &&
           normalizedRepoMapContext.isNotEmpty) {
         buffer.writeln(
@@ -204,6 +215,7 @@ class SystemPromptBuilder {
         buffer.writeln('</repo_map>');
       }
       final normalizedAgentsMarkdown = agentsMarkdown?.trim();
+      buffer.section('agents_md');
       if (normalizedAgentsMarkdown != null &&
           normalizedAgentsMarkdown.isNotEmpty) {
         buffer.writeln(
@@ -217,6 +229,7 @@ class SystemPromptBuilder {
         buffer.writeln(normalizedAgentsMarkdown);
         buffer.writeln('</agents_md>');
       }
+      buffer.section('active_goal');
       if (activeGoal != null) {
         buffer.writeln('Active coding goal for this thread:');
         buffer.writeln(activeGoal.normalizedObjective!);
@@ -238,6 +251,7 @@ class SystemPromptBuilder {
           );
         }
       }
+      buffer.section('project_read_tools');
       if (hasProjectReadTools) {
         buffer.writeln(
           'For codebase exploration, prefer list_directory, find_files, '
@@ -296,6 +310,7 @@ class SystemPromptBuilder {
           'that it cannot be found.',
         );
       }
+      buffer.section('dependency_grounding');
       if (hasDependencyGroundingTool) {
         buffer.writeln(
           'When a coding task depends on a third-party API, package symbol, '
@@ -305,6 +320,7 @@ class SystemPromptBuilder {
           'dependency APIs.',
         );
       }
+      buffer.section('project_write_tools');
       if (hasProjectWriteTools) {
         buffer.writeln(
           'For file changes, prefer edit_file for targeted replacements and '
@@ -325,6 +341,7 @@ class SystemPromptBuilder {
           buffer.writeln(weakModelEditHarnessGuidance);
         }
       }
+      buffer.section('rollback_tool');
       if (hasRollbackTool) {
         buffer.writeln(
           'If a recent file mutation needs to be undone, use '
@@ -332,6 +349,7 @@ class SystemPromptBuilder {
           'previous file contents.',
         );
       }
+      buffer.section('run_tests_tool');
       if (hasRunTestsTool) {
         buffer.writeln(
           'Use run_tests only for scoped Dart or Flutter validation tests with '
@@ -339,6 +357,7 @@ class SystemPromptBuilder {
           'command and uses the local command approval flow.',
         );
       }
+      buffer.section('local_shell_tool');
       if (hasLocalShellTool) {
         buffer.writeln(
           'Use local_execute_command mainly for analyzers, '
@@ -361,6 +380,7 @@ class SystemPromptBuilder {
           );
         }
       }
+      buffer.section('background_process_tools');
       if (hasBackgroundProcessTools) {
         if (hasRunTestsTool) {
           buffer.writeln(
@@ -401,6 +421,7 @@ class SystemPromptBuilder {
           'reports instead of starting the command again.',
         );
       }
+      buffer.section('subagent_tools');
       if (hasSubagentTools) {
         buffer.writeln(
           'When using spawn_subagent with background=true, do not claim the '
@@ -408,12 +429,14 @@ class SystemPromptBuilder {
           'task_id, and include the summary when it does.',
         );
       }
+      buffer.section('os_system_info_tool');
       if (hasOsSystemInfoTool) {
         buffer.writeln(
           'Use os_get_system_info when the current machine operating system '
           'or version matters.',
         );
       }
+      buffer.section('os_log_tool');
       if (hasOsLogTool) {
         buffer.writeln(
           'For local machine diagnostics, prefer os_log_read when you need '
@@ -421,12 +444,14 @@ class SystemPromptBuilder {
           'computer.',
         );
       }
+      buffer.section('os_system_info_and_log');
       if (hasOsSystemInfoTool && hasOsLogTool) {
         buffer.writeln(
           'Before interpreting local OS logs, call os_get_system_info first '
           'if the current OS or version is unclear.',
         );
       }
+      buffer.section('git_tool');
       if (hasGitTool) {
         buffer.writeln(
           'Use git_execute_command for repository inspection and git write '
@@ -457,6 +482,7 @@ class SystemPromptBuilder {
           'new tag name that matches the repository\'s existing tag format.',
         );
       }
+      buffer.section('git_finish_worktree_tool');
       if (hasGitFinishWorktreeTool) {
         buffer.writeln(
           'When the user asks to merge, close, finish, or clean up the '
@@ -465,6 +491,7 @@ class SystemPromptBuilder {
           'the base branch is checked out.',
         );
       }
+      buffer.section('project_inspection');
       if (hasProjectReadTools || hasLocalShellTool || hasGitTool) {
         buffer.writeln(
           'If a tool result contains permission_denied or '
@@ -473,6 +500,7 @@ class SystemPromptBuilder {
           're-select the project folder or grant access.',
         );
       }
+      buffer.section('workflow');
       if (workflowStage != ConversationWorkflowStage.idle ||
           normalizedWorkflowSpec.hasContent) {
         final planningPlanMarkdown = planArtifact?.planningMarkdown;
@@ -590,6 +618,7 @@ class SystemPromptBuilder {
           'mismatch and propose the updated plan before making broad changes.',
         );
       }
+      buffer.section('idle_plan_document');
       if ((workflowStage == ConversationWorkflowStage.idle &&
               !normalizedWorkflowSpec.hasContent) &&
           (planArtifact?.displayMarkdown(
@@ -609,12 +638,14 @@ class SystemPromptBuilder {
     }
 
     final normalizedSkillsContext = skillsContext?.trim();
+    buffer.section('skills');
     if (normalizedSkillsContext != null &&
         normalizedSkillsContext.isNotEmpty &&
         hasLoadSkillTool) {
       buffer.writeln(normalizedSkillsContext);
     }
 
+    buffer.section('voice_mode');
     if (isVoiceMode) {
       buffer.writeln(SystemPromptConstants.voiceModeInstruction);
       if (hasTools) {
@@ -627,6 +658,7 @@ class SystemPromptBuilder {
     );
     final hasRecallMemory = uniqueToolNames.contains('recall_memory');
 
+    buffer.section('tools');
     if (hasTools) {
       buffer.writeln(
         'Use available tools when they materially improve accuracy, '
@@ -634,6 +666,7 @@ class SystemPromptBuilder {
       );
       buffer.writeln(SystemPromptConstants.toolInterpretationInstruction);
       buffer.writeln('Available tools: ${uniqueToolNames.join(', ')}.');
+      buffer.section('tool_search');
       if (hasToolSearch) {
         buffer.writeln(
           'If the task needs a tool or capability that is not listed in '
@@ -644,6 +677,7 @@ class SystemPromptBuilder {
         );
         buffer.writeln(SystemPromptConstants.toolSearchProactiveInstruction);
       }
+      buffer.section('datetime_tool');
       if (hasDatetimeTool) {
         buffer.writeln(
           'When the user asks about dates/times such as today, this week, '
@@ -651,6 +685,7 @@ class SystemPromptBuilder {
           'answering.',
         );
       }
+      buffer.section('memory_tools');
       if (hasMemorySearch || hasRecallMemory) {
         buffer.writeln(
           'When the user asks about something they previously mentioned, '
@@ -660,12 +695,14 @@ class SystemPromptBuilder {
           'Use recall_memory for quick lookups of known facts and preferences.',
         );
       }
+      buffer.section('load_skill_tool');
       if (hasLoadSkillTool) {
         buffer.writeln(
           'When a listed user skill is relevant, call load_skill before '
           'using it so you can follow the full saved instructions.',
         );
       }
+      buffer.section('save_skill_tool');
       if (hasSaveSkillTool) {
         buffer.writeln(
           'When a repeatable, verified workflow emerges that the user will '
@@ -673,6 +710,7 @@ class SystemPromptBuilder {
           'approve every save; never call it for one-off tasks.',
         );
       }
+      buffer.section('create_routine_tool');
       if (hasCreateRoutineTool) {
         buffer.writeln(
           'When the user describes a recurring task on a schedule (e.g. a '
@@ -681,6 +719,7 @@ class SystemPromptBuilder {
           'one-off request.',
         );
       }
+      buffer.section('python_script_tool');
       if (hasRunPythonScriptTool) {
         buffer.writeln(
           'Use run_python_script to compute answers you cannot derive '
@@ -705,6 +744,7 @@ class SystemPromptBuilder {
           );
         }
       }
+      buffer.section('browser_tools');
       if (hasBrowserTools) {
         buffer.writeln(
           'When the user asks you to click, open, navigate, type, search, '
@@ -737,6 +777,7 @@ class SystemPromptBuilder {
           'browser_snapshot once to refresh refs before retrying.',
         );
       }
+      buffer.section('computer_use_tools');
       if (hasComputerUseTools) {
         final spaceSwitchAction =
             uniqueToolNames.contains('computer_switch_space')
@@ -836,6 +877,7 @@ class SystemPromptBuilder {
       }
     }
 
+    buffer.section('web_research');
     if (hasSearchTool || hasWebReader) {
       buffer.writeln(
         'When current or external information matters, use the web '
@@ -863,6 +905,7 @@ class SystemPromptBuilder {
 
     // Refreshed on every request, so it sits below the stable head: above it,
     // each tool-loop request would re-prefill all of the tool guidance.
+    buffer.section('execution_snapshot');
     if (assistantMode != AssistantMode.general &&
         executionSnapshot != null &&
         executionSnapshot.hasContract) {
@@ -874,6 +917,7 @@ class SystemPromptBuilder {
       buffer.writeln('</execution_snapshot>');
     }
 
+    buffer.section('temporal_context');
     buffer
       ..writeln('Dynamic turn context:')
       ..writeln(
@@ -901,11 +945,13 @@ class SystemPromptBuilder {
     // than the LL6/LL22 stable prefix, because it changes per project and per
     // lockfile edit; within a project its bytes are stable turn to turn.
     final environmentGrounding = environmentGroundingContext?.trim();
+    buffer.section('environment_grounding');
     if (environmentGrounding != null && environmentGrounding.isNotEmpty) {
       buffer.writeln(environmentGrounding);
     }
 
     final memoryContext = sessionMemoryContext?.trim();
+    buffer.section('session_memory');
     if (memoryContext != null && memoryContext.isNotEmpty) {
       buffer.writeln(
         'Use the following context from past conversations to maintain '
@@ -931,7 +977,9 @@ class SystemPromptBuilder {
       );
     }
 
-    return buffer.toString().trimRight();
+    final prompt = buffer.toString().trimRight();
+    onSections?.call(buffer.sectionsFor(prompt));
+    return prompt;
   }
 
   static String _modelCapabilityGuidance(ModelCapabilityProfile? profile) {

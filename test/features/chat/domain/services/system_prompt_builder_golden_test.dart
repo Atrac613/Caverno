@@ -7,6 +7,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/services/execution_snapshot_projector.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
+import 'package:caverno/features/chat/domain/services/system_prompt_sections.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,6 +21,23 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final update = Platform.environment['UPDATE_SYSTEM_PROMPT_GOLDENS'] == '1';
   const goldenDir = 'test/goldens/system_prompt';
+
+  // Every character belongs to exactly one named section, so per-section
+  // sizes add up to what the model reads.
+  for (final MapEntry(key: name, value: render) in _scenarios().entries) {
+    test('system prompt sections cover every character: $name', () {
+      List<SystemPromptSection>? sections;
+      _sectionsSink = (value) => sections = value;
+      addTearDown(() => _sectionsSink = null);
+      final prompt = render();
+      final ids = sections!.map((section) => section.id).toList();
+      expect(ids.toSet(), hasLength(ids.length), reason: 'repeated section');
+      expect(
+        sections!.fold<int>(0, (sum, section) => sum + section.length),
+        prompt.length,
+      );
+    });
+  }
 
   for (final MapEntry(key: name, value: render) in _scenarios().entries) {
     test('system prompt golden: $name', () {
@@ -42,6 +60,9 @@ void main() {
 }
 
 final _now = DateTime.utc(2026, 10, 14, 9, 30);
+
+/// Receives the sections of the next render, for the coverage invariant.
+void Function(List<SystemPromptSection>)? _sectionsSink;
 
 /// Every tool name the builder branches on, plus one computer-use and one
 /// browser tool for its prefix checks.
@@ -198,6 +219,7 @@ String _coding({
   ModelHarnessConfig? harness,
   bool fullContext = false,
 }) => SystemPromptBuilder.build(
+  onSections: (sections) => _sectionsSink?.call(sections),
   now: _now,
   assistantMode: AssistantMode.coding,
   toolNames: toolNames,
@@ -245,10 +267,12 @@ final _longPlan = ConversationPlanArtifact(
 
 Map<String, String Function()> _scenarios() => {
   'general_minimal': () => SystemPromptBuilder.build(
+    onSections: (sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.general,
   ),
   'general_all_tools_ja': () => SystemPromptBuilder.build(
+    onSections: (sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.general,
     languageCode: 'ja',
@@ -257,12 +281,14 @@ Map<String, String Function()> _scenarios() => {
     environmentGroundingContext: 'macOS 26',
   ),
   'general_voice': () => SystemPromptBuilder.build(
+    onSections: (sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.general,
     toolNames: _allTools,
     isVoiceMode: true,
   ),
   'plan_read_tools': () => SystemPromptBuilder.build(
+    onSections: (sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.plan,
     toolNames: const ['list_directory', 'read_file'],
@@ -298,6 +324,7 @@ Map<String, String Function()> _scenarios() => {
     ),
   ),
   'coding_idle_approved_plan': () => SystemPromptBuilder.build(
+    onSections: (sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.coding,
     toolNames: _allTools,
@@ -305,6 +332,7 @@ Map<String, String Function()> _scenarios() => {
     planArtifact: _plan,
   ),
   'plan_idle_long_draft': () => SystemPromptBuilder.build(
+    onSections: (sections) => _sectionsSink?.call(sections),
     now: _now,
     assistantMode: AssistantMode.plan,
     toolNames: const ['list_directory', 'read_file'],
