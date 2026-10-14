@@ -6193,8 +6193,18 @@ permanent, claim notices deleted the answer, guardrail feedback on
 non-verification commands never settled. An inventory makes the settle
 condition and cache effect reviewable before a producer ships.
 
-Next action: after LL43-LL45, generate the first inventory from the existing
-transform ids and check it against `tool/check_fix_firings.py` signatures.
+Scoping finding (2026-10-14): LL33 transform ids record notices applied to
+the on-screen message, not text the model reads, so they cannot key this
+inventory. Model-visible injections come from at least three kinds of
+producer: synthesized user/system messages (47 `MessageRole.user`/`system`
+construction sites under `lib/features/chat`), system-prompt sections, and
+guidance written into tool-result payloads. The first concrete entry is the
+tool-result final-answer re-send (`ToolResultPromptBuilder.buildAnswerPrompt`,
+label `tool-result final answer`), which rewrites the cached prefix.
+
+Next action: decide the inventory's key (request label, producer class, or a
+new injection id) and which of the three producer kinds the first slice
+covers, then generate the inventory for that kind.
 
 ### LL47: Oversized Tool-Output Spill Files
 
