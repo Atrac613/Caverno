@@ -83,6 +83,22 @@ left undone.
 | `routine run` | `routine_execution_service.dart` `execute` | Routine prompt, its tool loop and final answer | separate (own session log) | 40 run logs, all schema v2 and unlabeled before this label | unmeasured |
 | `routine plan draft` | `routine_execution_service.dart` `generatePlanDraft` | Plan-drafting prompt for a routine | separate | not measured | unmeasured |
 
+## Project farm and worktree agents
+
+Farm requests are labelled with their structured-output schema name, which
+names the producer exactly. They log into the turn that started them, or the
+`project-farm` session when none is in scope. A worktree agent run logs into
+a session of its own, `worktree-agent-<task id>`. Neither reached the session
+log before 2026-10-14; counts start from there.
+
+| Label | Producer | Adds | Shape | Measured | Prefix |
+|---|---|---|---|---|---|
+| `caverno_roadmap_next_task` | `roadmap_next_task_extractor.dart` | Roadmap text, asks for the next task | separate, structured output | not yet logged | separate prefix by design |
+| `caverno_roadmap_sections` | `roadmap_next_task_extractor.dart` | Roadmap text, asks for its sections | separate, structured output | not yet logged | separate prefix by design |
+| `caverno_project_task_decomposition` | `project_task_decomposer.dart` | Task objective, asks for 1–6 subtasks | separate, structured output | not yet logged | separate prefix by design |
+| `caverno_next_step_proposal` | `project_proposal_service.dart` | Project state, asks for a next-step proposal | separate, structured output | not yet logged | separate prefix by design |
+| `worktree agent run` | `worktree_agent_task_executor.dart` | Delegated task prompt and its tool loop | separate session | not yet logged | unmeasured |
+
 ## Tool-result guidance
 
 Text written into a tool result for the model to act on: a `required_action`
@@ -140,10 +156,10 @@ approximate.
 
 ## Known gaps
 
-- Requests from the subagent, project-state (farm), eval and goal-suggestion
-  roles never appear in the session-log corpus: they are not recorded there,
-  so they cannot be labelled or measured until they are. Pro reasoning keeps
-  its own record with labels.
+- Eval requests keep their own reports and are not in the session log.
+  Subagents started from a chat turn were already logged under the role
+  `subagent`, labelled by the turn they run in; none appears in the corpus
+  because none has run since usage roles were recorded.
 - Prefix behaviour of the main-loop recovery labels is unmeasured until schema
   v6 logs exercise them. `tool/triage_session_logs.py` reports a cache-read
   fall against the changed envelope digest.

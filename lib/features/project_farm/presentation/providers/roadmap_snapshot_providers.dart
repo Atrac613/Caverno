@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
+import '../../../chat/data/datasources/llm_session_log_store.dart';
+import '../../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../../chat/domain/entities/chat_turn_owner.dart';
 import '../../../chat/domain/entities/coding_project.dart';
 import '../../../chat/domain/entities/message.dart';
@@ -45,7 +47,7 @@ final roadmapSnapshotServiceProvider = Provider<RoadmapSnapshotService>((ref) {
     // Resolved per refresh so a settings change reaches the next extraction.
     extractor: () => RoadmapNextTaskExtractor(
       complete: structuredRoadmapCompletion(
-        ref.read(chatRemoteDataSourceProvider),
+        _loggedFarmDataSource(ref),
         model: ref.read(settingsNotifierProvider).effectiveModel,
       ),
     ),
@@ -63,11 +65,29 @@ Future<String?> _readFileIfPresent(String path) async {
 final projectTaskDecomposerProvider = Provider<ProjectTaskDecomposer>((ref) {
   return ProjectTaskDecomposer(
     complete: structuredRoadmapCompletion(
-      ref.read(chatRemoteDataSourceProvider),
+      _loggedFarmDataSource(ref),
       model: ref.read(settingsNotifierProvider).effectiveModel,
     ),
   );
 });
+
+/// The primary datasource, wrapped so farm requests reach the session log.
+///
+/// LL46: roadmap extraction, task decomposition and proposals called the raw
+/// datasource and never appeared in the session-log corpus.
+ChatDataSource _loggedFarmDataSource(Ref ref) => withChatSessionLogging(
+  ref.read(chatRemoteDataSourceProvider),
+  ref.read(settingsNotifierProvider),
+  logStore: () => ref.read(llmSessionLogStoreProvider),
+  contextProvider: () => LlmSessionLogContext.current,
+);
+
+/// Where a farm request is logged when no turn's context is in scope.
+const _farmLogContext = LlmSessionLogContext(
+  workspaceMode: WorkspaceMode.coding,
+  sessionId: 'project-farm',
+  phase: 'farm',
+);
 
 /// Adapts the app's structured-output datasource to the extractor's port.
 ///
@@ -92,28 +112,34 @@ RoadmapCompletionPort structuredRoadmapCompletion(
     }
     final source = dataSource as StructuredOutputChatDataSource;
     final now = DateTime.now();
-    final result = await source.createStructuredChatCompletion(
-      messages: [
-        Message(
-          id: 'roadmap-$schemaName-system',
-          role: MessageRole.system,
-          content: system,
-          timestamp: now,
+    // The schema name is the request label: it names the producer exactly.
+    final logContext = (LlmSessionLogContext.current ?? _farmLogContext)
+        .withRequestLabel(schemaName);
+    final result = await LlmSessionLogContext.run(
+      logContext,
+      () => source.createStructuredChatCompletion(
+        messages: [
+          Message(
+            id: 'roadmap-$schemaName-system',
+            role: MessageRole.system,
+            content: system,
+            timestamp: now,
+          ),
+          Message(
+            id: 'roadmap-$schemaName-user',
+            role: MessageRole.user,
+            content: user,
+            timestamp: now,
+          ),
+        ],
+        responseFormat: StructuredOutputRequest.jsonSchema(
+          name: schemaName,
+          schema: schema,
         ),
-        Message(
-          id: 'roadmap-$schemaName-user',
-          role: MessageRole.user,
-          content: user,
-          timestamp: now,
-        ),
-      ],
-      responseFormat: StructuredOutputRequest.jsonSchema(
-        name: schemaName,
-        schema: schema,
+        model: model,
+        temperature: 0,
+        maxTokens: maxTokens,
       ),
-      model: model,
-      temperature: 0,
-      maxTokens: maxTokens,
     );
     return RoadmapCompletion(
       content: result.content,
@@ -174,7 +200,7 @@ final projectProposalServiceProvider = Provider<ProjectProposalService>((ref) {
   return ProjectProposalService(
     repository: ref.watch(roadmapSnapshotRepositoryProvider),
     complete: () => structuredRoadmapCompletion(
-      ref.read(chatRemoteDataSourceProvider),
+      _loggedFarmDataSource(ref),
       model: ref.read(settingsNotifierProvider).effectiveModel,
     ),
     model: () => ref.read(settingsNotifierProvider).effectiveModel,

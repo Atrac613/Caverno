@@ -923,6 +923,44 @@ void main() {
       expect(decoded['schemaVersion'], 6);
     });
 
+    test('records structured-output requests with their label', () async {
+      // LL46: farm roadmap extraction and task decomposition used structured
+      // output, which the wrapper did not implement, so they bypassed it.
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'project-farm',
+        conversationId: 'project-farm',
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: _FakeStructuredChatDataSource(),
+        logStore: store,
+      );
+
+      final result = await LlmSessionLogContext.run(
+        context.withRequestLabel('caverno_project_task_decomposition'),
+        () => ModelUsageRole.planning.runWith(
+          () => dataSource.createStructuredChatCompletion(
+            messages: [_message('user-1', MessageRole.user, 'Split it')],
+            responseFormat: StructuredOutputRequest.jsonSchema(
+              name: 'caverno_project_task_decomposition',
+              schema: const {'type': 'object'},
+            ),
+            model: 'model-a',
+          ),
+        ),
+      );
+
+      expect(result.content, '{"subtasks":[]}');
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      expect(decoded['operation'], 'createStructuredChatCompletion');
+      expect(decoded['request']['label'], 'caverno_project_task_decomposition');
+      expect(decoded['request']['usageRole'], 'planning');
+      expect(decoded['response']['content'], '{"subtasks":[]}');
+    });
+
     test('records the ambient usage role on the request', () async {
       // Until this field existed, the only way to tell which role a request
       // ran under was to grep the logged system prompt for text unique to it.
@@ -1393,4 +1431,17 @@ class _FinishReasonAwareFakeChatDataSource extends _FakeChatDataSource
 
   @override
   final String? lastFinishReason;
+}
+
+class _FakeStructuredChatDataSource extends _FakeChatDataSource
+    implements StructuredOutputChatDataSource {
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async =>
+      ChatCompletionResult(content: '{"subtasks":[]}', finishReason: 'stop');
 }

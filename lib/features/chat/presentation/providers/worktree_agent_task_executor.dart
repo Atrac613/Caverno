@@ -4,17 +4,20 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../../core/types/workspace_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
+import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../data/datasources/project_mutation_path_fence.dart';
 import '../../data/datasources/project_read_tool_authorizer.dart';
 import '../../data/datasources/project_scoped_read_runtime_contract.dart';
+import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../domain/entities/chat_turn_owner.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/subagent_task.dart';
@@ -120,16 +123,25 @@ typedef WorktreeAgentTaskExecutionDelegate =
 final worktreeAgentTaskExecutionDelegateProvider =
     Provider<WorktreeAgentTaskExecutionDelegate>((ref) {
       final settings = ref.watch(settingsNotifierProvider);
-      final primaryDataSource = ref.watch(chatRemoteDataSourceProvider);
+      // LL46: a worktree agent run never reached the session log.
+      ChatDataSource logged(ChatDataSource source) => withChatSessionLogging(
+        source,
+        settings,
+        logStore: () => ref.read(llmSessionLogStoreProvider),
+        contextProvider: () => LlmSessionLogContext.current,
+      );
+      final primaryDataSource = logged(ref.watch(chatRemoteDataSourceProvider));
       final meshRunner = MeshSecondaryCompletionRunner<ChatDataSource>(
         router: ref.watch(meshEndpointRouterProvider),
         health: ref.watch(endpointHealthTrackerProvider),
-        buildEndpointDataSource: (baseUrl, apiKey) => ChatRemoteDataSource(
-          baseUrl: baseUrl,
-          apiKey: apiKey,
-          reasoningEffort: settings.reasoningEffort.apiValue,
-          acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
-            baseUrl,
+        buildEndpointDataSource: (baseUrl, apiKey) => logged(
+          ChatRemoteDataSource(
+            baseUrl: baseUrl,
+            apiKey: apiKey,
+            reasoningEffort: settings.reasoningEffort.apiValue,
+            acceptsChatTemplateKwargs: settings.acceptsChatTemplateKwargsFor(
+              baseUrl,
+            ),
           ),
         ),
       );
@@ -162,7 +174,19 @@ class WorktreeAgentLlmExecutionDelegate {
   final McpToolService? toolService;
   final WorktreeAgentVerificationRunner verificationRunner;
 
+  /// Runs in a session log of its own, one per task.
   Future<WorktreeAgentTaskExecutionOutcome> execute(
+    WorktreeAgentTaskExecutionContext context,
+  ) => LlmSessionLogContext.run(
+    LlmSessionLogContext(
+      workspaceMode: WorkspaceMode.coding,
+      sessionId: 'worktree-agent-${context.task.id}',
+      phase: 'worktree_agent',
+    ).withRequestLabel('worktree agent run'),
+    () => _execute(context),
+  );
+
+  Future<WorktreeAgentTaskExecutionOutcome> _execute(
     WorktreeAgentTaskExecutionContext context,
   ) async {
     final resolved = _resolveDataSource(context);

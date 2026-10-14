@@ -47,7 +47,8 @@ class SessionLoggingChatDataSource
         ChatDataSource,
         FinishReasonAware,
         RequestParameterFallbackAware,
-        StreamingToolResultsChatDataSource {
+        StreamingToolResultsChatDataSource,
+        StructuredOutputChatDataSource {
   SessionLoggingChatDataSource({
     required ChatDataSource delegate,
     required LlmSessionLogStore logStore,
@@ -279,6 +280,61 @@ class SessionLoggingChatDataSource
         temperature: temperature,
         maxTokens: maxTokens,
       );
+      await _record(
+        context: context,
+        request: request,
+        startedAt: startedAt,
+        response: _responseFromResult(result),
+      );
+      return result;
+    } catch (error) {
+      await _record(
+        context: context,
+        request: request,
+        startedAt: startedAt,
+        error: error,
+      );
+      rethrow;
+    }
+  }
+
+  /// Structured-output requests (farm roadmap extraction, task decomposition
+  /// and proposals) reach the session log like any other completion; before
+  /// LL46 they bypassed it entirely.
+  @override
+  Future<ChatCompletionResult> createStructuredChatCompletion({
+    required List<Message> messages,
+    required StructuredOutputRequest responseFormat,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final delegate = _delegate;
+    if (delegate is! StructuredOutputChatDataSource) {
+      throw StateError(
+        'The configured endpoint does not support structured output.',
+      );
+    }
+    final context = _resolveContext();
+    final startedAt = DateTime.now();
+    final request = LlmSessionLogRequest(
+      label: context?.requestLabel,
+      usageRole: ModelUsageRole.current,
+      operation: 'createStructuredChatCompletion',
+      messages: messages,
+      model: model ?? ApiConstants.defaultModel,
+      temperature: temperature ?? ApiConstants.defaultTemperature,
+      maxTokens: maxTokens,
+    );
+    try {
+      final result = await (delegate as StructuredOutputChatDataSource)
+          .createStructuredChatCompletion(
+            messages: messages,
+            responseFormat: responseFormat,
+            model: model,
+            temperature: temperature,
+            maxTokens: maxTokens,
+          );
       await _record(
         context: context,
         request: request,

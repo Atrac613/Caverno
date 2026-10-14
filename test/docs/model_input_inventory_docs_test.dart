@@ -55,6 +55,8 @@ Set<String> _labelsInLib() {
     RegExp(r"(?:requestLabel|logLabel)\s*:\s*'([^']+)'"),
     RegExp(r"withRequestLabel\('([^']+)'\)"),
   ];
+  // Farm requests are labelled with their structured-output schema name.
+  final farmSchema = RegExp(r"schemaName:\s*'([^']+)'");
   final perFile = <String, RegExp>{
     'lib/features/chat/domain/services/coding/coding_recovery_text.dart':
         RegExp(r"label:\s*'([^']+)'"),
@@ -72,6 +74,9 @@ Set<String> _labelsInLib() {
     final source = file.readAsStringSync();
     for (final pattern in generic) {
       labels.addAll(pattern.allMatches(source).map((m) => m.group(1)!));
+    }
+    if (file.path.startsWith('lib/features/project_farm/')) {
+      labels.addAll(farmSchema.allMatches(source).map((m) => m.group(1)!));
     }
   }
   perFile.forEach((path, pattern) {
