@@ -40,3 +40,13 @@ The other attached/detached pairs (`_stripToolArtifactsFromLastAssistantMessage`
 `_applyFinalAnswerMessageMutation`, the streamed-suffix removal) differ in
 what they edit and how they commit (some route through `_routeThreadState`);
 freeze each before moving it.
+
+## Second slice (2026-10-15): tool-artifact strip
+
+`_stripToolArtifactsFromLastAssistantMessage` joined the shared rewrite as
+`LastMessageEdit.withoutToolArtifacts` (strip a last assistant message's tool
+tags, drop it when nothing remains). Disabling its detached branch already
+failed `queued work drains only for its visible idle owner`, so no new
+characterization test was needed. ChatNotifier 7,172 -> 7,136 root,
+19,687 -> 19,651 aggregate; one more ambient read removed from the baseline.
+Full suite 12,335 tests pass.

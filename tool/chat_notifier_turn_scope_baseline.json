@@ -25403,17 +25403,6 @@
       "accessorBearing": true
     },
     {
-      "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_stripToolArtifactsFromLastAssistantMessage::state.messages#2",
-      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
-      "declaration": "_stripToolArtifactsFromLastAssistantMessage",
-      "kind": "state.messages",
-      "line": 8163,
-      "column": 33,
-      "methodHasTurnIdentity": true,
-      "turnReachable": true,
-      "accessorBearing": true
-    },
-    {
       "id": "lib/features/chat/presentation/providers/chat_notifier.dart::_trackActiveResponse::state.messages#1",
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_trackActiveResponse",

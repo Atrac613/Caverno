@@ -6323,53 +6323,17 @@ class ChatNotifier extends Notifier<ChatState> {
     int? interactionGeneration,
   }) {
     final generation = interactionGeneration ?? _interactionGeneration;
-    if (_isActiveResponseDetachedForGeneration(generation)) {
-      final activeMessages = _activeResponseMessagesForGeneration(generation);
-      if (activeMessages == null || activeMessages.isEmpty) return;
-
-      final updatedMessages = [...activeMessages];
-      final lastIndex = updatedMessages.length - 1;
-      final lastMessage = updatedMessages[lastIndex];
-      if (lastMessage.role != MessageRole.assistant) {
-        return;
-      }
-
-      final strippedContent =
-          ContentParser.stripToolArtifactsPreservingThinking(
-            lastMessage.content,
-          );
-      if (strippedContent.trim().isEmpty) {
-        updatedMessages.removeAt(lastIndex);
-      } else {
-        updatedMessages[lastIndex] = lastMessage.copyWith(
-          content: strippedContent,
-        );
-      }
-      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
-      return;
-    }
-
-    if (!ref.mounted || state.messages.isEmpty) return;
-
-    final updatedMessages = [...state.messages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-    if (lastMessage.role != MessageRole.assistant) {
-      return;
-    }
-
-    final strippedContent = ContentParser.stripToolArtifactsPreservingThinking(
-      lastMessage.content,
+    final detached = _isActiveResponseDetachedForGeneration(generation);
+    final updated = LastMessageEdit.withoutToolArtifacts(
+      detached
+          ? _activeResponseMessagesForGeneration(generation)
+          : ref.mounted
+          ? state.messages
+          : null,
     );
-    if (strippedContent.trim().isEmpty) {
-      updatedMessages.removeAt(lastIndex);
-    } else {
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: strippedContent,
-      );
-    }
-    state = state.copyWith(messages: updatedMessages);
-    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    if (updated == null) return;
+    if (!detached) state = state.copyWith(messages: updated);
+    _cacheActiveResponseMessagesForGeneration(generation, updated);
   }
 
   void _stripToolArtifactsFromStreamedAnswerSuffix(
