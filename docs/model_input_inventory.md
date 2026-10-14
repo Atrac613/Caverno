@@ -76,6 +76,13 @@ left undone.
 | `pro_reasoning_synthesis` | `pro_reasoning_run_notifier.dart` | Synthesis prompt | separate | not measured | separate prefix by design |
 | `pro_reasoning_summary` | `pro_reasoning_run_notifier.dart` | Summary of the run | separate | not measured | separate prefix by design |
 
+## Routines
+
+| Label | Producer | Adds | Shape | Measured | Prefix |
+|---|---|---|---|---|---|
+| `routine run` | `routine_execution_service.dart` `execute` | Routine prompt, its tool loop and final answer | separate (own session log) | 40 run logs, all schema v2 and unlabeled before this label | unmeasured |
+| `routine plan draft` | `routine_execution_service.dart` `generatePlanDraft` | Plan-drafting prompt for a routine | separate | not measured | unmeasured |
+
 ## Tool-result guidance
 
 Text written into a tool result for the model to act on: a `required_action`
@@ -133,8 +140,10 @@ approximate.
 
 ## Known gaps
 
-- Requests from producers outside the chat feature (routines, farm
-  decomposition, diagnostics) carry no label yet.
+- Requests from the subagent, project-state (farm), eval and goal-suggestion
+  roles never appear in the session-log corpus: they are not recorded there,
+  so they cannot be labelled or measured until they are. Pro reasoning keeps
+  its own record with labels.
 - Prefix behaviour of the main-loop recovery labels is unmeasured until schema
   v6 logs exercise them. `tool/triage_session_logs.py` reports a cache-read
   fall against the changed envelope digest.

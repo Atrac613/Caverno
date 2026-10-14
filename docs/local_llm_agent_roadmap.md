@@ -6211,9 +6211,14 @@ has no row. Approval auto-review, memory extraction and planning requests,
 1,722 of 2,431 unlabeled requests in the corpus, were labelled first
 (`8d450db34`), and the label now replaces one inherited from a chat turn.
 
-Next action: the other two producer kinds (system-prompt sections and
-guidance written into tool-result payloads), and labels for producers outside
-the chat feature (routines, farm decomposition, diagnostics).
+Second slice (2026-10-14): tool-result guidance, keyed by producer file
+(41 files writing `required_action` or `instruction(s)`), with refusal codes
+and their measured counts; routine requests labelled `routine run` and
+`routine plan draft`. Finding: subagent, project-state, eval and
+goal-suggestion requests never reach the session-log corpus at all.
+
+Next action: system-prompt sections; and decide whether the roles absent from
+the session log should be recorded there.
 
 ### LL47: Oversized Tool-Output Spill Files
 

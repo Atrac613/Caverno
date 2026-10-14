@@ -185,7 +185,11 @@ class RoutineExecutionService {
 
     return ModelUsageRole.routine.runWith(
       () => LlmSessionLogContext.run(
-        _routineLogContext(routine, runId: runId, phase: 'routine_run'),
+        _routineLogContext(
+          routine,
+          runId: runId,
+          phase: 'routine_run',
+        ).withRequestLabel('routine run'),
         () async {
           try {
             final allowedTools = _allowedRoutineTools(routine);
@@ -328,7 +332,10 @@ class RoutineExecutionService {
   Future<String> generatePlanDraft(Routine routine) async {
     return ModelUsageRole.routine.runWith(
       () => LlmSessionLogContext.run(
-        _routineLogContext(routine, phase: 'routine_plan'),
+        _routineLogContext(
+          routine,
+          phase: 'routine_plan',
+        ).withRequestLabel('routine plan draft'),
         () async {
           final now = DateTime.now();
           final allowedTools = _allowedRoutineTools(routine);
